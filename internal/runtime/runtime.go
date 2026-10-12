@@ -45,6 +45,7 @@ type host struct {
 	cwd           string
 	exitRequested bool
 	exitCode      int
+	inspect       quickjs.Value
 }
 
 func newHost(opts Options) (*host, error) {
@@ -61,7 +62,7 @@ func newHost(opts Options) (*host, error) {
 		return nil, err
 	}
 	h := &host{rt: quickjs.New(), cwd: cwd}
-	if err := installConsole(h.rt, opts); err != nil {
+	if err := h.installConsole(opts); err != nil {
 		h.rt.Close()
 		return nil, err
 	}
@@ -95,20 +96,7 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 	if err != nil {
 		return 1, err
 	}
-	h.rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
-		if !strings.HasPrefix(specifier, "./") && !strings.HasPrefix(specifier, "../") {
-			return "", "", fmt.Errorf("only relative local imports are supported: %q", specifier)
-		}
-		resolved := filepath.Clean(filepath.Join(filepath.Dir(referrer), filepath.FromSlash(specifier)))
-		if ext := filepath.Ext(resolved); ext != ".js" && ext != ".mjs" {
-			return "", "", fmt.Errorf("import must name a .js or .mjs file: %q", specifier)
-		}
-		if resolved == name {
-			return source.Code, resolved, nil
-		}
-		data, err := os.ReadFile(resolved)
-		return string(data), resolved, err
-	})
+	h.installLoader(&Source{Name: name, Code: source.Code})
 	specifier, err := json.Marshal("./" + filepath.Base(name))
 	if err != nil {
 		return 1, err
@@ -121,26 +109,62 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 	if err != nil {
 		return 1, err
 	}
-	for h.rt.Busy() {
-		select {
-		case <-h.rt.Wake():
-			if err := h.rt.RunJobsContext(ctx); err != nil {
-				return 1, err
-			}
-		case <-ctx.Done():
-			return 1, ctx.Err()
-		}
+	if err := h.drain(ctx); err != nil {
+		return 1, err
 	}
-	if len(h.unhandled) != 0 {
-		return 1, errors.Join(h.unhandled...)
+	if err := h.takeUnhandled(); err != nil {
+		return 1, err
 	}
 	return 0, nil
 }
 
-func installConsole(rt *quickjs.Runtime, opts Options) error {
+func (h *host) installLoader(entry *Source) {
+	h.rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
+		if !strings.HasPrefix(specifier, "./") && !strings.HasPrefix(specifier, "../") {
+			return "", "", fmt.Errorf("only relative local imports are supported: %q", specifier)
+		}
+		resolved := filepath.Clean(filepath.Join(filepath.Dir(referrer), filepath.FromSlash(specifier)))
+		if ext := filepath.Ext(resolved); ext != ".js" && ext != ".mjs" {
+			return "", "", fmt.Errorf("import must name a .js or .mjs file: %q", specifier)
+		}
+		if entry != nil && resolved == entry.Name {
+			return entry.Code, resolved, nil
+		}
+		data, err := os.ReadFile(resolved)
+		return string(data), resolved, err
+	})
+}
+
+func (h *host) drain(ctx context.Context) error {
+	for h.rt.Busy() {
+		select {
+		case <-h.rt.Wake():
+			if err := h.rt.RunJobsContext(ctx); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
+func (h *host) takeUnhandled() error {
+	err := errors.Join(h.unhandled...)
+	h.unhandled = nil
+	return err
+}
+
+func (h *host) installConsole(opts Options) error {
+	rt := h.rt
 	if err := stdlib.Console(rt, opts.Stdout, opts.Stderr); err != nil {
 		return err
 	}
+	inspect, err := rt.EvalFile("<noe-inspect>", `console[Symbol.for("quickjs.inspect")]`)
+	if err != nil {
+		return err
+	}
+	h.inspect = inspect
 	full, err := rt.Get("console")
 	if err != nil {
 		return err
@@ -160,10 +184,21 @@ func installConsole(rt *quickjs.Runtime, opts Options) error {
 
 // Diagnostic includes a JavaScript stack where the engine supplies one.
 func Diagnostic(err error) string {
-	var jsErr *quickjs.Error
-	if errors.As(err, &jsErr) {
+	if jsErr, ok := err.(*quickjs.Error); ok {
 		if stack := jsErr.Stack(); stack != "" {
 			return stack
+		}
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var parts []string
+		for _, child := range joined.Unwrap() {
+			parts = append(parts, Diagnostic(child))
+		}
+		return strings.Join(parts, "\n")
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		if child := wrapped.Unwrap(); child != nil {
+			return strings.Replace(err.Error(), child.Error(), Diagnostic(child), 1)
 		}
 	}
 	return err.Error()

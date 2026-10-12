@@ -4,11 +4,11 @@ A tiny JavaScript/TypeScript runtime written in pure Go.
 
 No bloat. Just scripts.
 
-インクリメント1はJavaScriptのみ対応しています。TypeScriptとREPLは後から追加する予定です。npm対応、Node/Deno互換は実装しません。
+現在はJavaScriptに対応し、ファイル実行・`eval`・REPLを提供します。TypeScriptは後から追加する予定です。npm対応、Node/Deno互換は実装しません。
 
 ## ビルドと実行
 
-Go 1.24以降が必要です。Cのツールチェーンは不要です。
+Go 1.27.2以降が必要です。Cのツールチェーンは不要です。
 
 ```sh
 CGO_ENABLED=0 go build -o noe ./cmd/noe
@@ -16,6 +16,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
 ./noe eval 'console.log(1 + 1)'
 ./noe run examples/hello.js
+./noe repl
 ```
 
 `.js`と`.mjs`をESモジュールとして実行します。`run`ではファイルの後ろに指定した引数を、そのままスクリプトに渡します。`eval`の引数配列は空です。
@@ -45,6 +46,34 @@ cat /tmp/noe-sales-report.md
 ./noe run examples/sales-report.js /tmp/my-report examples/data/sales-day-1.json
 ```
 
+## REPL
+
+`./noe repl`で起動し、1行ずつJSを試せます。同じランタイムを使い続けるため、変数・関数・オブジェクトは次の入力でも使えます。
+
+```text
+> let count = 1
+> count += 1
+2
+> const text = await noe.readTextFile("examples/data/sales-day-1.json")
+> const orders = JSON.parse(text)
+> orders.length
+4
+> const sales = await import("./examples/lib/sales.js")
+> sales.summarizeSales(orders).totalRevenue
+3100
+> noe.exit()
+```
+
+式の結果を表示し、`undefined`は省略します。文字列の結果には引用符が付きます。通常のJSエラーや未処理のPromise rejectionは標準エラーに表示して続行し、実行済みの変更を巻き戻しません。
+
+非同期入力は`await expression`、`const name = await expression`・`let`・`var`の単一変数初期化、`name = await expression`に対応します。`const`は再代入できません。通常のPromise値を暗黙に結果値へ変換しないため、解決結果を使う場合は明示的に`await`してください。
+
+非同期の初期化は右辺を待ってから変数を宣言します。同名の`const`・`let`が既にあっても、右辺のI/Oを実行した後に重複宣言のエラーになります。非同期の分割代入・複数変数宣言・複数文の変換、静的`import`・`export`、複数行入力、履歴・補完は提供しません。モジュールには例のように動的`import`を使います。
+
+各入力で開始したファイル・HTTP処理と後続のJS処理を待ってから、次の入力へ進みます。パスは起動時のカレントディレクトリが基準です。REPLの`noe.args`は空配列です。
+
+Ctrl+D（EOF）または`noe.exit()`で終了します。Ctrl+Cはセッション全体を終了し、コード130を返します。パイプ入力でも`> `を表示し、改行のない最終入力も評価します。引数なしの`./noe`はhelpを表示します。
+
 ## API
 
 | API | 動作 |
@@ -67,7 +96,7 @@ const input = JSON.parse(await noe.readTextFile(noe.args[0]));
 await noe.writeTextFile(noe.args[1], JSON.stringify(transform(input)));
 ```
 
-Promise、`async/await`、top-level awaitを利用できます。通常終了では、開始したファイル・HTTP処理と後続のJS処理を待ちます。解決する処理が残っていない未完了のtop-level awaitは失敗として終了します。`noe.exit`は停止を優先し、後続のJSや`catch`・`finally`を実行しません。
+Promise、`async/await`、top-level awaitを利用できます。通常終了では、開始したファイル・HTTP処理と後続のJS処理を待ちます。`run`・`eval`では、解決する処理が残っていない未完了のtop-level awaitは失敗として終了します。REPLでは診断後に次の入力へ進みます。`noe.exit`は停止を優先し、後続のJSや`catch`・`finally`を実行しません。
 
 ## HTTPサブセット
 
@@ -94,7 +123,9 @@ console.log(await response.json());
 
 ## エラーと検証
 
-成功は終了コード0、実行失敗は1、CLIの使い方の誤りは2です。`noe.exit`で指定したコードはそのまま返します。未処理のPromise rejectionも実行失敗になります。
+`run`・`eval`では成功は終了コード0、実行失敗は1、CLIの使い方の誤りは2です。`noe.exit`で指定したコードはそのまま返します。未処理のPromise rejectionも実行失敗になります。
+
+REPLは回復可能な入力エラーの後も続行し、EOFで0を返します。入力読み取り失敗やエンジン内部エラーなど、続行できない失敗は1で終了します。
 
 エンジンが提供するエラー位置とスタックを表示します。文字列などを直接throwした場合は、取得できるメッセージに実行元の名前を添えて表示します。
 
@@ -103,6 +134,6 @@ go test ./...
 go test -tags=e2e ./tests -v
 ```
 
-E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST、非同期完了、エラーと明示終了を確認します。HTTPテストにはローカルサーバーを使い、外部サービスには接続しません。
+E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST、非同期完了、エラーと明示終了を確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。HTTPテストにはローカルサーバーを使い、外部サービスには接続しません。
 
-[MVP案](docs/mvp.md)と[インクリメント1の実装計画](docs/increment-1.md)に範囲と受入条件を記載しています。
+[MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)に範囲と受入条件を記載しています。

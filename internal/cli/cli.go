@@ -17,12 +17,13 @@ var Version = "dev"
 const usage = `Usage:
   noe run script.js [args...]
   noe eval 'code'
+  noe repl
   noe --help
   noe --version
 `
 
 // Run executes a command and returns its process exit code.
-func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stdout, usage)
 		return 0
@@ -36,6 +37,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	case "--version", "-v", "version":
 		fmt.Fprintln(stdout, "noe", Version)
 		return 0
+	case "repl":
+		if len(args) != 1 {
+			fmt.Fprint(stderr, usage)
+			return 2
+		}
+		return runREPL(ctx, stdin, stdout, stderr)
 	case "run":
 		if len(args) < 2 {
 			fmt.Fprint(stderr, usage)

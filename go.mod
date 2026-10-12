@@ -1,6 +1,6 @@
 module noe
 
-go 1.24.0
+go 1.27.2
 
 require github.com/go-quickjs/go-quickjs v0.25.3
 
