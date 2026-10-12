@@ -17,6 +17,9 @@ func (h *host) installNoe(opts Options) error {
 	if err := h.installFilesystem(noe); err != nil {
 		return err
 	}
+	if err := h.installFileMutations(noe); err != nil {
+		return err
+	}
 	if err := noe.Set("args", append([]string{}, opts.Args...)); err != nil {
 		return err
 	}

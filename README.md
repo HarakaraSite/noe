@@ -63,6 +63,21 @@ printf '日本語\n' | ./noe eval 'console.log(await noe.readStdin())'
 ./noe eval 'const report = JSON.parse(await noe.readStdin()); console.log(report.total)' < /tmp/noe-summary.json
 ```
 
+集計結果を保存して入力を処理済みディレクトリへ移す例もあります。試すための入力を作業ディレクトリへコピーして実行します。
+
+```sh
+NOE_DEMO_DIR=$(mktemp -d)
+mkdir "$NOE_DEMO_DIR/input"
+cp examples/data/numbers/*.json "$NOE_DEMO_DIR/input/"
+./noe run examples/process-json.js "$NOE_DEMO_DIR/input" "$NOE_DEMO_DIR/output"
+cat "$NOE_DEMO_DIR/output/report.json"
+ls "$NOE_DEMO_DIR/output/processed"
+```
+
+`process-json.js`は直下の通常`.json`の数値配列をすべて解析し、出力ディレクトリを作成して`report.json.tmp`を書き、`report.json`へ名前変更します。入力ファイルは出力先の`processed`へ移し、作業markerの`.processing`を削除して、集計JSONを標準出力へ返します。サブディレクトリとリンクは処理しません。入力と出力には別ディレクトリを指定してください。
+
+既存の`report.json.tmp`・`.processing`を上書きし、正常完了時に`.processing`を削除します。Linuxでは同名のレポート・処理済みファイルも置換します。途中の失敗で保存・移動済みの変更は残り、作業用ファイルも残る場合があります。
+
 ## REPL
 
 `./noe repl`で起動し、1行ずつJSを試せます。同じランタイムを使い続けるため、変数・関数・オブジェクトは次の入力でも使えます。
@@ -145,10 +160,15 @@ NOE_REPL_HISTORY=/tmp/my-noe-history.jsonl ./noe repl
 | `noe.writeTextFile(path, text)` | テキストを上書き保存する`Promise<void>`。親ディレクトリは事前に用意する |
 | `noe.readDir(path)` | 名前順の直下一覧を返すPromise。各要素は`{name, isFile, isDirectory, isSymlink}`。nameはベース名。再帰せず、リンク自身の種別を返す |
 | `noe.stat(path)` | `{size, modifiedAt, isFile, isDirectory}`を返すPromise。sizeはバイト数、modifiedAtはUTCのRFC3339文字列（小数秒を含み得る）。リンク先を調べる |
+| `noe.mkdir(path)` | 親も含めてディレクトリを作る`Promise<void>`。既存ディレクトリは成功。作成時は0755にOSのumaskを適用 |
+| `noe.rename(from, to)` | ファイル・ディレクトリ・リンク自身を名前変更する`Promise<void>`。移動先の親は事前に作る。Linuxでは既存の通常ファイルを置換 |
+| `noe.remove(path)` | ファイル・リンク自身・空ディレクトリを削除する`Promise<void>`。存在しないパス・空でないディレクトリはreject。再帰削除しない |
 
 ファイル操作の相対パスはコマンドを実行したディレクトリが基準です。ローカルimportはimport元のファイルが基準で、`.js`か`.mjs`の拡張子を明示します。`eval`内の相対importはカレントディレクトリが基準です。
 
 `readStdin`は改行を保持し、空入力は空文字を返します。EOFまで待つので、対話端末からデータを渡す場合はEOFを入力してください。スクリプトのコードは従来どおりファイルや`eval`引数で指定します。`readDir`の空ディレクトリは空配列となり、ファイル・ディレクトリの読取り失敗はPromiseのrejectになります。
+
+名前変更・削除はリンク先に作用せず、リンク自身を扱います。renameの置換可否はOSに従い、ファイルシステムをまたぐ移動はコピーで補わずrejectします。操作が失敗すればrejectし、依存する操作は`await`で順序を指定します。中断・明示終了でも実行済みのファイル変更は残ります。
 
 ```js
 import { transform } from "./lib/transform.js";
@@ -195,6 +215,6 @@ go test ./...
 go test -tags=e2e ./tests -v
 ```
 
-E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。標準入力のJSON加工、ディレクトリ内JSONの集計、ファイル情報、ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST、非同期完了、エラーと明示終了を確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
+E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。標準入力のJSON加工、ディレクトリ内JSONの集計、レポート保存と処理済み入力の移動、ディレクトリ作成・名前変更・削除、ファイル情報、ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST、非同期完了、エラーと明示終了を確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
 
-[MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)、[インクリメント5](docs/increment-5.md)に範囲と受入条件を記載しています。
+[MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)、[インクリメント5](docs/increment-5.md)、[インクリメント6](docs/increment-6.md)に範囲と受入条件を記載しています。

@@ -74,6 +74,8 @@ READMEのJavaScript/TypeScriptという説明は製品の方向性を示す。MV
 
 [インクリメント5](increment-5.md)で、run/evalの標準入力をテキストとして読む`noe.readStdin()`、ディレクトリ直下の一覧を取得する`noe.readDir(path)`、ファイル情報を取得する`noe.stat(path)`を追加した。JSONをパイプで受け取って加工し、指定ディレクトリのJSONを集計する例を提供する。REPLの標準入力はJS入力として使い続ける。
 
+[インクリメント6](increment-6.md)で、親を含むディレクトリ作成の`noe.mkdir(path)`、名前変更・移動の`noe.rename(from, to)`、ファイル・リンク・空ディレクトリ削除の`noe.remove(path)`を追加した。集計結果の保存から処理済み入力の移動までを行う例を提供する。
+
 ## 参照
 
 - [txiki.js Getting Started](https://txikijs.org/docs/getting-started/)
