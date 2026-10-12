@@ -42,9 +42,10 @@ func (e *TerminationError) Error() string {
 
 func (e *TerminationError) Unwrap() error { return e.Cause }
 
-// NewSession installs the same host APIs as file execution, with no arguments.
+// NewSession installs the host APIs with no arguments and no readStdin API.
 func NewSession(opts Options) (*Session, error) {
 	opts.Args = nil
+	opts.Stdin = nil // stdin supplies REPL source, not script data
 	h, err := newHost(opts)
 	if err != nil {
 		return nil, err

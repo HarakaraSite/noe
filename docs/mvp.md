@@ -70,6 +70,10 @@ JSへの変換を経て実行する方式を検討する。ソースの読み込
 
 READMEのJavaScript/TypeScriptという説明は製品の方向性を示す。MVP公開時には、現在の対応言語がJavaScriptのみであることを明記する。
 
+### 実用スクリプト向けの入出力
+
+[インクリメント5](increment-5.md)で、run/evalの標準入力をテキストとして読む`noe.readStdin()`、ディレクトリ直下の一覧を取得する`noe.readDir(path)`、ファイル情報を取得する`noe.stat(path)`を追加した。JSONをパイプで受け取って加工し、指定ディレクトリのJSONを集計する例を提供する。REPLの標準入力はJS入力として使い続ける。
+
 ## 参照
 
 - [txiki.js Getting Started](https://txikijs.org/docs/getting-started/)

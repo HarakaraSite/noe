@@ -11,6 +11,12 @@ import (
 
 func (h *host) installNoe(opts Options) error {
 	noe := h.rt.NewObject()
+	if err := h.installStdin(noe, opts.Stdin); err != nil {
+		return err
+	}
+	if err := h.installFilesystem(noe); err != nil {
+		return err
+	}
 	if err := noe.Set("args", append([]string{}, opts.Args...)); err != nil {
 		return err
 	}

@@ -268,8 +268,12 @@ func TestREPLTerminalTabCompletionUsesLiveSessionWithoutCallingGetter(t *testing
 	}
 	session := startTerminalREPL(t, work, nil)
 
-	session.writeKeys(t, `await noe.re`+"\t"+`("completion.txt").then(text => console.log("NOE_COMPLETION:" + text))`+"\r")
+	session.writeKeys(t, `await noe.readT`+"\t"+`("completion.txt").then(text => console.log("NOE_COMPLETION:" + text))`+"\r")
 	session.waitForOutputAndPrompt(t, "NOE_COMPLETION:NOE_COMPLETION_FILE_VALUE")
+	session.writeKeys(t, `await noe.readD`+"\t"+`(".").then(entries => console.log("DIRECTORY_COMPLETION:" + entries.some(entry => entry.name === "completion.txt")))`+"\r")
+	session.waitForOutputAndPrompt(t, "DIRECTORY_COMPLETION:true")
+	session.writeKeys(t, `await noe.st`+"\t"+`("completion.txt").then(info => console.log("STAT_COMPLETION:" + info.isFile))`+"\r")
+	session.waitForOutputAndPrompt(t, "STAT_COMPLETION:true")
 
 	session.writeKeys(t, `console.lo`+"\t"+`("COMPLETION_CONSOLE")`+"\r")
 	session.waitForOutputAndPrompt(t, "COMPLETION_CONSOLE")

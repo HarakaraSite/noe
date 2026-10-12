@@ -23,6 +23,9 @@ type Source struct {
 
 // Options describes the host environment for one execution.
 type Options struct {
+	// Stdin is borrowed and never closed by the runtime. Execute treats nil as
+	// empty input; REPL sessions reserve stdin for source and do not expose it.
+	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
 	Args   []string
@@ -31,6 +34,9 @@ type Options struct {
 
 // Execute creates a fresh runtime and runs source as an ES module.
 func Execute(ctx context.Context, source Source, opts Options) (int, error) {
+	if opts.Stdin == nil {
+		opts.Stdin = strings.NewReader("")
+	}
 	h, err := newHost(opts)
 	if err != nil {
 		return 1, err

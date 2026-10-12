@@ -46,6 +46,23 @@ cat /tmp/noe-sales-report.md
 ./noe run examples/sales-report.js /tmp/my-report examples/data/sales-day-1.json
 ```
 
+標準入力のJSON配列を集計し、JSONを標準出力へ返す例です。
+
+```sh
+printf '[100,200,300]\n' | ./noe run examples/summarize-stdin.js
+# {"count":3,"total":600,"average":200}
+printf '日本語\n' | ./noe eval 'console.log(await noe.readStdin())'
+```
+
+ディレクトリ直下の数値配列の`.json`ファイルを並行して読み、ファイル別のバイト数・件数・合計と、全体の件数・合計・平均をJSONで出力できます。サブディレクトリやシンボリックリンクは集計に含めません。
+
+```sh
+./noe run examples/collect-json.js examples/data/numbers
+# 全体で5件、合計800、平均160
+./noe run examples/collect-json.js examples/data/numbers > /tmp/noe-summary.json
+./noe eval 'const report = JSON.parse(await noe.readStdin()); console.log(report.total)' < /tmp/noe-summary.json
+```
+
 ## REPL
 
 `./noe repl`で起動し、1行ずつJSを試せます。同じランタイムを使い続けるため、変数・関数・オブジェクトは次の入力でも使えます。
@@ -123,10 +140,15 @@ NOE_REPL_HISTORY=/tmp/my-noe-history.jsonl ./noe repl
 | `noe.env.get(name)` | 環境変数の文字列。未設定なら`undefined` |
 | `noe.cwd()` | カレントディレクトリの絶対パス |
 | `noe.exit(code = 0)` | 実行を即座に終了。コードは0〜255の整数 |
+| `noe.readStdin()` | run/evalの標準入力をEOFまで読む`Promise<string>`。繰り返し呼出しは同じPromiseを返す。REPLでは提供しない |
 | `noe.readTextFile(path)` | テキストを読み込む`Promise<string>` |
 | `noe.writeTextFile(path, text)` | テキストを上書き保存する`Promise<void>`。親ディレクトリは事前に用意する |
+| `noe.readDir(path)` | 名前順の直下一覧を返すPromise。各要素は`{name, isFile, isDirectory, isSymlink}`。nameはベース名。再帰せず、リンク自身の種別を返す |
+| `noe.stat(path)` | `{size, modifiedAt, isFile, isDirectory}`を返すPromise。sizeはバイト数、modifiedAtはUTCのRFC3339文字列（小数秒を含み得る）。リンク先を調べる |
 
 ファイル操作の相対パスはコマンドを実行したディレクトリが基準です。ローカルimportはimport元のファイルが基準で、`.js`か`.mjs`の拡張子を明示します。`eval`内の相対importはカレントディレクトリが基準です。
+
+`readStdin`は改行を保持し、空入力は空文字を返します。EOFまで待つので、対話端末からデータを渡す場合はEOFを入力してください。スクリプトのコードは従来どおりファイルや`eval`引数で指定します。`readDir`の空ディレクトリは空配列となり、ファイル・ディレクトリの読取り失敗はPromiseのrejectになります。
 
 ```js
 import { transform } from "./lib/transform.js";
@@ -135,7 +157,7 @@ const input = JSON.parse(await noe.readTextFile(noe.args[0]));
 await noe.writeTextFile(noe.args[1], JSON.stringify(transform(input)));
 ```
 
-Promise、`async/await`、top-level awaitを利用できます。通常終了では、開始したファイル・HTTP処理と後続のJS処理を待ちます。`run`・`eval`では、解決する処理が残っていない未完了のtop-level awaitは失敗として終了します。REPLでは診断後に次の入力へ進みます。`noe.exit`は停止を優先し、後続のJSや`catch`・`finally`を実行しません。
+Promise、`async/await`、top-level awaitを利用できます。通常終了では、開始した標準入力・ファイル・HTTP処理と後続のJS処理を待ちます。`run`・`eval`では、解決する処理が残っていない未完了のtop-level awaitは失敗として終了します。REPLでは診断後に次の入力へ進みます。`noe.exit`は停止を優先し、後続のJSや`catch`・`finally`を実行しません。
 
 ## HTTPサブセット
 
@@ -173,6 +195,6 @@ go test ./...
 go test -tags=e2e ./tests -v
 ```
 
-E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST、非同期完了、エラーと明示終了を確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
+E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。標準入力のJSON加工、ディレクトリ内JSONの集計、ファイル情報、ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST、非同期完了、エラーと明示終了を確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
 
-[MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)に範囲と受入条件を記載しています。
+[MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)、[インクリメント5](docs/increment-5.md)に範囲と受入条件を記載しています。

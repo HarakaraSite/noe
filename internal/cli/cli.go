@@ -84,7 +84,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		fmt.Fprintf(stderr, "noe: unknown command %q\n%s", args[0], usage)
 		return 2
 	}
-	code, err := runtime.Execute(ctx, source, runtime.Options{Stdout: stdout, Stderr: stderr, Args: scriptArgs})
+	code, err := runtime.Execute(ctx, source, runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %s\n", source.Name, runtime.Diagnostic(err))
 		return 1
