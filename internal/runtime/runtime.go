@@ -46,6 +46,9 @@ type host struct {
 	exitRequested bool
 	exitCode      int
 	inspect       quickjs.Value
+	cancelProbe   quickjs.Value
+	completion    quickjs.Value
+	inputContext  context.Context
 }
 
 func newHost(opts Options) (*host, error) {
@@ -62,6 +65,18 @@ func newHost(opts Options) (*host, error) {
 		return nil, err
 	}
 	h := &host{rt: quickjs.New(), cwd: cwd}
+	probe, err := h.rt.EvalFile("<noe-cancel-probe>", `() => { while (true) {} }`)
+	if err != nil {
+		h.rt.Close()
+		return nil, err
+	}
+	h.cancelProbe = probe
+	completion, err := h.rt.EvalFile("<noe-completion>", completionHelperSource)
+	if err != nil {
+		h.rt.Close()
+		return nil, err
+	}
+	h.completion = completion
 	if err := h.installConsole(opts); err != nil {
 		h.rt.Close()
 		return nil, err
@@ -147,6 +162,51 @@ func (h *host) drain(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// drainCancelled waits for host work that belonged to a cancelled REPL input
+// and runs its completion callbacks under the canceled input context. Their
+// guards suppress Promise settlement, and discardCancelledJobs has already
+// removed queued reactions before this can run them.
+func (h *host) drainCancelled(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// RunJobsContext clears an interrupt left by the probe even when no host
+	// work remains, and runs already-posted completion callbacks under the
+	// canceled input context.
+	if err := h.rt.RunJobsContext(ctx); err != nil && !errors.Is(err, ctx.Err()) {
+		return err
+	}
+	for h.rt.Busy() {
+		select {
+		case <-h.rt.Wake():
+			if err := h.rt.RunJobsContext(ctx); err != nil && !errors.Is(err, ctx.Err()) {
+				return err
+			}
+		case <-h.rt.Context().Done():
+			return quickjs.ErrClosed
+		}
+	}
+	return nil
+}
+
+// discardCancelledJobs makes the runtime observe an abort in a pre-created
+// function call. The function call begins before AbortOn's closed signal is
+// polled, and the interrupted turn drops its queued Promise reactions.
+func (h *host) discardCancelledJobs() error {
+	interrupted := make(chan struct{})
+	close(interrupted)
+	h.rt.AbortOn(interrupted)
+	_, err := h.cancelProbe.CallContext(context.Background())
+	h.rt.AbortOn(nil)
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	if err == nil {
+		return errors.New("cancellation cleanup probe returned without interruption")
+	}
+	return err
 }
 
 func (h *host) takeUnhandled() error {

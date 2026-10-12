@@ -71,6 +71,21 @@ type linerREPLInput struct {
 	state   *liner.State
 	cooked  liner.ModeApplier
 	editing liner.ModeApplier
+	history *replHistory
+}
+
+func (l *linerREPLInput) loadHistory(stderr io.Writer) {
+	l.history = newREPLHistory(stderr)
+	for _, text := range l.history.load() {
+		l.state.AppendHistory(text)
+	}
+}
+
+func (l *linerREPLInput) remember(text string) {
+	l.state.AppendHistory(text)
+	if l.history != nil {
+		l.history.append(text)
+	}
 }
 
 func (l *linerREPLInput) readLine(prompt string) (text string, err error) {
@@ -81,9 +96,6 @@ func (l *linerREPLInput) readLine(prompt string) (text string, err error) {
 	text, err = l.state.Prompt(prompt)
 	if errors.Is(err, liner.ErrPromptAborted) {
 		return text, errREPLInterrupt
-	}
-	if err == nil && strings.TrimSpace(text) != "" {
-		l.state.AppendHistory(text)
 	}
 	return text, err
 }

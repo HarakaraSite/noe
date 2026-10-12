@@ -20,6 +20,11 @@ const usage = `Usage:
   noe repl
   noe --help
   noe --version
+
+REPL:
+  Ctrl+D or noe.exit() exits. Ctrl+C cancels terminal input/evaluation.
+  Tab completes names. Unfinished input continues at ... .
+  NOE_REPL_HISTORY sets the history file; empty disables persistence.
 `
 
 // Run executes a command and returns its process exit code.

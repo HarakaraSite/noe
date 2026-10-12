@@ -11,7 +11,7 @@ import (
 
 func (h *host) installFetch() error {
 	send := func(url, method string, headers map[string]string, body string) quickjs.Value {
-		return h.rt.Go(func(ctx context.Context) (any, error) {
+		return h.startAsyncWork(func(ctx context.Context) (any, error) {
 			req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body))
 			if err != nil {
 				return nil, err

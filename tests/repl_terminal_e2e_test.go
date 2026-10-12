@@ -77,6 +77,7 @@ func startTerminalREPL(t *testing.T, dir string, env map[string]string) *termina
 	cmd := exec.CommandContext(ctx, cliPath, "repl")
 	cmd.Dir = dir
 	cmd.Env = envWith(os.Environ(), "TERM", "xterm-256color")
+	cmd.Env = envWith(cmd.Env, "NOE_REPL_HISTORY", "")
 	for key, value := range env {
 		cmd.Env = envWith(cmd.Env, key, value)
 	}
@@ -210,6 +211,14 @@ func (s *terminalREPL) interruptKey(t *testing.T) {
 	s.writeKeys(t, "\x03")
 }
 
+func (s *terminalREPL) interruptAndContinue(t *testing.T) {
+	t.Helper()
+	before := s.stdout.snapshot()
+	s.interruptKey(t)
+	s.waitForError(t, "Interrupted")
+	s.waitForPromptAfter(t, before)
+}
+
 func (s *terminalREPL) finish(t *testing.T, wantExit int) cliResult {
 	t.Helper()
 	wait := make(chan error, 1)
@@ -310,7 +319,7 @@ func TestREPLTerminalEditingHistoryAndPersistentState(t *testing.T) {
 	}
 }
 
-func TestREPLTerminalEOFExitAndCtrlCRestoreSettings(t *testing.T) {
+func TestREPLTerminalEOFAndExplicitExitRestoreSettings(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		input string
@@ -318,7 +327,6 @@ func TestREPLTerminalEOFExitAndCtrlCRestoreSettings(t *testing.T) {
 	}{
 		{name: "Ctrl+D EOF", input: "\x04", code: 0},
 		{name: "explicit exit", input: "noe.exit(7)\r", code: 7},
-		{name: "Ctrl+C while waiting", input: "\x03", code: 130},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			session := startTerminalREPL(t, t.TempDir(), nil)
@@ -335,20 +343,62 @@ func TestREPLTerminalCtrlCInHistorySearchRestoresSettings(t *testing.T) {
 	session.waitForOutputAndPrompt(t, "SEARCH_SEED")
 	session.writeKeys(t, "\x12")
 	session.waitForSearchPrompt(t)
-	session.interruptKey(t)
-	result := session.finish(t, 130)
+	session.interruptAndContinue(t)
+	session.writeKeys(t, `console.log("SEARCH_CONTINUED")`+"\r")
+	session.waitForOutputAndPrompt(t, "SEARCH_CONTINUED")
+	session.writeKeys(t, "\x04")
+	result := session.finish(t, 0)
 	if !strings.Contains(result.stdout, "SEARCH_SEED") {
 		t.Fatalf("history seed was not evaluated before search: %q", result.stdout)
 	}
 }
 
-func TestREPLTerminalCtrlCDuringEvaluationAndHTTPWaitRestoresSettings(t *testing.T) {
+func TestREPLTerminalCtrlCDuringInputReturnsToFreshPrompt(t *testing.T) {
+	t.Run("edited line", func(t *testing.T) {
+		session := startTerminalREPL(t, t.TempDir(), nil)
+		session.writeKeys(t, `console.log("DISCARDED_EDITED_INPUT")`)
+		session.interruptAndContinue(t)
+		session.writeKeys(t, `console.log("INPUT_AFTER_INTERRUPT")`+"\r")
+		session.waitForOutputAndPrompt(t, "INPUT_AFTER_INTERRUPT")
+		session.writeKeys(t, "\x04")
+		result := session.finish(t, 0)
+		assertNoPTYOutputLine(t, result.stdout, "DISCARDED_EDITED_INPUT")
+	})
+
+	t.Run("held multiline input", func(t *testing.T) {
+		session := startTerminalREPL(t, t.TempDir(), nil)
+		session.enterContinuation(t, "function abandonedFunction() {")
+		session.interruptAndContinue(t)
+		session.writeKeys(t, `console.log("HELD_FUNCTION_TYPE:" + typeof abandonedFunction)`+"\r")
+		session.waitForOutputAndPrompt(t, "HELD_FUNCTION_TYPE:undefined")
+		session.writeKeys(t, "\x04")
+		session.finish(t, 0)
+	})
+
+	t.Run("empty line", func(t *testing.T) {
+		session := startTerminalREPL(t, t.TempDir(), nil)
+		session.interruptAndContinue(t)
+		session.writeKeys(t, `console.log("EMPTY_INTERRUPT_CONTINUED")`+"\r")
+		session.waitForOutputAndPrompt(t, "EMPTY_INTERRUPT_CONTINUED")
+		session.writeKeys(t, "\x04")
+		session.finish(t, 0)
+	})
+}
+
+func TestREPLTerminalCtrlCDuringEvaluationAndHTTPWaitContinues(t *testing.T) {
 	t.Run("evaluation", func(t *testing.T) {
 		session := startTerminalREPL(t, t.TempDir(), nil)
-		session.writeKeys(t, `console.log("PTY_EVALUATION_STARTED"); while (true) {}`+"\r")
+		session.enter(t, "let terminalState = 40")
+		before := session.stdout.snapshot()
+		session.writeKeys(t, `terminalState += 2; console.log("PTY_EVALUATION_STARTED"); while (true) {}`+"\r")
 		session.waitForOutputLine(t, "PTY_EVALUATION_STARTED")
 		session.interruptKey(t)
-		result := session.finish(t, 130)
+		session.waitForError(t, "Interrupted")
+		session.waitForPromptAfter(t, before)
+		session.writeKeys(t, `console.log("STATE_AFTER_EVALUATION_INTERRUPT:" + terminalState)`+"\r")
+		session.waitForOutputAndPrompt(t, "STATE_AFTER_EVALUATION_INTERRUPT:42")
+		session.writeKeys(t, "\x04")
+		result := session.finish(t, 0)
 		if !strings.Contains(result.stdout, "PTY_EVALUATION_STARTED") {
 			t.Fatalf("evaluation readiness was not printed: %q", result.stdout)
 		}
@@ -357,28 +407,45 @@ func TestREPLTerminalCtrlCDuringEvaluationAndHTTPWaitRestoresSettings(t *testing
 	t.Run("HTTP wait", func(t *testing.T) {
 		requestStarted := make(chan struct{}, 1)
 		requestCanceled := make(chan struct{})
-		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requestStarted <- struct{}{}
 			<-r.Context().Done()
 			close(requestCanceled)
+			_, _ = fmt.Fprint(w, "late body")
 		}))
 		defer server.Close()
 		session := startTerminalREPL(t, t.TempDir(), nil)
-		session.writeKeys(t, `await fetch("`+server.URL+`")`+"\r")
+		session.enter(t, "let httpState = 42")
+		before := session.stdout.snapshot()
+		session.writeKeys(t, `await fetch("`+server.URL+`").then(response => response.text()).then(() => console.log("HTTP_LATE_OUTPUT"))`+"\r")
 		select {
 		case <-requestStarted:
 		case <-time.After(ptyWaitTimeout):
 			t.Fatal("local HTTP request did not start before Ctrl+C")
 		}
 		session.interruptKey(t)
-		result := session.finish(t, 130)
-		requireExit(t, result, 130)
+		session.waitForError(t, "Interrupted")
+		session.waitForPromptAfter(t, before)
 		select {
 		case <-requestCanceled:
 		case <-time.After(ptyWaitTimeout):
 			t.Fatal("Ctrl+C did not cancel the local HTTP request")
 		}
+		session.writeKeys(t, `console.log("HTTP_STATE_AFTER_INTERRUPT:" + httpState)`+"\r")
+		session.waitForOutputAndPrompt(t, "HTTP_STATE_AFTER_INTERRUPT:42")
+		session.writeKeys(t, "\x04")
+		result := session.finish(t, 0)
+		assertNoPTYOutputLine(t, result.stdout, "HTTP_LATE_OUTPUT")
 	})
+}
+
+func assertNoPTYOutputLine(t *testing.T, output, line string) {
+	t.Helper()
+	for _, candidate := range strings.Split(normalizePTYOutput(output), "\n") {
+		if strings.TrimRight(candidate, "\r") == line {
+			t.Fatalf("PTY output unexpectedly contained line %q: %q", line, output)
+		}
+	}
 }
 
 func TestREPLTerminalExternalSIGINTRestoresSettings(t *testing.T) {

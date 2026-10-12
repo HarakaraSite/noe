@@ -53,23 +53,16 @@ func (h *host) installNoe(opts Options) error {
 	}
 	if err := noe.Set("readTextFile", func(path string) quickjs.Value {
 		path = h.filePath(path)
-		return h.rt.Go(func(ctx context.Context) (any, error) {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			data, err := os.ReadFile(path)
-			return string(data), err
+		return h.startAsyncWork(func(ctx context.Context) (any, error) {
+			return readTextFileContext(ctx, path)
 		})
 	}); err != nil {
 		return err
 	}
 	write := func(path, text string) quickjs.Value {
 		path = h.filePath(path)
-		return h.rt.Go(func(ctx context.Context) (any, error) {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			return nil, os.WriteFile(path, []byte(text), 0666)
+		return h.startAsyncWork(func(ctx context.Context) (any, error) {
+			return nil, writeTextFileContext(ctx, path, text)
 		})
 	}
 	factory, err := h.rt.EvalFile("<noe-files>", `(write => async function writeTextFile(path, text) { await write(path, text); })`)
