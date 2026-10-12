@@ -30,7 +30,7 @@ No bloat. Just scripts.
 | 非同期 | Promise、`async/await`、top-level await、開始したI/Oの完了待ち |
 | エラー | エラー位置とスタックの表示、失敗時の非ゼロ終了コード |
 
-実行環境とファイル操作のAPI名・公開方法、HTTP APIの詳細は、実装前に決める。NodeやDenoのAPIへの互換性を前提にしない。`console`やHTTP APIも、対応を明記した範囲を提供する。
+実行環境とファイル操作のAPI名・公開方法、HTTP APIの詳細は、[インクリメント1](increment-1.md)と[README](../README.md)に記載する。NodeやDenoのAPIへの互換性を前提にしない。`console`やHTTP APIも、対応を明記した範囲を提供する。
 
 ## MVPの受入条件
 

@@ -1,0 +1,4 @@
+github.com/go-quickjs/go-intl v0.6.0 h1:d1BFuDOL7OPfyw9a+9Ubis3thsqrvr2xqBMqz+I4pqA=
+github.com/go-quickjs/go-intl v0.6.0/go.mod h1:/Kn3soBxkmtIHevMspxdnTc5Br6+wHbzxM312CdeupM=
+github.com/go-quickjs/go-quickjs v0.25.3 h1:xoH2DxsjGz7O/DYIupLLRxr7hZT6HoyaLA2fiBpJYm8=
+github.com/go-quickjs/go-quickjs v0.25.3/go.mod h1:FJ8EJrJDGeJzZFYT20ft7iu17egGueuDloWbvwl5Hvc=
