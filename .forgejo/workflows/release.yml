@@ -1,0 +1,57 @@
+# Rendered from .forgejo/release-profile.yml.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      # Render only portable, non-interactive test/vet gates here. Reference-host
+      # race, PTY/TTY, tmux/fzf, GUI, and real-data checks are pre-tag evidence.
+      - name: Verify unit tests
+        run: |
+          set -euo pipefail
+          CGO_ENABLED=0 go test ./...
+
+      - name: Vet
+        run: |
+          set -euo pipefail
+          CGO_ENABLED=0 go vet ./...
+
+      - name: Build binaries
+        id: build
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          LDFLAGS='-s -w -X noe/internal/cli.Version=${{ forgejo.ref_name }}'
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/noe-linux-amd64 ./cmd/noe
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o dist/noe-linux-arm64 ./cmd/noe
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/noe-darwin-amd64 ./cmd/noe
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o dist/noe-darwin-arm64 ./cmd/noe
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/noe-windows-amd64.exe ./cmd/noe
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o dist/noe-windows-arm64.exe ./cmd/noe
+          (cd dist && sha256sum noe-* > SHA256SUMS)
+
+      - name: Upload release
+        if: success()
+        uses: actions/forgejo-release@v2
+        with:
+          direction: upload
+          url: ${{ forgejo.server_url }}
+          repo: ${{ forgejo.repository }}
+          token: ${{ forgejo.token }}
+          tag: ${{ forgejo.ref_name }}
+          release-dir: dist
+          release-notes: ${{ format('Release {0}', forgejo.ref_name) }}

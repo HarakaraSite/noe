@@ -38,6 +38,10 @@ E2Eは実際のCLIを別プロセスから起動し、出力・終了コード�
 
 検証結果は各インクリメントに記録しています。race版CLIでのHTTPサーバー検証手順は[インクリメント10](increment-10.md#実装とレビュー記録)にあります。
 
+## リリース
+
+[リリースプロファイル](../.forgejo/release-profile.yml)に配布対象とビルド・品質確認の契約を記載し、[リリースワークフロー](../.forgejo/workflows/release.yml)で`v*`タグのpush時にビルド・公開します。通常テストとvetはForgejoの配布ゲート、raceとPTYを含むE2EはVM201でのリリース前確認です。手順と確認記録は[リリースチェックポイント](release-checkpoints.md)を参照してください。
+
 ## 参照と方針
 
 [txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。NOEの公開APIと共通イベントループはNOE側で実装し、エンジンの実行機能と分けています。

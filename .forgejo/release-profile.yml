@@ -1,0 +1,48 @@
+# Distribution contract; version is the profile schema version.
+version: 2
+
+runner_label: ubuntu-latest
+actions:
+  checkout: actions/checkout@v4
+  setup_go: actions/setup-go@v5
+  release: actions/forgejo-release@v2
+
+release:
+  uploader_kind: forgejo-release-v2-public
+  url_expression: ${{ forgejo.server_url }}
+  repository_expression: ${{ forgejo.repository }}
+  token_expression: ${{ forgejo.token }}
+  tag_expression: ${{ forgejo.ref_name }}
+  notes_expression: ${{ format('Release {0}', forgejo.ref_name) }}
+
+build:
+  product: noe
+  package: ./cmd/noe
+  cgo_enabled: false
+  ldflags: '-s -w -X noe/internal/cli.Version=${{ forgejo.ref_name }}'
+  targets:
+    - linux/amd64
+    - linux/arm64
+    - darwin/amd64
+    - darwin/arm64
+    - windows/amd64
+    - windows/arm64
+
+quality:
+  test_command: CGO_ENABLED=0 go test ./...
+  vet_command: CGO_ENABLED=0 go vet ./...
+  checksums: true
+
+diagnostics:
+  mode: native-actions-logs
+
+pre_release:
+  reference_environment: VM201, Linux amd64, Go 1.27.2, C toolchain, Linux PTY
+  reference_checks:
+    - name: race
+      command: CGO_ENABLED=1 go test -race ./internal/... -count=1
+    - name: e2e-including-terminal
+      command: go test -tags=e2e ./... -count=1
+    - name: vet-including-e2e
+      command: go vet -tags=e2e ./...
+  evidence_location: docs/release-checkpoints.md
