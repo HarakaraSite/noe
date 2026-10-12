@@ -1,0 +1,8 @@
+{
+  "go": "1.24.0",
+  "race_go": "1.27.2",
+  "readline": "v1.5.1",
+  "liner": "v1.2.2",
+  "cgo_enabled": false,
+  "purpose": "Original comparison before adopting Go 1.27.2 and liner v1.2.3"
+}

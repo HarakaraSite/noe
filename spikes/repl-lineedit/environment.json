@@ -1,0 +1,14 @@
+{
+  "go": "1.27.2",
+  "readline": "v1.5.1",
+  "liner": "v1.2.3",
+  "go_quickjs": "v0.25.3",
+  "normal_cgo_enabled": false,
+  "race_cgo_enabled": true,
+  "os": "linux",
+  "arch": "amd64",
+  "pyte": "0.8.2",
+  "wcwidth": "0.2.13",
+  "normal_scenarios_per_editor": 28,
+  "race_scenarios_per_editor": 8
+}

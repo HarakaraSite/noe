@@ -1,0 +1,274 @@
+[
+  {
+    "editor": "readline",
+    "case": "history",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let count=1",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=1",
+        "Output": "2",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=1",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=2",
+        "Output": "5",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "history-search",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "1+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:3>.js: SyntaxError: \"sample\" has already been declared\n    at /home/agent/projects/noe/<repl:3>.js:1:1",
+        "Exit": false,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-search",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-completion",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "readline",
+    "case": "sigint-idle",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-eval",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "console.log('RUNNING');while(true){}",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: quickjs: execution interrupted: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-http",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "await fetch('http://127.0.0.1:43779')",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "pipe-final-line",
+    "status": "pass"
+  },
+  {
+    "editor": "liner",
+    "case": "history",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let count=1",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=1",
+        "Output": "2",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=1",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=2",
+        "Output": "5",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "history-search",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "1+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:3>.js: SyntaxError: \"sample\" has already been declared\n    at /home/agent/projects/noe/<repl:3>.js:1:1",
+        "Exit": false,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-search",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-completion",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "liner",
+    "case": "sigint-idle",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-eval",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "console.log('RUNNING');while(true){}",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: quickjs: execution interrupted: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-http",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "await fetch('http://127.0.0.1:33103')",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "pipe-final-line",
+    "status": "pass"
+  }
+]

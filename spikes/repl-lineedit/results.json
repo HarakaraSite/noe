@@ -1,0 +1,924 @@
+[
+  {
+    "editor": "readline",
+    "case": "left-insert",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+2+3",
+        "Output": "6",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "right-backspace",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+3",
+        "Output": "4",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "home-end-delete",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "'abc'",
+        "Output": "'abc'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-a-e",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "2+1+3+4",
+        "Output": "10",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "word-move",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "11 + 3 + 22",
+        "Output": "36",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "word-delete",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "11 + 3",
+        "Output": "14",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "kill-end",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "kill-start",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "4+5",
+        "Output": "9",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "japanese-delete",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "'あいう'",
+        "Output": "'あいう'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "japanese-backspace",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "'あう'",
+        "Output": "'あう'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "wrapped-ascii",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'",
+        "Output": "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "wrapped-japanese",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "' ああああああああああああああああああああああああああああああい'",
+        "Output": "' ああああああああああああああああああああああああああああああい'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "history",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let count=1",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=1",
+        "Output": "2",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=1",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=2",
+        "Output": "5",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "history-search",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "1+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:3>.js: SyntaxError: \"sample\" has already been declared\n    at /home/agent/projects/noe/<repl:3>.js:1:1",
+        "Exit": false,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "recovery",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let count=1",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "throw new Error('bad')",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:2>.js: Error: bad\n    at /home/agent/projects/noe/<repl:2>.js:1:7",
+        "Exit": false,
+        "Code": 1
+      },
+      {
+        "Input": "count+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "hooks",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+1",
+        "Output": "2",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "console.log('HOOK')",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "exit-7",
+    "status": "pass",
+    "exit_code": 7,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "noe.exit(7)",
+        "Output": "",
+        "Error": "",
+        "Exit": true,
+        "Code": 7
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "input-failure",
+    "status": "pass",
+    "exit_code": 1,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-idle",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "readline",
+    "case": "sigint-idle",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-search",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-completion",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-eval",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "console.log('RUNNING');while(true){}",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: quickjs: execution interrupted: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "sigint-eval",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "console.log('RUNNING');while(true){}",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: quickjs: execution interrupted: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-queued",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "console.log('RUNNING');while(true){}",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: quickjs: execution interrupted: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "ctrl-c-http",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "await fetch('http://127.0.0.1:46183')",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "redirected-output",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "readline",
+    "case": "pipe-final-line",
+    "status": "pass"
+  },
+  {
+    "editor": "liner",
+    "case": "left-insert",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+2+3",
+        "Output": "6",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "right-backspace",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+3",
+        "Output": "4",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "home-end-delete",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "'abc'",
+        "Output": "'abc'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-a-e",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "2+1+3+4",
+        "Output": "10",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "word-move",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "11 + 3 + 22",
+        "Output": "36",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "word-delete",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "11 + 3",
+        "Output": "14",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "kill-end",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "kill-start",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "4+5",
+        "Output": "9",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "japanese-delete",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "'あいう'",
+        "Output": "'あいう'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "japanese-backspace",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "'あう'",
+        "Output": "'あう'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "wrapped-ascii",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'",
+        "Output": "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "wrapped-japanese",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "' ああああああああああああああああああああああああああああああい'",
+        "Output": "' ああああああああああああああああああああああああああああああい'",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "history",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let count=1",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=1",
+        "Output": "2",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=1",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "count+=2",
+        "Output": "5",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "history-search",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "1+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:3>.js: SyntaxError: \"sample\" has already been declared\n    at /home/agent/projects/noe/<repl:3>.js:1:1",
+        "Exit": false,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "recovery",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let count=1",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "throw new Error('bad')",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:2>.js: Error: bad\n    at /home/agent/projects/noe/<repl:2>.js:1:7",
+        "Exit": false,
+        "Code": 1
+      },
+      {
+        "Input": "count+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "hooks",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+1",
+        "Output": "2",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      },
+      {
+        "Input": "console.log('HOOK')",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "exit-7",
+    "status": "pass",
+    "exit_code": 7,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "noe.exit(7)",
+        "Output": "",
+        "Error": "",
+        "Exit": true,
+        "Code": 7
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "input-failure",
+    "status": "pass",
+    "exit_code": 1,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-idle",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "liner",
+    "case": "sigint-idle",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-search",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "let sample=17",
+        "Output": "",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-completion",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": []
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-eval",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "console.log('RUNNING');while(true){}",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: quickjs: execution interrupted: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "sigint-eval",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "console.log('RUNNING');while(true){}",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: quickjs: execution interrupted: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-queued",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "console.log('RUNNING');while(true){}",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: quickjs: execution interrupted: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "ctrl-c-http",
+    "status": "pass",
+    "exit_code": 130,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "await fetch('http://127.0.0.1:35581')",
+        "Output": "",
+        "Error": "/home/agent/projects/noe/<repl:1>.js: context canceled",
+        "Exit": true,
+        "Code": 1
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "redirected-output",
+    "status": "pass",
+    "exit_code": 0,
+    "terminal_restored": true,
+    "events": [
+      {
+        "Input": "1+2",
+        "Output": "3",
+        "Error": "",
+        "Exit": false,
+        "Code": 0
+      }
+    ]
+  },
+  {
+    "editor": "liner",
+    "case": "pipe-final-line",
+    "status": "pass"
+  }
+]
