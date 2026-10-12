@@ -205,12 +205,26 @@ console.log(response.status, response.ok);
 console.log(await response.json());
 ```
 
-- URLは文字列。メソッドはGET・POSTで、省略時はGETです。
-- オプションは`method`・`headers`・`body`。ヘッダーは文字列値のオブジェクト、bodyはPOSTで送る文字列です。未対応の入力はエラーになります。
+- URLは文字列。メソッドはGET・POST・PUT・PATCH・DELETEで、省略時はGETです。メソッドの文字列は大文字へ正規化します。
+- オプションは`method`・`headers`・`body`。ヘッダーは文字列値のオブジェクトです。bodyはPOST・PUT・PATCH・DELETEで省略可能な文字列で、空文字も送れます。省略・undefinedは空のbodyとして扱います。GETはundefined以外のbody指定を受け付けません。未対応の入力はエラーになります。
+- JSONは`JSON.stringify`で文字列にし、Content-Typeは明示します。オブジェクトの暗黙のJSON化やContent-Typeの自動設定は行いません。
 - レスポンスは`status`、`ok`、`text()`、`json()`を提供します。`ok`は200〜299で`true`です。
 - `text()`と`json()`はPromiseを返します。bodyを一括取得して保持するため、繰り返し呼べます。
 - 4xx・5xxはレスポンスとして返します。通信失敗やJSON解析失敗はPromiseのrejectになります。
 - HTTP通信はGoの標準クライアントを使います。プロキシ環境変数とリダイレクト処理はその動作に従います。
+
+204などの空レスポンスは`text()`で空文字を返し、`json()`はJSON解析エラーになります。
+
+JSON APIの更新・削除には`examples/http-json.js`を使えます。URLとJSONの項目は利用するAPIに合わせて指定してください。
+
+```sh
+ITEM_URL='https://example.com/api/items/1'
+./noe run --timeout 5s examples/http-json.js PUT "$ITEM_URL" '{"name":"日本語","count":1}'
+./noe run --timeout 5s examples/http-json.js PATCH "$ITEM_URL" '{"count":2}'
+./noe run --timeout 5s examples/http-json.js DELETE "$ITEM_URL"
+```
+
+JSON-bodyがある場合、この例はJSONとして検証してから明示的に文字列化し、application/jsonで送ります。成功時は`{status, ok, body}`のJSONをstdoutへ返し、空レスポンスのbodyはnullにします。この例ではHTTP失敗を診断してコード1で終了します。fetch自体は4xx・5xxもレスポンスとして返します。
 
 ストリーム、`Request`・`Response`・`Headers`クラス、URLからのimport、npmパッケージ、Node/Deno APIは提供しません。
 
@@ -227,6 +241,6 @@ go test ./...
 go test -tags=e2e ./tests -v
 ```
 
-E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。標準入力のJSON加工、ディレクトリ内JSONの集計、レポート保存と処理済み入力の移動、ディレクトリ作成・名前変更・削除、ファイル情報、ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST、非同期完了、エラーと明示終了、JS・HTTP・stdin待ちのtimeoutを確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
+E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。標準入力のJSON加工、ディレクトリ内JSONの集計、レポート保存と処理済み入力の移動、ディレクトリ作成・名前変更・削除、ファイル情報、ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST・PUT・PATCH・DELETE、非同期完了、エラーと明示終了、JS・HTTP・stdin待ちのtimeoutを確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
 
-[MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)、[インクリメント5](docs/increment-5.md)、[インクリメント6](docs/increment-6.md)、[インクリメント7](docs/increment-7.md)に範囲と受入条件を記載しています。
+[MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)、[インクリメント5](docs/increment-5.md)、[インクリメント6](docs/increment-6.md)、[インクリメント7](docs/increment-7.md)、[インクリメント8](docs/increment-8.md)に範囲と受入条件を記載しています。

@@ -57,7 +57,9 @@ const fetchFactory = `(send => async function fetch(url, options = {}) {
   let method = options.method === undefined ? "GET" : options.method;
   if (typeof method !== "string") throw new TypeError("fetch method must be a string");
   method = method.toUpperCase();
-  if (method !== "GET" && method !== "POST") throw new TypeError("fetch supports GET and POST only");
+  if (method !== "GET" && method !== "POST" && method !== "PUT" && method !== "PATCH" && method !== "DELETE") {
+    throw new TypeError("fetch supports GET, POST, PUT, PATCH and DELETE only");
+  }
   const headers = options.headers === undefined ? {} : options.headers;
   if (headers === null || typeof headers !== "object" || Array.isArray(headers)) {
     throw new TypeError("fetch headers must be an object of strings");
@@ -68,8 +70,8 @@ const fetchFactory = `(send => async function fetch(url, options = {}) {
     copiedHeaders[name] = headers[name];
   }
   const body = options.body;
-  if (body !== undefined && (method !== "POST" || typeof body !== "string")) {
-    throw new TypeError("fetch body must be a string used with POST");
+  if (body !== undefined && (method === "GET" || typeof body !== "string")) {
+    throw new TypeError("fetch body must be a string used with POST, PUT, PATCH or DELETE");
   }
   const response = await send(url, method, copiedHeaders, body === undefined ? "" : body);
   const text = response.body;

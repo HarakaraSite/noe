@@ -80,6 +80,10 @@ READMEのJavaScript/TypeScriptという説明は製品の方向性を示す。MV
 
 [インクリメント7](increment-7.md)で、run/evalのスクリプト名・コードの前に指定する任意の`--timeout`を追加した。JS評価・開始した非同期I/O・後続JSの完了待ちを時間切れで終了し、コード124を返す。未指定時は上限を設けず、REPLの操作も維持する。
 
+### HTTPサブセットの拡充
+
+[インクリメント8](increment-8.md)でfetchへPUT・PATCH・DELETEを追加した。POSTと同じく明示的な文字列bodyとヘッダーを使ってJSON APIの更新・削除を行う。Web全面互換は目指さず、JSON用の実行例を提供する。
+
 ## 参照
 
 - [txiki.js Getting Started](https://txikijs.org/docs/getting-started/)

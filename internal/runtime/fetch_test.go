@@ -49,7 +49,7 @@ func TestFetch(t *testing.T) {
 		{"remaining request", `fetch(base + "/status").then(async r => console.log(await r.text()));`, "missing\n", ""},
 		{"bad json", `await (await fetch(base + "/bad-json")).json();`, "", "JSON"},
 		{"unsupported option", `await fetch(base, {cache:"no-cache"});`, "", "unsupported fetch option"},
-		{"unsupported method", `await fetch(base, {method:"PUT"});`, "", "GET and POST"},
+		{"unsupported method", `await fetch(base, {method:"HEAD"});`, "", "GET, POST, PUT, PATCH and DELETE"},
 		{"bad headers", `await fetch(base, {headers:{"X-Test":42}});`, "", "header values"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
