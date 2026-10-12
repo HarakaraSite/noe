@@ -47,7 +47,7 @@ func TestHTTPUpdateLifecycleThroughCLI(t *testing.T) {
 				value[key] = item
 			}
 		default:
-			http.Error(w, "unexpected method", 405)
+			http.Error(w, "unexpected method", http.StatusMethodNotAllowed)
 			return
 		}
 		if err := json.NewEncoder(w).Encode(value); err != nil {
