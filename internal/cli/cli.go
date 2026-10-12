@@ -3,10 +3,12 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"noe/internal/runtime"
 )
@@ -15,8 +17,8 @@ import (
 var Version = "dev"
 
 const usage = `Usage:
-  noe run script.js [args...]
-  noe eval 'code'
+  noe run [--timeout duration] script.js [args...]
+  noe eval [--timeout duration] 'code'
   noe repl
   noe --help
   noe --version
@@ -35,6 +37,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	}
 	var source runtime.Source
 	var scriptArgs []string
+	var executionTimeout time.Duration
 	switch args[0] {
 	case "--help", "-h", "help":
 		fmt.Fprint(stdout, usage)
@@ -49,11 +52,16 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		}
 		return runREPL(ctx, stdin, stdout, stderr)
 	case "run":
-		if len(args) < 2 {
+		timeout, operands, err := parseExecutionOptions(args[1:])
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		if len(operands) < 1 {
 			fmt.Fprint(stderr, usage)
 			return 2
 		}
-		name, err := filepath.Abs(args[1])
+		name, err := filepath.Abs(operands[0])
 		if err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
@@ -68,9 +76,15 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			return 1
 		}
 		source = runtime.Source{Name: name, Code: string(data)}
-		scriptArgs = args[2:]
+		scriptArgs = operands[1:]
+		executionTimeout = timeout
 	case "eval":
-		if len(args) != 2 {
+		timeout, operands, err := parseExecutionOptions(args[1:])
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		if len(operands) != 1 {
 			fmt.Fprint(stderr, usage)
 			return 2
 		}
@@ -79,13 +93,25 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		source = runtime.Source{Name: filepath.Join(cwd, "<eval>.js"), Code: args[1]}
+		source = runtime.Source{Name: filepath.Join(cwd, "<eval>.js"), Code: operands[0]}
+		executionTimeout = timeout
 	default:
 		fmt.Fprintf(stderr, "noe: unknown command %q\n%s", args[0], usage)
 		return 2
 	}
-	code, err := runtime.Execute(ctx, source, runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs})
+	runtimeOptions := runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs}
+	executionContext := ctx
+	var cancel context.CancelFunc
+	if executionTimeout > 0 {
+		executionContext, cancel = context.WithTimeoutCause(ctx, executionTimeout, errExecutionTimeout)
+		defer cancel()
+	}
+	code, err := runtime.Execute(executionContext, source, runtimeOptions)
 	if err != nil {
+		if executionTimeout > 0 && errors.Is(err, context.DeadlineExceeded) && errors.Is(context.Cause(executionContext), errExecutionTimeout) {
+			fmt.Fprintf(stderr, "%s: execution timed out after %s\n", source.Name, executionTimeout)
+			return 124
+		}
 		fmt.Fprintf(stderr, "%s: %s\n", source.Name, runtime.Diagnostic(err))
 		return 1
 	}

@@ -76,6 +76,10 @@ READMEのJavaScript/TypeScriptという説明は製品の方向性を示す。MV
 
 [インクリメント6](increment-6.md)で、親を含むディレクトリ作成の`noe.mkdir(path)`、名前変更・移動の`noe.rename(from, to)`、ファイル・リンク・空ディレクトリ削除の`noe.remove(path)`を追加した。集計結果の保存から処理済み入力の移動までを行う例を提供する。
 
+### 実行時間の制御
+
+[インクリメント7](increment-7.md)で、run/evalのスクリプト名・コードの前に指定する任意の`--timeout`を追加した。JS評価・開始した非同期I/O・後続JSの完了待ちを時間切れで終了し、コード124を返す。未指定時は上限を設けず、REPLの操作も維持する。
+
 ## 参照
 
 - [txiki.js Getting Started](https://txikijs.org/docs/getting-started/)

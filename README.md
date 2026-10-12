@@ -21,6 +21,18 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 `.js`と`.mjs`をESモジュールとして実行します。`run`ではファイルの後ろに指定した引数を、そのままスクリプトに渡します。`eval`の引数配列は空です。
 
+run/evalには任意の実行時間上限を指定できます。指定しなければ上限を設けません。
+
+```sh
+./noe run --timeout 5s examples/hello.js
+./noe eval --timeout=500ms 'console.log("started"); while (true) {}'
+# 終了コード124、標準エラーへ時間切れの診断
+```
+
+`--timeout`はスクリプト名・コードの前に指定します。`500ms`・`5s`・`1m`などGoのduration形式の正の値を使い、空・不正・ゼロ・負・重複は使い方エラーです。`--`でオプションを終端できます。runのスクリプト名の後にある引数は、timeoutオプションに見えるものもそのまま`noe.args`へ渡します。
+
+エントリソースの読込み後、ランタイム初期化からJS評価・開始した非同期I/O・後続JSの完了待ちまでを計測します。JSの無限ループ、HTTP待ち、標準入力のEOF待ちも対象です。同期OS syscallやローカルimportのOS読取りを強制停止する保証はありません。REPLにはこのオプションを追加せず、Ctrl+Cによる中断を使います。中断までの出力やファイルの変更は残ります。
+
 ```sh
 printf '{"value":21}\n' > /tmp/noe-input.json
 ./noe run examples/transform-json.js /tmp/noe-input.json /tmp/noe-output.json
@@ -204,7 +216,7 @@ console.log(await response.json());
 
 ## エラーと検証
 
-`run`・`eval`では成功は終了コード0、実行失敗は1、CLIの使い方の誤りは2です。`noe.exit`で指定したコードはそのまま返します。未処理のPromise rejectionも実行失敗になります。
+`run`・`eval`では成功は終了コード0、実行失敗は1、CLIの使い方の誤りは2、設定した`--timeout`の時間切れは124です。`noe.exit`で指定したコードはそのまま返します。未処理のPromise rejectionも実行失敗になります。SIGINTによるrun/evalの中断は従来のコード1です。
 
 REPLは回復可能な入力エラーの後も続行し、EOFで0を返します。入力読み取り失敗やエンジン内部エラーなど、続行できない失敗は1で終了します。
 
@@ -215,6 +227,6 @@ go test ./...
 go test -tags=e2e ./tests -v
 ```
 
-E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。標準入力のJSON加工、ディレクトリ内JSONの集計、レポート保存と処理済み入力の移動、ディレクトリ作成・名前変更・削除、ファイル情報、ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST、非同期完了、エラーと明示終了を確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
+E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。標準入力のJSON加工、ディレクトリ内JSONの集計、レポート保存と処理済み入力の移動、ディレクトリ作成・名前変更・削除、ファイル情報、ファイルの加工、ローカルモジュール、引数・環境変数、HTTPのGET・POST、非同期完了、エラーと明示終了、JS・HTTP・stdin待ちのtimeoutを確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
 
-[MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)、[インクリメント5](docs/increment-5.md)、[インクリメント6](docs/increment-6.md)に範囲と受入条件を記載しています。
+[MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)、[インクリメント5](docs/increment-5.md)、[インクリメント6](docs/increment-6.md)、[インクリメント7](docs/increment-7.md)に範囲と受入条件を記載しています。
