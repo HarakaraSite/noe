@@ -10,6 +10,11 @@ import (
 // lifetime. Runtime.Go only receives the runtime-lifetime context, which
 // would leave work from a cancelled REPL input running until session close.
 func (h *host) startAsyncWork(fn func(context.Context) (any, error)) quickjs.Value {
+	return h.loop.startAsyncWork(fn)
+}
+
+func (l *eventLoop) startAsyncWork(fn func(context.Context) (any, error)) quickjs.Value {
+	h := l.h
 	runtimeCtx := h.rt.Context()
 	inputCtx := h.inputContext
 	if inputCtx == nil {

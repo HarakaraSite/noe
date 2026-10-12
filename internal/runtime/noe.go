@@ -11,6 +11,9 @@ import (
 
 func (h *host) installNoe(opts Options) error {
 	noe := h.rt.NewObject()
+	if err := h.installServe(noe, opts.Stderr); err != nil {
+		return err
+	}
 	if err := h.installStdin(noe, opts.Stdin); err != nil {
 		return err
 	}

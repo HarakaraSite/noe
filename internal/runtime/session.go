@@ -71,6 +71,8 @@ func (s *Session) Eval(ctx context.Context, input string) Evaluation {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	s.h.inputContext = ctx
 	defer func() { s.h.inputContext = nil }()
 
@@ -83,6 +85,11 @@ func (s *Session) Eval(ctx context.Context, input string) Evaluation {
 		}
 	}
 	result := s.finish(ctx, name, value, err)
+	var failedLoop *loopFailure
+	if !result.Exit && errors.As(result.Err, &failedLoop) {
+		cancel()
+		return s.finishCancelledInput(ctx, name, result)
+	}
 	if result.Exit || ctx.Err() == nil || result.Err == nil || !errors.Is(result.Err, ctx.Err()) {
 		return result
 	}
@@ -123,7 +130,11 @@ func (s *Session) finishCancelledInput(ctx context.Context, name string, result 
 
 func (s *Session) finish(ctx context.Context, name string, value quickjs.Value, err error) Evaluation {
 	h := s.h
-	if !sessionFatal(err) && !h.exitRequested {
+	if err != nil {
+		h.loop.stopSources()
+	}
+	var failedLoop *loopFailure
+	if !sessionFatal(err) && !h.exitRequested && !errors.As(err, &failedLoop) {
 		err = errors.Join(err, h.drain(ctx))
 	}
 	if h.exitRequested && errors.Is(err, quickjs.ErrClosed) {
@@ -138,6 +149,9 @@ func (s *Session) finish(ctx context.Context, name string, value quickjs.Value, 
 		return Evaluation{}
 	}
 	formatted, err := h.inspect.CallContext(ctx, value)
+	if err != nil {
+		h.loop.stopSources()
+	}
 	if !sessionFatal(err) && !h.exitRequested {
 		err = errors.Join(err, h.drain(ctx))
 	}
@@ -170,7 +184,7 @@ func (s *Session) evalInput(ctx context.Context, name, input string) (quickjs.Va
 	if err != nil {
 		return quickjs.Value{}, err
 	}
-	value, err := p.Await(ctx)
+	value, err := s.h.loop.await(ctx, p)
 	if err != nil || form.binding == "" {
 		return value, err
 	}

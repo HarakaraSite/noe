@@ -47,6 +47,7 @@ func Execute(ctx context.Context, source Source, opts Options) (int, error) {
 
 type host struct {
 	rt            *quickjs.Runtime
+	loop          *eventLoop
 	unhandled     []error
 	cwd           string
 	exitRequested bool
@@ -71,6 +72,11 @@ func newHost(opts Options) (*host, error) {
 		return nil, err
 	}
 	h := &host{rt: quickjs.New(), cwd: cwd}
+	h.loop, err = newEventLoop(h)
+	if err != nil {
+		h.rt.Close()
+		return nil, err
+	}
 	probe, err := h.rt.EvalFile("<noe-cancel-probe>", `() => { while (true) {} }`)
 	if err != nil {
 		h.rt.Close()
@@ -108,6 +114,8 @@ func newHost(opts Options) (*host, error) {
 }
 
 func (h *host) run(ctx context.Context, source Source) (code int, err error) {
+	h.inputContext = ctx
+	defer func() { h.inputContext = nil }()
 	defer func() {
 		if h.exitRequested && errors.Is(err, quickjs.ErrClosed) {
 			code, err = h.exitCode, nil
@@ -125,7 +133,7 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 	bootstrap := `(() => { const p = import(` + string(specifier) + `); p.catch(() => {}); return p; })()`
 	p, err := h.rt.EvalFileContext(ctx, filepath.Join(filepath.Dir(name), "<noe-bootstrap>.js"), bootstrap)
 	if err == nil {
-		_, err = p.Await(ctx)
+		_, err = h.loop.await(ctx, p)
 	}
 	if err != nil {
 		return 1, err
@@ -157,17 +165,7 @@ func (h *host) installLoader(entry *Source) {
 }
 
 func (h *host) drain(ctx context.Context) error {
-	for h.rt.Busy() {
-		select {
-		case <-h.rt.Wake():
-			if err := h.rt.RunJobsContext(ctx); err != nil {
-				return err
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-	return nil
+	return h.loop.drain(ctx)
 }
 
 // drainCancelled waits for host work that belonged to a cancelled REPL input
@@ -175,26 +173,7 @@ func (h *host) drain(ctx context.Context) error {
 // guards suppress Promise settlement, and discardCancelledJobs has already
 // removed queued reactions before this can run them.
 func (h *host) drainCancelled(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	// RunJobsContext clears an interrupt left by the probe even when no host
-	// work remains, and runs already-posted completion callbacks under the
-	// canceled input context.
-	if err := h.rt.RunJobsContext(ctx); err != nil && !errors.Is(err, ctx.Err()) {
-		return err
-	}
-	for h.rt.Busy() {
-		select {
-		case <-h.rt.Wake():
-			if err := h.rt.RunJobsContext(ctx); err != nil && !errors.Is(err, ctx.Err()) {
-				return err
-			}
-		case <-h.rt.Context().Done():
-			return quickjs.ErrClosed
-		}
-	}
-	return nil
+	return h.loop.drainCancelled(ctx)
 }
 
 // discardCancelledJobs makes the runtime observe an abort in a pre-created

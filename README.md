@@ -183,6 +183,7 @@ NOE_REPL_HISTORY=/tmp/my-noe-history.jsonl ./noe repl
 | `noe.mkdir(path)` | 親も含めてディレクトリを作る`Promise<void>`。既存ディレクトリは成功。作成時は0755にOSのumaskを適用 |
 | `noe.rename(from, to)` | ファイル・ディレクトリ・リンク自身を名前変更する`Promise<void>`。移動先の親は事前に作る。Linuxでは既存の通常ファイルを置換 |
 | `noe.remove(path)` | ファイル・リンク自身・空ディレクトリを削除する`Promise<void>`。存在しないパス・空でないディレクトリはreject。再帰削除しない |
+| `noe.serve(options, handler)` | HTTPサーバーを起動する。optionsはhostname・port。同期的にサーバーハンドルを返し、稼働中は実行を継続する |
 
 ファイル操作の相対パスはコマンドを実行したディレクトリが基準です。ローカルimportはimport元のファイルが基準で、`.js`か`.mjs`の拡張子を明示します。`eval`内の相対importはカレントディレクトリが基準です。
 
@@ -251,6 +252,51 @@ JSON-bodyがある場合、この例はJSONとして検証してから明示的�
 
 ストリーム、`Request`・`Response`・`Headers`クラス、URLからのimport、npmパッケージ、Node/Deno APIは提供しません。
 
+## HTTPサーバー
+
+GoのHTTPサーバーとNOE共通イベントループを使い、小さなサーバーをJSで書けます。ハンドラーは独自のリクエストオブジェクトを受け取り、応答オブジェクトまたはそのPromiseを返します。
+
+```js
+const server = noe.serve({ port: 8080 }, async request => {
+  if (request.method === "POST" && request.path === "/echo") {
+    return {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(await request.json()),
+    };
+  }
+  return { body: "Hello from NOE\n" };
+});
+console.log(server.url);
+```
+
+optionsは`hostname`・`port`のみ。hostnameは空でない文字列で、既定値は`127.0.0.1`です。portは0〜65535の整数で、既定値の0ではOSが空きポートを選びます。待受に失敗するとthrowします。ハンドルの`hostname`・`port`は実際の待受アドレス、`url`はそのHTTP URLです。複数サーバーを起動できます。
+
+リクエストは`method`・`url`・`path`・`headers`を持ちます。urlはqueryを含む絶対URL、pathはGoのURL.Pathによるデコード済みのパスで、queryを含みません。headersは小文字名をキー、文字列配列を値とし、Hostと同名ヘッダーの値も保持します。`text()`・`json()`・`bytes()`はPromiseを返し、全bodyを繰り返し読めます。bytesは毎回独立したUint8Arrayで、変更やdetachは後の読取りに影響しません。空bodyのjsonは解析エラーです。
+
+応答は`{ status, headers, body }`。statusは省略時200、200〜599の整数です。headersは文字列または文字列配列を値とするオブジェクト、bodyは文字列かUint8Arrayで、省略・undefinedなら空です。バイナリはビュー範囲をコピーしてGoへ渡します。JSONは明示的に文字列化し、Content-Typeを指定します。HEAD・204・304ではbodyを送信しません。
+
+ハンドラーのthrow・reject・不正な応答は500とstderrの診断になり、サーバーは受付を続けます。クライアントが切断した場合、その接続への応答を破棄し、他のJSハンドラーを割り込みません。開始済みの処理と変更は巻き戻しません。
+
+`server.close()`は新規受付を停止し、listenerを解放してundefinedを返します。受付済みの処理と応答の完了は共通ループが待ちます。繰り返し呼べて、ハンドラー内からcloseして応答を返すこともできます。GoのI/Oは並行しますが、JSは一つのgoroutineで実行するため、同期JSの長い処理は他のハンドラーを待たせます。
+
+`--timeout`は待受を含む実行全体に適用します。Ctrl+Cや`noe.exit()`、アプリ全体の実行エラーではサーバーと接続を閉じます。REPLで起動した場合はサーバー稼働中に次のプロンプトへ進まず、Ctrl+Cで停止して次の入力へ戻ります。
+
+デモを起動し、別の端末から試せます。
+
+```sh
+./noe run examples/http-server.js 8080
+```
+
+```sh
+curl http://127.0.0.1:8080/health
+curl -H 'Content-Type: application/json' \
+  -d '{"message":"こんにちは"}' http://127.0.0.1:8080/echo
+```
+
+デモのportは省略時8080、0なら空きポートです。起動時に実際のURLを表示します。不正JSONは400、他のパスは404。起動した端末のCtrl+Cで終了します。
+
+HTTP bodyは全体をメモリへ保持します。ストリーミング、TLSの公開設定、WebSocket、タイマーAPI、リクエスト単位のJS強制中断は提供しません。
+
 ## エラーと検証
 
 `run`・`eval`では成功は終了コード0、実行失敗は1、CLIの使い方の誤りは2、設定した`--timeout`の時間切れは124です。`noe.exit`で指定したコードはそのまま返します。未処理のPromise rejectionも実行失敗になります。SIGINTによるrun/evalの中断は従来のコード1です。
@@ -264,6 +310,8 @@ go test ./...
 go test -tags=e2e ./tests -v
 ```
 
-E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。標準入力のJSON加工、ディレクトリ内JSONの集計、レポート保存と処理済み入力の移動、ディレクトリ作成・名前変更・削除、ファイル情報、ファイルの加工、バイナリの保存・部分ビュー・ダウンロード、ローカルモジュール、引数・環境変数、HTTPのGET・POST・PUT・PATCH・DELETE、非同期完了、エラーと明示終了、JS・HTTP・stdin待ちのtimeoutを確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
+E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。標準入力のJSON加工、ディレクトリ内JSONの集計、レポート保存と処理済み入力の移動、ディレクトリ作成・名前変更・削除、ファイル情報、ファイルの加工、バイナリの保存・部分ビュー・ダウンロード、ローカルモジュール、引数・環境変数、HTTPのGET・POST・PUT・PATCH・DELETE、非同期完了、エラーと明示終了、JS・HTTP・stdin待ちのtimeoutを確認します。HTTPサーバーでは実リクエスト、async並行処理、応答完了、停止と再bind、複数待受、クライアント切断を確認します。REPLでは連続入力、状態保持、エラー後の続行、EOF、入力待ち・評価中・HTTP待ちの割込みも確認します。LinuxではPTYで基本の編集、日本語、再起動後の履歴、複数行、前回結果、Tab補完、サーバー待受中を含む実際のCtrl+Cキーによる中断後の続行と、終了後の端末設定の復元を確認します。履歴は一時ディレクトリを使い、HTTPテストにはローカルサーバーを使います。外部サービスには接続しません。
 
 [MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)、[インクリメント5](docs/increment-5.md)、[インクリメント6](docs/increment-6.md)、[インクリメント7](docs/increment-7.md)、[インクリメント8](docs/increment-8.md)、[インクリメント9](docs/increment-9.md)に範囲と受入条件を記載しています。
+
+[インクリメント10](docs/increment-10.md)に、NOE共通イベントループと簡易HTTPサーバーの範囲・受入条件・検証記録を記載しています。

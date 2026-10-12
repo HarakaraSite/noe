@@ -88,6 +88,10 @@ READMEのJavaScript/TypeScriptという説明は製品の方向性を示す。MV
 
 [インクリメント9](increment-9.md)でUint8Arrayを読み書きする`noe.readFile(path)`・`noe.writeFile(path, bytes)`と、HTTPレスポンスの`bytes()`を追加した。全体をバイト列として保持し、部分ビューやコピーの独立性を明記する。ダウンロードしてそのまま保存する実行例を提供する。
 
+### 簡易HTTPサーバーと共通イベントループ
+
+[インクリメント10](increment-10.md)で、既存の非同期基盤をNOE共通イベントループへ整理し、Goのnet/httpを使う`noe.serve()`を追加した。ファイル・fetchなどの公開仕様を保ち、サーバーの継続受付と停止・実行期限・REPL中断を同じ実行基盤で扱う。独自のリクエスト・応答オブジェクトとasyncハンドラーを提供し、ホスト機能はNOE側で実装する。go-quickjsのstdlib一括導入やNode/Deno互換は行わない。
+
 ## 参照
 
 - [txiki.js Getting Started](https://txikijs.org/docs/getting-started/)
