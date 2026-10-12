@@ -2,7 +2,7 @@
 
 インクリメント3の選定基準に沿って、`chzyer/readline v1.5.1`と`peterh/liner v1.2.3`を既存のNOE Sessionに接続して比較した。**現在のLinux CLIには`peterh/liner v1.2.3`を採用する。** 両候補は公開APIを使うアダプターで必須条件を満たしたが、既存の割込み・入力エラーの契約を維持する接続処理はlinerの方が少ない。
 
-製品への接続はインクリメント3のスライス2で行う。今回作ったのは[再実行できるスパイク](../spikes/repl-lineedit/README.md)で、製品CLIには行編集を組み込んでいない。ルートとスパイクのGo要件は、利用環境に合わせて1.27.2へ揃えた。
+この比較で作ったのは[再実行できるスパイク](../spikes/repl-lineedit/README.md)。その後、[インクリメント3](increment-3.md)のスライス2で製品CLIにもliner v1.2.3を接続した。ルートとスパイクのGo要件は、利用環境に合わせて1.27.2へ揃えた。
 
 ## バージョンと環境
 
@@ -61,7 +61,7 @@ linerには追加の実行時依存として`github.com/mattn/go-runewidth v0.0.
 
 ## 依存と保守状況
 
-スパイクの実際のmodule graphでは、`golang.org/x/term v0.40.0`と、liner v1.2.3が要求する`golang.org/x/sys v0.48.0`が選ばれた。Go要件を変更したルートmoduleには、行編集ライブラリの依存はまだ追加していない。
+スパイクの実際のmodule graphでは、`golang.org/x/term v0.40.0`と、liner v1.2.3が要求する`golang.org/x/sys v0.48.0`が選ばれた。製品接続でも同じバージョンとliner v1.2.3をルートmoduleへ固定した。
 
 | 候補 | ライブラリが宣言する直接依存 | このLinuxビルドで追加される実行時パッケージ |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ Go 1.27.2・CGO無効のバイナリを使った共通28シナリオが、両候
 
 Go 1.27.2のraceビルドで、履歴・検索・検索中のCtrl+C・補完中のCtrl+C・入力待ちの外部SIGINT・無限ループの中断・HTTP待ちの中断と、パイプ入力を確認した。両候補とも成功し、検査した経路でraceの報告はなかった。[race検査の記録](../spikes/repl-lineedit/race-results.json)も残した。スパイクの`go vet ./...`、NOE全体の`go test -tags=e2e ./... -count=1`、CLIのCGO無効ビルドも成功した。
 
-変更前のGo 1.24とliner v1.2.2に対する独立した批判的レビューは、[以前のレビュー記録](../spikes/repl-lineedit/history/go124-liner122/review-results.json)として残す。liner v1.2.3への更新では、同じ比較とrace検査をGo 1.27.2で再実行した。製品への接続はスライス2の作業として残る。
+変更前のGo 1.24とliner v1.2.2に対する独立した批判的レビューは、[以前のレビュー記録](../spikes/repl-lineedit/history/go124-liner122/review-results.json)として残す。liner v1.2.3への更新では、同じ比較とrace検査をGo 1.27.2で再実行した。製品への接続・レビュー・E2Eは[インクリメント3の実装記録](increment-3.md#実装とレビューの結果)に記載する。
 
 日本語と再描画の確認は、指定した文字列と80列・40列のPTYを対象とする。カーソル位置の確認を追加した際、全角文字が右端の残り1列から始まる入力では、pyte 0.8.2が文字を切り詰めるauto-wrapのモデル差が見つかった。このケースをライブラリの不適合とは判定せず、共通の40列日本語ケースは全角文字を2列境界に揃えて確認した。右端の残り1列へかかる場合の実端末表示は未確認として残す。
 

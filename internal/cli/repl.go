@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -17,37 +16,43 @@ type inputLine struct {
 }
 
 func runREPL(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer) int {
+	if ctx.Err() != nil {
+		return interruptedCode(ctx, stderr)
+	}
+	input, err := newREPLInput(stdin, stdout)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	return runREPLWithInput(ctx, input, stdout, stderr)
+}
+
+func runREPLWithInput(ctx context.Context, input replInput, stdout, stderr io.Writer) (code int) {
+	defer func() {
+		if err := input.close(); err != nil {
+			fmt.Fprintln(stderr, err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}()
 	session, err := runtime.NewSession(runtime.Options{Stdout: stdout, Stderr: stderr})
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	defer session.Close()
-	readCtx, stopReading := context.WithCancel(ctx)
-	defer stopReading()
-	lines := make(chan inputLine)
-	go func() {
-		reader := bufio.NewReader(stdin)
-		for {
-			text, err := reader.ReadString('\n')
-			select {
-			case lines <- inputLine{text: text, err: err}:
-			case <-readCtx.Done():
-				return
-			}
-			if err != nil {
-				return
-			}
-		}
-	}()
 	for {
 		if ctx.Err() != nil {
 			return interruptedCode(ctx, stderr)
 		}
-		if _, err := fmt.Fprint(stdout, "> "); err != nil {
-			fmt.Fprintln(stderr, err)
-			return 1
-		}
+		// Read one input, then evaluate it before starting another read. Liner
+		// returns the terminal to cooked mode while JS and host I/O are running.
+		lines := make(chan inputLine, 1)
+		go func() {
+			text, err := input.readLine("> ")
+			lines <- inputLine{text: text, err: err}
+		}()
 		var line inputLine
 		select {
 		case <-ctx.Done():
@@ -57,13 +62,15 @@ func runREPL(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer) int
 		if ctx.Err() != nil {
 			return interruptedCode(ctx, stderr)
 		}
+		if errors.Is(line.err, errREPLInterrupt) {
+			return 130
+		}
 		if line.err != nil && !errors.Is(line.err, io.EOF) {
 			fmt.Fprintln(stderr, line.err)
 			return 1
 		}
-		input := strings.TrimSuffix(strings.TrimSuffix(line.text, "\n"), "\r")
-		if strings.TrimSpace(input) != "" {
-			result := session.Eval(ctx, input)
+		if strings.TrimSpace(line.text) != "" {
+			result := session.Eval(ctx, line.text)
 			if ctx.Err() != nil {
 				return interruptedCode(ctx, stderr)
 			}
