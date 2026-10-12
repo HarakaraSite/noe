@@ -173,6 +173,7 @@ NOE_REPL_HISTORY=/tmp/my-noe-history.jsonl ./noe repl
 | `noe.env.get(name)` | 環境変数の文字列。未設定なら`undefined` |
 | `noe.cwd()` | カレントディレクトリの絶対パス |
 | `noe.exit(code = 0)` | 実行を即座に終了。コードは0〜255の整数 |
+| `noe.sleep(ms)` | 指定ミリ秒を待つ`Promise<void>`。msは0〜9223372036854の整数のnumber。timeout・REPL中断・明示終了で待機を取り消す |
 | `noe.readStdin()` | run/evalの標準入力をEOFまで読む`Promise<string>`。繰り返し呼出しは同じPromiseを返す。REPLでは提供しない |
 | `noe.readTextFile(path)` | テキストを読み込む`Promise<string>` |
 | `noe.writeTextFile(path, text)` | テキストを上書き保存する`Promise<void>`。親ディレクトリは事前に用意する |
@@ -206,7 +207,18 @@ const input = JSON.parse(await noe.readTextFile(noe.args[0]));
 await noe.writeTextFile(noe.args[1], JSON.stringify(transform(input)));
 ```
 
-Promise、`async/await`、top-level awaitを利用できます。通常終了では、開始した標準入力・ファイル・HTTP処理と後続のJS処理を待ちます。`run`・`eval`では、解決する処理が残っていない未完了のtop-level awaitは失敗として終了します。REPLでは診断後に次の入力へ進みます。`noe.exit`は停止を優先し、後続のJSや`catch`・`finally`を実行しません。
+Promise、`async/await`、top-level awaitを利用できます。通常終了では、開始した標準入力・ファイル・HTTP処理・sleepと後続のJS処理を待ちます。`run`・`eval`では、解決する処理が残っていない未完了のtop-level awaitは失敗として終了します。REPLでは診断後に次の入力へ進みます。`noe.exit`は停止を優先し、後続のJSや`catch`・`finally`を実行しません。
+
+`await noe.sleep(ms)`で、他の処理を止めずに待機できます。0もPromiseを返し、解決結果はundefinedです。引数の暗黙変換はせず、number以外はTypeError、負数・小数・NaN・Infinity・上限超過はRangeErrorでrejectします。指定した時間より早くは完了せず、JSやOSの処理状況によって後になる場合があります。
+
+```js
+for (let i = 0; i < 3; i++) {
+  console.log(`実行 ${i + 1}`);
+  if (i < 2) await noe.sleep(1000);
+}
+```
+
+同じ例を`./noe run examples/sleep-demo.js`で試せます。
 
 ## HTTPサブセット
 
@@ -295,7 +307,7 @@ curl -H 'Content-Type: application/json' \
 
 デモのportは省略時8080、0なら空きポートです。起動時に実際のURLを表示します。不正JSONは400、他のパスは404。起動した端末のCtrl+Cで終了します。
 
-HTTP bodyは全体をメモリへ保持します。ストリーミング、TLSの公開設定、WebSocket、タイマーAPI、リクエスト単位のJS強制中断は提供しません。
+HTTP bodyは全体をメモリへ保持します。ストリーミング、TLSの公開設定、WebSocket、setTimeout・setInterval、リクエスト単位のJS強制中断は提供しません。
 
 ## エラーと検証
 
@@ -315,3 +327,5 @@ E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行し�
 [MVP案](docs/mvp.md)、[インクリメント1](docs/increment-1.md)、[インクリメント2](docs/increment-2.md)、[インクリメント3](docs/increment-3.md)、[インクリメント4](docs/increment-4.md)、[インクリメント5](docs/increment-5.md)、[インクリメント6](docs/increment-6.md)、[インクリメント7](docs/increment-7.md)、[インクリメント8](docs/increment-8.md)、[インクリメント9](docs/increment-9.md)に範囲と受入条件を記載しています。
 
 [インクリメント10](docs/increment-10.md)に、NOE共通イベントループと簡易HTTPサーバーの範囲・受入条件・検証記録を記載しています。
+
+[インクリメント11](docs/increment-11.md)に、noe.sleepの契約・実装・検証記録を記載しています。

@@ -92,6 +92,10 @@ READMEのJavaScript/TypeScriptという説明は製品の方向性を示す。MV
 
 [インクリメント10](increment-10.md)で、既存の非同期基盤をNOE共通イベントループへ整理し、Goのnet/httpを使う`noe.serve()`を追加した。ファイル・fetchなどの公開仕様を保ち、サーバーの継続受付と停止・実行期限・REPL中断を同じ実行基盤で扱う。独自のリクエスト・応答オブジェクトとasyncハンドラーを提供し、ホスト機能はNOE側で実装する。go-quickjsのstdlib一括導入やNode/Deno互換は行わない。
 
+### 待機と処理間隔
+
+[インクリメント11](increment-11.md)で`noe.sleep(ms)`を追加した。共通イベントループを使って他のJSやI/Oを止めずに待機し、timeout・REPL中断・明示終了で取り消す。有限の繰り返し実行のデモを提供する。
+
 ## 参照
 
 - [txiki.js Getting Started](https://txikijs.org/docs/getting-started/)
