@@ -28,14 +28,21 @@ func (h *host) installFetch() error {
 			if err != nil {
 				return nil, err
 			}
-			return map[string]any{"status": res.StatusCode, "body": string(data)}, nil
+			return fetchResult{status: res.StatusCode, body: data}, nil
 		})
 	}
 	factory, err := h.rt.EvalFile("<noe-fetch>", fetchFactory)
 	if err != nil {
 		return err
 	}
-	fetch, err := factory.Call(send)
+	cloneBytes := func(value quickjs.Value) (quickjs.Value, error) {
+		data, ok := value.Bytes()
+		if !ok {
+			return quickjs.Value{}, h.rt.ThrowTypeError("invalid response byte buffer")
+		}
+		return h.rt.NewBytes(data), nil
+	}
+	fetch, err := factory.Call(send, cloneBytes)
 	if err != nil {
 		return err
 	}
@@ -43,8 +50,9 @@ func (h *host) installFetch() error {
 }
 
 // Validation and response methods stay on the runtime's goroutine; only Go
-// strings, headers and the fully read body cross the HTTP goroutine boundary.
-const fetchFactory = `(send => async function fetch(url, options = {}) {
+// strings, headers and the fully read Go byte slice cross the HTTP worker
+// boundary. The byte buffer is made on the owner and kept private to fetch.
+const fetchFactory = `((send, cloneBytes) => async function fetch(url, options = {}) {
   if (typeof url !== "string") throw new TypeError("fetch URL must be a string");
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("fetch options must be an object");
@@ -75,10 +83,12 @@ const fetchFactory = `(send => async function fetch(url, options = {}) {
   }
   const response = await send(url, method, copiedHeaders, body === undefined ? "" : body);
   const text = response.body;
+  const data = response.bytes;
   return {
     status: response.status,
     ok: response.status >= 200 && response.status < 300,
     text: async () => text,
     json: async () => JSON.parse(text),
+    bytes: async () => cloneBytes(data),
   };
 })`

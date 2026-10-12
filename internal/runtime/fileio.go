@@ -62,9 +62,14 @@ func openFileContext(ctx context.Context, path string, flag int, perm os.FileMod
 }
 
 func readTextFileContext(ctx context.Context, path string) (string, error) {
+	data, err := readFileContext(ctx, path)
+	return string(data), err
+}
+
+func readFileContext(ctx context.Context, path string) ([]byte, error) {
 	file, err := openFileContext(ctx, path, os.O_RDONLY, 0)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	stopClose := context.AfterFunc(ctx, func() { _ = file.Close() })
 	defer func() {
@@ -72,16 +77,20 @@ func readTextFileContext(ctx context.Context, path string) (string, error) {
 		_ = file.Close()
 	}()
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return nil, err
 	}
 	data, err := io.ReadAll(file)
 	if contextErr := ctx.Err(); contextErr != nil {
-		return "", contextErr
+		return nil, contextErr
 	}
-	return string(data), err
+	return data, err
 }
 
 func writeTextFileContext(ctx context.Context, path, text string) error {
+	return writeFileContext(ctx, path, []byte(text))
+}
+
+func writeFileContext(ctx context.Context, path string, data []byte) error {
 	file, err := openFileContext(ctx, path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return err
@@ -91,7 +100,7 @@ func writeTextFileContext(ctx context.Context, path, text string) error {
 		stopClose()
 		_ = file.Close()
 	}()
-	remaining := []byte(text)
+	remaining := data
 	for len(remaining) > 0 {
 		if err := ctx.Err(); err != nil {
 			return err

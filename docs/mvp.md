@@ -84,6 +84,10 @@ READMEのJavaScript/TypeScriptという説明は製品の方向性を示す。MV
 
 [インクリメント8](increment-8.md)でfetchへPUT・PATCH・DELETEを追加した。POSTと同じく明示的な文字列bodyとヘッダーを使ってJSON APIの更新・削除を行う。Web全面互換は目指さず、JSON用の実行例を提供する。
 
+### バイナリ入出力
+
+[インクリメント9](increment-9.md)でUint8Arrayを読み書きする`noe.readFile(path)`・`noe.writeFile(path, bytes)`と、HTTPレスポンスの`bytes()`を追加した。全体をバイト列として保持し、部分ビューやコピーの独立性を明記する。ダウンロードしてそのまま保存する実行例を提供する。
+
 ## 参照
 
 - [txiki.js Getting Started](https://txikijs.org/docs/getting-started/)

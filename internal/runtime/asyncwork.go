@@ -37,6 +37,9 @@ func (h *host) startAsyncWork(fn func(context.Context) (any, error)) quickjs.Val
 				promise.RejectError(err)
 				return
 			}
+			if result, ok := value.(asyncResult); ok {
+				value = result.jsValue(h.rt)
+			}
 			if err := promise.Resolve(value); err != nil {
 				promise.RejectError(err)
 			}
