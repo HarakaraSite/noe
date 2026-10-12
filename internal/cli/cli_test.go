@@ -17,7 +17,7 @@ func TestCLI(t *testing.T) {
 		out, err string
 	}{
 		{"help", []string{"--help"}, 0, "noe run", ""},
-		{"version", []string{"--version"}, 0, "noe dev", ""},
+		{"version", []string{"--version"}, 0, "noe v1.0.0\n", ""},
 		{"eval", []string{"eval", `console.log("hello"); console.warn("warning"); console.error("error");`}, 0, "hello\n", "warning\nerror\n"},
 		{"syntax", []string{"eval", `const broken = ;`}, 1, "", "<eval>.js:1:"},
 		{"exception", []string{"eval", `throw new Error("boom")`}, 1, "", "boom"},

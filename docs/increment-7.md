@@ -63,4 +63,4 @@ git diff --check
 
 - [製品方針・MVP](mvp.md)
 - [インクリメント6](increment-6.md)
-- [現在のCLI](../README.md#ビルドと実行)
+- [現在のCLI](../README.md#build-and-run)

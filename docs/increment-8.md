@@ -63,4 +63,4 @@ git diff --check
 
 - [製品方針・MVP](mvp.md)
 - [インクリメント7](increment-7.md)
-- [現在のHTTP API](../README.md#httpサブセット)
+- [現在のHTTP API](../README.md#http-subset)

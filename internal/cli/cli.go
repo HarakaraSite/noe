@@ -14,7 +14,7 @@ import (
 )
 
 // Version can be set at build time using -ldflags '-X noe/internal/cli.Version=...'.
-var Version = "dev"
+var Version = "v1.0.0"
 
 const usage = `Usage:
   noe run [--timeout duration] script.js [args...]
