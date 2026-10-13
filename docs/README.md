@@ -22,6 +22,10 @@
 
 行編集については[比較スパイク](repl-lineedit-spike.md)と[インクリメント3・4の計画レビュー](increment-3-4-review.md)もあります。
 
+## 今後の候補
+
+[次の機能候補](future-candidates.md)に、外部コマンド・ストリーミング・import map・HTTP URLからのimportの優先順案と、暗号・ハッシュの検討保留を記録しています。
+
 ## ビルドと検証
 
 Go 1.27.2以降を使います。現在の検証環境はLinux amd64です。通常のビルドはCGO不要で、race detectorの実行にはCツールチェーンが必要です。以下はリポジトリのルートで実行します。

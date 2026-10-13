@@ -172,3 +172,9 @@ go test -tags=e2e ./... -count=1
 E2E tests build the CLI with CGO disabled and run it as a separate process. They use temporary files and local HTTP servers, and check REPL interactions through a PTY on Linux. They do not connect to external services.
 
 See the [development notes](docs/README.md) for design, acceptance criteria, validation records, and development commands.
+
+## License
+
+NOE is licensed under the [MIT License](https://opensource.org/license/mit).
+
+Third-party code and data retain their respective licenses.
