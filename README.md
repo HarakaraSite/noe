@@ -175,6 +175,6 @@ See the [development notes](docs/README.md) for design, acceptance criteria, val
 
 ## License
 
-NOE is licensed under the [MIT License](https://opensource.org/license/mit).
+NOE is licensed under the [MIT License](LICENSE).
 
 Third-party code and data retain their respective licenses.
