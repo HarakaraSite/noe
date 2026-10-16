@@ -84,3 +84,23 @@ The actual runner set up Go 1.27.2, passed the CGO-free unit tests and vet gate,
 After publication, all seven assets were downloaded from the Release. The six binary hashes matched the published `SHA256SUMS`. The downloaded Linux amd64 binary returned `noe v1.0.0` for `--version` and `2` for `eval 'console.log(1 + 1)'`, both with exit code 0 and empty stderr. This verifies the distributed Linux amd64 binary in addition to the earlier local and CI builds.
 
 The remote tag was checked against the workflow's commit SHA. This validation record is committed after publication; it does not move or replace the release tag.
+
+## v1.1.0 preparation — 2026-10-16
+
+Checked source revision: `3195e83ae525ace96f6204c0495d74e5c8a2411f`. The checks ran against the same source immediately before that commit. This preparation entry is a documentation-only follow-up; the release tag includes it without changing the checked application code. Environment: Linux amd64, Go 1.27.2, with a C toolchain for race and Linux PTY support.
+
+This release enables the full pinned go-quickjs stdlib and removes the `noe` JavaScript global. Existing scripts require migration; see the [v1.1.0 release notes](releases/v1.1.0.md) and [API migration table](api.md#旧apiからの移行).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go vet ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` | Passed |
+| `go test -tags=e2e ./... -count=1` | Passed, including Linux PTY checks |
+| `go vet -tags=e2e ./...` | Passed |
+| All six profile targets, CGO disabled, `-trimpath`, `-s -w -X noe/internal/cli.Version=v1.1.0` | Built successfully |
+| Local `SHA256SUMS` covering all six binaries | All hashes verified |
+| Linux amd64 binary `--version` | `noe v1.1.0` |
+| Linux amd64 binary: stdlib timer, Fetch/serve presence, removed `noe` global | Passed; `undefined function function` |
+
+The existing tag-triggered Forgejo workflow remains the distribution gate. Its result and the downloaded Release assets are verified separately after publication. Cross-builds verify compilation; runtime and terminal behavior on macOS, Windows, and arm64 were not tested locally.
