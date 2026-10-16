@@ -1,0 +1,14 @@
+{"kind":"host_start","model":"deepseek/deepseek-v4.1-flash","provider":"mock","time":"2026-10-16T08:06:16.916238365Z"}
+{"kind":"run_start","name":"recovery","parentRunId":"","runId":"run-1","scope":"root","time":"2026-10-16T08:06:16.934735314Z"}
+{"cacheKey":"noe-spike-recovery-v2","kind":"model_start","messages":2,"runId":"run-1","time":"2026-10-16T08:06:16.936014983Z"}
+{"elapsedMs":0,"finishReason":"tool_calls","kind":"model_end","runId":"run-1","status":"ok","time":"2026-10-16T08:06:16.936054197Z","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
+{"codeSHA256":"fb27abecf1ecec15df8d1f4344fecc4349e1d092ee86e6299dd8d4b7da73684e","kind":"js_start","runId":"run-1","scope":"js-2","time":"2026-10-16T08:06:16.936905358Z"}
+{"exitCode":1,"kind":"js_end","reason":"failed","runId":"run-1","scope":"js-2","stderrBytes":138,"stdoutBytes":0,"time":"2026-10-16T08:06:16.961621405Z"}
+{"cacheKey":"noe-spike-recovery-v2","kind":"model_start","messages":4,"runId":"run-1","time":"2026-10-16T08:06:16.963722583Z"}
+{"elapsedMs":0,"finishReason":"tool_calls","kind":"model_end","runId":"run-1","status":"ok","time":"2026-10-16T08:06:16.963769413Z","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
+{"codeSHA256":"40e296a5d482a6a67cdc709b2a24a6236b68eef46abd4de17ec104b2262085e4","kind":"js_start","runId":"run-1","scope":"js-3","time":"2026-10-16T08:06:16.964682263Z"}
+{"exitCode":0,"kind":"js_end","reason":"completed","runId":"run-1","scope":"js-3","stderrBytes":0,"stdoutBytes":37,"time":"2026-10-16T08:06:16.983907006Z"}
+{"cacheKey":"noe-spike-recovery-v2","kind":"model_start","messages":6,"runId":"run-1","time":"2026-10-16T08:06:16.985153274Z"}
+{"elapsedMs":0,"finishReason":"stop","kind":"model_end","runId":"run-1","status":"ok","time":"2026-10-16T08:06:16.985217392Z","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
+{"kind":"run_end","parentRunId":"","runId":"run-1","status":"completed","time":"2026-10-16T08:06:16.985839373Z"}
+{"kind":"host_end","time":"2026-10-16T08:06:16.987658137Z"}

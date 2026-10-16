@@ -1,0 +1,126 @@
+{
+  "started_at": "2026-10-16T08:06:29.452079+00:00",
+  "provider": "openrouter",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "platform": "Linux-6.12.111+deb13-amd64-x86_64-with-glibc2.41",
+  "go_version": "go version go1.27.2 linux/amd64",
+  "base_commit": "3c52c06f69cfeb8100f6e6100ba67999fc10fffe",
+  "host_sha256": "b91151db569a9907cd056747a14c1a9396de143bdf3674a4958cc4d4e6cd8c2d",
+  "noe_sha256": "7595c9ee7367b27ae350aa6dfeb2cabcb72bc18934f1d33fe5a26871ac7d5c17",
+  "source_sha256": {
+    "examples/delegate.js": "03415d060d202efbb21562d10a0261b619f921318b095535a028affa773ac39e",
+    "examples/recovery.js": "ac06d9309d30e884c50621468d1eacc107432d2580c11632da0cb1f1a6ae5dbc",
+    "examples/service.js": "2a01c4a7340f0f96e9fa7141c04a85b229c26d49a9f1100add75e721245ff090",
+    "examples/single.js": "536f8d58a8494fad3c5fe705149598a931bf8cdf4d1e6b11d17ba3ba4ae0930b",
+    "fixtures/left.json": "ec55f6299baceb423028731282278b629928e3e7653ddc4aa01140b354d668fb",
+    "fixtures/numbers.json": "d4db7326414a0bc57956c6bba151b77aad8235bc55b0f137e2db4ef1a3877a16",
+    "fixtures/right.json": "1360d504f3ee256fba7ce6ccc535098df3f2d34d87f0e46e2008485de3469d42",
+    "go.mod": "7c571317242cf2aea41e296e658b057df11a27e23a3aaf6fac2de96c7ca85f92",
+    "go.sum": "4f93b51f722b0f612e08db91d14660a6f52492545e3b43c6a9bb4ed5e7f8304c",
+    "host.go": "d8cb7e72e576aeac6d47d81e367f83570e6011d228669ccdf9fbe99469e44b89",
+    "lib/agent.js": "daecbf2d02fc3834fbd7651d230870ae905fefef94036892a5912e0122444e21",
+    "lib/host.js": "b5672150632fae0bf6908bd8541c18e822f46e1ac972d5e9750e6590c00c6103",
+    "lib/services.js": "66382fff99c9512f6a8626285c2ec0f5d8dd4681b7d754dcc94c0c9bed996c1d",
+    "main.go": "befbd9b7a15314392643f181b64eeaa6463a647a0aaa6c48367b64cbd00de51b",
+    "mock.go": "93e91a36ef4ab87cd8c6d016df9d033c64ee0ca01985022ca0db4377bfb81bfb",
+    "provider.go": "a175ecf834571ec161258643c19c1032b47821516a1db1356aed527229f79e51",
+    "services.go": "09acd7663af54a5a4d762bc86af8eb88167eb42ef54a3d311c170f765f6c811f",
+    "spike_test.go": "98e68934f62490c9e26a9bc0095c39ed467a7e8cf5c9053095a56f54ad315fc1",
+    "verify.py": "e661175c408694f245a63df4be88020c36d1875d3325f13f14ed42cc81e1d7f4"
+  },
+  "scenarios": {
+    "single": {
+      "exit_code": 0,
+      "final_json": {
+        "count": 4,
+        "total": 100,
+        "average": 25
+      },
+      "agents": 1,
+      "model_calls": 5,
+      "js_calls": 4,
+      "failed_js_calls": 1,
+      "children_overlap": null,
+      "prompt_tokens": 5022,
+      "completion_tokens": 475,
+      "cached_tokens": 1024,
+      "reported_cost_usd": 0.000501636,
+      "passed": true
+    },
+    "recovery": {
+      "exit_code": 0,
+      "final_json": {
+        "count": 4,
+        "total": 100,
+        "average": 25
+      },
+      "agents": 1,
+      "model_calls": 3,
+      "js_calls": 2,
+      "failed_js_calls": 1,
+      "children_overlap": null,
+      "prompt_tokens": 2787,
+      "completion_tokens": 399,
+      "cached_tokens": 1280,
+      "reported_cost_usd": 0.00055104,
+      "passed": true
+    },
+    "delegate": {
+      "exit_code": 0,
+      "final_json": {
+        "parts": [
+          {
+            "parts": [
+              10,
+              20
+            ],
+            "total": 30
+          },
+          {
+            "parts": [
+              30,
+              40
+            ],
+            "total": 70
+          }
+        ],
+        "total": 100
+      },
+      "agents": 3,
+      "model_calls": 10,
+      "js_calls": 7,
+      "failed_js_calls": 2,
+      "children_overlap": true,
+      "prompt_tokens": 11094,
+      "completion_tokens": 2075,
+      "cached_tokens": 5760,
+      "reported_cost_usd": 0.0027419144,
+      "passed": true
+    },
+    "service": {
+      "exit_code": 0,
+      "final_json": {
+        "query": "NOE spike",
+        "results": [
+          {
+            "snippet": "The fixture answer is 42.",
+            "title": "NOE spike fixture"
+          }
+        ],
+        "source": "local authenticated fixture (not web search)"
+      },
+      "agents": 1,
+      "model_calls": 2,
+      "js_calls": 1,
+      "failed_js_calls": 0,
+      "children_overlap": null,
+      "prompt_tokens": 1478,
+      "completion_tokens": 214,
+      "cached_tokens": 1280,
+      "reported_cost_usd": 0.00032388,
+      "passed": true
+    }
+  },
+  "finished_at": "2026-10-16T08:07:03.458293+00:00",
+  "passed": true
+}

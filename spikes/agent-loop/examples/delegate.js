@@ -1,0 +1,3 @@
+import { createAgent } from "../lib/agent.js";
+const agent = createAgent({ name: "delegate" });
+console.log(await agent.run("Delegate two independent tasks using run_js and Promise.all: create child agents named left and right. Ask left to read left.json and right to read right.json from the fixture directory, each USING ITS OWN run_js tool, and return JSON with total. Parse their final JSON strings, combine their totals and return only JSON {parts:[child results],total:combined total}. Do not read the fixture files yourself; the children must do their own computation.", { cacheKey: "noe-spike-delegate-v1" }));

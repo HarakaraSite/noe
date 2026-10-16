@@ -6,7 +6,7 @@
 
 ## 現在のAPIと移行
 
-JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`process`・`timers/promises`とグローバルの`fetch`・`serve`など、go-quickjs標準ライブラリへ統一しました。NOE固有で残るのはCLIとREPLの操作機能です。[移行表](api.md#旧apiからの移行)と[インクリメント12の記録](increment-12.md)を参照してください。
+JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`process`・`timers/promises`とグローバルの`fetch`・`serve`などは、go-quickjs標準ライブラリへ統一しました。NOE固有の機能としてCLI・REPLの操作と、インクリメント13で追加した`noe:agent`モジュールがあります。[移行表](api.md#旧apiからの移行)と[インクリメント12の記録](increment-12.md)、[agent API](api.md)を参照してください。
 
 以下のインクリメント1〜11、レビュー、比較スパイクは当時の設計・検証履歴です。そこに記載された旧API・対象外・ソース構成・中断動作は、現在の仕様や最新コードの検証結果を示すものではありません。
 
@@ -26,6 +26,7 @@ JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`proces
 | [10](increment-10.md) | 共通イベントループと簡易HTTPサーバー |
 | [11](increment-11.md) | 旧sleep API（履歴） |
 | [12](increment-12.md) | stdlibへの統一、旧`noe.*` APIと独自I/O実装の削除 |
+| [13](increment-13.md) | OpenRouter agent loop、子JS実行、親子agent、Go側の認証・通信（[実装・検証記録](increment-13-implementation.md)、[計画レビュー](increment-13-review.md)） |
 
 行編集については[比較スパイク](repl-lineedit-spike.md)と[インクリメント3・4の計画レビュー](increment-3-4-review.md)もあります。
 
@@ -45,7 +46,7 @@ CGO_ENABLED=1 go test -race ./internal/... -count=1
 go vet -tags=e2e ./...
 ```
 
-E2Eは実際のCLIを別プロセスから起動し、出力・終了コード・ファイルの内容・HTTP応答を確認します。履歴とファイルは一時ディレクトリ、HTTPはローカルサーバーを使い、外部サービスに接続しません。LinuxのPTYテストは編集、日本語、履歴、複数行、補完、Ctrl+C中断、終了後の端末設定の復元を確認します。
+E2Eは実際のCLIを別プロセスから起動し、出力・終了コード・ファイルの内容・HTTP応答を確認します。通常のE2Eは履歴とファイルに一時ディレクトリ、HTTPにローカルサーバーを使い、外部サービスに接続しません。OpenRouterへの実接続は、[インクリメント13の記録](increment-13-implementation.md)に従い、別途`agent_live`タグと認証設定を明示して実行します。LinuxのPTYテストは編集、日本語、履歴、複数行、補完、Ctrl+C中断、終了後の端末設定の復元を確認します。
 
 過去の検証結果は各インクリメントに、stdlib移行時のローカル検証は[インクリメント12](increment-12.md#検証記録)に記録しています。新しい変更では、その時点のソースに対して上のコマンドを実行してください。
 
@@ -55,7 +56,7 @@ E2Eは実際のCLIを別プロセスから起動し、出力・終了コード�
 
 ## 参照と方針
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。現在のJavaScript APIは、固定したgo-quickjs標準ライブラリを通じて提供します。NOE固有の機能はCLI、実行期限、REPLの操作などです。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。汎用JavaScript APIは固定したgo-quickjs標準ライブラリを通じて提供します。NOE固有の機能はCLI、実行期限、REPLの操作、`noe:agent`モジュールなどです。
 
 参照資料・ソースを置く`_refs/`はローカル専用の未追跡ディレクトリです。ビルド・テストの依存には含めません。
 

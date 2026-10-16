@@ -4,7 +4,7 @@
 
 以下のコマンドは、ビルド済みの`./noe`を使い、リポジトリのルートで実行します。ファイル操作の相対パスは`process.cwd()`が基準です。スクリプト引数は`process.argv.slice(2)`で取得します。
 
-実行例はgo-quickjs標準ライブラリを使います。旧`noe.*` APIは廃止済みで、置換先は[移行表](../docs/api.md#旧apiからの移行)にまとめています。
+通常の実行例はgo-quickjs標準ライブラリを使います。agent例は組み込みの`noe:agent` moduleからOpenRouterへ要求します。旧`noe.*` APIは廃止済みで、置換先は[移行表](../docs/api.md#旧apiからの移行)にまとめています。
 
 ## 一覧
 
@@ -22,8 +22,30 @@
 | [http-server.js](http-server.js) | healthとJSON echoのHTTPサーバー |
 | [sleep-demo.js](sleep-demo.js) | 非同期の待機を使った定期表示 |
 | [repl-demo.js](repl-demo.js) | REPLへ1行ずつ貼り付けて試す計算例 |
+| [agent-summary.js](agent-summary.js) | OpenRouter agentが指定ファイルを読み、要約を返す |
+| [agent-parallel.js](agent-parallel.js) | 二つの子agentがJSONを並行集計し、親agentが結果をまとめる |
 
-`lib/`は例で使うモジュール、`data/`はサンプル入力です。
+`lib/`は例で使うモジュール、`data/`はサンプル入力です。agentの並行例は[左のJSON](data/agent/left.json)と[右のJSON](data/agent/right.json)を使います。
+
+## OpenRouter agent
+
+agent例はOpenRouterへモデル要求を送ります。APIキーをテキストファイルに保存して、ファイルのpathを設定します。key valueをscriptやshell commandへ直接記述しません。
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/agent-summary.js README.md
+```
+
+`agent-summary.js`は既定で`README.md`を読み、簡潔な日本語の要約を標準出力へ表示します。別のファイルは引数で指定できます。
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/agent-parallel.js
+```
+
+並行例の既定入力は`examples/data/agent/left.json`と`examples/data/agent/right.json`です。必要なら二つのpathを引数で置き換えられます。モデル出力の文章や形式は変わる場合があります。`agent.run()`が返す値は文字列で、JavaScript側が`console.log()`を呼んで表示しています。
+
+`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、`createAgent`・`run`の設定、エラー、REPL、任意の実行timeout、traceは[APIリファレンス](../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
 
 ## JSONの加工と保存
 

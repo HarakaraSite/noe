@@ -61,6 +61,28 @@ Print three times, one second apart, using asynchronous sleep:
 
 See the [examples](examples/README.md) for file transformation, report generation, and HTTP downloads.
 
+## OpenRouter agent
+
+NOE includes an optional autonomous agent module. It can read and change files, run commands, and return a final answer. The agent runs with the same operating-system permissions as NOE; it is not a sandbox. File contents used for the task may be included in requests to OpenRouter.
+
+Store an OpenRouter API key in a text file, then point NOE to that file:
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/agent-summary.js README.md
+```
+
+The file is read on the first model request. If the variable is unset, NOE looks for `$XDG_CONFIG_HOME/noe/credentials/openrouter-api-key`, or `~/.config/noe/credentials/openrouter-api-key` when `XDG_CONFIG_HOME` is unset. Importing the module or creating an agent does not read the key or contact the provider.
+
+`agent.run()` returns a string; it does not print automatically. The example prints it. For parallel child agents that summarize the sample JSON files, run:
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/agent-parallel.js
+```
+
+The root agent requires a model. Child agents inherit the current run's provider, model, and `maxTokens` unless they override those options. Each run has a separate history. See the [examples](examples/README.md) and [API reference](docs/api.md) for model settings, optional limits, errors, REPL use, and trace output.
+
 ## HTTP server
 
 You can write a small HTTP server in JavaScript. Start the demo:

@@ -100,6 +100,12 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return 2
 	}
 	runtimeOptions := runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs}
+	agentSettings, err := agentOptions(stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	runtimeOptions.Agent = agentSettings
 	executionContext := ctx
 	var cancel context.CancelFunc
 	if executionTimeout > 0 {

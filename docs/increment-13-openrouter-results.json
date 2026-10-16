@@ -1,0 +1,426 @@
+{
+  "verifiedAt": "2026-10-16T10:18:37Z",
+  "platform": "linux/amd64",
+  "goVersion": "go1.27.2",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "sdk": "github.com/OpenRouterTeam/go-sdk v0.9.59",
+  "results": [
+    {
+      "name": "aggregate",
+      "source": "tests/fixtures/agent-live/aggregate.js",
+      "command": [
+        "noe",
+        "run",
+        "--timeout",
+        "120s",
+        "/home/agent/projects/noe/tests/fixtures/agent-live/aggregate.js"
+      ],
+      "exitCode": 0,
+      "durationMs": 6902,
+      "stdout": "Read `numbers.json` from the working directory; it contains `[10,20,30,40]`.\n\nResult:\n\n```json\n{\"count\":4,\"total\":100,\"average\":25}\n```\n\n- **count**: 4 elements\n- **total**: 10 + 20 + 30 + 40 = 100\n- **average**: 100 / 4 = 25\n",
+      "trace": [
+        {
+          "runId": "a66151b1ceab890e2ea41dfc482eaeed76641033056d8ccd",
+          "name": "aggregate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "started"
+        },
+        {
+          "runId": "a66151b1ceab890e2ea41dfc482eaeed76641033056d8ccd",
+          "name": "aggregate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 2646488153,
+          "usage": {
+            "promptTokens": 744,
+            "completionTokens": 164,
+            "totalTokens": 908,
+            "cachedTokens": 0,
+            "cost": 0.00041256
+          }
+        },
+        {
+          "runId": "a66151b1ceab890e2ea41dfc482eaeed76641033056d8ccd",
+          "name": "aggregate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "js_result",
+          "duration": 33496031,
+          "exitCode": 0,
+          "reason": "completed"
+        },
+        {
+          "runId": "a66151b1ceab890e2ea41dfc482eaeed76641033056d8ccd",
+          "name": "aggregate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 2359735200,
+          "usage": {
+            "promptTokens": 1018,
+            "completionTokens": 158,
+            "totalTokens": 1176,
+            "cachedTokens": 896,
+            "cost": 0.000231252
+          }
+        },
+        {
+          "runId": "a66151b1ceab890e2ea41dfc482eaeed76641033056d8ccd",
+          "name": "aggregate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "js_result",
+          "duration": 35426130,
+          "exitCode": 0,
+          "reason": "completed"
+        },
+        {
+          "runId": "a66151b1ceab890e2ea41dfc482eaeed76641033056d8ccd",
+          "name": "aggregate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 1802990344,
+          "usage": {
+            "promptTokens": 1222,
+            "completionTokens": 83,
+            "totalTokens": 1305,
+            "cachedTokens": 1152,
+            "cost": 0.000127964
+          }
+        },
+        {
+          "runId": "a66151b1ceab890e2ea41dfc482eaeed76641033056d8ccd",
+          "name": "aggregate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "completed",
+          "duration": 6883004899
+        }
+      ],
+      "modelCalls": 3,
+      "jsExecutions": 2,
+      "cachedTokens": 2048,
+      "cost": 0.0007717760000000001,
+      "passed": true
+    },
+    {
+      "name": "repair",
+      "source": "tests/fixtures/agent-live/repair.js",
+      "command": [
+        "noe",
+        "run",
+        "--timeout",
+        "120s",
+        "/home/agent/projects/noe/tests/fixtures/agent-live/repair.js"
+      ],
+      "exitCode": 0,
+      "durationMs": 6235,
+      "stdout": "Recovery complete. The first call intentionally threw `NOE_LIVE_REPAIR` (failed as expected), then the repaired code successfully read `numbers.json` from the working directory.\n\nResult:\n\n```json\n{\"count\":4,\"total\":100,\"average\":25}\n```\n\n- **count**: 4\n- **total**: 100\n- **average**: 25\n",
+      "trace": [
+        {
+          "runId": "3d59cf9a3c6d7565b1df0b00c4c7ba9ff12e06088189b280",
+          "name": "repair",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "started"
+        },
+        {
+          "runId": "3d59cf9a3c6d7565b1df0b00c4c7ba9ff12e06088189b280",
+          "name": "repair",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 3782174194,
+          "usage": {
+            "promptTokens": 792,
+            "completionTokens": 80,
+            "totalTokens": 872,
+            "cachedTokens": 0,
+            "cost": 0.00030184
+          }
+        },
+        {
+          "runId": "3d59cf9a3c6d7565b1df0b00c4c7ba9ff12e06088189b280",
+          "name": "repair",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "js_result",
+          "duration": 28837070,
+          "exitCode": 1,
+          "reason": "failed"
+        },
+        {
+          "runId": "3d59cf9a3c6d7565b1df0b00c4c7ba9ff12e06088189b280",
+          "name": "repair",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 1450384509,
+          "usage": {
+            "promptTokens": 949,
+            "completionTokens": 157,
+            "totalTokens": 1106,
+            "cachedTokens": 768,
+            "cost": 0.00022541
+          }
+        },
+        {
+          "runId": "3d59cf9a3c6d7565b1df0b00c4c7ba9ff12e06088189b280",
+          "name": "repair",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "js_result",
+          "duration": 38708992,
+          "exitCode": 0,
+          "reason": "completed"
+        },
+        {
+          "runId": "3d59cf9a3c6d7565b1df0b00c4c7ba9ff12e06088189b280",
+          "name": "repair",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 894542689,
+          "usage": {
+            "promptTokens": 1152,
+            "completionTokens": 80,
+            "totalTokens": 1232,
+            "cachedTokens": 768,
+            "cost": 0.00019552
+          }
+        },
+        {
+          "runId": "3d59cf9a3c6d7565b1df0b00c4c7ba9ff12e06088189b280",
+          "name": "repair",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "completed",
+          "duration": 6201416563
+        }
+      ],
+      "modelCalls": 3,
+      "jsExecutions": 2,
+      "cachedTokens": 1536,
+      "cost": 0.00072277,
+      "passed": true
+    },
+    {
+      "name": "parallel",
+      "source": "tests/fixtures/agent-live/parallel.js",
+      "command": [
+        "noe",
+        "run",
+        "--timeout",
+        "120s",
+        "/home/agent/projects/noe/tests/fixtures/agent-live/parallel.js"
+      ],
+      "exitCode": 0,
+      "durationMs": 15157,
+      "stdout": "Delegated to exactly two child agents in a single run_js call via `Promise.all` (concurrent), each of which ran its own JavaScript to read its file.\n\nParent tool output printed the child results:\n- **left**: \"The array in `left.json` is `[10, 20]`, and its numeric sum is **30**.\"\n- **right**: \"The array in `right.json` is `[30, 40]`, so the numeric sum is **70**.\"\n\nCombined answer:\n\n```json\n{\"left\":30,\"right\":70,\"total\":100}\n```\n",
+      "trace": [
+        {
+          "runId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "parent",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "started"
+        },
+        {
+          "runId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "parent",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 3181577014,
+          "usage": {
+            "promptTokens": 839,
+            "completionTokens": 565,
+            "totalTokens": 1404,
+            "cachedTokens": 0,
+            "cost": 0.0004931
+          }
+        },
+        {
+          "runId": "b77642eead46ab6755f2e7ad9e11ce087bb57a919f5083c0",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "right",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "started"
+        },
+        {
+          "runId": "fe4d715ceb7b49e3bf29770e1b8e559f5b8732432ff20004",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "left",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "started"
+        },
+        {
+          "runId": "fe4d715ceb7b49e3bf29770e1b8e559f5b8732432ff20004",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "left",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 658521866,
+          "usage": {
+            "promptTokens": 719,
+            "completionTokens": 131,
+            "totalTokens": 850,
+            "cachedTokens": 0,
+            "cost": 0.0003729
+          }
+        },
+        {
+          "runId": "fe4d715ceb7b49e3bf29770e1b8e559f5b8732432ff20004",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "left",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "js_result",
+          "duration": 33097757,
+          "exitCode": 0,
+          "reason": "completed"
+        },
+        {
+          "runId": "fe4d715ceb7b49e3bf29770e1b8e559f5b8732432ff20004",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "left",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 482045316,
+          "usage": {
+            "promptTokens": 890,
+            "completionTokens": 26,
+            "totalTokens": 916,
+            "cachedTokens": 768,
+            "cost": 0.000072408
+          }
+        },
+        {
+          "runId": "fe4d715ceb7b49e3bf29770e1b8e559f5b8732432ff20004",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "left",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "completed",
+          "duration": 1177024450
+        },
+        {
+          "runId": "b77642eead46ab6755f2e7ad9e11ce087bb57a919f5083c0",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "right",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 2282626320,
+          "usage": {
+            "promptTokens": 720,
+            "completionTokens": 168,
+            "totalTokens": 888,
+            "cachedTokens": 0,
+            "cost": 0.0001152
+          }
+        },
+        {
+          "runId": "b77642eead46ab6755f2e7ad9e11ce087bb57a919f5083c0",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "right",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "js_result",
+          "duration": 36009179,
+          "exitCode": 0,
+          "reason": "completed"
+        },
+        {
+          "runId": "b77642eead46ab6755f2e7ad9e11ce087bb57a919f5083c0",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "right",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 2089626356,
+          "usage": {
+            "promptTokens": 932,
+            "completionTokens": 114,
+            "totalTokens": 1046,
+            "cachedTokens": 512,
+            "cost": 0.000075072
+          }
+        },
+        {
+          "runId": "b77642eead46ab6755f2e7ad9e11ce087bb57a919f5083c0",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "right",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "js_result",
+          "duration": 29680090,
+          "exitCode": 0,
+          "reason": "completed"
+        },
+        {
+          "runId": "b77642eead46ab6755f2e7ad9e11ce087bb57a919f5083c0",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "right",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 1085884265,
+          "usage": {
+            "promptTokens": 1077,
+            "completionTokens": 26,
+            "totalTokens": 1103,
+            "cachedTokens": 768,
+            "cost": 0.000040218
+          }
+        },
+        {
+          "runId": "b77642eead46ab6755f2e7ad9e11ce087bb57a919f5083c0",
+          "parentRunId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "right",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "completed",
+          "duration": 5528820248
+        },
+        {
+          "runId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "parent",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "js_result",
+          "duration": 5568656068,
+          "exitCode": 0,
+          "reason": "completed"
+        },
+        {
+          "runId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "parent",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 5093046483,
+          "usage": {
+            "promptTokens": 1511,
+            "completionTokens": 851,
+            "totalTokens": 2362,
+            "cachedTokens": 0,
+            "cost": 0.0007798
+          }
+        },
+        {
+          "runId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "parent",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "js_result",
+          "duration": 31249611,
+          "exitCode": 0,
+          "reason": "completed"
+        },
+        {
+          "runId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "parent",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "model_response",
+          "duration": 1241343174,
+          "usage": {
+            "promptTokens": 2409,
+            "completionTokens": 140,
+            "totalTokens": 2549,
+            "cachedTokens": 0,
+            "cost": 0.00045235
+          }
+        },
+        {
+          "runId": "a4aaadd1e32970d3e4bdba4a544187b94f664efaa4e8c165",
+          "name": "parent",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "status": "completed",
+          "duration": 15122090897
+        }
+      ],
+      "modelCalls": 8,
+      "jsExecutions": 5,
+      "cachedTokens": 2048,
+      "cost": 0.0024010480000000002,
+      "passed": true
+    }
+  ]
+}

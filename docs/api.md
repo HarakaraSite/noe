@@ -4,7 +4,7 @@
 
 NOEはJavaScriptの実行環境として、固定したgo-quickjs v0.25.3の標準ライブラリを有効にします。標準ライブラリが持つWeb APIとNode形式APIを利用できます。各APIはgo-quickjsによる実装で、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptの`noe`グローバルと`noe.*` APIはありません。NOE固有で残るのはCLIの`run`・`eval`・`repl`・`--timeout`と、REPLの履歴・補完・前回結果`_`です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](increment-12.md)も参照してください。
+JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`があります。`noe:agent`はWorkersでは利用できません。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](increment-12.md)も参照してください。
 
 ## 利用できる機能と権限
 
@@ -20,9 +20,71 @@ NOEは次のホスト機能をスクリプトに渡します。
 - HTTPサーバーの待受
 - Workersとメッセージング
 
-Workersにも同じホスト機能を渡します。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
+Workersにも同じgo-quickjs標準ライブラリのホスト機能を渡します（`noe:agent`を除く）。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
 
 npm、パッケージ導入、URLからのモジュールimport、bare importによる外部パッケージ解決はありません。裸の組み込みモジュール名と対応する`node:`名で標準ライブラリをimportできます。ローカルモジュールは拡張子付きの相対`.js`・`.mjs`パスを使います。import先はimport元のファイルを基準に解決し、`eval`内ではカレントディレクトリが基準です。QuickJS本来の`std`モジュールは提供しません。
+
+## 自律agent（OpenRouter）
+
+`noe:agent`から`createAgent()`をimportできます。ルートagentにはmodel名が必要で、providerは省略時`openrouter`です。現在利用できるproviderはOpenRouterだけです。 Go側の通信には[OpenRouter公式Go SDK v0.9.59](https://github.com/OpenRouterTeam/go-sdk/tree/v0.9.59)を使います。
+
+```js
+import { createAgent } from "noe:agent";
+
+const summary = createAgent({
+  model: "deepseek/deepseek-v4.1-flash",
+  name: "summary",
+  system: "日本語で簡潔に回答してください。",
+  maxTokens: 1024,
+});
+
+const answer = await summary.run("README.mdを読んで要点を3点にまとめてください。", {
+  cacheKey: "noe-summary-v1",
+  maxSteps: 6,
+});
+console.log(answer);
+```
+
+`createAgent(options)`は`{provider?, model, name?, system?, maxTokens?}`を受け取ります。`provider`は`openrouter`だけです。`model`は空でない文字列、`name`は空でない文字列、`system`は文字列、`maxTokens`は0以上の整数です。`name`の既定値は`agent`、`system`の既定値は空文字、`maxTokens`の既定値は0です。`system`はagentの標準system instructionへ追加されます。0の場合、NOEはOpenRouterへ`max_tokens`を送りません。
+
+`agent.run(instruction, options)`はPromiseを返し、成功時の値は最終回答の文字列です。標準出力へ自動では表示しません。`instruction`は空でない文字列です。`options`は`{cacheKey?, maxSteps?}`で、`cacheKey`は文字列、`maxSteps`は0以上の整数です。既定値はどちらも空文字・0です。`maxSteps`はこのrunのモデル要求回数を制限し、tool回数や子agentを含む合計回数は制限しません。0はNOE側の上限なしを意味します。`maxTokens`はモデル要求ごとの出力上限で、会話全体の累計ではありません。どちらの上限も指定しない場合にNOEは独自の上限を追加しません。
+
+`cacheKey`はOpenRouterの`session_id`として送られ、routingやprompt cacheで使われる値です。キャッシュヒットは保証せず、会話履歴を保存・再開する機能でもありません。同じagent objectの再利用や`Promise.all`でも、各`run()`は独立した履歴を持ちます。
+
+生成JavaScriptのtoolは`run_js`一つです。各呼出しは新しいNOEプロセスで実行し、同じカレントディレクトリと標準ライブラリを使います。グローバル変数はtool呼出し間で保持せず、生成ソースは実行後に削除します。生成コードでは`createAgent`が事前に利用可能です。子agentがprovider、model、`maxTokens`を省略すると、そのコードを起動したrunの値を継承します。明示した値は上書きされ、`maxTokens: 0`も有効な上書きです。子の`name`、`system`、会話履歴は親から継承しません。
+
+生成ソースは一時moduleに保存されるため、相対importはそのソース位置を基準にします。カレントディレクトリのmoduleを読み込む場合は、`process.argv[1]`（実行中のソース）の場所からcwdへの相対prefixを作り、dynamic importします。
+
+```js
+const { relative, dirname, sep } = await import("node:path");
+const cwdPrefix = relative(dirname(process.argv[1]), process.cwd()).split(sep).join("/");
+const helper = await import((cwdPrefix ? cwdPrefix + "/" : "./") + "helper.js");
+```
+
+生成JSの標準出力・標準エラー・終了コードは`{stdout, stderr, exitCode, reason}`のtool結果としてモデルへ返ります。`reason`は`completed`、`failed`、`timeout`、`cancelled`のいずれかです。モデルは失敗を受けてコードを修正できます。`run()`は認証、残高・利用枠、レート制限、通信、provider応答の不備、モデル拒否、token上限到達、空の最終回答、`maxSteps`到達でrejectします。provider SDKを含め、暗黙の再試行はしません。モデルが質問を最終回答として返しても、人間の入力待ちには入らず、その文字列を返します。
+
+### 認証と設定
+
+OpenRouter APIキーをテキストファイルへ保存し、`NOE_OPENROUTER_API_KEY_FILE`でパスを指定します。
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key ./noe run examples/agent-summary.js README.md
+```
+
+この変数が空または未設定なら、`$XDG_CONFIG_HOME/noe/credentials/openrouter-api-key`を探します。`XDG_CONFIG_HOME`が未設定なら`~/.config/noe/credentials/openrouter-api-key`を使います。ファイル内容の前後の空白は取り除きます。Go側が最初のモデル要求時にファイルを読み、importや`createAgent()`では読みません。キー値はモデル履歴・子接続情報・traceへ含めません。NOEはsandboxではなく、実行するJSは同一ユーザーのOS権限でファイルや環境変数へアクセスできます。
+
+`NOE_OPENROUTER_BASE_URL`はOpenRouter APIのbase URLを上書きし、既定値は`https://openrouter.ai/api/v1`です。`NOE_AGENT_TRACE=1`を指定すると、実行メタデータをJSON Linesで標準エラーへ出力します。
+
+```sh
+NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/agent-summary.js README.md 2>agent-trace.log
+```
+
+traceにはrun ID、親run ID、agent名、model、status、duration（nanoseconds）、返された場合はprompt/completion/total/cached token数とcostを記録します。`js_result`にはtoolの終了コードと理由も含みます。prompt、生成code、toolのstdout/stderr、APIキーは記録しません。標準エラーには通常の診断も含まれる場合があります。
+
+通常の`run`・`eval`では`--timeout`が評価全体を制限できます。省略時はCLI独自の期限はありません。REPLでは通信中のCtrl+Cで要求を取り消し、稼働中のI/Oを残さないようREPL sessionを終了します。詳しくは[REPLガイド](repl.md)を参照してください。
+
+WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソースをカレントディレクトリ上の一時場所へ書き込み、相対importの基準を保ちます。その場合はカレントディレクトリへ一時ファイルを書き込める必要があります。書込みできない場合は、カレントディレクトリと同じvolumeの書込み可能な場所を`TEMP`に指定してください。
 
 ## 実行環境とファイル
 

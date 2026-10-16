@@ -58,6 +58,28 @@ printf '[100,200,300]\n' | ./noe run examples/summarize-stdin.js
 
 ファイル加工・レポート保存・HTTPダウンロードなどは[実行例の一覧](examples/README.md)を参照してください。
 
+## OpenRouter agent
+
+NOEには、最終回答を返す自律agent moduleがあります。agentはファイルを読み書きし、コマンドを実行できます。NOEと同じOS権限で動作し、sandboxではありません。処理に使うファイル内容はOpenRouterへの要求に含まれることがあります。
+
+OpenRouter APIキーをテキストファイルへ保存し、そのパスをNOEへ指定します。
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/agent-summary.js README.md
+```
+
+ファイルは最初のモデル要求時に読み込みます。環境変数が未設定なら、`$XDG_CONFIG_HOME/noe/credentials/openrouter-api-key`を使います。`XDG_CONFIG_HOME`も未設定の場合は`~/.config/noe/credentials/openrouter-api-key`です。moduleのimportやagentの作成だけでは、キーを読んだりproviderへ接続したりしません。
+
+`agent.run()`は文字列を返し、自動では表示しません。例では`console.log`で表示しています。サンプルJSONを子agentが並行して集計する場合は、次の例を実行してください。
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/agent-parallel.js
+```
+
+ルートagentにはmodelの指定が必要です。子agentはprovider・model・`maxTokens`を起動元runから継承し、必要なら上書きできます。各runの履歴は独立しています。model設定、任意の上限、エラー、REPL利用、trace出力は[実行例](examples/README.md)と[APIリファレンス](docs/api.md)を参照してください。
+
 ## HTTPサーバー
 
 小さなHTTPサーバーもJavaScriptで書けます。まず起動します。

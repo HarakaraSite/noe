@@ -1,0 +1,11 @@
+{"kind":"host_start","model":"deepseek/deepseek-v4.1-flash","provider":"mock","time":"2026-10-16T08:06:17.071118294Z"}
+{"kind":"run_start","name":"service","parentRunId":"","runId":"run-1","scope":"root","time":"2026-10-16T08:06:17.090898951Z"}
+{"cacheKey":"noe-spike-service-v1","kind":"model_start","messages":2,"runId":"run-1","time":"2026-10-16T08:06:17.09414794Z"}
+{"elapsedMs":0,"finishReason":"tool_calls","kind":"model_end","runId":"run-1","status":"ok","time":"2026-10-16T08:06:17.094189985Z","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
+{"codeSHA256":"0541d352d22a02b0e6008572c1099e8a669dbf114ec3bbf370ab8a9f0a5759f4","kind":"js_start","runId":"run-1","scope":"js-2","time":"2026-10-16T08:06:17.095244207Z"}
+{"kind":"service_search","query":"NOE spike","runId":"run-1","time":"2026-10-16T08:06:17.121539111Z"}
+{"exitCode":0,"kind":"js_end","reason":"completed","runId":"run-1","scope":"js-2","stderrBytes":0,"stdoutBytes":158,"time":"2026-10-16T08:06:17.123685212Z"}
+{"cacheKey":"noe-spike-service-v1","kind":"model_start","messages":4,"runId":"run-1","time":"2026-10-16T08:06:17.125108261Z"}
+{"elapsedMs":0,"finishReason":"stop","kind":"model_end","runId":"run-1","status":"ok","time":"2026-10-16T08:06:17.125153226Z","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
+{"kind":"run_end","parentRunId":"","runId":"run-1","status":"completed","time":"2026-10-16T08:06:17.126061161Z"}
+{"kind":"host_end","time":"2026-10-16T08:06:17.128597722Z"}

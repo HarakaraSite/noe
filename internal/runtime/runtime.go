@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"noe/internal/agent"
+
 	quickjs "github.com/go-quickjs/go-quickjs"
 	"github.com/go-quickjs/go-quickjs/stdlib"
 )
@@ -30,6 +32,8 @@ type Options struct {
 	Stderr io.Writer
 	Args   []string
 	Cwd    string
+	// Agent supplies provider/child execution settings. Nil uses lazy defaults.
+	Agent *agent.Options
 
 	// SourceName is the entry name exposed in process.argv.
 	SourceName string
@@ -50,15 +54,17 @@ func Execute(ctx context.Context, source Source, opts Options) (int, error) {
 }
 
 type host struct {
-	rt            *quickjs.Runtime
-	loop          *eventLoop
-	unhandled     []error
-	cwd           string
-	exitRequested bool
-	exitCode      int
-	inspect       quickjs.Value
-	cancelProbe   quickjs.Value
-	completion    quickjs.Value
+	rt             *quickjs.Runtime
+	loop           *eventLoop
+	unhandled      []error
+	cwd            string
+	exitRequested  bool
+	exitCode       int
+	inspect        quickjs.Value
+	cancelProbe    quickjs.Value
+	completion     quickjs.Value
+	agents         *agent.Host
+	agentOperation *agent.Operation
 }
 
 func newHost(opts Options) (*host, error) {
@@ -96,6 +102,10 @@ func newHost(opts Options) (*host, error) {
 		h.rt.Close()
 		return nil, err
 	}
+	if err := h.installAgent(opts); err != nil {
+		h.rt.Close()
+		return nil, err
+	}
 	if err := h.loop.trackTimers(); err != nil {
 		h.rt.Close()
 		return nil, err
@@ -120,6 +130,8 @@ func (h *host) recordUnhandled(reason quickjs.Value) {
 }
 
 func (h *host) run(ctx context.Context, source Source) (code int, err error) {
+	endOperation := h.beginAgentOperation(ctx)
+	defer endOperation()
 	stopStdlib := context.AfterFunc(ctx, h.loop.std.Close)
 	defer stopStdlib()
 	defer func() {
@@ -158,6 +170,9 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 
 func (h *host) installLoader(entry *Source) {
 	h.rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
+		if specifier == "noe:agent" {
+			return agent.ModuleSource, "noe:agent", nil
+		}
 		if !strings.HasPrefix(specifier, "./") && !strings.HasPrefix(specifier, "../") {
 			return "", "", fmt.Errorf("only relative local imports are supported: %q", specifier)
 		}

@@ -1,0 +1,16 @@
+Result of `webSearch('NOE spike')` — a local authenticated fixture lookup, not an Internet search:
+
+```json
+{
+  "query": "NOE spike",
+  "results": [
+    {
+      "snippet": "The fixture answer is 42.",
+      "title": "NOE spike fixture"
+    }
+  ],
+  "source": "local authenticated fixture (not web search)"
+}
+```
+
+The fixture returned one result: title **"NOE spike fixture"** with snippet **"The fixture answer is 42."**, and its `source` field explicitly identifies it as a local authenticated fixture rather than real web search data.

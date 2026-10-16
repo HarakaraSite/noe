@@ -21,6 +21,27 @@
 
 式の結果を表示し、`undefined`は省略します。文字列の結果には引用符が付きます。通常のJSエラーや未処理のPromise rejectionは標準エラーに表示して続行し、実行済みの変更を巻き戻しません。
 
+## OpenRouter agent
+
+起動時にAPIキーのファイルパスを設定します。APIキーそのものをコマンドへ書かず、ファイルへ保存してください。
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key ./noe repl
+```
+
+REPLでは静的importの代わりにdynamic importを使います。moduleをimportしたりagentを作ったりするだけでは、キー読込みやprovider通信は始まりません。
+
+```text
+> const agentModule = await import("noe:agent")
+> const summaryAgent = agentModule.createAgent({model:"deepseek/deepseek-v4.1-flash",name:"summary"})
+> const summary = await summaryAgent.run("README.mdを3点に要約してください。")
+> console.log(summary)
+```
+
+`run()`は最終回答の文字列を返します。同じ`summaryAgent`を別の入力でも使えますが、各呼出しの会話履歴は独立し、前回の会話を保存・再開しません。`createAgent`と`run`のoption、子agentへの設定継承、認証pathとtraceは[APIリファレンス](api.md)を参照してください。
+
+完了したprovider errorはその入力の失敗として表示され、次の入力へ進めます。model通信中にCtrl+Cを押すと要求を取り消し、進行中のI/Oを残さないようREPL sessionを終了します。agent通信を開始するProxy trap等をTab補完が評価した場合も、残った内部要求は取消し対象となりsessionが終了することがあります。通常のagent処理は入力中に人間の追加指示を待ちません。
+
 非同期入力は`await expression`、`const name = await expression`・`let`・`var`の単一変数初期化、`name = await expression`に対応します。`const`は再代入できません。通常のPromise値を暗黙に結果値へ変換しないため、解決結果を使う場合は明示的に`await`してください。
 
 非同期の初期化は右辺を待ってから変数を宣言します。同名の`const`・`let`が既にあっても、右辺のI/Oを実行した後に重複宣言のエラーになります。非同期の分割代入・複数変数宣言・任意の複数文の変換、静的`import`・`export`は提供しません。モジュールには例のように動的`import`を使います。対応するawait式・単一変数の初期化や代入は、改行を含んでも使えます。

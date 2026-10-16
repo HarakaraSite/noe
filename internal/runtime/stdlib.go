@@ -134,6 +134,9 @@ func isDriveLetter(c byte) bool {
 }
 
 func loadLocalModule(specifier, referrer string) (string, string, error) {
+	if specifier == "noe:agent" {
+		return "", "", fmt.Errorf("noe:agent is not supported in Workers")
+	}
 	if !strings.HasPrefix(specifier, "./") && !strings.HasPrefix(specifier, "../") {
 		return "", "", fmt.Errorf("only relative local imports are supported: %q", specifier)
 	}

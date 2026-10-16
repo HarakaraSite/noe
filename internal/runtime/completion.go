@@ -44,6 +44,8 @@ func (s *Session) Complete(ctx context.Context, token string) (candidates []stri
 	}
 
 	inputCtx, cancel := context.WithCancel(ctx)
+	endOperation := h.beginAgentOperation(inputCtx)
+	defer endOperation()
 	generation := h.loop.resourceGeneration
 	value, callErr := h.completion.CallContext(inputCtx, path, len(path) > 0 && hasString(s.lexicalNames, path[0]))
 	newStdlibWork := h.loop.std.Pending() || h.loop.hasResourcesSince(generation)

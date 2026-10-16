@@ -1,0 +1,10 @@
+{"kind":"host_start","model":"deepseek/deepseek-v4.1-flash","provider":"mock","time":"2026-10-16T08:06:16.868462465Z"}
+{"kind":"run_start","name":"single","parentRunId":"","runId":"run-1","scope":"root","time":"2026-10-16T08:06:16.887225307Z"}
+{"cacheKey":"noe-spike-single-v1","kind":"model_start","messages":2,"runId":"run-1","time":"2026-10-16T08:06:16.888932398Z"}
+{"elapsedMs":0,"finishReason":"tool_calls","kind":"model_end","runId":"run-1","status":"ok","time":"2026-10-16T08:06:16.888965162Z","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
+{"codeSHA256":"40e296a5d482a6a67cdc709b2a24a6236b68eef46abd4de17ec104b2262085e4","kind":"js_start","runId":"run-1","scope":"js-2","time":"2026-10-16T08:06:16.891638502Z"}
+{"exitCode":0,"kind":"js_end","reason":"completed","runId":"run-1","scope":"js-2","stderrBytes":0,"stdoutBytes":37,"time":"2026-10-16T08:06:16.909598259Z"}
+{"cacheKey":"noe-spike-single-v1","kind":"model_start","messages":4,"runId":"run-1","time":"2026-10-16T08:06:16.910583598Z"}
+{"elapsedMs":0,"finishReason":"stop","kind":"model_end","runId":"run-1","status":"ok","time":"2026-10-16T08:06:16.910610891Z","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
+{"kind":"run_end","parentRunId":"","runId":"run-1","status":"completed","time":"2026-10-16T08:06:16.911174954Z"}
+{"kind":"host_end","time":"2026-10-16T08:06:16.91244456Z"}

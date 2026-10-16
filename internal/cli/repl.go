@@ -48,7 +48,12 @@ func runREPLWithInput(ctx context.Context, input replInput, stdout, stderr io.Wr
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 	defer signal.Stop(signals)
-	session, err := runtime.NewSession(runtime.Options{Stdout: stdout, Stderr: stderr})
+	agentSettings, err := agentOptions(stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	session, err := runtime.NewSession(runtime.Options{Stdout: stdout, Stderr: stderr, Agent: agentSettings})
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1

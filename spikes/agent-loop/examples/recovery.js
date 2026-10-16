@@ -1,0 +1,3 @@
+import { createAgent } from "../lib/agent.js";
+const agent = createAgent({ name: "recovery" });
+console.log(await agent.run("Exercise recovery from a child process failure: FIRST use run_js to read missing.json in the fixture directory. It does not exist. In this FIRST call do NOT catch the exception or inspect other files: let the read throw so the tool returns a nonzero exitCode. After that tool fails, use a SECOND run_js call to read numbers.json and compute count, total and average. Your final answer must be just the JSON object with those three numeric fields, without markdown fences or commentary.", { cacheKey: "noe-spike-recovery-v2" }));

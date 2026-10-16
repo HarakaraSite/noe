@@ -1,0 +1,11 @@
+{"kind":"host_start","model":"deepseek/deepseek-v4.1-flash","provider":"openrouter","time":"2026-10-16T08:07:01.451211949Z"}
+{"kind":"run_start","name":"service","parentRunId":"","runId":"run-1","scope":"root","time":"2026-10-16T08:07:01.478687562Z"}
+{"cacheKey":"noe-spike-service-v1","kind":"model_start","messages":2,"runId":"run-1","time":"2026-10-16T08:07:01.480908827Z"}
+{"elapsedMs":710,"finishReason":"tool_calls","kind":"model_end","runId":"run-1","status":"ok","time":"2026-10-16T08:07:02.191130173Z","usage":{"prompt_tokens":650,"completion_tokens":74,"total_tokens":724,"cost":0.00009564,"is_byok":false,"prompt_tokens_details":{"cached_tokens":640,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.00009564,"upstream_inference_prompt_cost":0.00000684,"upstream_inference_completions_cost":0.0000888},"completion_tokens_details":{"reasoning_tokens":0,"image_tokens":0,"audio_tokens":0}}}
+{"codeSHA256":"113ffffe58dfce8ad79ec3f612cad8b21513397e45ac60d061a72d8cc1772563","kind":"js_start","runId":"run-1","scope":"js-2","time":"2026-10-16T08:07:02.19408159Z"}
+{"kind":"service_search","query":"NOE spike","runId":"run-1","time":"2026-10-16T08:07:02.226021851Z"}
+{"exitCode":0,"kind":"js_end","reason":"completed","runId":"run-1","scope":"js-2","stderrBytes":0,"stdoutBytes":200,"time":"2026-10-16T08:07:02.229107471Z"}
+{"cacheKey":"noe-spike-service-v1","kind":"model_start","messages":4,"runId":"run-1","time":"2026-10-16T08:07:02.230582478Z"}
+{"elapsedMs":1219,"finishReason":"stop","kind":"model_end","runId":"run-1","status":"ok","time":"2026-10-16T08:07:03.449762619Z","usage":{"prompt_tokens":828,"completion_tokens":140,"total_tokens":968,"cost":0.00022824,"is_byok":false,"prompt_tokens_details":{"cached_tokens":640,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.00022824,"upstream_inference_prompt_cost":0.00006024,"upstream_inference_completions_cost":0.000168},"completion_tokens_details":{"reasoning_tokens":5,"image_tokens":0,"audio_tokens":0}}}
+{"kind":"run_end","parentRunId":"","runId":"run-1","status":"completed","time":"2026-10-16T08:07:03.452602651Z"}
+{"kind":"host_end","time":"2026-10-16T08:07:03.455934501Z"}

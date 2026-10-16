@@ -1,0 +1,11 @@
+Both children ran independently and in parallel via `Promise.all`, each using its own `run_js` tool to read its fixture file and sum the values.
+
+```json
+{"parts":[{"parts":[10,20],"total":30},{"parts":[30,40],"total":70}],"total":100}
+```
+
+Notes:
+- `left` read `left.json` → `{parts:[10,20], total:30}`.
+- `right` read `right.json` → `{parts:[30,40], total:70}`.
+- Parent parsed both child JSON strings (handling light whitespace/code-fence variance) and combined: 30 + 70 = **100**.
+- The parent never read the fixture files itself; all file access and arithmetic were performed inside the children's own JS executions.

@@ -73,6 +73,8 @@ func (s *Session) Eval(ctx context.Context, input string) Evaluation {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	endOperation := s.h.beginAgentOperation(ctx)
+	defer endOperation()
 
 	s.inputNumber++
 	name := filepath.Join(s.h.cwd, fmt.Sprintf("<repl:%d>.js", s.inputNumber))

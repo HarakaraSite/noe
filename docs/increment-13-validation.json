@@ -1,0 +1,194 @@
+{
+  "verifiedAt": "2026-10-16T10:23:40Z",
+  "platform": "linux/amd64",
+  "goVersion": "go version go1.27.2 linux/amd64",
+  "buildArtifacts": "/tmp/noe-final-builds-vik261qd",
+  "checks": [
+    {
+      "name": "build",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "noe",
+        "./cmd/noe"
+      ],
+      "env": {
+        "CGO_ENABLED": "0"
+      },
+      "exitCode": 0,
+      "durationSeconds": 1.289,
+      "output": ""
+    },
+    {
+      "name": "unit",
+      "command": [
+        "go",
+        "test",
+        "./...",
+        "-count=1"
+      ],
+      "env": {},
+      "exitCode": 0,
+      "durationSeconds": 33.487,
+      "output": "?   \tnoe/cmd/noe\t[no test files]\nok  \tnoe/internal/agent\t0.094s\nok  \tnoe/internal/agent/provider\t0.061s\nok  \tnoe/internal/cli\t0.970s\nok  \tnoe/internal/runtime\t31.481s\n"
+    },
+    {
+      "name": "e2e",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./...",
+        "-count=1"
+      ],
+      "env": {},
+      "exitCode": 0,
+      "durationSeconds": 33.488,
+      "output": "?   \tnoe/cmd/noe\t[no test files]\nok  \tnoe/internal/agent\t0.093s\nok  \tnoe/internal/agent/provider\t0.058s\nok  \tnoe/internal/cli\t0.959s\nok  \tnoe/internal/runtime\t31.452s\nok  \tnoe/tests\t12.487s\n"
+    },
+    {
+      "name": "race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "./internal/...",
+        "-count=1"
+      ],
+      "env": {
+        "CGO_ENABLED": "1"
+      },
+      "exitCode": 0,
+      "durationSeconds": 42.884,
+      "output": "ok  \tnoe/internal/agent\t1.109s\nok  \tnoe/internal/agent/provider\t1.086s\nok  \tnoe/internal/cli\t3.694s\nok  \tnoe/internal/runtime\t39.019s\n"
+    },
+    {
+      "name": "vet",
+      "command": [
+        "go",
+        "vet",
+        "-tags=e2e",
+        "./..."
+      ],
+      "env": {},
+      "exitCode": 0,
+      "durationSeconds": 0.237,
+      "output": ""
+    },
+    {
+      "name": "linux/amd64",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "/tmp/noe-final-builds-vik261qd/linux-amd64",
+        "./cmd/noe"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOOS": "linux",
+        "GOARCH": "amd64"
+      },
+      "exitCode": 0,
+      "durationSeconds": 0.545,
+      "output": ""
+    },
+    {
+      "name": "linux/arm64",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "/tmp/noe-final-builds-vik261qd/linux-arm64",
+        "./cmd/noe"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOOS": "linux",
+        "GOARCH": "arm64"
+      },
+      "exitCode": 0,
+      "durationSeconds": 1.389,
+      "output": ""
+    },
+    {
+      "name": "darwin/amd64",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "/tmp/noe-final-builds-vik261qd/darwin-amd64",
+        "./cmd/noe"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOOS": "darwin",
+        "GOARCH": "amd64"
+      },
+      "exitCode": 0,
+      "durationSeconds": 1.433,
+      "output": ""
+    },
+    {
+      "name": "darwin/arm64",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "/tmp/noe-final-builds-vik261qd/darwin-arm64",
+        "./cmd/noe"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOOS": "darwin",
+        "GOARCH": "arm64"
+      },
+      "exitCode": 0,
+      "durationSeconds": 1.549,
+      "output": ""
+    },
+    {
+      "name": "windows/amd64",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "/tmp/noe-final-builds-vik261qd/windows-amd64",
+        "./cmd/noe"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOOS": "windows",
+        "GOARCH": "amd64"
+      },
+      "exitCode": 0,
+      "durationSeconds": 1.407,
+      "output": ""
+    },
+    {
+      "name": "windows/arm64",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "/tmp/noe-final-builds-vik261qd/windows-arm64",
+        "./cmd/noe"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOOS": "windows",
+        "GOARCH": "arm64"
+      },
+      "exitCode": 0,
+      "durationSeconds": 1.314,
+      "output": ""
+    }
+  ],
+  "nativeUnverified": [
+    "darwin/amd64",
+    "darwin/arm64",
+    "windows/amd64",
+    "windows/arm64"
+  ]
+}
