@@ -105,7 +105,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run try-agent.js "Read README.md and write a concise summary to SUMMARY.md."
 ```
 
-Each `run_js` call starts a fresh NOE process. Child agents can work concurrently using `Promise.all`, and the parent can combine their answers. Runs do not persist conversations; `cacheKey` is a provider cache/routing hint. Answers and file edits depend on the model, and exact JSON output is not guaranteed. Step and token limits are optional; execution time can be limited with the existing `run --timeout` option.
+Each `run_js` call starts a fresh NOE process. Child agents can work concurrently using `Promise.all`, and the parent can combine their answers. Runs do not persist conversations; `cacheKey` is a provider cache/routing hint. When it is omitted, each run (including child runs) uses its own trace `runId` as the OpenRouter `session_id`, kept stable across that run's model requests. Explicit keys are preserved; an empty string omits `session_id`. Answers and file edits depend on the model, and exact JSON output is not guaranteed. Step and token limits are optional; execution time can be limited with the existing `run --timeout` option.
 
 ### Observing agent runs
 

@@ -177,3 +177,19 @@ Darwin/Windowsのnative実行は未確認。クロスビルド成功と区別す
 両reviewerはsourceと保存済み証拠を確認し、親が実施済みの総合テストや実APIを重複実行していない。defaultも証拠の対応、文書リンク、Go書式、`git diff --check`を確認。開発記録の旧「NOE固有はCLI/REPLのみ」という説明と通常E2E/明示liveの説明を更新し、通常reviewerも整合を確認した。最後の変更は文書のみ。
 
 defaultは、各sliceの必須指摘が修正再レビューで解消され、全体の新規指摘がなく、受入条件の証拠と総合チェックが揃ったため、今回の実装を完了と判断する。Darwin/Windows nativeは未確認。モデルの将来の応答一致・cache hit・厳密JSONを保証しない。コミット・release・公開は行っていない。
+
+## v1.2.0公開後の追加：session_idの自動付与 — 2026-10-16
+
+ユーザーの追加要件により、`cacheKey`未指定時はrunごとに既存brokerが生成するランダムな`runId`を利用し、OpenRouterの`session_id`へ送るよう変更。JS loopの開始時に一度解決し、そのrun内の全モデル要求で固定する。子agent、同じagent objectの再利用、並行runも個別のIDを持ち、traceの`runId`と照合できる。
+
+明示した`cacheKey`は従来どおり使用し、空文字は`session_id`省略を維持する。公開APIやSDK依存の追加はない。モデル向けの子agent利用説明、APIガイドとREADME日英も更新した。未指定時に毎回新しいIDになるため、runをまたいで同じrouting用IDを使う場合は明示指定する。キャッシュヒットや会話の永続化を保証する変更ではない。
+
+実装後の確認はすべて成功（Linux amd64、Go1.27.2）：
+
+- `go test ./... -count=1`
+- `CGO_ENABLED=1 go test -race ./internal/runtime -run '^TestAgent(MinimalRunHasIndependentHistories|LazyImportAndConfigurationErrors)$' -count=1`
+- `CGO_ENABLED=1 go test -race -tags=e2e ./tests -run '^TestAgent' -count=1 -timeout=90s`
+- `go vet -tags=e2e ./...`
+- `go build -o noe ./cmd/noe`
+
+既存fixtureを拡張し、未指定runのID生成・再利用/並行run間の分離、明示値と空文字の維持、修正loop内の4要求でのID固定、親/子の実HTTP要求での個別IDとtrace対応を確認した。追加の実API呼出しは行っていない。defaultが変更箇所と証拠を確認し、別agentへのレビュー委譲は行っていない。リリース済みv1.2.0の検証記録とは別の、公開後のローカル変更である。

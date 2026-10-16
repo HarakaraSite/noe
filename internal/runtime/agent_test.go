@@ -47,14 +47,15 @@ func TestAgentMinimalRunHasIndependentHistories(t *testing.T) {
 const a = createAgent({model:"fixture/model",system:"additional",maxTokens:123});
 console.log(await a.run("first",{cacheKey:"cache-1"}));
 console.log(await a.run("second"));
-console.log(JSON.stringify(await Promise.all([a.run("left"),a.run("right")])));`
+console.log(JSON.stringify(await Promise.all([a.run("left"),a.run("right")])));
+console.log(await a.run("empty",{cacheKey:""}));`
 	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{
 		Stdout: &out, Agent: &agent.Options{Provider: p},
 	})
-	if code != 0 || err != nil || out.String() != "first\nsecond\n[\"left\",\"right\"]\n" {
+	if code != 0 || err != nil || out.String() != "first\nsecond\n[\"left\",\"right\"]\nempty\n" {
 		t.Fatalf("code=%d error=%v stdout=%q", code, err, &out)
 	}
-	if len(requests) != 4 {
+	if len(requests) != 5 {
 		t.Fatalf("requests=%d", len(requests))
 	}
 	for _, req := range requests {
@@ -62,8 +63,15 @@ console.log(JSON.stringify(await Promise.all([a.run("left"),a.run("right")])));`
 			t.Fatalf("settings/history not isolated: %+v", req)
 		}
 	}
-	if requests[0].CacheKey != "cache-1" || requests[1].CacheKey != "" {
-		t.Fatalf("cacheKey leaked: %+v", requests)
+	if requests[0].CacheKey != "cache-1" || requests[4].CacheKey != "" {
+		t.Fatalf("explicit cacheKey changed: %+v", requests)
+	}
+	seen := map[string]bool{"cache-1": true}
+	for _, req := range requests[1:4] {
+		if req.CacheKey == "" || seen[req.CacheKey] {
+			t.Fatalf("automatic cacheKey missing or shared across runs: %+v", requests)
+		}
+		seen[req.CacheKey] = true
 	}
 }
 

@@ -102,7 +102,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run try-agent.js "README.mdを読み、要点をSUMMARY.mdへ保存してください。"
 ```
 
-`run_js`は呼出しごとに新しいNOEプロセスを起動します。子agentは`Promise.all`で並行処理し、親が結果を統合できます。会話を永続化する機能はなく、`cacheKey`はプロバイダのcache/routing用です。回答・編集内容はモデルに依存し、厳密なJSON形式は保証しません。回数・トークン上限は任意で、時間上限には既存の`run --timeout`を使います。
+`run_js`は呼出しごとに新しいNOEプロセスを起動します。子agentは`Promise.all`で並行処理し、親が結果を統合できます。会話を永続化する機能はなく、`cacheKey`はプロバイダのcache/routing用です。未指定時は子agentを含む各runの`runId`をOpenRouterの`session_id`に使い、そのrun内の全モデル要求で固定します。明示した値はそのまま使い、空文字の場合は`session_id`を省略します。回答・編集内容はモデルに依存し、厳密なJSON形式は保証しません。回数・トークン上限は任意で、時間上限には既存の`run --timeout`を使います。
 
 ### 実行ログの観察
 

@@ -65,8 +65,19 @@ func TestAgentChildrenRunConcurrentlyAndInheritSettings(t *testing.T) {
 	writeFixture(t, filepath.Join(work, "b.json"), `[30,40]`)
 	var children atomic.Int32
 	bothStarted := make(chan struct{})
+	var sessionMu sync.Mutex
+	sessions := make(map[string]string)
 	server := agentAPIFixture(t, func(ctx context.Context, req agentChatRequest) agentModelReply {
 		instruction := agentUser(req)
+		sessionMu.Lock()
+		if req.SessionID == "" {
+			t.Errorf("%s has no session_id", instruction)
+		}
+		if previous, ok := sessions[instruction]; ok && previous != req.SessionID {
+			t.Errorf("%s session_id changed: %q -> %q", instruction, previous, req.SessionID)
+		}
+		sessions[instruction] = req.SessionID
+		sessionMu.Unlock()
 		switch instruction {
 		case "parent":
 			if req.Model != "fixture/parent" || req.MaxTokens != 2048 || !strings.Contains(agentSystem(req), "parent-only-setting") {
@@ -74,7 +85,7 @@ func TestAgentChildrenRunConcurrentlyAndInheritSettings(t *testing.T) {
 			}
 			if len(req.Messages) == 2 {
 				code := `const results=await Promise.all([
-createAgent({name:"left"}).run("left",{cacheKey:"left-cache",maxSteps:3}),
+createAgent({name:"left"}).run("left",{maxSteps:3}),
 createAgent({name:"right",model:"fixture/override",maxTokens:321,system:"right-only-setting"}).run("right",{cacheKey:"right-cache",maxSteps:3})
 ]);console.log(JSON.stringify(results));`
 				return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("delegate", code)}}}, FinishReason: "tool_calls"}
@@ -88,7 +99,7 @@ createAgent({name:"right",model:"fixture/override",maxTokens:321,system:"right-o
 			if strings.Contains(agentSystem(req), "parent-only-setting") {
 				t.Error("child inherited parent's system")
 			}
-			if instruction == "left" && (req.Model != "fixture/parent" || req.MaxTokens != 2048 || req.SessionID != "left-cache" || strings.Contains(agentSystem(req), "right-only-setting")) {
+			if instruction == "left" && (req.Model != "fixture/parent" || req.MaxTokens != 2048 || strings.Contains(agentSystem(req), "right-only-setting")) {
 				t.Errorf("left defaults: %+v", req)
 			}
 			if instruction == "right" && (req.Model != "fixture/override" || req.MaxTokens != 321 || req.SessionID != "right-cache" || !strings.Contains(agentSystem(req), "right-only-setting")) {
@@ -131,6 +142,11 @@ createAgent({name:"right",model:"fixture/override",maxTokens:321,system:"right-o
 	if result.stdout != "100\n" || children.Load() != 2 {
 		t.Fatalf("result=%+v children=%d", result, children.Load())
 	}
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+	if len(sessions) != 3 || sessions["parent"] == sessions["left"] || sessions["parent"] == sessions["right"] || sessions["left"] == sessions["right"] {
+		t.Fatalf("parent/child sessions were not isolated: %+v", sessions)
+	}
 	starts := map[string]agentTraceRecord{}
 	jsRuns := map[string]bool{}
 	for _, record := range agentTraceRecords(t, result.stderr) {
@@ -157,6 +173,9 @@ createAgent({name:"right",model:"fixture/override",maxTokens:321,system:"right-o
 		t.Fatal("root missing in trace")
 	}
 	for id, record := range starts {
+		if record.Name != "right" && sessions[record.Name] != id {
+			t.Errorf("automatic session_id does not match trace runId: %+v", record)
+		}
 		if id != parent && record.ParentRunID != parent {
 			t.Fatalf("broken parent trace: %+v", record)
 		}

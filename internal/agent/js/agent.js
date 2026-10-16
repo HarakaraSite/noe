@@ -9,7 +9,7 @@ const cwdPrefix = relative(dirname(process.argv[1]), process.cwd()).split(sep).j
 const helper = await import((cwdPrefix ? cwdPrefix + "/" : "./") + "helper.js");
 Use the NOE standard library for filesystem and command operations. File promises are available from node:fs/promises. For commands, node:child_process supports execFile (Promise), execFileSync, exec, execSync, and spawnSync; it does not provide asynchronous spawn.
 
-To delegate a task, use await createAgent({name:"child",system:"optional child instructions"}).run("task", {cacheKey:"optional-cache-key"}). The result is a final answer string. Omitted provider, model, and maxTokens inherit this run's settings; name, system, history, maxSteps, and cacheKey are separate. Independent children can run concurrently with Promise.all. Print results with console.log so they reach the calling agent.`;
+To delegate a task, use await createAgent({name:"child",system:"optional child instructions"}).run("task"). The result is a final answer string. Omitted provider, model, and maxTokens inherit this run's settings; name, system, history, maxSteps, and cacheKey are separate. Each run automatically gets its own session/cache ID, kept stable across its model requests, unless a cacheKey is explicitly supplied in the run options. Independent children can run concurrently with Promise.all. Print results with console.log so they reach the calling agent.`;
 
 const runJSTool = Object.freeze({
   type: "function",
@@ -134,12 +134,13 @@ export function createAgent(options = {}) {
     async run(instruction, runOptions = {}) {
       requireString(instruction, "instruction");
       if (!isRecord(runOptions)) throw new TypeError("run options must be an object");
-      const cacheKey = runOptions.cacheKey === undefined ? "" : requireString(runOptions.cacheKey, "cacheKey", true);
+      const configuredCacheKey = runOptions.cacheKey === undefined ? undefined : requireString(runOptions.cacheKey, "cacheKey", true);
       const maxSteps = runOptions.maxSteps === undefined ? 0 : requireLimit(runOptions.maxSteps, "maxSteps");
 
       const start = await rpc("start", { provider, model, name, maxTokens });
       const runId = start.runId;
       if (typeof runId !== "string" || !runId) throw new Error("agent broker returned an invalid run ID");
+      const cacheKey = configuredCacheKey === undefined ? runId : configuredCacheKey;
       let status = "failed";
       try {
         const messages = [

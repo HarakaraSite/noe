@@ -54,7 +54,7 @@ console.log(result);
 - `createAgent()`の`provider`は省略時`openrouter`。初版ではそれ以外を設定エラーにする。ルートagentの`model`は明示指定を必須とし、モデル選択を固定の最新版名へ置き換えない。
 - `name`と追加の`system`は任意。`system`は自律処理とtool利用の共通指示へ追加する。
 - `run(instruction, options)`は`Promise<string>`。成功時はモデルの最終回答を返し、標準出力へ自動表示しない。継続不能な失敗はrejectする。JSONやMarkdownの除去・修正を暗黙に行わない。
-- `instruction`は空でない文字列。`cacheKey`は任意の文字列。`maxSteps`は正整数または0（独自上限なし）、省略時0。`maxTokens`も正整数または0（プロバイダの既定）、省略時0。設定の型の誤りは通信前に診断する。
+- `instruction`は空でない文字列。`cacheKey`は任意の文字列。v1.2.0公開後の追加要件として、未指定時は子agentを含むrunごとの`runId`を自動利用し、同じrun内のモデル要求では固定する。明示指定は維持し、空文字は`session_id`省略。`maxSteps`は正整数または0（独自上限なし）、省略時0。`maxTokens`も正整数または0（プロバイダの既定）、省略時0。設定の型の誤りは通信前に診断する。
 - `maxSteps`は各run自身のモデル呼出し回数で、tool実行回数や子runの累計ではない。`maxTokens`は各モデル要求の出力上限で、run全体の累計ではない。時間上限は既存CLIの`run/eval --timeout`で指定し、その計測範囲と終了コードを維持する。REPLに新しい時間上限オプションは追加せず、既存のCtrl+C中断へ接続する。
 - 同じagentオブジェクトを再利用しても、各`run()`は別の履歴を作る。独立した複数runの`Promise.all`を許す。
 - REPLでは`await import("noe:agent")`を使い、既存のawait入力形式に従う。importと`createAgent()`だけではキー読込み・待受・モデル通信を開始しない。

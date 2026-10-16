@@ -181,8 +181,18 @@ func TestAgentCLIReadsFilesAndPreservesToolHistory(t *testing.T) {
 
 func TestAgentCLIFixesFailedJavaScriptAndMalformedArguments(t *testing.T) {
 	var calls atomic.Int32
+	var sessionID atomic.Value
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
-		switch calls.Add(1) {
+		call := calls.Add(1)
+		if req.SessionID == "" {
+			t.Error("automatic session_id is missing")
+		}
+		if call == 1 {
+			sessionID.Store(req.SessionID)
+		} else if req.SessionID != sessionID.Load().(string) {
+			t.Errorf("session_id changed during repair: %q", req.SessionID)
+		}
+		switch call {
 		case 1:
 			call := agentTool("bad-args", "")
 			call["function"] = map[string]any{"name": "run_js", "arguments": "{broken"}

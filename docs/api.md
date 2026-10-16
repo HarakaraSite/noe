@@ -47,9 +47,11 @@ console.log(answer);
 
 `createAgent(options)`は`{provider?, model, name?, system?, maxTokens?}`を受け取ります。`provider`は`openrouter`だけです。`model`は空でない文字列、`name`は空でない文字列、`system`は文字列、`maxTokens`は0以上の整数です。`name`の既定値は`agent`、`system`の既定値は空文字、`maxTokens`の既定値は0です。`system`はagentの標準system instructionへ追加されます。0の場合、NOEはOpenRouterへ`max_tokens`を送りません。
 
-`agent.run(instruction, options)`はPromiseを返し、成功時の値は最終回答の文字列です。標準出力へ自動では表示しません。`instruction`は空でない文字列です。`options`は`{cacheKey?, maxSteps?}`で、`cacheKey`は文字列、`maxSteps`は0以上の整数です。既定値はどちらも空文字・0です。`maxSteps`はこのrunのモデル要求回数を制限し、tool回数や子agentを含む合計回数は制限しません。0はNOE側の上限なしを意味します。`maxTokens`はモデル要求ごとの出力上限で、会話全体の累計ではありません。どちらの上限も指定しない場合にNOEは独自の上限を追加しません。
+`agent.run(instruction, options)`はPromiseを返し、成功時の値は最終回答の文字列です。標準出力へ自動では表示しません。`instruction`は空でない文字列です。`options`は`{cacheKey?, maxSteps?}`で、`cacheKey`は任意の文字列、`maxSteps`は0以上の整数で既定値は0です。`maxSteps`はこのrunのモデル要求回数を制限し、tool回数や子agentを含む合計回数は制限しません。0はNOE側の上限なしを意味します。`maxTokens`はモデル要求ごとの出力上限で、会話全体の累計ではありません。どちらの上限も指定しない場合にNOEは独自の上限を追加しません。
 
-`cacheKey`はOpenRouterの`session_id`として送られ、routingやprompt cacheで使われる値です。キャッシュヒットは保証せず、会話履歴を保存・再開する機能でもありません。同じagent objectの再利用や`Promise.all`でも、各`run()`は独立した履歴を持ちます。
+`cacheKey`はOpenRouterの`session_id`として送られ、routingやprompt cacheで使われる値です。未指定（`undefined`を含む）の場合は、そのrun用に生成した`runId`を使い、同じrun内の全モデル要求へ同じIDを送ります。子agentにも個別のIDを自動付与します。同じagent objectの再利用や`Promise.all`でもrunごとに異なるIDになり、親のIDは継承しません。自動IDはtraceの`runId`と対応します。
+
+明示した`cacheKey`はそのまま使用するため、同じrouting用IDを再利用したい場合は指定できます。`cacheKey: ""`は従来どおり`session_id`を省略します。キャッシュヒットは保証せず、会話履歴を保存・再開する機能でもありません。各`run()`は独立した履歴を持ちます。OpenRouterの[session_id仕様](https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions)を参照してください。
 
 生成JavaScriptのtoolは`run_js`一つです。各呼出しは新しいNOEプロセスで実行し、同じカレントディレクトリと標準ライブラリを使います。グローバル変数はtool呼出し間で保持せず、生成ソースは実行後に削除します。生成コードでは`createAgent`が事前に利用可能です。子agentがprovider、model、`maxTokens`を省略すると、そのコードを起動したrunの値を継承します。明示した値は上書きされ、`maxTokens: 0`も有効な上書きです。子の`name`、`system`、会話履歴は親から継承しません。
 

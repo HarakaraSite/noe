@@ -32,7 +32,7 @@ JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`proces
 
 ## 今後の候補
 
-[次の機能候補](future-candidates.md)にはv1.0.0時点の検討記録があります。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。import mapとHTTP URLからのimportは未対応です。
+[次の機能候補](future-candidates.md)に、v1.2.0利用後の「Workerからのagent利用」と「呼び出し元の終了後も続く独立agent実行」の検討メモ、およびv1.0.0時点の候補を記録しています。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。import mapとHTTP URLからのimportは未対応です。
 
 ## ビルドと検証
 
