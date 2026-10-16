@@ -18,7 +18,7 @@ The Forgejo workflow generated from this profile runs the following on the confi
 
 The uploader creates a non-draft Release within the existing repository visibility; it does not make a private repository public. Failed gates or builds must leave their output in native Actions logs and must not publish Release assets.
 
-The `v1.0.0` and `v1.1.0` Releases have been published through this workflow; see their validation records below. A successful cross-build verifies compilation; runtime and terminal behavior on macOS, Windows, and arm64 have not been tested here.
+The `v1.0.0`, `v1.1.0`, and `v1.2.0` Releases have been published through this workflow; see their validation records below. A successful cross-build verifies compilation; runtime and terminal behavior on macOS, Windows, and arm64 have not been tested here.
 
 ## Reference checks before tagging
 
@@ -141,3 +141,15 @@ Full local command/output records and build artifacts are under `/tmp/noe-v1.2.0
 The [increment 13 implementation record](increment-13-implementation.md) documents per-slice and whole-feature reviews and real OpenRouter aggregate/repair/parallel acceptance. A further live run of `try-agent.js` edited README.md and reread the result without human intervention: 28.294 seconds, exit 0, seven model calls and seven successful JS executions. Its task, trace, output, before/after README, diff, and verification are under `/tmp/noe-readme-agent-spse4kwn/`. These observations used the explicitly authorized OpenRouter key and `deepseek/deepseek-v4.1-flash`; no further live API call was needed for this version/documentation-only release preparation.
 
 The existing tag-triggered Forgejo workflow remains the distribution gate. Its result and the published assets are checked separately after publication. macOS/Windows/arm64 native execution remains unverified; successful cross-builds are compilation evidence.
+
+## v1.2.0 Release validation — 2026-10-16
+
+- Annotated tag: `v1.2.0`, pointing to `32e031102506b10c40b55f204b49974412fbbaa5`. This contains the checked source revision and the preparation record above. The peeled remote tag matches this workflow commit.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/3): succeeded (API run ID 181, job ID 202).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.2.0): published, neither draft nor prerelease (Release ID 117). Its description matches the committed [release notes](releases/v1.2.0.md).
+
+The actual workflow set up Go 1.27.2, passed the CGO-free unit-test and vet gates, built all six profile targets, and uploaded the binaries plus `SHA256SUMS`. All seven assets were downloaded after publication, and all six binary hashes matched the published checksum file.
+
+The downloaded Linux amd64 binary returned `noe v1.2.0` for `--version`, `2` for an arithmetic evaluation, and `function function function undefined` for lazy `noe:agent` import/create plus Fetch/server and removed-global checks. All three exited with 0 and empty stderr; the agent check did not make a model request. Downloaded artifacts and verification records are under `/tmp/noe-v1.2.0-published-izk96800/`.
+
+This verification entry is committed after publication and does not move or replace the `v1.2.0` tag. The repository-root `./noe` was updated to the verified published Linux amd64 binary. macOS/Windows/arm64 native execution is still unverified.
