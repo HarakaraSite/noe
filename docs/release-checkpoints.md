@@ -116,3 +116,28 @@ The actual workflow passed the CGO-free test and vet gates, built all six profil
 The downloaded Linux amd64 binary returned `noe v1.1.0` for `--version`. An evaluation importing `timers/promises` and waiting on its timer confirmed the removed `noe` global and the available Fetch/server APIs, printing `undefined function function` with exit code 0. The peeled remote tag was checked against the workflow commit SHA.
 
 This verification record is committed after publication. It does not move or replace the `v1.1.0` tag. The local repository-root `./noe` was also rebuilt with version `v1.1.0`.
+
+## v1.2.0 preparation — 2026-10-16
+
+Checked source revision: `55bbbe4f94e1510c47375c21ee0c99e2db140280`. The checks ran against this source immediately before the commit. This preparation entry is documentation-only; the tag includes it without changing the checked application code. Environment: Linux amd64, Go 1.27.2, a C toolchain for race, and Linux PTY support.
+
+This release adds the OpenRouter-backed `noe:agent` module, generated JavaScript execution, autonomous repair, parallel child agents, file-based credentials, and opt-in execution tracing. README versions, the default CLI version, and version expectations in unit/E2E tests are updated to `v1.2.0`. See the [release notes](releases/v1.2.0.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go vet ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` | Passed |
+| `go test -tags=e2e ./... -count=1` | Passed, including Linux PTY checks |
+| `go vet -tags=e2e ./...` | Passed |
+| All six profile targets, CGO disabled, `-trimpath`, `-s -w -X noe/internal/cli.Version=v1.2.0` | Built successfully |
+| Local `SHA256SUMS` covering all six binaries | All hashes verified |
+| Built Linux amd64 binary `--version` | `noe v1.2.0` |
+| Built Linux amd64: lazy agent import/create plus Fetch/server presence and removed `noe` global | Passed; `function function function undefined`, no model request |
+| README/example/release-note relative links and `git diff --check` | Passed |
+
+Full local command/output records and build artifacts are under `/tmp/noe-v1.2.0-release-rasoucsy/`. The repository-root `./noe` was updated from the checked Linux amd64 binary.
+
+The [increment 13 implementation record](increment-13-implementation.md) documents per-slice and whole-feature reviews and real OpenRouter aggregate/repair/parallel acceptance. A further live run of `try-agent.js` edited README.md and reread the result without human intervention: 28.294 seconds, exit 0, seven model calls and seven successful JS executions. Its task, trace, output, before/after README, diff, and verification are under `/tmp/noe-readme-agent-spse4kwn/`. These observations used the explicitly authorized OpenRouter key and `deepseek/deepseek-v4.1-flash`; no further live API call was needed for this version/documentation-only release preparation.
+
+The existing tag-triggered Forgejo workflow remains the distribution gate. Its result and the published assets are checked separately after publication. macOS/Windows/arm64 native execution remains unverified; successful cross-builds are compilation evidence.
