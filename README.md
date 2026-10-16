@@ -6,13 +6,15 @@ No bloat. Just scripts.
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
-NOE is a Go runtime for small scripts. It adds practical features such as file I/O, HTTP, and a REPL as needed. It uses [go-quickjs](https://github.com/go-quickjs/go-quickjs) as its JavaScript engine.
+NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript directly, or describe a task with `agent.run()` and let an agent read files, execute JavaScript, revise its work, and return an answer. It uses [go-quickjs](https://github.com/go-quickjs/go-quickjs) as its JavaScript engine.
 
 **JavaScript is supported today. TypeScript support is planned for later.** npm and package management are outside the project's scope. Complete Node.js or Deno compatibility is not a project goal. NOE enables the pinned go-quickjs standard library, whose Web and Node-style APIs are useful subsets rather than complete platform compatibility.
 
 [API reference](docs/api.md) · [Migration from the old APIs](docs/api.md#旧apiからの移行) · [REPL guide](docs/repl.md) · [Examples](examples/README.md) · [Development notes](docs/README.md)
 
 The linked guides and development notes are currently in Japanese.
+
+[v1.2.0 release notes](docs/releases/v1.2.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.2.0)
 
 ## Build and run
 
@@ -26,7 +28,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.1.0
+# noe v1.2.0
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -63,7 +65,20 @@ See the [examples](examples/README.md) for file transformation, report generatio
 
 ## OpenRouter agent
 
-NOE includes an optional autonomous agent module. It can read and change files, run commands, and return a final answer. The agent runs with the same operating-system permissions as NOE; it is not a sandbox. File contents used for the task may be included in requests to OpenRouter.
+NOE v1.2.0 adds the built-in `noe:agent` module, with OpenRouter as its first provider. A run proceeds without waiting for human input or approval: the model can execute JavaScript through `run_js`, inspect results, repair failed code, and delegate work to child agents. Go handles provider authentication, model requests, and child-process management; the agent loop runs in JavaScript.
+
+```js
+import { createAgent } from "noe:agent";
+
+const agent = createAgent({ model: "deepseek/deepseek-v4.1-flash" });
+const answer = await agent.run(
+  "Read README.md and write a concise summary to SUMMARY.md.",
+  { cacheKey: "readme-summary-v1" },
+);
+console.log(answer);
+```
+
+The agent can read and change files and run commands with NOE's operating-system permissions. File contents used for the task may be included in requests to OpenRouter.
 
 Store an OpenRouter API key in a text file, then point NOE to that file:
 
@@ -82,6 +97,32 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 ```
 
 The root agent requires a model. Child agents inherit the current run's provider, model, and `maxTokens` unless they override those options. Each run has a separate history. See the [examples](examples/README.md) and [API reference](docs/api.md) for model settings, optional limits, errors, REPL use, and trace output.
+
+For an arbitrary task, [try-agent.js](try-agent.js) accepts an instruction as a command-line argument. Without an argument it asks the agent to calculate the sum of 1 through 100 using JavaScript:
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run try-agent.js "Read README.md and write a concise summary to SUMMARY.md."
+```
+
+Each `run_js` call starts a fresh NOE process. Child agents can work concurrently using `Promise.all`, and the parent can combine their answers. Runs do not persist conversations; `cacheKey` is a provider cache/routing hint. Answers and file edits depend on the model, and exact JSON output is not guaranteed. Step and token limits are optional; execution time can be limited with the existing `run --timeout` option.
+
+### Observing agent runs
+
+Set `NOE_AGENT_TRACE=1` to write run metadata to standard error as JSON Lines. The example below saves the final answer to `answer.txt` and the trace to `agent-trace.log`:
+
+```sh
+NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/agent-summary.js README.md >answer.txt 2>agent-trace.log
+```
+
+To watch a run live, start it in one terminal and follow the trace file from another:
+
+```sh
+tail -f agent-trace.log
+```
+
+Each trace line is a JSON object with fields such as the run ID, parent run ID, agent name, model, status, duration, and, when returned, prompt, completion, total, and cached token counts plus cost. `NOE_AGENT_TRACE=1` writes the trace to standard error, but standard error can also contain ordinary diagnostics, so not every line is necessarily a trace record. The trace does not include the generated JavaScript source, tool standard output or standard error, or the API key. See the [API reference](docs/api.md) for details.
 
 ## HTTP server
 
@@ -153,6 +194,7 @@ REPL `await` supports expressions, single-variable initialization, and assignmen
 
 | Purpose | API |
 | --- | --- |
+| Autonomous tasks | `noe:agent` (`createAgent`, `agent.run`) |
 | Output | `console.log`, `console.warn`, `console.error` |
 | Arguments, environment, and exit | `process.argv`, `process.env`, `process.cwd()`, `process.exit()` |
 | Standard input | `process.stdin.read()` |
@@ -165,7 +207,7 @@ See the [API reference](docs/api.md) for arguments, return values, errors, and s
 
 ## Built-in modules and capabilities
 
-Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve only to installed built-ins; local source imports must use relative `.js` or `.mjs` paths.
+Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE additionally provides `noe:agent` in the main runtime; importing it from a Worker is unsupported. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve only to installed built-ins; local source imports must use relative `.js` or `.mjs` paths.
 
 The runtime grants scripts full access to the current process environment and local filesystem, command execution, DNS and network requests, HTTP listeners, WebSocket connections, and workers. It is not a sandbox: scripts can act with the operating-system privileges of the user running NOE.
 
@@ -197,7 +239,7 @@ go test ./...
 go test -tags=e2e ./... -count=1
 ```
 
-E2E tests build the CLI with CGO disabled and run it as a separate process. They use temporary files and local HTTP servers, and check REPL interactions through a PTY on Linux. They do not connect to external services.
+The default E2E tests build the CLI with CGO disabled and run it as a separate process. They use temporary files and local HTTP servers, and check REPL interactions through a PTY on Linux. They do not connect to external services. Live OpenRouter tests require the separate `agent_live` build tag and an explicit credential-file path; see the [agent validation record](docs/increment-13-implementation.md).
 
 See the [development notes](docs/README.md) for design, acceptance criteria, validation records, and development commands.
 

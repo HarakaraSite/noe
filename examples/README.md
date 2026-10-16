@@ -24,6 +24,7 @@
 | [repl-demo.js](repl-demo.js) | REPLへ1行ずつ貼り付けて試す計算例 |
 | [agent-summary.js](agent-summary.js) | OpenRouter agentが指定ファイルを読み、要約を返す |
 | [agent-parallel.js](agent-parallel.js) | 二つの子agentがJSONを並行集計し、親agentが結果をまとめる |
+| [try-agent.js](../try-agent.js) | 引数のタスクをagentへ依頼。引数なしならJSで1〜100の合計を計算 |
 
 `lib/`は例で使うモジュール、`data/`はサンプル入力です。agentの並行例は[左のJSON](data/agent/left.json)と[右のJSON](data/agent/right.json)を使います。
 
@@ -46,6 +47,16 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 並行例の既定入力は`examples/data/agent/left.json`と`examples/data/agent/right.json`です。必要なら二つのpathを引数で置き換えられます。モデル出力の文章や形式は変わる場合があります。`agent.run()`が返す値は文字列で、JavaScript側が`console.log()`を呼んで表示しています。
 
 `NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、`createAgent`・`run`の設定、エラー、REPL、任意の実行timeout、traceは[APIリファレンス](../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
+
+任意のタスクを試す場合は、ルートの`try-agent.js`へ指示を渡します。次の例はREADMEを読み、要約ファイルを作らせます。
+
+```sh
+NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run try-agent.js "README.mdを読み、要点をSUMMARY.mdへ保存してください。" \
+  >answer.txt 2>agent-trace.log
+```
+
+`tail -f agent-trace.log`で実行状態を確認できます。traceは状態・使用量などのメタデータで、生成JS本文やtoolの出力を含みません。標準エラーには通常の診断も入りえます。
 
 ## JSONの加工と保存
 

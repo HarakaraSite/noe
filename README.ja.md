@@ -5,11 +5,13 @@ A tiny JavaScript/TypeScript runtime written in pure Go.
 No bloat. Just scripts.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
-小さなスクリプトを実行するためのGo製ランタイムです。ファイル処理、HTTP、REPLなど、実際に使う機能を少しずつ実装しています。JavaScriptエンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。
+小さなスクリプトと自律agentのタスクを実行するGo製ランタイムです。JavaScriptで処理を書いたり、`agent.run()`へ仕事を頼んでファイル操作・JS実行・修正・回答まで任せたりできます。JavaScriptエンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。
 
 **現在の対応言語はJavaScriptです。TypeScriptは後から追加する予定です。** npm・パッケージ管理は対象外で、Node.jsやDenoの完全互換は目標にしていません。固定したgo-quickjs標準ライブラリのWeb APIとNode形式APIを有効にしていますが、各APIは一部実装です。
 
 [APIリファレンス](docs/api.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
+
+[v1.2.0リリースノート](docs/releases/v1.2.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.2.0)
 
 ## ビルドと実行
 
@@ -23,7 +25,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.1.0
+# noe v1.2.0
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -60,7 +62,20 @@ printf '[100,200,300]\n' | ./noe run examples/summarize-stdin.js
 
 ## OpenRouter agent
 
-NOEには、最終回答を返す自律agent moduleがあります。agentはファイルを読み書きし、コマンドを実行できます。NOEと同じOS権限で動作し、sandboxではありません。処理に使うファイル内容はOpenRouterへの要求に含まれることがあります。
+v1.2.0で組み込みの`noe:agent`モジュールを追加しました。初版のプロバイダはOpenRouterです。実行中に人間の入力や承認を待たず、モデルが`run_js`でJavaScriptを実行し、結果を確認して修正したり、子agentへ仕事を任せたりします。認証・モデル通信・子プロセス管理はGo、agent loopはJavaScriptが担当します。
+
+```js
+import { createAgent } from "noe:agent";
+
+const agent = createAgent({ model: "deepseek/deepseek-v4.1-flash" });
+const answer = await agent.run(
+  "README.mdを読み、要点をSUMMARY.mdへ保存してください。",
+  { cacheKey: "readme-summary-v1" },
+);
+console.log(answer);
+```
+
+agentはNOEと同じOS権限でファイルを読み書きし、コマンドを実行できます。処理に使うファイル内容はOpenRouterへの要求に含まれることがあります。
 
 OpenRouter APIキーをテキストファイルへ保存し、そのパスをNOEへ指定します。
 
@@ -79,6 +94,32 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 ```
 
 ルートagentにはmodelの指定が必要です。子agentはprovider・model・`maxTokens`を起動元runから継承し、必要なら上書きできます。各runの履歴は独立しています。model設定、任意の上限、エラー、REPL利用、trace出力は[実行例](examples/README.md)と[APIリファレンス](docs/api.md)を参照してください。
+
+任意のタスクを試すには、[try-agent.js](try-agent.js)へ指示を引数で渡します。引数を省略すると、JSを実行して1〜100の合計を計算します。
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run try-agent.js "README.mdを読み、要点をSUMMARY.mdへ保存してください。"
+```
+
+`run_js`は呼出しごとに新しいNOEプロセスを起動します。子agentは`Promise.all`で並行処理し、親が結果を統合できます。会話を永続化する機能はなく、`cacheKey`はプロバイダのcache/routing用です。回答・編集内容はモデルに依存し、厳密なJSON形式は保証しません。回数・トークン上限は任意で、時間上限には既存の`run --timeout`を使います。
+
+### 実行ログの観察
+
+`NOE_AGENT_TRACE=1`で、実行メタデータをJSON Linesとして標準エラーへ出力します。最終回答とtraceは別ファイルへ保存できます。
+
+```sh
+NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/agent-summary.js README.md >answer.txt 2>agent-trace.log
+```
+
+実行中に別ターミナルから観察します。
+
+```sh
+tail -f agent-trace.log
+```
+
+traceにはrun ID・親run ID・agent名・model・状態・所要時間、返された場合はトークン使用量・cache量・costを記録します。標準エラーには通常の診断も入りうるため、全行がtraceとは限りません。生成JS本文、toolの標準出力・標準エラー、APIキーはtraceへ記録しません。詳細は[APIリファレンス](docs/api.md)を参照してください。
 
 ## HTTPサーバー
 
@@ -150,6 +191,7 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 
 | 用途 | API |
 | --- | --- |
+| 自律タスク | `noe:agent`の`createAgent`・`agent.run` |
 | 出力 | `console.log`・`console.warn`・`console.error` |
 | 引数・環境・終了 | `process.argv`・`process.env`・`process.cwd()`・`process.exit()` |
 | 標準入力 | `process.stdin.read()` |
@@ -162,7 +204,7 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 
 ## 組み込みモジュールと利用権限
 
-`fs`・`process`・`os`・`path`・`child_process`・`dns`・`http`・`worker_threads`・`crypto`などのgo-quickjs標準ライブラリをimportできます。timer、Web Streams、WebSocket、Workersも利用できます。JavaScriptのグローバル`noe`はありません。NodeやDenoの完全互換ではなく、npm・パッケージ導入・QuickJS本来の`std`モジュールも提供しません。bare importで解決できるのは組み込みモジュールだけです。ローカルのソースは相対`.js`・`.mjs` importを使います。
+`fs`・`process`・`os`・`path`・`child_process`・`dns`・`http`・`worker_threads`・`crypto`などのgo-quickjs標準ライブラリをimportできます。timer、Web Streams、WebSocket、Workersも利用できます。NOE独自の`noe:agent`はmain runtimeで使え、Workerからのimportは未対応です。JavaScriptのグローバル`noe`はありません。NodeやDenoの完全互換ではなく、npm・パッケージ導入・QuickJS本来の`std`モジュールも提供しません。bare importで解決できるのは組み込みモジュールだけです。ローカルのソースは相対`.js`・`.mjs` importを使います。
 
 スクリプトには、実行中プロセスの環境変数とローカルファイルシステム全体、コマンド実行、DNS・ネットワーク通信、HTTP待受、WebSocket、Workersの権限を渡します。NOEはsandboxではなく、スクリプトは実行ユーザーのOS権限で動作します。
 
@@ -194,7 +236,7 @@ go test ./...
 go test -tags=e2e ./... -count=1
 ```
 
-E2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。一時ファイルとローカルHTTPサーバーを使い、LinuxではPTYによるREPLの操作も確認します。外部サービスには接続しません。
+通常のE2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。一時ファイルとローカルHTTPサーバーを使い、LinuxではPTYによるREPLの操作も確認します。外部サービスには接続しません。実OpenRouter検証は別途`agent_live`タグと認証ファイルのパスを明示して実行します。[agent実装・検証記録](docs/increment-13-implementation.md)を参照してください。
 
 設計、インクリメントごとの受入条件・検証記録、開発用コマンドは[開発記録](docs/README.md)を参照してください。
 

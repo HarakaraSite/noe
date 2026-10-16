@@ -1,0 +1,18 @@
+import { createAgent } from "noe:agent";
+
+// 引数でタスクを変更できます: ./noe run try-agent.js "README.mdを要約して"
+const task = process.argv.slice(2).join(" ") ||
+  "run_jsでJavaScriptを実行し、1から100までの整数の合計を計算してください。" +
+  "実行結果を使い、日本語で簡潔に回答してください。";
+
+const agent = createAgent({
+  model: "deepseek/deepseek-v4.1-flash",
+  name: "try-agent",
+  system: "必要な処理を自律的に実行し、日本語で回答してください。",
+});
+
+console.log("タスク:", task);
+console.log("実行中…");
+
+const result = await agent.run(task, { cacheKey: "noe-try-agent-v1" });
+console.log(result);
