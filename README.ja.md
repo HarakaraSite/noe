@@ -7,9 +7,9 @@ No bloat. Just scripts.
 この文書は日本語版です。正本は[英語版README](README.md)です。
 小さなスクリプトを実行するためのGo製ランタイムです。ファイル処理、HTTP、REPLなど、実際に使う機能を少しずつ実装しています。JavaScriptエンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。
 
-**現在の対応言語はJavaScriptです。TypeScriptは後から追加する予定です。** npm対応・Node/Deno互換は実装しません。Web APIは必要なサブセットを提供します。
+**現在の対応言語はJavaScriptです。TypeScriptは後から追加する予定です。** npm・パッケージ管理は対象外で、Node.jsやDenoの完全互換は目標にしていません。固定したgo-quickjs標準ライブラリのWeb APIとNode形式APIを有効にしていますが、各APIは一部実装です。
 
-[APIリファレンス](docs/api.md) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
+[APIリファレンス](docs/api.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
 
 ## ビルドと実行
 
@@ -23,7 +23,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.0.0
+# noe v1.1.0
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -76,14 +76,14 @@ curl -H 'Content-Type: application/json' \
 
 起動した端末のCtrl+Cで終了します。デモのポートは省略時8080、0なら空きポートで、起動時に実際のURLを表示します。
 
-`noe.serve(options, handler)`はサーバーハンドルを返します。ハンドラーは応答オブジェクトまたはそのPromiseを返せるため、ファイル読取りや`noe.sleep()`も使えます。契約は[APIリファレンス](docs/api.md#httpサーバー)を参照してください。
+グローバルの`serve(options, handler)`はWebの`Request`を受け取り、`Response`を返すHTTPサーバーです。`new URL(request.url).pathname`で経路を判定し、JSON応答には`Response.json(value)`を使います。ハンドルにはURLと`close()`があり、詳しくは[APIリファレンス](docs/api.md#httpサーバー)を参照してください。
 
 ## CLI
 
 | コマンド | 動作 |
 | --- | --- |
-| `noe run <file> [args...]` | ファイルを実行。引数は`noe.args`へ渡す |
-| `noe eval <code>` | コードを実行。`noe.args`は空配列 |
+| `noe run <file> [args...]` | ファイルを実行。スクリプト引数は`process.argv.slice(2)`で取得 |
+| `noe eval <code>` | コードを実行。`process.argv.slice(2)`は空配列 |
 | `noe repl` | 対話的にJavaScriptを実行 |
 | `noe --help` | 使い方を表示。引数なしでも表示 |
 | `noe --version` | バージョンを表示 |
@@ -96,13 +96,13 @@ curl -H 'Content-Type: application/json' \
 
 ```sh
 ./noe run --timeout 5s examples/hello.js
-./noe eval --timeout=500ms 'await noe.sleep(60000)'
+./noe eval --timeout=500ms 'await new Promise(resolve => setTimeout(resolve, 60000))'
 # 終了コード124、標準エラーへ時間切れの診断
 ```
 
-`--timeout`はスクリプト名・コードの前に指定し、`500ms`・`5s`・`1m`などGoのduration形式の正の値を使います。空・不正・ゼロ・負・重複は使い方エラーです。`--`でオプションを終端できます。スクリプト名の後の引数は、そのまま`noe.args`へ渡します。
+`--timeout`はスクリプト名・コードの前に指定し、`500ms`・`5s`・`1m`などGoのduration形式の正の値を使います。空・不正・ゼロ・負・重複は使い方エラーです。`--`でオプションを終端できます。`process.argv`の先頭2項目は実行ファイル名とソース名で、その後にスクリプト引数が続きます。
 
-エントリソースの読込み後、ランタイム初期化からJS評価・非同期I/O・sleep・サーバー待受・後続JSまでを計測します。同期OS syscallやローカルimportのOS読取りを強制停止する保証はありません。REPLはCtrl+Cで中断します。中断までの出力やファイルの変更は残ります。
+エントリソースの読込み後、ランタイム初期化からJS評価・非同期I/O・sleep・サーバー待受・後続JSまでを計測します。`process.stdin.read()`などの同期ホストI/Oや、ローカルimportのOS読取りを強制停止する保証はありません。REPLはCtrl+Cで中断します。中断までの出力やファイルの変更は残ります。
 
 ## REPL
 
@@ -114,13 +114,13 @@ curl -H 'Content-Type: application/json' \
 2
 > _ + 1
 3
-> await noe.sleep(100)
-> noe.exit()
+> await new Promise(resolve => setTimeout(resolve, 100))
+> process.exit()
 ```
 
 行編集、保存される履歴、Tab補完、複数行入力に対応します。`_`は最後に成功したundefined以外の結果です。通常の入力エラーの後も続行します。
 
-空の入力でCtrl+D、または`noe.exit()`で終了します。対応する端末でCtrl+Cを押すと入力や実行中の処理を中断し、次のプロンプトへ戻ります。REPLで起動したサーバーは稼働中にプロンプトへ進まず、Ctrl+Cで停止します。
+空の入力でCtrl+D、または`process.exit()`で終了します。対応する端末でCtrl+Cを押すと入力や実行中の処理を中断し、通常は次のプロンプトへ戻ります。stdlibの通信・サーバー・Worker・メッセージポートなどが残った状態で中断やエラーが起きると、処理を停止してREPLセッションも終了します。タイマーだけなら取り消して続行できます。REPLで起動したサーバーは稼働中にプロンプトへ進まず、Ctrl+Cで停止します。
 
 REPLの`await`は式、単一変数の初期化・代入に対応します。任意の複数文に含まれる`await`や静的importは提供せず、モジュールは`await import(...)`で読み込みます。操作と対応範囲は[REPLガイド](docs/repl.md)を参照してください。
 
@@ -129,24 +129,30 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 | 用途 | API |
 | --- | --- |
 | 出力 | `console.log`・`console.warn`・`console.error` |
-| 引数・環境・終了 | `noe.args`・`noe.env.get`・`noe.cwd`・`noe.exit` |
-| 標準入力 | `noe.readStdin`（run/evalのみ） |
-| テキスト・バイナリ | `noe.readTextFile`・`noe.writeTextFile`・`noe.readFile`・`noe.writeFile` |
-| ディレクトリ・ファイル情報・移動 | `noe.readDir`・`noe.stat`・`noe.mkdir`・`noe.rename`・`noe.remove` |
-| HTTP | `fetch`・`noe.serve` |
-| 待機 | `noe.sleep` |
+| 引数・環境・終了 | `process.argv`・`process.env`・`process.cwd()`・`process.exit()` |
+| 標準入力 | `process.stdin.read()` |
+| テキスト・バイナリ | `fs/promises`の`readFile`・`writeFile` |
+| ディレクトリ・ファイル情報・移動 | `fs/promises`の`readdir`・`stat`・`lstat`・`mkdir`・`rename`・`rm` |
+| HTTP | グローバルの`fetch()`・`serve()` |
+| 待機 | `timers/promises`の`setTimeout` |
 
 引数、戻り値、エラー、対応範囲は[APIリファレンス](docs/api.md)にまとめています。
 
-通常終了では、開始したI/O・sleepと後続のJS処理を待ちます。サーバーが稼働中なら実行を継続します。`noe.exit()`は停止を優先し、後続のJSや`catch`・`finally`を実行しません。
+## 組み込みモジュールと利用権限
 
-## HTTPサブセット
+`fs`・`process`・`os`・`path`・`child_process`・`dns`・`http`・`worker_threads`・`crypto`などのgo-quickjs標準ライブラリをimportできます。timer、Web Streams、WebSocket、Workersも利用できます。JavaScriptのグローバル`noe`はありません。NodeやDenoの完全互換ではなく、npm・パッケージ導入・QuickJS本来の`std`モジュールも提供しません。bare importで解決できるのは組み込みモジュールだけです。ローカルのソースは相対`.js`・`.mjs` importを使います。
 
-グローバルの`fetch(url, options)`はGET・POST・PUT・PATCH・DELETEに対応します。レスポンスは`status`・`ok`と、繰り返し読める`text()`・`json()`・`bytes()`を提供します。JSONの文字列化とContent-Typeは明示します。4xx・5xxはレスポンス、通信失敗はPromiseのrejectになります。
+スクリプトには、実行中プロセスの環境変数とローカルファイルシステム全体、コマンド実行、DNS・ネットワーク通信、HTTP待受、WebSocket、Workersの権限を渡します。NOEはsandboxではなく、スクリプトは実行ユーザーのOS権限で動作します。
 
-HTTP bodyは全体をメモリへ保持します。ストリーミング、`Request`・`Response`・`Headers`クラス、URLからのimport、WebSocket、`setTimeout`・`setInterval`は提供しません。
+通常終了では、開始したI/O・タイマーと後続のJS処理を待ちます。サーバーが稼働中なら実行を継続します。`process.exit(code)`で実行を停止し、終了コードを指定できます。
 
-[HTTP APIの詳細](docs/api.md#httpサブセット) · [JSON APIへのリクエスト例](examples/README.md#json-apiへのリクエスト)
+## Fetch API
+
+グローバルの`fetch()`はgo-quickjsのWeb APIで、`Request`・`Response`・`Headers`とストリーミングbodyを提供します。レスポンスbodyは一度だけ読み取れます。JSONを送る場合は、文字列化とContent-Type指定を明示します。
+
+HTTP 4xx・5xxもレスポンスとして返し、通信失敗はPromiseのrejectになります。URLからのモジュールimportには対応しません。HTTPサーバーはグローバルの`serve()`から、WebSocketは標準ライブラリから利用できます。
+
+[HTTP APIの詳細](docs/api.md#fetch) · [JSON APIへのリクエスト例](examples/README.md#json-apiへのリクエスト)
 
 ## エラーと検証
 
@@ -157,9 +163,9 @@ HTTP bodyは全体をメモリへ保持します。ストリーミング、`Requ
 | `2` | CLIの使い方の誤り |
 | `124` | `--timeout`による時間切れ |
 
-`noe.exit(code)`で指定した0〜255のコードはそのまま返します。エンジンが提供するエラー位置とスタックを表示します。解決する処理が残っていない未完了のtop-level awaitも診断します。
+`process.exit(code)`で終了コードを指定できます。エンジンが提供するエラー位置とスタックを表示します。解決する処理が残っていない未完了のtop-level awaitも診断します。
 
-REPLは回復可能な入力エラーの後も続行し、EOFで0を返します。入力読取り・エンジン内部の続行できない失敗は1、非端末や入力待ちでの外部SIGINTは130です。
+REPLは回復可能な入力エラーの後も続行し、EOFで0を返します。入力読取り・エンジン内部の続行できない失敗や、対話端末でstdlibのI/Oが残った状態での入力エラー・中断は1、非端末や入力待ちでの外部SIGINTは130です。
 
 ```sh
 go test ./...

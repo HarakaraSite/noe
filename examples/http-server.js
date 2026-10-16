@@ -1,30 +1,29 @@
 // ./noe run examples/http-server.js [port]
-if (noe.args.length > 1 || (noe.args.length === 1 && !/^\d+$/.test(noe.args[0]))) {
+const args = process.argv.slice(2);
+if (args.length > 1 || (args.length === 1 && !/^\d+$/.test(args[0]))) {
   console.error("Usage: noe run examples/http-server.js [port: 0..65535]");
-  noe.exit(2);
+  process.exit(2);
 }
-const port = noe.args.length === 0 ? 8080 : Number(noe.args[0]);
+const port = args.length === 0 ? 8080 : Number(args[0]);
 if (!Number.isInteger(port) || port > 65535) {
   console.error("Usage: noe run examples/http-server.js [port: 0..65535]");
-  noe.exit(2);
+  process.exit(2);
 }
 
-const server = noe.serve({ port }, async request => {
-  if (request.method === "GET" && request.path === "/health") {
-    return { headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "ok\n" };
+const server = serve({ port }, async request => {
+  const pathname = new URL(request.url).pathname;
+  if (request.method === "GET" && pathname === "/health") {
+    return new Response("ok\n", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
-  if (request.method === "POST" && request.path === "/echo") {
+  if (request.method === "POST" && pathname === "/echo") {
     let value;
     try {
       value = await request.json();
     } catch {
-      return { status: 400, body: "Invalid JSON\n" };
+      return new Response("Invalid JSON\n", { status: 400 });
     }
-    return {
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify(value),
-    };
+    return Response.json(value);
   }
-  return { status: 404, body: "Not Found\n" };
+  return new Response("Not Found\n", { status: 404 });
 });
 console.log(server.url);

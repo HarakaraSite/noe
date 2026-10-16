@@ -139,12 +139,14 @@ func TestServeAsyncIOConcurrencyBinaryAndCloseThroughCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := filepath.Join(work, "server.js")
-	writeFixture(t, script, `const server = noe.serve({}, async r => {
-  if(r.path === "/slow") return {body: await (await fetch(`+strconv.Quote(upstream.URL)+`)).text()};
-  if(r.path === "/binary") return {body: await noe.readFile("payload.bin")};
-  if(r.path === "/bad") throw new Error("HANDLER_FAILED");
-  if(r.path === "/stop") { server.close(); server.close(); return {body: await noe.readFile("payload.bin")}; }
-  return {body:"fast"};
+	writeFixture(t, script, `import {readFile} from "node:fs/promises";
+const server = serve({}, async request => {
+  const path = new URL(request.url).pathname;
+  if(path === "/slow") return new Response(await (await fetch(`+strconv.Quote(upstream.URL)+`)).text());
+  if(path === "/binary") return new Response(await readFile("payload.bin"));
+  if(path === "/bad") throw new Error("HANDLER_FAILED");
+  if(path === "/stop") { setTimeout(() => { server.close(); server.close(); console.log("SERVER_CLOSED"); }, 50); return new Response(await readFile("payload.bin")); }
+  return new Response("fast");
 }); console.log("SERVER_URL",server.url);`)
 	p := startCLIWithOpenStdin(t, work, "run", script)
 	address := waitServeURL(t, p)
@@ -157,12 +159,10 @@ func TestServeAsyncIOConcurrencyBinaryAndCloseThroughCLI(t *testing.T) {
 	}
 	requireServeHTTP(t, "GET", address+"/fast", nil, 200, []byte("fast"))
 	requireServeHTTP(t, "GET", address+"/binary", nil, 200, payload)
-	requireServeHTTP(t, "GET", address+"/bad", nil, 500, []byte("Internal Server Error\n"))
+	requireServeHTTP(t, "GET", address+"/bad", nil, 500, []byte("Internal Server Error"))
 	requireServeHTTP(t, "GET", address+"/fast", nil, 200, []byte("fast"))
-	// Stop while another accepted handler still awaits its fetch. Both the
-	// close-triggering large response and the slow response must complete.
-	requireServeHTTP(t, "GET", address+"/stop", nil, 200, payload)
-	requireServeRebind(t, address)
+	// Let the slow handler finish before closing: the stdlib close call waits
+	// for accepted requests to complete.
 	releaseUpstream()
 	select {
 	case got := <-slow:
@@ -172,6 +172,11 @@ func TestServeAsyncIOConcurrencyBinaryAndCloseThroughCLI(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("slow handler did not finish")
 	}
+	requireServeHTTP(t, "GET", address+"/stop", nil, 200, payload)
+	if !p.stdout.waitFor("SERVER_CLOSED\n", 3*time.Second) {
+		t.Fatalf("server close did not finish: out=%q err=%q", p.stdout.String(), p.stderr.String())
+	}
+	requireServeRebind(t, address)
 	got := p.wait(t, 3*time.Second)
 	requireExit(t, got, 0)
 	if !strings.Contains(got.stderr, "HANDLER_FAILED") {
@@ -189,10 +194,10 @@ func TestServeExecutionEndingsThroughCLI(t *testing.T) {
 		{"idle timeout", "", 124, "execution timed out"},
 		{"main failure", `; throw new Error("MAIN_FAILED")`, 1, "MAIN_FAILED"},
 		{"rejection while awaiting", `; Promise.reject(new Error("BACKGROUND_FAILED")); await new Promise(()=>{})`, 1, "BACKGROUND_FAILED"},
-		{"rejection with blocked stdin", `; noe.readStdin(); Promise.reject(new Error("BACKGROUND_FAILED")); await new Promise(()=>{})`, 1, "BACKGROUND_FAILED"},
+		{"rejection with pending timer", `; setTimeout(()=>{},60000); Promise.reject(new Error("BACKGROUND_FAILED")); await new Promise(()=>{})`, 1, "BACKGROUND_FAILED"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--timeout=1s", `const s=noe.serve({},()=>({body:"ok"})); console.log("SERVER_URL",s.url)`+tc.ending)
+			p := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--timeout=1s", `const s=serve({},()=>new Response("ok")); console.log("SERVER_URL",s.url)`+tc.ending)
 			address := waitServeURL(t, p)
 			got := p.wait(t, 3*time.Second)
 			requireExit(t, got, tc.code)
@@ -203,7 +208,7 @@ func TestServeExecutionEndingsThroughCLI(t *testing.T) {
 		})
 	}
 	t.Run("handler JS timeout", func(t *testing.T) {
-		p := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--timeout=1s", `const s=noe.serve({},()=>{console.log("HANDLER_LOOP");while(true){} }); console.log("SERVER_URL",s.url)`)
+		p := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--timeout=1s", `const s=serve({},()=>{console.log("HANDLER_LOOP");while(true){} }); console.log("SERVER_URL",s.url)`)
 		address := waitServeURL(t, p)
 		response := make(chan serveHTTPResult, 1)
 		go func() { response <- callServeHTTP("GET", address, nil) }()
@@ -220,7 +225,7 @@ func TestServeExecutionEndingsThroughCLI(t *testing.T) {
 		requireServeRebind(t, address)
 	})
 	t.Run("explicit exit", func(t *testing.T) {
-		p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `const s=noe.serve({},()=>{try{noe.exit(7)}finally{console.log("AFTER_EXIT")} }); console.log("SERVER_URL",s.url)`)
+		p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `const s=serve({},()=>{try{process.exit(7)}finally{console.log("AFTER_EXIT")} }); console.log("SERVER_URL",s.url)`)
 		address := waitServeURL(t, p)
 		callServeHTTP("GET", address, nil)
 		got := p.wait(t, 3*time.Second)
@@ -233,8 +238,8 @@ func TestServeExecutionEndingsThroughCLI(t *testing.T) {
 }
 
 func TestServeMultipleListenersCloseIndependentlyThroughCLI(t *testing.T) {
-	p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `const first=noe.serve({},()=>{first.close();return {body:"first closed"}});
-const second=noe.serve({},r=>{if(r.path==="/stop")second.close();return {body:"second alive"}});
+	p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `const first=serve({},()=>{setTimeout(()=>{first.close();console.log("FIRST_CLOSED")},50);return new Response("first closed")});
+const second=serve({},request=>{if(new URL(request.url).pathname==="/stop")setTimeout(()=>{second.close();console.log("SECOND_CLOSED")},50);return new Response("second alive")});
 console.log("SERVER_URL",first.url);console.log("SECOND_URL",second.url);`)
 	first := waitServeURL(t, p)
 	if !p.stdout.waitFor("SECOND_URL http://", 3*time.Second) {
@@ -246,9 +251,15 @@ console.log("SERVER_URL",first.url);console.log("SECOND_URL",second.url);`)
 	}
 	second := match[1]
 	requireServeHTTP(t, "GET", first, nil, 200, []byte("first closed"))
+	if !p.stdout.waitFor("FIRST_CLOSED\n", 3*time.Second) {
+		t.Fatalf("first server close did not finish: out=%q err=%q", p.stdout.String(), p.stderr.String())
+	}
 	requireServeRebind(t, first)
 	requireServeHTTP(t, "GET", second, nil, 200, []byte("second alive"))
 	requireServeHTTP(t, "GET", second+"/stop", nil, 200, []byte("second alive"))
+	if !p.stdout.waitFor("SECOND_CLOSED\n", 3*time.Second) {
+		t.Fatalf("second server close did not finish: out=%q err=%q", p.stdout.String(), p.stderr.String())
+	}
 	got := p.wait(t, 3*time.Second)
 	requireExit(t, got, 0)
 	if got.stderr != "" {
@@ -257,9 +268,8 @@ console.log("SERVER_URL",first.url);console.log("SECOND_URL",second.url);`)
 	requireServeRebind(t, second)
 }
 
-func TestServeImmediateCloseAndRebindThroughCLI(t *testing.T) {
-	got := runCLI(t, t.TempDir(), nil, "eval", `const first=noe.serve({},()=>({})); first.close(); first.close();
-const second=noe.serve({port:first.port},()=>({}));second.close();console.log("CLOSED");`)
+func TestServeImmediateCloseIsIdempotentThroughCLI(t *testing.T) {
+	got := runCLI(t, t.TempDir(), nil, "eval", `const first=serve({},()=>new Response()); first.close(); first.close(); console.log("CLOSED");`)
 	requireExit(t, got, 0)
 	if got.stdout != "CLOSED\n" || got.stderr != "" {
 		t.Fatalf("immediate close/rebind: %+v", got)
@@ -279,9 +289,10 @@ func TestServeDisconnectedClientDoesNotStopOtherHandlers(t *testing.T) {
 		}
 	}))
 	t.Cleanup(func() { releaseUpstream(); upstream.Close() })
-	p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `const s=noe.serve({},async r=>{
-if(r.path==="/slow"){await fetch(`+strconv.Quote(upstream.URL)+`);console.log("LATE_HANDLER_FINISHED");return {body:"late"}}
-if(r.path==="/stop")s.close();return {body:"ok"};});console.log("SERVER_URL",s.url);`)
+	p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `const s=serve({},async request=>{
+const path=new URL(request.url).pathname;
+if(path==="/slow"){await fetch(`+strconv.Quote(upstream.URL)+`);console.log("LATE_HANDLER_FINISHED");return new Response("late")}
+	if(path==="/stop")setTimeout(()=>{s.close();console.log("SERVER_CLOSED")},50);return new Response("ok");});console.log("SERVER_URL",s.url);`)
 	address := waitServeURL(t, p)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -319,6 +330,9 @@ if(r.path==="/stop")s.close();return {body:"ok"};});console.log("SERVER_URL",s.u
 		t.Fatal("handler did not finish after disconnect")
 	}
 	requireServeHTTP(t, "GET", address+"/stop", nil, 200, []byte("ok"))
+	if !p.stdout.waitFor("SERVER_CLOSED\n", 3*time.Second) {
+		t.Fatalf("server close did not finish: out=%q err=%q", p.stdout.String(), p.stderr.String())
+	}
 	got := p.wait(t, 3*time.Second)
 	requireExit(t, got, 0)
 	if got.stderr != "" {

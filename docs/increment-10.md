@@ -1,5 +1,7 @@
 # NOE インクリメント10 共通イベントループと簡易HTTPサーバー
 
+> この文書は実装当時の計画・検証記録です。現在の仕様は[APIリファレンス](api.md)と[stdlib移行記録](increment-12.md)を参照してください。旧`noe.*` API、独自I/O実装、当時の対象外・中断動作は現行仕様ではありません。
+
 JavaScriptで小さなHTTPサーバーを書けるよう、NOEの非同期処理を共通イベントループへ整理し、`noe.serve()`を追加する。txiki.jsのように、ランタイム側が公開APIとホスト機能を持つ構成を採用する。Go 1.27.2、go-quickjs v0.25.3、CGO無効ビルドを維持し、依存は追加しない。状態は全スライスの実装・テスト・通常／批判的レビュー・総合E2E完了。
 
 ## 方針と実装の分担
@@ -171,7 +173,7 @@ overlayと総合E2Eログは作業用一時ファイルに置き、repositoryへ
 - [インクリメント9](increment-9.md)
 - [既存API](../README.md#api)
 - [既存の実行・ジョブ待機](../internal/runtime/runtime.go)
-- [既存の非同期処理とキャンセル](../internal/runtime/asyncwork.go)
+- 当時の非同期処理とキャンセル: `internal/runtime/asyncwork.go`（stdlib移行で削除。現行構成は[移行記録](increment-12.md#実装の変更)を参照）
 - txiki.js参照コミット: `b82d829a4a5febcdba834bcf4d38fb9d89461eee`。ローカルの`_refs/txikijs/source/src/js/core/index.js`・`fs.js`・`httpserver.js`、`src/mod_fs.c`・`httpserver.c`・`vm.c`を構成の参考にする。
 - go-quickjs参照コミット: `1bfb2432eed66203bcabc709a820aa8d787b2fd1`。継続配送は使用中のv0.25.3の`asyncwork.go`の契約を使い、`stdlib/serve.go`・`loop.go`は設計の参考にする。
 

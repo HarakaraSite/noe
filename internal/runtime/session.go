@@ -27,7 +27,7 @@ type Evaluation struct {
 }
 
 // TerminationError reports that a Session operation ended the runtime or
-// found it already closed. Cause is nil for an explicit noe.exit request.
+// found it already closed. Cause is nil for an explicit process.exit request.
 type TerminationError struct {
 	Code  int
 	Cause error
@@ -42,7 +42,7 @@ func (e *TerminationError) Error() string {
 
 func (e *TerminationError) Unwrap() error { return e.Cause }
 
-// NewSession installs the host APIs with no arguments and no readStdin API.
+// NewSession installs stdlib with no script arguments and no data stdin.
 func NewSession(opts Options) (*Session, error) {
 	opts.Args = nil
 	opts.Stdin = nil // stdin supplies REPL source, not script data
@@ -73,8 +73,6 @@ func (s *Session) Eval(ctx context.Context, input string) Evaluation {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	s.h.inputContext = ctx
-	defer func() { s.h.inputContext = nil }()
 
 	s.inputNumber++
 	name := filepath.Join(s.h.cwd, fmt.Sprintf("<repl:%d>.js", s.inputNumber))
@@ -85,6 +83,14 @@ func (s *Session) Eval(ctx context.Context, input string) Evaluation {
 		}
 	}
 	result := s.finish(ctx, name, value, err)
+	if result.Err != nil && !result.Exit {
+		result.Err = errors.Join(result.Err, s.h.loop.stopTimers(ctx))
+	}
+	if result.Err != nil && !result.Exit && s.h.loop.hasStdlibWork() {
+		s.h.rt.Close()
+		result.Err = fmt.Errorf("%w; active stdlib work requires ending the REPL session: %w", result.Err, quickjs.ErrClosed)
+		result.Exit = true
+	}
 	var failedLoop *loopFailure
 	if !result.Exit && errors.As(result.Err, &failedLoop) {
 		cancel()
@@ -100,7 +106,7 @@ func (s *Session) finishCancelledInput(ctx context.Context, name string, result 
 	h := s.h
 	// First make the engine observe an abort in a script turn. This drops
 	// Promise reactions left queued by the canceled input before drainCancelled
-	// runs host completion callbacks with a background context.
+	// flushes any remaining host jobs.
 	cleanupErr := h.discardCancelledJobs()
 	if cleanupErr != nil {
 		cleanupErr = errors.Join(cleanupErr, h.takeUnhandled())
@@ -130,14 +136,22 @@ func (s *Session) finishCancelledInput(ctx context.Context, name string, result 
 
 func (s *Session) finish(ctx context.Context, name string, value quickjs.Value, err error) Evaluation {
 	h := s.h
+	if h.exitRequested {
+		h.takeUnhandled()
+		return Evaluation{Exit: true, Code: h.exitCode}
+	}
 	if err != nil {
-		h.loop.stopSources()
+		err = errors.Join(err, h.loop.stopTimers(ctx))
+		if h.loop.hasStdlibWork() {
+			h.rt.Close()
+			return Evaluation{Err: fmt.Errorf("%s: %w; active stdlib work requires ending the REPL session: %w", name, err, quickjs.ErrClosed), Exit: true, Code: 1}
+		}
 	}
 	var failedLoop *loopFailure
 	if !sessionFatal(err) && !h.exitRequested && !errors.As(err, &failedLoop) {
 		err = errors.Join(err, h.drain(ctx))
 	}
-	if h.exitRequested && errors.Is(err, quickjs.ErrClosed) {
+	if h.exitRequested {
 		h.takeUnhandled()
 		return Evaluation{Exit: true, Code: h.exitCode}
 	}
@@ -149,15 +163,23 @@ func (s *Session) finish(ctx context.Context, name string, value quickjs.Value, 
 		return Evaluation{}
 	}
 	formatted, err := h.inspect.CallContext(ctx, value)
+	if h.exitRequested {
+		h.takeUnhandled()
+		return Evaluation{Exit: true, Code: h.exitCode}
+	}
 	if err != nil {
-		h.loop.stopSources()
+		err = errors.Join(err, h.loop.stopTimers(ctx))
+		if h.loop.hasStdlibWork() {
+			h.rt.Close()
+			return Evaluation{Err: fmt.Errorf("%w; active stdlib work requires ending the REPL session: %w", err, quickjs.ErrClosed), Exit: true, Code: 1}
+		}
 	}
 	if !sessionFatal(err) && !h.exitRequested {
 		err = errors.Join(err, h.drain(ctx))
 	}
 	err = errors.Join(err, h.takeUnhandled())
 	if err != nil {
-		if h.exitRequested && errors.Is(err, quickjs.ErrClosed) {
+		if h.exitRequested {
 			return Evaluation{Exit: true, Code: h.exitCode}
 		}
 		return Evaluation{Err: err, Exit: sessionFatal(err), Code: 1}
@@ -184,18 +206,23 @@ func (s *Session) evalInput(ctx context.Context, name, input string) (quickjs.Va
 	if err != nil {
 		return quickjs.Value{}, err
 	}
-	value, err := s.h.loop.await(ctx, p)
-	if err != nil || form.binding == "" {
-		return value, err
+	if form.binding == "" {
+		return s.h.loop.await(ctx, p)
 	}
-	key := fmt.Sprintf("\x00noe.repl.%d", s.inputNumber)
-	if err := s.h.rt.Global().Set(key, value); err != nil {
-		return quickjs.Value{}, err
-	}
-	literal, _ := json.Marshal(key)
-	defer s.h.rt.EvalFileContext(context.Background(), "<noe-repl-cleanup>", "delete this["+string(literal)+"]")
-	commit := form.binding + " = this[" + string(literal) + "]"
-	return s.h.rt.EvalFileContext(ctx, name, commit)
+	var committed quickjs.Value
+	_, err = s.h.loop.await(ctx, p, func(value quickjs.Value) error {
+		key := fmt.Sprintf("\x00noe.repl.%d", s.inputNumber)
+		if err := s.h.rt.Global().Set(key, value); err != nil {
+			return err
+		}
+		literal, _ := json.Marshal(key)
+		defer s.h.rt.EvalFileContext(context.Background(), "<noe-repl-cleanup>", "delete this["+string(literal)+"]")
+		commit := form.binding + " = this[" + string(literal) + "]"
+		var commitErr error
+		committed, commitErr = s.h.rt.EvalFileContext(ctx, name, commit)
+		return commitErr
+	})
+	return committed, err
 }
 
 func sessionFatal(err error) bool {

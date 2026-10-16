@@ -4,6 +4,12 @@
 
 現在の利用方法はREADMEと各ガイドを参照してください。以下は設計・受入条件・実装と検証の記録です。[MVP案](mvp.md)の対象外は初期段階の範囲で、その後の追加機能は各インクリメントに記録しています。
 
+## 現在のAPIと移行
+
+JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`process`・`timers/promises`とグローバルの`fetch`・`serve`など、go-quickjs標準ライブラリへ統一しました。NOE固有で残るのはCLIとREPLの操作機能です。[移行表](api.md#旧apiからの移行)と[インクリメント12の記録](increment-12.md)を参照してください。
+
+以下のインクリメント1〜11、レビュー、比較スパイクは当時の設計・検証履歴です。そこに記載された旧API・対象外・ソース構成・中断動作は、現在の仕様や最新コードの検証結果を示すものではありません。
+
 ## インクリメント
 
 | 計画・記録 | テーマ |
@@ -18,13 +24,14 @@
 | [8](increment-8.md) | HTTPメソッドと文字列body |
 | [9](increment-9.md) | バイナリ入出力 |
 | [10](increment-10.md) | 共通イベントループと簡易HTTPサーバー |
-| [11](increment-11.md) | `noe.sleep` |
+| [11](increment-11.md) | 旧sleep API（履歴） |
+| [12](increment-12.md) | stdlibへの統一、旧`noe.*` APIと独自I/O実装の削除 |
 
 行編集については[比較スパイク](repl-lineedit-spike.md)と[インクリメント3・4の計画レビュー](increment-3-4-review.md)もあります。
 
 ## 今後の候補
 
-[次の機能候補](future-candidates.md)に、外部コマンド・ストリーミング・import map・HTTP URLからのimportの優先順案と、暗号・ハッシュの検討保留を記録しています。
+[次の機能候補](future-candidates.md)にはv1.0.0時点の検討記録があります。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。import mapとHTTP URLからのimportは未対応です。
 
 ## ビルドと検証
 
@@ -40,7 +47,7 @@ go vet -tags=e2e ./...
 
 E2Eは実際のCLIを別プロセスから起動し、出力・終了コード・ファイルの内容・HTTP応答を確認します。履歴とファイルは一時ディレクトリ、HTTPはローカルサーバーを使い、外部サービスに接続しません。LinuxのPTYテストは編集、日本語、履歴、複数行、補完、Ctrl+C中断、終了後の端末設定の復元を確認します。
 
-検証結果は各インクリメントに記録しています。race版CLIでのHTTPサーバー検証手順は[インクリメント10](increment-10.md#実装とレビュー記録)にあります。
+過去の検証結果は各インクリメントに、stdlib移行時のローカル検証は[インクリメント12](increment-12.md#検証記録)に記録しています。新しい変更では、その時点のソースに対して上のコマンドを実行してください。
 
 ## リリース
 
@@ -48,8 +55,8 @@ E2Eは実際のCLIを別プロセスから起動し、出力・終了コード�
 
 ## 参照と方針
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。NOEの公開APIと共通イベントループはNOE側で実装し、エンジンの実行機能と分けています。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。現在のJavaScript APIは、固定したgo-quickjs標準ライブラリを通じて提供します。NOE固有の機能はCLI、実行期限、REPLの操作などです。
 
 参照資料・ソースを置く`_refs/`はローカル専用の未追跡ディレクトリです。ビルド・テストの依存には含めません。
 
-npm対応・Node/Deno互換は実装しません。Web標準は必要なサブセットにとどめ、TypeScript対応は後から追加する予定です。
+npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。Web APIとNode形式APIの互換範囲は固定したgo-quickjs標準ライブラリに従います。TypeScript対応は後から追加する予定です。

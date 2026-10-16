@@ -1,11 +1,12 @@
 // Use a JSON API URL of your choice; PUT/PATCH/DELETE update remote data.
 // ./noe run --timeout 5s examples/http-json.js METHOD URL [JSON-body]
-if (noe.args.length < 2 || noe.args.length > 3) {
+const args = process.argv.slice(2);
+if (args.length < 2 || args.length > 3) {
   console.error("Usage: noe run examples/http-json.js METHOD URL [JSON-body]");
-  noe.exit(2);
+  process.exit(2);
 }
 
-const [method, url, input] = noe.args;
+const [method, url, input] = args;
 const options = { method };
 if (input !== undefined) {
   options.body = JSON.stringify(JSON.parse(input));

@@ -3,12 +3,10 @@ package cli
 import (
 	"bytes"
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -52,7 +50,7 @@ func TestParseExecutionOptions(t *testing.T) {
 
 func TestRunExecutionOptionsPreserveOperands(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "args.js")
-	if err := os.WriteFile(file, []byte(`console.log(JSON.stringify(noe.args));`), 0600); err != nil {
+	if err := os.WriteFile(file, []byte(`console.log(JSON.stringify(process.argv.slice(2)));`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
@@ -123,7 +121,7 @@ func TestRunWithExecutionTimeoutPreservesExitResults(t *testing.T) {
 	}{
 		{"success", `console.log("done")`, 0, "done\n", ""},
 		{"execution error", `throw new Error("boom")`, 1, "", "boom"},
-		{"explicit exit 124", `noe.exit(124)`, 124, "", ""},
+		{"explicit exit 124", `process.exit(124)`, 124, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
@@ -136,89 +134,22 @@ func TestRunWithExecutionTimeoutPreservesExitResults(t *testing.T) {
 }
 
 func TestRunExecutionTimeout(t *testing.T) {
-	reader := newGateReader()
-	code, _, stderr := runWaitingForStdin(t, context.Background(), []string{"eval", "--timeout=1s", "await noe.readStdin()"}, reader)
-	if code != 124 || !strings.Contains(stderr, "execution timed out after 1s") {
-		t.Fatalf("code=%d stderr=%q", code, stderr)
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"eval", "--timeout=100ms", "await new Promise(resolve => setTimeout(resolve, 5_000))"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 124 || !strings.Contains(stderr.String(), "execution timed out after 100ms") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
-	if strings.Contains(stderr, "context deadline exceeded") {
-		t.Fatalf("timeout diagnostic should be deterministic: %q", stderr)
+	if strings.Contains(stderr.String(), "context deadline exceeded") {
+		t.Fatalf("timeout diagnostic should be deterministic: %q", stderr.String())
 	}
 }
 
 func TestRunParentDeadlineKeepsOrdinaryErrorCode(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	reader := newGateReader()
-	code, _, stderr := runWaitingForStdin(t, ctx, []string{"eval", "--timeout=5s", "await noe.readStdin()"}, reader)
-	if code != 1 || !strings.Contains(stderr, "context deadline exceeded") || strings.Contains(stderr, "execution timed out after") {
-		t.Fatalf("code=%d stderr=%q", code, stderr)
-	}
-}
-
-// gateReader provides a blocking read that the test can always release. It
-// keeps timeout tests bounded without relying on an interruptible borrowed
-// reader or leaving a worker blocked after Execute returns.
-type gateReader struct {
-	ready       chan struct{}
-	release     chan struct{}
-	finished    chan struct{}
-	readyOnce   sync.Once
-	releaseOnce sync.Once
-}
-
-func newGateReader() *gateReader {
-	return &gateReader{ready: make(chan struct{}), release: make(chan struct{}), finished: make(chan struct{})}
-}
-
-func (r *gateReader) Read([]byte) (int, error) {
-	r.readyOnce.Do(func() { close(r.ready) })
-	<-r.release
-	close(r.finished)
-	return 0, io.EOF
-}
-
-func (r *gateReader) unblock() { r.releaseOnce.Do(func() { close(r.release) }) }
-
-func runWaitingForStdin(t *testing.T, ctx context.Context, args []string, reader *gateReader) (int, string, string) {
-	t.Helper()
 	var stdout, stderr bytes.Buffer
-	var code int
-	done := make(chan struct{})
-	go func() {
-		code = Run(ctx, args, reader, &stdout, &stderr)
-		close(done)
-	}()
-	defer func() {
-		reader.unblock()
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			t.Error("CLI execution did not return after releasing stdin")
-		}
-		select {
-		case <-reader.ready:
-			select {
-			case <-reader.finished:
-			case <-time.After(5 * time.Second):
-				t.Error("stdin reader did not finish after release")
-			}
-		default:
-		}
-	}()
-
-	select {
-	case <-reader.ready:
-	case <-done:
-		t.Fatalf("CLI returned before reading stdin: code=%d stderr=%q", code, stderr.String())
-	case <-time.After(5 * time.Second):
-		t.Fatal("CLI did not begin reading stdin")
-	}
-	select {
-	case <-done:
-		return code, stdout.String(), stderr.String()
-	case <-time.After(5 * time.Second):
-		t.Fatal("CLI execution did not return before the outer test deadline")
-		return 0, "", ""
+	code := Run(ctx, []string{"eval", "--timeout=5s", "await new Promise(resolve => setTimeout(resolve, 5_000))"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 1 || !strings.Contains(stderr.String(), "context deadline exceeded") || strings.Contains(stderr.String(), "execution timed out after") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }

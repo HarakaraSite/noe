@@ -3,20 +3,21 @@ package runtime
 import (
 	"context"
 	"errors"
-	"sync"
-	"sync/atomic"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
+	"github.com/go-quickjs/go-quickjs/stdlib"
 )
 
-// eventLoop drives the engine's host queue and jobs on the runtime owner.
-// Its registry contains Go cleanup functions, not another JS queue or poller.
+// eventLoop drives stdlib and engine jobs on the runtime owner.
 type eventLoop struct {
-	h       *host
-	observe quickjs.Value
-	failure error // owner only
-	mu      sync.Mutex
-	sources map[*eventSource]struct{}
+	h                  *host
+	std                *stdlib.Loop
+	cancelDrive        context.CancelFunc
+	timers             map[int]bool
+	clearTimer         quickjs.Value
+	resources          map[uint64]struct{}
+	resourceGeneration uint64
+	observe            quickjs.Value
 }
 
 // loopFailure ends the current operation; unrelated pending I/O must be
@@ -28,183 +29,151 @@ func (e *loopFailure) Unwrap() error { return e.error }
 func newEventLoop(h *host) (*eventLoop, error) {
 	observe, err := h.rt.EvalFile("<noe-await>", `(() => {
 		const P = Promise, resolve = P.resolve, then = P.prototype.then, apply = Reflect.apply;
-		return (value, notify) => {
+		return (value, fulfilled, rejected) => {
 			const p = apply(resolve, P, [value]);
-			apply(then, p, [notify, notify]);
+			apply(then, p, [fulfilled, rejected]);
 			return p;
 		};
 	})()`)
 	if err != nil {
 		return nil, err
 	}
-	l := &eventLoop{h: h, observe: observe, sources: make(map[*eventSource]struct{})}
-	h.rt.OnClose(l.stopSources)
+	l := &eventLoop{h: h, std: stdlib.NewLoop(h.rt), observe: observe, timers: make(map[int]bool), resources: make(map[uint64]struct{})}
+	h.rt.OnClose(l.std.Close)
 	return l, nil
 }
 
-// The final engine Await only unwraps an already-settled promise. Waiting
-// belongs to NOE, so errors cannot hide behind a pending top-level await.
-func (l *eventLoop) await(ctx context.Context, value quickjs.Value) (quickjs.Value, error) {
-	settled := false
-	p, err := l.observe.CallContext(ctx, value, func() { settled = true })
+// Await and the subsequent drain use the same stdlib loop, which also drives
+// the engine's AsyncWork queue. A rejected root or an unhandled error stops
+// that loop even when a server or interval would otherwise keep it alive.
+func (l *eventLoop) await(ctx context.Context, value quickjs.Value, fulfilled ...func(quickjs.Value) error) (quickjs.Value, error) {
+	var commitErr error
+	settled, rejected := false, false
+	p, err := l.observe.CallContext(ctx, value, func(result quickjs.Value) {
+		settled = true
+		if len(fulfilled) != 0 {
+			commitErr = fulfilled[0](result)
+			if commitErr != nil {
+				l.interrupt()
+			}
+		}
+	}, func() {
+		settled, rejected = true, true
+		l.interrupt()
+	})
 	if err != nil {
 		return quickjs.Value{}, err
 	}
-	for {
-		if err := l.takeFailure(); err != nil {
-			l.stopSources()
-			return quickjs.Value{}, &loopFailure{err}
-		}
-		if err := ctx.Err(); err != nil {
-			return quickjs.Value{}, err
-		}
-		if settled {
-			return p.Await(ctx)
-		}
-		if !l.h.rt.Busy() {
-			return quickjs.Value{}, quickjs.ErrNeverSettles
-		}
-		if err := l.turn(ctx); err != nil {
-			return quickjs.Value{}, err
-		}
+	if !rejected && commitErr == nil {
+		err = l.drain(ctx)
+	}
+	if ctx.Err() != nil {
+		return quickjs.Value{}, ctx.Err()
+	}
+	if rejected {
+		return p.Await(ctx)
+	}
+	if commitErr != nil {
+		return quickjs.Value{}, commitErr
+	}
+	if err != nil {
+		return quickjs.Value{}, err
+	}
+	if !settled {
+		return quickjs.Value{}, quickjs.ErrNeverSettles
+	}
+	return p.Await(ctx)
+}
+
+func (l *eventLoop) interrupt() {
+	if l.cancelDrive != nil {
+		l.cancelDrive()
 	}
 }
 
 func (l *eventLoop) takeFailure() error {
-	err := errors.Join(l.failure, l.h.takeUnhandled())
-	l.failure = nil
-	return err
-}
-
-func (l *eventLoop) turn(ctx context.Context) error {
-	select {
-	case <-l.h.rt.Wake():
-		return l.h.rt.RunJobsContext(ctx)
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return l.h.takeUnhandled()
 }
 
 func (l *eventLoop) drain(ctx context.Context) error {
-	for {
-		if err := l.takeFailure(); err != nil {
-			l.stopSources()
-			return &loopFailure{err}
-		}
-		if !l.h.rt.Busy() {
-			return nil
-		}
-		if err := l.turn(ctx); err != nil {
-			return err
-		}
+	if err := l.takeFailure(); err != nil {
+		return &loopFailure{err}
 	}
-}
-
-// The engine has already discarded interrupted JS. Flush only guarded host
-// completions after stopping the continuous resources for this input.
-func (l *eventLoop) drainCancelled(ctx context.Context) error {
-	l.stopSources()
-	if ctx == nil {
-		ctx = context.Background()
+	driveCtx, cancel := context.WithCancel(ctx)
+	l.cancelDrive = cancel
+	defer func() { cancel(); l.cancelDrive = nil }()
+	err := l.std.Run(driveCtx)
+	if failure := l.takeFailure(); failure != nil {
+		return &loopFailure{failure}
 	}
-	if err := l.h.rt.RunJobsContext(ctx); err != nil && !errors.Is(err, ctx.Err()) {
-		return err
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
-	for l.h.rt.Busy() {
-		select {
-		case <-l.h.rt.Wake():
-			if err := l.h.rt.RunJobsContext(ctx); err != nil && !errors.Is(err, ctx.Err()) {
-				return err
-			}
-		case <-l.h.rt.Context().Done():
-			return quickjs.ErrClosed
-		}
+	if l.h.exitRequested {
+		return quickjs.ErrClosed
+	}
+	// Internal cancellation means the observed root rejected; await unwraps it.
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	if err != nil {
+		return &loopFailure{err}
 	}
 	return nil
 }
 
-// A source is created on the owner, posted to from any goroutine, and
-// finished when its Go resource has drained. Abort never waits for JS.
-type eventSource struct {
-	loop       *eventLoop
-	work       *quickjs.AsyncWork
-	ctx        context.Context
-	inputCtx   context.Context
-	runtimeCtx context.Context
-	cancel     context.CancelFunc
-	stop       func()
-	finishOnce sync.Once
-	aborted    atomic.Bool
-	hooksMu    sync.Mutex
-	hooks      []func() bool
+// stdlib's loop has runtime lifetime, and imported module functions retain it.
+// Its active I/O cannot be moved to a fresh loop after input interruption.
+func (l *eventLoop) hasStdlibWork() bool {
+	return l.std.Pending() || len(l.timers) != 0 || len(l.resources) != 0 || l.std.Context().Err() != nil
 }
 
-func (h *host) startEventSource(stop func()) *eventSource {
-	runtimeCtx := h.rt.Context()
-	inputCtx := h.inputContext
-	if inputCtx == nil {
-		inputCtx = runtimeCtx
-	}
-	ctx, cancel := context.WithCancel(inputCtx)
-	s := &eventSource{loop: h.loop, work: h.rt.StartAsyncWork(), ctx: ctx,
-		inputCtx: inputCtx, runtimeCtx: runtimeCtx, cancel: cancel, stop: stop}
-	h.loop.mu.Lock()
-	h.loop.sources[s] = struct{}{}
-	h.loop.mu.Unlock()
-	// Cancellation can start Abort before AfterFunc returns. Cleanup must
-	// see both installed hooks, so hold this lock while registering them.
-	s.hooksMu.Lock()
-	s.hooks = []func() bool{context.AfterFunc(inputCtx, s.Abort), context.AfterFunc(runtimeCtx, s.Abort)}
-	s.hooksMu.Unlock()
-	return s
-}
-
-func (s *eventSource) Post(fn func()) {
-	s.work.Post(func(err error) {
-		if err != nil || s.aborted.Load() || s.inputCtx.Err() != nil || s.runtimeCtx.Err() != nil {
-			return
+func (l *eventLoop) hasResourcesSince(generation uint64) bool {
+	for id := range l.resources {
+		if id > generation {
+			return true
 		}
-		fn()
-	})
+	}
+	return false
 }
 
-func (s *eventSource) Fail(err error) {
+// Track upstream timer handles without changing how timers fire. This lets
+// REPL interruption detect resources that belong to the stdlib loop.
+func (l *eventLoop) trackTimers() error {
+	var err error
+	l.clearTimer, err = l.h.rt.Get("clearTimeout")
 	if err != nil {
-		s.Post(func() { s.loop.failure = errors.Join(s.loop.failure, err) })
+		return err
 	}
+	factory, err := l.h.rt.EvalFile("<noe-timers>", `((armed, cleared) => {
+  const timeout = setTimeout, interval = setInterval, cancel = clearTimeout;
+  globalThis.setTimeout = (fn, ms, ...args) => {
+   if (typeof fn !== "function") return timeout(fn, ms, ...args);
+   let id;
+   id = timeout((...values) => { cleared(id); return fn(...values); }, ms, ...args);
+   armed(id); return id;
+  };
+  globalThis.setInterval = (fn, ms, ...args) => {
+   const id = interval(fn, ms, ...args); armed(id); return id;
+  };
+  globalThis.clearTimeout = globalThis.clearInterval = id => { cleared(id); cancel(id); };
+ })`)
+	if err != nil {
+		return err
+	}
+	_, err = factory.Call(func(id int) { l.timers[id] = true }, func(id int) { delete(l.timers, id) })
+	return err
 }
 
-// Done preserves queued callbacks, as AsyncWork.Done does.
-func (s *eventSource) Done()  { s.finish(false) }
-func (s *eventSource) Abort() { s.finish(true) }
-
-func (s *eventSource) finish(abort bool) {
-	s.finishOnce.Do(func() {
-		s.aborted.Store(abort)
-		s.hooksMu.Lock()
-		for _, hook := range s.hooks {
-			hook()
-		}
-		s.hooksMu.Unlock()
-		s.cancel()
-		if abort && s.stop != nil {
-			s.stop()
-		}
-		s.work.Done()
-		s.loop.mu.Lock()
-		delete(s.loop.sources, s)
-		s.loop.mu.Unlock()
-	})
-}
-
-func (l *eventLoop) stopSources() {
-	l.mu.Lock()
-	sources := make([]*eventSource, 0, len(l.sources))
-	for s := range l.sources {
-		sources = append(sources, s)
+// Active stdlib I/O ends the session before this path. Flush jobs left by
+// interrupted evaluation under the cancelled context without running stale JS.
+func (l *eventLoop) drainCancelled(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	l.mu.Unlock()
-	for _, s := range sources {
-		s.Abort()
+	err := l.h.rt.RunJobsContext(ctx)
+	if errors.Is(err, ctx.Err()) {
+		return nil
 	}
+	return err
 }

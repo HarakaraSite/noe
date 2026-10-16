@@ -13,17 +13,17 @@ import (
 func TestFileMutationLifecycleThroughCLI(t *testing.T) {
 	work := t.TempDir()
 	writeFixture(t, filepath.Join(work, "existing.txt"), "old")
-	source := `const check = value => { if (value !== undefined) throw new Error("expected void"); };
-check(await noe.mkdir("親/子"));
-check(await noe.mkdir(noe.cwd() + "/親/子"));
-await noe.writeTextFile("親/子/元.txt", "雪\n");
-check(await noe.rename("親/子/元.txt", "existing.txt"));
-if (await noe.readTextFile("existing.txt") !== "雪\n") throw new Error("rename content");
-check(await noe.rename("親/子", "親/移動先"));
-check(await noe.remove(noe.cwd() + "/existing.txt"));
-check(await noe.remove("親/移動先"));
-check(await noe.remove("親"));
-noe.mkdir("unawaited/nested");
+	source := `import {mkdir,writeFile,readFile,rename,unlink,rmdir} from "node:fs/promises";
+await mkdir("親/子", {recursive:true});
+await mkdir(process.cwd() + "/親/子", {recursive:true});
+await writeFile("親/子/元.txt", "雪\n");
+await rename("親/子/元.txt", "existing.txt");
+if (await readFile("existing.txt", "utf8") !== "雪\n") throw new Error("rename content");
+await rename("親/子", "親/移動先");
+await unlink(process.cwd() + "/existing.txt");
+await rmdir("親/移動先");
+await rmdir("親");
+mkdir("unawaited/nested", {recursive:true});
 console.log("finished");`
 	got := runCLI(t, work, nil, "eval", source)
 	requireExit(t, got, 0)
@@ -47,7 +47,7 @@ func TestFileMutationLinksErrorsAndREPLRecovery(t *testing.T) {
 	if err := os.Symlink("target.txt", filepath.Join(work, "link")); err != nil {
 		t.Fatal(err)
 	}
-	got := runCLI(t, work, nil, "eval", `await noe.rename("link", "moved-link"); await noe.remove("moved-link");`)
+	got := runCLI(t, work, nil, "eval", `import {rename,unlink} from "node:fs/promises"; await rename("link", "moved-link"); await unlink("moved-link");`)
 	requireExit(t, got, 0)
 	if got.stdout != "" || got.stderr != "" {
 		t.Fatalf("link operations: %+v", got)
@@ -59,10 +59,10 @@ func TestFileMutationLinksErrorsAndREPLRecovery(t *testing.T) {
 		t.Fatalf("link not removed: %v", err)
 	}
 	for _, source := range []string{
-		`await noe.mkdir("target.txt/child")`,
-		`await noe.rename("missing", "renamed")`,
-		`await noe.remove("missing")`,
-		`await noe.remove("not-empty")`,
+		`import {mkdir} from "node:fs/promises"; await mkdir("target.txt/child", {recursive:true})`,
+		`import {rename} from "node:fs/promises"; await rename("missing", "renamed")`,
+		`import {unlink} from "node:fs/promises"; await unlink("missing")`,
+		`import {rmdir} from "node:fs/promises"; await rmdir("not-empty")`,
 	} {
 		failed := runCLI(t, work, nil, "eval", source)
 		requireExit(t, failed, 1)
@@ -71,10 +71,11 @@ func TestFileMutationLinksErrorsAndREPLRecovery(t *testing.T) {
 		}
 	}
 	repl := runREPLInput(t, work, map[string]string{"NOE_REPL_HISTORY": ""}, strings.Join([]string{
-		`await noe.mkdir("repl/nested")`,
-		`await noe.rename("repl/nested", "repl/moved")`,
-		`await noe.remove("repl/moved")`,
-		`await noe.remove("not-empty")`,
+		`const fs = await import("node:fs/promises")`,
+		`await fs.mkdir("repl/nested", {recursive:true})`,
+		`await fs.rename("repl/nested", "repl/moved")`,
+		`await fs.rmdir("repl/moved")`,
+		`await fs.rmdir("not-empty")`,
 		`console.log("RECOVERED", 40 + 2)`,
 	}, "\n")+"\n")
 	requireExit(t, repl, 0)

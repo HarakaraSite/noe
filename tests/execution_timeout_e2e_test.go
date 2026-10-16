@@ -73,37 +73,43 @@ func TestExecutionTimeoutHTTPWaitCancelsRequest(t *testing.T) {
 	}
 }
 
-func TestExecutionTimeoutStdinWaitAndSIGINT(t *testing.T) {
-	for _, awaited := range []bool{true, false} {
-		t.Run("stdin await="+strconv.FormatBool(awaited), func(t *testing.T) {
-			source := `console.log("STARTED"); const pending = noe.readStdin().then(() => console.log("AFTER"));`
-			if awaited {
-				source += `await pending;`
-			}
-			process := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--timeout=200ms", source)
-			requireExecutionTimeout(t, process.wait(t, 3*time.Second))
-		})
+func TestExecutionTimeoutSIGINTInterruptsFetchWait(t *testing.T) {
+	requestStarted := make(chan struct{}, 1)
+	requestCanceled := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		requestStarted <- struct{}{}
+		<-r.Context().Done()
+		close(requestCanceled)
+	}))
+	defer server.Close()
+	process := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--timeout", "5s", `console.log("STARTED"); await fetch(`+strconv.Quote(server.URL)+`); console.log("AFTER");`)
+	if !process.stdout.waitFor("STARTED\n", 3*time.Second) {
+		t.Fatal("fetch evaluation did not start")
 	}
-	t.Run("SIGINT stays cancellation", func(t *testing.T) {
-		process := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--timeout", "5s", `console.log("STARTED"); await noe.readStdin(); console.log("AFTER");`)
-		if !process.stdout.waitFor("STARTED\n", 3*time.Second) {
-			t.Fatal("stdin evaluation did not start")
-		}
-		if err := process.cmd.Process.Signal(os.Interrupt); err != nil {
-			t.Fatal(err)
-		}
-		got := process.wait(t, 3*time.Second)
-		requireExit(t, got, 1)
-		if got.stdout != "STARTED\n" || got.stderr == "" || strings.Contains(got.stderr, "execution timed out") {
-			t.Fatalf("SIGINT reclassified as timeout: %+v", got)
-		}
-	})
+	select {
+	case <-requestStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("HTTP request did not start")
+	}
+	if err := process.cmd.Process.Signal(os.Interrupt); err != nil {
+		t.Fatal(err)
+	}
+	got := process.wait(t, 3*time.Second)
+	requireExit(t, got, 1)
+	if got.stdout != "STARTED\n" || got.stderr == "" || strings.Contains(got.stderr, "execution timed out") {
+		t.Fatalf("SIGINT reclassified as timeout: %+v", got)
+	}
+	select {
+	case <-requestCanceled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SIGINT did not cancel the HTTP request")
+	}
 }
 
 func TestExecutionTimeoutPreservesCLIBehavior(t *testing.T) {
 	work := t.TempDir()
 	file := filepath.Join(work, "args.js")
-	writeFixture(t, file, `console.log(JSON.stringify(noe.args));`)
+	writeFixture(t, file, `console.log(JSON.stringify(process.argv.slice(2)));`)
 	args := runCLI(t, work, nil, "run", "--timeout", "5s", "--", file, "--timeout", "not-a-duration")
 	requireExit(t, args, 0)
 	if args.stdout != "[\"--timeout\",\"not-a-duration\"]\n" || args.stderr != "" {
@@ -118,8 +124,8 @@ func TestExecutionTimeoutPreservesCLIBehavior(t *testing.T) {
 	}{
 		{"success", []string{"eval", "--timeout=5s", `console.log(42)`}, 0, "42\n", ""},
 		{"normal error", []string{"eval", "--timeout=5s", `throw new Error("ordinary failure")`}, 1, "", "ordinary failure"},
-		{"explicit exit", []string{"eval", "--timeout=5s", `noe.exit(7)`}, 7, "", ""},
-		{"explicit 124", []string{"eval", "--timeout=5s", `noe.exit(124)`}, 124, "", ""},
+		{"explicit exit", []string{"eval", "--timeout=5s", `process.exit(7)`}, 7, "", ""},
+		{"explicit 124", []string{"eval", "--timeout=5s", `process.exit(124)`}, 124, "", ""},
 		{"negative expression", []string{"eval", `-1; console.log("negative expression")`}, 0, "negative expression\n", ""},
 		{"zero duration", []string{"eval", "--timeout=0", `console.log("AFTER")`}, 2, "", "timeout"},
 		{"REPL option", []string{"repl", "--timeout=1s"}, 2, "", "Usage:"},

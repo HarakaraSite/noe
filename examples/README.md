@@ -2,7 +2,9 @@
 
 [READMEへ戻る](../README.md) · [APIリファレンス](../docs/api.md) · [REPLガイド](../docs/repl.md)
 
-以下のコマンドは、ビルド済みの`./noe`を使い、リポジトリのルートで実行します。ファイル操作の相対パスもそのディレクトリが基準です。
+以下のコマンドは、ビルド済みの`./noe`を使い、リポジトリのルートで実行します。ファイル操作の相対パスは`process.cwd()`が基準です。スクリプト引数は`process.argv.slice(2)`で取得します。
+
+実行例はgo-quickjs標準ライブラリを使います。旧`noe.*` APIは廃止済みで、置換先は[移行表](../docs/api.md#旧apiからの移行)にまとめています。
 
 ## 一覧
 
@@ -60,14 +62,14 @@ printf '[100,200,300]\n' | ./noe run examples/summarize-stdin.js
 # ファイルごとの結果と、count: 5、total: 800、average: 160を表示
 ```
 
-入力は有限の数値だけを含むJSON配列です。空配列のaverageはnullです。ディレクトリ集計は直下の通常ファイルで、名前が`.json`で終わるものを名前順に処理します。再帰しません。
+入力は有限の数値だけを含むJSON配列です。空配列のaverageはnullです。ディレクトリ集計は直下のファイル名が`.json`で終わるものを名前順に調べます。`readdir()`は名前だけを返し、`lstat()`で通常ファイルを確認します。シンボリックリンクは対象にしません。再帰しません。
 
 出力を保存し、次のスクリプトの標準入力として渡すこともできます。
 
 ```sh
 DEMO_DIR=$(mktemp -d)
 ./noe run examples/collect-json.js examples/data/numbers > "$DEMO_DIR/summary.json"
-./noe eval 'const report = JSON.parse(await noe.readStdin()); console.log(report.total)' < "$DEMO_DIR/summary.json"
+./noe eval 'const report = JSON.parse(process.stdin.read()); console.log(report.total)' < "$DEMO_DIR/summary.json"
 # 800
 ```
 
@@ -86,7 +88,7 @@ ls "$DEMO_DIR/output/processed"
 
 入力と出力は別のディレクトリを指定します。全入力の解析後、出力ディレクトリを作り、一時レポートを`report.json`へ名前変更し、入力を`processed/`へ移動します。成功すると作業マーカーを削除します。
 
-既存の`report.json.tmp`・`.processing`は上書きします。名前変更の置換可否はOSに従い、Linuxでは同名の通常ファイルを置換します。ファイルシステムをまたぐ移動はコピーで補いません。処理はトランザクションではなく、失敗・中断までの変更や作業ファイルは残ります。
+`mkdir(path, {recursive: true})`で出力先を作ります。既存の`report.json.tmp`・`.processing`は上書きします。名前変更の置換可否はOSに従い、Linuxでは同名の通常ファイルを置換します。ファイルシステムをまたぐ移動はコピーで補いません。処理はトランザクションではなく、失敗・中断までの変更や作業ファイルは残ります。
 
 ## HTTPダウンロード
 
@@ -98,7 +100,7 @@ DEMO_DIR=$(mktemp -d)
 ./noe run --timeout 5s examples/download-file.js https://example.com/image.png "$DEMO_DIR/image.png"
 ```
 
-JSONは解析して整形保存し、バイナリは文字列に変換せず保存します。どちらの例もHTTPエラーを実行失敗にします。
+JSONは解析して整形保存し、バイナリは文字列に変換せず保存します。グローバル`fetch()`のレスポンスbodyは一度だけ読み取ります。どちらの例もHTTPエラーを実行失敗にします。
 
 ## JSON APIへのリクエスト
 
@@ -111,7 +113,7 @@ ITEM_URL='https://example.com/api/items/1'
 ./noe run --timeout 5s examples/http-json.js DELETE "$ITEM_URL"
 ```
 
-JSON-bodyがある場合は解析して検証し、明示的に文字列化してapplication/jsonで送ります。成功時は`{status, ok, body}`のJSONを表示し、空レスポンスのbodyはnullです。この例はHTTP失敗を診断してコード1で終了します。`fetch`自体は4xx・5xxもレスポンスとして返します。
+JSON-bodyがある場合は解析して検証し、明示的に文字列化してapplication/jsonで送ります。成功時は`{status, ok, body}`のJSONを表示し、空レスポンスのbodyはnullです。この例はHTTP失敗を診断してコード1で終了します。`fetch`自体は4xx・5xxもレスポンスとして返します。レスポンスbodyは`text()`で一度だけ読み取ります。
 
 ## HTTPサーバー
 
@@ -129,7 +131,7 @@ curl -H 'Content-Type: application/json' \
   -d '{"message":"こんにちは"}' http://127.0.0.1:8080/echo
 ```
 
-healthは`ok`、echoは送ったJSONを返します。不正JSONは400、その他のパスは404です。ポート省略時は8080、0ならOSが空きポートを選び、起動時に実際のURLを表示します。起動した端末のCtrl+Cで終了します。
+healthは`ok`、echoは送ったJSONを`Response.json()`で返します。経路は`new URL(request.url).pathname`で取得します。不正JSONは400、その他のパスは404です。ポート省略時は8080、0ならOSが空きポートを選び、起動時に実際のURLを表示します。起動した端末のCtrl+Cで終了します。
 
 ## 待機とREPL
 
@@ -137,6 +139,6 @@ healthは`ok`、echoは送ったJSONを返します。不正JSONは400、その�
 ./noe run examples/sleep-demo.js
 ```
 
-`実行 1`から`実行 3`まで1秒間隔で表示します。待機中もHTTPやファイル処理を進められます。
+`timers/promises`の`setTimeout()`を使い、`実行 1`から`実行 3`まで1秒間隔で表示します。待機中もHTTPやファイル処理を進められます。
 
 [repl-demo.js](repl-demo.js)を`./noe repl`へ1行ずつ貼り付けると、変数・関数の保持を試せます。↑で入力を呼び出し、割引率を編集して再実行できます。詳細は[REPLガイド](../docs/repl.md)を参照してください。

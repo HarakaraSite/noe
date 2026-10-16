@@ -3,9 +3,12 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"unicode"
+
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Complete returns identifier candidates for a bare identifier or dotted
@@ -41,19 +44,18 @@ func (s *Session) Complete(ctx context.Context, token string) (candidates []stri
 	}
 
 	inputCtx, cancel := context.WithCancel(ctx)
-	previousInputCtx := h.inputContext
-	h.inputContext = inputCtx
+	generation := h.loop.resourceGeneration
 	value, callErr := h.completion.CallContext(inputCtx, path, len(path) > 0 && hasString(s.lexicalNames, path[0]))
-	needsCleanup := callErr != nil || ctx.Err() != nil || h.rt.Busy() || len(h.unhandled) != 0
+	newStdlibWork := h.loop.std.Pending() || h.loop.hasResourcesSince(generation)
+	needsCleanup := callErr != nil || ctx.Err() != nil || h.rt.Busy() || newStdlibWork || len(h.loop.timers) != 0 || len(h.unhandled) != 0
 	cancel()
-	h.inputContext = previousInputCtx
 
 	// Proxy traps can schedule Promise reactions or host work while reflection
 	// runs. Once completion returns, cancel those effects and discard queued JS
 	// before another input can observe them.
 	var cleanupErr error
 	if needsCleanup {
-		cleanupErr = s.cleanupCancelledOperation(inputCtx)
+		cleanupErr = s.cleanupCancelledOperation(inputCtx, newStdlibWork)
 	}
 	if cleanupErr != nil && sessionFatal(cleanupErr) {
 		return nil, cleanupErr
@@ -112,12 +114,17 @@ func (s *Session) Complete(ctx context.Context, token string) (candidates []stri
 	return deduplicateStrings(keys), nil
 }
 
-func (s *Session) cleanupCancelledOperation(ctx context.Context) error {
+func (s *Session) cleanupCancelledOperation(ctx context.Context, newStdlibWork bool) error {
 	h := s.h
 	if err := h.discardCancelledJobs(); err != nil {
 		return errors.Join(err, h.takeUnhandled())
 	}
-	err := h.drainCancelled(ctx)
+	err := h.loop.stopTimers(ctx)
+	if newStdlibWork || h.loop.std.Context().Err() != nil {
+		h.rt.Close()
+		return errors.Join(err, fmt.Errorf("active stdlib work requires ending the REPL session: %w", quickjs.ErrClosed))
+	}
+	err = errors.Join(err, h.drainCancelled(ctx))
 	return errors.Join(err, h.takeUnhandled())
 }
 

@@ -141,14 +141,18 @@ func TestSessionCompleteProxyFailureAndTimeoutRecover(t *testing.T) {
 	}
 }
 
-func TestSessionCompleteDiscardsProxyQueuedReaction(t *testing.T) {
+func TestSessionCompleteDiscardsProxyQueuedWorkAndRecovers(t *testing.T) {
 	s, err := NewSession(Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
 
-	setup := s.Eval(context.Background(), `let queuedCompletionProxy = new Proxy({}, { ownKeys() { Promise.resolve().then(() => { globalThis.staleCompletionReaction = true; }); return ["candidate"]; } })`)
+	setup := s.Eval(context.Background(), `let queuedCompletionProxy = new Proxy({}, { ownKeys() {
+  Promise.resolve().then(() => { globalThis.staleCompletionReaction = true; });
+  setTimeout(() => { globalThis.staleCompletionTimer = true; }, 1);
+  return ["candidate"];
+} })`)
 	if setup.Exit || setup.Err != nil {
 		t.Fatalf("proxy setup = %+v", setup)
 	}
@@ -156,9 +160,9 @@ func TestSessionCompleteDiscardsProxyQueuedReaction(t *testing.T) {
 	if err != nil || !containsString(got, "queuedCompletionProxy.candidate") {
 		t.Fatalf("queued proxy completion = %q, err=%v", got, err)
 	}
-	result := s.Eval(context.Background(), `Object.hasOwn(globalThis, "staleCompletionReaction")`)
-	if result.Exit || result.Err != nil || result.Output != "false" {
-		t.Fatalf("queued completion reaction leaked into Eval: %+v", result)
+	result := s.Eval(context.Background(), `await new Promise(resolve => setTimeout(() => resolve([Object.hasOwn(globalThis, "staleCompletionReaction"), Object.hasOwn(globalThis, "staleCompletionTimer")]), 20))`)
+	if result.Exit || result.Err != nil || result.Output != "[ false, false ]" {
+		t.Fatalf("queued completion work leaked into fresh Eval: %+v", result)
 	}
 }
 
@@ -168,17 +172,103 @@ func TestSessionCompletePropagatesExplicitExit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	setup := s.Eval(context.Background(), `let exitingCompletionProxy = new Proxy({}, { ownKeys() { noe.exit(7); return []; } })`)
+	setup := s.Eval(context.Background(), `let exitingCompletionProxy = new Proxy({}, { ownKeys() { process.exit(7); return []; } })`)
 	if setup.Exit || setup.Err != nil {
 		t.Fatalf("proxy setup = %+v", setup)
 	}
 	_, err = s.Complete(context.Background(), "exitingCompletionProxy.a")
 	var terminated *TerminationError
 	if !errors.As(err, &terminated) || terminated.Code != 7 || terminated.Cause != nil {
-		t.Fatalf("Complete after noe.exit = %#v, want exit code 7", err)
+		t.Fatalf("Complete after process.exit = %#v, want exit code 7", err)
 	}
 	if err.Error() == "" {
 		t.Fatal("TerminationError has an empty message")
+	}
+}
+
+func TestSessionCompleteStopsNewStdlibResources(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		token string
+		setup []string
+	}{
+		{
+			name:  "server",
+			token: "completionServerProxy.x",
+			setup: []string{
+				`let completionServerProxy = new Proxy({}, { ownKeys() { serve({port:0}, () => new Response("x")); return []; } })`,
+			},
+		},
+		{
+			name:  "unreferenced worker",
+			token: "completionWorkerProxy.x",
+			setup: []string{
+				`const workerThreads = await import("node:worker_threads")`,
+				`globalThis.makeCompletionWorker = () => { const worker = new workerThreads.Worker("setInterval(() => {}, 1000)", {eval:true}); worker.unref(); }`,
+				`let completionWorkerProxy = new Proxy({}, { ownKeys() { makeCompletionWorker(); return []; } })`,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := NewSession(Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.Close()
+			for _, input := range tc.setup {
+				if result := s.Eval(context.Background(), input); result.Exit || result.Err != nil {
+					t.Fatalf("setup %q = %+v", input, result)
+				}
+			}
+			_, err = s.Complete(context.Background(), tc.token)
+			var terminated *TerminationError
+			if !errors.As(err, &terminated) || terminated.Code != 1 || !errors.Is(err, quickjs.ErrClosed) {
+				t.Fatalf("Complete with a newly started stdlib %s: %v", tc.name, err)
+			}
+			result := s.Eval(context.Background(), `42`)
+			if !result.Exit || result.Code != 1 || !errors.Is(result.Err, quickjs.ErrClosed) {
+				t.Fatalf("Eval after stdlib %s started in completion = %+v", tc.name, result)
+			}
+		})
+	}
+}
+
+func TestSessionCompleteIgnoresExistingUnreferencedChannel(t *testing.T) {
+	s, err := NewSession(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if result := s.Eval(context.Background(), `let completionChannel = new MessageChannel()`); result.Exit || result.Err != nil {
+		t.Fatalf("channel setup = %+v", result)
+	}
+	for _, input := range []string{`completionChannel.port1.unref()`, `completionChannel.port2.unref()`} {
+		if result := s.Eval(context.Background(), input); result.Exit || result.Err != nil {
+			t.Fatalf("unref %q = %+v", input, result)
+		}
+	}
+	candidates, err := s.Complete(context.Background(), "console")
+	if err != nil || !containsString(candidates, "console") {
+		t.Fatalf("Complete with an existing unreferenced channel = %q, err=%v", candidates, err)
+	}
+	result := s.Eval(context.Background(), `let completedResourceProxy = new Proxy({}, {ownKeys() {
+  const channel = new BroadcastChannel("completion-temporary"); channel.close(); return ["candidate"];
+}})`)
+	if result.Exit || result.Err != nil {
+		t.Fatalf("completed resource proxy setup = %+v", result)
+	}
+	candidates, err = s.Complete(context.Background(), "completedResourceProxy.c")
+	if err != nil || !containsString(candidates, "completedResourceProxy.candidate") {
+		t.Fatalf("Complete after temporary resource closed = %q, err=%v", candidates, err)
+	}
+	result = s.Eval(context.Background(), `42`)
+	if result.Exit || result.Err != nil || result.Output != "42" {
+		t.Fatalf("existing channel must survive completion cleanup = %+v", result)
+	}
+	for _, input := range []string{`completionChannel.port1.close()`, `completionChannel.port2.close()`} {
+		if result := s.Eval(context.Background(), input); result.Exit || result.Err != nil {
+			t.Fatalf("close %q = %+v", input, result)
+		}
 	}
 }
 

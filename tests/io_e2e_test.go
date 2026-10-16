@@ -45,7 +45,7 @@ func runCLIWithInput(t *testing.T, dir string, stdin string, args ...string) cli
 	return result
 }
 
-func TestReadStdinRunAndEvalPreserveInputAndSharePromise(t *testing.T) {
+func TestProcessStdinReadRunAndEvalPreservePipedInput(t *testing.T) {
 	cases := []struct {
 		name  string
 		input string
@@ -54,10 +54,8 @@ func TestReadStdinRunAndEvalPreserveInputAndSharePromise(t *testing.T) {
 		{name: "final text without newline", input: "last line: 雪だるま☃"},
 		{name: "empty", input: ""},
 	}
-	source := `const first = noe.readStdin();
-const samePromise = first === noe.readStdin();
-const [value, again] = await Promise.all([first, noe.readStdin()]);
-console.log(JSON.stringify({ samePromise, value, again }));`
+	source := `const value = process.stdin.read();
+console.log(JSON.stringify({ value }));`
 
 	for _, mode := range []string{"run", "eval"} {
 		for _, tc := range cases {
@@ -71,11 +69,13 @@ console.log(JSON.stringify({ samePromise, value, again }));`
 				}
 				got := runCLIWithInput(t, work, tc.input, args...)
 				requireExit(t, got, 0)
+				var value any = tc.input
+				if tc.input == "" {
+					value = nil // process.stdin.read() returns null when there is no data.
+				}
 				wantJSON, err := json.Marshal(struct {
-					SamePromise bool   `json:"samePromise"`
-					Value       string `json:"value"`
-					Again       string `json:"again"`
-				}{SamePromise: true, Value: tc.input, Again: tc.input})
+					Value any `json:"value"`
+				}{Value: value})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -85,60 +85,6 @@ console.log(JSON.stringify({ samePromise, value, again }));`
 			})
 		}
 	}
-}
-
-func TestReadStdinWaitsForUnawaitedRead(t *testing.T) {
-	work := t.TempDir()
-	script := filepath.Join(work, "unawaited.js")
-	writeFixture(t, script, `noe.readStdin().then(value => console.log(JSON.stringify(value)));
-console.log("script returned");`)
-
-	got := runCLIWithInput(t, work, "payload 日本語\n", "run", script)
-	requireExit(t, got, 0)
-	if got.stdout != "script returned\n\"payload 日本語\\n\"\n" || got.stderr != "" {
-		t.Fatalf("unawaited stdin result: stdout=%q stderr=%q", got.stdout, got.stderr)
-	}
-}
-
-func TestReadStdinCancellationAndExplicitExitWithOpenPipe(t *testing.T) {
-	t.Run("SIGINT cancels pending read", func(t *testing.T) {
-		work := t.TempDir()
-		script := filepath.Join(work, "cancel.js")
-		writeFixture(t, script, `const pending = noe.readStdin();
-console.log("STDIN_READ_PENDING");
-await pending;
-console.log("AFTER_READ");`)
-		process := startCLIWithOpenStdin(t, work, "run", script)
-		if !process.stdout.waitFor("STDIN_READ_PENDING\n", 3*time.Second) {
-			t.Fatalf("CLI did not start its stdin read: stdout=%q stderr=%q", process.stdout.String(), process.stderr.String())
-		}
-		if err := process.cmd.Process.Signal(os.Interrupt); err != nil {
-			t.Fatalf("send SIGINT to pending run: %v", err)
-		}
-		got := process.wait(t, 3*time.Second)
-		requireExit(t, got, 1)
-		if got.stderr == "" || strings.Contains(got.stdout, "AFTER_READ") {
-			t.Fatalf("cancelled stdin read: stdout=%q stderr=%q", got.stdout, got.stderr)
-		}
-	})
-
-	t.Run("noe.exit terminates pending read", func(t *testing.T) {
-		work := t.TempDir()
-		script := filepath.Join(work, "exit.js")
-		writeFixture(t, script, `const pending = noe.readStdin();
-console.log("STDIN_READ_PENDING");
-noe.exit(7);
-console.log("AFTER_EXIT");`)
-		process := startCLIWithOpenStdin(t, work, "run", script)
-		if !process.stdout.waitFor("STDIN_READ_PENDING\n", 3*time.Second) {
-			t.Fatalf("CLI did not start its stdin read: stdout=%q stderr=%q", process.stdout.String(), process.stderr.String())
-		}
-		got := process.wait(t, 3*time.Second)
-		requireExit(t, got, 7)
-		if got.stdout != "STDIN_READ_PENDING\n" || got.stderr != "" {
-			t.Fatalf("explicit exit with open stdin: stdout=%q stderr=%q", got.stdout, got.stderr)
-		}
-	})
 }
 
 type synchronizedCapture struct {
@@ -264,7 +210,7 @@ func TestSummarizeStdinExampleAndPipeline(t *testing.T) {
 		t.Fatalf("summarize example: stdout=%q stderr=%q", got.stdout, got.stderr)
 	}
 
-	verify := `const value = JSON.parse(await noe.readStdin());
+	verify := `const value = JSON.parse(process.stdin.read());
 if (value.count !== 3 || value.total !== 600 || value.average !== 200) throw new Error("pipeline value mismatch");
 console.log("pipeline verified");`
 	piped := runCLIWithInput(t, work, got.stdout, "eval", verify)
@@ -372,21 +318,14 @@ func TestCollectJSONExampleReportsUsageAndInvalidFiles(t *testing.T) {
 	}
 }
 
-type e2eDirEntry struct {
-	Name        string `json:"name"`
-	IsFile      bool   `json:"isFile"`
-	IsDirectory bool   `json:"isDirectory"`
-	IsSymlink   bool   `json:"isSymlink"`
-}
-
 type e2eFileStat struct {
-	Size        int64  `json:"size"`
-	ModifiedAt  string `json:"modifiedAt"`
-	IsFile      bool   `json:"isFile"`
-	IsDirectory bool   `json:"isDirectory"`
+	Size        int64   `json:"size"`
+	MTimeMS     float64 `json:"mtimeMs"`
+	IsFile      bool    `json:"isFile"`
+	IsDirectory bool    `json:"isDirectory"`
 }
 
-func TestReadDirAndStatMetadataThroughCLI(t *testing.T) {
+func TestFilesystemPromisesDirectoryAndStatMetadataThroughCLI(t *testing.T) {
 	work := t.TempDir()
 	fileContent := "値🌟\n"
 	writeFixture(t, filepath.Join(work, "日本語.txt"), fileContent)
@@ -401,14 +340,18 @@ func TestReadDirAndStatMetadataThroughCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := filepath.Join(work, "metadata.js")
-	writeFixture(t, script, `const entries = await noe.readDir(".");
-const nested = await noe.readDir("folder");
-const empty = await noe.readDir("empty");
-const file = await noe.stat("日本語.txt");
-const absolute = await noe.stat(noe.cwd() + "/日本語.txt");
-const fileLink = await noe.stat("linked-file");
-const dirLink = await noe.stat("linked-dir");
-console.log(JSON.stringify({ entries, nested, empty, file, absolute, fileLink, dirLink }));`)
+	writeFixture(t, script, `import {readdir,stat,lstat} from "node:fs/promises";
+const entries = await readdir(".");
+const nested = await readdir("folder");
+const empty = await readdir("empty");
+const fileInfo = await stat("日本語.txt");
+const absoluteInfo = await stat(process.cwd() + "/日本語.txt");
+const fileLinkInfo = await stat("linked-file");
+const dirLinkInfo = await stat("linked-dir");
+const fileLinkEntry = await lstat("linked-file");
+const dirLinkEntry = await lstat("linked-dir");
+const shape = info => ({size: info.size, mtimeMs: info.mtimeMs, isFile: info.isFile(), isDirectory: info.isDirectory()});
+console.log(JSON.stringify({entries,nested,empty,file:shape(fileInfo),absolute:shape(absoluteInfo),fileLink:shape(fileLinkInfo),dirLink:shape(dirLinkInfo),fileLinkIsSymbolicLink:fileLinkEntry.isSymbolicLink(),dirLinkIsSymbolicLink:dirLinkEntry.isSymbolicLink()}));`)
 
 	got := runCLI(t, work, nil, "run", script)
 	requireExit(t, got, 0)
@@ -416,47 +359,33 @@ console.log(JSON.stringify({ entries, nested, empty, file, absolute, fileLink, d
 		t.Fatalf("metadata diagnostic: %q", got.stderr)
 	}
 	var result struct {
-		Entries  []e2eDirEntry `json:"entries"`
-		Nested   []e2eDirEntry `json:"nested"`
-		Empty    []e2eDirEntry `json:"empty"`
-		File     e2eFileStat   `json:"file"`
-		Absolute e2eFileStat   `json:"absolute"`
-		FileLink e2eFileStat   `json:"fileLink"`
-		DirLink  e2eFileStat   `json:"dirLink"`
+		Entries                []string    `json:"entries"`
+		Nested                 []string    `json:"nested"`
+		Empty                  []string    `json:"empty"`
+		File                   e2eFileStat `json:"file"`
+		Absolute               e2eFileStat `json:"absolute"`
+		FileLink               e2eFileStat `json:"fileLink"`
+		DirLink                e2eFileStat `json:"dirLink"`
+		FileLinkIsSymbolicLink bool        `json:"fileLinkIsSymbolicLink"`
+		DirLinkIsSymbolicLink  bool        `json:"dirLinkIsSymbolicLink"`
 	}
 	if err := json.Unmarshal([]byte(got.stdout), &result); err != nil {
 		t.Fatalf("decode metadata JSON %q: %v", got.stdout, err)
 	}
 	wantNames := []string{"empty", "folder", "linked-dir", "linked-file", "metadata.js", "日本語.txt"}
 	if len(result.Entries) != len(wantNames) {
-		t.Fatalf("readDir entries = %#v, want names %q", result.Entries, wantNames)
+		t.Fatalf("readdir entries = %#v, want names %q", result.Entries, wantNames)
 	}
 	for index, want := range wantNames {
-		if result.Entries[index].Name != want {
-			t.Fatalf("readDir entry %d = %#v, want name %q in sorted order", index, result.Entries[index], want)
+		if result.Entries[index] != want {
+			t.Fatalf("readdir entry %d = %q, want %q in sorted order", index, result.Entries[index], want)
 		}
 	}
-	for _, entry := range result.Entries {
-		switch entry.Name {
-		case "empty", "folder":
-			if entry.IsFile || !entry.IsDirectory || entry.IsSymlink {
-				t.Errorf("directory entry %q = %#v", entry.Name, entry)
-			}
-		case "linked-dir", "linked-file":
-			if entry.IsFile || entry.IsDirectory || !entry.IsSymlink {
-				t.Errorf("symlink entry %q followed its target: %#v", entry.Name, entry)
-			}
-		default:
-			if !entry.IsFile || entry.IsDirectory || entry.IsSymlink {
-				t.Errorf("regular file entry %q = %#v", entry.Name, entry)
-			}
-		}
-	}
-	if len(result.Nested) != 1 || result.Nested[0] != (e2eDirEntry{Name: "nested.txt", IsFile: true}) {
-		t.Fatalf("readDir folder = %#v, want only its direct file", result.Nested)
+	if len(result.Nested) != 1 || result.Nested[0] != "nested.txt" {
+		t.Fatalf("readdir folder = %#v, want only its direct file", result.Nested)
 	}
 	if len(result.Empty) != 0 {
-		t.Fatalf("readDir empty = %#v, want an empty array", result.Empty)
+		t.Fatalf("readdir empty = %#v, want an empty array", result.Empty)
 	}
 
 	wantSize := int64(len([]byte(fileContent)))
@@ -465,18 +394,15 @@ console.log(JSON.stringify({ entries, nested, empty, file, absolute, fileLink, d
 		"absolute file":   result.Absolute,
 		"symlink to file": result.FileLink,
 	} {
-		if info.Size != wantSize || !info.IsFile || info.IsDirectory {
+		if info.Size != wantSize || !info.IsFile || info.IsDirectory || info.MTimeMS <= 0 {
 			t.Errorf("stat %s = %#v, want a regular file of %d bytes", name, info, wantSize)
-		}
-		parsed, err := time.Parse(time.RFC3339Nano, info.ModifiedAt)
-		if err != nil || !strings.HasSuffix(info.ModifiedAt, "Z") {
-			t.Errorf("stat %s modifiedAt %q is not UTC RFC3339Nano (parse error %v)", name, info.ModifiedAt, err)
-		} else if _, offset := parsed.Zone(); offset != 0 {
-			t.Errorf("stat %s modifiedAt %q has nonzero UTC offset", name, info.ModifiedAt)
 		}
 	}
 	if !result.DirLink.IsDirectory || result.DirLink.IsFile {
 		t.Errorf("stat symlink to directory = %#v, want target directory metadata", result.DirLink)
+	}
+	if !result.FileLinkIsSymbolicLink || !result.DirLinkIsSymbolicLink {
+		t.Errorf("lstat did not identify symbolic links: file=%v directory=%v", result.FileLinkIsSymbolicLink, result.DirLinkIsSymbolicLink)
 	}
 }
 
@@ -485,8 +411,8 @@ func TestFilesystemErrorsAndPipedREPLRecovery(t *testing.T) {
 	for _, tc := range []struct {
 		name, source, marker string
 	}{
-		{name: "readDir", source: `await noe.readDir("missing-directory");`, marker: "missing-directory"},
-		{name: "stat", source: `await noe.stat("missing-file");`, marker: "missing-file"},
+		{name: "readdir", source: `import {readdir} from "node:fs/promises"; await readdir("missing-directory");`, marker: "missing-directory"},
+		{name: "stat", source: `import {stat} from "node:fs/promises"; await stat("missing-file");`, marker: "missing-file"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			script := filepath.Join(t.TempDir(), "failure.js")
@@ -500,15 +426,16 @@ func TestFilesystemErrorsAndPipedREPLRecovery(t *testing.T) {
 	}
 
 	lines := []string{
-		`console.log("readStdin", typeof noe.readStdin)`,
-		`const entries = await noe.readDir(".")`,
+		`const fs = await import("node:fs/promises")`,
+		`console.log("stdin reader", typeof process.stdin.read)`,
+		`const entries = await fs.readdir(".")`,
 		`console.log("entry count", entries.length)`,
-		`await noe.stat("missing-repl-file")`,
+		`await fs.stat("missing-repl-file")`,
 		`console.log("REPL_CONTINUED")`,
 	}
 	repl := runREPLInput(t, work, map[string]string{"NOE_REPL_HISTORY": ""}, strings.Join(lines, "\n")+"\n")
 	requireExit(t, repl, 0)
-	if !strings.Contains(repl.stdout, "readStdin undefined") || !strings.Contains(repl.stdout, "entry count") || !strings.Contains(repl.stdout, "REPL_CONTINUED") {
+	if !strings.Contains(repl.stdout, "stdin reader function") || !strings.Contains(repl.stdout, "entry count") || !strings.Contains(repl.stdout, "REPL_CONTINUED") {
 		t.Fatalf("piped REPL did not retain JS input or recover: stdout=%q stderr=%q", repl.stdout, repl.stderr)
 	}
 	if !strings.Contains(repl.stderr, "missing-repl-file") {

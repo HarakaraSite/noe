@@ -15,7 +15,7 @@ func TestSleepExampleAndUnawaitedCompletionThroughCLI(t *testing.T) {
 	if got.stdout != "実行 1\n実行 2\n実行 3\n" || got.stderr != "" {
 		t.Fatalf("demo=%+v", got)
 	}
-	got = runCLI(t, t.TempDir(), nil, "eval", `noe.sleep(20).then(v=>console.log("FINISHED",v === undefined));console.log("STARTED");`)
+	got = runCLI(t, t.TempDir(), nil, "eval", `import {setTimeout as sleep} from "timers/promises"; sleep(20).then(v=>console.log("FINISHED",v === undefined));console.log("STARTED");`)
 	requireExit(t, got, 0)
 	if got.stdout != "STARTED\nFINISHED true\n" || got.stderr != "" {
 		t.Fatalf("completion=%+v", got)
@@ -24,28 +24,29 @@ func TestSleepExampleAndUnawaitedCompletionThroughCLI(t *testing.T) {
 
 func TestSleepTimeoutAndExplicitExitThroughCLI(t *testing.T) {
 	for _, awaited := range []bool{false, true} {
-		source := `console.log("STARTED");const p=noe.sleep(60000).then(()=>console.log("AFTER"));`
+		source := `import {setTimeout as sleep} from "timers/promises"; console.log("STARTED");const p=sleep(60000).then(()=>console.log("AFTER"));`
 		if awaited {
 			source += `await p;`
 		}
 		requireExecutionTimeout(t, runCLI(t, t.TempDir(), nil, "eval", "--timeout=200ms", source))
 	}
-	got := runCLI(t, t.TempDir(), nil, "eval", `noe.sleep(60000).then(()=>console.log("AFTER"));noe.exit(7);`)
+	got := runCLI(t, t.TempDir(), nil, "eval", `import {setTimeout as sleep} from "timers/promises"; sleep(60000).then(()=>console.log("AFTER"));process.exit(7);`)
 	requireExit(t, got, 7)
 	if got.stdout != "" || got.stderr != "" {
 		t.Fatalf("explicit exit=%+v", got)
 	}
-	got = runREPLInput(t, t.TempDir(), map[string]string{"NOE_REPL_HISTORY": ""}, "await noe.sleep(-1)\nawait noe.sleep(0)\nconsole.log(\"RECOVERED\")\n")
+	got = runREPLInput(t, t.TempDir(), map[string]string{"NOE_REPL_HISTORY": ""}, "const timers = await import(\"timers/promises\")\nawait timers.setTimeout(0)\nconsole.log(\"RECOVERED\")\n")
 	requireExit(t, got, 0)
-	if !strings.Contains(got.stderr, "milliseconds must") || !strings.Contains(got.stdout, "RECOVERED\n") {
-		t.Fatalf("validation recovery=%+v", got)
+	if got.stderr != "" || !strings.Contains(got.stdout, "RECOVERED\n") {
+		t.Fatalf("timer promise recovery=%+v", got)
 	}
 }
 
 func TestSleepDoesNotBlockServeHandlersThroughCLI(t *testing.T) {
-	p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `const s=noe.serve({},async r=>{
-if(r.path==="/slow"){const p=noe.sleep(60000);console.log("SLEEP_HANDLER_STARTED");await p;console.log("SLEEP_HANDLER_FINISHED");return {body:"late"}}
-if(r.path==="/exit")noe.exit(0);return {body:"fast"};});console.log("SERVER_URL",s.url);`)
+	p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `import {setTimeout as sleep} from "timers/promises"; const s=serve({},async request=>{
+const path=new URL(request.url).pathname;
+if(path==="/slow"){const p=sleep(60000);console.log("SLEEP_HANDLER_STARTED");await p;console.log("SLEEP_HANDLER_FINISHED");return new Response("late")}
+if(path==="/exit")process.exit(0);return new Response("fast");});console.log("SERVER_URL",s.url);`)
 	address := waitServeURL(t, p)
 	slow := make(chan serveHTTPResult, 1)
 	go func() { slow <- callServeHTTP("GET", address+"/slow", nil) }()

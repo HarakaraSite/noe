@@ -326,7 +326,7 @@ func TestREPLTerminalEOFAndExplicitExitRestoreSettings(t *testing.T) {
 		code  int
 	}{
 		{name: "Ctrl+D EOF", input: "\x04", code: 0},
-		{name: "explicit exit", input: "noe.exit(7)\r", code: 7},
+		{name: "explicit exit", input: "process.exit(7)\r", code: 7},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			session := startTerminalREPL(t, t.TempDir(), nil)
@@ -385,7 +385,7 @@ func TestREPLTerminalCtrlCDuringInputReturnsToFreshPrompt(t *testing.T) {
 	})
 }
 
-func TestREPLTerminalCtrlCDuringEvaluationAndHTTPWaitContinues(t *testing.T) {
+func TestREPLTerminalCtrlCDuringEvaluationContinuesAndHTTPWaitEndsSession(t *testing.T) {
 	t.Run("evaluation", func(t *testing.T) {
 		session := startTerminalREPL(t, t.TempDir(), nil)
 		session.enter(t, "let terminalState = 40")
@@ -415,8 +415,6 @@ func TestREPLTerminalCtrlCDuringEvaluationAndHTTPWaitContinues(t *testing.T) {
 		}))
 		defer server.Close()
 		session := startTerminalREPL(t, t.TempDir(), nil)
-		session.enter(t, "let httpState = 42")
-		before := session.stdout.snapshot()
 		session.writeKeys(t, `await fetch("`+server.URL+`").then(response => response.text()).then(() => console.log("HTTP_LATE_OUTPUT"))`+"\r")
 		select {
 		case <-requestStarted:
@@ -424,17 +422,16 @@ func TestREPLTerminalCtrlCDuringEvaluationAndHTTPWaitContinues(t *testing.T) {
 			t.Fatal("local HTTP request did not start before Ctrl+C")
 		}
 		session.interruptKey(t)
-		session.waitForError(t, "Interrupted")
-		session.waitForPromptAfter(t, before)
+		result := session.finish(t, 1)
+		requireExit(t, result, 1)
+		if result.stderr == "" {
+			t.Fatalf("HTTP wait interruption produced no diagnostic: %+v", result)
+		}
 		select {
 		case <-requestCanceled:
 		case <-time.After(ptyWaitTimeout):
 			t.Fatal("Ctrl+C did not cancel the local HTTP request")
 		}
-		session.writeKeys(t, `console.log("HTTP_STATE_AFTER_INTERRUPT:" + httpState)`+"\r")
-		session.waitForOutputAndPrompt(t, "HTTP_STATE_AFTER_INTERRUPT:42")
-		session.writeKeys(t, "\x04")
-		result := session.finish(t, 0)
 		assertNoPTYOutputLine(t, result.stdout, "HTTP_LATE_OUTPUT")
 	})
 }

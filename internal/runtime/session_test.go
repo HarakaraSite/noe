@@ -63,7 +63,7 @@ func TestSessionFormatterExitAndMultipleDiagnostics(t *testing.T) {
 	if !strings.Contains(diagnostic, "late") || !strings.Contains(diagnostic, "main") {
 		t.Fatalf("diagnostic=%q", diagnostic)
 	}
-	result = s.Eval(context.Background(), `({ get value() { noe.exit(7); } })`)
+	result = s.Eval(context.Background(), `({ get value() { process.exit(7); } })`)
 	if !result.Exit || result.Code != 7 || result.Err != nil {
 		t.Fatalf("result=%+v", result)
 	}
@@ -113,7 +113,7 @@ func TestSessionLastResult(t *testing.T) {
 	check(`await Promise.resolve("async result")`, `'async result'`, "")
 	check(`await Promise.reject(new Error("async failed"))`, "", "async failed")
 	check(`_`, `'async result'`, "")
-	check(`await noe.readTextFile("result.txt")`, `'from I/O'`, "")
+	check(`await (await import("node:fs/promises")).readFile("`+filepath.ToSlash(filepath.Join(dir, "result.txt"))+`", "utf8")`, `'from I/O'`, "")
 	check(`_`, `'from I/O'`, "")
 
 	check(`({ get value() { throw new Error("format failed") } })`, "", "format failed")

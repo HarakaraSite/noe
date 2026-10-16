@@ -57,13 +57,15 @@ func TestHTTPUpdateLifecycleThroughCLI(t *testing.T) {
 	defer server.Close()
 	work := t.TempDir()
 	script := filepath.Join(work, "lifecycle.js")
-	writeFixture(t, script, `const url = noe.args[0];
+	writeFixture(t, script, `const url = process.argv[2];
 const created = await fetch(url, {method:"put", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:"日本語",count:1})});
 if (created.status !== 201 || !created.ok) throw new Error("PUT failed");
+const createdValue = await created.json();
 const updated = await fetch(url, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({count:2})});
 if (updated.status !== 200 || !updated.ok) throw new Error("PATCH failed");
+const updatedValue = await updated.json();
 const removed = await fetch(url, {method:"DELETE"});
-console.log(JSON.stringify({created:await created.json(), updated:await updated.json(), removed:{status:removed.status,ok:removed.ok,text:await removed.text()}}));`)
+console.log(JSON.stringify({created:createdValue, updated:updatedValue, removed:{status:removed.status,ok:removed.ok,text:await removed.text()}}));`)
 	got := runCLI(t, work, nil, "run", script, server.URL)
 	requireExit(t, got, 0)
 	want := `{"created":{"count":1,"name":"日本語"},"updated":{"count":2,"name":"日本語"},"removed":{"status":204,"ok":true,"text":""}}` + "\n"
@@ -102,8 +104,8 @@ func TestHTTPMethodsPipedREPLAndUnawaitedCompletion(t *testing.T) {
 		`console.log("REPL_CONTINUED")`,
 	}, "\n")+"\n")
 	requireExit(t, repl, 0)
-	if !strings.Contains(repl.stdout, "REPL_PATCH PATCH:雪") || !strings.Contains(repl.stdout, "REPL_DELETE 204") || !strings.Contains(repl.stdout, "REPL_CONTINUED") || !strings.Contains(repl.stderr, "fetch body must be a string") {
-		t.Fatalf("REPL HTTP contract/recovery: %+v", repl)
+	if !strings.Contains(repl.stdout, "REPL_PATCH PATCH:雪") || !strings.Contains(repl.stdout, "REPL_DELETE 204") || !strings.Contains(repl.stdout, "REPL_CONTINUED") || !strings.Contains(repl.stderr, "GET request cannot have a body") {
+		t.Fatalf("REPL fetch recovery: %+v", repl)
 	}
 	source := `fetch(` + url + `,{method:"PUT",body:"unawaited"}).then(r => r.text()).then(text => console.log(text)); console.log("returned");`
 	got := runCLI(t, t.TempDir(), nil, "eval", source)

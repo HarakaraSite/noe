@@ -125,10 +125,12 @@ func TestRunTransformsJSONWithEnvironmentArgumentsAndNestedImports(t *testing.T)
 	writeFixture(t, filepath.Join(work, "scripts", "lib", "decorate.js"), `import { label } from "./nested/label.js"; export const decorate = value => ({ ...value, label, processed: true });`)
 	script := filepath.Join(work, "scripts", "main.js")
 	writeFixture(t, script, `import { decorate } from "./lib/decorate.js";
-const [input, output] = noe.args;
-const value = JSON.parse(await noe.readTextFile(input));
-await noe.writeTextFile(output, JSON.stringify(decorate(value)));
-console.log(JSON.stringify({ args: noe.args, cwd: noe.cwd(), user: noe.env.get("NOE_E2E_USER"), missingIsUndefined: noe.env.get("NOE_E2E_MISSING") === undefined }));
+import { readFile, writeFile } from "node:fs/promises";
+const args = process.argv.slice(2);
+const [input, output] = args;
+const value = JSON.parse(await readFile(input, "utf8"));
+await writeFile(output, JSON.stringify(decorate(value)));
+console.log(JSON.stringify({ args, cwd: process.cwd(), user: process.env.NOE_E2E_USER, missingIsUndefined: process.env.NOE_E2E_MISSING === undefined }));
 console.warn("warning output");
 console.error("error output");
 `)
@@ -154,7 +156,7 @@ console.error("error output");
 func TestEvalAndCLICommands(t *testing.T) {
 	work := t.TempDir()
 
-	eval := runCLI(t, work, nil, "eval", `console.log(JSON.stringify(noe.args)); console.warn("warning"); console.error("error");`)
+	eval := runCLI(t, work, nil, "eval", `console.log(JSON.stringify(process.argv.slice(2))); console.warn("warning"); console.error("error");`)
 	requireExit(t, eval, 0)
 	if eval.stdout != "[]\n" || eval.stderr != "warning\nerror\n" {
 		t.Fatalf("eval streams: stdout=%q stderr=%q", eval.stdout, eval.stderr)
@@ -168,7 +170,7 @@ func TestEvalAndCLICommands(t *testing.T) {
 		stderrPart string
 	}{
 		{name: "help", args: []string{"--help"}, code: 0, stdoutPart: "Usage:"},
-		{name: "version", args: []string{"--version"}, code: 0, stdoutPart: "noe v1.0.0\n"},
+		{name: "version", args: []string{"--version"}, code: 0, stdoutPart: "noe v1.1.0\n"},
 		{name: "no command prints help", args: nil, code: 0, stdoutPart: "Usage:"},
 		{name: "run needs a script", args: []string{"run"}, code: 2, stderrPart: "Usage:"},
 		{name: "eval needs source", args: []string{"eval"}, code: 2, stderrPart: "Usage:"},
@@ -293,14 +295,16 @@ func TestHTTPGetPostResponsesAndErrors(t *testing.T) {
 
 	work := t.TempDir()
 	script := filepath.Join(work, "http.js")
-	writeFixture(t, script, `const base = noe.env.get("NOE_E2E_URL");
+	writeFixture(t, script, `import { writeFile } from "node:fs/promises";
+const base = process.env.NOE_E2E_URL;
 const textResponse = await fetch(base + "/text");
 const firstText = await textResponse.text();
-const secondText = await textResponse.text();
+let secondTextReadRejected = false;
+try { await textResponse.text(); } catch (_) { secondTextReadRejected = true; }
 const jsonResponse = await fetch(base + "/json");
-const jsonText = await jsonResponse.text();
 const jsonValue = await jsonResponse.json();
-const jsonAgain = await jsonResponse.json();
+let secondJSONReadRejected = false;
+try { await jsonResponse.json(); } catch (_) { secondJSONReadRejected = true; }
 const posted = await fetch(base + "/submit", { method: "POST", headers: { "Content-Type": "application/json", "X-E2E-Check": "present" }, body: JSON.stringify({ answer: 42 }) });
 const postValue = await posted.json();
 const badJsonResponse = await fetch(base + "/bad-json");
@@ -311,10 +315,9 @@ const result = {
   textStatus: textResponse.status,
   textOK: textResponse.ok,
   firstText,
-  secondText,
-  jsonText,
+  secondTextReadRejected,
   jsonValue,
-  jsonAgain,
+  secondJSONReadRejected,
   postStatus: posted.status,
   postOK: posted.ok,
   postValue,
@@ -323,7 +326,7 @@ const result = {
   unavailableOK: unavailable.ok,
   unavailableText: await unavailable.text()
 };
-await noe.writeTextFile("http-result.json", JSON.stringify(result));
+await writeFile("http-result.json", JSON.stringify(result));
 console.log("HTTP complete");
 `)
 	got := runCLI(t, work, map[string]string{"NOE_E2E_URL": server.URL}, "run", script)
@@ -335,7 +338,7 @@ console.log("HTTP complete");
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"textStatus":200,"textOK":true,"firstText":"hello from server","secondText":"hello from server","jsonText":"{\"kind\":\"sample\",\"count\":3}","jsonValue":{"kind":"sample","count":3},"jsonAgain":{"kind":"sample","count":3},"postStatus":201,"postOK":true,"postValue":{"received":{"answer":42}},"badJsonRejected":true,"unavailableStatus":503,"unavailableOK":false,"unavailableText":"temporarily unavailable"}`
+	want := `{"textStatus":200,"textOK":true,"firstText":"hello from server","secondTextReadRejected":true,"jsonValue":{"kind":"sample","count":3},"secondJSONReadRejected":true,"postStatus":201,"postOK":true,"postValue":{"received":{"answer":42}},"badJsonRejected":true,"unavailableStatus":503,"unavailableOK":false,"unavailableText":"temporarily unavailable"}`
 	if string(data) != want {
 		t.Fatalf("HTTP result = %s, want %s", data, want)
 	}
@@ -356,7 +359,7 @@ func TestConnectionFailureRejectsFetch(t *testing.T) {
 	work := t.TempDir()
 	script := filepath.Join(work, "connection.js")
 	writeFixture(t, script, `let rejected = false;
-try { await fetch(noe.env.get("NOE_E2E_URL")); } catch (_) { rejected = true; }
+try { await fetch(process.env.NOE_E2E_URL); } catch (_) { rejected = true; }
 if (!rejected) throw new Error("connection failure did not reject");
 console.log("connection rejected");
 `)
@@ -375,8 +378,9 @@ func TestStartedIOCompletesBeforeExit(t *testing.T) {
 	defer server.Close()
 	work := t.TempDir()
 	script := filepath.Join(work, "pending.js")
-	writeFixture(t, script, `noe.writeTextFile("file-result.txt", "file complete");
-fetch(noe.env.get("NOE_E2E_URL")).then(response => response.text()).then(text => noe.writeTextFile("http-result.txt", text));
+	writeFixture(t, script, `import { writeFile } from "node:fs/promises";
+writeFile("file-result.txt", "file complete");
+fetch(process.env.NOE_E2E_URL).then(response => response.text()).then(text => writeFile("http-result.txt", text));
 console.log("script returned");
 `)
 	got := runCLI(t, work, map[string]string{"NOE_E2E_URL": server.URL}, "run", script)
@@ -399,8 +403,8 @@ func TestFileReadAndWriteFailuresReject(t *testing.T) {
 	for _, tc := range []struct {
 		name, source, marker string
 	}{
-		{name: "read", source: `await noe.readTextFile("missing-input.txt");`, marker: "missing-input.txt"},
-		{name: "write", source: `await noe.writeTextFile("missing-directory/output.txt", "x");`, marker: "missing-directory"},
+		{name: "read", source: `import { readFile } from "node:fs/promises"; await readFile("missing-input.txt", "utf8");`, marker: "missing-input.txt"},
+		{name: "write", source: `import { writeFile } from "node:fs/promises"; await writeFile("missing-directory/output.txt", "x");`, marker: "missing-directory"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			work := t.TempDir()
@@ -448,10 +452,10 @@ func TestExplicitExitStopsTopLevelAndAsyncContinuation(t *testing.T) {
 		name, source, wantStdout string
 		code                     int
 	}{
-		{name: "top-level success", source: `noe.exit(0); console.log("after exit");`, code: 0, wantStdout: ""},
-		{name: "top-level nonzero", source: `noe.exit(7); console.log("after exit");`, code: 7, wantStdout: ""},
-		{name: "continuation success", source: `async function finish() { await Promise.resolve(); noe.exit(0); console.log("after exit"); } finish(); console.log("started");`, code: 0, wantStdout: "started\n"},
-		{name: "continuation nonzero", source: `async function finish() { await Promise.resolve(); noe.exit(9); console.log("after exit"); } finish(); console.log("started");`, code: 9, wantStdout: "started\n"},
+		{name: "top-level success", source: `process.exit(0); console.log("after exit");`, code: 0, wantStdout: ""},
+		{name: "top-level nonzero", source: `process.exit(7); console.log("after exit");`, code: 7, wantStdout: ""},
+		{name: "continuation success", source: `async function finish() { await Promise.resolve(); process.exit(0); console.log("after exit"); } finish(); console.log("started");`, code: 0, wantStdout: "started\n"},
+		{name: "continuation nonzero", source: `async function finish() { await Promise.resolve(); process.exit(9); console.log("after exit"); } finish(); console.log("started");`, code: 9, wantStdout: "started\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			work := t.TempDir()
@@ -466,7 +470,7 @@ func TestExplicitExitStopsTopLevelAndAsyncContinuation(t *testing.T) {
 				t.Errorf("unexpected stderr: %q", got.stderr)
 			}
 			if strings.Contains(got.stdout, "after exit") || strings.Contains(got.stderr, "after exit") {
-				t.Errorf("JavaScript continued after noe.exit: stdout=%q stderr=%q", got.stdout, got.stderr)
+				t.Errorf("JavaScript continued after process.exit: stdout=%q stderr=%q", got.stdout, got.stderr)
 			}
 		})
 	}

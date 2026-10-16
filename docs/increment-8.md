@@ -1,5 +1,7 @@
 # NOE インクリメント8 HTTPサブセットの拡充
 
+> この文書は実装当時の計画・検証記録です。現在の仕様は[APIリファレンス](api.md)と[stdlib移行記録](increment-12.md)を参照してください。旧`noe.*` API、独自I/O実装、当時の対象外・中断動作は現行仕様ではありません。
+
 JSON APIの更新・削除をNOEから行えるよう、fetchにPUT・PATCH・DELETEを追加する。Go 1.27.2・既存go-quickjs・Go標準HTTPクライアントを維持し、新しい依存は追加しない。状態は実装・テスト・レビュー・総合E2E完了。
 
 ## APIの契約
@@ -63,4 +65,4 @@ git diff --check
 
 - [製品方針・MVP](mvp.md)
 - [インクリメント7](increment-7.md)
-- [現在のHTTP API](../README.md#http-subset)
+- [現在のFetch API](api.md#fetch)

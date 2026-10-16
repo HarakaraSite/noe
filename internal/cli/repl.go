@@ -132,6 +132,9 @@ func runREPLWithInput(ctx context.Context, input replInput, stdout, stderr io.Wr
 			if ctx.Err() != nil {
 				return interruptedCode(ctx, stderr)
 			}
+			if interrupted && !interactive {
+				return 130
+			}
 			if result.Exit {
 				if result.Err != nil {
 					fmt.Fprintln(stderr, runtime.Diagnostic(result.Err))

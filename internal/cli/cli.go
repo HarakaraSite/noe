@@ -14,7 +14,7 @@ import (
 )
 
 // Version can be set at build time using -ldflags '-X noe/internal/cli.Version=...'.
-var Version = "v1.0.0"
+var Version = "v1.1.0"
 
 const usage = `Usage:
   noe run [--timeout duration] script.js [args...]
@@ -24,7 +24,7 @@ const usage = `Usage:
   noe --version
 
 REPL:
-  Ctrl+D or noe.exit() exits. Ctrl+C cancels terminal input/evaluation.
+  Ctrl+D or process.exit() exits. Ctrl+C cancels terminal input/evaluation.
   Tab completes names. Unfinished input continues at ... .
   NOE_REPL_HISTORY sets the history file; empty disables persistence.
 `

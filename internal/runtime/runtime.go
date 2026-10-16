@@ -24,16 +24,20 @@ type Source struct {
 // Options describes the host environment for one execution.
 type Options struct {
 	// Stdin is borrowed and never closed by the runtime. Execute treats nil as
-	// empty input; REPL sessions reserve stdin for source and do not expose it.
+	// empty input; REPL sessions reserve stdin for source.
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
 	Args   []string
 	Cwd    string
+
+	// SourceName is the entry name exposed in process.argv.
+	SourceName string
 }
 
 // Execute creates a fresh runtime and runs source as an ES module.
 func Execute(ctx context.Context, source Source, opts Options) (int, error) {
+	opts.SourceName = source.Name
 	if opts.Stdin == nil {
 		opts.Stdin = strings.NewReader("")
 	}
@@ -55,7 +59,6 @@ type host struct {
 	inspect       quickjs.Value
 	cancelProbe   quickjs.Value
 	completion    quickjs.Value
-	inputContext  context.Context
 }
 
 func newHost(opts Options) (*host, error) {
@@ -89,35 +92,38 @@ func newHost(opts Options) (*host, error) {
 		return nil, err
 	}
 	h.completion = completion
-	if err := h.installConsole(opts); err != nil {
+	if err := h.installStdlib(opts); err != nil {
 		h.rt.Close()
 		return nil, err
 	}
-	if err := h.installNoe(opts); err != nil {
+	if err := h.loop.trackTimers(); err != nil {
 		h.rt.Close()
 		return nil, err
 	}
-	if err := h.installFetch(); err != nil {
+
+	if err := h.loop.trackResources(); err != nil {
 		h.rt.Close()
 		return nil, err
 	}
-	h.rt.OnUnhandledRejection(func(reason quickjs.Value) {
-		message := reason.String()
-		if reason.IsObject() {
-			if stack, err := reason.Get("stack"); err == nil && stack.IsString() && stack.String() != "" {
-				message = stack.String()
-			}
-		}
-		h.unhandled = append(h.unhandled, errors.New(message))
-	})
 	return h, nil
 }
 
+func (h *host) recordUnhandled(reason quickjs.Value) {
+	message := reason.String()
+	if reason.IsObject() {
+		if stack, err := reason.Get("stack"); err == nil && stack.IsString() && stack.String() != "" {
+			message = stack.String()
+		}
+	}
+	h.unhandled = append(h.unhandled, errors.New(message))
+	h.loop.interrupt()
+}
+
 func (h *host) run(ctx context.Context, source Source) (code int, err error) {
-	h.inputContext = ctx
-	defer func() { h.inputContext = nil }()
+	stopStdlib := context.AfterFunc(ctx, h.loop.std.Close)
+	defer stopStdlib()
 	defer func() {
-		if h.exitRequested && errors.Is(err, quickjs.ErrClosed) {
+		if h.exitRequested {
 			code, err = h.exitCode, nil
 		}
 	}()
@@ -144,6 +150,9 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 	if err := h.takeUnhandled(); err != nil {
 		return 1, err
 	}
+	if code, ok := stdlib.ExitCode(h.rt); ok {
+		return code, nil
+	}
 	return 0, nil
 }
 
@@ -168,10 +177,8 @@ func (h *host) drain(ctx context.Context) error {
 	return h.loop.drain(ctx)
 }
 
-// drainCancelled waits for host work that belonged to a cancelled REPL input
-// and runs its completion callbacks under the canceled input context. Their
-// guards suppress Promise settlement, and discardCancelledJobs has already
-// removed queued reactions before this can run them.
+// drainCancelled discards jobs from an interrupted REPL operation. Active
+// stdlib I/O is handled by terminating the session before reaching this path.
 func (h *host) drainCancelled(ctx context.Context) error {
 	return h.loop.drainCancelled(ctx)
 }
@@ -198,33 +205,6 @@ func (h *host) takeUnhandled() error {
 	err := errors.Join(h.unhandled...)
 	h.unhandled = nil
 	return err
-}
-
-func (h *host) installConsole(opts Options) error {
-	rt := h.rt
-	if err := stdlib.Console(rt, opts.Stdout, opts.Stderr); err != nil {
-		return err
-	}
-	inspect, err := rt.EvalFile("<noe-inspect>", `console[Symbol.for("quickjs.inspect")]`)
-	if err != nil {
-		return err
-	}
-	h.inspect = inspect
-	full, err := rt.Get("console")
-	if err != nil {
-		return err
-	}
-	console := rt.NewObject()
-	for _, name := range []string{"log", "warn", "error"} {
-		method, err := full.Get(name)
-		if err != nil {
-			return err
-		}
-		if err := console.Set(name, method); err != nil {
-			return err
-		}
-	}
-	return rt.Set("console", console)
 }
 
 // Diagnostic includes a JavaScript stack where the engine supplies one.

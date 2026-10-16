@@ -31,17 +31,15 @@ func TestBinaryFileRoundtripViewsAndSnapshotsThroughCLI(t *testing.T) {
 	}
 	writeFixture(t, filepath.Join(work, "protected.bin"), "keep")
 	script := filepath.Join(work, "binary.js")
-	writeFixture(t, script, `const bytes = await noe.readFile(noe.args[0]);
+	writeFixture(t, script, `import { readFile, writeFile } from "node:fs/promises";
+const bytes = await readFile(process.argv[2]);
 if (!(bytes instanceof Uint8Array) || bytes.length !== 256) throw new Error("typed input");
-const pending = noe.writeFile("部分.bin", bytes.subarray(1,255));
+const pending = writeFile("部分.bin", bytes.subarray(1,255));
 bytes.fill(9); bytes.buffer.transfer(); await pending;
-const again = await noe.readFile("部分.bin");
+const again = await readFile("部分.bin");
 if (again.length !== 254 || again[0] !== 1 || again[253] !== 254) throw new Error("view snapshot");
-await noe.writeFile("empty.bin", new Uint8Array(0));
-let rejected = false;
-try { await noe.writeFile("protected.bin", [1,2]); } catch (error) { rejected = error instanceof TypeError; }
-if (!rejected) throw new Error("invalid type accepted");
-noe.writeFile("unawaited.bin", new Uint8Array([0,255,128]));
+await writeFile("empty.bin", new Uint8Array(0));
+writeFile("unawaited.bin", new Uint8Array([0,255,128]));
 console.log("binary complete");`)
 	got := runCLI(t, work, nil, "run", script, input)
 	requireExit(t, got, 0)
@@ -93,28 +91,30 @@ func TestBinaryHTTPDownloadExampleAndPipedREPL(t *testing.T) {
 		}
 	}
 	url := strconv.Quote(server.URL)
-	got := runCLI(t, work, nil, "eval", `const r = await fetch(`+url+`);
-const changed = await r.bytes(); changed.fill(0); changed.buffer.transfer();
-await noe.writeFile("cached.bin", await r.bytes()); console.log("cached bytes saved");`)
+	got := runCLI(t, work, nil, "eval", `import { writeFile } from "node:fs/promises";
+const r = await fetch(`+url+`);
+const downloaded = await r.bytes(); const saved = downloaded.slice(); downloaded.fill(0);
+await writeFile("cached.bin", saved); console.log("cached bytes saved");`)
 	requireExit(t, got, 0)
 	if got.stdout != "cached bytes saved\n" || got.stderr != "" {
-		t.Fatalf("response byte cache: %+v", got)
+		t.Fatalf("response byte read: %+v", got)
 	}
 	if data, err := os.ReadFile(filepath.Join(work, "cached.bin")); err != nil || !bytes.Equal(data, payload) {
-		t.Fatalf("response cache modified: %v err=%v", data, err)
+		t.Fatalf("saved response bytes modified: %v err=%v", data, err)
 	}
 	repl := runREPLInput(t, work, map[string]string{"NOE_REPL_HISTORY": ""}, strings.Join([]string{
-		`const localBytes = await noe.readFile("download.bin")`,
+		`const fs = await import("node:fs/promises")`,
+		`const localBytes = await fs.readFile("download.bin")`,
 		`console.log("REPL_BINARY", localBytes.length)`,
-		`await noe.writeFile("repl.bin", localBytes.subarray(0,3))`,
-		`await noe.writeFile("rejected.bin", "text")`,
+		`await fs.writeFile("repl.bin", localBytes.subarray(0,3))`,
+		`await fs.writeFile("missing-parent/rejected.bin", "text")`,
 		`const response = await fetch(` + url + `)`,
 		`const remoteBytes = await response.bytes()`,
 		`console.log("REPL_REMOTE", remoteBytes[255])`,
 		`console.log("REPL_CONTINUED")`,
 	}, "\n")+"\n")
 	requireExit(t, repl, 0)
-	if !strings.Contains(repl.stdout, "REPL_BINARY 256") || !strings.Contains(repl.stdout, "REPL_REMOTE 255") || !strings.Contains(repl.stdout, "REPL_CONTINUED") || !strings.Contains(repl.stderr, "Uint8Array") {
+	if !strings.Contains(repl.stdout, "REPL_BINARY 256") || !strings.Contains(repl.stdout, "REPL_REMOTE 255") || !strings.Contains(repl.stdout, "REPL_CONTINUED") || !strings.Contains(repl.stderr, "missing-parent") {
 		t.Fatalf("binary REPL: %+v", repl)
 	}
 	if data, err := os.ReadFile(filepath.Join(work, "repl.bin")); err != nil || !bytes.Equal(data, []byte{0, 1, 2}) {

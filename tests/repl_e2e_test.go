@@ -77,7 +77,7 @@ func TestREPLPersistentStateFormattingAndPipedPrompts(t *testing.T) {
 		"obj",
 		"[count, add(3)]",
 		"undefined",
-		"noe.args.length",
+		"process.argv.slice(2).length",
 	}
 	got := runREPLInput(t, work, nil, strings.Join(lines, "\n")) // The last input deliberately has no newline.
 	requireExit(t, got, 0)
@@ -134,18 +134,19 @@ func TestREPLAwaitsFileImportHTTPAndSavesResult(t *testing.T) {
 	}))
 	defer server.Close()
 	lines := []string{
+		`const fs = await import("node:fs/promises")`,
 		"let asyncLet = await Promise.resolve(3)",
 		"var asyncVar = await Promise.resolve(4)",
 		"asyncLet += 1",
 		"asyncVar += 1",
-		`const raw = await noe.readTextFile("input.json")`,
+		`const raw = await fs.readFile("input.json", "utf8")`,
 		"const data = JSON.parse(raw)",
 		"data.value += 1",
 		`const helper = await import("./helper.js")`,
-		`const response = await fetch(noe.env.get("NOE_REPL_URL"))`,
+		`const response = await fetch(process.env.NOE_REPL_URL)`,
 		"const remote = await response.json()",
-		`await noe.writeTextFile("output.json", JSON.stringify({ value: data.value, label: helper.label, remote: remote.name }))`,
-		`const saved = await noe.readTextFile("output.json")`,
+		`await fs.writeFile("output.json", JSON.stringify({ value: data.value, label: helper.label, remote: remote.name }))`,
+		`const saved = await fs.readFile("output.json", "utf8")`,
 		"JSON.parse(saved).value",
 	}
 	got := runREPLInput(t, work, map[string]string{"NOE_REPL_URL": server.URL + "/repl-data"}, strings.Join(lines, "\n")+"\n")
@@ -189,13 +190,15 @@ func TestREPLWaitsForUnawaitedIOBeforeNextInput(t *testing.T) {
 	defer releaseResponse()
 	session := startLiveREPL(t, work, map[string]string{"NOE_REPL_URL": server.URL})
 	session.waitPromptCount(t, 1)
-	session.writeLine(t, `fetch(noe.env.get("NOE_REPL_URL")).then(response => response.text()).then(text => noe.writeTextFile("pending.txt", text))`)
+	session.writeLine(t, `const fs = await import("node:fs/promises")`)
+	session.waitPromptCount(t, 2)
+	session.writeLine(t, `fetch(process.env.NOE_REPL_URL).then(response => response.text()).then(text => fs.writeFile("pending.txt", text))`)
 	select {
 	case <-requestStarted:
 	case <-time.After(3 * time.Second):
 		t.Fatal("local HTTP request did not start")
 	}
-	session.writeLine(t, `const pending = await noe.readTextFile("pending.txt")`)
+	session.writeLine(t, `const pending = await fs.readFile("pending.txt", "utf8")`)
 	releaseResponse()
 	session.waitPromptCount(t, 3)
 	session.writeLine(t, "pending")
@@ -224,9 +227,10 @@ func TestREPLAsyncRejectionsAndNeverSettlingAwaitRecover(t *testing.T) {
 	}))
 	defer server.Close()
 	lines := []string{
-		`const missing = await noe.readTextFile("missing.json")`,
+		`const fs = await import("node:fs/promises")`,
+		`const missing = await fs.readFile("missing.json", "utf8")`,
 		"typeof missing",
-		`const response = await fetch(noe.env.get("NOE_REPL_BAD_JSON"))`,
+		`const response = await fetch(process.env.NOE_REPL_BAD_JSON)`,
 		"await response.json()",
 		"await new Promise(() => {})",
 		"42",
@@ -271,7 +275,8 @@ func TestREPLAsyncDuplicateConstRunsInitializerBeforeDiagnostic(t *testing.T) {
 	work := t.TempDir()
 	lines := []string{
 		"const duplicate = 1",
-		`const duplicate = await noe.writeTextFile("duplicate-side-effect.txt", "written")`,
+		`const fs = await import("node:fs/promises")`,
+		`const duplicate = await fs.writeFile("duplicate-side-effect.txt", "written")`,
 		"duplicate",
 	}
 	got := runREPLInput(t, work, nil, strings.Join(lines, "\n")+"\n")
@@ -296,16 +301,16 @@ func TestREPLExplicitExitStopsBeforeFollowingInput(t *testing.T) {
 		name, input string
 		code        int
 	}{
-		{name: "zero top-level exit", input: "noe.exit(0)\nconsole.log(\"AFTER EXIT\")", code: 0},
-		{name: "default top-level exit", input: "noe.exit()\nconsole.log(\"AFTER EXIT\")", code: 0},
-		{name: "nonzero top-level exit", input: "noe.exit(7)\nconsole.log(\"AFTER EXIT\")", code: 7},
-		{name: "async continuation exit", input: "await Promise.resolve().then(() => noe.exit(9))\nconsole.log(\"AFTER EXIT\")", code: 9},
+		{name: "zero top-level exit", input: "process.exit(0)\nconsole.log(\"AFTER EXIT\")", code: 0},
+		{name: "default top-level exit", input: "process.exit()\nconsole.log(\"AFTER EXIT\")", code: 0},
+		{name: "nonzero top-level exit", input: "process.exit(7)\nconsole.log(\"AFTER EXIT\")", code: 7},
+		{name: "async continuation exit", input: "await Promise.resolve().then(() => process.exit(9))\nconsole.log(\"AFTER EXIT\")", code: 9},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := runREPLInput(t, t.TempDir(), nil, tc.input)
 			requireExit(t, got, tc.code)
 			if strings.Contains(got.stdout, "AFTER EXIT") || strings.Contains(got.stderr, "AFTER EXIT") {
-				t.Fatalf("REPL ran input after noe.exit: stdout=%q stderr=%q", got.stdout, got.stderr)
+				t.Fatalf("REPL ran input after process.exit: stdout=%q stderr=%q", got.stdout, got.stderr)
 			}
 		})
 	}
@@ -336,7 +341,7 @@ func TestREPLInterruptDuringEvaluationReturns130(t *testing.T) {
 	requireExit(t, got, 130)
 }
 
-func TestREPLInterruptDuringHTTPWaitReturns130(t *testing.T) {
+func TestREPLInterruptDuringHTTPWaitEndsSession(t *testing.T) {
 	requestStarted := make(chan struct{}, 1)
 	requestCanceled := make(chan struct{})
 	requestRelease := make(chan struct{})
@@ -354,7 +359,7 @@ func TestREPLInterruptDuringHTTPWaitReturns130(t *testing.T) {
 	defer releaseRequest()
 	session := startLiveREPL(t, t.TempDir(), map[string]string{"NOE_REPL_URL": server.URL})
 	session.waitPromptCount(t, 1)
-	session.writeLine(t, `await fetch(noe.env.get("NOE_REPL_URL"))`)
+	session.writeLine(t, `await fetch(process.env.NOE_REPL_URL)`)
 	select {
 	case <-requestStarted:
 	case <-time.After(3 * time.Second):

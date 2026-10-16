@@ -8,9 +8,9 @@ This English README is the canonical version. [日本語版](README.ja.md)
 
 NOE is a Go runtime for small scripts. It adds practical features such as file I/O, HTTP, and a REPL as needed. It uses [go-quickjs](https://github.com/go-quickjs/go-quickjs) as its JavaScript engine.
 
-**JavaScript is supported today. TypeScript support is planned for later.** npm support and Node/Deno compatibility are outside the project's scope and will not be implemented. Web APIs are limited to the subsets needed by NOE.
+**JavaScript is supported today. TypeScript support is planned for later.** npm and package management are outside the project's scope. Complete Node.js or Deno compatibility is not a project goal. NOE enables the pinned go-quickjs standard library, whose Web and Node-style APIs are useful subsets rather than complete platform compatibility.
 
-[API reference](docs/api.md) · [REPL guide](docs/repl.md) · [Examples](examples/README.md) · [Development notes](docs/README.md)
+[API reference](docs/api.md) · [Migration from the old APIs](docs/api.md#旧apiからの移行) · [REPL guide](docs/repl.md) · [Examples](examples/README.md) · [Development notes](docs/README.md)
 
 The linked guides and development notes are currently in Japanese.
 
@@ -26,7 +26,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.0.0
+# noe v1.1.0
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -79,14 +79,14 @@ curl -H 'Content-Type: application/json' \
 
 Press Ctrl+C in the server's terminal to stop it. The demo defaults to port 8080. Pass 0 to let the OS choose an available port; the actual URL is printed at startup.
 
-`noe.serve(options, handler)` returns a server handle. Handlers return a response object or a Promise of one, so they can use file reads and `noe.sleep()`. See the [API reference](docs/api.md#httpサーバー) for the contract.
+The global `serve(options, handler)` takes a Web `Request` and expects a Web `Response`. Use `new URL(request.url).pathname` to route requests and `Response.json(value)` for JSON replies. The server handle exposes its URL and `close()`; see the [API reference](docs/api.md#httpサーバー).
 
 ## CLI
 
 | Command | Behavior |
 | --- | --- |
-| `noe run <file> [args...]` | Run a file; script arguments are available in `noe.args` |
-| `noe eval <code>` | Run code; `noe.args` is an empty array |
+| `noe run <file> [args...]` | Run a file; script arguments are available in `process.argv.slice(2)` |
+| `noe eval <code>` | Run code; `process.argv.slice(2)` is empty |
 | `noe repl` | Run JavaScript interactively |
 | `noe --help` | Show usage; also shown when no arguments are supplied |
 | `noe --version` | Show the version |
@@ -99,13 +99,13 @@ You can set an optional timeout for `run` and `eval`. There is no time limit by 
 
 ```sh
 ./noe run --timeout 5s examples/hello.js
-./noe eval --timeout=500ms 'await noe.sleep(60000)'
+./noe eval --timeout=500ms 'await new Promise(resolve => setTimeout(resolve, 60000))'
 # Exit code 124, with a timeout diagnostic on stderr
 ```
 
-Place `--timeout` before the script name or code. Use a positive Go duration such as `500ms`, `5s`, or `1m`. Empty, invalid, zero, negative, and duplicate values are usage errors. Use `--` to end option parsing. Arguments after the script name are passed unchanged to `noe.args`.
+Place `--timeout` before the script name or code. Use a positive Go duration such as `500ms`, `5s`, or `1m`. Empty, invalid, zero, negative, and duplicate values are usage errors. Use `--` to end option parsing. `process.argv` contains the executable and source first; user arguments follow them.
 
-Timing starts after the entry source has been read and includes runtime initialization, JS evaluation, asynchronous I/O, sleep, server listening, and subsequent JS execution. Forced interruption of synchronous OS syscalls or OS reads during local imports is not guaranteed. Use Ctrl+C to interrupt the REPL. Output and file changes made before interruption remain.
+Timing starts after the entry source has been read and includes runtime initialization, JS evaluation, asynchronous I/O, sleep, server listening, and subsequent JS execution. Forced interruption of synchronous host I/O, including `process.stdin.read()`, or OS reads during local imports is not guaranteed. Use Ctrl+C to interrupt the REPL. Output and file changes made before interruption remain.
 
 ## REPL
 
@@ -117,13 +117,13 @@ The same runtime is reused, so variables and functions remain available across i
 2
 > _ + 1
 3
-> await noe.sleep(100)
-> noe.exit()
+> await new Promise(resolve => setTimeout(resolve, 100))
+> process.exit()
 ```
 
 The REPL supports line editing, persistent history, Tab completion, and multiline input. `_` holds the last successful result other than undefined. Ordinary input errors do not end the session.
 
-Press Ctrl+D on an empty input, or call `noe.exit()`, to exit. On supported terminals, Ctrl+C cancels input or running work and returns to the prompt. A server started in the REPL keeps the current evaluation active until it stops; Ctrl+C stops it.
+Press Ctrl+D on an empty input, or call `process.exit()`, to exit. On supported terminals, Ctrl+C cancels input or running work and normally returns to the prompt. If stdlib I/O, servers, workers, or messaging resources remain active when an input is interrupted or fails, NOE stops them and ends the REPL session. Timers alone are cancelled and the session can continue. A server started in the REPL keeps the current evaluation active until it stops; Ctrl+C stops it.
 
 REPL `await` supports expressions, single-variable initialization, and assignment. General multi-statement input containing `await` and static imports are not supported. Load modules with `await import(...)`. See the [REPL guide](docs/repl.md) for controls and supported syntax.
 
@@ -132,24 +132,30 @@ REPL `await` supports expressions, single-variable initialization, and assignmen
 | Purpose | API |
 | --- | --- |
 | Output | `console.log`, `console.warn`, `console.error` |
-| Arguments, environment, and exit | `noe.args`, `noe.env.get`, `noe.cwd`, `noe.exit` |
-| Standard input | `noe.readStdin` (run/eval only) |
-| Text and binary files | `noe.readTextFile`, `noe.writeTextFile`, `noe.readFile`, `noe.writeFile` |
-| Directories, file information, and file operations | `noe.readDir`, `noe.stat`, `noe.mkdir`, `noe.rename`, `noe.remove` |
-| HTTP | `fetch`, `noe.serve` |
-| Sleep | `noe.sleep` |
+| Arguments, environment, and exit | `process.argv`, `process.env`, `process.cwd()`, `process.exit()` |
+| Standard input | `process.stdin.read()` |
+| Text and binary files | `fs/promises` (`readFile`, `writeFile`) |
+| Directories and file operations | `fs/promises` (`readdir`, `stat`, `lstat`, `mkdir`, `rename`, `rm`) |
+| HTTP | global `fetch()` and `serve()` |
+| Sleep | `timers/promises` (`setTimeout`) |
 
 See the [API reference](docs/api.md) for arguments, return values, errors, and supported behavior.
 
-On normal completion, NOE waits for started I/O, sleep, and subsequent JS execution. A running server keeps the runtime alive. `noe.exit()` prioritizes stopping and does not run subsequent JS, `catch`, or `finally` blocks.
+## Built-in modules and capabilities
 
-## HTTP subset
+Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve only to installed built-ins; local source imports must use relative `.js` or `.mjs` paths.
 
-The global `fetch(url, options)` supports GET, POST, PUT, PATCH, and DELETE. Responses provide `status`, `ok`, and repeatable `text()`, `json()`, and `bytes()` reads. Serialize JSON and set Content-Type explicitly. HTTP 4xx and 5xx statuses return responses; transport failures reject the Promise.
+The runtime grants scripts full access to the current process environment and local filesystem, command execution, DNS and network requests, HTTP listeners, WebSocket connections, and workers. It is not a sandbox: scripts can act with the operating-system privileges of the user running NOE.
 
-HTTP bodies are fully buffered in memory. Streaming, `Request`, `Response`, and `Headers` classes, URL imports, WebSocket, `setTimeout`, and `setInterval` are not provided.
+On normal completion, NOE waits for started I/O, timers, and subsequent JS execution. A running server keeps the runtime alive. `process.exit(code)` stops the runtime and sets its exit status.
 
-[HTTP API details](docs/api.md#httpサブセット) · [JSON API request examples](examples/README.md#json-apiへのリクエスト)
+## Fetch API
+
+The global `fetch()` is the go-quickjs Web API. It provides `Request`, `Response`, and `Headers`, and response bodies can be read as streams. A response body is consumed once, as with the Web API. Serialize JSON and set Content-Type explicitly when sending JSON.
+
+HTTP 4xx and 5xx responses are returned as responses; transport failures reject the Promise. URL imports are not supported. HTTP servers use the global `serve()` API; WebSocket uses the standard library API.
+
+[HTTP API details](docs/api.md#fetch) · [JSON API request examples](examples/README.md#json-apiへのリクエスト)
 
 ## Errors and testing
 
@@ -160,9 +166,9 @@ HTTP bodies are fully buffered in memory. Streaming, `Request`, `Response`, and 
 | `2` | CLI usage error |
 | `124` | Execution timeout |
 
-`noe.exit(code)` returns the specified integer code from 0 to 255. Errors include the location and stack supplied by the engine. NOE also diagnoses unfinished top-level await when no work remains that can resolve it.
+`process.exit(code)` sets the process exit status and stops execution. Errors include the location and stack supplied by the engine. NOE also diagnoses unfinished top-level await when no work remains that can resolve it.
 
-The REPL continues after recoverable input errors and exits with 0 on EOF. Unrecoverable input-reading or engine errors exit with 1. SIGINT exits with 130 for non-terminal input or an external signal while waiting for input.
+The REPL continues after recoverable input errors and exits with 0 on EOF. Unrecoverable input-reading or engine errors, and interactive-terminal input errors or interruption while stdlib I/O remains active, exit with 1. SIGINT exits with 130 for non-terminal input or an external signal while waiting for input.
 
 ```sh
 go test ./...

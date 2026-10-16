@@ -1,4 +1,6 @@
-# NOE MVP案
+# NOE MVP案（初期計画）
+
+この文書はMVP公開前の初期計画と、その後の実装記録です。現在のJavaScript APIは[APIリファレンス](api.md)を参照してください。go-quickjs標準ライブラリの導入にともない、以前のNOE固有JavaScript APIはすべて廃止され、現在は公開していません。
 
 NOE（No Opulence Engine）は、小さなJavaScriptスクリプトを実行するためのGo製ランタイム。Denoからの移行先として、自分に必要な処理を手軽に実行できる環境を作る。実装を通じてランタイムの仕組みを学ぶことも目的とする。
 
@@ -8,7 +10,7 @@ NOE（No Opulence Engine）は、小さなJavaScriptスクリプトを実行す�
 
 No bloat. Just scripts.
 
-## 製品方針
+## 初期MVPの製品方針（履歴）
 
 - Goで実装し、JavaScriptエンジンにはgo-quickjsを使う。
 - txiki.jsのCLIや基本機能を参考にする。
@@ -56,7 +58,9 @@ No bloat. Just scripts.
 
 これらはMVPの対象外であり、すべてを将来実装するという意味ではない。npm対応とNode/Deno互換は、製品方針として実装しない。
 
-## MVP後に実装したい機能
+ここは初期MVPの範囲を記録しています。後続のインクリメントでHTTPサーバーなどを追加し、go-quickjs標準ライブラリを有効にしたことで、外部コマンド・WebSocket・Workersも現在は利用できます。各APIはNode/Deno完全互換ではありません。
+
+## 初期計画後に実装した機能（履歴）
 
 ### REPL
 
@@ -72,9 +76,9 @@ READMEのJavaScript/TypeScriptという説明は製品の方向性を示す。MV
 
 ### 実用スクリプト向けの入出力
 
-[インクリメント5](increment-5.md)で、run/evalの標準入力をテキストとして読む`noe.readStdin()`、ディレクトリ直下の一覧を取得する`noe.readDir(path)`、ファイル情報を取得する`noe.stat(path)`を追加した。JSONをパイプで受け取って加工し、指定ディレクトリのJSONを集計する例を提供する。REPLの標準入力はJS入力として使い続ける。
+[インクリメント5](increment-5.md)では、当時のAPIとしてrun/evalの標準入力を読む`noe.readStdin()`、ディレクトリ直下を列挙する`noe.readDir(path)`、ファイル情報を得る`noe.stat(path)`を追加した。JSONをパイプで受け取って加工し、指定ディレクトリのJSONを集計する例を提供した。これらの固有APIは廃止され、現在は`process.stdin.read()`と`fs/promises`を使う。
 
-[インクリメント6](increment-6.md)で、親を含むディレクトリ作成の`noe.mkdir(path)`、名前変更・移動の`noe.rename(from, to)`、ファイル・リンク・空ディレクトリ削除の`noe.remove(path)`を追加した。集計結果の保存から処理済み入力の移動までを行う例を提供する。
+[インクリメント6](increment-6.md)では、当時のAPIとして`noe.mkdir(path)`、`noe.rename(from, to)`、`noe.remove(path)`を追加し、集計結果の保存と処理済み入力の移動を行う例を提供した。これらの固有APIは廃止され、現在は`fs/promises`の`mkdir`・`rename`・`rm`を使う。
 
 ### 実行時間の制御
 
@@ -82,19 +86,23 @@ READMEのJavaScript/TypeScriptという説明は製品の方向性を示す。MV
 
 ### HTTPサブセットの拡充
 
-[インクリメント8](increment-8.md)でfetchへPUT・PATCH・DELETEを追加した。POSTと同じく明示的な文字列bodyとヘッダーを使ってJSON APIの更新・削除を行う。Web全面互換は目指さず、JSON用の実行例を提供する。
+[インクリメント8](increment-8.md)では当時のfetchサブセットへPUT・PATCH・DELETEを追加した。現在はグローバルのWeb `fetch()`を使う。Web全面互換ではなく、go-quickjsが実装する範囲を提供する。
 
 ### バイナリ入出力
 
-[インクリメント9](increment-9.md)でUint8Arrayを読み書きする`noe.readFile(path)`・`noe.writeFile(path, bytes)`と、HTTPレスポンスの`bytes()`を追加した。全体をバイト列として保持し、部分ビューやコピーの独立性を明記する。ダウンロードしてそのまま保存する実行例を提供する。
+[インクリメント9](increment-9.md)では当時のAPIとしてUint8Arrayを読み書きする`noe.readFile(path)`・`noe.writeFile(path, bytes)`を追加した。現在は`fs/promises`の`readFile`・`writeFile`とFetch Responseの標準APIを使う。
 
 ### 簡易HTTPサーバーと共通イベントループ
 
-[インクリメント10](increment-10.md)で、既存の非同期基盤をNOE共通イベントループへ整理し、Goのnet/httpを使う`noe.serve()`を追加した。ファイル・fetchなどの公開仕様を保ち、サーバーの継続受付と停止・実行期限・REPL中断を同じ実行基盤で扱う。独自のリクエスト・応答オブジェクトとasyncハンドラーを提供し、ホスト機能はNOE側で実装する。go-quickjsのstdlib一括導入やNode/Deno互換は行わない。
+[インクリメント10](increment-10.md)では既存の非同期基盤を整理し、当時の独自HTTPサーバーAPI `noe.serve()`を追加した。記録にある独自リクエスト・応答オブジェクトは廃止済みで、現在はgo-quickjs標準ライブラリのグローバル`serve()`とWeb Request/Responseを使う。
 
 ### 待機と処理間隔
 
-[インクリメント11](increment-11.md)で`noe.sleep(ms)`を追加した。共通イベントループを使って他のJSやI/Oを止めずに待機し、timeout・REPL中断・明示終了で取り消す。有限の繰り返し実行のデモを提供する。
+[インクリメント11](increment-11.md)では当時の待機API `noe.sleep(ms)`を追加した。現在は`timers/promises`の`setTimeout()`を使う。
+
+### go-quickjs標準ライブラリ
+
+現在はgo-quickjs v0.25.3の標準ライブラリを有効にし、Web APIと一部のNode形式モジュールを提供する。ファイルシステム、プロセス環境、外部コマンド、fetch、DNS、HTTP待受、WebSocket、Workersを含む。以前の`noe.*` APIはありません。npm・パッケージ管理、Node/Deno完全互換、QuickJS本来の`std`モジュールは提供しません。詳細なAPIと実行権限は[APIリファレンス](api.md)、移行の実装と検証は[インクリメント12](increment-12.md)に記載する。
 
 ## 参照
 

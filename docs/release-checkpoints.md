@@ -4,6 +4,8 @@
 
 The release contract is stored in `.forgejo/release-profile.yml`. Its `version: 2` is a schema version; the first application release is `v1.0.0`.
 
+The `v1.0.0` evidence below refers to the listed release commits. It predates the [stdlib migration](increment-12.md) and does not validate or distribute the stdlib migration. Release-specific checks are recorded separately. See the migration record for local checks and the [API reference](api.md) for current behavior.
+
 ## Distribution gate
 
 The Forgejo workflow generated from this profile runs the following on the confirmed `ubuntu-latest` runner when a `v*` tag is pushed:

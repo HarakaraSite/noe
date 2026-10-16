@@ -31,7 +31,7 @@ func TestLocalModules(t *testing.T) {
 	if err != nil || code != 0 || stdout.String() != "22\n" {
 		t.Fatalf("code=%d err=%v out=%q", code, err, &stdout)
 	}
-	for _, spec := range []string{"pkg", "node:fs", "https://example.invalid/a.js", "./shared", "./missing.js"} {
+	for _, spec := range []string{"pkg", "https://example.invalid/a.js", "./shared", "./missing.js"} {
 		_, err := Execute(context.Background(), Source{filepath.Join(dir, "main.js"), `import "` + spec + `";`}, Options{})
 		if err == nil {
 			t.Fatalf("import %q unexpectedly succeeded", spec)

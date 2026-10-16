@@ -268,11 +268,12 @@ func TestREPLTerminalTabCompletionUsesLiveSessionWithoutCallingGetter(t *testing
 	}
 	session := startTerminalREPL(t, work, nil)
 
-	session.writeKeys(t, `await noe.readT`+"\t"+`("completion.txt").then(text => console.log("NOE_COMPLETION:" + text))`+"\r")
+	session.enter(t, `const fs = await import("node:fs/promises")`)
+	session.writeKeys(t, `await fs.readF`+"\t"+`("completion.txt","utf8").then(text => console.log("NOE_COMPLETION:" + text))`+"\r")
 	session.waitForOutputAndPrompt(t, "NOE_COMPLETION:NOE_COMPLETION_FILE_VALUE")
-	session.writeKeys(t, `await noe.readD`+"\t"+`(".").then(entries => console.log("DIRECTORY_COMPLETION:" + entries.some(entry => entry.name === "completion.txt")))`+"\r")
+	session.writeKeys(t, `await fs.readd`+"\t"+`(".").then(entries => console.log("DIRECTORY_COMPLETION:" + entries.includes("completion.txt")))`+"\r")
 	session.waitForOutputAndPrompt(t, "DIRECTORY_COMPLETION:true")
-	session.writeKeys(t, `await noe.st`+"\t"+`("completion.txt").then(info => console.log("STAT_COMPLETION:" + info.isFile))`+"\r")
+	session.writeKeys(t, `await fs.stat`+"\t"+`("completion.txt").then(info => console.log("STAT_COMPLETION:" + info.isFile()))`+"\r")
 	session.waitForOutputAndPrompt(t, "STAT_COMPLETION:true")
 
 	session.writeKeys(t, `console.lo`+"\t"+`("COMPLETION_CONSOLE")`+"\r")
@@ -335,7 +336,7 @@ func TestREPLTerminalTabCompletionUsesLiveSessionWithoutCallingGetter(t *testing
 
 func TestREPLTerminalCompletionProxyExitRestoresSettings(t *testing.T) {
 	session := startTerminalREPL(t, t.TempDir(), nil)
-	session.enter(t, `const completionExitProxy = new Proxy({}, { ownKeys() { console.log('COMPLETION_EXIT_TRAP'); noe.exit(7); } })`)
+	session.enter(t, `const completionExitProxy = new Proxy({}, { ownKeys() { console.log('COMPLETION_EXIT_TRAP'); process.exit(7); } })`)
 	beforeCompletion := session.stdout.snapshot()
 	session.writeKeys(t, "completionExitProxy.\t")
 	session.stdout.waitFor(t, "completion exit trap marker", func(output string) bool {

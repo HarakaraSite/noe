@@ -15,13 +15,14 @@ func TestREPLInputAndExit(t *testing.T) {
 		name, input, out, diagnostic string
 		code                         int
 	}{
+		{"stdlib globals", "typeof noe\n", "> 'undefined'\n> ", "", 0},
 		{"state", "let count = 1\ncount += 1\ncount\n", "> > 2\n> 2\n> ", "", 0},
 		{"final line", "2 + 3", "> 5\n", "", 0},
 		{"blank line", "\n\n", "> > > ", "", 0},
 		{"recover", "const invalid = ;\nthrow new Error('boom')\n1 + 1\n", "> > > 2\n> ", "boom", 0},
-		{"zero exit", "noe.exit(0)\nconsole.log('after')\n", "> ", "", 0},
-		{"nonzero exit", "noe.exit(7)\nconsole.log('after')\n", "> ", "", 7},
-		{"async exit", "await Promise.resolve(noe.exit(9))\n", "> ", "", 9},
+		{"zero exit", "process.exit(0)\nconsole.log('after')\n", "> ", "", 0},
+		{"nonzero exit", "process.exit(7)\nconsole.log('after')\n", "> ", "", 7},
+		{"async exit", "await Promise.resolve(process.exit(9))\n", "> ", "", 9},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer

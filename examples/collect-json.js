@@ -1,27 +1,33 @@
+import { lstat, readFile, readdir } from "fs/promises";
+import { join } from "path";
+
 // ./noe run examples/collect-json.js examples/data/numbers
-if (noe.args.length !== 1) {
+const args = process.argv.slice(2);
+if (args.length !== 1) {
   console.error("Usage: noe run examples/collect-json.js <directory>");
-  noe.exit(2);
+  process.exit(2);
 }
 
-const directory = noe.args[0];
-const entries = await noe.readDir(directory);
-const files = await Promise.all(entries
-  .filter(entry => entry.isFile && entry.name.endsWith(".json"))
-  .map(async entry => {
-    const path = `${directory}/${entry.name}`;
-    const [text, info] = await Promise.all([noe.readTextFile(path), noe.stat(path)]);
+const directory = args[0];
+const names = await readdir(directory);
+const files = (await Promise.all(names
+  .filter(name => name.endsWith(".json"))
+  .map(async name => {
+    const path = join(directory, name);
+    const info = await lstat(path);
+    if (!info.isFile()) return null;
+    const text = await readFile(path, "utf8");
     const values = JSON.parse(text);
     if (!Array.isArray(values) || !values.every(value => typeof value === "number" && Number.isFinite(value))) {
-      throw new TypeError(`${entry.name} must contain a JSON array of finite numbers`);
+      throw new TypeError(`${name} must contain a JSON array of finite numbers`);
     }
     return {
-      name: entry.name,
+      name,
       bytes: info.size,
       count: values.length,
       total: values.reduce((sum, value) => sum + value, 0),
     };
-  }));
+  }))).filter(file => file !== null);
 
 const count = files.reduce((sum, file) => sum + file.count, 0);
 const total = files.reduce((sum, file) => sum + file.total, 0);
