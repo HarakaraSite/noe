@@ -18,7 +18,7 @@ The Forgejo workflow generated from this profile runs the following on the confi
 
 The uploader creates a non-draft Release within the existing repository visibility; it does not make a private repository public. Failed gates or builds must leave their output in native Actions logs and must not publish Release assets.
 
-The `v1.0.0` Release has been published through this workflow; see the validation record below. A successful cross-build verifies compilation; runtime and terminal behavior on macOS, Windows, and arm64 have not been tested here.
+The `v1.0.0` and `v1.1.0` Releases have been published through this workflow; see their validation records below. A successful cross-build verifies compilation; runtime and terminal behavior on macOS, Windows, and arm64 have not been tested here.
 
 ## Reference checks before tagging
 
@@ -104,3 +104,15 @@ This release enables the full pinned go-quickjs stdlib and removes the `noe` Jav
 | Linux amd64 binary: stdlib timer, Fetch/serve presence, removed `noe` global | Passed; `undefined function function` |
 
 The existing tag-triggered Forgejo workflow remains the distribution gate. Its result and the downloaded Release assets are verified separately after publication. Cross-builds verify compilation; runtime and terminal behavior on macOS, Windows, and arm64 were not tested locally.
+
+## v1.1.0 Release validation — 2026-10-16
+
+- Annotated tag: `v1.1.0`, pointing to `a06fe533365cf261b4775292b2f2198c023a460f`. This contains the checked source revision and the preparation record above.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/2): succeeded (API run ID 180, job ID 201).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.1.0): published, neither draft nor prerelease. Its description matches the committed [release notes](releases/v1.1.0.md), including the removed `noe.*` APIs and migration guidance.
+
+The actual workflow passed the CGO-free test and vet gates, built all six profile targets, and uploaded the six binaries plus `SHA256SUMS`. All seven assets were then downloaded from the Release. Every binary hash matched the published checksum file.
+
+The downloaded Linux amd64 binary returned `noe v1.1.0` for `--version`. An evaluation importing `timers/promises` and waiting on its timer confirmed the removed `noe` global and the available Fetch/server APIs, printing `undefined function function` with exit code 0. The peeled remote tag was checked against the workflow commit SHA.
+
+This verification record is committed after publication. It does not move or replace the `v1.1.0` tag. The local repository-root `./noe` was also rebuilt with version `v1.1.0`.
