@@ -151,6 +151,24 @@ func TestStdlibCommandsAndWorkers(t *testing.T) {
 	}
 }
 
+func TestStdlibWorkerCountRemainsUnlimited(t *testing.T) {
+	// go-quickjs v0.27 defaults to 64 concurrent workers. NOE preserves its
+	// previous behavior, including when all those workers remain active.
+	source := `import {Worker} from "node:worker_threads";
+const workers = [];
+try {
+  for (let i = 0; i < 65; i++) {
+    workers.push(new Worker("setInterval(() => {}, 1000)", {eval: true}));
+  }
+  console.log(workers.length);
+} finally {
+  await Promise.all(workers.map(worker => worker.terminate()));
+}`
+	if out := runStdlib(t, source, Options{}); out != "65\n" {
+		t.Fatal(out)
+	}
+}
+
 func TestStdlibRootErrorsStopContinuousWork(t *testing.T) {
 	for _, source := range []string{
 		`setInterval(()=>{},1); throw Error("root failure")`,

@@ -31,6 +31,8 @@ func (h *host) stdlibConfig(opts Options) stdlib.Config {
 	workers := &stdlib.Workers{
 		New:  h.newWorkerRuntime,
 		Load: h.loadWorker,
+		// Preserve NOE's existing unlimited worker count; zero now means 64.
+		Max: -1,
 	}
 
 	return stdlib.Config{

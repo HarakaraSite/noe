@@ -74,7 +74,7 @@ if(!rejected)throw Error("invalid wait type accepted");`
 func TestObserveAgentWaitYieldsToJSAndIsCancelledWithEvaluation(t *testing.T) {
 	dir := t.TempDir()
 	writeObservationLog(t, filepath.Join(dir, "events.jsonl"), map[string]any{"version": 1, "executionId": "exec", "seq": 1, "type": "agent.started", "runId": "child"})
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var ticked atomic.Bool
 	// A native observer wait must yield to the owner's event loop; a timer can
@@ -85,13 +85,18 @@ func TestObserveAgentWaitYieldsToJSAndIsCancelledWithEvaluation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer h.rt.Close()
-	if err := h.rt.Set("tick", func() { ticked.Store(true) }); err != nil {
+	if err := h.rt.Set("tick", func() {
+		ticked.Store(true)
+		// Cancel only after proving that observation yielded to the timer.
+		// The timeout guards a blocked loop, rather than timing host startup.
+		cancel()
+	}); err != nil {
 		t.Fatal(err)
 	}
 	code, err := h.run(ctx, Source{filepath.Join(dir, "main.js"), `import {observe_agent} from "noe:agent";
 setTimeout(()=>tick(),10);
 await observe_agent({logPath:"events.jsonl",runId:"child",wait:true});`})
-	if code == 0 || err == nil || !errors.Is(ctx.Err(), context.DeadlineExceeded) || !ticked.Load() {
+	if code == 0 || err == nil || !errors.Is(ctx.Err(), context.Canceled) || !ticked.Load() {
 		t.Fatalf("code=%d err=%v ticked=%v", code, err, ticked.Load())
 	}
 }

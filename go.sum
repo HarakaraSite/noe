@@ -4,8 +4,8 @@ github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNU
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/go-quickjs/go-intl v0.6.0 h1:d1BFuDOL7OPfyw9a+9Ubis3thsqrvr2xqBMqz+I4pqA=
 github.com/go-quickjs/go-intl v0.6.0/go.mod h1:/Kn3soBxkmtIHevMspxdnTc5Br6+wHbzxM312CdeupM=
-github.com/go-quickjs/go-quickjs v0.25.3 h1:xoH2DxsjGz7O/DYIupLLRxr7hZT6HoyaLA2fiBpJYm8=
-github.com/go-quickjs/go-quickjs v0.25.3/go.mod h1:FJ8EJrJDGeJzZFYT20ft7iu17egGueuDloWbvwl5Hvc=
+github.com/go-quickjs/go-quickjs v0.27.0 h1:TVemuGmYmaR+4CCNIVIcHk3dhrqYRq+PGljCkT1EqAE=
+github.com/go-quickjs/go-quickjs v0.27.0/go.mod h1:FJ8EJrJDGeJzZFYT20ft7iu17egGueuDloWbvwl5Hvc=
 github.com/openai/openai-go/v3 v3.79.0 h1:r9Oe7tjXsez39TtsA6lCzF+SLXuVh9AYoJ/hmwiM41c=
 github.com/openai/openai-go/v3 v3.79.0/go.mod h1:i+lM+NFmWP+Yd+fYKEaPxUINBx+vZtRmY5gaszSfsiQ=
 github.com/spyzhov/ajson v0.8.0 h1:sFXyMbi4Y/BKjrsfkUZHSjA2JM1184enheSjjoT/zCc=

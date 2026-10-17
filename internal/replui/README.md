@@ -4,6 +4,10 @@ Source: `github.com/go-quickjs/go-quickjs v0.25.3`, `cmd/qjs/lineedit.go`,
 `terminal.go`, `terminal_other.go`, `terminal_windows.go`, and the editor tests
 from `lineedit_test.go`. The upstream MIT license is retained in `LICENSE`.
 
+These five source files and the license were compared with v0.26.0 and
+v0.27.0 on 2026-10-17 and are byte-for-byte unchanged upstream. NOE's engine
+dependency is now v0.27.0; the snapshot provenance remains v0.25.3.
+
 This is a source snapshot, not a fork of the engine or an external qjs process.
 The upstream REPL is private to `package main`, so the reusable input portion
 is adapted here. JavaScript evaluation, await handling, completion candidates,

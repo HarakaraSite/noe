@@ -30,6 +30,14 @@ NOEの`repl`コマンドからこの入力UIを使う。別のqjsプロセスは
 
 `go.mod`の更新だけでは、取り込んだ入力UIは更新されない。上流のすべてのREPL変更を移す必要もない。NOEが使う部分と修正の必要性に沿って判断する。
 
+### v0.27.0への更新（v1.3.1）
+
+2026-10-17、v0.25.3→v0.26.0→v0.27.0の順に互換性を確認した。NOEが使うAPIを削除する変更はなく、別modfileで各版の全体unit・CLI/REPL E2Eが成功した。v0.26.0ではstdlibの変更もなかった。
+
+上流の`lineedit.go`・`lineedit_test.go`・`terminal.go`・`terminal_other.go`・`terminal_windows.go`とMITライセンスは、3つの版で同一だった。エンジンだけをv0.27.0へ更新し、入力UIのローカル変更と取り込み元v0.25.3の表記を維持する。
+
+v0.27.0で追加された`Workers.Max`は、NOEでは`-1`を明示して従来のWorker数上限なしを維持する。標準ライブラリのWorkerとagentの起動は別の仕組みである。新しいJITや未捕捉例外hookの利用はこの更新に含めない。最終版のテスト・race・E2E・配布ビルド結果は[リリースチェックポイント](release-checkpoints.md)へ記録する。
+
 ## 検証
 
 通常のテストは実プロバイダへ接続せず、agent用のローカルHTTP fixtureを使う。実APIキーの読込みや課金は伴わない。

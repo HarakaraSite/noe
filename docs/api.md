@@ -22,6 +22,8 @@ NOEは次のホスト機能をスクリプトに渡します。
 
 Workersにも同じgo-quickjs標準ライブラリのホスト機能を渡します（`noe:agent`を除く）。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
 
+go-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
+
 npm、パッケージ導入、URLからのモジュールimport、bare importによる外部パッケージ解決はありません。裸の組み込みモジュール名と対応する`node:`名で標準ライブラリをimportできます。ローカルモジュールは拡張子付きの相対`.js`・`.mjs`パスを使います。import先はimport元のファイルを基準に解決し、`eval`内ではカレントディレクトリが基準です。QuickJS本来の`std`モジュールは提供しません。
 
 ## 自律agent（OpenRouter）
