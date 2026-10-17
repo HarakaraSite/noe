@@ -22,6 +22,7 @@ func TestAgentOpenRouterLive(t *testing.T) {
 	if keyFile == "" {
 		t.Fatal("explicit NOE_OPENROUTER_API_KEY_FILE is required for live acceptance")
 	}
+	sdkVersion := cliDependencyVersion(t, "github.com/OpenRouterTeam/go-sdk")
 	type evidence struct {
 		Name         string            `json:"name"`
 		Source       string            `json:"source"`
@@ -46,7 +47,7 @@ func TestAgentOpenRouterLive(t *testing.T) {
 			Model      string     `json:"model"`
 			SDK        string     `json:"sdk"`
 			Results    []evidence `json:"results"`
-		}{time.Now().UTC().Format(time.RFC3339), runtime.GOOS + "/" + runtime.GOARCH, runtime.Version(), "deepseek/deepseek-v4.1-flash", "github.com/OpenRouterTeam/go-sdk v0.9.59", results}
+		}{time.Now().UTC().Format(time.RFC3339), runtime.GOOS + "/" + runtime.GOARCH, runtime.Version(), "deepseek/deepseek-v4.1-flash", sdkVersion, results}
 		if path := os.Getenv("NOE_AGENT_LIVE_RESULTS"); path != "" {
 			data, err := json.MarshalIndent(report, "", "  ")
 			if err == nil {

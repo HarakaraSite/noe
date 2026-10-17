@@ -18,33 +18,6 @@ import (
 	"time"
 )
 
-func runCLIWithInput(t *testing.T, dir string, stdin string, args ...string) cliResult {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, cliPath, args...)
-	cmd.Dir = dir
-	cmd.Env = os.Environ()
-	cmd.Stdin = strings.NewReader(stdin)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	if ctx.Err() != nil {
-		t.Fatalf("noe %v exceeded the 10s process limit: %v\nstdout:\n%s\nstderr:\n%s", args, ctx.Err(), stdout.String(), stderr.String())
-	}
-	result := cliResult{stdout: stdout.String(), stderr: stderr.String()}
-	if err == nil {
-		return result
-	}
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("run noe %v: %v\nstdout:\n%s\nstderr:\n%s", args, err, result.stdout, result.stderr)
-	}
-	result.exitCode = exitErr.ExitCode()
-	return result
-}
-
 func TestProcessStdinReadRunAndEvalPreservePipedInput(t *testing.T) {
 	cases := []struct {
 		name  string

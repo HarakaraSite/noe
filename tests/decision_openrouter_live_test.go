@@ -79,6 +79,7 @@ func TestDecisionOpenRouterLive(t *testing.T) {
 	if os.Getenv("NOE_OPENROUTER_API_KEY_FILE") == "" {
 		t.Fatal("explicit NOE_OPENROUTER_API_KEY_FILE is required")
 	}
+	sdkVersion := cliDependencyVersion(t, "github.com/OpenRouterTeam/go-sdk")
 	work := os.Getenv("NOE_DECISION_LIVE_DIR")
 	if work == "" {
 		t.Fatal("NOE_DECISION_LIVE_DIR is required to retain live evidence")
@@ -88,7 +89,7 @@ func TestDecisionOpenRouterLive(t *testing.T) {
 	}
 	var results []liveDecisionCase
 	defer func() {
-		raw, err := json.MarshalIndent(map[string]any{"verifiedAt": time.Now().UTC().Format(time.RFC3339), "sdk": "github.com/OpenRouterTeam/go-sdk v0.9.59", "results": results}, "", "  ")
+		raw, err := json.MarshalIndent(map[string]any{"verifiedAt": time.Now().UTC().Format(time.RFC3339), "sdk": sdkVersion, "results": results}, "", "  ")
 		if err != nil {
 			t.Error(err)
 			return

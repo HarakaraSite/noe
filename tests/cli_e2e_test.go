@@ -3,120 +3,17 @@
 package e2e_test
 
 import (
-	"bytes"
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 )
-
-var cliPath string
-var repoRootPath string
-
-func TestMain(m *testing.M) {
-	_, sourceFile, _, ok := runtime.Caller(0)
-	if !ok {
-		fmt.Fprintln(os.Stderr, "cannot locate E2E test source")
-		os.Exit(1)
-	}
-	repoRoot := filepath.Dir(filepath.Dir(sourceFile))
-	repoRootPath = repoRoot
-	buildDir, err := os.MkdirTemp("", "noe-e2e-build-")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "create CLI build directory:", err)
-		os.Exit(1)
-	}
-	cliPath = filepath.Join(buildDir, "noe")
-	build := exec.Command("go", "build", "-o", cliPath, "./cmd/noe")
-	build.Dir = repoRoot
-	build.Env = envWith(os.Environ(), "CGO_ENABLED", "0")
-	if output, err := build.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "build noe CLI: %v\n%s", err, output)
-		_ = os.RemoveAll(buildDir)
-		os.Exit(1)
-	}
-	code := m.Run()
-	if err := os.RemoveAll(buildDir); err != nil {
-		fmt.Fprintln(os.Stderr, "remove CLI build directory:", err)
-		if code == 0 {
-			code = 1
-		}
-	}
-	os.Exit(code)
-}
-
-type cliResult struct {
-	stdout   string
-	stderr   string
-	exitCode int
-}
-
-func runCLI(t *testing.T, dir string, extraEnv map[string]string, args ...string) cliResult {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, cliPath, args...)
-	cmd.Dir = dir
-	cmd.Env = os.Environ()
-	for key, value := range extraEnv {
-		cmd.Env = envWith(cmd.Env, key, value)
-	}
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	if ctx.Err() != nil {
-		t.Fatalf("noe %v exceeded the 10s process limit: %v\nstdout:\n%s\nstderr:\n%s", args, ctx.Err(), stdout.String(), stderr.String())
-	}
-	result := cliResult{stdout: stdout.String(), stderr: stderr.String()}
-	if err == nil {
-		return result
-	}
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("run noe %v: %v\nstdout:\n%s\nstderr:\n%s", args, err, result.stdout, result.stderr)
-	}
-	result.exitCode = exitErr.ExitCode()
-	return result
-}
-
-func envWith(env []string, key, value string) []string {
-	prefix := key + "="
-	filtered := make([]string, 0, len(env)+1)
-	for _, item := range env {
-		if !strings.HasPrefix(item, prefix) {
-			filtered = append(filtered, item)
-		}
-	}
-	return append(filtered, prefix+value)
-}
-
-func writeFixture(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func requireExit(t *testing.T, got cliResult, want int) {
-	t.Helper()
-	if got.exitCode != want {
-		t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", got.exitCode, want, got.stdout, got.stderr)
-	}
-}
 
 func TestRunTransformsJSONWithEnvironmentArgumentsAndNestedImports(t *testing.T) {
 	work := t.TempDir()
@@ -170,7 +67,7 @@ func TestEvalAndCLICommands(t *testing.T) {
 		stderrPart string
 	}{
 		{name: "help", args: []string{"--help"}, code: 0, stdoutPart: "Usage:"},
-		{name: "version", args: []string{"--version"}, code: 0, stdoutPart: "noe v1.3.2\n"},
+		{name: "version", args: []string{"--version"}, code: 0, stdoutPart: "noe v1.3.3\n"},
 		{name: "no command prints help", args: nil, code: 0, stdoutPart: "Usage:"},
 		{name: "run needs a script", args: []string{"run"}, code: 2, stderrPart: "Usage:"},
 		{name: "eval needs source", args: []string{"eval"}, code: 2, stderrPart: "Usage:"},

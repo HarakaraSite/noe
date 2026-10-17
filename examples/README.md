@@ -28,7 +28,7 @@
 | [agent-summary.js](agent-summary.js) | `run_agent`で指定ファイルを読み、snapshotから要約を表示 |
 | [agent-parallel.js](agent-parallel.js) | `spawn_agent`で二つの子agentを起動・観察し、親agentが結果をまとめる |
 | [agent-control.js](agent-control.js) | keepAliveのroot agentを別terminalからsteer・queue・interrupt |
-| [try-agent.js](../try-agent.js) | 引数のタスクをagentへ依頼。引数なしならJSで1〜100の合計を計算 |
+| [try-agent.js](try-agent.js) | 引数のタスクをagentへ依頼。引数なしならJSで1〜100の合計を計算 |
 
 `lib/`は例で使うモジュール、`data/`はサンプル入力です。agentの並行例は[左のJSON](data/agent/left.json)と[右のJSON](data/agent/right.json)を使います。
 
@@ -58,11 +58,11 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 
 ルートagentには`provider`・`model`・`effort`を明示指定します。子agentはprovider・model・effort・`maxTokens`を省略時に起動元runから継承します。他のconfig項目は継承しません。`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、新しい関数APIの設定・戻り値・エラー、keepAliveとqueue、REPL、任意の実行timeout、traceは[APIリファレンス](../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
 
-任意のタスクを試す場合は、ルートの`try-agent.js`へ指示を渡します。次の例はREADMEを読み、要約ファイルを作らせます。
+任意のタスクを試す場合は、`examples/try-agent.js`へ指示を渡します。次の例はREADMEを読み、要約ファイルを作らせます。
 
 ```sh
 NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
-  ./noe run try-agent.js "README.mdを読み、要点をSUMMARY.mdへ保存してください。" \
+  ./noe run examples/try-agent.js "README.mdを読み、要点をSUMMARY.mdへ保存してください。" \
   >answer.txt 2>agent-trace.log
 ```
 

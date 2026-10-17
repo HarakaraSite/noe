@@ -14,7 +14,7 @@ NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript
 
 The linked guides and development notes are currently in Japanese.
 
-[v1.3.2 release notes](docs/releases/v1.3.2.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.2)
+[v1.3.3 release notes](docs/releases/v1.3.3.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.3)
 
 ## Build and run
 
@@ -28,7 +28,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.3.2
+# noe v1.3.3
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -86,7 +86,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.3.2 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.2/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
+Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.3.3 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.3/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
 
 ### Run one task and receive its answer
 
@@ -130,10 +130,10 @@ The root agent requires explicit `provider`, `model`, and `effort`. Switch provi
 
 For example, read an instruction file with `await readFile("instructions.md", "utf8")` from `node:fs/promises` and pass the resulting string as `system`. NOE does not automatically discover `AGENTS.md`. Cache keys do not preserve conversation history or guarantee cache hits. OpenRouter sends the key as `session_id`; OpenAI uses `prompt_cache_key`. OpenCode Go sends `x-opencode-session` with the actual run ID, fixed within a task and distinct for parent and child tasks, plus `User-Agent: noe/<version>`.
 
-To limit total execution time, put `--timeout 5m` before the script name. For an arbitrary task with the prepared OpenRouter configuration, use [try-agent.js](try-agent.js):
+To limit total execution time, put `--timeout 5m` before the script name. For an arbitrary task with the prepared OpenRouter configuration, use [try-agent.js](examples/try-agent.js):
 
 ```sh
-./noe run --observe try-agent.js 'Read README.md and write a summary to SUMMARY.md.'
+./noe run --observe examples/try-agent.js 'Read README.md and write a summary to SUMMARY.md.'
 ```
 
 ### Start work without waiting, observe it, and delegate
@@ -352,7 +352,7 @@ go test -tags=e2e ./... -count=1
 
 The default E2E tests build the CLI with CGO disabled and run it as a separate process. They use temporary files and local HTTP servers, and check REPL interactions through a PTY on Linux. They do not connect to external services. Live OpenRouter tests require the separate `agent_live` build tag and an explicit credential-file path; see the [agent validation record](docs/increment-13-implementation.md).
 
-See the [development notes](docs/README.md) for design, acceptance criteria, validation records, and development commands.
+See the [E2E test guide](tests/README.md) for suite organization and live-provider test commands, and the [development notes](docs/README.md) for design, acceptance criteria, validation records, and development commands.
 
 ## License
 

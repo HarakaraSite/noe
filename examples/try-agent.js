@@ -1,6 +1,6 @@
 import { run_agent } from "noe:agent";
 
-// 引数でタスクを変更できます: ./noe run try-agent.js "README.mdを要約して"
+// 引数でタスクを変更できます: ./noe run examples/try-agent.js "README.mdを要約して"
 const task = process.argv.slice(2).join(" ") ||
   "run_jsでJavaScriptを実行し、1から100までの整数の合計を計算してください。" +
   "実行結果を使い、日本語で簡潔に回答してください。";

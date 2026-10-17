@@ -11,7 +11,7 @@ A tiny JavaScript runtime written in pure Go.
 
 [APIリファレンス](docs/api.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
 
-[v1.3.2リリースノート](docs/releases/v1.3.2.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.2)
+[v1.3.3リリースノート](docs/releases/v1.3.3.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.3)
 
 ## ビルドと実行
 
@@ -25,7 +25,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.3.2
+# noe v1.3.3
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -83,7 +83,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.3.2のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.2/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
+表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.3.3のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.3/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
 
 ### 1タスクを実行し、回答を受け取る
 
@@ -127,10 +127,10 @@ console.log(snapshot.lastResult.answer);
 
 外部インストラクションは、たとえば`node:fs/promises`の`await readFile("instructions.md", "utf8")`で読み、得た文字列を`system`へ渡します。`AGENTS.md`の自動探索は行いません。cacheKeyは会話履歴の保存やキャッシュヒットを保証するものではありません。OpenRouterでは`session_id`、OpenAIでは`prompt_cache_key`へ送ります。OpenCode Goは実際のrun IDを`x-opencode-session`へ送り、同一タスク内では固定、親子では別IDです。`User-Agent: noe/<version>`も送ります。
 
-全体の実行時間を制限する場合は、スクリプト名の前に`--timeout 5m`を置きます。任意の指示を試す場合は、OpenRouter設定済みの[try-agent.js](try-agent.js)も使えます。
+全体の実行時間を制限する場合は、スクリプト名の前に`--timeout 5m`を置きます。任意の指示を試す場合は、OpenRouter設定済みの[try-agent.js](examples/try-agent.js)も使えます。
 
 ```sh
-./noe run --observe try-agent.js 'README.mdを読み、要点をSUMMARY.mdへ保存してください。'
+./noe run --observe examples/try-agent.js 'README.mdを読み、要点をSUMMARY.mdへ保存してください。'
 ```
 
 ### 待たずに起動する・観察する・子へ委譲する
@@ -347,7 +347,7 @@ go test ./...
 go test -tags=e2e ./... -count=1
 ```
 
-通常のE2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。一時ファイルとローカルHTTPサーバーを使い、LinuxではPTYによるREPLの操作も確認します。外部サービスには接続しません。実OpenRouter検証は別途`agent_live`タグと認証ファイルのパスを明示して実行します。[agent実装・検証記録](docs/increment-13-implementation.md)を参照してください。
+[E2Eの構成と実行方法](tests/README.md)も参照してください。通常のE2EはCGOを無効にしてCLIをビルドし、別プロセスから実行します。一時ファイルとローカルHTTPサーバーを使い、LinuxではPTYによるREPLの操作も確認します。外部サービスには接続しません。実OpenRouter検証は別途`agent_live`タグと認証ファイルのパスを明示して実行します。[agent実装・検証記録](docs/increment-13-implementation.md)を参照してください。
 
 設計、インクリメントごとの受入条件・検証記録、開発用コマンドは[開発記録](docs/README.md)を参照してください。
 
