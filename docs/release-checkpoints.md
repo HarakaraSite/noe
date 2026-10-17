@@ -229,6 +229,29 @@ The published Linux amd64 binary passed four smoke checks with exit 0 and empty 
 
 The repository-root `./noe` is the verified published Linux amd64 binary. This documentation-only verification commit follows publication without moving the tag. macOS, Windows, and arm64 native runtime behavior remains unverified.
 
+## v1.4.0 preparation — 2026-10-18
+
+Checked source revision: `9f9e57e906a5981719be5395363b44b33cd70790`. Environment: Linux amd64, Go 1.27.2, a C toolchain for race, and Linux PTY support. Subsequent preparation changes only add this release record.
+
+This release includes the managed-process and standard-I/O extensions committed after v1.3.3, local ESM path resolution and exact-name import maps, and the reusable JavaScript MCP SDK example. Source, CLI version, version assertions, both READMEs, and helper download links are updated for v1.4.0. Dependency versions remain unchanged from v1.3.3. See the [release notes](releases/v1.4.0.md), [process/I/O implementation record](process-io-implementation.md), and [import map implementation record](local-import-map-implementation.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1` | Passed, including Linux PTY and the opt-in MCP SDK checks |
+| `CGO_ENABLED=0 go vet ./...` | Passed |
+| `CGO_ENABLED=0 go vet -tags=e2e ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` | Passed; `GORACE=atexit_sleep_ms=0` removes instrumented child-process exit delays while keeping race detection |
+| All six profile targets, CGO disabled, `-trimpath`, `-s -w -X noe/internal/cli.Version=v1.4.0` | Built successfully |
+| Local `SHA256SUMS` covering all six binaries | All hashes verified |
+| Linux amd64 version, arithmetic, lazy agent/decision/auth imports, Intl, external auth helper help, import-map run/eval, host byte-stream output, owned child process | All nine smoke checks passed, exit 0 and empty stderr |
+| Embedded dependency information | Confirms the retained module versions and go-quickjs v0.27.0 |
+| Changed Markdown relative links, Go formatting, and diff whitespace | Passed |
+
+The five main checks ran sequentially, followed by the six release builds. The E2E run explicitly supplied `NOE_MCP_SDK_BUNDLE=/tmp/noe-process-mcp.wzVT64/mcp-client.bundle.mjs`, prepared with SDK 1.32.1 and esbuild 0.25.12; it does not call real model providers or run Node. The Linux amd64 binary is 48,222,368 bytes with the release flags. Logs, checksums, and build artifacts are under `/home/agent/.cache/noe-qjs-repl/noe-v1.4.0-release-en13jon_/`.
+
+The tag-triggered Forgejo workflow remains the distribution gate. Publication and downloaded assets are verified separately after tagging. Native runtime execution on macOS, Windows, and arm64 remains unverified.
+
 ## v1.3.2 preparation — 2026-10-17
 
 Checked source revision: `d8a58e857292340088fb9f5e2b07512e9bfe3ea1`. The same application, test source, and dependencies were checked immediately before/after this commit; no code change intervened. This preparation entry is documentation-only. Environment: Linux amd64, Go 1.27.2, a C toolchain for race, and Linux PTY support.
