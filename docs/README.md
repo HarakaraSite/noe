@@ -6,11 +6,11 @@
 
 ## 現在のAPIと移行
 
-実行中の観察は[観察の入口](observe.md)と[JSONLイベントのガイド](events.md)を参照してください。`run`・`eval`・`repl`共通の`--events`で記録し、人間はGoの`noe observe`で読みやすく表示、親はJSの`observe_agent`からGoが組み立てた状態・差分・結果を取得できます。
+実行中の観察は[観察の入口](observe.md)と[JSONLイベントのガイド](events.md)を参照してください。`run`・`eval`・`repl`共通の`--events`で記録し、人間はGoの`noe observe`でinstance状態とtaskを読みやすく表示、親はJSの`observe_agent`でlive snapshotまたは保存ログの状態・差分・結果を取得できます。
 
 JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`process`・`timers/promises`とグローバルの`fetch`・`serve`などは、go-quickjs標準ライブラリへ統一しました。NOE固有の機能としてCLI・REPLの操作と、インクリメント13で追加した`noe:agent`モジュールがあります。[移行表](api.md#旧apiからの移行)と[インクリメント12の記録](increment-12.md)、[agent API](api.md)を参照してください。
 
-agentの共通インストラクションは[`internal/agent/instructions.md`](../internal/agent/instructions.md)で管理します。Goの`embed`でバイナリに含め、`agent.js`が内部moduleから取得します。文面の変更を実行へ反映するには再ビルドします。`run_js`のtool定義とloop処理は引き続き`agent.js`にあります。
+agentの共通インストラクションは[`internal/agent/instructions.md`](../internal/agent/instructions.md)で管理します。Goの`embed`でバイナリに含め、モデルのtask loopを実行するprivate moduleが利用します。公開`noe:agent` moduleは起動・観察・queue・steer・interruptのAPIを提供します。文面の変更を実行へ反映するには再ビルドします。
 
 以下のインクリメント1〜11、レビュー、比較スパイクは当時の設計・検証履歴です。そこに記載された旧API・対象外・ソース構成・中断動作は、現在の仕様や最新コードの検証結果を示すものではありません。
 
@@ -36,7 +36,9 @@ agentの共通インストラクションは[`internal/agent/instructions.md`](.
 
 ## 今後の候補
 
-[次の機能候補](future-candidates.md)に、v1.2.0利用後の「Web検索と検索APIの認証ラッパー」「親による子agentの監督」「Workerからのagent利用」「呼び出し元の終了後も続く独立agent実行」「長いタスクの実行コンテキスト圧縮」「Jevなどの意思決定モデルの呼び出し（Henji参照）」「モデルの推論エフォートの指定」「ログによるagentの状況確認」「実行中のagentへの追加指示」「自作REPLの必要性とqjsの再利用」の検討メモ、およびv1.0.0時点の候補を記録しています。観察と追加指示の主用途は親agentが子を監督する流れで、人間も同じ経路を利用できる想定です。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。import mapとHTTP URLからのimportは未対応です。
+[起動と待受](agent-lifecycle-plan.md)の実装・検証・コードレビューが完了しました。結果とレビュー指摘の採否は[実装・検証記録](agent-lifecycle-implementation.md)を参照してください。公開APIは破壊的に変更し、互換aliasはありません。steer・明示的なinterrupt・人間用操作CLIも[実行中の操作計画](agent-control-plan.md)に沿って実装・総合検証・レビューを完了しました（[実装・検証記録](agent-control-implementation.md)）。
+
+[次の機能候補](future-candidates.md)には、Web検索の認証ラッパー、Workerからのagent利用、呼び出し元終了後も続く独立agent、実行コンテキスト圧縮、Jevなどの意思決定モデル、REPLとqjsの比較を記録しています。ライフサイクル作業で扱う親子agentの起動・観察・queue、推論エフォート、ログ観察の進捗は[実装・検証記録](agent-lifecycle-implementation.md)にあります。control操作の仕様と完了結果は[実行中の操作計画](agent-control-plan.md)と[実装・検証記録](agent-control-implementation.md)を参照してください。候補文書には設計経緯も残しています。v1.0.0時点の候補として、import mapとHTTP URLからのimportは未対応です。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。
 
 ## ビルドと検証
 

@@ -26,50 +26,135 @@ npm、パッケージ導入、URLからのモジュールimport、bare importに
 
 ## 自律agent（OpenRouter）
 
-`noe:agent`から`createAgent()`をimportできます。ルートagentは`provider`・`model`・`effort`をすべて明示指定します。子agentでは省略した項目を起動元runから継承します。現在利用できるproviderはOpenRouterだけです。 Go側の通信には[OpenRouter公式Go SDK v0.9.59](https://github.com/OpenRouterTeam/go-sdk/tree/v0.9.59)を使います。
+`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`steer_agent`・`interrupt_agent`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。現在利用できるproviderはOpenRouterだけです。
 
 ```js
-import { createAgent } from "noe:agent";
+import { run_agent } from "noe:agent";
 
-const summary = createAgent({
+const snapshot = await run_agent({
   provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",
+  effort: "auto",
   name: "summary",
   system: "日本語で簡潔に回答してください。",
-  effort: "auto",
   maxTokens: 1024,
-});
-
-const answer = await summary.run("README.mdを読んで要点を3点にまとめてください。", {
-  cacheKey: "noe-summary-v1",
   maxSteps: 6,
-});
-console.log(answer);
+  cacheKey: "noe-summary-v1",
+}, "README.mdを読んで要点を3点にまとめてください。");
+
+if (snapshot.lastResult?.state === "completed") {
+  console.log(snapshot.lastResult.answer);
+}
 ```
 
-`createAgent(options)`は、ルートでは`{provider, model, effort, name?, system?, maxTokens?}`を受け取ります。ルートで必須項目を省略した場合（`undefined`を含む）はTypeErrorになります。子では`provider`・`model`・`effort`も省略でき、指定した項目だけを上書きします。`provider`は`openrouter`だけです。`model`は空でない文字列、`name`は空でない文字列、`system`は文字列、`maxTokens`は0以上の整数です。`name`の既定値は`agent`、`system`の既定値は空文字、`maxTokens`の既定値は0です。`system`はagentの標準system instructionへ追加されます。0の場合、NOEはOpenRouterへ`max_tokens`を送りません。
+`run_agent(config, instruction?, options?)`はagent instanceが停止し、後始末を終えてからsnapshotを返します。起動APIに`wait` optionはありません。既定の`keepAlive:false`では1タスクで停止します。通常のタスク失敗はrejectではなく、`state:"stopped"`・`reason:"task_failed"`と`lastResult.state:"failed"`で返ります。入力や起動受付に失敗した場合はPromiseがrejectします。監督基盤の致命的な失敗は`state:"failed"`と理由をsnapshotへ記録します。
 
-`effort`は推論エフォートで、ルートでは明示指定が必要です。指定できる値は`"auto"`・`"none"`・`"minimal"`・`"low"`・`"medium"`・`"high"`・`"xhigh"`・`"max"`。明示的な`auto`も有効で、要求の`reasoning`を省略してprovider/modelの既定動作に任せます。推論を強制的に有効化する指定ではありません。他の値はOpenRouterへ`reasoning: {effort: "high"}`の形で送り、同じrunの各モデル要求で固定します。`maxTokens`・`maxSteps`とは別の設定です。
-
-実際に利用できるエフォートと効果はmodel/providerに従います。NOEはモデル別の対応表による事前拒否や値の自動変更を行わず、APIからエラーが返れば既存のprovider errorとして扱います。無効な指定値・型は`createAgent`でTypeErrorになります。[OpenRouterのreasoning仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)と[採用SDKのChatRequest定義](https://github.com/OpenRouterTeam/go-sdk/blob/v0.9.59/models/components/chatrequest.go)を確認しています（2026-10-16）。
-
-`agent.run(instruction, options)`はPromiseを返し、成功時の値は最終回答の文字列です。標準出力へ自動では表示しません。`instruction`は空でない文字列です。`options`は`{cacheKey?, maxSteps?}`で、`cacheKey`は任意の文字列、`maxSteps`は0以上の整数で既定値は0です。`maxSteps`はこのrunのモデル要求回数を制限し、tool回数や子agentを含む合計回数は制限しません。0はNOE側の上限なしを意味します。`maxTokens`はモデル要求ごとの出力上限で、会話全体の累計ではありません。どちらの上限も指定しない場合にNOEは独自の上限を追加しません。
-
-`cacheKey`はOpenRouterの`session_id`として送られ、routingやprompt cacheで使われる値です。未指定（`undefined`を含む）の場合は、そのrun用に生成した`runId`を使い、同じrun内の全モデル要求へ同じIDを送ります。子agentにも個別のIDを自動付与します。同じagent objectの再利用や`Promise.all`でもrunごとに異なるIDになり、親のIDは継承しません。自動IDはtraceの`runId`と対応します。
-
-明示した`cacheKey`はそのまま使用するため、同じrouting用IDを再利用したい場合は指定できます。`cacheKey: ""`は従来どおり`session_id`を省略します。キャッシュヒットは保証せず、会話履歴を保存・再開する機能でもありません。各`run()`は独立した履歴を持ちます。OpenRouterの[session_id仕様](https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions)を参照してください。
-
-生成JavaScriptのtoolは`run_js`一つです。各呼出しは新しいNOEプロセスで実行し、同じカレントディレクトリと標準ライブラリを使います。グローバル変数はtool呼出し間で保持せず、生成ソースは実行後に削除します。生成コードでは`createAgent`が事前に利用可能です。子agentがprovider、model、`maxTokens`、`effort`を省略すると、そのコードを起動したrunの値を継承します。明示した値は上書きされ、`maxTokens: 0`も有効な上書きです。子で`effort: "auto"`を指定すると、継承したエフォートをprovider/modelの既定動作へ戻せます。子の`name`、`system`、会話履歴は親から継承しません。
-
-生成ソースは一時moduleに保存されるため、相対importはそのソース位置を基準にします。カレントディレクトリのmoduleを読み込む場合は、`process.argv[1]`（実行中のソース）の場所からcwdへの相対prefixを作り、dynamic importします。
+`spawn_agent(config, instruction?, options?)`は起動と初期タスクの受領後に`{agentId}`を返します。最初のモデル応答やタスク完了は待ちません。`observe_agent({agentId})`はlive snapshotを直ちに返します。待受instanceへ追加の仕事を渡す場合は、`keepAlive:true`で起動して`queue_agent`を呼びます。
 
 ```js
-const { relative, dirname, sep } = await import("node:path");
-const cwdPrefix = relative(dirname(process.argv[1]), process.cwd()).split(sep).join("/");
-const helper = await import((cwdPrefix ? cwdPrefix + "/" : "./") + "helper.js");
+import { spawn_agent, observe_agent, queue_agent } from "noe:agent";
+
+const worker = await spawn_agent({
+  provider: "openrouter",
+  model: "deepseek/deepseek-v4.1-flash",
+  effort: "auto",
+  name: "worker",
+}, "README.mdの要点をまとめてください。", { keepAlive: true });
+
+const queued = await queue_agent({
+  agentId: worker.agentId,
+  instruction: "README.ja.mdも読み、違いを簡潔にまとめてください。",
+});
+
+let snapshot;
+while (true) {
+  snapshot = await observe_agent({ agentId: worker.agentId });
+  if (snapshot.lastResult?.commandId === queued.commandId && snapshot.state === "idle") break;
+  if (snapshot.state === "stopped" || snapshot.state === "failed") break;
+  await new Promise(resolve => setTimeout(resolve, 100));
+}
+
+console.log(snapshot.lastResult);
 ```
 
-生成JSの標準出力・標準エラー・終了コードは`{stdout, stderr, exitCode, reason}`のtool結果としてモデルへ返ります。`reason`は`completed`、`failed`、`timeout`、`cancelled`のいずれかです。モデルは失敗を受けてコードを修正できます。`run()`は認証、残高・利用枠、レート制限、通信、provider応答の不備、モデル拒否、token上限到達、空の最終回答、`maxSteps`到達でrejectします。provider SDKを含め、暗黙の再試行はしません。モデルが質問を最終回答として返しても、人間の入力待ちには入らず、その文字列を返します。
+`queue_agent({agentId, instruction, commandId?})`は受領後に`{commandId, status}`を返します。タスクはFIFOで処理され、各タスクは新しい履歴とrun IDを持ちます。`starting`・`running`・`idle`の`keepAlive` instanceで受け付けます。終了済みinstanceや`keepAlive:false`のinstanceは受け付けません。同じ`commandId`と同じ指示の再送は再実行せず現在statusを返し、異なる指示での再利用はエラーになります。既定では`commandId`が自動発行されます。
+
+### 設定
+
+`config`は`{provider, model, effort, name?, system?, maxTokens?, maxSteps?, cacheKey?}`です。rootで`provider`・`model`・`effort`を省略すると入力エラーです。子agentではprovider・model・effort・maxTokensを省略時に起動元から継承します。その他の項目は自動継承しません。`provider`は現在`openrouter`のみです。`model`と`name`は空でない文字列、`system`と`cacheKey`は文字列、`maxTokens`と`maxSteps`は0以上の整数です。`name`の既定値は`agent`、`system`は空文字、`maxTokens`と`maxSteps`は0です。`system`に渡した文字列は各タスクの実行中に固定されます。`instruction`は空でない文字列で、`keepAlive:true`なら省略できます。`options`は独立した第三引数で、受け取る項目は`keepAlive`のみです。`keepAlive`を`config`へ入れないでください。instructionを省略してoptionsを渡す場合は、第二引数に`undefined`を置きます。たとえば`spawn_agent({name:"worker"}, undefined, {keepAlive:true})`はidleで起動し、queueにtaskが届くまでモデルを呼びません。
+
+`effort`で指定できる値は`"auto"`・`"none"`・`"minimal"`・`"low"`・`"medium"`・`"high"`・`"xhigh"`・`"max"`です。明示的な`"auto"`は推論設定を送らず、provider/modelの既定動作に任せます。他の値はOpenRouterへ`reasoning: {effort: "high"}`の形で送り、各タスクで固定します。実際に利用できるエフォートと効果はmodel/providerに従います。NOEはモデル別の対応表による事前拒否や値の自動変更を行わず、APIからエラーが返ればprovider errorとして扱います。[OpenRouterのreasoning仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)を参照してください。
+
+`maxSteps`はタスクごとのモデル要求回数を制限します。0はNOE側の上限なしです。`maxTokens`はモデル要求ごとの出力上限で、会話全体の累計ではありません。0の場合、NOEはOpenRouterへ`max_tokens`を送りません。どちらの上限も指定しない場合、NOEは独自の上限を追加しません。
+
+`cacheKey`はOpenRouterの`session_id`として送られ、routingやprompt cacheで使われる値です。未指定（`undefined`を含む）の場合は各task runの`runId`を使い、同じtask内の全モデル要求へ同じIDを送ります。明示した`cacheKey`は各taskで再利用されます。`cacheKey: ""`は`session_id`を送らない指定です。キャッシュヒットは保証せず、会話履歴を保存・再開する機能でもありません。[OpenRouter session_id仕様](https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions)を参照してください。
+
+### 戻り値・状態・寿命
+
+run snapshotは`{agentId, parentRunId, name, state, reason, keepAlive, currentRunId, queueLength, lastResult}`です。instance stateは`starting`・`idle`・`running`・`stopping`・`stopped`・`failed`です。起動直後やidleでは`currentRunId`が空です。`lastResult`は最後のtaskの`{runId, commandId, state, answer, error?}`で、まだtaskを実行していなければ`null`です。
+
+`keepAlive`の既定値は`false`です。`false`なら一つのtaskの後に停止し、instructionは必須です。`true`ならtask完了・失敗後も待受を続け、通常のtask失敗後も次のqueue taskを受け付けます。instructionを省略するとidleから開始します。idle中にモデルは呼び出しません。`run_agent(config, instruction, {keepAlive:true})`はinstance停止まで戻りません。
+
+rootのrun/evalではJS本文が終わってもnative追跡によって待受が続き、現在の終了方法はCtrl+C・timeoutなどです。REPLでもkeepAlive instanceが残る入力は次のpromptへ進みません。親run_jsから起動した子はtool本文の終了後も親runに所有されます。
+
+待受instanceは、その所有者のNOE runに結び付いています。親runの終了・取消し、timeout、Ctrl+Cなどで回収され、NOE終了後も独立して続くdaemonにはなりません。
+
+### 実行中taskへの指示と停止
+
+`steer_agent({runId, instruction, commandId?})`は実行中taskへ追加指示を受領します。同じrunの履歴へ次のモデル判断前にuser messageとして加わります。進行中のモデル要求や`run_js`を中断・書換えしません。runが終了していれば受け付けません。
+
+```js
+import { steer_agent } from "noe:agent";
+
+async function addInstructionToActiveTask(runId) {
+  const receipt = await steer_agent({
+    runId,
+    instruction: "結果を箇条書きにまとめてください。",
+  });
+  console.log(receipt.commandId);
+}
+```
+
+steerの受領は適用完了を意味しません。`commandId`を省略すると自動発行し、返されたIDでJSONLの`command.accepted`・`command.applied`・`command.cancelled`を追跡します。イベントの`operation`は`steer`です。同じrunで同じ`commandId`・指示を再送すると重複適用せず現在の状態を返し、異なる指示でIDを再利用するとエラーです。モデルが最終回答候補を確定する直前にも受領済みsteerを確認します。確定より先に受け付けた指示は最終回答の前に適用し、確定後の指示は終了済みとして拒否します。別runとして後の仕事を始める`queue_agent`とは使い分けてください。
+
+`interrupt_agent`は、指定した対象への停止要求を受領すると戻ります。後始末完了を待つAPIではありません。
+
+```js
+import { interrupt_agent } from "noe:agent";
+
+async function stopTask(runId) {
+  await interrupt_agent({ runId });
+}
+async function stopInstance(agentId) {
+  await interrupt_agent({ agentId });
+}
+```
+
+`runId`と`agentId`のどちらか一方を指定します。`{runId}`はtask・生成JS・そのtaskが所有する子workを取消します。`keepAlive:true` instanceと他の予約は残り、次の予約またはidle状態へ進みます。`{agentId}`はidle中でも受け付け、instanceを停止して実行中task・未実行queue・子instanceを回収します。idle時は最後のtask結果を書き換えません。JSONLには`interrupt.accepted`が記録され、`target`は`run`または`agent`です。停止要求の受付後、`observe_agent({agentId})`でstateと最終結果を確認してください。単発instanceのtaskだけをinterruptした場合、snapshotの`reason`は`task_interrupted`になります。明示的なinstance interrupt後はsnapshotの`reason`が`interrupted`になり、`run_agent`は回収後に終端snapshotを返します。
+
+JavaScriptからのsteer・interruptは呼出元が所有するscope内で認可されます。所有していないrunやagentのIDを指定すると受付エラーになります。別terminalのCLIはローカルhost用のcontrol接続から操作し、JSへ渡す子scope用tokenを使いません。
+
+### 別ターミナルからの操作
+
+人間は同じユーザー環境の別ターミナルから稼働中のNOEへ接続できます。
+
+```sh
+noe agents
+noe steer <run-id> '結果を表形式にしてください'
+noe queue <agent-id> '続けてテストしてください'
+noe interrupt --run <run-id>
+noe interrupt --agent <agent-id>
+```
+
+`noe agents`は到達可能なhostのactive instanceとagent ID・current run ID・state・queue件数・nameを表示します。終了済みinstanceは一覧に含めません。各操作は受付結果を返し、task完了や回収を待ちません。`steer`には実行中のrun ID、`queue`とinstance停止にはagent IDを使います。IDは完全なIDか、候補が一つに絞れるprefixを使えます。要求後の進行確認には`noe observe`・`--observe`・JSONLを使ってください。
+
+Control接続はローカルで稼働中のNOEに限られ、daemonや再起動後のagent管理には使えません。接続先を共有する必要がある場合は、agentを実行するNOEとCLIで同じ`NOE_AGENT_RUNTIME_DIR`または`XDG_RUNTIME_DIR`を使ってください。新規作成するruntime directoryはmode `0700`、既存directoryのmodeは変更しません。接続情報fileとsecret fileは常にmode `0600`で保護します。`NOE_AGENT_RUNTIME_DIR`に既存directoryを指定してもchmodは行いません。接続探索はcontrol要求に限り2秒で打ち切り、モデル要求のtimeoutは変更しません。
+
+### run_jsからの利用
+
+モデル向けの`run_js`では6つのagent関数が事前に束縛されています。importや再宣言をせず、そのまま呼び出してください。`run_js`呼出しごとに新しいNOEプロセスが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
+
+`observe_agent`はlive状態と保存済みJSONLの二つのtargetを持ちます。live用は`observe_agent({agentId})`のみです。ファイル観察は既存の`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`を維持します。両方のtargetを同じ呼出しへ混在させられません。ファイル観察の戻り値・cursorは[観察ガイド](observe.md)を参照してください。
 
 ### 認証と設定
 
@@ -79,7 +164,7 @@ OpenRouter APIキーをテキストファイルへ保存し、`NOE_OPENROUTER_AP
 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key ./noe run examples/agent-summary.js README.md
 ```
 
-この変数が空または未設定なら、`$XDG_CONFIG_HOME/noe/credentials/openrouter-api-key`を探します。`XDG_CONFIG_HOME`が未設定なら`~/.config/noe/credentials/openrouter-api-key`を使います。ファイル内容の前後の空白は取り除きます。Go側が最初のモデル要求時にファイルを読み、importや`createAgent()`では読みません。キー値はモデル履歴・子接続情報・traceへ含めません。NOEはsandboxではなく、実行するJSは同一ユーザーのOS権限でファイルや環境変数へアクセスできます。
+この変数が空または未設定なら、`$XDG_CONFIG_HOME/noe/credentials/openrouter-api-key`を探します。`XDG_CONFIG_HOME`が未設定なら`~/.config/noe/credentials/openrouter-api-key`を使います。ファイル内容の前後の空白は取り除きます。Go側が最初のモデル要求時にファイルを読みます。moduleのimportや初期taskなしのidle起動では読みません。task付きのrun/spawnは受領後にモデル要求を開始します。キー値はモデル履歴・子接続情報・traceへ含めません。NOEはsandboxではなく、実行するJSは同一ユーザーのOS権限でファイルや環境変数へアクセスできます。
 
 `NOE_OPENROUTER_BASE_URL`はOpenRouter APIのbase URLを上書きし、既定値は`https://openrouter.ai/api/v1`です。`NOE_AGENT_TRACE=1`を指定すると、実行メタデータをJSON Linesで標準エラーへ出力します。
 
@@ -98,7 +183,7 @@ WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソ
 
 `run`・`eval`・`repl`で`--observe`を付けると、stdoutへ人間向けの整形表示を直接出せます。`--events=path`との併用でJSONL保存も行えます。`--events=-`は機械処理用のstdout JSONLとして維持し、同じstdoutを使う`--observe`とは同時指定しません。
 
-観察の入口として、人間用CLIの`noe observe`と、親用JS APIの`observe_agent`を利用できます。後者は`import {observe_agent} from "noe:agent"`から`await observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`を呼び、GoがJSONLから組み立てた状態・差分・確定済みの結果を返します。既定は非待機、`wait: true`なら対象runの終端を待ちます。使い方と戻り値は[観察の入口](observe.md)を参照してください。
+観察には人間用CLIの`noe observe`と、親用JS APIの`observe_agent`を利用できます。`observe_agent({agentId})`はlive snapshotをすぐ返します。`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`は既存JSONLから状態・差分・確定済みの結果を返し、既定は非待機、`wait: true`ならrunの終端まで待ちます。使い方と戻り値は[観察の入口](observe.md)を参照してください。
 
 `run`・`eval`・`repl`共通の`--events`で通常出力とagentの詳細イベントをJSONLへ記録できます。`--events=-`はstdout、`--events=path`はファイルへの追記、`--events`単独は起動時のcwdに`noe-events-日時-ID.jsonl`を新規作成します。通常出力、thinking・summary、途中の発言、最終回答、`run_js`の先頭コメントと成功・失敗をrun ID付きで読めます。オプションはソースより前へ置きます。形式、REPLの扱い、逐次出力の範囲は[観察ガイド](events.md)を参照してください。
 
@@ -193,7 +278,22 @@ REPLでは変数や関数を入力間で保持します。タイマーだけが�
 
 ## 旧APIからの移行
 
-以前のNOE固有APIは提供しません。既存スクリプトは次の標準APIへ移行してください。
+以前のNOE固有APIは提供しません。`createAgent()`・`agent.run()`にも互換aliasはありません。旧agent APIでは`maxSteps`と`cacheKey`を`run()`側へ渡していましたが、新APIでは`config`へまとめます。`run_agent()`は文字列ではなくsnapshotを返すため、回答は`lastResult.answer`から取得してください。
+
+```js
+// 以前
+const agent = createAgent({ provider, model, effort, maxTokens });
+const previousAnswer = await agent.run(instruction, { maxSteps, cacheKey });
+
+// 現在
+import { run_agent } from "noe:agent";
+const snapshot = await run_agent({
+  provider, model, effort, maxTokens, maxSteps, cacheKey,
+}, instruction);
+const answer = snapshot.lastResult?.answer;
+```
+
+その他の旧NOE固有APIは提供しません。既存スクリプトは次の標準APIへ移行してください。
 
 | 以前のAPI | 移行先 |
 | --- | --- |

@@ -39,7 +39,7 @@ func TestAgentParentTimeoutStopsNestedProcessGroups(t *testing.T) {
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		code := `import {writeFileSync} from "node:fs";
 writeFileSync("parent.pid",String(process.pid));
-console.log(await createAgent({name:"nested"}).run("nested child"));`
+const child=await run_agent({name:"nested"},"nested child");console.log(child.lastResult.answer);`
 		if agentUser(req) == "nested child" {
 			code = `import {writeFileSync} from "node:fs";
 import {execFile} from "node:child_process";

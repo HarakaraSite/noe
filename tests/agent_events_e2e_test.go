@@ -29,7 +29,7 @@ func TestAgentEventsParallelRootsChildrenAndToolResults(t *testing.T) {
 				return agentModelReply{Deltas: []map[string]any{
 					{"reasoning": "考える"},
 					{"reasoning_details": []any{map[string]any{"type": "reasoning.summary", "index": 0, "summary": "要約"}}},
-					{"content": "子に依頼します", "tool_calls": []any{agentTool("delegate", "// 子に集計を依頼する\nconsole.log(await createAgent({name:'child'}).run('C'));")}},
+					{"content": "子に依頼します", "tool_calls": []any{agentTool("delegate", "// 子に集計を依頼する\nconst child=await run_agent({name:'child'},'C');console.log(child.lastResult.answer);")}},
 				}, FinishReason: "tool_calls"}
 			case "B":
 				return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("fails", "// 失敗を確認する\nconsole.error('tool failure');process.exit(7);")}}}, FinishReason: "tool_calls"}
@@ -38,12 +38,12 @@ func TestAgentEventsParallelRootsChildrenAndToolResults(t *testing.T) {
 		return agentModelReply{Content: task + "完了"}
 	})
 	defer server.Close()
-	script := `import {createAgent} from "noe:agent";
+	script := `import {run_agent} from "noe:agent";
 const config={provider:'openrouter',model:'fixture/model',effort:'auto'};
 console.log(JSON.stringify(await Promise.all([
-createAgent({...config,name:'parent-A'}).run('A'),
-createAgent({...config,name:'parent-B'}).run('B')
-])));`
+run_agent({...config,name:'parent-A'},'A'),
+run_agent({...config,name:'parent-B'},'B')
+]).then(results=>results.map(result=>result.lastResult.answer))));`
 	writeFixture(t, filepath.Join(work, "main.js"), script)
 	env := agentCLIEnv(t, server.URL)
 	env["NOE_AGENT_TRACE"] = ""

@@ -22,8 +22,9 @@
 | [http-server.js](http-server.js) | healthとJSON echoのHTTPサーバー |
 | [sleep-demo.js](sleep-demo.js) | 非同期の待機を使った定期表示 |
 | [repl-demo.js](repl-demo.js) | REPLへ1行ずつ貼り付けて試す計算例 |
-| [agent-summary.js](agent-summary.js) | OpenRouter agentが指定ファイルを読み、要約を返す |
-| [agent-parallel.js](agent-parallel.js) | 二つの子agentがJSONを並行集計し、親agentが結果をまとめる |
+| [agent-summary.js](agent-summary.js) | `run_agent`で指定ファイルを読み、snapshotから要約を表示 |
+| [agent-parallel.js](agent-parallel.js) | `spawn_agent`で二つの子agentを起動・観察し、親agentが結果をまとめる |
+| [agent-control.js](agent-control.js) | keepAliveのroot agentを別terminalからsteer・queue・interrupt |
 | [try-agent.js](../try-agent.js) | 引数のタスクをagentへ依頼。引数なしならJSで1〜100の合計を計算 |
 
 `lib/`は例で使うモジュール、`data/`はサンプル入力です。agentの並行例は[左のJSON](data/agent/left.json)と[右のJSON](data/agent/right.json)を使います。
@@ -44,9 +45,9 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run examples/agent-parallel.js
 ```
 
-並行例の既定入力は`examples/data/agent/left.json`と`examples/data/agent/right.json`です。必要なら二つのpathを引数で置き換えられます。モデル出力の文章や形式は変わる場合があります。`agent.run()`が返す値は文字列で、JavaScript側が`console.log()`を呼んで表示しています。
+並行例の既定入力は`examples/data/agent/left.json`と`examples/data/agent/right.json`です。必要なら二つのpathを引数で置き換えられます。モデル出力の文章や形式は変わる場合があります。`run_agent()`はinstance snapshotを返し、例は`snapshot.lastResult.answer`を表示します。並行例は`spawn_agent()`で子IDを受け取り、`observe_agent({agentId})`で終了までの状態を確認します。
 
-ルートagentには`provider`・`model`・`effort`を明示指定します。これらの例では`provider: "openrouter"`と`effort: "auto"`を指定し、子agentは省略した項目を起動元runから継承します。`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、`createAgent`・`run`の設定、エラー、REPL、任意の実行timeout、traceは[APIリファレンス](../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
+ルートagentには`provider`・`model`・`effort`を明示指定します。子agentはprovider・model・effort・`maxTokens`を省略時に起動元runから継承します。他のconfig項目は継承しません。`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、新しい関数APIの設定・戻り値・エラー、keepAliveとqueue、REPL、任意の実行timeout、traceは[APIリファレンス](../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
 
 任意のタスクを試す場合は、ルートの`try-agent.js`へ指示を渡します。次の例はREADMEを読み、要約ファイルを作らせます。
 
@@ -57,6 +58,36 @@ NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 ```
 
 `tail -f agent-trace.log`で実行状態を確認できます。traceは状態・使用量などのメタデータで、生成JS本文やtoolの出力を含みません。標準エラーには通常の診断も入りえます。
+
+## Live agent control
+
+この例は最初のtaskを45秒間実行し、その後も`keepAlive`でidleになります。OpenRouter keyを設定して一つ目のterminalで起動します。
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run --observe examples/agent-control.js
+```
+
+二つ目のterminalからactive instanceのIDを調べます。
+
+```sh
+./noe agents
+```
+
+最初の45秒以内に`RUN ID`を指定してsteerすると、実行中のtimerは続き、指示はその後のモデル判断で適用されます。taskがidleになった後はsteerを受け付けないため、別taskは`queue`で追加します。
+
+```sh
+./noe steer <run-id> '回答にこの文を含めて: control message received'
+./noe queue <agent-id> 'README.mdの目的を一文で説明してください'
+```
+
+`./noe interrupt --run <run-id>`はそのtaskだけを止め、instanceをidleにします。実行を完全に終了するには`agentId`を指定します。
+
+```sh
+./noe interrupt --agent <agent-id>
+```
+
+操作CLIは受付結果を返し、task完了や回収を待ちません。`--observe`のinstance/task表示やJSONLから実際の進行を確認できます。別の利用例・API引数は[APIリファレンス](../docs/api.md#実行中taskへの指示と停止)と[観察ガイド](../docs/observe.md)を参照してください。
 
 ## JSONの加工と保存
 

@@ -26,6 +26,8 @@ type Options struct {
 	Cwd             string
 	Executable      string
 	Connection      *Connection
+	ControlDir      string // explicit human control registry directory
+	EnableControl   bool   // resolve the default directory lazily at first broker use
 	Trace           io.Writer
 	// Observe receives structured agent events. Calls are serialized and never
 	// made while Host.mu is held.
@@ -67,6 +69,7 @@ type Host struct {
 	broker     *broker
 	operations map[*Operation]struct{}
 	runs       map[string]*agentRun
+	instances  map[string]*agentInstance
 	traceMu    sync.Mutex
 	observeMu  sync.Mutex
 }
@@ -85,6 +88,9 @@ type Operation struct {
 	remoteAuth  string
 	client      *http.Client
 	parentRunID string
+	instances   map[string]*agentInstance // direct evaluation-owned instances; host.mu
+	task        *managedTask              // task bootstrap scope; host.mu
+	control     bool                      // trusted host control, never delegated to JS
 
 	requestMu      sync.Mutex
 	requestClosing bool
@@ -95,6 +101,7 @@ type Operation struct {
 
 type endedRun struct {
 	id       string
+	agentID  string
 	parentID string
 	name     string
 	model    string
@@ -118,6 +125,7 @@ func NewHost(opts Options) *Host {
 		closeDone:  make(chan struct{}),
 		operations: make(map[*Operation]struct{}),
 		runs:       make(map[string]*agentRun),
+		instances:  make(map[string]*agentInstance),
 	}
 }
 
@@ -147,6 +155,7 @@ func (h *Host) NewOperation(parent context.Context) *Operation {
 	op := &Operation{
 		host: h, ctx: ctx, cancel: cancel, scope: scope,
 		remoteBase: remoteBase, remoteAuth: remoteAuth,
+		instances: make(map[string]*agentInstance),
 		closeDone: make(chan struct{}),
 		// A zero Timeout is deliberate: long model calls are governed solely by
 		// the operation context and explicit runtime cancellation.
@@ -209,16 +218,27 @@ func (h *Host) Close() {
 	}
 	clear(h.operations)
 	var ended []endedRun
+	var pendingSteers []steerLifecycleEvent
 	for id, run := range h.runs {
 		run.cancel()
+		pendingSteers = append(pendingSteers, h.cancelPendingSteersLocked(run)...)
 		ended = append(ended, endedRun{
-			id: id, parentID: run.parentRunID, name: run.config.Name,
+			id: id, agentID: run.agentID(), parentID: run.parentRunID, name: run.config.Name,
 			model: run.config.Model, started: run.started,
 		})
-		delete(h.runs, id)
+		if run.instance == nil {
+			delete(h.runs, id)
+		} else {
+			ended = ended[:len(ended)-1] // managed task emits its terminal after process reap
+		}
+	}
+	instances := make([]*agentInstance, 0, len(h.instances))
+	for _, instance := range h.instances {
+		instances = append(instances, instance)
 	}
 	b := h.broker
 	h.mu.Unlock()
+	h.emitSteerEvents(pendingSteers)
 	for _, run := range ended {
 		h.traceEvent(traceEvent{
 			RunID: run.id, ParentID: run.parentID, Name: run.name, Model: run.model,
@@ -235,6 +255,13 @@ func (h *Host) Close() {
 		op.requests.Wait()
 		op.closeDoneOnce.Do(func() { close(op.closeDone) })
 	}
+	for _, instance := range instances {
+		<-instance.done
+	}
+	h.mu.Lock()
+	clear(h.instances)
+	clear(h.runs)
+	h.mu.Unlock()
 }
 
 // Close cancels this operation and all runs it owns. It is idempotent.
@@ -261,14 +288,25 @@ func (op *Operation) Close() {
 	}
 	delete(h.operations, op)
 	var ended []endedRun
+	var pendingSteers []steerLifecycleEvent
 	var childScopes []*Operation
+	var instances []*agentInstance
+	for _, instance := range op.instances {
+		instances = append(instances, instance)
+	}
 	for id, run := range h.runs {
 		if run.operation == op {
 			run.cancel()
-			ended = append(ended, endedRun{
-				id: id, parentID: run.parentRunID, name: run.config.Name,
-				model: run.config.Model, started: run.started,
-			})
+			pendingSteers = append(pendingSteers, h.cancelPendingSteersLocked(run)...)
+			if run.instance == nil {
+				ended = append(ended, endedRun{
+					id: id, parentID: run.parentRunID, name: run.config.Name,
+					model: run.config.Model, started: run.started,
+				})
+			}
+			for _, instance := range run.instances {
+				instances = append(instances, instance)
+			}
 			for childScope := range run.childScopes {
 				childScopes = append(childScopes, childScope)
 			}
@@ -276,10 +314,14 @@ func (op *Operation) Close() {
 		}
 	}
 	h.mu.Unlock()
+	h.emitSteerEvents(pendingSteers)
 	for _, childScope := range childScopes {
 		childScope.Close()
 	}
 	op.requests.Wait()
+	for _, instance := range instances {
+		<-instance.done
+	}
 	for _, run := range ended {
 		h.traceEvent(traceEvent{
 			RunID: run.id, ParentID: run.parentID, Name: run.name, Model: run.model,
@@ -288,6 +330,17 @@ func (op *Operation) Close() {
 		h.observeEndedRun("agent.cancelled", run, events.Event{
 			"status": "cancelled", "duration": time.Since(run.started),
 		})
+	}
+	// Results remain observable for the owning evaluation. After that scope
+	// closes no future evaluation is authorized to read them (notably in REPL).
+	if op.task == nil && op.parentRunID == "" {
+		h.mu.Lock()
+		for id, instance := range h.instances {
+			if h.canManageLocked(op, instance) {
+				delete(h.instances, id)
+			}
+		}
+		h.mu.Unlock()
 	}
 	op.closeDoneOnce.Do(func() { close(op.closeDone) })
 }
@@ -306,6 +359,9 @@ func (h *Host) observeRun(eventType, runID string, run *agentRun, fields events.
 		"type": eventType, "runId": runID,
 		"parentRunId": run.parentRunID, "name": run.config.Name, "model": run.config.Model,
 	}
+	if id := run.agentID(); id != "" {
+		event["agentId"] = id
+	}
 	for key, value := range fields {
 		event[key] = value
 	}
@@ -316,6 +372,9 @@ func (h *Host) observeEndedRun(eventType string, run endedRun, fields events.Eve
 	event := events.Event{
 		"type": eventType, "runId": run.id,
 		"parentRunId": run.parentID, "name": run.name, "model": run.model,
+	}
+	if run.agentID != "" {
+		event["agentId"] = run.agentID
 	}
 	for key, value := range fields {
 		event[key] = value

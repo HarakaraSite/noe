@@ -5,7 +5,7 @@ A tiny JavaScript/TypeScript runtime written in pure Go.
 No bloat. Just scripts.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
-小さなスクリプトと自律agentのタスクを実行するGo製ランタイムです。JavaScriptで処理を書いたり、`agent.run()`へ仕事を頼んでファイル操作・JS実行・修正・回答まで任せたりできます。JavaScriptエンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。
+小さなスクリプトと自律agentのタスクを実行するGo製ランタイムです。JavaScriptで処理を書いたり、`run_agent()`へ仕事を頼んでファイル操作・JS実行・修正・回答まで任せたりできます。JavaScriptエンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。
 
 **現在の対応言語はJavaScriptです。TypeScriptは後から追加する予定です。** npm・パッケージ管理は対象外で、Node.jsやDenoの完全互換は目標にしていません。固定したgo-quickjs標準ライブラリのWeb APIとNode形式APIを有効にしていますが、各APIは一部実装です。
 
@@ -62,24 +62,36 @@ printf '[100,200,300]\n' | ./noe run examples/summarize-stdin.js
 
 ## OpenRouter agent
 
-v1.2.0で組み込みの`noe:agent`モジュールを追加しました。初版のプロバイダはOpenRouterです。実行中に人間の入力や承認を待たず、モデルが`run_js`でJavaScriptを実行し、結果を確認して修正したり、子agentへ仕事を任せたりします。認証・モデル通信・子プロセス管理はGo、agent loopはJavaScriptが担当します。
+組み込みの`noe:agent`モジュールで、OpenRouterを使った自律agentを実行できます。agentは`run_js`でファイルの確認やJavaScript・コマンドの実行、失敗した処理の修正、子agentへの委譲を行います。モデルloopとprovider接続はNOEと同じOS権限で動きます。
 
 ```js
-import { createAgent } from "noe:agent";
+import { run_agent } from "noe:agent";
 
-const agent = createAgent({
+const snapshot = await run_agent({
   provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",
   effort: "auto",
-});
-const answer = await agent.run(
-  "README.mdを読み、要点をSUMMARY.mdへ保存してください。",
-  { cacheKey: "readme-summary-v1" },
-);
-console.log(answer);
+  name: "summary",
+  cacheKey: "readme-summary-v1",
+}, "README.mdを読み、要点をSUMMARY.mdへ簡潔に保存してください。");
+console.log(snapshot.lastResult?.answer);
 ```
 
-agentはNOEと同じOS権限でファイルを読み書きし、コマンドを実行できます。処理に使うファイル内容はOpenRouterへの要求に含まれることがあります。
+公開関数は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`steer_agent`・`interrupt_agent`です。`run_agent`はagent停止後にsnapshotを返し、taskの回答は`snapshot.lastResult.answer`から取得します。通常のtask失敗もsnapshotに記録されます。`spawn_agent`は起動と最初のtaskの受領後に`agentId`を返します。`observe_agent({agentId})`で現在の状態を取得できます。`{keepAlive:true}`で起動したagentには`queue_agent({agentId, instruction})`で別taskを渡せます。queueのtaskは毎回新しい会話履歴で実行します。
+
+`steer_agent({runId, instruction})`は実行中taskへ指示を追加し、進行中のモデル要求やJavaScriptは止めず、次のモデル判断前に反映します。`interrupt_agent({runId})`はtaskとその子workだけを取消し、keepAlive instanceと他のqueueを残します。`interrupt_agent({agentId})`は実行中taskやqueueを含めinstance全体を停止します。いずれも受付後すぐ戻り、処理結果や回収完了は観察で確認します。待受agentは現在のNOE runが所有し、所有者の終了時に回収されます。
+
+別のterminalからも稼働中のNOEを操作できます。
+
+```sh
+./noe agents
+./noe steer <run-id> '結果を表形式にまとめてください'
+./noe queue <agent-id> '続けてテストしてください'
+./noe interrupt --run <run-id>
+./noe interrupt --agent <agent-id>
+```
+
+`noe interrupt --run`はtaskだけを止め、`noe interrupt --agent`はinstance全体を止めます。詳しくは[APIリファレンス](docs/api.md)、[観察ガイド](docs/observe.md)、[操作例](examples/README.md#live-agent-control)を参照してください。
 
 OpenRouter APIキーをテキストファイルへ保存し、そのパスをNOEへ指定します。
 
@@ -88,27 +100,27 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run examples/agent-summary.js README.md
 ```
 
-ファイルは最初のモデル要求時に読み込みます。環境変数が未設定なら、`$XDG_CONFIG_HOME/noe/credentials/openrouter-api-key`を使います。`XDG_CONFIG_HOME`も未設定の場合は`~/.config/noe/credentials/openrouter-api-key`です。moduleのimportやagentの作成だけでは、キーを読んだりproviderへ接続したりしません。
+ファイルは最初のモデル要求時に読み込みます。環境変数が未設定なら、`$XDG_CONFIG_HOME/noe/credentials/openrouter-api-key`を使います。`XDG_CONFIG_HOME`も未設定の場合は`~/.config/noe/credentials/openrouter-api-key`です。moduleのimportや初期taskなしのidle起動では、キー読込み・provider通信は行いません。task付きの起動では、受領後に非同期でモデル要求を開始します。
 
-`agent.run()`は文字列を返し、自動では表示しません。例では`console.log`で表示しています。サンプルJSONを子agentが並行して集計する場合は、次の例を実行してください。
+ルートagentでは`provider`・`model`・`effort`を明示します。`effort`は`auto`・`none`・`minimal`・`low`・`medium`・`high`・`xhigh`・`max`を指定できます。子agentはprovider・model・effort・`maxTokens`を省略時に起動元runから継承します。他の設定は継承されません。`maxSteps`はtaskごとのモデル呼出し回数を制限します。`cacheKey`を省略するとtaskの`runId`をOpenRouterの`session_id`に使い、空文字なら`session_id`を省略します。task間で会話履歴は共有しません。
+
+サンプルJSONを子agentが並行して集計する場合は、次の例を実行してください。
 
 ```sh
 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run examples/agent-parallel.js
 ```
 
-ルートagentには`provider`・`model`・`effort`の明示指定が必要です。`effort`は`auto`・`none`・`minimal`・`low`・`medium`・`high`・`xhigh`・`max`で、明示した`auto`はprovider/modelの既定動作に任せる指定です。子agentはprovider・model・`maxTokens`・`effort`を起動元runから継承し、必要なら上書きできます。子で`effort: "auto"`を指定すると継承したエフォートを既定動作へ戻せます。各runの履歴は独立しています。model設定、任意の上限、エラー、REPL利用、trace出力は[実行例](examples/README.md)と[APIリファレンス](docs/api.md)を参照してください。
-
-任意のタスクを試すには、[try-agent.js](try-agent.js)へ指示を引数で渡します。引数を省略すると、JSを実行して1〜100の合計を計算します。
+任意のタスクは[try-agent.js](try-agent.js)へ指示を引数で渡して実行できます。引数を省略すると、JSを使って1〜100の合計を計算します。
 
 ```sh
 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run try-agent.js "README.mdを読み、要点をSUMMARY.mdへ保存してください。"
 ```
 
-`run_js`は呼出しごとに新しいNOEプロセスを起動します。子agentは`Promise.all`で並行処理し、親が結果を統合できます。会話を永続化する機能はなく、`cacheKey`はプロバイダのcache/routing用です。未指定時は子agentを含む各runの`runId`をOpenRouterの`session_id`に使い、そのrun内の全モデル要求で固定します。明示した値はそのまま使い、空文字の場合は`session_id`を省略します。回答・編集内容はモデルに依存し、厳密なJSON形式は保証しません。回数・トークン上限は任意で、時間上限には既存の`run --timeout`を使います。
+モデルが生成する`run_js`では6つのagent関数が事前に束縛されています。importや再宣言は不要です。`run_js`ごとに新しいNOEプロセスが動くため、通常のJavaScript変数は呼出し間で保持されません。設定、操作、エラー、REPL、traceについては[実行例](examples/README.md)と[APIリファレンス](docs/api.md)を参照してください。
 
-### 実行ログの観察
+### agent実行の観察
 
 人間向けには`--observe`で、パイプなしに読みやすく表示できます。thinkingの断片をつなぎ、agentとtoolを識別しながらJS実行結果や最終回答を表示します。途中の発言と最終回答は、表の整形を含む色なしのMarkdown表示になります。スクリプトとtoolのstdoutは表示から省き、`run_js`の先頭1行コメント・成功失敗とstderrを表示します。`--events=path`を併用すると元のJSONLも保存できます。
 
@@ -118,7 +130,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 ./noe observe --follow agent.jsonl
 ```
 
-親向けには`noe:agent`の`observe_agent({logPath, runId, cursor?, wait?})`で状態・差分・確定済みの結果を構造化して取得できます。観察自体はモデルを呼びません。両方の入口は[観察ガイド](docs/observe.md)を参照してください。
+`observe_agent({agentId})`はlive snapshotをすぐ返します。保存済みJSONLには従来の`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`でアクセスできます。観察自体はモデルを呼びません。両方の入口は[観察ガイド](docs/observe.md)を参照してください。
 
 `run`・`eval`・`repl`共通の`--events`で、通常のJS出力と詳細イベントをJSONLへ記録できます。providerが返すthinking・summary、途中の発言、最終回答、`run_js`の先頭コメントと成功・失敗をrun ID付きで観察できます。`--events=-`はstdout、`--events=agent.jsonl`はファイルへ追記、`--events`単独は起動時のcwdに`noe-events-日時-ID.jsonl`を新規作成します。ファイル指定時は普段の画面表示を保ち、REPLのプロンプトや端末制御は記録しません。詳細は[観察ガイド](docs/events.md)を参照してください。
 
@@ -127,20 +139,14 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 ./noe repl --events=agent.jsonl
 ```
 
-`NOE_AGENT_TRACE=1`で、実行メタデータをJSON Linesとして標準エラーへ出力します。最終回答とtraceは別ファイルへ保存できます。
+`NOE_AGENT_TRACE=1`で実行メタデータをJSON Linesとして標準エラーへ出力します。最終回答とtraceは別ファイルへ保存できます。
 
 ```sh
 NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run examples/agent-summary.js README.md >answer.txt 2>agent-trace.log
 ```
 
-実行中に別ターミナルから観察します。
-
-```sh
-tail -f agent-trace.log
-```
-
-traceにはrun ID・親run ID・agent名・model・状態・所要時間、返された場合はトークン使用量・cache量・costを記録します。標準エラーには通常の診断も入りうるため、全行がtraceとは限りません。生成JS本文、toolの標準出力・標準エラー、APIキーはtraceへ記録しません。詳細は[APIリファレンス](docs/api.md)を参照してください。
+`tail -f agent-trace.log`で実行状態を確認できます。traceにはrun ID・親run ID・agent名・model・状態・所要時間、返された場合はtoken使用量・cache量・costを記録します。標準エラーには通常の診断も入りうるため、全行がtraceとは限りません。生成JS本文、toolの標準出力・標準エラー、APIキーは記録しません。詳細は[APIリファレンス](docs/api.md)を参照してください。
 
 ## HTTPサーバー
 
@@ -212,7 +218,7 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 
 | 用途 | API |
 | --- | --- |
-| 自律タスク | `noe:agent`の`createAgent`・`agent.run` |
+| 自律タスク | `noe:agent`の`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent` |
 | 出力 | `console.log`・`console.warn`・`console.error` |
 | 引数・環境・終了 | `process.argv`・`process.env`・`process.cwd()`・`process.exit()` |
 | 標準入力 | `process.stdin.read()` |

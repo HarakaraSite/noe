@@ -30,18 +30,17 @@ func TestAgentREPLTerminalReuseAndErrorRecovery(t *testing.T) {
 	env["NOE_AGENT_TRACE"] = ""
 	session := startTerminalREPL(t, t.TempDir(), env)
 	session.enter(t, `const am=await import("noe:agent")`)
-	session.enter(t, `const a=am.createAgent({provider:"openrouter",model:"fixture/model",effort:"high"})`)
 	if calls.Load() != 0 {
-		t.Fatal("REPL import/create contacted provider")
+		t.Fatal("REPL import contacted provider")
 	}
 	// Completion goes through NOE's live Session even with the qjs editor.
-	session.writeKeys(t, "await a.r\t(\"first\")\r")
+	session.writeKeys(t, `await am.run_agent({provider:"openrouter",model:"fixture/model",effort:"high"},"first").then(snapshot=>snapshot.lastResult.answer)`+"\r")
 	session.waitForOutputAndPrompt(t, "'first answer'")
 	before := session.stdout.snapshot()
-	session.writeKeys(t, `await a.run("fail")`+"\r")
-	session.waitForError(t, "authentication")
+	session.writeKeys(t, `await am.run_agent({provider:"openrouter",model:"fixture/model",effort:"high"},"fail").then(snapshot=>snapshot.lastResult.state)`+"\r")
+	session.waitForOutputAndPrompt(t, "'failed'")
 	session.waitForPromptAfter(t, before)
-	session.writeKeys(t, `await a.run("third")`+"\r")
+	session.writeKeys(t, `await am.run_agent({provider:"openrouter",model:"fixture/model",effort:"high"},"third").then(snapshot=>snapshot.lastResult.answer)`+"\r")
 	session.waitForOutputAndPrompt(t, "'third answer'")
 	session.writeKeys(t, "\x04")
 	session.finish(t, 0)
@@ -63,7 +62,7 @@ func TestAgentREPLTerminalCtrlCCancelsModelRequest(t *testing.T) {
 	env["NOE_AGENT_TRACE"] = ""
 	session := startTerminalREPL(t, t.TempDir(), env)
 	session.enter(t, `const am=await import("noe:agent")`)
-	session.writeKeys(t, `await am.createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("wait")`+"\r")
+	session.writeKeys(t, `await am.run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"wait")`+"\r")
 	select {
 	case <-started:
 	case <-time.After(ptyWaitTimeout):
@@ -83,20 +82,30 @@ func TestAgentREPLTerminalCtrlCCancelsModelRequest(t *testing.T) {
 
 func TestAgentREPLTerminalCompletionRPCClosesSession(t *testing.T) {
 	var calls atomic.Int32
-	server := agentAPIFixture(t, func(context.Context, agentChatRequest) agentModelReply {
-		calls.Add(1)
-		return agentModelReply{Content: "unexpected model continuation"}
+	cancelled := make(chan struct{})
+	server := agentAPIFixture(t, func(ctx context.Context, _ agentChatRequest) agentModelReply {
+		if calls.Add(1) == 1 {
+			<-ctx.Done()
+			close(cancelled)
+		}
+		return agentModelReply{Status: 500}
 	})
 	defer server.Close()
 	env := agentCLIEnv(t, server.URL)
 	env["NOE_AGENT_TRACE"] = ""
 	session := startTerminalREPL(t, t.TempDir(), env)
 	session.enter(t, `const am=await import("noe:agent")`)
-	session.enter(t, `const a=am.createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"})`)
-	session.enter(t, `const ap=new Proxy({}, {ownKeys(){a.run("from completion").catch(()=>{});return ["value"]}})`)
+	session.enter(t, `const ap=new Proxy({}, {ownKeys(){am.run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"from completion").catch(()=>{});return ["value"]}})`)
 	session.writeKeys(t, "ap.\t")
 	result := session.finish(t, 1)
-	if !strings.Contains(result.stderr, "active stdlib work") || calls.Load() != 0 {
+	if !strings.Contains(result.stderr, "active stdlib work") {
 		t.Fatalf("completion did not reclaim pending RPC: calls=%d result=%+v", calls.Load(), result)
+	}
+	if calls.Load() > 0 {
+		select {
+		case <-cancelled:
+		case <-time.After(ptyWaitTimeout):
+			t.Fatal("completion left an arrived provider request running")
+		}
 	}
 }

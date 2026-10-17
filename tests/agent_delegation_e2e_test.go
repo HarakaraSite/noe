@@ -85,9 +85,9 @@ func TestAgentChildrenRunConcurrentlyAndInheritSettings(t *testing.T) {
 			}
 			if len(req.Messages) == 2 {
 				code := `const results=await Promise.all([
-createAgent({name:"left"}).run("left",{maxSteps:3}),
-createAgent({name:"right",model:"fixture/override",maxTokens:321,effort:"low",system:"right-only-setting"}).run("right",{cacheKey:"right-cache",maxSteps:3})
-]);console.log(JSON.stringify(results));`
+run_agent({name:"left",maxSteps:3},"left"),
+run_agent({name:"right",model:"fixture/override",maxTokens:321,effort:"low",system:"right-only-setting",cacheKey:"right-cache",maxSteps:3},"right")
+]);console.log(JSON.stringify(results.map(result=>result.lastResult.answer)));`
 				return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("delegate", code)}}}, FinishReason: "tool_calls"}
 			}
 			got := agentToolResult(t, req.Messages[len(req.Messages)-1])
@@ -136,7 +136,7 @@ createAgent({name:"right",model:"fixture/override",maxTokens:321,effort:"low",sy
 		}
 	})
 	defer server.Close()
-	source := `import {createAgent} from "noe:agent";console.log(await createAgent({provider:"openrouter",name:"parent",model:"fixture/parent",maxTokens:2048,effort:"high",system:"parent-only-setting"}).run("parent",{maxSteps:3}));`
+	source := `import {run_agent} from "noe:agent";const result=await run_agent({provider:"openrouter",name:"parent",model:"fixture/parent",maxTokens:2048,effort:"high",system:"parent-only-setting",maxSteps:3},"parent");console.log(result.lastResult.answer);`
 	result := runCLI(t, work, agentCLIEnv(t, server.URL), "eval", source)
 	requireExit(t, result, 0)
 	if result.stdout != "100\n" || children.Load() != 2 {
@@ -217,7 +217,7 @@ func TestAgentChildDefaultsBelongToLaunchingRun(t *testing.T) {
 			if suffix == "b" {
 				config = `{maxTokens:0,effort:"auto"}`
 			}
-			code := `console.log(await createAgent(` + config + `).run("child-` + suffix + `"));`
+			code := `const result=await run_agent(` + config + `,"child-` + suffix + `");console.log(result.lastResult.answer);`
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("child", code)}}}, FinishReason: "tool_calls"}
 		}
 		got := agentToolResult(t, req.Messages[len(req.Messages)-1])
@@ -227,10 +227,10 @@ func TestAgentChildDefaultsBelongToLaunchingRun(t *testing.T) {
 		return agentModelReply{Content: "done-" + suffix}
 	})
 	defer server.Close()
-	result := runCLI(t, t.TempDir(), agentCLIEnv(t, server.URL), "eval", `import {createAgent} from "noe:agent";
+	result := runCLI(t, t.TempDir(), agentCLIEnv(t, server.URL), "eval", `import {run_agent} from "noe:agent";
 console.log(JSON.stringify(await Promise.all([
-createAgent({provider:"openrouter",model:"fixture/a",maxTokens:111,effort:"low"}).run("parent-a",{maxSteps:3}),
-createAgent({provider:"openrouter",model:"fixture/b",maxTokens:222,effort:"high"}).run("parent-b",{maxSteps:3})])));`)
+run_agent({provider:"openrouter",model:"fixture/a",maxTokens:111,effort:"low",maxSteps:3},"parent-a"),
+run_agent({provider:"openrouter",model:"fixture/b",maxTokens:222,effort:"high",maxSteps:3},"parent-b")]).then(results=>results.map(result=>result.lastResult.answer))));`)
 	requireExit(t, result, 0)
 	if result.stdout != "[\"done-a\",\"done-b\"]\n" {
 		t.Fatalf("result=%+v", result)
@@ -258,17 +258,17 @@ func TestAgentFailedRunDoesNotCancelIndependentRun(t *testing.T) {
 		}
 	})
 	defer server.Close()
-	result := runCLI(t, work, agentCLIEnv(t, server.URL), "eval", `import {createAgent} from "noe:agent";import {writeFileSync} from "node:fs";
-const a=createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"});
-const bad=a.run("bad").catch(()=>{writeFileSync("bad-finished","1");return "failed"});
-const good=a.run("good");console.log(JSON.stringify(await Promise.all([bad,good])));`)
+	result := runCLI(t, work, agentCLIEnv(t, server.URL), "eval", `import {run_agent} from "noe:agent";import {writeFileSync} from "node:fs";
+const config={provider:"openrouter",model:"fixture/model",effort:"auto"};
+const bad=run_agent(config,"bad").then(snapshot=>{if(snapshot.lastResult.state!=="failed")throw Error(JSON.stringify(snapshot));writeFileSync("bad-finished","1");return "failed"});
+const good=run_agent(config,"good").then(snapshot=>snapshot.lastResult.answer);console.log(JSON.stringify(await Promise.all([bad,good])));`)
 	requireExit(t, result, 0)
 	if result.stdout != "[\"failed\",\"good completed\"]\n" {
 		t.Fatalf("result=%+v", result)
 	}
 }
 
-func TestAgentGeneratedExitReclaimsAbandonedChild(t *testing.T) {
+func TestAgentSpawnedChildSurvivesToolExitAndIsReclaimedWithParent(t *testing.T) {
 	work := t.TempDir()
 	cancelled := make(chan struct{})
 	var once sync.Once
@@ -282,29 +282,37 @@ func TestAgentGeneratedExitReclaimsAbandonedChild(t *testing.T) {
 			return agentModelReply{Status: 500}
 		}
 		if len(req.Messages) == 2 {
-			code := `const pending=createAgent({name:"abandoned"}).run("blocked child");pending.catch(()=>{});
-const {existsSync}=await import("node:fs");
+			code := `const {agentId}=await spawn_agent({name:"abandoned"},"blocked child",{keepAlive:true});
+const {writeFileSync,existsSync}=await import("node:fs");writeFileSync("child.json",JSON.stringify({agentId}));
 while(!existsSync("child-started")) await new Promise(r=>setTimeout(r,5));
 process.exit(9);`
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("exit", code)}}}, FinishReason: "tool_calls"}
 		}
 		got := agentToolResult(t, req.Messages[len(req.Messages)-1])
-		if got.ExitCode != 9 || got.Reason != "failed" {
-			t.Errorf("exit was hidden: %+v", got)
+		if got.ExitCode == 9 && got.Reason == "failed" {
+			code := `const {readFileSync}=await import("node:fs");
+const {agentId}=JSON.parse(readFileSync("child.json","utf8"));
+const snapshot=await observe_agent({agentId});
+if(snapshot.state!=="running"||!snapshot.currentRunId)throw Error(JSON.stringify(snapshot));
+const queued=await queue_agent({agentId,instruction:"queued child task"});
+console.log(JSON.stringify({state:snapshot.state,queued:queued.status}));`
+			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("observe", code)}}}, FinishReason: "tool_calls"}
 		}
-		select {
-		case <-cancelled:
-		case <-ctx.Done():
-			t.Error("abandoned child not reclaimed")
-			return agentModelReply{Status: 500}
+		if got.ExitCode != 0 || got.Stdout != `{"state":"running","queued":"accepted"}`+"\n" {
+			t.Errorf("child did not survive the tool process or accept a queued task: %+v", got)
 		}
-		return agentModelReply{Content: "reclaimed"}
+		return agentModelReply{Content: "parent finished"}
 	})
 	defer server.Close()
 	result := runCLI(t, work, agentCLIEnv(t, server.URL), "eval", agentScript("parent exit", `{maxSteps:3}`))
 	requireExit(t, result, 0)
-	if result.stdout != "reclaimed\n" {
+	if result.stdout != "parent finished\n" {
 		t.Fatalf("result=%+v", result)
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("parent completion left spawned child running")
 	}
 	found := false
 	for _, record := range agentTraceRecords(t, result.stderr) {
@@ -313,6 +321,6 @@ process.exit(9);`
 		}
 	}
 	if !found {
-		t.Fatalf("abandoned child cancellation missing: %s", result.stderr)
+		t.Fatalf("spawned child cancellation missing: %s", result.stderr)
 	}
 }

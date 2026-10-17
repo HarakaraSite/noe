@@ -49,9 +49,10 @@ tail -f agent.jsonl | ./noe observe
   READMEの要点は次の3つです。
   ...
 [parent-A/12345678] completed
+[parent-A/89abcdef] agent idle
 ```
 
-表示ラベルは英語を標準とし、モデルの本文は元の言語のまま表示します。`run_js`の先頭コメントも英語で書くようモデルへ指示します。名前と短縮run IDを付け、tool由来のイベントには短縮tool IDも付けます。thinking・summaryは受信時に同じrun・モデル要求・種類の断片をつなぎ、連続する間はラベルを最初の1回だけ表示します。改行・空行は保持し、続きの本文を2スペースで字下げします。別agent・別要求・別種類やtoolなどの表示が間に入ると、新しいラベルから表示します。完了まで溜めず、受信した本文を逐次表示します。途中の発言と最終回答は確定した本文を色なしのMarkdown整形で表示し、`message_delta`を重ねて表示しません。強調やリンクを読みやすいテキストにし、箇条書き・段落・表を整えます。コードブロックはハイライトせずインデント付きで表示します。stdoutの本文は表示せず、`run_js`の先頭コメントと成功・失敗を表示します。stderrは引き続き表示します。スクリプトが最終回答を`console.log`しても、人間向けには最終回答イベントだけを表示するため重複しません。
+表示ラベルは英語を標準とし、モデルの本文は元の言語のまま表示します。`run_js`の先頭コメントも英語で書くようモデルへ指示します。taskの発言・tool・完了には名前と短縮run IDを付け、tool由来のイベントには短縮tool IDも付けます。instanceの開始・running・idle・stopping・停止・failedは`[name/<agentId8>] agent <state>`の英語行で表示します。thinking・summaryは受信時に同じrun・モデル要求・種類の断片をつなぎ、連続する間はラベルを最初の1回だけ表示します。改行・空行は保持し、続きの本文を2スペースで字下げします。別agent・別要求・別種類やtoolなどの表示が間に入ると、新しいラベルから表示します。完了まで溜めず、受信した本文を逐次表示します。途中の発言と最終回答は確定した本文を色なしのMarkdown整形で表示し、`message_delta`を重ねて表示しません。強調やリンクを読みやすいテキストにし、箇条書き・段落・表を整えます。コードブロックはハイライトせずインデント付きで表示します。stdoutの本文は表示せず、`run_js`の先頭コメントと成功・失敗を表示します。stderrは引き続き表示します。スクリプトが最終回答を`console.log`しても、人間向けには最終回答イベントだけを表示するため重複しません。
 
 本文の幅は起動時の`COLUMNS`、出力先の端末幅、80桁の順で決めます。段落・箇条書きは単語の境界で折り返し、表は日本語の表示幅も数えてセルを折り返します。表が収まらない狭い幅では項目ごとの縦表示へ切り替えます。空白のない長い語やコードの行は幅を超える場合があります。CommonMark全体への準拠を目的としたレンダラーではなく、見出しの`#`やコードフェンスなど一部の記号は残ります。
 
@@ -61,7 +62,46 @@ tail -f agent.jsonl | ./noe observe
 
 ## 親向け：observe_agent
 
-`noe:agent`から`observe_agent`をimportできます。現在は既存JSONLを読み取る入口で、`logPath`と`runId`を指定します。相対パスは実行時のcwd基準です。
+`noe:agent`の`observe_agent`は、live agent instanceのsnapshotと、既存JSONLの観察に使えます。二つのtargetは別形式で、同じ呼出しへ混在させません。
+
+### live instance
+
+`observe_agent({agentId})`は現在のinstance snapshotを待たずに返します。`agentId`は`spawn_agent()`の戻り値から取得します。
+
+```js
+import { spawn_agent, observe_agent, queue_agent } from "noe:agent";
+
+const worker = await spawn_agent({
+  provider: "openrouter",
+  model: "deepseek/deepseek-v4.1-flash",
+  effort: "auto",
+}, "README.mdの要点をまとめてください。", { keepAlive: true });
+
+const queued = await queue_agent({
+  agentId: worker.agentId,
+  instruction: "README.ja.mdとの違いをまとめてください。",
+});
+
+let snapshot;
+while (true) {
+  snapshot = await observe_agent({ agentId: worker.agentId });
+  if (snapshot.lastResult?.commandId === queued.commandId && snapshot.state === "idle") break;
+  if (snapshot.state === "stopped" || snapshot.state === "failed") break;
+  await new Promise(resolve => setTimeout(resolve, 100));
+}
+
+console.log(snapshot.lastResult);
+```
+
+snapshotにはinstanceの`agentId`・`parentRunId`・`name`・`state`・`reason`・`keepAlive`・`currentRunId`・`queueLength`・`lastResult`が含まれます。`lastResult`は直近taskの`{runId, commandId, state, answer, error?}`で、taskがまだなければ`null`です。`state`は`starting`・`idle`・`running`・`stopping`・`stopped`・`failed`です。idleでは`currentRunId`は空で、次のtaskを待っています。
+
+上の例は結果表示後もrootのNOEをidleで維持します。本文の終了では待受は終わらず、現在はCtrl+C・timeout等で終了させます。REPLでも待受中は次のpromptへ進みません。親run_js内で起動した場合は、tool本文終了後も親runが子を所有します。
+
+live snapshotの取得はモデルを呼びません。live観察の引数は`agentId`のみです。ファイル観察で使う`logPath`・`runId`・`cursor`等を混ぜることはできません。live agentは所有するNOE runとともに終了・回収されます。
+
+### 保存済みJSONL
+
+ファイル観察は従来どおり`logPath`とtaskの`runId`を指定します。相対パスは実行時のcwd基準です。
 
 ```js
 import { observe_agent } from "noe:agent";
@@ -89,7 +129,7 @@ console.log(settled.finalText ?? settled.error ?? settled.status);
 
 戻り値には次の情報があります。
 
-- `runId`・`parentRunId`・`name`・`model`
+- `runId`・`parentRunId`・`agentId`（instance管理taskで記録されている場合）・`name`・`model`
 - `status`：`unknown`・`running`・`completed`・`failed`・`cancelled`
 - `phase`：`unknown`・`starting`・`model`・`run_js`・`between_steps`・`settled`
 - `action`：実行中または直近のJSコメント。`lastMessage`：直近の途中の発言
@@ -116,4 +156,16 @@ cursorは取得対象の実行に属します。同じファイルへ別のNOE�
 
 `--json`はrun IDとファイルを指定する一回の状態取得です。`--wait`はこのモードで使い、`--follow`は人間向けの継続表示で使います。
 
-`spawn_agent`と親による子の途中監督、steer・interrupt・queueはまだ検討段階です。今回の入口は既存ログの観察を可能にするもので、現在の`await child.run()`の完了待ちや生成JS終了時の子scope回収は変えていません。
+`steer_agent`で指示を受け取った直後は、対象taskがまだ同じ処理を実行している場合があります。受領と次の判断への適用は別のイベントです。`interrupt_agent`も受付後すぐ戻り、`stopping`中はtask・子workの回収が続いています。live snapshotやJSONLで進行を確認し、instance全体を止めた`run_agent`は回収後の終端snapshotを返します。操作APIの戻り値と競合時の扱いは[APIリファレンス](api.md#実行中taskへの指示と停止)を参照してください。
+
+別terminalからは稼働中のNOEを列挙して、操作の受付を依頼できます。
+
+```sh
+noe agents
+noe steer <run-id> '結果を短くまとめてください'
+noe queue <agent-id> '追加でテストしてください'
+noe interrupt --run <run-id>
+noe interrupt --agent <agent-id>
+```
+
+`noe agents`はactive instanceだけを表示します。steerには実行中のrun ID、queueとinstance停止にはagent IDを使います。CLIは実行完了や回収を待たないため、その後のtask状態は従来の`noe observe`・`--observe`・JSONLで確認してください。ホスト接続はローカルの稼働中NOEに限られ、接続先の共有には実行側とCLI側で同じ`NOE_AGENT_RUNTIME_DIR`または`XDG_RUNTIME_DIR`が必要です。

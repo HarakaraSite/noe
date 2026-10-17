@@ -19,25 +19,45 @@ import (
 )
 
 type broker struct {
-	host      *Host
-	server    *http.Server
-	url       string
-	token     string
-	done      chan struct{}
-	closed    sync.Once
-	requestMu sync.Mutex
-	closing   bool
-	requests  sync.WaitGroup
+	host            *Host
+	server          *http.Server
+	url             string
+	token           string
+	done            chan struct{}
+	closed          sync.Once
+	requestMu       sync.Mutex
+	closing         bool
+	requests        sync.WaitGroup
+	control         *controlRegistration
+	controlRequests sync.WaitGroup
 }
 
 type agentRun struct {
-	operation   *Operation
-	ctx         context.Context
-	cancel      context.CancelFunc
-	started     time.Time
-	config      runConfig
-	parentRunID string
-	childScopes map[*Operation]struct{}
+	id             string
+	operation      *Operation
+	ctx            context.Context
+	cancel         context.CancelFunc
+	started        time.Time
+	config         runConfig
+	parentRunID    string
+	childScopes    map[*Operation]struct{}
+	instances      map[string]*agentInstance
+	instance       *agentInstance
+	steerByID      map[string]*steerCommand
+	steerOrder     []*steerCommand
+	finalAnswer    string
+	finalDone      chan struct{}
+	finalClosed    bool
+	finalEventDone bool
+	providerCalls  int
+	interrupting   bool
+}
+
+func (r *agentRun) agentID() string {
+	if r.instance != nil {
+		return r.instance.id
+	}
+	return ""
 }
 
 type runConfig struct {
@@ -46,6 +66,7 @@ type runConfig struct {
 	Name      string
 	MaxTokens int
 	Effort    string
+	MaxSteps  int
 }
 
 type startRequest struct {
@@ -54,6 +75,7 @@ type startRequest struct {
 	Name      string `json:"name"`
 	MaxTokens int    `json:"maxTokens"`
 	Effort    string `json:"effort,omitempty"`
+	MaxSteps  int    `json:"maxSteps,omitempty"`
 }
 
 type modelRequest struct {
@@ -73,6 +95,40 @@ type finishRequest struct {
 	Error  string `json:"error,omitempty"`
 }
 
+type steerRequest struct {
+	RunID       string `json:"runId"`
+	Instruction string `json:"instruction"`
+	CommandID   string `json:"commandId,omitempty"`
+}
+
+type steerCommand struct {
+	id          string
+	instruction string
+	status      string
+	accepted    chan struct{}
+	settled     chan struct{}
+}
+
+type steerInstruction struct {
+	CommandID   string `json:"commandId"`
+	Instruction string `json:"instruction"`
+}
+
+type applySteersRequest struct {
+	RunID      string   `json:"runId"`
+	CommandIDs []string `json:"commandIds"`
+}
+
+type commitFinalRequest struct {
+	RunID  string `json:"runId"`
+	Answer string `json:"answer"`
+}
+
+type commitFinalResponse struct {
+	Committed    bool               `json:"committed"`
+	Instructions []steerInstruction `json:"instructions,omitempty"`
+}
+
 type runJSRequest struct {
 	RunID      string  `json:"runId"`
 	ToolCallID string  `json:"toolCallId,omitempty"`
@@ -80,9 +136,16 @@ type runJSRequest struct {
 }
 
 type modelResponse struct {
-	Message      json.RawMessage `json:"message"`
-	FinishReason string          `json:"finishReason"`
-	Usage        json.RawMessage `json:"usage,omitempty"`
+	Message      json.RawMessage    `json:"message,omitempty"`
+	FinishReason string             `json:"finishReason,omitempty"`
+	Usage        json.RawMessage    `json:"usage,omitempty"`
+	Steers       []steerInstruction `json:"steers,omitempty"`
+}
+
+type steerLifecycleEvent struct {
+	run     *agentRun
+	command *steerCommand
+	status  string
 }
 
 type rpcErrorBody struct {
@@ -139,6 +202,21 @@ func (h *Host) ensureBroker() (*broker, error) {
 		token: token,
 		done:  make(chan struct{}),
 	}
+	if (h.opts.EnableControl || h.opts.ControlDir != "") && h.opts.Connection == nil {
+		dir := h.opts.ControlDir
+		if dir == "" {
+			dir, err = DefaultControlDir()
+			if err != nil {
+				_ = listener.Close()
+				return nil, err
+			}
+		}
+		b.control, err = newControlRegistration(dir, b.url)
+		if err != nil {
+			_ = listener.Close()
+			return nil, err
+		}
+	}
 	b.server = &http.Server{
 		Handler:           http.HandlerFunc(b.serveHTTP),
 		ReadHeaderTimeout: 5 * time.Second,
@@ -157,6 +235,9 @@ func (b *broker) close() {
 		b.requestMu.Lock()
 		b.closing = true
 		b.requestMu.Unlock()
+		// Finish and flush control acknowledgements before closing connections.
+		b.controlRequests.Wait()
+		b.control.close()
 		_ = b.server.Close()
 		<-b.done
 		b.requests.Wait()
@@ -174,7 +255,7 @@ func (op *Operation) Call(method, payload string) (string, error) {
 	if op.initErr != nil {
 		return "", op.initErr
 	}
-	if method != "start" && method != "model" && method != "finish" && method != "run_js" {
+	if !validRPCMethod(method) {
 		return "", &RPCError{Code: "method", Message: "unknown agent request method"}
 	}
 	if !json.Valid([]byte(payload)) {
@@ -259,11 +340,28 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b.requests.Add(1)
+	control := strings.HasPrefix(r.URL.Path, "/control/")
+	if control {
+		b.controlRequests.Add(1)
+	}
 	b.requestMu.Unlock()
+	if control {
+		controller := http.NewResponseController(w)
+		_ = controller.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_ = controller.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		defer func() {
+			_ = http.NewResponseController(w).Flush()
+			b.controlRequests.Done()
+		}()
+	}
 	defer b.requests.Done()
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
 		writeRPCError(w, http.StatusMethodNotAllowed, "method", "POST required")
+		return
+	}
+	if control {
+		b.serveControl(w, r)
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+b.token)) != 1 {
@@ -271,7 +369,7 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	method := strings.TrimPrefix(r.URL.Path, "/rpc/")
-	if method == r.URL.Path || (method != "start" && method != "model" && method != "finish" && method != "run_js") {
+	if method == r.URL.Path || !validRPCMethod(method) {
 		writeRPCError(w, http.StatusNotFound, "method", "unknown agent request method")
 		return
 	}
@@ -312,14 +410,36 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		b.handleFinish(w, r, operation)
 	case "run_js":
 		b.handleRunJS(w, r, operation)
+	case "spawn_agent":
+		b.handleSpawn(w, r, operation)
+	case "observe_agent", "wait_agent":
+		b.handleInstance(w, r, operation, method == "wait_agent")
+	case "queue_agent":
+		b.handleQueue(w, r, operation)
+	case "interrupt_agent":
+		b.handleInterrupt(w, r, operation)
+	case "steer_agent":
+		b.handleSteer(w, r, operation)
+	case "apply_steers":
+		b.handleApplySteers(w, r, operation)
+	case "commit_final":
+		b.handleCommitFinal(w, r, operation)
 	}
+}
+
+func validRPCMethod(method string) bool {
+	switch method {
+	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "apply_steers", "commit_final", "interrupt_agent":
+		return true
+	}
+	return false
 }
 
 func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operation) {
 	var request startRequest
 	err := decodeRequest(r, &request)
 	effort, validEffort := provider.NormalizeEffort(request.Effort)
-	if err != nil || request.Provider != "openrouter" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || !validEffort {
+	if err != nil || request.Provider != "openrouter" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || request.MaxSteps < 0 || !validEffort {
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid start request")
 		return
 	}
@@ -331,12 +451,16 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	ctx, cancel := context.WithCancel(op.ctx)
 	config := runConfig{
 		Provider: request.Provider, Model: request.Model,
-		Name: request.Name, MaxTokens: request.MaxTokens, Effort: effort,
+		Name: request.Name, MaxTokens: request.MaxTokens, Effort: effort, MaxSteps: request.MaxSteps,
 	}
 	run := &agentRun{
+		id:        id,
 		operation: op, ctx: ctx, cancel: cancel, started: time.Now(),
 		config: config, parentRunID: op.parentRunID,
 		childScopes: make(map[*Operation]struct{}),
+		instances:   make(map[string]*agentInstance),
+		steerByID:   make(map[string]*steerCommand),
+		finalDone:   make(chan struct{}),
 	}
 	h := b.host
 	h.mu.Lock()
@@ -346,7 +470,28 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		writeRPCError(w, http.StatusConflict, "scope", "agent operation has ended")
 		return
 	}
+	if op.task != nil {
+		instance := op.task.instance
+		if instance.state == "stopping" || instance.state == "stopped" || instance.state == "failed" || instance.ctx.Err() != nil {
+			h.mu.Unlock()
+			cancel()
+			writeRPCError(w, http.StatusConflict, "scope", "agent instance is stopping or finished")
+			return
+		}
+	}
 	h.runs[id] = run
+	if op.task != nil {
+		if op.task.run != nil {
+			delete(h.runs, id)
+			h.mu.Unlock()
+			cancel()
+			writeRPCError(w, http.StatusConflict, "run", "task scope already claimed a run")
+			return
+		}
+		run.instance = op.task.instance
+		op.task.run = run
+		op.task.instance.currentRunID = id
+	}
 	h.mu.Unlock()
 	h.traceEvent(traceEvent{
 		RunID: id, ParentID: run.parentRunID, Name: config.Name, Model: config.Model,
@@ -354,6 +499,255 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	})
 	h.observeRun("agent.started", id, run, events.Event{"status": "started"})
 	writeJSON(w, map[string]string{"runId": id})
+}
+
+func (b *broker) handleSteer(w http.ResponseWriter, r *http.Request, op *Operation) {
+	var request steerRequest
+	if err := decodeRequest(r, &request); err != nil || request.RunID == "" || strings.TrimSpace(request.Instruction) == "" {
+		writeRPCError(w, http.StatusBadRequest, "request", "runId and instruction are required")
+		return
+	}
+	if request.CommandID == "" {
+		id, err := randomID()
+		if err != nil {
+			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate command ID")
+			return
+		}
+		request.CommandID = id
+	} else if strings.TrimSpace(request.CommandID) == "" {
+		writeRPCError(w, http.StatusBadRequest, "request", "commandId must be nonempty")
+		return
+	}
+
+	h := b.host
+	h.mu.Lock()
+	run := h.runs[request.RunID]
+	if run == nil || !h.canManageRunLocked(op, run) || run.ctx.Err() != nil || run.interrupting || op.closed || h.closed || run.finalClosed {
+		h.mu.Unlock()
+		writeRPCError(w, http.StatusConflict, "run", "unknown, unowned, or finished agent run")
+		return
+	}
+	if previous := run.steerByID[request.CommandID]; previous != nil {
+		if previous.instruction != request.Instruction {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "command", "commandId already used for a different instruction")
+			return
+		}
+		status := previous.status
+		h.mu.Unlock()
+		writeJSON(w, map[string]string{"commandId": request.CommandID, "status": status})
+		return
+	}
+	command := &steerCommand{
+		id: request.CommandID, instruction: request.Instruction, status: "accepted",
+		accepted: make(chan struct{}), settled: make(chan struct{}),
+	}
+	run.steerByID[command.id] = command
+	run.steerOrder = append(run.steerOrder, command)
+	h.mu.Unlock()
+
+	h.observeRun("command.accepted", run.id, run, events.Event{
+		"commandId": command.id, "status": "accepted", "operation": "steer",
+	})
+	close(command.accepted)
+	writeJSON(w, map[string]string{"commandId": command.id, "status": "accepted"})
+}
+
+// deliverPendingSteersLocked is called at the provider-call and final-answer
+// linearization points. Both accepted and previously delivered commands stay
+// pending until apply_steers acknowledges them.
+func (h *Host) deliverPendingSteersLocked(run *agentRun) []steerInstruction {
+	var instructions []steerInstruction
+	for _, command := range run.steerOrder {
+		if command.status != "accepted" && command.status != "delivered" {
+			continue
+		}
+		command.status = "delivered"
+		instructions = append(instructions, steerInstruction{CommandID: command.id, Instruction: command.instruction})
+	}
+	return instructions
+}
+
+func (h *Host) cancelPendingSteersLocked(run *agentRun) []steerLifecycleEvent {
+	var pending []steerLifecycleEvent
+	for _, command := range run.steerOrder {
+		if command.status != "accepted" && command.status != "delivered" {
+			continue
+		}
+		command.status = "cancelled"
+		pending = append(pending, steerLifecycleEvent{run: run, command: command, status: "cancelled"})
+	}
+	return pending
+}
+
+// emitSteerEvents preserves accepted-before-settled event ordering without
+// holding Host.mu while invoking the user observer.
+func (h *Host) emitSteerEvents(pending []steerLifecycleEvent) {
+	for _, item := range pending {
+		<-item.command.accepted
+		h.observeRun("command."+item.status, item.run.id, item.run, events.Event{
+			"commandId": item.command.id, "status": item.status, "operation": "steer",
+		})
+		close(item.command.settled)
+	}
+}
+
+func (b *broker) handleApplySteers(w http.ResponseWriter, r *http.Request, op *Operation) {
+	var request applySteersRequest
+	if err := decodeRequest(r, &request); err != nil || request.RunID == "" || len(request.CommandIDs) == 0 {
+		writeRPCError(w, http.StatusBadRequest, "request", "runId and commandIds are required")
+		return
+	}
+	h := b.host
+	h.mu.Lock()
+	run := h.runs[request.RunID]
+	if run == nil || run.operation != op || run.ctx.Err() != nil || run.interrupting || op.closed || h.closed {
+		h.mu.Unlock()
+		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
+		return
+	}
+	commands := make([]*steerCommand, 0, len(request.CommandIDs))
+	seen := make(map[string]struct{}, len(request.CommandIDs))
+	lastIndex := -1
+	allApplied := true
+	for _, id := range request.CommandIDs {
+		if strings.TrimSpace(id) == "" {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusBadRequest, "request", "commandIds must be nonempty")
+			return
+		}
+		if _, duplicate := seen[id]; duplicate {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusBadRequest, "request", "commandIds must be unique")
+			return
+		}
+		seen[id] = struct{}{}
+		command := run.steerByID[id]
+		if command == nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "command", "unknown steer command")
+			return
+		}
+		index := -1
+		for i, candidate := range run.steerOrder {
+			if candidate == command {
+				index = i
+				break
+			}
+		}
+		if index <= lastIndex {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "command", "steer commands must be applied in acceptance order")
+			return
+		}
+		lastIndex = index
+		switch command.status {
+		case "applied":
+		case "delivered":
+			allApplied = false
+		default:
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "command", "steer command has not been delivered")
+			return
+		}
+		commands = append(commands, command)
+	}
+	if !allApplied {
+		for _, command := range commands {
+			if command.status != "delivered" {
+				h.mu.Unlock()
+				writeRPCError(w, http.StatusConflict, "command", "steer acknowledgement must cover one delivered batch")
+				return
+			}
+		}
+		for _, command := range run.steerOrder {
+			if command.status == "delivered" {
+				if _, included := seen[command.id]; !included {
+					h.mu.Unlock()
+					writeRPCError(w, http.StatusConflict, "command", "steer acknowledgement must cover one delivered batch")
+					return
+				}
+			}
+		}
+	}
+	if !allApplied {
+		for _, command := range commands {
+			command.status = "applied"
+		}
+	}
+	h.mu.Unlock()
+	if !allApplied {
+		pending := make([]steerLifecycleEvent, 0, len(commands))
+		for _, command := range commands {
+			pending = append(pending, steerLifecycleEvent{run: run, command: command, status: "applied"})
+		}
+		h.emitSteerEvents(pending)
+	}
+	writeJSON(w, map[string]bool{"applied": true})
+}
+
+func (b *broker) handleCommitFinal(w http.ResponseWriter, r *http.Request, op *Operation) {
+	var request commitFinalRequest
+	if err := decodeRequest(r, &request); err != nil || request.RunID == "" || strings.TrimSpace(request.Answer) == "" {
+		writeRPCError(w, http.StatusBadRequest, "request", "runId and a nonempty answer are required")
+		return
+	}
+	h := b.host
+	h.mu.Lock()
+	run := h.runs[request.RunID]
+	if run == nil || run.operation != op || run.ctx.Err() != nil || run.interrupting || op.closed || h.closed {
+		h.mu.Unlock()
+		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
+		return
+	}
+	if run.finalClosed {
+		if run.finalAnswer != request.Answer {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "final", "a different final answer is already committed")
+			return
+		}
+		done := run.finalDone
+		h.mu.Unlock()
+		select {
+		case <-done:
+		case <-op.ctx.Done():
+			writeRPCError(w, http.StatusConflict, "cancelled", "agent operation cancelled")
+			return
+		case <-r.Context().Done():
+			return
+		}
+		writeJSON(w, commitFinalResponse{Committed: true})
+		return
+	}
+	instructions := h.deliverPendingSteersLocked(run)
+	if len(instructions) != 0 {
+		h.mu.Unlock()
+		writeJSON(w, commitFinalResponse{Committed: false, Instructions: instructions})
+		return
+	}
+	run.finalClosed = true
+	run.finalAnswer = request.Answer
+	settled := make([]<-chan struct{}, 0, len(run.steerOrder))
+	for _, command := range run.steerOrder {
+		if command.status == "applied" {
+			settled = append(settled, command.settled)
+		}
+	}
+	h.mu.Unlock()
+
+	for _, eventDone := range settled {
+		<-eventDone
+	}
+	h.observeRun("agent.final", run.id, run, events.Event{
+		"status": "completed", "text": request.Answer,
+	})
+	h.mu.Lock()
+	if !run.finalEventDone {
+		run.finalEventDone = true
+		close(run.finalDone)
+	}
+	h.mu.Unlock()
+	writeJSON(w, commitFinalResponse{Committed: true})
 }
 
 func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operation) {
@@ -379,14 +773,32 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
-	valid := run != nil && run.operation == op && run.ctx.Err() == nil && !op.closed && !h.closed
-	h.mu.Unlock()
+	valid := run != nil && run.operation == op && run.ctx.Err() == nil && !run.interrupting && !op.closed && !h.closed && !run.finalClosed
 	if !valid {
+		h.mu.Unlock()
 		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
 		return
 	}
 	if request.Model != run.config.Model || request.MaxTokens != run.config.MaxTokens || effort != run.config.Effort {
+		h.mu.Unlock()
 		writeRPCError(w, http.StatusBadRequest, "request", "model request does not match agent run configuration")
+		return
+	}
+	steers := h.deliverPendingSteersLocked(run)
+	if len(steers) == 0 {
+		if run.config.MaxSteps > 0 && run.providerCalls >= run.config.MaxSteps {
+			limit := run.config.MaxSteps
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "max_steps", fmt.Sprintf("agent reached maxSteps=%d without a final answer", limit))
+			return
+		}
+		// Count only requests that cross the provider boundary. Returning a
+		// queued steer batch does not consume the task's model-call budget.
+		run.providerCalls++
+	}
+	h.mu.Unlock()
+	if len(steers) != 0 {
+		writeJSON(w, modelResponse{Steers: steers})
 		return
 	}
 	requestID := ""
@@ -493,6 +905,7 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid finish request")
 		return
 	}
+	status := sanitizeRunStatus(request.Status)
 	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
@@ -501,22 +914,94 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
 		return
 	}
+	if run.finalClosed && status != "completed" {
+		h.mu.Unlock()
+		writeRPCError(w, http.StatusConflict, "final", "a committed final answer cannot be replaced by a failed finish")
+		return
+	}
+	var emitFinal bool
+	var finalSettled []<-chan struct{}
+	var waitFinal <-chan struct{}
+	if status == "completed" {
+		if run.finalClosed {
+			if strings.TrimSpace(request.Answer) == "" || request.Answer != run.finalAnswer {
+				h.mu.Unlock()
+				writeRPCError(w, http.StatusConflict, "final", "finish answer does not match the committed final answer")
+				return
+			}
+			waitFinal = run.finalDone
+		} else if strings.TrimSpace(request.Answer) != "" {
+			// Preserve direct-run finish behavior for existing internal callers.
+			// Managed task runners must pass the final-answer gate first.
+			if run.instance != nil {
+				h.mu.Unlock()
+				writeRPCError(w, http.StatusConflict, "final", "managed task must commit its final answer first")
+				return
+			}
+			for _, command := range run.steerOrder {
+				if command.status == "accepted" || command.status == "delivered" {
+					h.mu.Unlock()
+					writeRPCError(w, http.StatusConflict, "final", "pending steer commands must be applied before finishing")
+					return
+				}
+			}
+			run.finalClosed = true
+			run.finalAnswer = request.Answer
+			emitFinal = true
+			for _, command := range run.steerOrder {
+				if command.status == "applied" {
+					finalSettled = append(finalSettled, command.settled)
+				}
+			}
+		} else if run.instance != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "final", "managed task completion requires a committed answer")
+			return
+		}
+	}
+	pending := h.cancelPendingSteersLocked(run)
 	delete(h.runs, request.RunID)
+	if op.task != nil && op.task.run == run {
+		report := request
+		op.task.report = &report
+	}
 	run.cancel()
 	childScopes := make([]*Operation, 0, len(run.childScopes))
 	for childScope := range run.childScopes {
 		childScopes = append(childScopes, childScope)
 	}
 	clear(run.childScopes)
+	instances := make([]*agentInstance, 0, len(run.instances))
+	for _, instance := range run.instances {
+		instances = append(instances, instance)
+	}
 	h.mu.Unlock()
+	h.emitSteerEvents(pending)
+	if emitFinal {
+		for _, eventDone := range finalSettled {
+			<-eventDone
+		}
+		h.observeRun("agent.final", run.id, run, events.Event{
+			"status": "completed", "text": request.Answer,
+		})
+		h.mu.Lock()
+		if !run.finalEventDone {
+			run.finalEventDone = true
+			close(run.finalDone)
+		}
+		h.mu.Unlock()
+	} else if waitFinal != nil {
+		<-waitFinal
+	}
 	for _, childScope := range childScopes {
 		childScope.Close()
 	}
-	status := sanitizeRunStatus(request.Status)
-	if status == "completed" && strings.TrimSpace(request.Answer) != "" {
-		h.observeRun("agent.final", request.RunID, run, events.Event{
-			"status": "completed", "text": request.Answer,
-		})
+	for _, instance := range instances {
+		<-instance.done
+	}
+	if run.instance != nil {
+		writeJSON(w, map[string]bool{})
+		return
 	}
 	h.traceEvent(traceEvent{
 		RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
@@ -541,7 +1026,7 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
-	valid := run != nil && run.operation == op && !op.closed && !h.closed
+	valid := run != nil && run.operation == op && run.ctx.Err() == nil && !run.interrupting && !run.finalClosed && !op.closed && !h.closed
 	h.mu.Unlock()
 	if !valid {
 		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
@@ -572,7 +1057,7 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	// under the run before starting the process so finish can cancel descendants.
 	childOperation := h.NewOperation(ctx)
 	h.mu.Lock()
-	registered := h.runs[request.RunID] == run && run.ctx.Err() == nil && !op.closed && !h.closed && !childOperation.closed
+	registered := h.runs[request.RunID] == run && run.ctx.Err() == nil && !run.interrupting && !op.closed && !h.closed && !childOperation.closed
 	if registered {
 		childOperation.parentRunID = request.RunID
 		run.childScopes[childOperation] = struct{}{}

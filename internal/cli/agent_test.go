@@ -14,12 +14,22 @@ import (
 	"testing"
 )
 
+// Managed tasks re-execute NOE. Dispatch those child invocations through the
+// same CLI entry point instead of accidentally running the test suite again.
+func TestMain(m *testing.M) {
+	if len(os.Args) >= 3 && os.Args[1] == "run" && os.Getenv("NOE_AGENT_CONNECTION") != "" {
+		os.Exit(Run(context.Background(), os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+	}
+	os.Exit(m.Run())
+}
+
 func agentFixtureSettings(t *testing.T, url string) {
 	t.Helper()
 	keyFile := filepath.Join(t.TempDir(), "key")
 	if err := os.WriteFile(keyFile, []byte("fixture-key\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("NOE_AGENT_RUNTIME_DIR", t.TempDir())
 	t.Setenv("NOE_OPENROUTER_API_KEY_FILE", keyFile)
 	t.Setenv("NOE_OPENROUTER_BASE_URL", url)
 	t.Setenv("NOE_AGENT_TRACE", "")
@@ -37,7 +47,7 @@ func TestCLIAgentRunAndEval(t *testing.T) {
 	}))
 	defer server.Close()
 	agentFixtureSettings(t, server.URL)
-	source := `import {createAgent} from "noe:agent";console.log(await createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("hello"));`
+	source := `import {run_agent} from "noe:agent";const result=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"hello");console.log(result.lastResult.answer);`
 	file := filepath.Join(t.TempDir(), "agent.js")
 	if err := os.WriteFile(file, []byte(source), 0600); err != nil {
 		t.Fatal(err)
@@ -50,7 +60,7 @@ func TestCLIAgentRunAndEval(t *testing.T) {
 		}
 	}
 	var out, diagnostic bytes.Buffer
-	code := Run(context.Background(), []string{"eval", `import {createAgent} from "noe:agent";await createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("hello");`}, strings.NewReader(""), &out, &diagnostic)
+	code := Run(context.Background(), []string{"eval", `import {run_agent} from "noe:agent";await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"hello");`}, strings.NewReader(""), &out, &diagnostic)
 	if code != 0 || out.Len() != 0 || diagnostic.Len() != 0 || calls.Load() != 3 {
 		t.Fatalf("run printed automatically: code=%d out=%q err=%q calls=%d", code, &out, &diagnostic, calls.Load())
 	}
@@ -69,7 +79,7 @@ func TestCLIAgentTimeoutPreservesExit124(t *testing.T) {
 	agentFixtureSettings(t, server.URL)
 	t.Setenv("NOE_AGENT_TRACE", "1")
 	var out, diagnostic bytes.Buffer
-	code := Run(context.Background(), []string{"eval", "--timeout", "300ms", `import {createAgent} from "noe:agent";await createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("wait");`}, strings.NewReader(""), &out, &diagnostic)
+	code := Run(context.Background(), []string{"eval", "--timeout", "300ms", `import {run_agent} from "noe:agent";await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"wait");`}, strings.NewReader(""), &out, &diagnostic)
 	if code != 124 || !started.Load() || !strings.Contains(diagnostic.String(), "execution timed out") {
 		t.Fatalf("code=%d started=%v stderr=%q", code, started.Load(), &diagnostic)
 	}

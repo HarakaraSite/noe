@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"noe/internal/agent"
 )
@@ -121,12 +123,14 @@ func agentCLIEnv(t *testing.T, url string) map[string]string {
 	t.Helper()
 	key := filepath.Join(t.TempDir(), "key")
 	writeFixture(t, key, "agent-fixture-secret\n")
-	return map[string]string{"NOE_OPENROUTER_API_KEY_FILE": key, "NOE_OPENROUTER_BASE_URL": url, "NOE_AGENT_TRACE": "1"}
+	return map[string]string{"NOE_AGENT_RUNTIME_DIR": t.TempDir(), "NOE_OPENROUTER_API_KEY_FILE": key, "NOE_OPENROUTER_BASE_URL": url, "NOE_AGENT_TRACE": "1"}
 }
 
-func agentScript(instruction, options string) string {
+func agentScript(instruction, configOptions string) string {
 	text, _ := json.Marshal(instruction)
-	return `import {createAgent} from "noe:agent";console.log(await createAgent({provider:"openrouter",model:"fixture/model",maxTokens:2048,effort:"auto"}).run(` + string(text) + `,` + options + `));`
+	return `import {run_agent} from "noe:agent";
+const result=await run_agent({provider:"openrouter",model:"fixture/model",maxTokens:2048,effort:"auto",...` + configOptions + `},` + string(text) + `);
+if(result.lastResult.state==="completed")console.log(result.lastResult.answer);else console.log(JSON.stringify(result));`
 }
 
 func agentToolResult(t *testing.T, message agentChatMessage) agent.Result {
@@ -141,6 +145,129 @@ func agentToolResult(t *testing.T, message agentChatMessage) agent.Result {
 		t.Error(err)
 	}
 	return result
+}
+
+func TestAgentSpawnedRootKeepsProcessAliveUntilTaskCompletes(t *testing.T) {
+	work := t.TempDir()
+	scriptFinished := filepath.Join(work, "script-finished")
+	eventsPath := filepath.Join(work, "agent-events.jsonl")
+	started := make(chan struct{})
+	release := make(chan struct{})
+	released := false
+	var calls atomic.Int32
+	server := agentAPIFixture(t, func(ctx context.Context, req agentChatRequest) agentModelReply {
+		if calls.Add(1) != 1 {
+			t.Errorf("unexpected model request: %+v", req)
+			return agentModelReply{Status: 500}
+		}
+		if agentUser(req) != "spawned task" {
+			t.Errorf("unexpected spawned task: %+v", req)
+		}
+		poll := time.NewTicker(5 * time.Millisecond)
+		defer poll.Stop()
+		deadline := time.NewTimer(5 * time.Second)
+		defer deadline.Stop()
+		for {
+			if _, err := os.Stat(scriptFinished); err == nil {
+				close(started)
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return agentModelReply{Status: 500}
+			case <-deadline.C:
+				t.Error("root script did not finish after accepting the spawned task")
+				return agentModelReply{Status: 500}
+			case <-poll.C:
+			}
+		}
+		select {
+		case <-release:
+			return agentModelReply{Content: "spawned task completed"}
+		case <-ctx.Done():
+			t.Error("spawned task was cancelled before its provider response was released")
+			return agentModelReply{Status: 500}
+		}
+	})
+	defer server.Close()
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	env := agentCLIEnv(t, server.URL)
+	env["NOE_AGENT_TRACE"] = ""
+	source := `import {spawn_agent} from "noe:agent";import {writeFileSync} from "node:fs";
+const spawned=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",name:"spawned"},"spawned task");
+writeFileSync("script-finished",spawned.agentId);console.log("root script finished");`
+	done := make(chan cliResult, 1)
+	go func() { done <- runCLI(t, work, env, "eval", "--events="+eventsPath, source) }()
+	select {
+	case <-started:
+	case result := <-done:
+		t.Fatalf("root process exited before the spawned task completed: %+v", result)
+	case <-time.After(5 * time.Second):
+		t.Fatal("root script did not reach its end while the spawned task was pending")
+	}
+	select {
+	case result := <-done:
+		t.Fatalf("root process exited before the spawned task was released: %+v", result)
+	default:
+	}
+	close(release)
+	released = true
+	select {
+	case result := <-done:
+		requireExit(t, result, 0)
+		if result.stdout != "root script finished\n" || calls.Load() != 1 {
+			t.Fatalf("result=%+v model calls=%d", result, calls.Load())
+		}
+		spawnedID, err := os.ReadFile(scriptFinished)
+		if err != nil || len(spawnedID) == 0 {
+			t.Fatalf("spawned agent ID: %q error=%v", spawnedID, err)
+		}
+		eventData, err := os.ReadFile(eventsPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		counts := make(map[string]int)
+		for _, line := range strings.Split(strings.TrimSpace(string(eventData)), "\n") {
+			var event struct {
+				Type    string `json:"type"`
+				AgentID string `json:"agentId"`
+			}
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				t.Fatalf("invalid event %q: %v", line, err)
+			}
+			if event.AgentID == string(spawnedID) {
+				counts[event.Type]++
+			}
+		}
+		if counts["agent.completed"] != 1 || counts["agent.cancelled"] != 0 || counts["agent.failed"] != 0 {
+			t.Fatalf("spawned task did not complete exactly once: events=%+v", counts)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("root process did not finish after the spawned task completed")
+	}
+}
+
+func TestAgentIdleKeepAliveRootIsReclaimedByTimeout(t *testing.T) {
+	var calls atomic.Int32
+	server := agentAPIFixture(t, func(context.Context, agentChatRequest) agentModelReply {
+		calls.Add(1)
+		return agentModelReply{Content: "unexpected model request"}
+	})
+	defer server.Close()
+	env := agentCLIEnv(t, server.URL)
+	env["NOE_AGENT_TRACE"] = ""
+	source := `import {spawn_agent} from "noe:agent";
+await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",name:"idle"},undefined,{keepAlive:true});
+console.log("idle instance started");`
+	result := runCLI(t, t.TempDir(), env, "eval", "--timeout", "500ms", source)
+	requireExit(t, result, 124)
+	if result.stdout != "idle instance started\n" || calls.Load() != 0 {
+		t.Fatalf("timeout result=%+v model calls=%d", result, calls.Load())
+	}
 }
 
 func TestAgentCLIReadsFilesAndPreservesToolHistory(t *testing.T) {
@@ -259,12 +386,23 @@ func TestAgentCLILimitsAndProviderFailures(t *testing.T) {
 			})
 			defer server.Close()
 			result := runCLI(t, t.TempDir(), agentCLIEnv(t, server.URL), "eval", agentScript("must not report incomplete success", `{maxSteps:1}`))
-			requireExit(t, result, 1)
-			if result.stdout != "" || calls.Load() != 1 {
-				t.Fatalf("failure/retry: %+v calls=%d", result, calls.Load())
+			requireExit(t, result, 0)
+			var snapshot struct {
+				State      string `json:"state"`
+				Reason     string `json:"reason"`
+				LastResult struct {
+					State string `json:"state"`
+					Error string `json:"error"`
+				} `json:"lastResult"`
 			}
-			if name == "steps" && !strings.Contains(result.stderr, "maxSteps") {
-				t.Fatalf("missing limit diagnostic: %s", result.stderr)
+			if err := json.Unmarshal([]byte(result.stdout), &snapshot); err != nil {
+				t.Fatalf("failure snapshot: %q: %v", result.stdout, err)
+			}
+			if snapshot.State != "stopped" || snapshot.Reason != "task_failed" || snapshot.LastResult.State != "failed" || calls.Load() != 1 {
+				t.Fatalf("failure snapshot=%+v calls=%d", snapshot, calls.Load())
+			}
+			if name == "steps" && !strings.Contains(snapshot.LastResult.Error, "maxSteps") {
+				t.Fatalf("missing limit diagnostic: %+v", snapshot.LastResult)
 			}
 		})
 	}

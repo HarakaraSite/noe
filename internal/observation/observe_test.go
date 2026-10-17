@@ -99,7 +99,7 @@ func TestObserveUnknownRunHasEmptyEvents(t *testing.T) {
 
 func TestObserveParallelToolsKeepRunActiveAndChooseActiveAction(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "events.jsonl")
-	writeEvent(t, path, 1, "agent.started", map[string]any{"runId": "r", "parentRunId": "", "name": "parallel", "model": "m"})
+	writeEvent(t, path, 1, "agent.started", map[string]any{"agentId": "instance", "runId": "r", "parentRunId": "", "name": "parallel", "model": "m"})
 	writeEvent(t, path, 2, "model.started", map[string]any{"runId": "r", "requestId": "req"})
 	writeEvent(t, path, 3, "model.finished", map[string]any{"runId": "r", "requestId": "req", "usage": map[string]any{"promptTokens": 3, "completionTokens": 1, "totalTokens": 4, "cost": 0.25}})
 	writeEvent(t, path, 4, "run_js.started", map[string]any{"runId": "r", "toolCallId": "a", "text": "// tool A"})
@@ -111,7 +111,7 @@ func TestObserveParallelToolsKeepRunActiveAndChooseActiveAction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Status != "running" || snapshot.Phase != "run_js" || snapshot.Action != "// tool B" {
+	if snapshot.AgentID != "instance" || snapshot.Status != "running" || snapshot.Phase != "run_js" || snapshot.Action != "// tool B" {
 		t.Fatalf("parallel state = status:%q phase:%q action:%q", snapshot.Status, snapshot.Phase, snapshot.Action)
 	}
 	if snapshot.LastToolResult == nil || snapshot.LastToolResult.Success || snapshot.LastToolResult.ExitCode != 2 || snapshot.LastToolResult.Text != "A output\n" {

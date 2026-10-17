@@ -35,9 +35,9 @@ let prefix=relative(dirname(process.argv[1]),process.cwd()).replaceAll("\\","/")
 if (!prefix.startsWith(".")) prefix="./"+prefix;
 console.log((await import(prefix+"/helper.js")).value);
 globalThis.runnerSecret=17;
-console.log(typeof createAgent);`
+console.log(typeof run_agent);console.log(typeof createAgent);`
 	result := runAgentJS(t, runner, source)
-	if result.ExitCode != 0 || result.Reason != "completed" || result.Stdout != "cwd data\n42\nfunction\n" || result.Stderr != "" {
+	if result.ExitCode != 0 || result.Reason != "completed" || result.Stdout != "cwd data\n42\nfunction\nundefined\n" || result.Stderr != "" {
 		t.Fatalf("runner result: %+v", result)
 	}
 	result = runAgentJS(t, runner, `console.log(typeof globalThis.runnerSecret);`)

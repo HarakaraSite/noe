@@ -14,7 +14,7 @@ import (
 	"sync"
 )
 
-// Runner starts a fresh NOE process for each JavaScript tool invocation.
+// Runner starts a fresh NOE process for each JavaScript execution.
 type Runner struct {
 	Executable string
 	Cwd        string
@@ -31,7 +31,7 @@ type Result struct {
 	Reason   string `json:"reason"`
 }
 
-const childSourcePrelude = "import { createAgent } from \"noe:agent\";\n"
+const childSourcePrelude = "import { run_agent, spawn_agent, observe_agent, queue_agent, steer_agent, interrupt_agent } from \"noe:agent\";\n"
 
 type processScope interface {
 	start() error
@@ -39,10 +39,40 @@ type processScope interface {
 	close() error
 }
 
-// Run writes code to a private temporary module, starts a fresh NOE process,
-// captures both output streams, and terminates the process scope after the
-// root process exits. The caller context is the only timeout source.
-func (r Runner) Run(ctx context.Context, code string) (result Result, retErr error) {
+// Run prepends the public agent helper import used by run_js code.
+func (r Runner) Run(ctx context.Context, code string) (Result, error) {
+	return r.runSource(ctx, childSourcePrelude+code)
+}
+
+// RunTask starts the private model/tool loop directly for one managed task.
+// Config is a JSON object with agent settings; it and instruction are encoded
+// as JSON strings before being placed in JavaScript source.
+func (r Runner) RunTask(ctx context.Context, config json.RawMessage, instruction string) (Result, error) {
+	if len(config) == 0 {
+		config = json.RawMessage(`{}`)
+	}
+	if !json.Valid(config) {
+		return failedResult(), errors.New("task config must contain valid JSON")
+	}
+	configJSON, err := json.Marshal(string(config))
+	if err != nil {
+		return failedResult(), fmt.Errorf("encode task config: %w", err)
+	}
+	instructionJSON, err := json.Marshal(instruction)
+	if err != nil {
+		return failedResult(), fmt.Errorf("encode task instruction: %w", err)
+	}
+	bootstrap := "import { executeTask } from \"noe:agent/task\";\n" +
+		"const config = JSON.parse(" + string(configJSON) + ");\n" +
+		"const instruction = " + string(instructionJSON) + ";\n" +
+		"try { await executeTask(config, instruction); } catch (error) { console.error(error); }\n"
+	return r.runSource(ctx, bootstrap)
+}
+
+// runSource writes source to a private temporary module, starts a fresh NOE
+// process, captures both output streams, and terminates the process scope after
+// the root process exits. The caller context is the only timeout source.
+func (r Runner) runSource(ctx context.Context, source string) (result Result, retErr error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -88,7 +118,7 @@ func (r Runner) Run(ctx context.Context, code string) (result Result, retErr err
 		retErr = errors.Join(retErr, os.RemoveAll(tempDir))
 	}()
 	sourcePath := filepath.Join(tempDir, "agent-run.js")
-	if err := os.WriteFile(sourcePath, []byte(childSourcePrelude+code), 0600); err != nil {
+	if err := os.WriteFile(sourcePath, []byte(source), 0600); err != nil {
 		return failedResult(), fmt.Errorf("write private agent source: %w", err)
 	}
 	env, err := childEnvironment(os.Environ(), r.Connection)

@@ -30,7 +30,7 @@ func TestAgentSessionReusesCachedModuleAndRecoversAfterError(t *testing.T) {
 		}
 		return agentAnswer(user.Content), nil
 	})
-	s, err := NewSession(Options{Agent: &agent.Options{Provider: p}})
+	s, err := NewSession(Options{Agent: agentTestOptions(p)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,21 +40,19 @@ func TestAgentSessionReusesCachedModuleAndRecoversAfterError(t *testing.T) {
 		defer cancel()
 		return s.Eval(ctx, input)
 	}
-	for _, setup := range []string{`const agentModule=await import("noe:agent")`, `const reusedAgent=agentModule.createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"})`} {
-		if result := eval(setup); result.Err != nil || result.Exit {
-			t.Fatalf("setup: %+v", result)
-		}
+	if result := eval(`const agentModule=await import("noe:agent")`); result.Err != nil || result.Exit {
+		t.Fatalf("setup: %+v", result)
 	}
 	if calls.Load() != 0 {
-		t.Fatal("REPL import/create called provider")
+		t.Fatal("REPL API import called provider")
 	}
-	if result := eval(`await reusedAgent.run("first")`); result.Err != nil || result.Exit || result.Output != "'first'" {
+	if result := eval(`await agentModule.run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"first").then(snapshot=>snapshot.lastResult.answer)`); result.Err != nil || result.Exit || result.Output != "'first'" {
 		t.Fatalf("first: %+v", result)
 	}
-	if result := eval(`await reusedAgent.run("fail")`); result.Err == nil || result.Exit {
-		t.Fatalf("recoverable failure: %+v", result)
+	if result := eval(`await agentModule.run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"fail").then(snapshot=>snapshot.lastResult.state)`); result.Err != nil || result.Exit || result.Output != "'failed'" {
+		t.Fatalf("task failure snapshot: %+v", result)
 	}
-	if result := eval(`await reusedAgent.run("third")`); result.Err != nil || result.Exit || result.Output != "'third'" {
+	if result := eval(`await agentModule.run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"third").then(snapshot=>snapshot.lastResult.answer)`); result.Err != nil || result.Exit || result.Output != "'third'" {
 		t.Fatalf("after cancelled prior context: %+v", result)
 	}
 	if calls.Load() != 3 {
@@ -70,7 +68,7 @@ func TestAgentSessionInterruptCancelsPendingRPC(t *testing.T) {
 		close(stopped)
 		return provider.Response{}, ctx.Err()
 	})
-	s, err := NewSession(Options{Agent: &agent.Options{Provider: p}})
+	s, err := NewSession(Options{Agent: agentTestOptions(p)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +85,7 @@ func TestAgentSessionInterruptCancelsPendingRPC(t *testing.T) {
 		case <-ctx.Done():
 		}
 	}()
-	result := s.Eval(ctx, `await am.createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("wait")`)
+	result := s.Eval(ctx, `await am.run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"wait")`)
 	if !result.Exit || result.Code != 1 || !errors.Is(result.Err, context.Canceled) || !errors.Is(result.Err, quickjs.ErrClosed) {
 		t.Fatalf("pending RPC interruption: %+v", result)
 	}
@@ -120,11 +118,14 @@ func TestAgentCompletionUsesCurrentContextAndTracksRPC(t *testing.T) {
 		}
 		return len(data), nil
 	})
-	p := agentProviderFunc(func(context.Context, provider.Request) (provider.Response, error) {
-		t.Error("completion must not drive model continuation")
-		return agentAnswer("unexpected"), nil
+	p := agentProviderFunc(func(ctx context.Context, _ provider.Request) (provider.Response, error) {
+		// The manager starts native task work independently of QuickJS Promise
+		// continuations. Completion can therefore race the first model request;
+		// reclaiming that request when the operation closes is the contract.
+		<-ctx.Done()
+		return provider.Response{}, ctx.Err()
 	})
-	s, err := NewSession(Options{Agent: &agent.Options{Provider: p, Trace: trace}})
+	s, err := NewSession(Options{Agent: &agent.Options{Provider: p, Trace: trace, Executable: runtimeTestExecutable}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,8 +135,7 @@ func TestAgentCompletionUsesCurrentContextAndTracksRPC(t *testing.T) {
 	}
 	for _, setup := range []string{
 		`const cm=await import("noe:agent")`,
-		`const ca=cm.createAgent({provider:"openrouter",model:"fixture/model",name:"completion-agent",effort:"auto"})`,
-		`const agentProxy=new Proxy({}, {ownKeys(){ca.run("pending from trap").catch(()=>{});while(!completionRPCStarted()){};return ["value"]}})`,
+		`const agentProxy=new Proxy({}, {ownKeys(){cm.run_agent({provider:"openrouter",model:"fixture/model",name:"completion-agent",effort:"auto"},"pending from trap").catch(()=>{});while(!completionRPCStarted()){};return ["value"]}})`,
 	} {
 		if result := s.Eval(context.Background(), setup); result.Err != nil || result.Exit {
 			t.Fatalf("setup %s: %+v", setup, result)

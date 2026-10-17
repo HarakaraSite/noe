@@ -4,6 +4,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,56 @@ func writeFakeNOE(t *testing.T, body string) string {
 		t.Fatal(err)
 	}
 	return executable
+}
+
+func TestRunnerRunTaskUsesPrivateBootstrapAndJSONInputs(t *testing.T) {
+	executable := writeFakeNOE(t, `
+if [ "$1" != "run" ]; then
+	printf 'unexpected command: %s\n' "$1" >&2
+	exit 90
+fi
+cat "$2"
+`)
+	config := json.RawMessage(`{"provider":"openrouter","model":"fixture/model\"; globalThis.injected = true; //","maxSteps":4}`)
+	instruction := "first line\n\"; globalThis.injected = true; //"
+	result, err := (Runner{Executable: executable}).RunTask(context.Background(), config, instruction)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Reason != "completed" || result.ExitCode != 0 {
+		t.Fatalf("runner result = %#v, want completed exit 0", result)
+	}
+	if !strings.HasPrefix(result.Stdout, "import { executeTask } from \"noe:agent/task\";\n") {
+		t.Fatalf("task bootstrap import missing: %q", result.Stdout)
+	}
+	if strings.Contains(result.Stdout, "createAgent") || strings.Count(result.Stdout, "import {") != 1 {
+		t.Fatalf("task bootstrap contains public or duplicate imports: %q", result.Stdout)
+	}
+	configLiteral, _ := json.Marshal(string(config))
+	instructionLiteral, _ := json.Marshal(instruction)
+	if !strings.Contains(result.Stdout, "const config = JSON.parse("+string(configLiteral)+");") {
+		t.Errorf("config was not embedded as JSON data: %q", result.Stdout)
+	}
+	if !strings.Contains(result.Stdout, "const instruction = "+string(instructionLiteral)+";") {
+		t.Errorf("instruction was not embedded as a JS string: %q", result.Stdout)
+	}
+	if !strings.Contains(result.Stdout, "try { await executeTask(config, instruction); } catch (error) { console.error(error); }") {
+		t.Errorf("task failure catch/report missing: %q", result.Stdout)
+	}
+}
+
+func TestRunnerRunTaskRejectsInvalidConfigBeforeLaunching(t *testing.T) {
+	started := filepath.Join(t.TempDir(), "started")
+	executable := writeFakeNOE(t, `touch "$NOE_RUNNER_STARTED_FILE"
+`)
+	t.Setenv("NOE_RUNNER_STARTED_FILE", started)
+	result, err := (Runner{Executable: executable}).RunTask(context.Background(), json.RawMessage(`{"model":`), "task")
+	if err == nil || result.Reason != "failed" || result.ExitCode != -1 {
+		t.Fatalf("invalid config result = %#v, error=%v", result, err)
+	}
+	if _, statErr := os.Stat(started); !os.IsNotExist(statErr) {
+		t.Fatalf("runner launched for invalid config: stat error = %v", statErr)
+	}
 }
 
 func TestRunnerCapturesOutputSourceCwdAndScopedEnvironment(t *testing.T) {
@@ -75,7 +126,7 @@ printf 'fixture stderr\n' >&2
 	if !strings.Contains(result.Stdout, "marker=fixture-environment\n") {
 		t.Errorf("ordinary environment was not preserved: %q", result.Stdout)
 	}
-	if !strings.Contains(result.Stdout, "source-begin\nimport { createAgent } from \"noe:agent\";\nglobalThis.fixtureValue = 42;\nsource-end\n") {
+	if !strings.Contains(result.Stdout, "source-begin\nimport { run_agent, spawn_agent, observe_agent, queue_agent, steer_agent, interrupt_agent } from \"noe:agent\";\nglobalThis.fixtureValue = 42;\nsource-end\n") {
 		t.Errorf("temporary source did not include the agent prelude and input: %q", result.Stdout)
 	}
 	if result.Stderr != "fixture stderr\n" {

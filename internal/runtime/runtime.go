@@ -173,6 +173,9 @@ func (h *host) installLoader(entry *Source) {
 		if specifier == "noe:agent" {
 			return agent.ModuleSource, "noe:agent", nil
 		}
+		if specifier == "noe:agent/task" {
+			return agent.TaskModuleSource, "noe:agent/task", nil
+		}
 		if !strings.HasPrefix(specifier, "./") && !strings.HasPrefix(specifier, "../") {
 			return "", "", fmt.Errorf("only relative local imports are supported: %q", specifier)
 		}

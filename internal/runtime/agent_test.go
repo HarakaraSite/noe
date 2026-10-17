@@ -43,21 +43,26 @@ func TestAgentMinimalRunHasIndependentHistories(t *testing.T) {
 		return agentAnswer(user.Content), nil
 	})
 	var out bytes.Buffer
-	source := `import {createAgent} from "noe:agent";
-const a = createAgent({provider:"openrouter",model:"fixture/model",system:"additional",maxTokens:123,effort:"high"});
-console.log(await a.run("first",{cacheKey:"cache-1"}));
-console.log(await a.run("second"));
-console.log(JSON.stringify(await Promise.all([a.run("left"),a.run("right")])));
-console.log(await a.run("empty",{cacheKey:""}));`
+	source := `import {run_agent} from "noe:agent";
+const config={provider:"openrouter",model:"fixture/model",system:"additional",maxTokens:123,effort:"high"};
+const first=await run_agent({...config,cacheKey:"cache-1"},"first");
+const second=await run_agent(config,"second");
+const [left,right]=await Promise.all([run_agent(config,"left"),run_agent(config,"right")]);
+const empty=await run_agent({...config,cacheKey:""},"empty");
+for (const result of [first,second,left,right,empty]) {
+  if (result.state!=="stopped" || result.reason!=="task_completed" || result.lastResult.state!=="completed") throw Error(JSON.stringify(result));
+}
+console.log(JSON.stringify([first.lastResult.answer,second.lastResult.answer,[left.lastResult.answer,right.lastResult.answer],empty.lastResult.answer]));`
 	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{
-		Stdout: &out, Agent: &agent.Options{Provider: p},
+		Stdout: &out, Agent: agentTestOptions(p),
 	})
-	if code != 0 || err != nil || out.String() != "first\nsecond\n[\"left\",\"right\"]\nempty\n" {
+	if code != 0 || err != nil || out.String() != "[\"first\",\"second\",[\"left\",\"right\"],\"empty\"]\n" {
 		t.Fatalf("code=%d error=%v stdout=%q", code, err, &out)
 	}
 	if len(requests) != 5 {
 		t.Fatalf("requests=%d", len(requests))
 	}
+	byInstruction := make(map[string]provider.Request, len(requests))
 	for _, req := range requests {
 		if req.Model != "fixture/model" || req.MaxTokens != 123 || req.Effort != "high" || len(req.Messages) != 2 || !strings.Contains(string(req.Messages[0]), "additional") {
 			t.Fatalf("settings/history not isolated: %+v", req)
@@ -72,14 +77,22 @@ console.log(await a.run("empty",{cacheKey:""}));`
 		if system.Role != "system" || system.Content != agent.Instructions()+"\nadditional" {
 			t.Fatalf("embedded Markdown and custom instructions were not composed: %+v", system)
 		}
+		var user struct {
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(req.Messages[1], &user); err != nil {
+			t.Fatal(err)
+		}
+		byInstruction[user.Content] = req
 	}
-	if requests[0].CacheKey != "cache-1" || requests[4].CacheKey != "" {
-		t.Fatalf("explicit cacheKey changed: %+v", requests)
+	if byInstruction["first"].CacheKey != "cache-1" || byInstruction["empty"].CacheKey != "" {
+		t.Fatalf("explicit cacheKey changed: %+v", byInstruction)
 	}
 	seen := map[string]bool{"cache-1": true}
-	for _, req := range requests[1:4] {
+	for _, instruction := range []string{"second", "left", "right"} {
+		req := byInstruction[instruction]
 		if req.CacheKey == "" || seen[req.CacheKey] {
-			t.Fatalf("automatic cacheKey missing or shared across runs: %+v", requests)
+			t.Fatalf("automatic cacheKey missing or shared across runs: %+v", byInstruction)
 		}
 		seen[req.CacheKey] = true
 	}
@@ -92,19 +105,21 @@ func TestAgentLazyImportAndConfigurationErrors(t *testing.T) {
 		return agentAnswer("unexpected"), nil
 	})
 	for _, source := range []string{
-		`import {createAgent} from "noe:agent"; createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"});`,
-		`import {createAgent} from "noe:agent"; let failures=0;
-for (const config of [{model:""},{model:42},{provider:"unknown"},{maxTokens:-1}]) {
-  try { createAgent({provider:"openrouter",model:"fixture/model",effort:"auto",...config}); } catch { failures++; }
+		`const api=await import("noe:agent");
+if (Object.keys(api).sort().join(",")!=="interrupt_agent,observe_agent,queue_agent,run_agent,spawn_agent,steer_agent") throw Error("unexpected public exports: "+Object.keys(api));
+if ("createAgent" in api) throw Error("legacy createAgent is still exported");`,
+		`import {run_agent} from "noe:agent"; let failures=0;
+for (const config of [{model:""},{model:42},{provider:"unknown"},{maxTokens:-1},{maxSteps:-1},{cacheKey:42}]) {
+  const pending=run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",...config},"must not contact provider");
+  if (!(pending instanceof Promise)) throw Error("run_agent did not return a promise");
+  try { await pending; } catch { failures++; }
 }
-
-const a=createAgent({provider:"openrouter",model:"x",effort:"auto"});
-for (const [instruction,options] of [["",{}],[42,{}],["x",{maxSteps:-1}],["x",{cacheKey:42}]]) {
-  try { await a.run(instruction,options); } catch { failures++; }
+for (const [config,instruction] of [[{provider:"openrouter",model:"fixture/model",effort:"auto"},""],[{provider:"openrouter",model:"fixture/model"},"task"],[{provider:"openrouter",effort:"auto"},"task"],[{model:"fixture/model",effort:"auto"},"task"]]) {
+  try { await run_agent(config,instruction); } catch { failures++; }
 }
-if(failures!==8) throw Error("validation missed "+failures);`,
+if(failures!==10) throw Error("async validation missed "+failures);`,
 	} {
-		code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: &agent.Options{Provider: p}})
+		code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: agentTestOptions(p)})
 		if code != 0 || err != nil {
 			t.Fatalf("code=%d error=%v", code, err)
 		}
@@ -112,9 +127,9 @@ if(failures!==8) throw Error("validation missed "+failures);`,
 	if calls.Load() != 0 {
 		t.Fatalf("unused/invalid agent invoked provider %d times", calls.Load())
 	}
-	// Prove import/create do not read a missing credential either.
-	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), `import {createAgent} from "noe:agent";createAgent({provider:"openrouter",model:"x",effort:"auto"});`},
-		Options{Agent: &agent.Options{ProviderOptions: provider.Options{KeyFile: filepath.Join(t.TempDir(), "missing")}}})
+	// Prove importing the public API does not read a missing credential.
+	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), `import {run_agent} from "noe:agent";if(typeof run_agent!=="function")throw Error("missing run_agent");`},
+		Options{Agent: &agent.Options{Executable: runtimeTestExecutable, ProviderOptions: provider.Options{KeyFile: filepath.Join(t.TempDir(), "missing")}}})
 	if code != 0 || err != nil {
 		t.Fatalf("lazy auth code=%d error=%v", code, err)
 	}
@@ -129,19 +144,20 @@ func TestAgentEffortValuesAndValidation(t *testing.T) {
 		mu.Unlock()
 		return agentAnswer("done"), nil
 	})
-	source := `import {createAgent} from "noe:agent";
+	source := `import {run_agent} from "noe:agent";
 for (const effort of ["auto","none","minimal","low","medium","high","xhigh","max"]) {
-  await createAgent({provider:"openrouter",model:"fixture/model",effort}).run("task");
+  const result=await run_agent({provider:"openrouter",model:"fixture/model",effort},"task");
+  if(result.lastResult.state!=="completed")throw Error(JSON.stringify(result));
 }
 for (const effort of [null,"","HIGH","unknown",1,false,{},["low"]]) {
   let rejected = false;
-  try { createAgent({provider:"openrouter",model:"fixture/model",effort}); } catch (e) {
+  try { await run_agent({provider:"openrouter",model:"fixture/model",effort},"task"); } catch (e) {
     if (!(e instanceof TypeError) || !e.message.includes("effort")) throw e;
     rejected = true;
   }
   if (!rejected) throw Error("invalid effort accepted: "+JSON.stringify(effort));
 }`
-	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: &agent.Options{Provider: p}})
+	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: agentTestOptions(p)})
 	if code != 0 || err != nil {
 		t.Fatalf("code=%d error=%v", code, err)
 	}
@@ -163,7 +179,7 @@ func TestAgentCancellationStopsProvider(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	go func() { <-started; cancel() }()
-	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), `import {createAgent} from "noe:agent";await createAgent({provider:"openrouter",model:"x",effort:"auto"}).run("wait");`}, Options{Agent: &agent.Options{Provider: p}})
+	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), `import {run_agent} from "noe:agent";await run_agent({provider:"openrouter",model:"x",effort:"auto"},"wait");`}, Options{Agent: agentTestOptions(p)})
 	if code != 1 || !errors.Is(err, context.Canceled) {
 		t.Fatalf("code=%d error=%v", code, err)
 	}
@@ -188,7 +204,7 @@ func TestAgentInternalRPCLongerThanFetchTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	var out bytes.Buffer
-	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), `import {createAgent} from "noe:agent";console.log(await createAgent({provider:"openrouter",model:"x",effort:"auto"}).run("wait"));`}, Options{Stdout: &out, Agent: &agent.Options{Provider: p}})
+	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), `import {run_agent} from "noe:agent";const result=await run_agent({provider:"openrouter",model:"x",effort:"auto"},"wait");console.log(result.lastResult.answer);`}, Options{Stdout: &out, Agent: agentTestOptions(p)})
 	if code != 0 || err != nil || out.String() != "long request completed\n" {
 		t.Fatalf("code=%d error=%v stdout=%q", code, err, &out)
 	}

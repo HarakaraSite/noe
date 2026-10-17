@@ -10,6 +10,11 @@ import (
 //go:embed js/agent.js
 var ModuleSource string
 
+// TaskModuleSource is the private ES module source used by managed-task
+// bootstraps. It is intentionally not part of the documented public API.
+//go:embed js/task.js
+var TaskModuleSource string
+
 //go:embed instructions.md
 var instructionMarkdown string
 

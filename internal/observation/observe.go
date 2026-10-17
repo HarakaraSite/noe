@@ -60,6 +60,7 @@ type ToolResult struct {
 // delta. State fields are always derived from the full run history; Cursor
 // filters only Events.
 type Snapshot struct {
+	AgentID        string         `json:"agentId,omitempty"`
 	RunID          string         `json:"runId"`
 	ParentRunID    string         `json:"parentRunId"`
 	Name           string         `json:"name"`
@@ -376,6 +377,9 @@ func newRunState(runID string) *runState {
 func (s *runState) apply(rec record, includeOutput bool) {
 	event := rec.event
 	typeName := rec.typeName
+	if value := stringField(event, "agentId"); value != "" {
+		s.snapshot.AgentID = value
+	}
 	if timeText := stringField(event, "time"); timeText != "" {
 		s.snapshot.UpdatedAt = timeText
 	}

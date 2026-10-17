@@ -91,6 +91,17 @@ func (h *host) agentRequest(method, payload string) *quickjs.Promise {
 	go func() {
 		defer h.loop.std.Done()
 		response, err := op.Call(method, payload)
+		if err == nil && method == "spawn_agent" {
+			var spawned struct {
+				AgentID string `json:"agentId"`
+			}
+			if json.Unmarshal([]byte(response), &spawned) == nil {
+				if done := op.OwnedLifetime(spawned.AgentID); done != nil {
+					h.loop.std.Begin()
+					go func() { defer h.loop.std.Done(); <-done }()
+				}
+			}
+		}
 		h.loop.std.Post(func() {
 			if err != nil {
 				promise.RejectError(err)

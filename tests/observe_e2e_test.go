@@ -71,8 +71,23 @@ func TestObserveFailedAgentReturnsFailureInformation(t *testing.T) {
 	env := agentCLIEnv(t, server.URL)
 	env["NOE_AGENT_TRACE"] = ""
 	run := runCLI(t, work, env, "run", "--events=failed.jsonl", "main.js")
-	requireExit(t, run, 1)
+	// Accepted task failures are data; this script prints the failed snapshot
+	// and exits normally. The recorded TaskRun must still be observed as failed.
+	requireExit(t, run, 0)
+	var result struct {
+		State, Reason string
+		LastResult    struct{ RunID, State, Error string }
+	}
+	if err := json.Unmarshal([]byte(run.stdout), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.State != "stopped" || result.Reason != "task_failed" || result.LastResult.State != "failed" || !strings.Contains(result.LastResult.Error, "authentication") {
+		t.Fatalf("failed task snapshot: %s", run.stdout)
+	}
 	runID := observationRunID(t, filepath.Join(work, "failed.jsonl"))
+	if runID != result.LastResult.RunID {
+		t.Fatalf("recorded run=%q returned run=%q", runID, result.LastResult.RunID)
+	}
 	query := runCLI(t, work, nil, "observe", "--json", "--run", runID, "--wait", "failed.jsonl")
 	requireExit(t, query, 0)
 	var snapshot struct{ Status, Error string }

@@ -23,6 +23,11 @@ const usage = `Usage:
   noe repl [--observe] [--events[=path|-]]
   noe observe [--run id] [--follow] [events.jsonl|-]
   noe observe --json --run id [--wait] events.jsonl
+  noe agents
+  noe steer <run-id> <instruction>
+  noe queue <agent-id> <instruction>
+  noe interrupt --run <run-id>
+  noe interrupt --agent <agent-id>
   noe --help
   noe --version
 
@@ -57,6 +62,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return 0
 	case "observe":
 		return runObserve(ctx, args[1:], stdin, stdout, stderr)
+	case "agents", "steer", "queue", "interrupt":
+		return runAgentControl(ctx, args, stdout, stderr)
 	case "repl":
 		options, operands, err := parseCommandOptions(args[1:])
 		if err != nil {

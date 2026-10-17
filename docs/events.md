@@ -41,7 +41,7 @@ agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等�
 
 明示ファイルへの追記では、起動ごとに`executionId`が変わり、`seq`は1に戻ります。差分取得では実行IDと番号を組にするか、ファイルの読取り位置を保持します。
 
-agent由来のイベントには`runId`・`parentRunId`・`name`・`model`が付きます。`runId`は`agent.run()`ごとに異なり、親のないrunの`parentRunId`は空文字です。子の`parentRunId`には親の`runId`が入り、親自身のIDは変わりません。スクリプト全体の通常出力には、特定agentのrun IDを割り当てません。
+`agentId`は起動から停止まで同じinstanceを示し、`runId`はtaskごとに発行されます。taskとinstanceのイベントには`parentRunId`・`name`・`model`も付きます。`parentRunId`は起動元taskのrun IDで、親のないinstanceでは空文字です。raw JSONLでは、instance状態の`instance.*`、task状態の`agent.*`、queueまたはsteer操作の`command.*`を区別します。`command.*`は`operation`で`queue`と`steer`を識別します。instanceとtaskのイベントには`agentId`が付き、taskのイベントにはそのtaskの`runId`も付きます。スクリプト全体の通常出力には、特定agentのIDを割り当てません。
 
 | `type` | 主な追加項目・タイミング |
 | --- | --- |
@@ -49,7 +49,10 @@ agent由来のイベントには`runId`・`parentRunId`・`name`・`model`が付
 | `execution.error` | 実行エラー・タイムアウトの`text` |
 | `stdout` / `stderr` | JSが出力した文字列断片の`text`。改行を含め元の文字列を保持 |
 | `repl.result` / `repl.error` | REPL評価結果・エラーの`text` |
-| `agent.started` / `agent.completed` / `agent.failed` / `agent.cancelled` | runの状態・終了時の`duration` |
+| `instance.started` / `instance.idle` / `instance.running` / `instance.stopping` / `instance.stopped` / `instance.failed` | AgentInstance状態の変化。`agentId`・状態・停止理由など。taskの成功・失敗イベントとは別に記録 |
+| `command.accepted` / `command.applied` / `command.completed` / `command.failed` / `command.cancelled` | queueまたはsteer commandの受領・適用・結果。`operation`は`queue`または`steer`、`commandId`とstatusも付く。queueの結果にはtaskの`runId`も付く |
+| `interrupt.accepted` | taskまたはinstanceへの停止要求の受付。`target`は`run`または`agent`、`status`は`accepted`。run対象には`runId`、agent対象には`agentId`が付き、taskが実行中なら`runId`も付く。いずれも`parentRunId`・`name`・`model`を含む |
+| `agent.started` / `agent.completed` / `agent.failed` / `agent.cancelled` | TaskRunの状態・終了時の`duration`。instanceが管理するrunにはinstance側の`agentId`も付く |
 | `model.started` / `model.finished` / `model.failed` | モデル要求の`requestId`。完了時は`finishReason`・`usage`・`duration`、失敗時は`reason`等 |
 | `thinking` / `thinking_summary` | providerから返った推論本文・要約の断片`text`と`requestId` |
 | `message_delta` | モデルの発言本文の断片`text`と`requestId` |
@@ -79,6 +82,6 @@ tail -f agent.jsonl | jq --unbuffered -c \
   'select(.runId == "aaa" or .parentRunId == "aaa")'
 ```
 
-人間向けの整形表示はGoの`noe observe`、親向けの状態・差分・結果取得は`noe:agent`の`observe_agent`を利用できます。`./noe run --events=- try-agent.js | ./noe observe`で逐次表示できます。使い方は[観察の入口](observe.md)を参照してください。外部JSによる表示も当初の[検討メモ](future-candidates.md#外部jsによるリアルタイム表示--2026-10-17)に残しています。SQLite保存、spawnによる子の途中監督・追加指示は別の検討項目です。
+人間向けの整形表示はGoの`noe observe`、親向けの状態・差分・結果取得は`noe:agent`の`observe_agent`を利用できます。`--observe`と`noe observe`は`instance.*`を`[name/<agentId8>] agent idle`のように表示し、taskの発言・tool・完了は従来どおりtaskのrun IDで表示します。steerの受付・適用・取消しとinterruptの受付も人間向け表示に出します。queueの`command.*`受付・結果はraw JSONLに記録し、人間向け表示では省略します。`./noe run --events=- try-agent.js | ./noe observe`で逐次表示できます。使い方は[観察の入口](observe.md)を参照してください。steer・interrupt・人間用control CLIの受付と確認方法は[APIリファレンス](api.md#実行中taskへの指示と停止)にまとめています。外部JSによる表示とSQLite保存は、当初の[検討メモ](future-candidates.md#外部jsによるリアルタイム表示--2026-10-17)に残しています。設計と対象範囲は[control計画](agent-control-plan.md)を参照してください。
 
 従来の`NOE_AGENT_TRACE=1`はメタデータのみをstderrへ出す機能として維持しています。詳細本文やtool出力を含む`--events`とは独立しており、従来のtraceの内容は変わりません。

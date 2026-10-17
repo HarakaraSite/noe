@@ -35,18 +35,19 @@
 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key ./noe repl
 ```
 
-REPLでは静的importの代わりにdynamic importを使います。moduleをimportしたりagentを作ったりするだけでは、キー読込みやprovider通信は始まりません。
+REPLでは静的importの代わりにdynamic importを使います。moduleのimportや初期taskなしのidle起動では、キー読込み・provider通信は始まりません。task付きのrun/spawnでは受領後にモデル要求を開始します。
 
 ```text
 > const agentModule = await import("noe:agent")
-> const summaryAgent = agentModule.createAgent({provider:"openrouter",model:"deepseek/deepseek-v4.1-flash",effort:"auto",name:"summary"})
-> const summary = await summaryAgent.run("README.mdを3点に要約してください。")
-> console.log(summary)
+> const summarySnapshot = await agentModule.run_agent({provider:"openrouter",model:"deepseek/deepseek-v4.1-flash",effort:"auto",name:"summary"}, "README.mdを3点に要約してください。")
+> console.log(summarySnapshot.lastResult?.answer)
 ```
 
-`run()`は最終回答の文字列を返します。同じ`summaryAgent`を別の入力でも使えますが、各呼出しの会話履歴は独立し、前回の会話を保存・再開しません。`createAgent`と`run`のoption、子agentへの設定継承、認証pathとtraceは[APIリファレンス](api.md)を参照してください。
+`run_agent()`は終了後にinstance snapshotを返し、最終回答は`lastResult.answer`から取得します。既定では一つのtaskを処理して停止します。別の`run_agent()`呼出しは新しいinstanceと履歴を使います。`spawn_agent()`で待受instanceを起動し、`observe_agent({agentId})`で状態を確認し、`queue_agent()`で別taskを追加できます。実行中のtaskには`steer_agent({runId, instruction})`、taskまたはinstance全体の停止には`interrupt_agent({runId})`・`interrupt_agent({agentId})`を使えます。APIの設定、状態、子agentへの設定継承、認証pathとtraceは[APIリファレンス](api.md)を参照してください。
 
-完了したprovider errorはその入力の失敗として表示され、次の入力へ進めます。model通信中にCtrl+Cを押すと要求を取り消し、進行中のI/Oを残さないようREPL sessionを終了します。agent通信を開始するProxy trap等をTab補完が評価した場合も、残った内部要求は取消し対象となりsessionが終了することがあります。通常のagent処理は入力中に人間の追加指示を待ちません。
+通常のprovider errorは`lastResult.state:"failed"`とエラーを持つsnapshotとして返り、次の入力へ進めます。入力・受付の不備はPromiseのrejectとして表示します。model通信中にCtrl+Cを押すと要求を取り消し、進行中のI/Oを残さないようREPL sessionを終了します。agent通信を開始するProxy trap等をTab補完が評価した場合も、残った内部要求は取消し対象となりsessionが終了することがあります。通常のagent処理は人間の追加指示を自動では待ちません。steerは別のCLIまたは同じowner内の並行処理から送れます。
+
+rootの`keepAlive` instanceは入力本文が終わっても追跡され、そのREPL入力が終わるまで次のpromptへ進みません。別terminalで`./noe agents`からIDを調べ、`./noe interrupt --agent <agent-id>`を使うと、instanceの回収後にREPLへ戻ります。`./noe interrupt --run <run-id>`は実行中taskだけを止めて待受instanceを残すため、REPL入力は終了しません。Ctrl+Cはowner全体を終了する場合に使います。
 
 非同期入力は`await expression`、`const name = await expression`・`let`・`var`の単一変数初期化、`name = await expression`に対応します。`const`は再代入できません。通常のPromise値を暗黙に結果値へ変換しないため、解決結果を使う場合は明示的に`await`してください。
 

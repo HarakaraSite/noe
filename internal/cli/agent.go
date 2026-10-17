@@ -34,5 +34,8 @@ func agentOptions(stderr io.Writer) (*agent.Options, error) {
 		}
 		opts.Connection = &connection
 	}
+	if opts.Connection == nil {
+		opts.EnableControl = true
+	}
 	return opts, nil
 }
