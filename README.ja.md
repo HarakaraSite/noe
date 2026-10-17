@@ -11,7 +11,7 @@ A tiny JavaScript runtime written in pure Go.
 
 [APIリファレンス](docs/api.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
 
-[v1.3.1リリースノート](docs/releases/v1.3.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.1)
+[v1.3.2リリースノート](docs/releases/v1.3.2.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.2)
 
 ## ビルドと実行
 
@@ -25,7 +25,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.3.1
+# noe v1.3.2
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -83,7 +83,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.3.1のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.1/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
+表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.3.2のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.2/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
 
 ### 1タスクを実行し、回答を受け取る
 

@@ -50,6 +50,8 @@ agentの共通インストラクションは[`internal/agent/instructions.md`](.
 
 ## ビルドと検証
 
+[依存ライブラリの互換性確認と追随](dependency-updates.md)に、go-intl・SDK・JSON関連・OS/端末関連の更新判断、性能測定、適用後の検証を記録しています。
+
 [OpenRouter SDK → OpenCode Goの接続スパイク](opencode-go-sdk-spike.md)では、既存SDKでChat・Responsesの実接続を確認しています。本体にはChat・Responses対応を追加済みです。[provider設定](providers.md)と[本体の検証記録](provider-config-validation.md)を参照してください。
 
 Go 1.27.2以降を使います。現在の検証環境はLinux amd64です。通常のビルドはCGO不要で、race detectorの実行にはCツールチェーンが必要です。以下はリポジトリのルートで実行します。

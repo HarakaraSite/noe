@@ -14,7 +14,7 @@ NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript
 
 The linked guides and development notes are currently in Japanese.
 
-[v1.3.1 release notes](docs/releases/v1.3.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.1)
+[v1.3.2 release notes](docs/releases/v1.3.2.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.2)
 
 ## Build and run
 
@@ -28,7 +28,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.3.1
+# noe v1.3.2
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -86,7 +86,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.3.1 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.1/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
+Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.3.2 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.2/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
 
 ### Run one task and receive its answer
 
