@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"noe/internal/agent"
 	"noe/internal/events"
+	"noe/internal/hostio"
 )
 
 // observation owns its file and output adapters for exactly one CLI invocation.
@@ -63,13 +65,13 @@ func openObservation(ctx context.Context, option *string, human bool, stdout, st
 		o.renderer = newAgentRenderer(stdout)
 		out = &renderedEventsWriter{record: out, renderer: o.renderer}
 	}
-	o.writer = events.New(cancelOnWriteError{out: out, cancel: cancel}, id)
+	o.writer = events.New(cancelOnWriteError{out: out, cancel: cancel, ctx: ctx}, id)
 	var mirrorOut, mirrorErr io.Writer
 	if !o.toStdout {
 		mirrorOut, mirrorErr = stdout, stderr
 	}
-	o.stdout = &eventOutput{events: o.writer, kind: "stdout", mirror: mirrorOut}
-	o.stderr = &eventOutput{events: o.writer, kind: "stderr", mirror: mirrorErr}
+	o.stdout = &eventOutput{events: o.writer, kind: "stdout", mirror: mirrorOut, cancel: cancel}
+	o.stderr = &eventOutput{events: o.writer, kind: "stderr", mirror: mirrorErr, cancel: cancel}
 	return ctx, o, nil
 }
 
@@ -119,6 +121,46 @@ type renderedEventsWriter struct {
 	renderer *agentRenderer
 }
 
+func writeOutputContext(ctx context.Context, out io.Writer, p []byte) (int, error) {
+	w, err := hostio.NewWriter(out)
+	if err != nil {
+		return 0, err
+	}
+	defer w.Close()
+	return w.WriteContext(ctx, p)
+}
+
+type contextOutput struct {
+	ctx context.Context
+	out io.Writer
+}
+
+func (w contextOutput) Write(p []byte) (int, error) { return writeOutputContext(w.ctx, w.out, p) }
+
+func (w *renderedEventsWriter) WriteContext(ctx context.Context, p []byte) (int, error) {
+	committed := false
+	if w.record != nil {
+		if n, err := writeOutputContext(ctx, w.record, p); err != nil {
+			return n, err
+		}
+		committed = true
+	}
+	var event events.Event
+	if err := json.Unmarshal(p, &event); err != nil {
+		return 0, err
+	}
+	original := w.renderer.out
+	w.renderer.out = contextOutput{ctx, original}
+	defer func() { w.renderer.out = original }()
+	if err := w.renderer.render(event); err != nil {
+		if committed && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			return len(p), &events.CommittedCancellation{Err: err}
+		}
+		return 0, err
+	}
+	return len(p), nil
+}
+
 func (w *renderedEventsWriter) Write(p []byte) (int, error) {
 	if w.record != nil {
 		n, err := w.record.Write(p)
@@ -142,10 +184,20 @@ func (w *renderedEventsWriter) Write(p []byte) (int, error) {
 type cancelOnWriteError struct {
 	out    io.Writer
 	cancel context.CancelFunc
+	ctx    context.Context
 }
 
 func (w cancelOnWriteError) Write(p []byte) (int, error) {
-	n, err := w.out.Write(p)
+	var n int
+	var err error
+	if w.ctx != nil {
+		n, err = writeOutputContext(w.ctx, w.out, p)
+		if errors.Is(err, hostio.ErrUnsupported) {
+			n, err = w.out.Write(p)
+		}
+	} else {
+		n, err = w.out.Write(p)
+	}
 	if err == nil && n != len(p) {
 		err = io.ErrShortWrite
 	}
@@ -155,23 +207,66 @@ func (w cancelOnWriteError) Write(p []byte) (int, error) {
 	return n, err
 }
 
+func (w cancelOnWriteError) WriteContext(ctx context.Context, p []byte) (int, error) {
+	n, err := writeOutputContext(ctx, w.out, p)
+	var committed *events.CommittedCancellation
+	if err != nil && !(ctx.Err() != nil && errors.Is(err, ctx.Err()) && (n == 0 || errors.As(err, &committed))) {
+		w.cancel()
+	}
+	return n, err
+}
+
 // eventOutput emits text fragments immediately, including writes without a
 // newline. Only incomplete UTF-8 runes are held until the next write or close.
 type eventOutput struct {
-	mu      sync.Mutex
-	events  *events.Writer
-	kind    string
-	mirror  io.Writer
-	pending []byte
+	mu       sync.Mutex
+	gateOnce sync.Once
+	gate     chan struct{}
+	events   *events.Writer
+	kind     string
+	mirror   io.Writer
+	pending  []byte
+	cancel   context.CancelFunc
 }
 
 func (w *eventOutput) Write(p []byte) (int, error) {
+	return w.write(context.Background(), p, false)
+}
+
+func (w *eventOutput) WriteContext(ctx context.Context, p []byte) (n int, err error) {
+	defer func() {
+		if err != nil && w.cancel != nil && !(ctx.Err() != nil && errors.Is(err, ctx.Err())) {
+			w.cancel()
+		}
+	}()
+	return w.write(ctx, p, true)
+}
+
+func (w *eventOutput) lock(ctx context.Context) error {
+	w.gateOnce.Do(func() { w.gate = make(chan struct{}, 1); w.gate <- struct{}{} })
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-w.gate:
+		return nil
+	}
+}
+
+func (w *eventOutput) write(ctx context.Context, p []byte, cancellable bool) (int, error) {
+	if err := w.lock(ctx); err != nil {
+		return 0, err
+	}
+	defer func() { w.gate <- struct{}{} }()
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	n := len(p)
 	var mirrorErr error
 	if w.mirror != nil {
-		n, mirrorErr = w.mirror.Write(p)
+		if cancellable {
+			n, mirrorErr = writeOutputContext(ctx, w.mirror, p)
+		} else {
+			n, mirrorErr = w.mirror.Write(p)
+		}
 		if mirrorErr == nil && n != len(p) {
 			mirrorErr = io.ErrShortWrite
 		}
@@ -184,8 +279,17 @@ func (w *eventOutput) Write(p []byte) (int, error) {
 		at += size
 	}
 	if at > 0 {
-		w.events.Emit(events.Event{"type": w.kind, "text": string(w.pending[:at])})
-		w.pending = w.pending[at:]
+		event := events.Event{"type": w.kind, "text": string(w.pending[:at])}
+		if cancellable {
+			err := w.events.EmitContext(ctx, event)
+			w.pending = w.pending[at:]
+			if err != nil {
+				return n, err
+			}
+		} else {
+			w.events.Emit(event)
+			w.pending = w.pending[at:]
+		}
 	}
 	if err := w.events.Err(); err != nil {
 		return n, err

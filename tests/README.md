@@ -28,3 +28,5 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/key NOE_DECISION_LIVE_DIR=/path/to/results 
 ```
 
 `live_helpers_test.go` reads dependency versions from the built CLI for these reports.
+
+`process_io*_e2e_test.go`は新しい`noe:process`・`noe:io`を実CLIで確認します。開いたままの入力、40 MiBの転送、観察出力、Worker終了、fixture providerからの生成run_jsのinterrupt/timeout/SIGINTと子・孫回収を含みます。実providerへの接続は不要です。公式MCP SDKの任意の適合確認は[scripts/spikes/process-io-mcp](../scripts/spikes/process-io-mcp/README.md)へ分離しています。

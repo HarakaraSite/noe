@@ -3,6 +3,7 @@ package runtime
 import (
 	"fmt"
 	"net/url"
+	"noe/internal/nativeio"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,10 @@ func (h *host) stdlibConfig(opts Options) stdlib.Config {
 		Load: h.loadWorker,
 		// Preserve NOE's existing unlimited worker count; zero now means 64.
 		Max: -1,
+		Installed: func(rt *quickjs.Runtime) error {
+			_, err := nativeio.Install(rt, nativeio.Options{Stdout: opts.Stdout, Stderr: opts.Stderr, Cwd: h.cwd})
+			return err
+		},
 	}
 
 	return stdlib.Config{

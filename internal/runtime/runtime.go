@@ -9,11 +9,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"noe/internal/agent"
 	"noe/internal/credentials"
 	"noe/internal/decision"
+	"noe/internal/hostio"
+	"noe/internal/nativeio"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 	"github.com/go-quickjs/go-quickjs/stdlib"
@@ -69,9 +72,21 @@ type host struct {
 	completion     quickjs.Value
 	agents         *agent.Host
 	agentOperation *agent.Operation
+	ioHost         *nativeio.Host
 }
 
 func newHost(opts Options) (*host, error) {
+	// One writer boundary is shared by console, native streams and Workers.
+	// The pinned stdlib's own wrappers still receive these same writers.
+	stdout := hostio.NewSharedWriter(opts.Stdout)
+	// Preserve aliases before replacing the destinations with wrappers. Stdlib
+	// and Workers must see the same lock when both channels share one sink.
+	sameOutput := opts.Stdout == nil && opts.Stderr == nil || (opts.Stdout != nil && reflect.TypeOf(opts.Stdout).Comparable() && opts.Stdout == opts.Stderr)
+	stderr := stdout
+	if !sameOutput {
+		stderr = hostio.NewSharedWriter(opts.Stderr)
+	}
+	opts.Stdout, opts.Stderr = stdout, stderr
 	cwd := opts.Cwd
 	var err error
 	if cwd == "" {
@@ -85,6 +100,7 @@ func newHost(opts Options) (*host, error) {
 		return nil, err
 	}
 	h := &host{rt: quickjs.New(), cwd: cwd}
+	h.rt.OnClose(func() { _ = stdout.Close(); _ = stderr.Close() })
 	h.loop, err = newEventLoop(h)
 	if err != nil {
 		h.rt.Close()
@@ -103,6 +119,11 @@ func newHost(opts Options) (*host, error) {
 	}
 	h.completion = completion
 	if err := h.installStdlib(opts); err != nil {
+		h.rt.Close()
+		return nil, err
+	}
+	h.ioHost, err = nativeio.Install(h.rt, nativeio.Options{Stdin: opts.Stdin, Stdout: opts.Stdout, Stderr: opts.Stderr, Cwd: cwd})
+	if err != nil {
 		h.rt.Close()
 		return nil, err
 	}

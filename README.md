@@ -294,7 +294,7 @@ The same runtime is reused, so variables and functions remain available across i
 
 The REPL supports line editing, persistent history, Tab completion, and multiline input. `_` holds the last successful result other than undefined. Ordinary input errors do not end the session.
 
-Press Ctrl+D on an empty input, or call `process.exit()`, to exit. On supported terminals, Ctrl+C cancels input or running work and normally returns to the prompt. If stdlib I/O, servers, workers, or messaging resources remain active when an input is interrupted or fails, NOE stops them and ends the REPL session. Timers alone are cancelled and the session can continue. A server started in the REPL keeps the current evaluation active until it stops; Ctrl+C stops it.
+Press Ctrl+D on an empty input, or call `process.exit()`, to exit. On supported terminals, Ctrl+C cancels input or running work and normally returns to the prompt. If stdlib I/O, servers, workers, messaging resources, or NOE child processes and I/O remain active when an input is interrupted or fails, NOE stops them and ends the REPL session. Timers alone are cancelled and the session can continue. A server started in the REPL keeps the current evaluation active until it stops; Ctrl+C stops it.
 
 REPL `await` supports expressions, single-variable initialization, and assignment. General multi-statement input containing `await` and static imports are not supported. Load modules with `await import(...)`. See the [REPL guide](docs/repl.md) for controls and supported syntax.
 
@@ -303,12 +303,14 @@ REPL `await` supports expressions, single-variable initialization, and assignmen
 | Purpose | API |
 | --- | --- |
 | Autonomous tasks | `noe:agent` (`run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`) |
+| Live child-process I/O and termination | `noe:process` (`spawn`) |
+| Standard byte streams | `noe:io` (`stdin`, `stdout`, `stderr`, cancellation-aware `pipe`) |
 | Structured decisions | `noe:decision` (`decide`) |
 | Model catalog | `noe:agent` (`list_models`) |
 | ChatGPT credential registration | `noe:auth` (`save_chatgpt_credentials`), used by the sign-in helper |
 | Output | `console.log`, `console.warn`, `console.error` |
 | Arguments, environment, and exit | `process.argv`, `process.env`, `process.cwd()`, `process.exit()` |
-| Standard input | `process.stdin.read()` |
+| Standard input | `process.stdin.read()`, or `noe:io` `stdin` for streaming |
 | Text and binary files | `fs/promises` (`readFile`, `writeFile`) |
 | Directories and file operations | `fs/promises` (`readdir`, `stat`, `lstat`, `mkdir`, `rename`, `rm`) |
 | HTTP | global `fetch()` and `serve()` |
@@ -318,7 +320,7 @@ See the [API reference](docs/api.md) for arguments, return values, errors, and s
 
 ## Built-in modules and capabilities
 
-Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE additionally provides `noe:agent`, `noe:decision`, and `noe:auth` in the main runtime; importing them from a Worker is unsupported. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve only to installed built-ins; local source imports must use relative `.js` or `.mjs` paths.
+Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE additionally provides `noe:agent`, `noe:decision`, and `noe:auth` in the main runtime; importing them from a Worker is unsupported. `noe:process` and `noe:io` work in ordinary scripts, agent-generated JavaScript, and Workers. See the [process and standard I/O guide](docs/process-io.md) for live streams, process ownership, and cancellation. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve only to installed built-ins; local source imports must use relative `.js` or `.mjs` paths.
 
 The runtime grants scripts full access to the current process environment and local filesystem, command execution, DNS and network requests, HTTP listeners, WebSocket connections, and workers. It is not a sandbox: scripts can act with the operating-system privileges of the user running NOE.
 

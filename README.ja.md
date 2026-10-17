@@ -291,7 +291,7 @@ curl -H 'Content-Type: application/json' \
 
 行編集、保存される履歴、Tab補完、複数行入力に対応します。`_`は最後に成功したundefined以外の結果です。通常の入力エラーの後も続行します。
 
-空の入力でCtrl+D、または`process.exit()`で終了します。対応する端末でCtrl+Cを押すと入力や実行中の処理を中断し、通常は次のプロンプトへ戻ります。stdlibの通信・サーバー・Worker・メッセージポートなどが残った状態で中断やエラーが起きると、処理を停止してREPLセッションも終了します。タイマーだけなら取り消して続行できます。REPLで起動したサーバーは稼働中にプロンプトへ進まず、Ctrl+Cで停止します。
+空の入力でCtrl+D、または`process.exit()`で終了します。対応する端末でCtrl+Cを押すと入力や実行中の処理を中断し、通常は次のプロンプトへ戻ります。stdlibの通信・サーバー・Worker・メッセージポートやNOE拡張の子プロセス・I/Oが残った状態で中断やエラーが起きると、処理を停止してREPLセッションも終了します。タイマーだけなら取り消して続行できます。REPLで起動したサーバーは稼働中にプロンプトへ進まず、Ctrl+Cで停止します。
 
 REPLの`await`は式、単一変数の初期化・代入に対応します。任意の複数文に含まれる`await`や静的importは提供せず、モジュールは`await import(...)`で読み込みます。操作と対応範囲は[REPLガイド](docs/repl.md)を参照してください。
 
@@ -300,12 +300,14 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 | 用途 | API |
 | --- | --- |
 | 自律タスク | `noe:agent`の`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent` |
+| 子プロセスの逐次I/O・停止 | `noe:process`の`spawn` |
+| 標準I/Oのバイトストリーム | `noe:io`の`stdin`・`stdout`・`stderr`・取消し対応`pipe` |
 | 構造化された意思決定 | `noe:decision`の`decide` |
 | モデルカタログ | `noe:agent`の`list_models` |
 | ChatGPT認証登録 | 認証ヘルパーから使う`noe:auth`の`save_chatgpt_credentials` |
 | 出力 | `console.log`・`console.warn`・`console.error` |
 | 引数・環境・終了 | `process.argv`・`process.env`・`process.cwd()`・`process.exit()` |
-| 標準入力 | `process.stdin.read()` |
+| 標準入力 | `process.stdin.read()`、逐次読取りは`noe:io`の`stdin` |
 | テキスト・バイナリ | `fs/promises`の`readFile`・`writeFile` |
 | ディレクトリ・ファイル情報・移動 | `fs/promises`の`readdir`・`stat`・`lstat`・`mkdir`・`rename`・`rm` |
 | HTTP | グローバルの`fetch()`・`serve()` |
@@ -315,7 +317,7 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 
 ## 組み込みモジュールと利用権限
 
-`fs`・`process`・`os`・`path`・`child_process`・`dns`・`http`・`worker_threads`・`crypto`などのgo-quickjs標準ライブラリをimportできます。timer、Web Streams、WebSocket、Workersも利用できます。NOE独自の`noe:agent`・`noe:decision`・`noe:auth`はmain runtimeで使え、Workerからのimportは未対応です。JavaScriptのグローバル`noe`はありません。NodeやDenoの完全互換ではなく、npm・パッケージ導入・QuickJS本来の`std`モジュールも提供しません。bare importで解決できるのは組み込みモジュールだけです。ローカルのソースは相対`.js`・`.mjs` importを使います。
+`fs`・`process`・`os`・`path`・`child_process`・`dns`・`http`・`worker_threads`・`crypto`などのgo-quickjs標準ライブラリをimportできます。timer、Web Streams、WebSocket、Workersも利用できます。NOE独自の`noe:agent`・`noe:decision`・`noe:auth`はmain runtimeで使え、Workerからのimportは未対応です。`noe:process`と`noe:io`は通常JS・agent生成JS・Workerで利用できます。使い方は[プロセス・標準I/Oガイド](docs/process-io.md)を参照してください。JavaScriptのグローバル`noe`はありません。NodeやDenoの完全互換ではなく、npm・パッケージ導入・QuickJS本来の`std`モジュールも提供しません。bare importで解決できるのは組み込みモジュールだけです。ローカルのソースは相対`.js`・`.mjs` importを使います。
 
 スクリプトには、実行中プロセスの環境変数とローカルファイルシステム全体、コマンド実行、DNS・ネットワーク通信、HTTP待受、WebSocket、Workersの権限を渡します。NOEはsandboxではなく、スクリプトは実行ユーザーのOS権限で動作します。
 

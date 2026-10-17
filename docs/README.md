@@ -42,6 +42,8 @@ agentの共通インストラクションは[`internal/agent/instructions.md`](.
 
 ## 今後の候補
 
+[汎用プロセスAPIと標準I/Oストリームの計画](process-io-plan.md)に従って、第1グループのNOE拡張を実装しました。[利用ガイド](process-io.md)と[実装・検証記録](process-io-implementation.md)を参照してください。
+
 [意思決定API](decision.md)の実装・テスト・コードレビューを完了しました。`noe:decision`の`decide`を通常agentと別の入口とし、既存OpenRouter SDK・認証・要求管理を共用します。[実装記録](decision-implementation.md)と[3モデルの実接続確認](decision-openrouter-validation.md)に結果を記録しています。
 
 [起動と待受](agent-lifecycle-plan.md)の実装・検証・コードレビューが完了しました。結果とレビュー指摘の採否は[実装・検証記録](agent-lifecycle-implementation.md)を参照してください。公開APIは破壊的に変更し、互換aliasはありません。steer・明示的なinterrupt・人間用操作CLIも[実行中の操作計画](agent-control-plan.md)に沿って実装・総合検証・レビューを完了しました（[実装・検証記録](agent-control-implementation.md)、[OpenRouter実接続確認](agent-control-openrouter-validation.md)）。

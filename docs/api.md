@@ -4,7 +4,7 @@
 
 NOEはJavaScriptの実行環境として、固定したgo-quickjs v0.25.3の標準ライブラリを有効にします。標準ライブラリが持つWeb APIとNode形式APIを利用できます。各APIはgo-quickjsによる実装で、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:auth`があります。これらはWorkersでは利用できません。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](increment-12.md)も参照してください。
+JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:auth`があります。これらのagent・decision・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](increment-12.md)も参照してください。
 
 ## 利用できる機能と権限
 
@@ -184,6 +184,10 @@ traceにはrun ID、親run ID、agent名、model、status、duration（nanosecon
 通常の`run`・`eval`では`--timeout`が評価全体を制限できます。省略時はCLI独自の期限はありません。REPLでは通信中のCtrl+Cで要求を取り消し、稼働中のI/Oを残さないようREPL sessionを終了します。詳しくは[REPLガイド](repl.md)を参照してください。
 
 WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソースをカレントディレクトリ上の一時場所へ書き込み、相対importの基準を保ちます。その場合はカレントディレクトリへ一時ファイルを書き込める必要があります。書込みできない場合は、カレントディレクトリと同じvolumeの書込み可能な場所を`TEMP`に指定してください。
+
+## 子プロセスと標準I/Oストリーム
+
+`noe:process`の`spawn`で子の入出力を実行中から扱い、終了・停止・回収を行えます。`noe:io`はホストのstdin/stdout/stderrのWeb Streamsと取消し対応`pipe`を公開します。通常JS・run_js・Workerで利用でき、REPLでは子の操作とcloseまでを同一入力で行います。公開契約と例は[プロセス・標準I/Oガイド](process-io.md)を参照してください。stdlibの`execFile`・`process.std*`・`pipeTo`は変更しません。
 
 ## 意思決定モデル：`noe:decision`
 

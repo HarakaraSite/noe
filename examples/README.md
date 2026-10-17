@@ -226,3 +226,13 @@ healthは`ok`、echoは送ったJSONを`Response.json()`で返します。経路
 `timers/promises`の`setTimeout()`を使い、`実行 1`から`実行 3`まで1秒間隔で表示します。待機中もHTTPやファイル処理を進められます。
 
 [repl-demo.js](repl-demo.js)を`./noe repl`へ1行ずつ貼り付けると、変数・関数の保持を試せます。↑で入力を呼び出し、割引率を編集して再実行できます。詳細は[REPLガイド](../docs/repl.md)を参照してください。
+
+## 常駐プロセスと逐次I/O
+
+```sh
+./noe run examples/process-worker.js
+printf '{"id":1,"value":"hello"}\n' | ./noe run examples/stdio-jsonl.js
+printf 'bytes through two children\n' | ./noe run examples/process-pipeline.js
+```
+
+`process-worker.js`は一つの子へ3件送り応答を取得します。`stdio-jsonl.js`は入力のEOFを待たずJSONLの行ごとに応答し、`process-pipeline.js`は二つの子をWeb Streamsで接続します。認証・外部provider・Nodeは不要です。[プロセス・標準I/Oガイド](../docs/process-io.md)を参照してください。

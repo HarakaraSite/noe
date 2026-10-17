@@ -15,6 +15,13 @@ import (
 var runtimeTestExecutable string
 
 func TestMain(m *testing.M) {
+	if os.Getenv("NOE_PROCESS_IO_HELPER") != "" {
+		for _, arg := range os.Args[1:] {
+			if arg == "-test.run=^TestNoeProcessIOHelper$" {
+				runProcessIOHelper()
+			}
+		}
+	}
 	// The stdlib command fixture re-executes this test binary. Handle it before
 	// m.Run and before building the agent executable for the actual suite.
 	if os.Getenv("NOE_STDLIB_COMMAND_HELPER") == "1" {

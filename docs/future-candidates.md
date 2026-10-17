@@ -6,6 +6,56 @@
 
 観察・追加指示の主な利用者は親agentを想定する。「親が子を起動→実行状況を確認→必要なら子へ追加指示→結果を受け取る」を自律的に行える形を検討する。人間も同じ経路を使えるが、人間の操作を前提にはしない。
 
+### <一部完了> 汎用の低レベルAPI拡張と優先順位 — 2026-10-18
+
+**目的：プロセス・I/Oなどの汎用機能をNOEの拡張として提供し、その上でMCP、LSP、常駐ワーカー、監視・対話スクリプトをJSで組み立てられるようにする。** Go側はプロセスやバイト列の入出力を担当し、プロトコルの解釈や要求・応答の対応付けはJS側に置く。第1グループは`noe:process`と`noe:io`として実装した。公開契約は[利用ガイド](process-io.md)を参照。
+
+まずNOEの拡張として検討し、go-quickjs上流への提案・採用を前提にしない。外部ESM、シェル・OSコマンド、外部ライブラリのNOE向け改修も利用できる。既存APIとJS・CLIで実現できる処理をGo必須とは扱わず、汎用APIを追加する価値と実装範囲を比較する。
+
+元のC製QuickJSの`std`・`os`と、NOEが利用するgo-quickjs v0.27.0のstdlibを比較し、レビュアーによる必要性・重複・実装範囲の確認を反映した優先案：
+
+| 優先順位 | 候補 | 用途と追加する価値 |
+| --- | --- | --- |
+| **1：まず取り組む** | **子プロセスの操作ハンドル・実行中の入出力ストリーム、ホスト標準I/Oのストリーム化** | 子のstdinへ継続的に書き、stdout・stderrを逐次読み、終了待ち・停止を操作する。MCPクライアント、LSP、常駐ワーカー、ビルド監視に共通して使える。ホスト標準入力の逐次読取りは、JS製stdioサーバーやJSONLフィルターにも有用。 |
+| **2：具体的な用途に合わせて追加** | **ファイルハンドル、OSシグナル受信、TCP・Unixドメインソケット** | 同じファイルを開いたままランダムアクセス・部分更新する処理、JSで記述する終了処理・設定再読込み、任意プロトコルやローカルIPCとの通信。それぞれ独立して検討・追加できる。 |
+| **3：後続候補** | **ファイル変更通知、端末操作** | 自動再実行・変更監視、対話的なJSツール。変更監視はJSのポーリングや外部CLIとも比較する。TTY判定・サイズ取得、raw mode、子プロセス用PTYは別機能として評価する。 |
+
+既存機能との違いと、レビューで補正した点：
+
+- `execFile()`自体は既に非同期である。追加価値は、実行中の入出力と終了観察・停止を一つのハンドルで扱えること。
+- ファイルの逐次I/Oも`createReadStream`・`createWriteStream`で利用でき、読取りには開始・終了位置の指定もある。ファイルハンドルは、同じハンドルでの位置指定・部分更新・継続利用を補う候補。
+- OSシグナル受信は子プロセス停止の前提ではない。現在もCtrl+Cによる実行取消しはあるため、JSハンドラーへの配送は第2グループの別機能とする。
+- 公開APIはハンドルとWeb Streamsを中心に検討する。元QuickJSのfd番号・`dup`・`dup2`・readiness callbackをそのまま公開要件にはしない。JSONLの行分割やMCPの解釈はJS側で実装できる。
+
+第1グループでは、開始失敗、終了Promise、stdinを閉じた際のEOF、出力EOFとプロセス終了の関係、停止対象を公開契約として整理した。ホスト標準I/Oは借用品で、REPLのstdinはソース入力専用のため、子プロセスが所有するpipeと分けて、読取りの取消し・close・入力の所有者を実装した。シグナル受信を追加する際は、既存のCtrl+Cによるcontext取消しとJSへの配送の関係を整理する。
+
+第1グループは[実装計画](process-io-plan.md)に従って実装・レビュー・検証を行った。[実装記録](process-io-implementation.md)を参照。第2・第3グループは未実装で、全項目の実装を決定したものではない。2026-10-18の追加指定により、今回の計画ではstdlibのAPI拡張・置換・修正を範囲外とし、NOE拡張と既存NOE機能への接続に限定する。
+
+### <未完了> NOEへのMCPサーバー機能の組込み — 2026-10-17
+
+**検討事項：NOEでMCPサーバーを動かし、外部のMCPクライアントからNOE上の処理を呼び出せるようにする。可能ならJavaScriptで実装する。** スクリプトでtoolの定義と処理を記述し、通常のJS処理やagentの機能を公開する利用例を候補とする。
+
+まず、既存のMCP SDKをgo-quickjs上で利用できるか、NOEの入出力・HTTP機能で必要な通信を扱えるかを確認する。JSだけで不足する部分はGoホストで補う構成も候補とする。通信方式、JS API、起動方法、公開する機能の範囲は今後検討する。
+
+現時点は検討メモで、実装・SDK選定・プロトコル互換性の確認は未実施。
+
+### <未完了> ZedでのNOEスクリプト開発環境の整備 — 2026-10-17
+
+**目的：ZedからSSHでVM上のJavaScriptを編集し、NOE固有APIの補完・実行・agentの観察と追加指示まで行える開発環境を整える。** 実行するスクリプトは通常のJavaScriptのままとする。
+
+整備するもの：
+
+- **型定義**：`noe:agent`・`noe:decision`などのNOE固有APIと、NOEが提供するgo-quickjs stdlib・グローバル関数を`.d.ts`で記述する。設定項目、戻り値、説明を補完やホバーで確認できるようにする。量に応じて`agent.d.ts`・`decision.d.ts`・`stdlib.d.ts`などへ分ける。
+- **実環境に合ったstdlibの定義**：本家QuickJSの`std`・`os`とgo-quickjs stdlibを混同せず、採用版で実際に使えるAPIを定義する。Node.js用の型をそのまま流用して完全互換に見せず、たとえば`execFile`がPromiseを返す点も反映する。`console`・`fetch`・`serve`なども対象候補とする。
+- **JavaScriptプロジェクトの設定例**：リモート側のスクリプト用ディレクトリに`jsconfig.json`と型定義を置き、ZedのJavaScript言語サーバーに読み込ませる。型定義のために実行コードをTypeScriptへ変更する必要はない。配布・配置方法は整備時に決め、他のエディターからも再利用できる形にする。
+- **Zedの実行タスク**：同じリモート側プロジェクトの`.zed/tasks.json`に、編集中のJSを保存し、プロジェクトルートをcwdとして`noe run --observe`で実行する設定例を用意する。必要なら`--events=path`も併用し、読みやすい進行表示と元のJSONL保存を両立させる。
+- **ターミナルとtmuxの使い方**：利用者はリモートターミナルから既存のtmuxを使う方針。Macでは`⌘⇧P`から`workspace: new center terminal`を選ぶと、ターミナルをファイルと同じ中央のタブで開ける。そこでtmuxに接続し、NOEの実行・観察を行う。Codex CLIを使う場合もVM側のtmuxから起動する。
+- **ファイルに書いた追加指示**：ZedでMarkdownを編集・保存し、同じVMのターミナルから`noe steer RUN_ID "$(cat instruction.md)"`、`noe queue AGENT_ID "$(cat next-task.md)"`で送る運用例を用意する。steerは実行中taskのrun ID、queueは`keepAlive:true`のagent IDを指定する。現行CLIに専用の`--file`やstdin入力指定はなく、この例はシェルがファイルを読む。
+
+まず型定義・`jsconfig.json`・Zedタスク設定と短い利用ガイドを用意する案とし、Zed専用拡張の作成は必要になった段階で検討する。現時点は検討メモで、これらの設定や型定義の作成・導入は未実施。
+
+参照：[ZedのJavaScript/TypeScript言語サーバー](https://zed.dev/docs/languages/typescript)、[SSHでのリモート開発](https://zed.dev/docs/remote-development)、[Tasks](https://zed.dev/docs/tasks)、[Center Terminal](https://zed.dev/docs/terminal#terminal-panel-vs-center-terminal)。
+
 ### <一部完了> go-quickjs stdlibとNode.jsのAPI差異の説明整備 — 2026-10-17
 
 README編集の実試行で、agentがNode.jsでは一般的な`promisify(execFile)`を使い、NOEの実行環境とAPI契約が合わない事例があった。採用中のgo-quickjs v0.25.3では、`node:child_process`の`execFile`は最初からPromiseを返し、`const {stdout, stderr} = await execFile(command, args)`で結果を受け取る。callback形式を前提に`promisify`する必要はない。この差はJavaScript言語やQuickJS-NG本体ではなく、go-quickjsのstdlibが提供するAPIの差である。
@@ -27,6 +77,8 @@ go-quickjs v0.25.3の`execFileSync`はコマンドのstdout・stderrを内部で
 検討する構成は、検索APIへの認証と通信をGoホスト側で扱い、`run_js`から使える薄いJSラッパーを提供する形。モデルに公開するtoolは`run_js`一つのままとし、モデルがAPIキーや検索provider固有の認証手順を直接組み立てなくて済むようにする。APIキーは利用者が所定の場所へ登録し、ホストが読み取って要求へ付与する。
 
 検索結果はタイトル・URL・要旨などを構造化して返し、agentが必要なページを選んで取得・確認できるようにする。失敗もモデルが理解して次の処理を判断できる形で返す。検索provider、JS API名、引数・戻り値、キーの保存先は実装時に検討する。このメモでは実装・API・providerの採用は決めない。
+
+**追加メモ — 2026-10-17：Exaを使ったWeb検索サンプルを作る。** NOEから検索クエリを送り、検索結果を取得・表示する利用例を用意する。
 
 ### <一部完了> OpenCode Go APIの組込み — 2026-10-17
 

@@ -126,7 +126,7 @@ func (l *eventLoop) drain(ctx context.Context) error {
 // stdlib's loop has runtime lifetime, and imported module functions retain it.
 // Its active I/O cannot be moved to a fresh loop after input interruption.
 func (l *eventLoop) hasStdlibWork() bool {
-	return l.std.Pending() || len(l.timers) != 0 || len(l.resources) != 0 || l.std.Context().Err() != nil
+	return l.std.Pending() || len(l.timers) != 0 || len(l.resources) != 0 || l.std.Context().Err() != nil || (l.h.ioHost != nil && l.h.ioHost.Active())
 }
 
 func (l *eventLoop) hasResourcesSince(generation uint64) bool {

@@ -8,8 +8,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"noe/internal/events"
 )
@@ -153,6 +155,86 @@ func TestEventsUsageAndOpenFailuresDoNotRunSource(t *testing.T) {
 }
 
 type failedEventWriter struct{}
+
+type abortableEventSink struct {
+	bytes.Buffer
+	marker string
+}
+
+type pendingRenderSink struct{ started chan struct{} }
+
+func (*pendingRenderSink) Write(p []byte) (int, error) { return len(p), nil }
+func (w *pendingRenderSink) WriteContext(ctx context.Context, p []byte) (int, error) {
+	close(w.started)
+	<-ctx.Done()
+	return 0, ctx.Err()
+}
+
+func TestEventsCancelledDisplayPreservesCommittedRecordSequence(t *testing.T) {
+	var record bytes.Buffer
+	display := &pendingRenderSink{make(chan struct{})}
+	out := &renderedEventsWriter{record: &record, renderer: newAgentRenderer(display)}
+	w := events.New(out, "recorded")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- w.EmitContext(ctx, events.Event{"type": "stderr", "text": "pending"}) }()
+	<-display.started
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("emit=%v", err)
+	}
+	if w.Err() != nil {
+		t.Fatalf("complete recording was poisoned: %v", w.Err())
+	}
+	w.Emit(events.Event{"type": "stdout", "text": "continued"})
+	records := readEvents(t, record.String())
+	if len(records) != 2 || records[0]["seq"] != float64(1) || records[1]["seq"] != float64(2) {
+		t.Fatalf("committed sequence lost: %s", record.String())
+	}
+}
+
+func (w *abortableEventSink) WriteContext(ctx context.Context, p []byte) (int, error) {
+	if bytes.Contains(p, []byte(`"text":"blocked"`)) {
+		if err := os.WriteFile(w.marker, []byte("started"), 0600); err != nil {
+			return 0, err
+		}
+		<-ctx.Done()
+		return 0, ctx.Err()
+	}
+	return w.Buffer.Write(p)
+}
+
+func TestEventsStreamAbortWithNoRecordBytesAllowsContinuation(t *testing.T) {
+	out := &abortableEventSink{marker: filepath.Join(t.TempDir(), "write-started")}
+	var diagnostic bytes.Buffer
+	source := `import {stdout,pipe} from "noe:io"; import {existsSync} from "node:fs";
+const c=new AbortController(),reason=new Error("expected abort");
+const source=new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode("blocked"));controller.close()}});
+const p=pipe(source,stdout,{signal:c.signal});
+const check=()=>{if(existsSync(` + strconv.Quote(out.marker) + `))c.abort(reason);else setTimeout(check,1)};check();
+try{await p;throw Error("abort did not reject")}catch(e){if(e!==reason)throw e}
+console.log("continued after stream abort");`
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	code := Run(ctx, []string{"eval", "--events=-", source}, strings.NewReader(""), out, &diagnostic)
+	if code != 0 || diagnostic.Len() != 0 {
+		t.Fatalf("code=%d diagnostic=%q output=%q", code, diagnostic.String(), out.String())
+	}
+	if _, err := os.Stat(out.marker); err != nil {
+		t.Fatal("write was never pending", err)
+	}
+	records := readEvents(t, out.String())
+	var continued bool
+	for _, event := range records {
+		if event["type"] == "stdout" && event["text"] == "continued after stream abort\n" {
+			continued = true
+		}
+	}
+	if !continued {
+		t.Fatalf("no continuation event: %s", out.String())
+	}
+}
 
 func (failedEventWriter) Write([]byte) (int, error) { return 0, errors.New("event output failed") }
 
