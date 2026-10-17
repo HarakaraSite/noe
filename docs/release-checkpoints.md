@@ -191,3 +191,28 @@ The actual workflow passed its CGO-free test/vet gates, built all six profile ta
 The downloaded Linux amd64 binary passed four smoke checks with exit 0 and empty stderr: `--version` returned `noe v1.3.0`; arithmetic evaluation returned `2`; lazy agent/decision/auth imports, Fetch/serve, removed-global, and OpenAI catalog checks passed; the external ChatGPT helper displayed its help. No model provider request was needed. The helper's versioned download URL was also checked against the committed JavaScript. Downloaded artifacts and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.3.0-published-82a__6s7/`.
 
 The repository-root `./noe` is now the verified published Linux amd64 binary. This documentation-only verification commit follows publication without moving the tag. Native runtime behavior on macOS, Windows, and arm64 remains unverified.
+
+## v1.3.1 preparation — 2026-10-17
+
+Checked source revision: `1451a6272a9175f90ee3c7b0d9a3608f8a182ea2`. Checks ran against the same application and test source immediately before this commit. The cross-builds preceded a test-only cancellation-fixture adjustment; application code remained identical. This preparation entry is documentation-only. Environment: Linux amd64, Go 1.27.2, a C toolchain for race, and Linux PTY support.
+
+This release updates go-quickjs from v0.25.3 to v0.27.0. Compatibility was checked through v0.26.0 first, with full unit/CLI/REPL E2E success for both versions using separate modfiles. The qjs-derived five input files and MIT license are byte-for-byte identical upstream across all three versions; NOE keeps the existing source snapshot and provenance. `Workers.Max: -1` preserves the existing unlimited Worker count. See the [release notes](releases/v1.3.1.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go vet ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` | Passed after the test adjustment below |
+| `go test -tags=e2e ./... -count=1` | Passed, including Linux PTY checks |
+| `go vet -tags=e2e ./...` | Passed |
+| 65 concurrent JavaScript Workers, followed by termination | Passed in unit/E2E and race runs |
+| All six profile targets, CGO disabled, `-trimpath`, `-s -w -X noe/internal/cli.Version=v1.3.1` | Built successfully |
+| Local `SHA256SUMS` covering all six binaries | All hashes verified |
+| Built Linux amd64 `--version` and arithmetic evaluation | `noe v1.3.1` and `2`, exit 0 |
+| Lazy agent/decision/auth imports, Fetch/serve, removed global, OpenAI catalog, and auth helper help | Passed without provider requests |
+| Built binary dependency information | Contains go-quickjs v0.27.0 |
+| Changed Markdown relative links, gofmt, and staged diff whitespace | Passed |
+
+The initial concurrent checks had one race-run test failure: `TestObserveAgentWaitYieldsToJSAndIsCancelledWithEvaluation` reached its 150 ms deadline before its timer fired; no data race was reported. The test passed in isolation. Its deadline included host initialization, although its purpose is to prove observer waiting yields to JavaScript and respects evaluation cancellation. It now cancels from the timer callback once that behavior is observed, with a five-second timeout guarding a blocked loop. After this test-only change, all five checks were rerun and passed. Initial failure logs are retained under `/home/agent/.cache/noe-qjs-repl/noe-v1.3.1-release-bdp3e1ix/first-attempt/`.
+
+Final command/output records and build artifacts are under `/home/agent/.cache/noe-qjs-repl/noe-v1.3.1-release-bdp3e1ix/`. The Linux amd64 binary is 47,960,224 bytes with the release flags. No external model API was called. Publication and downloaded assets are verified separately after tagging; native runtime behavior on other platforms remains unverified.
