@@ -4,6 +4,12 @@
 
 `./noe repl`で起動し、1行ずつJSを試せます。同じランタイムを使い続けるため、変数・関数・オブジェクトは次の入力でも使えます。
 
+`./noe repl --events=agent.jsonl`で、対話画面を保ったままJS出力・評価結果・agentイベントをJSONLへ記録できます。`--events`単独なら起動時のcwdにファイル名を自動生成します。別ターミナルで`tail -f agent.jsonl`から読めます。プロンプトやカーソル制御は記録しません。`--events=-`でstdoutへJSONLを流す場合は、対話入力の表示先がstderrになります。詳細は[観察ガイド](events.md)を参照してください。
+
+別ターミナルで`./noe observe --follow agent.jsonl`を使うと、JSONLをGoで整形して観察できます。REPLからも`const am = await import("noe:agent")`、`await am.observe_agent({logPath:"agent.jsonl", runId:"実際のrunId"})`で状態と結果を読めます。[観察の入口](observe.md)に使い方をまとめています。
+
+`./noe repl --observe`なら、入力画面を保ちながら同じターミナルへ整形表示できます。`--events=agent.jsonl`も付けるとJSONLを記録します。`--observe`単独ではファイルを作りません。
+
 ```text
 > let count = 1
 > count += 1
@@ -33,7 +39,7 @@ REPLでは静的importの代わりにdynamic importを使います。moduleをim
 
 ```text
 > const agentModule = await import("noe:agent")
-> const summaryAgent = agentModule.createAgent({model:"deepseek/deepseek-v4.1-flash",name:"summary"})
+> const summaryAgent = agentModule.createAgent({provider:"openrouter",model:"deepseek/deepseek-v4.1-flash",effort:"auto",name:"summary"})
 > const summary = await summaryAgent.run("README.mdを3点に要約してください。")
 > console.log(summary)
 ```
@@ -66,7 +72,7 @@ JavaScriptの`noe`グローバルはありません。旧スクリプトの置�
 
 `_`は最後に成功したundefined以外の結果です。最初はundefinedで、エラー・中断・undefinedの結果では更新しません。オブジェクトは参照を保持します。
 
-対応する端末では、入力の途中を編集したり、前の入力を履歴から呼び出したりできます。履歴は次の起動でも使え、複数行の入力も1件として保存します。既定の保存先はユーザー設定ディレクトリの`noe/repl_history.jsonl`です。Linuxでは`$XDG_CONFIG_HOME`、未設定なら`~/.config`の下になります。メモリ内の履歴は直近1000件で、保存ファイルへは追記します。
+対応する端末では、入力の途中を編集したり、前の入力を履歴から呼び出したりできます。履歴は次の起動でも使え、複数行の入力も1件として保存します。複数行の履歴を呼び出すと、改行やタブは`\n`・`\t`として表示しますが、評価には元のソースを渡します。既定の保存先はユーザー設定ディレクトリの`noe/repl_history.jsonl`です。Linuxでは`$XDG_CONFIG_HOME`、未設定なら`~/.config`の下になります。メモリ内の履歴は直近1000件で、保存ファイルへは追記します。
 
 `NOE_REPL_HISTORY`で保存先を変更できます。空文字を指定すると、保存・読込みを無効にし、そのセッション内の履歴だけを使います。読込み・保存に失敗すると標準エラーへ通知し、REPLを続けます。
 
@@ -83,8 +89,8 @@ NOE_REPL_HISTORY=/tmp/my-noe-history.jsonl ./noe repl
 | Alt+B・F、Ctrl+←・→ | 単語ごとに移動 |
 | Ctrl+W、Ctrl+U・K | 前の単語、行の先頭まで、行末までを削除 |
 | ↑・↓、Ctrl+P・N | 履歴を呼び出す。修正してEnterで再実行できる |
-| Ctrl+R・S | 履歴を検索 |
-| Tab | キーワード・グローバル名・成功した入力の宣言名・オブジェクトのプロパティを補完 |
+| Ctrl+R・S | 履歴を後方・前方へ検索。Enterで実行、Ctrl+Gで検索前の入力へ戻る |
+| Tab | キーワード・グローバル名・成功した入力の宣言名・オブジェクトのプロパティを共通部分まで補完。進展しない場合は続けてTabを押すと候補一覧を表示 |
 | Ctrl+L | 画面を消去 |
 
 `process.ar`や`console.lo`を入力してTabを押すと、候補を補完できます。成功した入力のトップレベルの`let`・`const`宣言は、配列・オブジェクトの分割代入も含めて候補へ追加します。関数や`var`はグローバル名から取得します。失敗した入力内の部分宣言や、識別子のエスケープ表記の収集には対応しません。識別子とドットの列を対象とし、関数呼出しや添字を含む式は対象外です。プロパティのgetterは呼びません。Proxyのtrapが候補取得を妨げる場合は、その補完を中断して通常入力へ戻ります。

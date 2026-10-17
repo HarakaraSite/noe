@@ -14,6 +14,9 @@ func TestAgentREPLTerminalReuseAndErrorRecovery(t *testing.T) {
 	var calls atomic.Int32
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		calls.Add(1)
+		if agentEffort(req) != "high" {
+			t.Errorf("REPL effort changed across inputs: %q", agentEffort(req))
+		}
 		if len(req.Messages) != 2 {
 			t.Errorf("REPL history leaked: %+v", req)
 		}
@@ -27,11 +30,12 @@ func TestAgentREPLTerminalReuseAndErrorRecovery(t *testing.T) {
 	env["NOE_AGENT_TRACE"] = ""
 	session := startTerminalREPL(t, t.TempDir(), env)
 	session.enter(t, `const am=await import("noe:agent")`)
-	session.enter(t, `const a=am.createAgent({model:"fixture/model"})`)
+	session.enter(t, `const a=am.createAgent({provider:"openrouter",model:"fixture/model",effort:"high"})`)
 	if calls.Load() != 0 {
 		t.Fatal("REPL import/create contacted provider")
 	}
-	session.writeKeys(t, `await a.run("first")`+"\r")
+	// Completion goes through NOE's live Session even with the qjs editor.
+	session.writeKeys(t, "await a.r\t(\"first\")\r")
 	session.waitForOutputAndPrompt(t, "'first answer'")
 	before := session.stdout.snapshot()
 	session.writeKeys(t, `await a.run("fail")`+"\r")
@@ -59,7 +63,7 @@ func TestAgentREPLTerminalCtrlCCancelsModelRequest(t *testing.T) {
 	env["NOE_AGENT_TRACE"] = ""
 	session := startTerminalREPL(t, t.TempDir(), env)
 	session.enter(t, `const am=await import("noe:agent")`)
-	session.writeKeys(t, `await am.createAgent({model:"fixture/model"}).run("wait")`+"\r")
+	session.writeKeys(t, `await am.createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("wait")`+"\r")
 	select {
 	case <-started:
 	case <-time.After(ptyWaitTimeout):
@@ -88,7 +92,7 @@ func TestAgentREPLTerminalCompletionRPCClosesSession(t *testing.T) {
 	env["NOE_AGENT_TRACE"] = ""
 	session := startTerminalREPL(t, t.TempDir(), env)
 	session.enter(t, `const am=await import("noe:agent")`)
-	session.enter(t, `const a=am.createAgent({model:"fixture/model"})`)
+	session.enter(t, `const a=am.createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"})`)
 	session.enter(t, `const ap=new Proxy({}, {ownKeys(){a.run("from completion").catch(()=>{});return ["value"]}})`)
 	session.writeKeys(t, "ap.\t")
 	result := session.finish(t, 1)

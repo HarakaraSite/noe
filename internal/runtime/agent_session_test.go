@@ -40,7 +40,7 @@ func TestAgentSessionReusesCachedModuleAndRecoversAfterError(t *testing.T) {
 		defer cancel()
 		return s.Eval(ctx, input)
 	}
-	for _, setup := range []string{`const agentModule=await import("noe:agent")`, `const reusedAgent=agentModule.createAgent({model:"fixture/model"})`} {
+	for _, setup := range []string{`const agentModule=await import("noe:agent")`, `const reusedAgent=agentModule.createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"})`} {
 		if result := eval(setup); result.Err != nil || result.Exit {
 			t.Fatalf("setup: %+v", result)
 		}
@@ -87,7 +87,7 @@ func TestAgentSessionInterruptCancelsPendingRPC(t *testing.T) {
 		case <-ctx.Done():
 		}
 	}()
-	result := s.Eval(ctx, `await am.createAgent({model:"fixture/model"}).run("wait")`)
+	result := s.Eval(ctx, `await am.createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("wait")`)
 	if !result.Exit || result.Code != 1 || !errors.Is(result.Err, context.Canceled) || !errors.Is(result.Err, quickjs.ErrClosed) {
 		t.Fatalf("pending RPC interruption: %+v", result)
 	}
@@ -134,7 +134,7 @@ func TestAgentCompletionUsesCurrentContextAndTracksRPC(t *testing.T) {
 	}
 	for _, setup := range []string{
 		`const cm=await import("noe:agent")`,
-		`const ca=cm.createAgent({model:"fixture/model",name:"completion-agent"})`,
+		`const ca=cm.createAgent({provider:"openrouter",model:"fixture/model",name:"completion-agent",effort:"auto"})`,
 		`const agentProxy=new Proxy({}, {ownKeys(){ca.run("pending from trap").catch(()=>{});while(!completionRPCStarted()){};return ["value"]}})`,
 	} {
 		if result := s.Eval(context.Background(), setup); result.Err != nil || result.Exit {

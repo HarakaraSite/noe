@@ -37,7 +37,7 @@ func TestCLIAgentRunAndEval(t *testing.T) {
 	}))
 	defer server.Close()
 	agentFixtureSettings(t, server.URL)
-	source := `import {createAgent} from "noe:agent";console.log(await createAgent({model:"fixture/model"}).run("hello"));`
+	source := `import {createAgent} from "noe:agent";console.log(await createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("hello"));`
 	file := filepath.Join(t.TempDir(), "agent.js")
 	if err := os.WriteFile(file, []byte(source), 0600); err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestCLIAgentRunAndEval(t *testing.T) {
 		}
 	}
 	var out, diagnostic bytes.Buffer
-	code := Run(context.Background(), []string{"eval", `import {createAgent} from "noe:agent";await createAgent({model:"fixture/model"}).run("hello");`}, strings.NewReader(""), &out, &diagnostic)
+	code := Run(context.Background(), []string{"eval", `import {createAgent} from "noe:agent";await createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("hello");`}, strings.NewReader(""), &out, &diagnostic)
 	if code != 0 || out.Len() != 0 || diagnostic.Len() != 0 || calls.Load() != 3 {
 		t.Fatalf("run printed automatically: code=%d out=%q err=%q calls=%d", code, &out, &diagnostic, calls.Load())
 	}
@@ -69,7 +69,7 @@ func TestCLIAgentTimeoutPreservesExit124(t *testing.T) {
 	agentFixtureSettings(t, server.URL)
 	t.Setenv("NOE_AGENT_TRACE", "1")
 	var out, diagnostic bytes.Buffer
-	code := Run(context.Background(), []string{"eval", "--timeout", "300ms", `import {createAgent} from "noe:agent";await createAgent({model:"fixture/model"}).run("wait");`}, strings.NewReader(""), &out, &diagnostic)
+	code := Run(context.Background(), []string{"eval", "--timeout", "300ms", `import {createAgent} from "noe:agent";await createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"}).run("wait");`}, strings.NewReader(""), &out, &diagnostic)
 	if code != 124 || !started.Load() || !strings.Contains(diagnostic.String(), "execution timed out") {
 		t.Fatalf("code=%d started=%v stderr=%q", code, started.Load(), &diagnostic)
 	}

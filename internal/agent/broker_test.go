@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"noe/internal/agent/provider"
+	"noe/internal/events"
 )
 
 type fixtureProvider struct {
@@ -64,6 +65,34 @@ func TestHostAndOperationAreLazyUntilRPC(t *testing.T) {
 	}
 	if h.broker != nil {
 		t.Fatal("invalid method started the broker")
+	}
+}
+
+func TestProviderStreamingObservationIsDisabledWithoutHostObserver(t *testing.T) {
+	called := false
+	p := &fixtureProvider{gen: func(_ context.Context, request provider.Request) (provider.Response, error) {
+		called = true
+		if request.Observe != nil {
+			t.Error("provider received a streaming observer when Host.Observe is nil")
+		}
+		return provider.Response{
+			Message:      json.RawMessage(`{"role":"assistant","content":"fixture answer"}`),
+			FinishReason: "stop",
+		}, nil
+	}}
+	h := NewHost(Options{Provider: p})
+	t.Cleanup(h.Close)
+	op := h.NewOperation(context.Background())
+	t.Cleanup(op.Close)
+	runID := startFixtureRun(t, op)
+	if result := callFixtureModel(op, runID, "fixture request"); result.err != nil {
+		t.Fatal(result.err)
+	}
+	if !called {
+		t.Fatal("provider was not called")
+	}
+	if err := finishFixtureRun(op, runID); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -377,6 +406,175 @@ func TestProviderErrorDoesNotEchoProviderDiagnostics(t *testing.T) {
 	}
 }
 
+func TestObservePublishesLifecycleModelAndAcceptedFinalEvents(t *testing.T) {
+	var observed struct {
+		sync.Mutex
+		events []events.Event
+	}
+	var calls int
+	p := &fixtureProvider{gen: func(_ context.Context, request provider.Request) (provider.Response, error) {
+		calls++
+		if request.Observe != nil {
+			request.Observe(provider.StreamEvent{Type: "thinking", Text: "streamed thought"})
+			request.Observe(provider.StreamEvent{Type: "thinking_summary", Text: "short summary"})
+			request.Observe(provider.StreamEvent{Type: "message_delta", Text: "visible fragment"})
+		}
+		switch calls {
+		case 1:
+			return provider.Response{
+				Message:      json.RawMessage(`{"role":"assistant","content":"Checking the files","tool_calls":[{"id":"call-1","type":"function","function":{"name":"run_js","arguments":"{\"code\":\"// private generated source\\nconsole.log(1)\"}"}}]}`),
+				FinishReason: "tool_calls", Usage: json.RawMessage(`{"prompt_tokens":3,"completion_tokens":4,"total_tokens":7}`),
+			}, nil
+		case 2:
+			return provider.Response{
+				Message:      json.RawMessage(`{"role":"assistant","content":"Accepted final answer"}`),
+				FinishReason: "stop", Usage: json.RawMessage(`{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}`),
+			}, nil
+		default:
+			return provider.Response{}, &provider.ProviderError{Kind: provider.ErrorRateLimit}
+		}
+	}}
+	h := NewHost(Options{Provider: p, Observe: func(event events.Event) {
+		observed.Lock()
+		defer observed.Unlock()
+		copy := make(events.Event, len(event))
+		for key, value := range event {
+			copy[key] = value
+		}
+		observed.events = append(observed.events, copy)
+	}})
+	t.Cleanup(h.Close)
+	op := h.NewOperation(context.Background())
+	op.parentRunID = "parent-run"
+	t.Cleanup(op.Close)
+
+	completedRun := startFixtureRun(t, op)
+	if result := callFixtureModel(op, completedRun, "work request"); result.err != nil {
+		t.Fatal(result.err)
+	}
+	if result := callFixtureModel(op, completedRun, "tool result"); result.err != nil {
+		t.Fatal(result.err)
+	}
+	finishPayload, err := json.Marshal(finishRequest{
+		RunID: completedRun, Status: "completed", Answer: "Accepted final answer",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := op.Call("finish", string(finishPayload)); err != nil {
+		t.Fatal(err)
+	}
+
+	failedRun := startFixtureRun(t, op)
+	if _, err := op.Call("model", fixtureModelPayload(failedRun, "rate limited request")); err == nil {
+		t.Fatal("fixture provider failure was accepted")
+	}
+	failedFinish, _ := json.Marshal(finishRequest{RunID: failedRun, Status: "failed"})
+	if _, err := op.Call("finish", string(failedFinish)); err != nil {
+		t.Fatal(err)
+	}
+
+	cancelledRun := startFixtureRun(t, op)
+	op.Close()
+
+	observed.Lock()
+	defer observed.Unlock()
+	eventsByType := make(map[string][]events.Event)
+	for _, event := range observed.events {
+		typeName, _ := event["type"].(string)
+		eventsByType[typeName] = append(eventsByType[typeName], event)
+		if typeName == "agent.started" || typeName == "agent.completed" || typeName == "agent.failed" || typeName == "agent.cancelled" || typeName == "model.started" || typeName == "model.finished" || typeName == "model.failed" || typeName == "thinking" || typeName == "thinking_summary" || typeName == "message_delta" || typeName == "agent.message" || typeName == "agent.final" {
+			if event["runId"] == "" || event["parentRunId"] != "parent-run" || event["name"] != "fixture" || event["model"] != "fixture/model" {
+				t.Errorf("event %q has incomplete run metadata: %#v", typeName, event)
+			}
+		}
+	}
+	if len(eventsByType["agent.started"]) != 3 || len(eventsByType["agent.completed"]) != 1 || len(eventsByType["agent.failed"]) != 1 || len(eventsByType["agent.cancelled"]) != 1 {
+		t.Errorf("agent lifecycle counts: started=%d completed=%d failed=%d cancelled=%d", len(eventsByType["agent.started"]), len(eventsByType["agent.completed"]), len(eventsByType["agent.failed"]), len(eventsByType["agent.cancelled"]))
+	}
+	if len(eventsByType["agent.cancelled"]) == 1 {
+		if got := eventsByType["agent.cancelled"][0]["runId"]; got != cancelledRun {
+			t.Errorf("cancelled event runId = %v, want %s", got, cancelledRun)
+		}
+	}
+	if len(eventsByType["model.started"]) != 3 || len(eventsByType["model.finished"]) != 2 || len(eventsByType["model.failed"]) != 1 {
+		t.Errorf("model event counts: started=%d finished=%d failed=%d", len(eventsByType["model.started"]), len(eventsByType["model.finished"]), len(eventsByType["model.failed"]))
+	}
+	requestIDs := make(map[string]bool)
+	for _, event := range eventsByType["model.started"] {
+		requestID, _ := event["requestId"].(string)
+		if requestID == "" || requestIDs[requestID] {
+			t.Errorf("model request ID missing or reused: %#v", event)
+		}
+		requestIDs[requestID] = true
+	}
+	for _, eventType := range []string{"thinking", "thinking_summary", "message_delta"} {
+		if len(eventsByType[eventType]) != 3 {
+			t.Errorf("%s event count = %d, want 3", eventType, len(eventsByType[eventType]))
+		}
+		for _, event := range eventsByType[eventType] {
+			requestID, _ := event["requestId"].(string)
+			if !requestIDs[requestID] || event["text"] == "" {
+				t.Errorf("%s event is not linked to a model request: %#v", eventType, event)
+			}
+		}
+	}
+	if len(eventsByType["agent.message"]) != 1 {
+		t.Errorf("agent.message count = %d, want 1", len(eventsByType["agent.message"]))
+	} else {
+		message := eventsByType["agent.message"][0]
+		requestID, _ := message["requestId"].(string)
+		if message["text"] != "Checking the files" || !requestIDs[requestID] || strings.Contains(fmt.Sprint(message), "private generated source") || strings.Contains(fmt.Sprint(message), "console.log(1)") {
+			t.Errorf("intermediate message contains the wrong content: %#v", message)
+		}
+	}
+	if len(eventsByType["agent.final"]) != 1 || eventsByType["agent.final"][0]["text"] != "Accepted final answer" {
+		t.Errorf("accepted final events = %#v", eventsByType["agent.final"])
+	}
+	for _, event := range eventsByType["agent.final"] {
+		if event["runId"] != completedRun {
+			t.Errorf("final event runId = %v, want %s", event["runId"], completedRun)
+		}
+	}
+}
+
+func TestObserveDoesNotLabelUnacceptedFinishAsFinal(t *testing.T) {
+	var observed []events.Event
+	callbackCanLockHost := true
+	var h *Host
+	h = NewHost(Options{Provider: &fixtureProvider{}, Observe: func(event events.Event) {
+		if !h.mu.TryLock() {
+			callbackCanLockHost = false
+		} else {
+			h.mu.Unlock()
+		}
+		observed = append(observed, event)
+	}})
+	t.Cleanup(h.Close)
+	op := h.NewOperation(context.Background())
+	t.Cleanup(op.Close)
+	runID := startFixtureRun(t, op)
+	payload, _ := json.Marshal(finishRequest{RunID: runID, Status: "completed", Answer: " \n"})
+	if _, err := op.Call("finish", string(payload)); err != nil {
+		t.Fatal(err)
+	}
+	completed := false
+	for _, event := range observed {
+		if event["type"] == "agent.final" {
+			t.Fatalf("unaccepted answer was labeled final: %#v", event)
+		}
+		if event["type"] == "agent.completed" && event["runId"] == runID {
+			completed = true
+		}
+	}
+	if !completed {
+		t.Fatal("finish status completed did not preserve agent.completed lifecycle")
+	}
+	if !callbackCanLockHost {
+		t.Fatal("Observe callback ran while Host.mu was locked")
+	}
+}
+
 type modelCallResult struct {
 	instruction string
 	answer      string
@@ -393,7 +591,7 @@ func startFixtureRun(t *testing.T, op *Operation) string {
 func startFixtureRunWithConfig(t *testing.T, op *Operation, config runConfig) string {
 	t.Helper()
 	payload, err := json.Marshal(startRequest{
-		Provider: config.Provider, Model: config.Model, Name: config.Name, MaxTokens: config.MaxTokens,
+		Provider: config.Provider, Model: config.Model, Name: config.Name, MaxTokens: config.MaxTokens, Effort: config.Effort,
 	})
 	if err != nil {
 		t.Fatalf("marshal start request: %v", err)

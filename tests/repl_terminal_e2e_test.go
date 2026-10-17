@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"testing"
@@ -36,7 +37,7 @@ type terminalREPL struct {
 	finished bool
 }
 
-func startTerminalREPL(t *testing.T, dir string, env map[string]string) *terminalREPL {
+func startTerminalREPL(t *testing.T, dir string, env map[string]string, args ...string) *terminalREPL {
 	t.Helper()
 
 	masterFD, err := unix.Open("/dev/ptmx", unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
@@ -74,7 +75,7 @@ func startTerminalREPL(t *testing.T, dir string, env map[string]string) *termina
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), ptyRunTimeout)
-	cmd := exec.CommandContext(ctx, cliPath, "repl")
+	cmd := exec.CommandContext(ctx, cliPath, append([]string{"repl"}, args...)...)
 	cmd.Dir = dir
 	cmd.Env = envWith(os.Environ(), "TERM", "xterm-256color")
 	cmd.Env = envWith(cmd.Env, "NOE_REPL_HISTORY", "")
@@ -155,8 +156,10 @@ func (s *terminalREPL) enter(t *testing.T, line string) string {
 	return before
 }
 
+var terminalControl = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
+
 func normalizePTYOutput(output string) string {
-	return strings.ReplaceAll(output, "\r\n", "\n")
+	return terminalControl.ReplaceAllString(strings.ReplaceAll(output, "\r\n", "\n"), "")
 }
 
 func (s *terminalREPL) waitForPromptAfter(t *testing.T, before string) {
@@ -165,9 +168,14 @@ func (s *terminalREPL) waitForPromptAfter(t *testing.T, before string) {
 		if len(output) < len(before) {
 			return false
 		}
-		tail := normalizePTYOutput(output[len(before):])
-		return strings.Contains(tail, "\n> ") || strings.HasSuffix(tail, "> ")
+		return hasTerminalPrompt(output[len(before):], "> ")
 	})
+}
+
+// A fresh read enables bracketed paste immediately before drawing its prompt.
+// Ordinary per-key redraws also contain "> ", so those are not readiness signals.
+func hasTerminalPrompt(output, prompt string) bool {
+	return strings.Contains(output, "\x1b[?2004h\r\x1b[J"+prompt)
 }
 
 func (s *terminalREPL) waitForOutputLine(t *testing.T, line string) {
@@ -186,9 +194,12 @@ func (s *terminalREPL) waitForOutputAndPrompt(t *testing.T, line string) {
 	t.Helper()
 	s.stdout.waitFor(t, "console output and following prompt for "+line, func(output string) bool {
 		normalized := normalizePTYOutput(output)
-		marker := line + "\n"
+		// A wrapping redraw can end with the marker text inside a partially
+		// typed string. Require a complete output line before a fresh read.
+		marker := "\n" + line + "\n"
 		index := strings.LastIndex(normalized, marker)
-		return index >= 0 && strings.Contains(normalized[index+len(marker):], "> ")
+		return index >= 0 && strings.Contains(normalized[index+len(marker):], "> ") &&
+			strings.LastIndex(output, "\x1b[?2004h\r\x1b[J> ") > strings.LastIndex(output, "\x1b[?2004l")
 	})
 }
 

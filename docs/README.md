@@ -6,7 +6,11 @@
 
 ## 現在のAPIと移行
 
+実行中の観察は[観察の入口](observe.md)と[JSONLイベントのガイド](events.md)を参照してください。`run`・`eval`・`repl`共通の`--events`で記録し、人間はGoの`noe observe`で読みやすく表示、親はJSの`observe_agent`からGoが組み立てた状態・差分・結果を取得できます。
+
 JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`process`・`timers/promises`とグローバルの`fetch`・`serve`などは、go-quickjs標準ライブラリへ統一しました。NOE固有の機能としてCLI・REPLの操作と、インクリメント13で追加した`noe:agent`モジュールがあります。[移行表](api.md#旧apiからの移行)と[インクリメント12の記録](increment-12.md)、[agent API](api.md)を参照してください。
+
+agentの共通インストラクションは[`internal/agent/instructions.md`](../internal/agent/instructions.md)で管理します。Goの`embed`でバイナリに含め、`agent.js`が内部moduleから取得します。文面の変更を実行へ反映するには再ビルドします。`run_js`のtool定義とloop処理は引き続き`agent.js`にあります。
 
 以下のインクリメント1〜11、レビュー、比較スパイクは当時の設計・検証履歴です。そこに記載された旧API・対象外・ソース構成・中断動作は、現在の仕様や最新コードの検証結果を示すものではありません。
 
@@ -28,11 +32,11 @@ JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`proces
 | [12](increment-12.md) | stdlibへの統一、旧`noe.*` APIと独自I/O実装の削除 |
 | [13](increment-13.md) | OpenRouter agent loop、子JS実行、親子agent、Go側の認証・通信（[実装・検証記録](increment-13-implementation.md)、[計画レビュー](increment-13-review.md)） |
 
-行編集については[比較スパイク](repl-lineedit-spike.md)と[インクリメント3・4の計画レビュー](increment-3-4-review.md)もあります。
+現在の入力UIは[qjs固定版からの取り込みと保守手順](qjs-repl-integration.md)を参照してください。過去の選定記録として[比較スパイク](repl-lineedit-spike.md)と[インクリメント3・4の計画レビュー](increment-3-4-review.md)もあります。
 
 ## 今後の候補
 
-[次の機能候補](future-candidates.md)に、v1.2.0利用後の「Workerからのagent利用」と「呼び出し元の終了後も続く独立agent実行」の検討メモ、およびv1.0.0時点の候補を記録しています。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。import mapとHTTP URLからのimportは未対応です。
+[次の機能候補](future-candidates.md)に、v1.2.0利用後の「Web検索と検索APIの認証ラッパー」「親による子agentの監督」「Workerからのagent利用」「呼び出し元の終了後も続く独立agent実行」「長いタスクの実行コンテキスト圧縮」「Jevなどの意思決定モデルの呼び出し（Henji参照）」「モデルの推論エフォートの指定」「ログによるagentの状況確認」「実行中のagentへの追加指示」「自作REPLの必要性とqjsの再利用」の検討メモ、およびv1.0.0時点の候補を記録しています。観察と追加指示の主用途は親agentが子を監督する流れで、人間も同じ経路を利用できる想定です。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。import mapとHTTP URLからのimportは未対応です。
 
 ## ビルドと検証
 

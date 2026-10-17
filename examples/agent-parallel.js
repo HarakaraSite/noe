@@ -3,7 +3,9 @@ import { createAgent } from "noe:agent";
 const left = process.argv[2] ?? "examples/data/agent/left.json";
 const right = process.argv[3] ?? "examples/data/agent/right.json";
 const parent = createAgent({
+  provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",
+  effort: "auto",
   name: "parent",
   system: "子agentの実行結果を使って集計してください。",
 });

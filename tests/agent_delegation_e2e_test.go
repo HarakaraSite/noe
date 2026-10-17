@@ -80,13 +80,13 @@ func TestAgentChildrenRunConcurrentlyAndInheritSettings(t *testing.T) {
 		sessionMu.Unlock()
 		switch instruction {
 		case "parent":
-			if req.Model != "fixture/parent" || req.MaxTokens != 2048 || !strings.Contains(agentSystem(req), "parent-only-setting") {
+			if req.Model != "fixture/parent" || req.MaxTokens != 2048 || agentEffort(req) != "high" || !strings.Contains(agentSystem(req), "parent-only-setting") {
 				t.Errorf("parent settings: %+v", req)
 			}
 			if len(req.Messages) == 2 {
 				code := `const results=await Promise.all([
 createAgent({name:"left"}).run("left",{maxSteps:3}),
-createAgent({name:"right",model:"fixture/override",maxTokens:321,system:"right-only-setting"}).run("right",{cacheKey:"right-cache",maxSteps:3})
+createAgent({name:"right",model:"fixture/override",maxTokens:321,effort:"low",system:"right-only-setting"}).run("right",{cacheKey:"right-cache",maxSteps:3})
 ]);console.log(JSON.stringify(results));`
 				return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("delegate", code)}}}, FinishReason: "tool_calls"}
 			}
@@ -99,10 +99,10 @@ createAgent({name:"right",model:"fixture/override",maxTokens:321,system:"right-o
 			if strings.Contains(agentSystem(req), "parent-only-setting") {
 				t.Error("child inherited parent's system")
 			}
-			if instruction == "left" && (req.Model != "fixture/parent" || req.MaxTokens != 2048 || strings.Contains(agentSystem(req), "right-only-setting")) {
+			if instruction == "left" && (req.Model != "fixture/parent" || req.MaxTokens != 2048 || agentEffort(req) != "high" || strings.Contains(agentSystem(req), "right-only-setting")) {
 				t.Errorf("left defaults: %+v", req)
 			}
-			if instruction == "right" && (req.Model != "fixture/override" || req.MaxTokens != 321 || req.SessionID != "right-cache" || !strings.Contains(agentSystem(req), "right-only-setting")) {
+			if instruction == "right" && (req.Model != "fixture/override" || req.MaxTokens != 321 || agentEffort(req) != "low" || req.SessionID != "right-cache" || !strings.Contains(agentSystem(req), "right-only-setting")) {
 				t.Errorf("right overrides: %+v", req)
 			}
 			if len(req.Messages) == 2 {
@@ -136,7 +136,7 @@ createAgent({name:"right",model:"fixture/override",maxTokens:321,system:"right-o
 		}
 	})
 	defer server.Close()
-	source := `import {createAgent} from "noe:agent";console.log(await createAgent({name:"parent",model:"fixture/parent",maxTokens:2048,system:"parent-only-setting"}).run("parent",{maxSteps:3}));`
+	source := `import {createAgent} from "noe:agent";console.log(await createAgent({provider:"openrouter",name:"parent",model:"fixture/parent",maxTokens:2048,effort:"high",system:"parent-only-setting"}).run("parent",{maxSteps:3}));`
 	result := runCLI(t, work, agentCLIEnv(t, server.URL), "eval", source)
 	requireExit(t, result, 0)
 	if result.stdout != "100\n" || children.Load() != 2 {
@@ -189,14 +189,17 @@ func TestAgentChildDefaultsBelongToLaunchingRun(t *testing.T) {
 		instruction := agentUser(req)
 		suffix := strings.TrimPrefix(strings.TrimPrefix(instruction, "parent-"), "child-")
 		model, tokens := "fixture/a", 111
+		effort := "low"
 		if suffix == "b" {
 			model, tokens = "fixture/b", 222
+			effort = "high"
 		}
 		if instruction == "child-b" {
-			tokens = 0 // An explicit zero overrides the inherited nonzero limit.
+			tokens = 0      // An explicit zero overrides the inherited nonzero limit.
+			effort = "auto" // Explicit auto resets inherited reasoning settings.
 		}
-		if req.Model != model || req.MaxTokens != tokens {
-			t.Errorf("defaults crossed runs: instruction=%q model=%q tokens=%d", instruction, req.Model, req.MaxTokens)
+		if req.Model != model || req.MaxTokens != tokens || agentEffort(req) != effort {
+			t.Errorf("defaults crossed runs: instruction=%q model=%q tokens=%d effort=%q", instruction, req.Model, req.MaxTokens, agentEffort(req))
 		}
 		if strings.HasPrefix(instruction, "child-") {
 			return agentModelReply{Content: "done-" + suffix}
@@ -212,7 +215,7 @@ func TestAgentChildDefaultsBelongToLaunchingRun(t *testing.T) {
 			}
 			config := "{}"
 			if suffix == "b" {
-				config = "{maxTokens:0}"
+				config = `{maxTokens:0,effort:"auto"}`
 			}
 			code := `console.log(await createAgent(` + config + `).run("child-` + suffix + `"));`
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("child", code)}}}, FinishReason: "tool_calls"}
@@ -226,8 +229,8 @@ func TestAgentChildDefaultsBelongToLaunchingRun(t *testing.T) {
 	defer server.Close()
 	result := runCLI(t, t.TempDir(), agentCLIEnv(t, server.URL), "eval", `import {createAgent} from "noe:agent";
 console.log(JSON.stringify(await Promise.all([
-createAgent({model:"fixture/a",maxTokens:111}).run("parent-a",{maxSteps:3}),
-createAgent({model:"fixture/b",maxTokens:222}).run("parent-b",{maxSteps:3})])));`)
+createAgent({provider:"openrouter",model:"fixture/a",maxTokens:111,effort:"low"}).run("parent-a",{maxSteps:3}),
+createAgent({provider:"openrouter",model:"fixture/b",maxTokens:222,effort:"high"}).run("parent-b",{maxSteps:3})])));`)
 	requireExit(t, result, 0)
 	if result.stdout != "[\"done-a\",\"done-b\"]\n" {
 		t.Fatalf("result=%+v", result)
@@ -256,7 +259,7 @@ func TestAgentFailedRunDoesNotCancelIndependentRun(t *testing.T) {
 	})
 	defer server.Close()
 	result := runCLI(t, work, agentCLIEnv(t, server.URL), "eval", `import {createAgent} from "noe:agent";import {writeFileSync} from "node:fs";
-const a=createAgent({model:"fixture/model"});
+const a=createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"});
 const bad=a.run("bad").catch(()=>{writeFileSync("bad-finished","1");return "failed"});
 const good=a.run("good");console.log(JSON.stringify(await Promise.all([bad,good])));`)
 	requireExit(t, result, 0)

@@ -2,17 +2,15 @@ package cli
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
-	"github.com/peterh/liner"
-	"golang.org/x/term"
+	"noe/internal/replui"
 )
 
-var errREPLInterrupt = errors.New("REPL input interrupted")
+var errREPLInterrupt = replui.ErrInterrupt
 
 // replInput owns input and terminal state, but never touches the JS runtime.
 type replInput interface {
@@ -22,34 +20,14 @@ type replInput interface {
 
 func newREPLInput(stdin io.Reader, stdout io.Writer) (replInput, error) {
 	plain := &plainREPLInput{reader: bufio.NewReader(stdin), out: stdout}
-	in, inOK := stdin.(*os.File)
-	out, outOK := stdout.(*os.File)
-	// Liner controls process fd 0 and 1, so borrowed or redirected streams
-	// retain the plain input path even if another descriptor names a terminal.
-	if !inOK || !outOK || in.Fd() != 0 || out.Fd() != 1 ||
-		!term.IsTerminal(0) || !term.IsTerminal(1) || !liner.TerminalSupported() {
+	if os.Getenv("TERM") == "dumb" {
 		return plain, nil
 	}
-	cooked, err := liner.TerminalMode()
-	if err != nil {
+	editor := replui.New(stdin, stdout)
+	if editor == nil {
 		return plain, nil
 	}
-	state := liner.NewLiner()
-	state.SetCtrlCAborts(true)
-	state.SetMultiLineMode(true) // wrap a single logical input across screen rows
-	editing, err := liner.TerminalMode()
-	if err != nil {
-		state.Close()
-		if restoreErr := cooked.ApplyMode(); restoreErr != nil {
-			return nil, errors.Join(err, restoreErr)
-		}
-		return plain, nil
-	}
-	if err := cooked.ApplyMode(); err != nil {
-		state.Close()
-		return nil, err
-	}
-	return &linerREPLInput{state: state, cooked: cooked, editing: editing}, nil
+	return &terminalREPLInput{editor: editor}, nil
 }
 
 type plainREPLInput struct {
@@ -67,40 +45,27 @@ func (p *plainREPLInput) readLine(prompt string) (string, error) {
 
 func (*plainREPLInput) close() error { return nil }
 
-type linerREPLInput struct {
-	state   *liner.State
-	cooked  liner.ModeApplier
-	editing liner.ModeApplier
+type terminalREPLInput struct {
+	editor  *replui.Input
 	history *replHistory
 }
 
-func (l *linerREPLInput) loadHistory(stderr io.Writer) {
+func (l *terminalREPLInput) loadHistory(stderr io.Writer) {
 	l.history = newREPLHistory(stderr)
 	for _, text := range l.history.load() {
-		l.state.AppendHistory(text)
+		l.editor.AddHistory(text)
 	}
 }
 
-func (l *linerREPLInput) remember(text string) {
-	l.state.AppendHistory(text)
+func (l *terminalREPLInput) remember(text string) {
+	l.editor.AddHistory(text)
 	if l.history != nil {
 		l.history.append(text)
 	}
 }
 
-func (l *linerREPLInput) readLine(prompt string) (text string, err error) {
-	if err := l.editing.ApplyMode(); err != nil {
-		return "", err
-	}
-	defer func() { err = errors.Join(err, l.cooked.ApplyMode()) }()
-	text, err = l.state.Prompt(prompt)
-	if errors.Is(err, liner.ErrPromptAborted) {
-		return text, errREPLInterrupt
-	}
-	return text, err
+func (l *terminalREPLInput) readLine(prompt string) (string, error) {
+	return l.editor.ReadLine(prompt)
 }
 
-func (l *linerREPLInput) close() error {
-	// Liner's Close restores its saved mode; keep restoration errors visible.
-	return errors.Join(l.state.Close(), l.cooked.ApplyMode())
-}
+func (l *terminalREPLInput) close() error { return l.editor.Close() }

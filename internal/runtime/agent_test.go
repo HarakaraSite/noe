@@ -44,7 +44,7 @@ func TestAgentMinimalRunHasIndependentHistories(t *testing.T) {
 	})
 	var out bytes.Buffer
 	source := `import {createAgent} from "noe:agent";
-const a = createAgent({model:"fixture/model",system:"additional",maxTokens:123});
+const a = createAgent({provider:"openrouter",model:"fixture/model",system:"additional",maxTokens:123,effort:"high"});
 console.log(await a.run("first",{cacheKey:"cache-1"}));
 console.log(await a.run("second"));
 console.log(JSON.stringify(await Promise.all([a.run("left"),a.run("right")])));
@@ -59,8 +59,18 @@ console.log(await a.run("empty",{cacheKey:""}));`
 		t.Fatalf("requests=%d", len(requests))
 	}
 	for _, req := range requests {
-		if req.Model != "fixture/model" || req.MaxTokens != 123 || len(req.Messages) != 2 || !strings.Contains(string(req.Messages[0]), "additional") {
+		if req.Model != "fixture/model" || req.MaxTokens != 123 || req.Effort != "high" || len(req.Messages) != 2 || !strings.Contains(string(req.Messages[0]), "additional") {
 			t.Fatalf("settings/history not isolated: %+v", req)
+		}
+		var system struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(req.Messages[0], &system); err != nil {
+			t.Fatal(err)
+		}
+		if system.Role != "system" || system.Content != agent.Instructions()+"\nadditional" {
+			t.Fatalf("embedded Markdown and custom instructions were not composed: %+v", system)
 		}
 	}
 	if requests[0].CacheKey != "cache-1" || requests[4].CacheKey != "" {
@@ -82,12 +92,13 @@ func TestAgentLazyImportAndConfigurationErrors(t *testing.T) {
 		return agentAnswer("unexpected"), nil
 	})
 	for _, source := range []string{
-		`import {createAgent} from "noe:agent"; createAgent({model:"fixture/model"});`,
+		`import {createAgent} from "noe:agent"; createAgent({provider:"openrouter",model:"fixture/model",effort:"auto"});`,
 		`import {createAgent} from "noe:agent"; let failures=0;
-for (const config of [{},{model:42},{model:"x",provider:"unknown"},{model:"x",maxTokens:-1}]) {
-  try { createAgent(config); } catch { failures++; }
+for (const config of [{model:""},{model:42},{provider:"unknown"},{maxTokens:-1}]) {
+  try { createAgent({provider:"openrouter",model:"fixture/model",effort:"auto",...config}); } catch { failures++; }
 }
-const a=createAgent({model:"x"});
+
+const a=createAgent({provider:"openrouter",model:"x",effort:"auto"});
 for (const [instruction,options] of [["",{}],[42,{}],["x",{maxSteps:-1}],["x",{cacheKey:42}]]) {
   try { await a.run(instruction,options); } catch { failures++; }
 }
@@ -102,10 +113,42 @@ if(failures!==8) throw Error("validation missed "+failures);`,
 		t.Fatalf("unused/invalid agent invoked provider %d times", calls.Load())
 	}
 	// Prove import/create do not read a missing credential either.
-	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), `import {createAgent} from "noe:agent";createAgent({model:"x"});`},
+	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), `import {createAgent} from "noe:agent";createAgent({provider:"openrouter",model:"x",effort:"auto"});`},
 		Options{Agent: &agent.Options{ProviderOptions: provider.Options{KeyFile: filepath.Join(t.TempDir(), "missing")}}})
 	if code != 0 || err != nil {
 		t.Fatalf("lazy auth code=%d error=%v", code, err)
+	}
+}
+
+func TestAgentEffortValuesAndValidation(t *testing.T) {
+	var mu sync.Mutex
+	var efforts []string
+	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
+		mu.Lock()
+		efforts = append(efforts, req.Effort)
+		mu.Unlock()
+		return agentAnswer("done"), nil
+	})
+	source := `import {createAgent} from "noe:agent";
+for (const effort of ["auto","none","minimal","low","medium","high","xhigh","max"]) {
+  await createAgent({provider:"openrouter",model:"fixture/model",effort}).run("task");
+}
+for (const effort of [null,"","HIGH","unknown",1,false,{},["low"]]) {
+  let rejected = false;
+  try { createAgent({provider:"openrouter",model:"fixture/model",effort}); } catch (e) {
+    if (!(e instanceof TypeError) || !e.message.includes("effort")) throw e;
+    rejected = true;
+  }
+  if (!rejected) throw Error("invalid effort accepted: "+JSON.stringify(effort));
+}`
+	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: &agent.Options{Provider: p}})
+	if code != 0 || err != nil {
+		t.Fatalf("code=%d error=%v", code, err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if got := strings.Join(efforts, ","); got != "auto,none,minimal,low,medium,high,xhigh,max" {
+		t.Fatalf("effort values/validation: %q", got)
 	}
 }
 
@@ -120,7 +163,7 @@ func TestAgentCancellationStopsProvider(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	go func() { <-started; cancel() }()
-	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), `import {createAgent} from "noe:agent";await createAgent({model:"x"}).run("wait");`}, Options{Agent: &agent.Options{Provider: p}})
+	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), `import {createAgent} from "noe:agent";await createAgent({provider:"openrouter",model:"x",effort:"auto"}).run("wait");`}, Options{Agent: &agent.Options{Provider: p}})
 	if code != 1 || !errors.Is(err, context.Canceled) {
 		t.Fatalf("code=%d error=%v", code, err)
 	}
@@ -145,7 +188,7 @@ func TestAgentInternalRPCLongerThanFetchTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	var out bytes.Buffer
-	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), `import {createAgent} from "noe:agent";console.log(await createAgent({model:"x"}).run("wait"));`}, Options{Stdout: &out, Agent: &agent.Options{Provider: p}})
+	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), `import {createAgent} from "noe:agent";console.log(await createAgent({provider:"openrouter",model:"x",effort:"auto"}).run("wait"));`}, Options{Stdout: &out, Agent: &agent.Options{Provider: p}})
 	if code != 0 || err != nil || out.String() != "long request completed\n" {
 		t.Fatalf("code=%d error=%v stdout=%q", code, err, &out)
 	}

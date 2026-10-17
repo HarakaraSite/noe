@@ -3,8 +3,6 @@ package cli
 import (
 	"context"
 	"unicode"
-
-	"github.com/peterh/liner"
 )
 
 type completionRequest struct {
@@ -12,32 +10,28 @@ type completionRequest struct {
 	reply chan []string
 }
 
-func connectCompletion(ctx context.Context, input *linerREPLInput, requests chan<- completionRequest) {
-	input.state.SetTabCompletionStyle(liner.TabPrints)
-	input.state.SetWordCompleter(func(line string, pos int) (string, []string, string) {
-		head, token, tail := completionWord(line, pos)
+func connectCompletion(ctx context.Context, input *terminalREPLInput, requests chan<- completionRequest) {
+	input.editor.SetCompleter(func(line []rune, pos int) ([]string, int) {
+		start := completionStart(line, pos)
+		token := string(line[start:pos])
 		request := completionRequest{token: token, reply: make(chan []string, 1)}
 		select {
 		case requests <- request:
 		case <-ctx.Done():
-			return head, nil, tail
+			return nil, start
 		}
 		select {
 		case candidates := <-request.reply:
-			return head, candidates, tail
+			return candidates, start
 		case <-ctx.Done():
-			return head, nil, tail
+			return nil, start
 		}
 	})
 }
 
-// Liner indexes positions by rune. Keep both the source before the current
-// identifier chain and the source after the cursor untouched.
-func completionWord(line string, pos int) (head, token, tail string) {
-	runes := []rune(line)
-	if pos < 0 || pos > len(runes) {
-		return line, "", ""
-	}
+// The editor indexes positions by rune and preserves the source outside this
+// identifier chain, including everything after the cursor.
+func completionStart(runes []rune, pos int) int {
 	start := pos
 	for start > 0 {
 		r := runes[start-1]
@@ -46,5 +40,5 @@ func completionWord(line string, pos int) (head, token, tail string) {
 		}
 		start--
 	}
-	return string(runes[:start]), string(runes[start:pos]), string(runes[pos:])
+	return start
 }

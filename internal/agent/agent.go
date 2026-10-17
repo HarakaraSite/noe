@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"noe/internal/agent/provider"
+	"noe/internal/events"
 )
 
 // Options configures an agent host. Provider and ProviderOptions are used only
@@ -26,6 +27,9 @@ type Options struct {
 	Executable      string
 	Connection      *Connection
 	Trace           io.Writer
+	// Observe receives structured agent events. Calls are serialized and never
+	// made while Host.mu is held.
+	Observe func(events.Event)
 }
 
 // Config contains inheritable public agent defaults. Empty fields are omitted
@@ -36,6 +40,7 @@ type Config struct {
 	Name      string `json:"name,omitempty"`
 	System    string `json:"system,omitempty"`
 	MaxTokens int    `json:"maxTokens,omitempty"`
+	Effort    string `json:"effort,omitempty"`
 	Cwd       string `json:"cwd,omitempty"`
 }
 
@@ -63,6 +68,7 @@ type Host struct {
 	operations map[*Operation]struct{}
 	runs       map[string]*agentRun
 	traceMu    sync.Mutex
+	observeMu  sync.Mutex
 }
 
 // Operation is the cancellation and scope boundary for one runtime evaluation.
@@ -218,6 +224,9 @@ func (h *Host) Close() {
 			RunID: run.id, ParentID: run.parentID, Name: run.name, Model: run.model,
 			Status: "cancelled", Duration: time.Since(run.started),
 		})
+		h.observeEndedRun("agent.cancelled", run, events.Event{
+			"status": "cancelled", "duration": time.Since(run.started),
+		})
 	}
 	if b != nil {
 		b.close()
@@ -276,8 +285,42 @@ func (op *Operation) Close() {
 			RunID: run.id, ParentID: run.parentID, Name: run.name, Model: run.model,
 			Status: "cancelled", Duration: time.Since(run.started),
 		})
+		h.observeEndedRun("agent.cancelled", run, events.Event{
+			"status": "cancelled", "duration": time.Since(run.started),
+		})
 	}
 	op.closeDoneOnce.Do(func() { close(op.closeDone) })
+}
+
+func (h *Host) observe(event events.Event) {
+	if h.opts.Observe == nil {
+		return
+	}
+	h.observeMu.Lock()
+	defer h.observeMu.Unlock()
+	h.opts.Observe(event)
+}
+
+func (h *Host) observeRun(eventType, runID string, run *agentRun, fields events.Event) {
+	event := events.Event{
+		"type": eventType, "runId": runID,
+		"parentRunId": run.parentRunID, "name": run.config.Name, "model": run.config.Model,
+	}
+	for key, value := range fields {
+		event[key] = value
+	}
+	h.observe(event)
+}
+
+func (h *Host) observeEndedRun(eventType string, run endedRun, fields events.Event) {
+	event := events.Event{
+		"type": eventType, "runId": run.id,
+		"parentRunId": run.parentID, "name": run.name, "model": run.model,
+	}
+	for key, value := range fields {
+		event[key] = value
+	}
+	h.observe(event)
 }
 
 func (op *Operation) beginRequest() bool {

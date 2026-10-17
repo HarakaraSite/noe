@@ -77,7 +77,7 @@ func (s *terminalREPL) enterContinuation(t *testing.T, line string) {
 		if len(output) < len(before) {
 			return false
 		}
-		return strings.HasSuffix(normalizePTYOutput(output[len(before):]), "... ")
+		return hasTerminalPrompt(output[len(before):], "... ")
 	})
 }
 

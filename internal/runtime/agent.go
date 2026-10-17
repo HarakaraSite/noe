@@ -2,9 +2,12 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"path/filepath"
 
 	"noe/internal/agent"
+	"noe/internal/observation"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
@@ -19,9 +22,48 @@ func (h *host) installAgent(opts Options) error {
 	// OnClose runs after QuickJS shutdown: this callback only touches Go state.
 	h.rt.OnClose(h.agents.Close)
 	return h.rt.SetModule("noe:agent/internal", map[string]any{
-		"request":  h.agentRequest,
-		"defaults": h.agents.Defaults,
+		"request":      h.agentRequest,
+		"defaults":     h.agents.Defaults,
+		"instructions": agent.Instructions,
+		"observe":      h.agentObserve,
 	})
+}
+
+// agentObserve assembles a log snapshot in Go; QuickJS Promise settlement stays
+// on the runtime owner just like provider requests. No broker or credentials are
+// needed to read a saved or currently appended events file.
+func (h *host) agentObserve(payload string) *quickjs.Promise {
+	promise := h.rt.NewPromise()
+	op := h.agentOperation
+	if op == nil {
+		promise.RejectError(errors.New("agent observation outside an evaluation"))
+		return promise
+	}
+	var query observation.Query
+	if err := json.Unmarshal([]byte(payload), &query); err != nil {
+		promise.RejectError(err)
+		return promise
+	}
+	if query.LogPath != "" && !filepath.IsAbs(query.LogPath) {
+		query.LogPath = filepath.Join(h.cwd, query.LogPath)
+	}
+	h.loop.std.Begin()
+	go func() {
+		defer h.loop.std.Done()
+		snapshot, err := op.ObserveLog(query)
+		var encoded []byte
+		if err == nil {
+			encoded, err = json.Marshal(snapshot)
+		}
+		h.loop.std.Post(func() {
+			if err != nil {
+				promise.RejectError(err)
+			} else {
+				promise.Resolve(string(encoded))
+			}
+		})
+	}()
+	return promise
 }
 
 // beginAgentOperation is called on the owner for each Execute/Eval/Complete.

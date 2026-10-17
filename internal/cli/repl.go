@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"noe/internal/events"
 	"noe/internal/runtime"
 )
 
@@ -19,21 +20,33 @@ type inputLine struct {
 }
 
 func runREPL(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer) int {
+	return runObservedREPL(ctx, stdin, stdout, stderr, nil)
+}
+
+func runObservedREPL(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, observed *observation) int {
 	if ctx.Err() != nil {
 		return interruptedCode(ctx, stderr)
 	}
-	input, err := newREPLInput(stdin, stdout)
+	promptOut := stdout
+	if observed != nil && observed.toStdout && observed.renderer == nil {
+		promptOut = stderr
+	}
+	input, err := newREPLInput(stdin, promptOut)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	return runREPLWithInput(ctx, input, stdout, stderr)
+	return runREPLWithObservation(ctx, input, stdout, stderr, observed)
 }
 
 func runREPLWithInput(ctx context.Context, input replInput, stdout, stderr io.Writer) (code int) {
+	return runREPLWithObservation(ctx, input, stdout, stderr, nil)
+}
+
+func runREPLWithObservation(ctx context.Context, input replInput, stdout, stderr io.Writer, observed *observation) (code int) {
 	ctx, stopRequests := context.WithCancel(ctx)
 	defer stopRequests()
-	edited, interactive := input.(*linerREPLInput)
+	edited, interactive := input.(*terminalREPLInput)
 	if interactive {
 		edited.loadHistory(stderr)
 	}
@@ -53,7 +66,12 @@ func runREPLWithInput(ctx context.Context, input replInput, stdout, stderr io.Wr
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	session, err := runtime.NewSession(runtime.Options{Stdout: stdout, Stderr: stderr, Agent: agentSettings})
+	observed.configureAgent(agentSettings)
+	options := runtime.Options{Stdout: stdout, Stderr: stderr, Agent: agentSettings}
+	if observed != nil {
+		options.Stdout, options.Stderr = observed.stdout, observed.stderr
+	}
+	session, err := runtime.NewSession(options)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
@@ -142,6 +160,7 @@ func runREPLWithInput(ctx context.Context, input replInput, stdout, stderr io.Wr
 			}
 			if result.Exit {
 				if result.Err != nil {
+					observed.emit(events.Event{"type": "repl.error", "text": runtime.Diagnostic(result.Err)})
 					fmt.Fprintln(stderr, runtime.Diagnostic(result.Err))
 				}
 				return result.Code
@@ -154,12 +173,16 @@ func runREPLWithInput(ctx context.Context, input replInput, stdout, stderr io.Wr
 				continue
 			}
 			if result.Err != nil {
+				observed.emit(events.Event{"type": "repl.error", "text": runtime.Diagnostic(result.Err)})
 				fmt.Fprintln(stderr, runtime.Diagnostic(result.Err))
 			}
 			if result.Output != "" {
-				if _, err := fmt.Fprintln(stdout, result.Output); err != nil {
-					fmt.Fprintln(stderr, err)
-					return 1
+				observed.emit(events.Event{"type": "repl.result", "text": result.Output})
+				if observed == nil || !observed.toStdout {
+					if _, err := fmt.Fprintln(stdout, result.Output); err != nil {
+						fmt.Fprintln(stderr, err)
+						return 1
+					}
 				}
 			}
 		} else {

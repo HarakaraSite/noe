@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"noe/internal/agent/provider"
+	"noe/internal/events"
 )
 
 func TestRunJSBrokerUsesAndClosesChildScope(t *testing.T) {
@@ -62,7 +64,7 @@ cat "$2"
 	if connection == nil {
 		t.Fatalf("fake child did not receive its broker connection: %q", result.Stdout)
 	}
-	if connection.Defaults != (Config{Provider: "openrouter", Model: "fixture/model", MaxTokens: 128}) {
+	if connection.Defaults != (Config{Provider: "openrouter", Model: "fixture/model", MaxTokens: 128, Effort: "auto"}) {
 		t.Fatalf("child inherited defaults = %#v, want provider/model/maxTokens from this run", connection.Defaults)
 	}
 	h.mu.Lock()
@@ -92,6 +94,217 @@ cat "$2"
 	}
 }
 
+func TestRunJSObservationIncludesCommentOutputAndFailure(t *testing.T) {
+	var observed []events.Event
+	var observedMu sync.Mutex
+	appendObserved := func(event events.Event) {
+		observedMu.Lock()
+		defer observedMu.Unlock()
+		copy := make(events.Event, len(event))
+		for key, value := range event {
+			copy[key] = value
+		}
+		observed = append(observed, copy)
+	}
+	executable := writeFakeNOE(t, `
+source=$(cat "$2")
+case "$source" in
+  *FAIL*) printf 'failed stdout\n'; printf 'failed stderr\n' >&2; exit 7 ;;
+  *SUCCESS*) printf 'successful stdout\n'; printf 'successful stderr\n' >&2 ;;
+  *) printf 'commentless stdout\n' ;;
+esac
+`)
+	h := NewHost(Options{Provider: &fixtureProvider{}, Executable: executable, Cwd: t.TempDir(), Observe: appendObserved})
+	t.Cleanup(h.Close)
+	op := h.NewOperation(context.Background())
+	t.Cleanup(op.Close)
+	runID := startFixtureRun(t, op)
+
+	success := callRunJS(t, op, runID, "tool-success", "// inspect successful output\nconst result = 'SUCCESS';")
+	if success.Reason != "completed" || success.ExitCode != 0 {
+		t.Fatalf("successful run_js result = %#v", success)
+	}
+	failure := callRunJS(t, op, runID, "tool-failure", "// inspect failed output\nconst result = 'FAIL';")
+	if failure.Reason != "failed" || failure.ExitCode != 7 {
+		t.Fatalf("failed run_js result = %#v", failure)
+	}
+	commentless := callRunJS(t, op, runID, "tool-commentless", "const result = 'NO_COMMENT';")
+	if commentless.Reason != "completed" || commentless.ExitCode != 0 {
+		t.Fatalf("commentless run_js result = %#v", commentless)
+	}
+	if err := finishFixtureRun(op, runID); err != nil {
+		t.Fatal(err)
+	}
+
+	observedMu.Lock()
+	defer observedMu.Unlock()
+	starts := make(map[string]events.Event)
+	finishes := make(map[string]events.Event)
+	outputs := make(map[string][]events.Event)
+	for _, event := range observed {
+		if event["runId"] != runID || event["parentRunId"] != "" || event["name"] != "fixture" || event["model"] != "fixture/model" {
+			t.Errorf("run_js observation has incomplete run metadata: %#v", event)
+		}
+		toolCallID, _ := event["toolCallId"].(string)
+		switch event["type"] {
+		case "run_js.started":
+			starts[toolCallID] = event
+		case "run_js.finished":
+			finishes[toolCallID] = event
+		case "stdout", "stderr":
+			if event["source"] != "run_js" {
+				t.Errorf("run_js output source = %v", event["source"])
+			}
+			outputs[toolCallID] = append(outputs[toolCallID], event)
+		}
+	}
+	if len(starts) != 3 || len(finishes) != 3 {
+		t.Fatalf("run_js event counts: started=%d finished=%d", len(starts), len(finishes))
+	}
+	if starts["tool-success"]["text"] != "// inspect successful output" || starts["tool-failure"]["text"] != "// inspect failed output" {
+		t.Errorf("run_js start comments = success:%v failure:%v", starts["tool-success"]["text"], starts["tool-failure"]["text"])
+	}
+	if _, present := starts["tool-commentless"]["text"]; present {
+		t.Errorf("commentless code unexpectedly produced a comment: %#v", starts["tool-commentless"])
+	}
+	if finishes["tool-success"]["success"] != true || finishes["tool-success"]["exitCode"] != 0 || finishes["tool-success"]["reason"] != "completed" {
+		t.Errorf("successful run_js finish = %#v", finishes["tool-success"])
+	}
+	if finishes["tool-failure"]["success"] != false || finishes["tool-failure"]["exitCode"] != 7 || finishes["tool-failure"]["reason"] != "failed" {
+		t.Errorf("failed run_js finish = %#v", finishes["tool-failure"])
+	}
+	for toolCallID, wantText := range map[string]string{
+		"tool-success": "successful stdout\n", "tool-failure": "failed stdout\n", "tool-commentless": "commentless stdout\n",
+	} {
+		found := false
+		for _, event := range outputs[toolCallID] {
+			if event["type"] == "stdout" && event["text"] == wantText {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("stdout event for %s did not contain %q: %#v", toolCallID, wantText, outputs[toolCallID])
+		}
+	}
+	for _, event := range observed {
+		if event["type"] == "run_js.started" && strings.Contains(fmt.Sprint(event), "const result") {
+			t.Fatalf("run_js event included generated source: %#v", event)
+		}
+	}
+}
+
+func TestParallelRunJSObservationKeepsToolIdentities(t *testing.T) {
+	var observed []events.Event
+	var observedMu sync.Mutex
+	executable := writeFakeNOE(t, `
+source=$(cat "$2")
+case "$source" in
+  *LEFT*) sleep 0.05; printf 'left output\n' ;;
+  *RIGHT*) printf 'right output\n' ;;
+  *) exit 9 ;;
+esac
+`)
+	h := NewHost(Options{Provider: &fixtureProvider{}, Executable: executable, Cwd: t.TempDir(), Observe: func(event events.Event) {
+		observedMu.Lock()
+		defer observedMu.Unlock()
+		copy := make(events.Event, len(event))
+		for key, value := range event {
+			copy[key] = value
+		}
+		observed = append(observed, copy)
+	}})
+	t.Cleanup(h.Close)
+	op := h.NewOperation(context.Background())
+	t.Cleanup(op.Close)
+	runID := startFixtureRun(t, op)
+	type result struct {
+		toolCallID string
+		value      Result
+		err        error
+	}
+	results := make(chan result, 2)
+	go func() {
+		value, err := callRunJSResult(op, runID, "tool-left", "// inspect left\nconst item = 'LEFT';")
+		results <- result{"tool-left", value, err}
+	}()
+	go func() {
+		value, err := callRunJSResult(op, runID, "tool-right", "// inspect right\nconst item = 'RIGHT';")
+		results <- result{"tool-right", value, err}
+	}()
+	for range 2 {
+		item := <-results
+		if item.err != nil || item.value.Reason != "completed" || item.value.ExitCode != 0 {
+			t.Fatalf("parallel %s result = %#v, error %v", item.toolCallID, item.value, item.err)
+		}
+		want := strings.TrimPrefix(item.toolCallID, "tool-") + " output\n"
+		if !strings.Contains(item.value.Stdout, want) {
+			t.Errorf("parallel %s stdout = %q, want %q", item.toolCallID, item.value.Stdout, want)
+		}
+	}
+	if err := finishFixtureRun(op, runID); err != nil {
+		t.Fatal(err)
+	}
+
+	observedMu.Lock()
+	defer observedMu.Unlock()
+	started := make(map[string]string)
+	finished := make(map[string]bool)
+	stdout := make(map[string]string)
+	for _, event := range observed {
+		if event["runId"] != runID {
+			t.Errorf("parallel event runId = %v, want %s", event["runId"], runID)
+		}
+		toolCallID, _ := event["toolCallId"].(string)
+		switch event["type"] {
+		case "run_js.started":
+			started[toolCallID], _ = event["text"].(string)
+		case "run_js.finished":
+			finished[toolCallID], _ = event["success"].(bool)
+		case "stdout":
+			stdout[toolCallID], _ = event["text"].(string)
+		}
+	}
+	if started["tool-left"] != "// inspect left" || started["tool-right"] != "// inspect right" {
+		t.Errorf("parallel start events lost tool identity: %#v", started)
+	}
+	if !finished["tool-left"] || !finished["tool-right"] {
+		t.Errorf("parallel finish events lost tool identity: %#v", finished)
+	}
+	if stdout["tool-left"] != "left output\n" || stdout["tool-right"] != "right output\n" {
+		t.Errorf("parallel stdout events crossed tool identities: %#v", stdout)
+	}
+	for _, event := range observed {
+		if event["type"] == "run_js.started" && (event["toolCallId"] != "tool-left" && event["toolCallId"] != "tool-right") {
+			t.Errorf("parallel start event has unknown toolCallId: %#v", event)
+		}
+	}
+}
+
+func callRunJS(t *testing.T, op *Operation, runID, toolCallID, code string) Result {
+	t.Helper()
+	result, err := callRunJSResult(op, runID, toolCallID, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func callRunJSResult(op *Operation, runID, toolCallID, code string) (Result, error) {
+	payload, err := json.Marshal(runJSRequest{RunID: runID, ToolCallID: toolCallID, Code: &code})
+	if err != nil {
+		return Result{}, err
+	}
+	response, err := op.Call("run_js", string(payload))
+	if err != nil {
+		return Result{}, err
+	}
+	var result Result
+	if err := json.Unmarshal([]byte(response), &result); err != nil {
+		return Result{}, err
+	}
+	return result, nil
+}
+
 func TestRunJSDefaultsComeFromTheLaunchingRun(t *testing.T) {
 	executable := writeFakeNOE(t, `
 if [ "$1" != "run" ]; then exit 90; fi
@@ -103,8 +316,8 @@ printf '%s\n' "$NOE_AGENT_CONNECTION"
 	t.Cleanup(op.Close)
 
 	configs := []runConfig{
-		{Provider: "openrouter", Model: "fixture/left", Name: "left", MaxTokens: 37},
-		{Provider: "openrouter", Model: "fixture/right", Name: "right", MaxTokens: 0},
+		{Provider: "openrouter", Model: "fixture/left", Name: "left", MaxTokens: 37, Effort: "high"},
+		{Provider: "openrouter", Model: "fixture/right", Name: "right", MaxTokens: 0, Effort: "auto"},
 	}
 	for _, config := range configs {
 		runID := startFixtureRunWithConfig(t, op, config)
@@ -128,7 +341,7 @@ printf '%s\n' "$NOE_AGENT_CONNECTION"
 		if err := json.Unmarshal([]byte(strings.TrimSpace(result.Stdout)), &connection); err != nil {
 			t.Fatalf("decode %s child connection %q: %v", config.Name, result.Stdout, err)
 		}
-		want := Config{Provider: config.Provider, Model: config.Model, MaxTokens: config.MaxTokens}
+		want := Config{Provider: config.Provider, Model: config.Model, MaxTokens: config.MaxTokens, Effort: config.Effort}
 		if connection.Defaults != want {
 			t.Errorf("%s child defaults = %#v, want %#v", config.Name, connection.Defaults, want)
 		}
@@ -146,18 +359,32 @@ func TestRunJSBrokerCancellationStopsAndClosesChildScope(t *testing.T) {
 	t.Setenv("NOE_RUNNER_CHILD_PID_FILE", pidFile)
 	executable := writeFakeNOE(t, `
 if [ "$1" != "run" ]; then exit 90; fi
+printf 'captured before cancellation\n'
 sleep 30 &
 echo "$!" > "$NOE_RUNNER_CHILD_PID_FILE"
 wait
 `)
 	var trace strings.Builder
-	h := NewHost(Options{Provider: &fixtureProvider{}, Executable: executable, Trace: &trace})
+	var observed []events.Event
+	var observedMu sync.Mutex
+	h := NewHost(Options{
+		Provider: &fixtureProvider{}, Executable: executable, Trace: &trace,
+		Observe: func(event events.Event) {
+			observedMu.Lock()
+			defer observedMu.Unlock()
+			copy := make(events.Event, len(event))
+			for key, value := range event {
+				copy[key] = value
+			}
+			observed = append(observed, copy)
+		},
+	})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
 	runID := startFixtureRun(t, op)
-	code := "await new Promise(() => {});"
-	payload, err := json.Marshal(runJSRequest{RunID: runID, Code: &code})
+	code := "// wait for cancellation\nawait new Promise(() => {});"
+	payload, err := json.Marshal(runJSRequest{RunID: runID, ToolCallID: "tool-cancel", Code: &code})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,6 +428,26 @@ wait
 	}
 	if !strings.Contains(trace.String(), `"status":"js_result"`) || !strings.Contains(trace.String(), `"reason":"cancelled"`) {
 		t.Fatalf("trace omitted cancelled JS result: %s", trace.String())
+	}
+	observedMu.Lock()
+	defer observedMu.Unlock()
+	foundOutput, foundFinished := false, false
+	for _, event := range observed {
+		if event["toolCallId"] != "tool-cancel" && (event["type"] == "stdout" || event["type"] == "stderr" || event["type"] == "run_js.finished") {
+			t.Errorf("cancelled run_js event lost tool identity: %#v", event)
+		}
+		if event["type"] == "stdout" && event["text"] == "captured before cancellation\n" {
+			foundOutput = true
+		}
+		if event["type"] == "run_js.finished" {
+			if event["success"] != false || event["reason"] != "cancelled" || event["exitCode"] != -1 {
+				t.Errorf("cancelled run_js finish = %#v", event)
+			}
+			foundFinished = true
+		}
+	}
+	if !foundOutput || !foundFinished {
+		t.Fatalf("cancelled run_js events omitted captured output or finish: output=%v finished=%v events=%#v", foundOutput, foundFinished, observed)
 	}
 }
 

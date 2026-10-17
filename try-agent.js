@@ -6,7 +6,9 @@ const task = process.argv.slice(2).join(" ") ||
   "実行結果を使い、日本語で簡潔に回答してください。";
 
 const agent = createAgent({
+  provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",
+  effort: "auto",
   name: "try-agent",
   system: "必要な処理を自律的に実行し、日本語で回答してください。",
 });

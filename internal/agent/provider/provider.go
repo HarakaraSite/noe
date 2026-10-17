@@ -16,6 +16,17 @@ type Request struct {
 	Tools     []json.RawMessage `json:"tools,omitempty"`
 	CacheKey  string            `json:"cacheKey,omitempty"`
 	MaxTokens int               `json:"maxTokens,omitempty"`
+	Effort    string            `json:"effort,omitempty"`
+	Observe   func(StreamEvent) `json:"-"`
+}
+
+// StreamEvent is a text fragment observed while a provider response is
+// streaming. Type is one of "thinking", "thinking_summary", or
+// "message_delta". Observe callbacks run synchronously on the provider's Go
+// stream-reading goroutine.
+type StreamEvent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
 }
 
 // Response contains the assistant message, completion reason and raw usage

@@ -67,7 +67,11 @@ v1.2.0で組み込みの`noe:agent`モジュールを追加しました。初版
 ```js
 import { createAgent } from "noe:agent";
 
-const agent = createAgent({ model: "deepseek/deepseek-v4.1-flash" });
+const agent = createAgent({
+  provider: "openrouter",
+  model: "deepseek/deepseek-v4.1-flash",
+  effort: "auto",
+});
 const answer = await agent.run(
   "README.mdを読み、要点をSUMMARY.mdへ保存してください。",
   { cacheKey: "readme-summary-v1" },
@@ -93,7 +97,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run examples/agent-parallel.js
 ```
 
-ルートagentにはmodelの指定が必要です。子agentはprovider・model・`maxTokens`を起動元runから継承し、必要なら上書きできます。各runの履歴は独立しています。model設定、任意の上限、エラー、REPL利用、trace出力は[実行例](examples/README.md)と[APIリファレンス](docs/api.md)を参照してください。
+ルートagentには`provider`・`model`・`effort`の明示指定が必要です。`effort`は`auto`・`none`・`minimal`・`low`・`medium`・`high`・`xhigh`・`max`で、明示した`auto`はprovider/modelの既定動作に任せる指定です。子agentはprovider・model・`maxTokens`・`effort`を起動元runから継承し、必要なら上書きできます。子で`effort: "auto"`を指定すると継承したエフォートを既定動作へ戻せます。各runの履歴は独立しています。model設定、任意の上限、エラー、REPL利用、trace出力は[実行例](examples/README.md)と[APIリファレンス](docs/api.md)を参照してください。
 
 任意のタスクを試すには、[try-agent.js](try-agent.js)へ指示を引数で渡します。引数を省略すると、JSを実行して1〜100の合計を計算します。
 
@@ -105,6 +109,23 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 `run_js`は呼出しごとに新しいNOEプロセスを起動します。子agentは`Promise.all`で並行処理し、親が結果を統合できます。会話を永続化する機能はなく、`cacheKey`はプロバイダのcache/routing用です。未指定時は子agentを含む各runの`runId`をOpenRouterの`session_id`に使い、そのrun内の全モデル要求で固定します。明示した値はそのまま使い、空文字の場合は`session_id`を省略します。回答・編集内容はモデルに依存し、厳密なJSON形式は保証しません。回数・トークン上限は任意で、時間上限には既存の`run --timeout`を使います。
 
 ### 実行ログの観察
+
+人間向けには`--observe`で、パイプなしに読みやすく表示できます。thinkingの断片をつなぎ、agentとtoolを識別しながらJS実行結果や最終回答を表示します。途中の発言と最終回答は、表の整形を含む色なしのMarkdown表示になります。スクリプトとtoolのstdoutは表示から省き、`run_js`の先頭1行コメント・成功失敗とstderrを表示します。`--events=path`を併用すると元のJSONLも保存できます。
+
+```sh
+./noe run --observe try-agent.js '1から100までの合計を計算して'
+./noe run --observe --events=agent.jsonl try-agent.js '任意の指示'
+./noe observe --follow agent.jsonl
+```
+
+親向けには`noe:agent`の`observe_agent({logPath, runId, cursor?, wait?})`で状態・差分・確定済みの結果を構造化して取得できます。観察自体はモデルを呼びません。両方の入口は[観察ガイド](docs/observe.md)を参照してください。
+
+`run`・`eval`・`repl`共通の`--events`で、通常のJS出力と詳細イベントをJSONLへ記録できます。providerが返すthinking・summary、途中の発言、最終回答、`run_js`の先頭コメントと成功・失敗をrun ID付きで観察できます。`--events=-`はstdout、`--events=agent.jsonl`はファイルへ追記、`--events`単独は起動時のcwdに`noe-events-日時-ID.jsonl`を新規作成します。ファイル指定時は普段の画面表示を保ち、REPLのプロンプトや端末制御は記録しません。詳細は[観察ガイド](docs/events.md)を参照してください。
+
+```sh
+./noe run --events=- try-agent.js | jq --unbuffered -c .
+./noe repl --events=agent.jsonl
+```
 
 `NOE_AGENT_TRACE=1`で、実行メタデータをJSON Linesとして標準エラーへ出力します。最終回答とtraceは別ファイルへ保存できます。
 

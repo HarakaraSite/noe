@@ -46,7 +46,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 
 並行例の既定入力は`examples/data/agent/left.json`と`examples/data/agent/right.json`です。必要なら二つのpathを引数で置き換えられます。モデル出力の文章や形式は変わる場合があります。`agent.run()`が返す値は文字列で、JavaScript側が`console.log()`を呼んで表示しています。
 
-`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、`createAgent`・`run`の設定、エラー、REPL、任意の実行timeout、traceは[APIリファレンス](../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
+ルートagentには`provider`・`model`・`effort`を明示指定します。これらの例では`provider: "openrouter"`と`effort: "auto"`を指定し、子agentは省略した項目を起動元runから継承します。`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、`createAgent`・`run`の設定、エラー、REPL、任意の実行timeout、traceは[APIリファレンス](../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
 
 任意のタスクを試す場合は、ルートの`try-agent.js`へ指示を渡します。次の例はREADMEを読み、要約ファイルを作らせます。
 

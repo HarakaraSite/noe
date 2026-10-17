@@ -15,7 +15,8 @@ import (
 // observedBody lets the SDK consume its own EventStream while independently
 // recording complete SSE events and the underlying body's read errors. The SDK's EventStream intentionally stops reading at [DONE].
 type observedBody struct {
-	source io.ReadCloser
+	source  io.ReadCloser
+	observe func(StreamEvent)
 
 	mu        sync.Mutex
 	line      []byte
@@ -37,13 +38,21 @@ func newObservedBody(source io.ReadCloser) *observedBody {
 func (b *observedBody) Read(p []byte) (int, error) {
 	n, err := b.source.Read(p)
 	b.mu.Lock()
+	var completed []json.RawMessage
 	if n > 0 {
-		b.feedLocked(p[:n])
+		completed = b.feedLocked(p[:n])
 	}
 	if err != nil && err != io.EOF && b.readErr == nil {
 		b.readErr = err
 	}
 	b.mu.Unlock()
+	if b.observe != nil {
+		for _, event := range completed {
+			for _, observation := range streamObservations(event) {
+				b.observe(observation)
+			}
+		}
+	}
 	return n, err
 }
 
@@ -62,7 +71,8 @@ func (b *observedBody) snapshot() (events []json.RawMessage, done bool, readErr 
 	return events, b.done, b.readErr
 }
 
-func (b *observedBody) feedLocked(chunk []byte) {
+func (b *observedBody) feedLocked(chunk []byte) []json.RawMessage {
+	var completed []json.RawMessage
 	for _, c := range chunk {
 		if b.skipLF {
 			b.skipLF = false
@@ -72,39 +82,46 @@ func (b *observedBody) feedLocked(chunk []byte) {
 		}
 		switch c {
 		case '\r':
-			b.processLineLocked()
+			if event := b.processLineLocked(); event != nil {
+				completed = append(completed, event)
+			}
 			b.skipLF = true
 		case '\n':
-			b.processLineLocked()
+			if event := b.processLineLocked(); event != nil {
+				completed = append(completed, event)
+			}
 		default:
 			b.line = append(b.line, c)
 		}
 	}
+	return completed
 }
 
-func (b *observedBody) processLineLocked() {
+func (b *observedBody) processLineLocked() json.RawMessage {
 	if !b.firstLine {
 		b.line = bytes.TrimPrefix(b.line, []byte("\xef\xbb\xbf"))
 		b.firstLine = true
 	}
 	if len(b.line) == 0 {
+		var event json.RawMessage
 		if len(b.dataLines) > 0 {
 			data := strings.Join(b.dataLines, "\n")
 			b.dataLines = b.dataLines[:0]
 			if data == "[DONE]" {
 				b.done = true
 			} else {
-				b.events = append(b.events, json.RawMessage(data))
+				event = json.RawMessage(data)
+				b.events = append(b.events, event)
 			}
 		}
 		b.line = b.line[:0]
-		return
+		return event
 	}
 
 	line := string(b.line)
 	b.line = b.line[:0]
 	if strings.HasPrefix(line, ":") {
-		return
+		return nil
 	}
 	field, value, found := strings.Cut(line, ":")
 	if !found {
@@ -115,6 +132,88 @@ func (b *observedBody) processLineLocked() {
 	if field == "data" {
 		b.dataLines = append(b.dataLines, value)
 	}
+	return nil
+}
+
+// streamObservations extracts only user-readable text from choice zero. In a
+// chunk that contains both top-level reasoning and reasoning.text details, an
+// exact match of the concatenated detail text is treated as a mirrored copy
+// and emitted once; differing detail text is retained as its own fragment.
+// Encrypted reasoning data and signatures are never surfaced here.
+func streamObservations(raw json.RawMessage) []StreamEvent {
+	var chunk struct {
+		Choices []struct {
+			Index int `json:"index"`
+			Delta struct {
+				Reasoning        json.RawMessage `json:"reasoning"`
+				ReasoningDetails json.RawMessage `json:"reasoning_details"`
+				Content          json.RawMessage `json:"content"`
+			} `json:"delta"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(raw, &chunk); err != nil {
+		return nil
+	}
+
+	var observations []StreamEvent
+	for _, choice := range chunk.Choices {
+		if choice.Index != 0 {
+			continue
+		}
+		reasoning, hasReasoning := streamText(choice.Delta.Reasoning)
+		type detailObservation struct {
+			event StreamEvent
+			text  bool
+		}
+		var details []detailObservation
+		var detailText strings.Builder
+		var rawDetails []map[string]json.RawMessage
+		if len(choice.Delta.ReasoningDetails) > 0 && json.Unmarshal(choice.Delta.ReasoningDetails, &rawDetails) == nil {
+			for _, fields := range rawDetails {
+				var kind string
+				if json.Unmarshal(fields["type"], &kind) != nil {
+					continue
+				}
+				switch kind {
+				case "reasoning.text":
+					if text, ok := streamText(fields["text"]); ok && text != "" {
+						details = append(details, detailObservation{event: StreamEvent{Type: "thinking", Text: text}, text: true})
+						detailText.WriteString(text)
+					}
+				case "reasoning.summary":
+					if text, ok := streamText(fields["summary"]); ok && text != "" {
+						details = append(details, detailObservation{event: StreamEvent{Type: "thinking_summary", Text: text}})
+					}
+				}
+			}
+		}
+
+		if hasReasoning && reasoning != "" {
+			observations = append(observations, StreamEvent{Type: "thinking", Text: reasoning})
+		}
+		mirrored := hasReasoning && detailText.Len() > 0 && detailText.String() == reasoning
+		for _, detail := range details {
+			if detail.text && mirrored {
+				continue
+			}
+			observations = append(observations, detail.event)
+		}
+		if text, ok := streamText(choice.Delta.Content); ok && text != "" {
+			observations = append(observations, StreamEvent{Type: "message_delta", Text: text})
+		}
+	}
+	return observations
+}
+
+func streamText(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", false
+	}
+	var text string
+	if json.Unmarshal(raw, &text) != nil {
+		return "", false
+	}
+	return text, true
 }
 
 type streamAccumulator struct {
@@ -260,7 +359,7 @@ func (a *streamAccumulator) consumeReasoningDetails(raw json.RawMessage) error {
 		}
 		for field, value := range fields {
 			switch field {
-			case "text", "data", "signature":
+			case "text", "summary", "data", "signature":
 				var fragment string
 				if string(value) == "null" {
 					detail.fields[field] = append(json.RawMessage(nil), value...)

@@ -39,6 +39,16 @@ type agentChatRequest struct {
 	Tools     []json.RawMessage  `json:"tools"`
 	SessionID string             `json:"session_id"`
 	MaxTokens int                `json:"max_tokens"`
+	Reasoning *struct {
+		Effort string `json:"effort"`
+	} `json:"reasoning"`
+}
+
+func agentEffort(request agentChatRequest) string {
+	if request.Reasoning == nil {
+		return "auto"
+	}
+	return request.Reasoning.Effort
 }
 
 type agentModelReply struct {
@@ -116,7 +126,7 @@ func agentCLIEnv(t *testing.T, url string) map[string]string {
 
 func agentScript(instruction, options string) string {
 	text, _ := json.Marshal(instruction)
-	return `import {createAgent} from "noe:agent";console.log(await createAgent({model:"fixture/model",maxTokens:2048}).run(` + string(text) + `,` + options + `));`
+	return `import {createAgent} from "noe:agent";console.log(await createAgent({provider:"openrouter",model:"fixture/model",maxTokens:2048,effort:"auto"}).run(` + string(text) + `,` + options + `));`
 }
 
 func agentToolResult(t *testing.T, message agentChatMessage) agent.Result {
@@ -138,7 +148,7 @@ func TestAgentCLIReadsFilesAndPreservesToolHistory(t *testing.T) {
 	writeFixture(t, filepath.Join(work, "numbers.json"), `[10,20,30,40]`)
 	var calls atomic.Int32
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
-		if req.Model != "fixture/model" || req.MaxTokens != 2048 || req.SessionID != "file-cache" {
+		if req.Model != "fixture/model" || req.MaxTokens != 2048 || req.SessionID != "file-cache" || req.Reasoning != nil {
 			t.Errorf("settings: %+v", req)
 		}
 		if calls.Add(1) == 1 {

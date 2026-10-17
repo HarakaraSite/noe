@@ -70,7 +70,11 @@ NOE v1.2.0 adds the built-in `noe:agent` module, with OpenRouter as its first pr
 ```js
 import { createAgent } from "noe:agent";
 
-const agent = createAgent({ model: "deepseek/deepseek-v4.1-flash" });
+const agent = createAgent({
+  provider: "openrouter",
+  model: "deepseek/deepseek-v4.1-flash",
+  effort: "auto",
+});
 const answer = await agent.run(
   "Read README.md and write a concise summary to SUMMARY.md.",
   { cacheKey: "readme-summary-v1" },
@@ -96,7 +100,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run examples/agent-parallel.js
 ```
 
-The root agent requires a model. Child agents inherit the current run's provider, model, and `maxTokens` unless they override those options. Each run has a separate history. See the [examples](examples/README.md) and [API reference](docs/api.md) for model settings, optional limits, errors, REPL use, and trace output.
+The root agent requires explicit `provider`, `model`, and `effort` options. `createAgent` accepts `effort`: `"auto"`, `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"`. Explicit `"auto"` leaves the provider/model's reasoning defaults unchanged. Child agents inherit the current run's provider, model, `maxTokens`, and `effort` unless they override those options; explicit `effort: "auto"` resets an inherited effort to provider defaults. Each run has a separate history. See the [examples](examples/README.md) and [API reference](docs/api.md) for model settings, optional limits, errors, REPL use, and trace output.
 
 For an arbitrary task, [try-agent.js](try-agent.js) accepts an instruction as a command-line argument. Without an argument it asks the agent to calculate the sum of 1 through 100 using JavaScript:
 
@@ -108,6 +112,23 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 Each `run_js` call starts a fresh NOE process. Child agents can work concurrently using `Promise.all`, and the parent can combine their answers. Runs do not persist conversations; `cacheKey` is a provider cache/routing hint. When it is omitted, each run (including child runs) uses its own trace `runId` as the OpenRouter `session_id`, kept stable across that run's model requests. Explicit keys are preserved; an empty string omits `session_id`. Answers and file edits depend on the model, and exact JSON output is not guaranteed. Step and token limits are optional; execution time can be limited with the existing `run --timeout` option.
 
 ### Observing agent runs
+
+For readable live output without a pipe, use `--observe`. It joins thinking fragments, labels agents and tool calls, and displays tool results and final answers. Accepted agent messages and final answers use color-free Markdown formatting, including aligned tables. Script and tool stdout are hidden in this view; `run_js` actions appear as first-line comments, with success/failure and stderr still visible. Add `--events=path` to save the original JSONL too:
+
+```sh
+./noe run --observe try-agent.js 'Calculate the sum of 1 through 100'
+./noe run --observe --events=agent.jsonl try-agent.js 'Your task'
+./noe observe --follow agent.jsonl
+```
+
+The `observe_agent({logPath, runId, cursor?, wait?})` export from `noe:agent` returns a structured snapshot and event differences without calling a model. See the [observation entry points](docs/observe.md) for both interfaces.
+
+Use `--events` with `run`, `eval`, or `repl` for detailed JSONL events: JS output, streamed thinking and summaries when supplied by the provider, intermediate messages, final answers, and `run_js` comments and results. `--events=-` sends JSONL to stdout, `--events=agent.jsonl` appends to a file, and bare `--events` creates `noe-events-<date>-<time>-<id>.jsonl` in the starting working directory. File logging preserves ordinary terminal output; REPL prompts and terminal controls are excluded. See the [observation guide](docs/events.md).
+
+```sh
+./noe run --events=- try-agent.js | jq --unbuffered -c .
+./noe repl --events=agent.jsonl
+```
 
 Set `NOE_AGENT_TRACE=1` to write run metadata to standard error as JSON Lines. The example below saves the final answer to `answer.txt` and the trace to `agent-trace.log`:
 

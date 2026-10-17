@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/peterh/liner"
+	"noe/internal/replui"
 )
 
 // Each JSON string occupies one physical line, even for multiline JS. Append
@@ -58,7 +58,7 @@ func (h *replHistory) load() []string {
 				corrupt = true
 			} else if strings.TrimSpace(input) != "" {
 				items = append(items, input)
-				if len(items) > liner.HistoryLimit {
+				if len(items) > replui.HistoryLimit {
 					items = items[1:]
 				}
 			}

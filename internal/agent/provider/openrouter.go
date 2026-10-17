@@ -126,6 +126,7 @@ type callContextKey struct{}
 
 type callState struct {
 	requestBody []byte
+	observe     func(StreamEvent)
 
 	mu     sync.Mutex
 	status int
@@ -178,6 +179,7 @@ func (c *observedHTTPClient) Do(request *http.Request) (*http.Response, error) {
 			source = http.NoBody
 		}
 		body := newObservedBody(source)
+		body.observe = state.observe
 		state.setResponse(response.StatusCode, body)
 		response.Body = body
 	}
@@ -192,12 +194,18 @@ type chatRequestBody struct {
 	StreamOptions struct {
 		IncludeUsage bool `json:"include_usage"`
 	} `json:"stream_options"`
-	SessionID string `json:"session_id,omitempty"`
-	MaxTokens *int   `json:"max_tokens,omitempty"`
+	SessionID string           `json:"session_id,omitempty"`
+	MaxTokens *int             `json:"max_tokens,omitempty"`
+	Reasoning *reasoningConfig `json:"reasoning,omitempty"`
+}
+
+type reasoningConfig struct {
+	Effort string `json:"effort"`
 }
 
 func makeChatRequestBody(request Request) ([]byte, error) {
-	if strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 {
+	effort, validEffort := NormalizeEffort(request.Effort)
+	if strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 || !validEffort {
 		return nil, providerError(ErrorResponse, 0, nil)
 	}
 	for _, raw := range request.Messages {
@@ -218,6 +226,9 @@ func makeChatRequestBody(request Request) ([]byte, error) {
 		SessionID: request.CacheKey,
 	}
 	body.StreamOptions.IncludeUsage = true
+	if effort != "auto" {
+		body.Reasoning = &reasoningConfig{Effort: effort}
+	}
 	if request.MaxTokens > 0 {
 		maxTokens := request.MaxTokens
 		body.MaxTokens = &maxTokens
@@ -250,7 +261,7 @@ func (p *OpenRouter) Generate(ctx context.Context, request Request) (Response, e
 	if err != nil {
 		return Response{}, err
 	}
-	state := &callState{requestBody: payload}
+	state := &callState{requestBody: payload, observe: request.Observe}
 	ctx = context.WithValue(ctx, callContextKey{}, state)
 	defer state.closeBody()
 

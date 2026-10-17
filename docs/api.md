@@ -26,15 +26,17 @@ npm、パッケージ導入、URLからのモジュールimport、bare importに
 
 ## 自律agent（OpenRouter）
 
-`noe:agent`から`createAgent()`をimportできます。ルートagentにはmodel名が必要で、providerは省略時`openrouter`です。現在利用できるproviderはOpenRouterだけです。 Go側の通信には[OpenRouter公式Go SDK v0.9.59](https://github.com/OpenRouterTeam/go-sdk/tree/v0.9.59)を使います。
+`noe:agent`から`createAgent()`をimportできます。ルートagentは`provider`・`model`・`effort`をすべて明示指定します。子agentでは省略した項目を起動元runから継承します。現在利用できるproviderはOpenRouterだけです。 Go側の通信には[OpenRouter公式Go SDK v0.9.59](https://github.com/OpenRouterTeam/go-sdk/tree/v0.9.59)を使います。
 
 ```js
 import { createAgent } from "noe:agent";
 
 const summary = createAgent({
+  provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",
   name: "summary",
   system: "日本語で簡潔に回答してください。",
+  effort: "auto",
   maxTokens: 1024,
 });
 
@@ -45,7 +47,11 @@ const answer = await summary.run("README.mdを読んで要点を3点にまとめ
 console.log(answer);
 ```
 
-`createAgent(options)`は`{provider?, model, name?, system?, maxTokens?}`を受け取ります。`provider`は`openrouter`だけです。`model`は空でない文字列、`name`は空でない文字列、`system`は文字列、`maxTokens`は0以上の整数です。`name`の既定値は`agent`、`system`の既定値は空文字、`maxTokens`の既定値は0です。`system`はagentの標準system instructionへ追加されます。0の場合、NOEはOpenRouterへ`max_tokens`を送りません。
+`createAgent(options)`は、ルートでは`{provider, model, effort, name?, system?, maxTokens?}`を受け取ります。ルートで必須項目を省略した場合（`undefined`を含む）はTypeErrorになります。子では`provider`・`model`・`effort`も省略でき、指定した項目だけを上書きします。`provider`は`openrouter`だけです。`model`は空でない文字列、`name`は空でない文字列、`system`は文字列、`maxTokens`は0以上の整数です。`name`の既定値は`agent`、`system`の既定値は空文字、`maxTokens`の既定値は0です。`system`はagentの標準system instructionへ追加されます。0の場合、NOEはOpenRouterへ`max_tokens`を送りません。
+
+`effort`は推論エフォートで、ルートでは明示指定が必要です。指定できる値は`"auto"`・`"none"`・`"minimal"`・`"low"`・`"medium"`・`"high"`・`"xhigh"`・`"max"`。明示的な`auto`も有効で、要求の`reasoning`を省略してprovider/modelの既定動作に任せます。推論を強制的に有効化する指定ではありません。他の値はOpenRouterへ`reasoning: {effort: "high"}`の形で送り、同じrunの各モデル要求で固定します。`maxTokens`・`maxSteps`とは別の設定です。
+
+実際に利用できるエフォートと効果はmodel/providerに従います。NOEはモデル別の対応表による事前拒否や値の自動変更を行わず、APIからエラーが返れば既存のprovider errorとして扱います。無効な指定値・型は`createAgent`でTypeErrorになります。[OpenRouterのreasoning仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)と[採用SDKのChatRequest定義](https://github.com/OpenRouterTeam/go-sdk/blob/v0.9.59/models/components/chatrequest.go)を確認しています（2026-10-16）。
 
 `agent.run(instruction, options)`はPromiseを返し、成功時の値は最終回答の文字列です。標準出力へ自動では表示しません。`instruction`は空でない文字列です。`options`は`{cacheKey?, maxSteps?}`で、`cacheKey`は任意の文字列、`maxSteps`は0以上の整数で既定値は0です。`maxSteps`はこのrunのモデル要求回数を制限し、tool回数や子agentを含む合計回数は制限しません。0はNOE側の上限なしを意味します。`maxTokens`はモデル要求ごとの出力上限で、会話全体の累計ではありません。どちらの上限も指定しない場合にNOEは独自の上限を追加しません。
 
@@ -53,7 +59,7 @@ console.log(answer);
 
 明示した`cacheKey`はそのまま使用するため、同じrouting用IDを再利用したい場合は指定できます。`cacheKey: ""`は従来どおり`session_id`を省略します。キャッシュヒットは保証せず、会話履歴を保存・再開する機能でもありません。各`run()`は独立した履歴を持ちます。OpenRouterの[session_id仕様](https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions)を参照してください。
 
-生成JavaScriptのtoolは`run_js`一つです。各呼出しは新しいNOEプロセスで実行し、同じカレントディレクトリと標準ライブラリを使います。グローバル変数はtool呼出し間で保持せず、生成ソースは実行後に削除します。生成コードでは`createAgent`が事前に利用可能です。子agentがprovider、model、`maxTokens`を省略すると、そのコードを起動したrunの値を継承します。明示した値は上書きされ、`maxTokens: 0`も有効な上書きです。子の`name`、`system`、会話履歴は親から継承しません。
+生成JavaScriptのtoolは`run_js`一つです。各呼出しは新しいNOEプロセスで実行し、同じカレントディレクトリと標準ライブラリを使います。グローバル変数はtool呼出し間で保持せず、生成ソースは実行後に削除します。生成コードでは`createAgent`が事前に利用可能です。子agentがprovider、model、`maxTokens`、`effort`を省略すると、そのコードを起動したrunの値を継承します。明示した値は上書きされ、`maxTokens: 0`も有効な上書きです。子で`effort: "auto"`を指定すると、継承したエフォートをprovider/modelの既定動作へ戻せます。子の`name`、`system`、会話履歴は親から継承しません。
 
 生成ソースは一時moduleに保存されるため、相対importはそのソース位置を基準にします。カレントディレクトリのmoduleを読み込む場合は、`process.argv[1]`（実行中のソース）の場所からcwdへの相対prefixを作り、dynamic importします。
 
@@ -87,6 +93,14 @@ traceにはrun ID、親run ID、agent名、model、status、duration（nanosecon
 通常の`run`・`eval`では`--timeout`が評価全体を制限できます。省略時はCLI独自の期限はありません。REPLでは通信中のCtrl+Cで要求を取り消し、稼働中のI/Oを残さないようREPL sessionを終了します。詳しくは[REPLガイド](repl.md)を参照してください。
 
 WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソースをカレントディレクトリ上の一時場所へ書き込み、相対importの基準を保ちます。その場合はカレントディレクトリへ一時ファイルを書き込める必要があります。書込みできない場合は、カレントディレクトリと同じvolumeの書込み可能な場所を`TEMP`に指定してください。
+
+## 構造化イベントの出力
+
+`run`・`eval`・`repl`で`--observe`を付けると、stdoutへ人間向けの整形表示を直接出せます。`--events=path`との併用でJSONL保存も行えます。`--events=-`は機械処理用のstdout JSONLとして維持し、同じstdoutを使う`--observe`とは同時指定しません。
+
+観察の入口として、人間用CLIの`noe observe`と、親用JS APIの`observe_agent`を利用できます。後者は`import {observe_agent} from "noe:agent"`から`await observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`を呼び、GoがJSONLから組み立てた状態・差分・確定済みの結果を返します。既定は非待機、`wait: true`なら対象runの終端を待ちます。使い方と戻り値は[観察の入口](observe.md)を参照してください。
+
+`run`・`eval`・`repl`共通の`--events`で通常出力とagentの詳細イベントをJSONLへ記録できます。`--events=-`はstdout、`--events=path`はファイルへの追記、`--events`単独は起動時のcwdに`noe-events-日時-ID.jsonl`を新規作成します。通常出力、thinking・summary、途中の発言、最終回答、`run_js`の先頭コメントと成功・失敗をrun ID付きで読めます。オプションはソースより前へ置きます。形式、REPLの扱い、逐次出力の範囲は[観察ガイド](events.md)を参照してください。
 
 ## 実行環境とファイル
 

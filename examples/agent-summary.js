@@ -2,7 +2,9 @@ import { createAgent } from "noe:agent";
 
 const file = process.argv[2] ?? "README.md";
 const agent = createAgent({
+  provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",
+  effort: "auto",
   name: "summary",
   system: "日本語で簡潔に回答してください。",
 });

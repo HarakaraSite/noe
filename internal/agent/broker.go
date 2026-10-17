@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"noe/internal/agent/provider"
+	"noe/internal/events"
 )
 
 type broker struct {
@@ -44,6 +45,7 @@ type runConfig struct {
 	Model     string
 	Name      string
 	MaxTokens int
+	Effort    string
 }
 
 type startRequest struct {
@@ -51,6 +53,7 @@ type startRequest struct {
 	Model     string `json:"model"`
 	Name      string `json:"name"`
 	MaxTokens int    `json:"maxTokens"`
+	Effort    string `json:"effort,omitempty"`
 }
 
 type modelRequest struct {
@@ -60,16 +63,20 @@ type modelRequest struct {
 	Tools     []json.RawMessage `json:"tools,omitempty"`
 	CacheKey  string            `json:"cacheKey,omitempty"`
 	MaxTokens int               `json:"maxTokens,omitempty"`
+	Effort    string            `json:"effort,omitempty"`
 }
 
 type finishRequest struct {
 	RunID  string `json:"runId"`
 	Status string `json:"status"`
+	Answer string `json:"answer,omitempty"`
+	Error  string `json:"error,omitempty"`
 }
 
 type runJSRequest struct {
-	RunID string  `json:"runId"`
-	Code  *string `json:"code"`
+	RunID      string  `json:"runId"`
+	ToolCallID string  `json:"toolCallId,omitempty"`
+	Code       *string `json:"code"`
 }
 
 type modelResponse struct {
@@ -310,7 +317,9 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operation) {
 	var request startRequest
-	if err := decodeRequest(r, &request); err != nil || request.Provider != "openrouter" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 {
+	err := decodeRequest(r, &request)
+	effort, validEffort := provider.NormalizeEffort(request.Effort)
+	if err != nil || request.Provider != "openrouter" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || !validEffort {
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid start request")
 		return
 	}
@@ -322,7 +331,7 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	ctx, cancel := context.WithCancel(op.ctx)
 	config := runConfig{
 		Provider: request.Provider, Model: request.Model,
-		Name: request.Name, MaxTokens: request.MaxTokens,
+		Name: request.Name, MaxTokens: request.MaxTokens, Effort: effort,
 	}
 	run := &agentRun{
 		operation: op, ctx: ctx, cancel: cancel, started: time.Now(),
@@ -343,12 +352,15 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		RunID: id, ParentID: run.parentRunID, Name: config.Name, Model: config.Model,
 		Status: "started",
 	})
+	h.observeRun("agent.started", id, run, events.Event{"status": "started"})
 	writeJSON(w, map[string]string{"runId": id})
 }
 
 func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operation) {
 	var request modelRequest
-	if err := decodeRequest(r, &request); err != nil || request.RunID == "" || strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 {
+	decodeErr := decodeRequest(r, &request)
+	effort, validEffort := provider.NormalizeEffort(request.Effort)
+	if decodeErr != nil || request.RunID == "" || strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 || !validEffort {
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid model request")
 		return
 	}
@@ -373,17 +385,41 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
 		return
 	}
-	if request.Model != run.config.Model || request.MaxTokens != run.config.MaxTokens {
+	if request.Model != run.config.Model || request.MaxTokens != run.config.MaxTokens || effort != run.config.Effort {
 		writeRPCError(w, http.StatusBadRequest, "request", "model request does not match agent run configuration")
 		return
+	}
+	requestID := ""
+	if h.opts.Observe != nil {
+		var err error
+		requestID, err = randomID()
+		if err != nil {
+			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate model request ID")
+			return
+		}
+		h.observeRun("model.started", request.RunID, run, events.Event{
+			"requestId": requestID, "status": "started",
+		})
 	}
 	ctx, cancel := context.WithCancel(run.ctx)
 	stopRequest := context.AfterFunc(r.Context(), cancel)
 	defer func() { stopRequest(); cancel() }()
 	started := time.Now()
+	var observeStream func(provider.StreamEvent)
+	if requestID != "" {
+		observeStream = func(streamEvent provider.StreamEvent) {
+			switch streamEvent.Type {
+			case "thinking", "thinking_summary", "message_delta":
+				h.observeRun(streamEvent.Type, request.RunID, run, events.Event{
+					"requestId": requestID, "text": streamEvent.Text,
+				})
+			}
+		}
+	}
 	response, err := h.provider.Generate(ctx, provider.Request{
 		Model: run.config.Model, Messages: request.Messages, Tools: request.Tools,
-		CacheKey: request.CacheKey, MaxTokens: run.config.MaxTokens,
+		CacheKey: request.CacheKey, MaxTokens: run.config.MaxTokens, Effort: run.config.Effort,
+		Observe: observeStream,
 	})
 	if err != nil {
 		status, code, message := classifyProviderError(err, ctx)
@@ -391,6 +427,16 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
 			Status: "provider_error", Duration: time.Since(started),
 		})
+		if requestID != "" {
+			modelStatus := "failed"
+			if code == "cancelled" {
+				modelStatus = "cancelled"
+			}
+			h.observeRun("model.failed", request.RunID, run, events.Event{
+				"requestId": requestID, "status": modelStatus, "reason": code,
+				"duration": time.Since(started),
+			})
+		}
 		writeRPCError(w, status, code, message)
 		return
 	}
@@ -400,6 +446,12 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
 			Status: "cancelled", Duration: time.Since(started),
 		})
+		if requestID != "" {
+			h.observeRun("model.failed", request.RunID, run, events.Event{
+				"requestId": requestID, "status": "cancelled", "reason": "cancelled",
+				"duration": time.Since(started),
+			})
+		}
 		writeRPCError(w, status, code, message)
 		return
 	}
@@ -408,6 +460,12 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
 			Status: "invalid_response", Duration: time.Since(started),
 		})
+		if requestID != "" {
+			h.observeRun("model.failed", request.RunID, run, events.Event{
+				"requestId": requestID, "status": "invalid_response", "reason": "provider_response",
+				"duration": time.Since(started),
+			})
+		}
 		writeRPCError(w, http.StatusBadGateway, "provider_response", "provider returned an invalid response")
 		return
 	}
@@ -415,6 +473,17 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
 		Status: "model_response", Duration: time.Since(started), Usage: summarizeUsage(response.Usage),
 	})
+	if requestID != "" {
+		h.observeRun("model.finished", request.RunID, run, events.Event{
+			"requestId": requestID, "status": "finished", "finishReason": response.FinishReason,
+			"duration": time.Since(started), "usage": summarizeUsage(response.Usage),
+		})
+		if text, toolCallIDs, ok := intermediateMessage(response.Message); ok && strings.TrimSpace(text) != "" {
+			h.observeRun("agent.message", request.RunID, run, events.Event{
+				"requestId": requestID, "status": "intermediate", "text": text, "toolCallIds": toolCallIDs,
+			})
+		}
+	}
 	writeJSON(w, modelResponse{Message: response.Message, FinishReason: response.FinishReason, Usage: response.Usage})
 }
 
@@ -444,10 +513,22 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 		childScope.Close()
 	}
 	status := sanitizeRunStatus(request.Status)
+	if status == "completed" && strings.TrimSpace(request.Answer) != "" {
+		h.observeRun("agent.final", request.RunID, run, events.Event{
+			"status": "completed", "text": request.Answer,
+		})
+	}
 	h.traceEvent(traceEvent{
 		RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
 		Status: status, Duration: time.Since(run.started),
 	})
+	fields := events.Event{
+		"status": status, "duration": time.Since(run.started),
+	}
+	if status == "failed" && request.Error != "" {
+		fields["error"] = request.Error
+	}
+	h.observeRun("agent."+status, request.RunID, run, fields)
 	writeJSON(w, map[string]bool{})
 }
 
@@ -466,6 +547,12 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
 		return
 	}
+	started := time.Now()
+	startFields := events.Event{"toolCallId": request.ToolCallID, "source": "run_js"}
+	if comment := firstLineComment(*request.Code); comment != "" {
+		startFields["text"] = comment
+	}
+	h.observeRun("run_js.started", request.RunID, run, startFields)
 
 	ctx, cancel := context.WithCancel(run.ctx)
 	stopRequest := context.AfterFunc(r.Context(), cancel)
@@ -473,10 +560,9 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		stopRequest()
 		cancel()
 	}()
-	started := time.Now()
 	if ctx.Err() != nil {
 		result := Result{ExitCode: -1, Reason: reasonForContext(ctx.Err())}
-		b.traceJSResult(request.RunID, run, started, result)
+		b.finishJSResult(request.RunID, run, started, request.ToolCallID, result)
 		status, code, message := classifyProviderError(ctx.Err(), ctx)
 		writeRPCError(w, status, code, message)
 		return
@@ -498,7 +584,7 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		if result.Reason == "" {
 			result.Reason = "cancelled"
 		}
-		b.traceJSResult(request.RunID, run, started, result)
+		b.finishJSResult(request.RunID, run, started, request.ToolCallID, result)
 		status, code, message := classifyProviderError(run.ctx.Err(), run.ctx)
 		writeRPCError(w, status, code, message)
 		return
@@ -515,14 +601,14 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	defer release()
 	if opErr := childOperation.ctx.Err(); opErr != nil {
 		result := Result{ExitCode: -1, Reason: reasonForContext(opErr)}
-		b.traceJSResult(request.RunID, run, started, result)
+		b.finishJSResult(request.RunID, run, started, request.ToolCallID, result)
 		status, code, message := classifyProviderError(opErr, childOperation.ctx)
 		writeRPCError(w, status, code, message)
 		return
 	}
 	if childOperation.initErr != nil {
 		result := Result{Stderr: childOperation.initErr.Error(), ExitCode: -1, Reason: "failed"}
-		b.traceJSResult(request.RunID, run, started, result)
+		b.finishJSResult(request.RunID, run, started, request.ToolCallID, result)
 		writeJSON(w, result)
 		return
 	}
@@ -530,7 +616,7 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		URL: b.url, Token: b.token, Scope: childOperation.scope,
 		Defaults: Config{
 			Provider: run.config.Provider, Model: run.config.Model,
-			MaxTokens: run.config.MaxTokens,
+			MaxTokens: run.config.MaxTokens, Effort: run.config.Effort,
 		},
 	}
 	result, err := (Runner{
@@ -541,8 +627,9 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	contextErr := ctx.Err()
 	release()
 	if contextErr != nil {
-		result = Result{ExitCode: -1, Reason: reasonForContext(contextErr)}
-		b.traceJSResult(request.RunID, run, started, result)
+		result.ExitCode = -1
+		result.Reason = reasonForContext(contextErr)
+		b.finishJSResult(request.RunID, run, started, request.ToolCallID, result)
 		status, code, message := classifyProviderError(contextErr, ctx)
 		writeRPCError(w, status, code, message)
 		return
@@ -564,8 +651,91 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 			result.Reason = "failed"
 		}
 	}
-	b.traceJSResult(request.RunID, run, started, result)
+	b.finishJSResult(request.RunID, run, started, request.ToolCallID, result)
 	writeJSON(w, result)
+}
+
+func (b *broker) finishJSResult(runID string, run *agentRun, started time.Time, toolCallID string, result Result) {
+	b.traceJSResult(runID, run, started, result)
+	fields := events.Event{"toolCallId": toolCallID, "source": "run_js"}
+	if result.Stdout != "" {
+		stdout := fieldsWith(fields, events.Event{"text": result.Stdout})
+		b.host.observeRun("stdout", runID, run, stdout)
+	}
+	if result.Stderr != "" {
+		stderr := fieldsWith(fields, events.Event{"text": result.Stderr})
+		b.host.observeRun("stderr", runID, run, stderr)
+	}
+	b.host.observeRun("run_js.finished", runID, run, fieldsWith(fields, events.Event{
+		"success":  result.Reason == "completed" && result.ExitCode == 0,
+		"exitCode": result.ExitCode, "reason": result.Reason,
+		"duration": time.Since(started),
+	}))
+}
+
+func firstLineComment(code string) string {
+	line, _, _ := strings.Cut(code, "\n")
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, "//") {
+		return ""
+	}
+	return line
+}
+
+func fieldsWith(base, additional events.Event) events.Event {
+	fields := make(events.Event, len(base)+len(additional))
+	for key, value := range base {
+		fields[key] = value
+	}
+	for key, value := range additional {
+		fields[key] = value
+	}
+	return fields
+}
+
+func intermediateMessage(raw json.RawMessage) (string, []string, bool) {
+	var message struct {
+		Content   json.RawMessage   `json:"content"`
+		ToolCalls []json.RawMessage `json:"tool_calls"`
+	}
+	if json.Unmarshal(raw, &message) != nil || len(message.ToolCalls) == 0 {
+		return "", nil, false
+	}
+	ids := make([]string, 0, len(message.ToolCalls))
+	for _, rawCall := range message.ToolCalls {
+		var call struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(rawCall, &call) == nil && call.ID != "" {
+			ids = append(ids, call.ID)
+		}
+	}
+	return messageText(message.Content), ids, true
+}
+
+func messageText(raw json.RawMessage) string {
+	var text string
+	if json.Unmarshal(raw, &text) == nil {
+		return text
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &parts) != nil {
+		return ""
+	}
+	var builder strings.Builder
+	for _, part := range parts {
+		if part.Type != "text" || part.Text == "" {
+			continue
+		}
+		if builder.Len() != 0 {
+			builder.WriteByte('\n')
+		}
+		builder.WriteString(part.Text)
+	}
+	return builder.String()
 }
 
 func (b *broker) traceJSResult(runID string, run *agentRun, started time.Time, result Result) {

@@ -1,15 +1,7 @@
-import { request, defaults } from "noe:agent/internal";
+import { request, defaults, instructions, observe } from "noe:agent/internal";
 
 const inherited = JSON.parse(defaults());
-const systemInstruction = `You are an autonomous assistant. Complete the user's task using the information provided. Do not wait for or request human input or approval. Use run_js to inspect files, run commands, or compute results. A failed run_js result includes stdout, stderr, exitCode, and reason; use it to repair code when useful. Return a concise final answer, or explain clearly why the task cannot be completed.
-
-Each run_js call executes in a fresh NOE process with the current working directory, so variables do not persist between calls. The source is a temporary module, and relative imports resolve from that source. createAgent is already bound; do not import or redeclare it. To import a module from the working directory, calculate a relative prefix from the temporary source with node:path, for example:
-const {relative, dirname, sep} = await import("node:path");
-const cwdPrefix = relative(dirname(process.argv[1]), process.cwd()).split(sep).join("/");
-const helper = await import((cwdPrefix ? cwdPrefix + "/" : "./") + "helper.js");
-Use the NOE standard library for filesystem and command operations. File promises are available from node:fs/promises. For commands, node:child_process supports execFile (Promise), execFileSync, exec, execSync, and spawnSync; it does not provide asynchronous spawn.
-
-To delegate a task, use await createAgent({name:"child",system:"optional child instructions"}).run("task"). The result is a final answer string. Omitted provider, model, and maxTokens inherit this run's settings; name, system, history, maxSteps, and cacheKey are separate. Each run automatically gets its own session/cache ID, kept stable across its model requests, unless a cacheKey is explicitly supplied in the run options. Independent children can run concurrently with Promise.all. Print results with console.log so they reach the calling agent.`;
+const systemInstruction = instructions();
 
 const runJSTool = Object.freeze({
   type: "function",
@@ -19,7 +11,7 @@ const runJSTool = Object.freeze({
     parameters: {
       type: "object",
       properties: {
-        code: { type: "string", description: "An ES module containing the JavaScript to execute." },
+        code: { type: "string", description: "An ES module containing the JavaScript to execute. The first line must be a short single-line // comment in English describing the action, before any imports or code, with no leading blank line." },
       },
       required: ["code"],
       additionalProperties: false,
@@ -45,6 +37,13 @@ function requireString(value, label, allowEmpty = false) {
 function requireLimit(value, label) {
   if (!Number.isInteger(value) || value < 0) {
     throw new TypeError(label + " must be a nonnegative integer");
+  }
+  return value;
+}
+
+function requireEffort(value) {
+  if (!["auto", "none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value)) {
+    throw new TypeError("effort must be auto, none, minimal, low, medium, high, xhigh, or max");
   }
   return value;
 }
@@ -89,7 +88,7 @@ async function executeToolCall(runId, toolCall) {
     return failedToolResult("run_js code must be a string");
   }
 
-  return requireRunnerResult(await rpc("run_js", { runId, code: args.code }));
+  return requireRunnerResult(await rpc("run_js", { runId, toolCallId: toolCall.id, code: args.code }));
 }
 
 function validateToolCalls(message) {
@@ -120,13 +119,38 @@ function finalAnswer(content) {
   return "";
 }
 
+// Observe an existing run through its JSONL file. Snapshot assembly and waiting
+// belong to Go so repeated calls do not need JS state or an additional model.
+export async function observe_agent(options = {}) {
+  if (!isRecord(options)) throw new TypeError("observation options must be an object");
+  const query = {
+    logPath: requireString(options.logPath, "logPath"),
+    runId: requireString(options.runId, "runId"),
+  };
+  for (const key of ["wait", "includeThinking", "includeOutput"]) {
+    if (options[key] !== undefined) {
+      if (typeof options[key] !== "boolean") throw new TypeError(key + " must be a boolean");
+      query[key] = options[key];
+    }
+  }
+  if (options.cursor !== undefined) {
+    if (!isRecord(options.cursor)) throw new TypeError("cursor must be an object");
+    query.cursor = {
+      executionId: requireString(options.cursor.executionId, "cursor.executionId", true),
+      seq: requireLimit(options.cursor.seq, "cursor.seq"),
+    };
+  }
+  return JSON.parse(await observe(JSON.stringify(query)));
+}
+
 export function createAgent(options = {}) {
   if (!isRecord(options)) throw new TypeError("agent options must be an object");
-  const provider = options.provider === undefined ? (inherited.provider || "openrouter") : options.provider;
+  const provider = requireString(options.provider === undefined ? inherited.provider : options.provider, "provider");
   if (provider !== "openrouter") throw new TypeError("provider must be openrouter");
   const model = requireString(options.model === undefined ? inherited.model : options.model, "model");
   const name = options.name === undefined ? "agent" : requireString(options.name, "name");
   const extraSystem = options.system === undefined ? "" : requireString(options.system, "system", true);
+  const effort = requireEffort(options.effort === undefined ? inherited.effort : options.effort);
   const maxTokens = options.maxTokens === undefined ? (inherited.maxTokens || 0) : requireLimit(options.maxTokens, "maxTokens");
   requireLimit(maxTokens, "maxTokens");
 
@@ -137,11 +161,13 @@ export function createAgent(options = {}) {
       const configuredCacheKey = runOptions.cacheKey === undefined ? undefined : requireString(runOptions.cacheKey, "cacheKey", true);
       const maxSteps = runOptions.maxSteps === undefined ? 0 : requireLimit(runOptions.maxSteps, "maxSteps");
 
-      const start = await rpc("start", { provider, model, name, maxTokens });
+      const start = await rpc("start", { provider, model, name, maxTokens, effort });
       const runId = start.runId;
       if (typeof runId !== "string" || !runId) throw new Error("agent broker returned an invalid run ID");
       const cacheKey = configuredCacheKey === undefined ? runId : configuredCacheKey;
       let status = "failed";
+      let acceptedAnswer = "";
+      let failureMessage = "";
       try {
         const messages = [
           { role: "system", content: systemInstruction + (extraSystem ? "\n" + extraSystem : "") },
@@ -155,7 +181,7 @@ export function createAgent(options = {}) {
           }
           modelCalls++;
           const response = await rpc("model", {
-            runId, model, messages, tools: [runJSTool], cacheKey, maxTokens,
+            runId, model, messages, tools: [runJSTool], cacheKey, maxTokens, effort,
           });
           if (!isRecord(response) || !isRecord(response.message) || response.message.role !== "assistant") {
             throw new Error("provider returned an invalid assistant message");
@@ -198,11 +224,15 @@ export function createAgent(options = {}) {
           }
           const answer = finalAnswer(response.message.content);
           if (!answer.trim()) throw new Error("model returned an empty final answer");
+          acceptedAnswer = answer;
           status = "completed";
           return answer;
         }
+      } catch (error) {
+        failureMessage = String(error);
+        throw error;
       } finally {
-        await rpc("finish", { runId, status }).catch(() => {});
+        await rpc("finish", { runId, status, answer: acceptedAnswer, error: failureMessage }).catch(() => {});
       }
     },
   });

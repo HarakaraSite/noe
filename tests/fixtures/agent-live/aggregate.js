@@ -1,7 +1,9 @@
 import { createAgent } from "noe:agent";
 
 const agent = createAgent({
+  provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",
+  effort: "auto",
   name: "aggregate",
   maxTokens: 4096,
 });

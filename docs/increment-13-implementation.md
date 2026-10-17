@@ -193,3 +193,101 @@ defaultは、各sliceの必須指摘が修正再レビューで解消され、�
 - `go build -o noe ./cmd/noe`
 
 既存fixtureを拡張し、未指定runのID生成・再利用/並行run間の分離、明示値と空文字の維持、修正loop内の4要求でのID固定、親/子の実HTTP要求での個別IDとtrace対応を確認した。追加の実API呼出しは行っていない。defaultが変更箇所と証拠を確認し、別agentへのレビュー委譲は行っていない。リリース済みv1.2.0の検証記録とは別の、公開後のローカル変更である。
+
+## v1.2.0公開後の追加：推論エフォート — 2026-10-16
+
+この節は初回実装の記録。後の追加要件によるルート設定の必須化は次節を参照し、現在の公開仕様は[APIリファレンス](api.md)に従う。
+
+利用者の要件により、`createAgent({effort: "high"})`を追加した。許容値は`auto`・`none`・`minimal`・`low`・`medium`・`high`・`xhigh`・`max`。ルートの既定値は`auto`。子は起動元runの値を継承し、明示指定で上書きする。子の`auto`は継承を解除してprovider/modelの既定動作へ戻す。同じagent objectの再利用でも設定を維持し、並行run間で混ざらない。`run()`単位の上書きは今回の公開APIに含めない。
+
+[OpenRouterのreasoning仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)と採用済み公式Go SDK v0.9.59の`models/components/chatrequest.go`を確認した。SDKのeffort列挙値に`auto`はないため、NOEの`auto`は要求から`reasoning`を省略する指定として実装した。推論の有効化を強制せず、既存の既定要求を保つ。それ以外は`reasoning: {effort: value}`で送る。モデル別の対応表、値の自動変更、provider追加、SDK更新は行っていない。モデルがその設定を利用できるかはprovider側に従う。
+
+JSで型・値を検証し、Goでもstart/model要求を検証する。brokerはrun開始時の設定を保持し、モデル要求での設定変更を受け付けない。生成JSへ渡す`Connection.Defaults`にもそのrunのeffortを含める。provider層は既存のSDK・raw JSONを保持する送信経路を使う。共通インストラクション、APIガイド、README、検討メモを更新した。
+
+Linux amd64 / Go 1.27.2での確認：
+
+- providerのローカルHTTP fixtureで、未指定・明示autoの`reasoning`完全省略と、他7値の正確な送信を確認。
+- runtimeでルートの既定値・全指定値・無効な型と値のTypeError、同じobjectの再利用と並行runでの設定維持を確認。
+- brokerで、runのeffortと異なるモデル要求をproviderへ送らないことを確認。
+- 親子E2Eで継承・明示上書き・auto復帰・並行親間の分離を、複数回の実HTTP要求で確認。
+- REPLのPTYで明示effort、同じagentの別入力での再利用、provider error後も設定が維持されることを確認。
+- `go test -tags=e2e ./... -count=1`（unitと全体E2E）、変更経路の`go test -race`、`go vet -tags=e2e ./...`が成功。
+- `CGO_ENABLED=0 go build -o noe ./cmd/noe`でローカルバイナリを更新。認証を読み込まずimport/createできることも確認。
+
+追加の実プロバイダ要求は行わず、テストはローカルfixtureを使った。Linux/Darwin/Windows各amd64/arm64の計6対象もCGO無効でビルド成功。実行確認はLinux amd64であり、他対象はビルド確認に限る。
+
+独立したread-onlyレビュー（上限10分）で、JS→run設定→子defaults→HTTP送信の契約、テスト、文書を照合し、対応が必要な指摘なし。rootも変更箇所・検証結果・書式と差分を確認した。コミット・公開は行っていない。
+
+## ルートのprovider・model・effortの必須化 — 2026-10-17
+
+追加要件により、ルートの`createAgent`では`provider`・`model`・`effort`をすべて明示指定する形へ変更した。省略や`undefined`は通信前にTypeErrorになる。`effort: "auto"`は引き続き有効で、provider/modelの既定動作を明示的に選ぶ意味になる。初回実装の「省略時auto」とproviderの暗黙のOpenRouter選択を廃止した。
+
+子は起動元runのdefaultsを項目ごとに参照するため、3項目を省略でき、明示した項目だけを上書きする。子の`effort: "auto"`による継承解除も維持した。Goの内部要求やprovider Requestでの省略互換性は変更せず、今回の必須化は公開JS APIのルート設定に適用する。
+
+標準インストラクション、README日英、API・REPLガイド、検討メモ、サンプルと`try-agent.js`、実接続用fixtureのルート設定を更新した。過去の実接続結果は再実行済みとは扱わず、そのまま履歴として残す。
+
+検証では、各必須項目の省略・明示undefined・設定なしがproviderを呼ばず失敗すること、明示autoと全effort値の受理、既存の親子・並行run・上書き・取消し・REPL再利用を確認した。実APIは呼んでいない。
+
+Linux amd64 / Go 1.27.2で、`go test -tags=e2e ./... -count=1`、変更したruntime経路の`go test -race`、`go vet -tags=e2e ./...`、CGO無効のCLIビルドが成功した。`./noe`を更新し、単体CLIでも明示autoの受理と必須項目欠落の診断を確認。rootがJSの項目ごとの継承、現在の例・文書の整合、差分を確認した。
+
+## JSONLイベントによる実行状況の観察 — 2026-10-17
+
+`run`・`eval`・`repl`共通の`--events`を追加した。`--events=-`は通常のJS出力も含めてstdoutへJSONLを出し、`--events=path`はファイルへ追記、単独の`--events`は起動時のcwdに日時・ランダムID付きのファイルを新規作成する。出力先は起動時に固定する。ファイル指定時は普段の画面表示を保つ。共通writerで時刻・executionId・seq・typeを付け、並行する出力を1行ずつ直列化する。
+
+Go brokerからagent/run・親run・モデル要求・tool callを識別できる詳細イベントを発行する。OpenRouterの生SSEから、thinking・summary・発言の断片を完了前に通知する。toolを伴う途中の発言と、loopが受け入れた最終回答を分け、`run_js`の先頭行コメント・開始・成功/失敗・捕捉出力を記録する。署名や暗号化reasoningは表示イベントへ出さず、元のreasoning detailsは次の要求の履歴に保持する。summary断片の結合にも対応した。従来のメタデータtraceの契約は維持する。
+
+REPLではプロンプト・カーソル制御を記録せず、JS出力・評価結果・agentイベントを記録する。stdoutイベントモードでは入力画面をstderrへ出す。詳細な使い方とイベント項目は[観察ガイド](events.md)を参照。外部の観察用JS・SQLite・途中監督APIは実装せず、検討メモとして残す。
+
+確認した内容：
+
+- providerのゲート付きHTTP fixtureとCLIのパイプE2Eで、thinkingを受け取るまで応答を完了させず、ストリーム中にイベントが届くことを確認。
+- 並行する親A・親Bと子の共通JSONLで、run/親run ID・モデル要求ID・tool ID、途中の発言と最終回答、JS成功・失敗の対応を確認。
+- 通常のJS出力、改行なしの出力、分割UTF-8、ファイルへの追記・自動命名・開始時cwd、書込み失敗の取消しと診断を確認。
+- REPLの評価結果とエラー、および実端末PTYでの編集・補完・稼働中のファイル読取りとUI制御文字の除外を確認。
+- 独立read-onlyレビューで見つかった「tool取消し時に取得済みstdout/stderrが失われる」経路を修正し、取消し回帰テストと再確認を実施。最終レビューに必須修正なし。
+
+`go test -tags=e2e ./...`、変更経路の`go test -race`、`go vet -tags=e2e ./...`、差分の書式確認が成功した。レビュー修正後も関連unit・E2E・raceを再実行した。ローカル`./noe`を更新し、通常JS出力をjqへ渡すパイプも確認。Linux/Darwin/Windows各amd64/arm64の6対象をCGO無効でビルドした。実行確認はLinux amd64に限る。実プロバイダ要求・コミット・公開は行っていない。
+
+## 親用observe_agentと人間用Go表示 — 2026-10-17
+
+利用者の「まず観察の口を作る。組立てはGoでもよい」と、人間向けはJSONLに拘らず可読性を優先する指示に対応した。hjhのGo側StatusAgentとCollectAgentを参照し、NOEでは既存JSONLから状態・差分・確定結果を組み立てる`internal/observation`を追加した。入口は`noe:agent`の`observe_agent`と、人間向けのGo CLI `noe observe`。保存形式としてのJSONLは維持する。
+
+`observe_agent({logPath,runId,cursor?,wait?,includeThinking?,includeOutput?})`は、指定runの状態・段階・直近の処理と発言・最後のtool結果・使用量・最終回答/失敗情報を返す。cursorは差分だけに適用し、状態は全履歴から再構成する。待機は既定false、trueならagentの終端まで100ms間隔で確認する。途中行を次回へ持ち越し、読取り開始時のサイズまでを有限に読み、別executionへの追記とseqリセットも区別する。未発見runの初期cursorも再利用できる。モデルは呼ばない。
+
+JS側は薄いラッパーとnative Promiseで、ファイルの読取りと組立てはGoが担当する。既存Operationのrequest gateで実行期限・取消し・終了待ちに参加し、待機中でもJSのタイマーが動く。runの失敗理由を観察できるよう、loopのfinishに失敗文字列を含め、詳細イベントのagent.failedへ保存する。従来TRACEの内容は変えない。
+
+`noe observe`はstdin・ファイル・追記ファイルを読み、thinking断片をつないで即時表示する。発言と最終回答は確定した本文を表示し、raw message_deltaとの重複を避ける。tool由来の表示に短縮tool IDを付けて並列処理を識別し、最終回答はブロック表示にする。JSONL保存や元データは加工しない。`noe observe --json --run ID [--wait] path`でも構造化状態を取得できる。使い方は[観察の入口](observe.md)を参照。
+
+検証は、既存の実接続ログの再生、状態とcursorの独立性、途中行と追記、並列tool、waitの取消しとJS event loop、REPLでの再利用、CLIのEOF前表示、Goの失敗理由を返す経路を確認した。独立read-onlyレビューで見つかった「人間向け表示で同一runの並列toolを識別できない」を修正し、再確認で必須修正なし。
+
+Linux amd64で全体`go test -tags=e2e ./...`、観察・agent・CLI・runtimeの関連`go test -race`、`go vet -tags=e2e ./...`、差分確認が成功した。実OpenRouterのDeepSeekモデルでも、`run_js`による1から10の合計55を、人間向けパイプと親用の構造化読取りで確認した。ローカル`./noe`を更新。spawn_agent、親モデルが子の途中経過を確認する寿命管理、steer・interrupt・queueは今回実装していない。コミット・公開は行っていない。
+
+## パイプなしの人間向け表示 — 2026-10-17
+
+利用者の要望に合わせ、`run`・`eval`・`repl`共通の`--observe`を追加した。stdoutへ`noe observe`と同じテキストを直接出し、NOE自体の診断はstderrへ出す。通常のJS出力はイベントとして表示し、別の生出力として二重に中継しない。JSONLも残す場合は`--events=path`か単独の`--events`を併用する。`--observe`だけではファイルを作らない。`--events=-`はJSONL stdoutを維持し、同じstdoutへ異なる形式を要求する同時指定は診断する。
+
+共通event writerで書込みを直列化し、同じrendererへ渡すことでパイプ表示と形式を揃えた。ファイル指定時も元のJSONLを保存する。REPLはstdoutの入力UIを保ち、評価結果を一度だけ整形表示する。
+
+CLI unitでrun/eval・保存併用・REPL・出力失敗を確認し、E2Eで「直接表示と同じ実行の保存ログ再表示が一致すること」、PTYで編集とJSONL記録を確認した。全体`go test -tags=e2e ./...`、CLIの`go test -race`、`go vet -tags=e2e ./...`、差分確認が成功。実OpenRouterでも2+3の結果5を、パイプなしの表示とJSONL保存の併用で確認し、`./noe`を更新した。コミット・公開は行っていない。
+
+## 色なしのMarkdown整形 — 2026-10-17
+
+観察表示のラベルを英語に統一し、`run_js`の先頭コメントも英語で書くよう組込みインストラクションとtoolの説明へ明記した。回答本文の言語は変えない。
+
+利用者が選んだmdcli v0.0.5（commit `8529398a481df65a03c3c86c9ef69aacac2473c4`）のMarkdown整形部分を`internal/mdcli`へ取り込んだ。上流がinternalパッケージのため、MITライセンス・出典・ローカル差分と上流テストを併せて保持する。外部module依存は増やさず、CLI・pager・Mermaidは含めない。
+
+`--observe`と`noe observe`共通のrendererで、確定した途中の発言と最終回答を色なしで整形する。幅は`COLUMNS`、出力端末、80桁の順で決める。段落・箇条書き・リンク・強調・表を整え、コードフェンスはハイライトなしで表示する。日本語の列揃えとセルの折り返しに必要な表示幅を補正した。thinking・JS出力・記録JSONL・構造化APIの本文は整形対象にしない。Markdown全体の仕様準拠やMermaid表示は今回の対象外。
+
+上流テストと追加の日本語・結合文字・幅制限・コード表示の確認、fixture providerを使う直接表示と保存ログの再生一致、構造化読取りに元のMarkdownが残ることを確認した。全体`go test -tags=e2e ./...`、CLIと取込みパッケージの`go test -race`、関連`go vet`、差分確認が成功。`./noe`を更新し、色なしの日本語表を実バイナリでも確認した。Linux amd64、CGO無効、`-trimpath -ldflags="-s -w"`で35,831,968 bytesから35,954,848 bytesとなり、増分は122,880 bytes（約0.34%）。
+
+## 観察表示からstdoutを省略 — 2026-10-17
+
+利用者の要望に合わせ、人間向けの`--observe`と`noe observe`ではスクリプトとtoolのstdoutを表示しない。処理内容は`run_js`の先頭1行コメントで追い、成功・失敗、stderr、thinking、途中の発言、最終回答は引き続き表示する。stdoutを含む元のJSONL記録、モデルへ返すtool結果、構造化した観察APIは維持する。通常の観察なしのJS実行は従来どおりstdoutを出す。
+
+CLIテストでrun/eval/replのstdout非表示とJSONLへの記録継続を確認した。観察E2Eで直接表示と保存ログの再生一致、最終回答のconsole.logによる重複表示の抑制、元のMarkdownの保持を確認。関連`go vet`と差分確認も成功し、`./noe`を更新した。
+
+## 連続するthinkingの表示をまとめる — 2026-10-17
+
+人間向けrendererで、同じexecution・run・モデル要求・種類に属する連続したthinking/summaryのラベルを最初の1回だけ表示する。改行と空行を保ち、2行目以降の本文は2スペースで字下げする。各断片は受信時に表示し、完了を待つためのバッファは追加しない。別agent・別要求・別種類、toolや最終回答などの表示を挟むと新しいグループになる。JSONLと親用APIの本文は変えない。
+
+CLIのパイプテストでEOF前の複数段落の逐次表示を確認し、並行agent・モデル要求・summary・toolを挟む境界も確認した。fixture providerのE2Eで直接表示と保存ログ再生の一致、関連CLIテスト・vetと差分確認が成功。`./noe`を更新した。
