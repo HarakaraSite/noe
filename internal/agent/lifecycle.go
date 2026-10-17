@@ -102,8 +102,12 @@ func (b *broker) handleSpawn(w http.ResponseWriter, r *http.Request, op *Operati
 		return
 	}
 	effort, valid := provider.NormalizeEffort(req.Config.Effort)
-	if req.Config.Provider != "openrouter" || strings.TrimSpace(req.Config.Model) == "" || strings.TrimSpace(req.Config.Name) == "" || req.Config.Effort == "" || !valid || req.Config.MaxTokens < 0 || req.Config.MaxSteps < 0 || (!req.KeepAlive && req.Instruction == nil) || (req.Instruction != nil && strings.TrimSpace(*req.Instruction) == "") {
+	if strings.TrimSpace(req.Config.Provider) == "" || strings.TrimSpace(req.Config.Model) == "" || strings.TrimSpace(req.Config.Name) == "" || req.Config.Effort == "" || !valid || req.Config.MaxTokens < 0 || req.Config.MaxSteps < 0 || (!req.KeepAlive && req.Instruction == nil) || (req.Instruction != nil && strings.TrimSpace(*req.Instruction) == "") {
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid agent configuration or instruction")
+		return
+	}
+	if err := b.host.checkProvider(req.Config.Provider); err != nil {
+		writeRPCError(w, http.StatusBadRequest, "provider", err.Error())
 		return
 	}
 	req.Config.Effort = effort

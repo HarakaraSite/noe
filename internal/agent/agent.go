@@ -9,26 +9,29 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
 	"time"
 
 	"noe/internal/agent/provider"
+	"noe/internal/decision"
 	"noe/internal/events"
 )
 
 // Options configures an agent host. Provider and ProviderOptions are used only
 // by root hosts. Connection makes this host a scoped client of another host.
 type Options struct {
-	Provider        provider.Provider
-	ProviderOptions provider.Options
-	Cwd             string
-	Executable      string
-	Connection      *Connection
-	ControlDir      string // explicit human control registry directory
-	EnableControl   bool   // resolve the default directory lazily at first broker use
-	Trace           io.Writer
+	Provider         provider.Provider
+	DecisionProvider decision.Provider
+	ProviderOptions  provider.Options
+	Cwd              string
+	Executable       string
+	Connection       *Connection
+	ControlDir       string // explicit human control registry directory
+	EnableControl    bool   // resolve the default directory lazily at first broker use
+	Trace            io.Writer
 	// Observe receives structured agent events. Calls are serialized and never
 	// made while Host.mu is held.
 	Observe func(events.Event)
@@ -62,6 +65,8 @@ type Host struct {
 	mu         sync.Mutex
 	opts       Options
 	provider   provider.Provider
+	catalog    *provider.Registry
+	decider    decision.Provider
 	ctx        context.Context
 	cancel     context.CancelFunc
 	closed     bool
@@ -77,20 +82,21 @@ type Host struct {
 // Operation is the cancellation and scope boundary for one runtime evaluation.
 // It contains no QuickJS values and may be used by Go worker goroutines.
 type Operation struct {
-	host        *Host
-	ctx         context.Context
-	cancel      context.CancelFunc
-	stopHost    func() bool
-	scope       string
-	initErr     error
-	closed      bool // protected by host.mu
-	remoteBase  string
-	remoteAuth  string
-	client      *http.Client
-	parentRunID string
-	instances   map[string]*agentInstance // direct evaluation-owned instances; host.mu
-	task        *managedTask              // task bootstrap scope; host.mu
-	control     bool                      // trusted host control, never delegated to JS
+	host          *Host
+	ctx           context.Context
+	cancel        context.CancelFunc
+	stopHost      func() bool
+	scope         string
+	initErr       error
+	closed        bool // protected by host.mu
+	remoteBase    string
+	remoteAuth    string
+	client        *http.Client
+	parentRunID   string
+	decisionOwner events.Event              // immutable after the run_js scope is registered
+	instances     map[string]*agentInstance // direct evaluation-owned instances; host.mu
+	task          *managedTask              // task bootstrap scope; host.mu
+	control       bool                      // trusted host control, never delegated to JS
 
 	requestMu      sync.Mutex
 	requestClosing bool
@@ -113,13 +119,22 @@ type endedRun struct {
 func NewHost(opts Options) *Host {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := opts.Provider
+	var catalog *provider.Registry
+	if opts.Connection == nil {
+		catalog, _ = p.(*provider.Registry)
+		if catalog == nil {
+			catalog = provider.NewRegistry(opts.ProviderOptions)
+		}
+	}
 	if p == nil && opts.Connection == nil {
 		// The provider itself performs credential lookup lazily on Generate.
-		p = provider.NewOpenRouter(opts.ProviderOptions)
+		p = catalog
 	}
 	return &Host{
 		opts:       opts,
 		provider:   p,
+		catalog:    catalog,
+		decider:    decisionProvider(opts.DecisionProvider, p),
 		ctx:        ctx,
 		cancel:     cancel,
 		closeDone:  make(chan struct{}),
@@ -127,6 +142,29 @@ func NewHost(opts Options) *Host {
 		runs:       make(map[string]*agentRun),
 		instances:  make(map[string]*agentInstance),
 	}
+}
+
+func (h *Host) checkProvider(name string) error {
+	if registry, ok := h.provider.(interface{ HasProvider(string) (bool, error) }); ok {
+		exists, err := registry.HasProvider(name)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return nil
+		}
+	} else if name == "openrouter" {
+		return nil
+	}
+	return fmt.Errorf("unknown provider %q", name)
+}
+
+func decisionProvider(explicit decision.Provider, chat provider.Provider) decision.Provider {
+	if explicit != nil {
+		return explicit
+	}
+	shared, _ := chat.(decision.Provider)
+	return shared
 }
 
 // NewOperation starts an independent cancellation scope without performing
@@ -413,3 +451,6 @@ var (
 	ErrHostClosed      = errors.New("agent host is closed")
 	ErrOperationClosed = errors.New("agent operation is closed")
 )
+
+// Context is the lifetime of the current runtime evaluation's native work.
+func (op *Operation) Context() context.Context { return op.ctx }

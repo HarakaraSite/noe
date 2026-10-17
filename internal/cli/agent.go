@@ -20,8 +20,9 @@ func agentOptions(stderr io.Writer) (*agent.Options, error) {
 	opts := &agent.Options{
 		Executable: executable,
 		ProviderOptions: provider.Options{
-			KeyFile: os.Getenv(provider.DefaultKeyFileEnv),
-			BaseURL: os.Getenv("NOE_OPENROUTER_BASE_URL"),
+			UserAgent: "noe/" + Version,
+			KeyFile:   os.Getenv(provider.DefaultKeyFileEnv),
+			BaseURL:   os.Getenv("NOE_OPENROUTER_BASE_URL"),
 		},
 	}
 	if os.Getenv("NOE_AGENT_TRACE") == "1" {

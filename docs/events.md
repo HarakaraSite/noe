@@ -58,14 +58,24 @@ agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等�
 | `message_delta` | モデルの発言本文の断片`text`と`requestId` |
 | `agent.message` | toolを呼ぶ応答に含まれる途中の発言`text`と`requestId` |
 | `agent.final` | loopが正常な最終回答として受け入れた`text` |
-| `run_js.started` | `toolCallId`と、codeの先頭行が`//`コメントならその行の`text` |
+| `run_js.started` | `toolCallId`・モデルが渡したJS全文の`code`と、codeの先頭行が`//`コメントならその行の`text` |
 | `run_js.finished` | `toolCallId`・`success`・`exitCode`・`reason`・`duration` |
+| `decision.started` | `requestId`・`provider`・要求モデルの`decisionModel` |
+| `decision.completed` / `decision.failed` / `decision.cancelled` | 同じ要求IDと`duration`。取得できる`statusCode`・`responseModel`・`usage`、失敗時の`reason`・`error` |
 
 `duration`はnanosecondsです。並列実行のイベントは到着順に並びますが、同じNOE内の書込みを直列化するため、JSON同士が文字単位で混ざりません。
+
+意思決定要求は[noe:decision](decision.md)を使います。`run_js`内からの要求には所有runのmetadataと`toolCallId`を付け、共通の`model`は親agentの設定モデルを維持します。意思決定のモデル名は`decisionModel`・`responseModel`へ分けます。通常JSからの直接要求にはagent/run IDや共通の`model`を割り当てません。人間向けは要求の開始・終了を短く表示し、親のファイル観察は差分イベントへ含めます。意思決定イベントで親runのphaseや終了状態を変更しません。応答本文はJSへ返し、JSONLのdecisionイベントはmetadataを記録します。
 
 thinking・summary・messageの断片はストリーム受信時に出ます。providerが返さない推論本文・要約は生成しません。暗号化されたreasoningや署名は表示用イベントへ出さず、次のモデル要求に必要な元のreasoning情報は従来どおり履歴へ保持します。`message_delta`の時点では最終回答か未確定なので、確定した回答が必要なら`agent.final`を読みます。本文の断片と確定イベントは重複表示せず、用途に応じて選びます。
 
 通常のJS出力は改行なしでも書込みごとに通知します。UTF-8文字の途中で分割された書込みは、文字が揃ってから通知します。`child_process`が返す捕捉出力は、JSが表示した時点で通常出力になります。`run_js`内のstdout/stderrは現在もrunnerが捕捉し、tool完了時に`source: "run_js"`とrun/tool ID付きで記録します。tool内部の出力の逐次中継は行っていません。
+
+`run_js.started.code`は実行開始時に記録するため、失敗・取消しの場合も呼出し方を確認できます。NOEが付けるhelper importや接続情報は含みません。人間向けの`--observe`と`noe observe`は従来どおり先頭コメントを表示し、JS全文は表示しません。コードの記録は`--events`に含まれ、従来のメタデータtraceには含まれません。
+
+未処理例外の診断には、従来のメッセージ・利用可能なstackに加え、取得できる`code`・`stdout`・`stderr`を`exception details: {…}`というJSON付きの行で残します。この診断は`run_js`のstderrとしてモデルへ返り、同じ内容がJSONLの`stderr`イベントにも入ります。`run_js.finished.exitCode`はNOEのJSプロセスの終了コードであり、例外内の`code`は内部コマンドの終了コード等を示す別の値です。
+
+詳細保持は固定した項目の文字列・有限の数値・booleanを対象とし、読取りに失敗する項目やオブジェクトは省略します。任意のプロパティ、循環参照、独自の`toJSON`、バイナリ出力等を完全に保存する仕組みではありません。JS内で捕捉して処理した例外は自動記録しません。go-quickjs v0.25.3の`execFile`は失敗時のErrorにコマンドの`code`・`stdout`・`stderr`を持つため取得できますが、`execFileSync`は失敗時に出力を保持しないため、この改善だけではその出力を復元できません。
 
 ## REPLと閲覧
 

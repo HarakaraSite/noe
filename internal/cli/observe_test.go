@@ -79,7 +79,7 @@ func TestObserveHumanStreamsReadableThinkingAndAcceptedMessages(t *testing.T) {
 	out.wait(t, "thinking: 考えています\n\n  次に確認します。\n")
 	emit("message_delta", "途中の発言")
 	emit("agent.message", "途中の発言")
-	write(events.Event{"type": "run_js.started", "executionId": "exec", "runId": "run-A", "name": "parent-A", "toolCallId": "tool", "text": "// READMEを読む"})
+	write(events.Event{"type": "run_js.started", "executionId": "exec", "runId": "run-A", "name": "parent-A", "toolCallId": "tool", "text": "// READMEを読む", "code": "// READMEを読む\nconst privateCode = 'recording only';"})
 	write(events.Event{"type": "run_js.finished", "executionId": "exec", "runId": "run-A", "name": "parent-A", "toolCallId": "tool", "success": true, "exitCode": 0, "duration": 28000000, "reason": "completed"})
 	emit("agent.final", "最終報告です")
 	if err := producer.Close(); err != nil {
@@ -99,6 +99,9 @@ func TestObserveHumanStreamsReadableThinkingAndAcceptedMessages(t *testing.T) {
 	}
 	if strings.Count(text, "] thinking:") != 1 {
 		t.Fatalf("repeated thinking label:\n%s", text)
+	}
+	if strings.Contains(text, "privateCode") {
+		t.Fatalf("generated source appeared in human output:\n%s", text)
 	}
 }
 

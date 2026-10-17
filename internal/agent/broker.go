@@ -397,11 +397,17 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		writeRPCError(w, http.StatusConflict, "scope", "agent operation has ended")
 		return
 	}
+	if method == "decide" && h.opts.Connection == nil {
+		b.handleDecide(w, r, operation)
+		return
+	}
 	if h.opts.Connection != nil || h.provider == nil {
 		writeRPCError(w, http.StatusBadGateway, "provider", "agent provider is unavailable")
 		return
 	}
 	switch method {
+	case "list_models":
+		b.handleListModels(w, r)
 	case "start":
 		b.handleStart(w, r, operation)
 	case "model":
@@ -429,7 +435,7 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 func validRPCMethod(method string) bool {
 	switch method {
-	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "apply_steers", "commit_final", "interrupt_agent":
+	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "apply_steers", "commit_final", "interrupt_agent", "decide", "list_models":
 		return true
 	}
 	return false
@@ -439,8 +445,12 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	var request startRequest
 	err := decodeRequest(r, &request)
 	effort, validEffort := provider.NormalizeEffort(request.Effort)
-	if err != nil || request.Provider != "openrouter" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || request.MaxSteps < 0 || !validEffort {
+	if err != nil || strings.TrimSpace(request.Provider) == "" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || request.MaxSteps < 0 || !validEffort {
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid start request")
+		return
+	}
+	if err := b.host.checkProvider(request.Provider); err != nil {
+		writeRPCError(w, http.StatusBadRequest, "provider", err.Error())
 		return
 	}
 	id, err := randomID()
@@ -829,6 +839,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		}
 	}
 	response, err := h.provider.Generate(ctx, provider.Request{
+		Provider: run.config.Provider, RunID: request.RunID,
 		Model: run.config.Model, Messages: request.Messages, Tools: request.Tools,
 		CacheKey: request.CacheKey, MaxTokens: run.config.MaxTokens, Effort: run.config.Effort,
 		Observe: observeStream,
@@ -1033,7 +1044,7 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		return
 	}
 	started := time.Now()
-	startFields := events.Event{"toolCallId": request.ToolCallID, "source": "run_js"}
+	startFields := events.Event{"toolCallId": request.ToolCallID, "source": "run_js", "code": *request.Code}
 	if comment := firstLineComment(*request.Code); comment != "" {
 		startFields["text"] = comment
 	}
@@ -1060,6 +1071,7 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	registered := h.runs[request.RunID] == run && run.ctx.Err() == nil && !run.interrupting && !op.closed && !h.closed && !childOperation.closed
 	if registered {
 		childOperation.parentRunID = request.RunID
+		childOperation.decisionOwner = decisionOwnerFields(request.RunID, run, request.ToolCallID)
 		run.childScopes[childOperation] = struct{}{}
 	}
 	h.mu.Unlock()
@@ -1335,10 +1347,15 @@ func summarizeUsage(raw json.RawMessage) *usageSummary {
 	var usage struct {
 		PromptTokens     *int64 `json:"prompt_tokens"`
 		CompletionTokens *int64 `json:"completion_tokens"`
+		InputTokens      *int64 `json:"input_tokens"`
+		OutputTokens     *int64 `json:"output_tokens"`
 		TotalTokens      *int64 `json:"total_tokens"`
 		PromptDetails    *struct {
 			CachedTokens *int64 `json:"cached_tokens"`
 		} `json:"prompt_tokens_details"`
+		InputDetails *struct {
+			CachedTokens *int64 `json:"cached_tokens"`
+		} `json:"input_tokens_details"`
 		Cost *float64 `json:"cost"`
 	}
 	if json.Unmarshal(raw, &usage) != nil {
@@ -1350,6 +1367,15 @@ func summarizeUsage(raw json.RawMessage) *usageSummary {
 	}
 	if usage.PromptDetails != nil {
 		summary.CachedTokens = usage.PromptDetails.CachedTokens
+	}
+	if summary.PromptTokens == nil {
+		summary.PromptTokens = usage.InputTokens
+	}
+	if summary.CompletionTokens == nil {
+		summary.CompletionTokens = usage.OutputTokens
+	}
+	if summary.CachedTokens == nil && usage.InputDetails != nil {
+		summary.CachedTokens = usage.InputDetails.CachedTokens
 	}
 	return summary
 }

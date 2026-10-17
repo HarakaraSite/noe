@@ -63,4 +63,8 @@ Linux amd64、Go 1.27.2で実行。Go実行時の`TMPDIR`/`GOTMPDIR`は`/home/ag
 
 ## 対象外
 
-実API接続・コミット・push・リリースは行っていない。daemon・永続queue・クラッシュ復旧・親終了後の独立実行は追加しない。
+上記の実装・fixture検証の段階では実API接続・コミット・push・リリースは行っていない。daemon・永続queue・クラッシュ復旧・親終了後の独立実行は追加しない。
+
+## 後続の実プロバイダ確認
+
+2026-10-17、実装をcommit `4f5d91b`としてbuild・pushした後、利用者の許可を受けてOpenRouterへ実接続した。単発・修正・並列委譲・親子の操作・人間CLI・REPL・取消しとprocess回収・回数上限後の継続を含む12ケースが成功。製品コードの変更はない。[実接続の検証記録](agent-control-openrouter-validation.md)と[機械可読結果](agent-control-openrouter-results.json)を参照。

@@ -1,0 +1,424 @@
+{
+  "results": [
+    {
+      "model": "typesafe/jev-1.14",
+      "case": "text",
+      "exitCode": 0,
+      "durationMs": 588,
+      "response": {
+        "model": "typesafe/jev-1.14-20261014",
+        "answers": {
+          "payment": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "severity": {
+            "type": "score",
+            "score": 2,
+            "legend": {
+              "0": "No disruption",
+              "1": "Some customers affected",
+              "2": "All customers blocked"
+            },
+            "probabilities": {
+              "0": 0,
+              "1": 0,
+              "2": 1
+            },
+            "confidence": 1
+          },
+          "team": {
+            "type": "choice",
+            "choice": "payments",
+            "probabilities": {
+              "payments": 1,
+              "account": 0,
+              "other": 0
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 400,
+          "output_tokens": 67,
+          "cost": 1.68e-05
+        },
+        "id": "gen-dec-1792212855-8snbYrTE6V2SzMYN2upD",
+        "provider": "TypeSafe"
+      },
+      "usage": {
+        "input_tokens": 400,
+        "output_tokens": 67,
+        "cost": 1.68e-05
+      },
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/typesafe-jev-1.14-text.jsonl",
+      "passed": true
+    },
+    {
+      "model": "typesafe/jev-1.14",
+      "case": "structured",
+      "exitCode": 0,
+      "durationMs": 408,
+      "response": {
+        "model": "typesafe/jev-1.14-20261014",
+        "answers": {
+          "active": {
+            "type": "noul",
+            "noul": 0.99
+          },
+          "plan": {
+            "type": "choice",
+            "choice": "pro",
+            "probabilities": {
+              "free": 0,
+              "pro": 1
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 355,
+          "output_tokens": 47,
+          "cost": 1.491e-05
+        },
+        "id": "gen-dec-1792212855-gVHALGcbzwVlfRMt38md",
+        "provider": "TypeSafe"
+      },
+      "usage": {
+        "input_tokens": 355,
+        "output_tokens": 47,
+        "cost": 1.491e-05
+      },
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/typesafe-jev-1.14-structured.jsonl",
+      "passed": true
+    },
+    {
+      "model": "typesafe/jev-1.14",
+      "case": "image",
+      "exitCode": 0,
+      "durationMs": 417,
+      "response": {
+        "model": "typesafe/jev-1.14-20261014",
+        "answers": {
+          "color": {
+            "type": "choice",
+            "choice": "red",
+            "probabilities": {
+              "red": 1,
+              "green": 0,
+              "blue": 0
+            },
+            "confidence": 1
+          },
+          "red": {
+            "type": "noul",
+            "noul": 0.99
+          }
+        },
+        "usage": {
+          "input_tokens": 670,
+          "output_tokens": 55,
+          "cost": 2.814e-05
+        },
+        "id": "gen-dec-1792212856-pG2jKONIMX4DzdhrTbS8",
+        "provider": "TypeSafe"
+      },
+      "usage": {
+        "input_tokens": 670,
+        "output_tokens": 55,
+        "cost": 2.814e-05
+      },
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/typesafe-jev-1.14-image.jsonl",
+      "passed": true
+    },
+    {
+      "model": "perplexity/pplx-decider-v1.2",
+      "case": "text",
+      "exitCode": 0,
+      "durationMs": 650,
+      "response": {
+        "model": "perplexity/pplx-decider-v1.2-20261016",
+        "answers": {
+          "payment": {
+            "type": "noul",
+            "noul": 0.9996817622219438
+          },
+          "severity": {
+            "type": "score",
+            "score": 1.9995342237885834,
+            "legend": {
+              "0": "No disruption",
+              "1": "Some customers affected",
+              "2": "All customers blocked"
+            },
+            "probabilities": {
+              "0": 0.00011032264477425611,
+              "1": 0.00024513092186828286,
+              "2": 0.9996445464333575
+            },
+            "confidence": 0.9995342237885833
+          },
+          "team": {
+            "type": "choice",
+            "choice": "payments",
+            "probabilities": {
+              "payments": 0.9997495047736499,
+              "account": 0.0001196470305595815,
+              "other": 0.00013084819579057207
+            },
+            "confidence": 0.9996242571604746
+          }
+        },
+        "usage": {
+          "input_tokens": 178,
+          "output_tokens": 3,
+          "cost": 3.56e-06
+        },
+        "id": "gen-dec-1792212856-21zVRylFbbuYCiNLWa2A",
+        "provider": "Perplexity"
+      },
+      "usage": {
+        "input_tokens": 178,
+        "output_tokens": 3,
+        "cost": 3.56e-06
+      },
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/perplexity-pplx-decider-v1.2-text.jsonl",
+      "passed": true
+    },
+    {
+      "model": "perplexity/pplx-decider-v1.2",
+      "case": "structured",
+      "exitCode": 0,
+      "durationMs": 588,
+      "response": {
+        "model": "perplexity/pplx-decider-v1.2-20261016",
+        "answers": {
+          "active": {
+            "type": "noul",
+            "noul": 0.9996313047579878
+          },
+          "plan": {
+            "type": "choice",
+            "choice": "pro",
+            "probabilities": {
+              "free": 0.00023305840162164056,
+              "pro": 0.9997669415983784
+            },
+            "confidence": 0.9995338831967568
+          }
+        },
+        "usage": {
+          "input_tokens": 140,
+          "output_tokens": 2,
+          "cost": 2.8e-06
+        },
+        "id": "gen-dec-1792212857-2n25MzHCQcccIrB1HSVJ",
+        "provider": "Perplexity"
+      },
+      "usage": {
+        "input_tokens": 140,
+        "output_tokens": 2,
+        "cost": 2.8e-06
+      },
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/perplexity-pplx-decider-v1.2-structured.jsonl",
+      "passed": true
+    },
+    {
+      "model": "perplexity/pplx-decider-v1.2",
+      "case": "image",
+      "exitCode": 0,
+      "durationMs": 666,
+      "response": {
+        "model": "perplexity/pplx-decider-v1.2-20261016",
+        "answers": {
+          "color": {
+            "type": "choice",
+            "choice": "red",
+            "probabilities": {
+              "red": 0.9979097611385509,
+              "green": 0.0015050163755166279,
+              "blue": 0.0005852224859324317
+            },
+            "confidence": 0.9968646417078262
+          },
+          "red": {
+            "type": "noul",
+            "noul": 0.9898378850059918
+          }
+        },
+        "usage": {
+          "input_tokens": 233,
+          "output_tokens": 2,
+          "cost": 4.66e-06
+        },
+        "id": "gen-dec-1792212857-bE8VuFv70eYNt5PywhaZ",
+        "provider": "Perplexity"
+      },
+      "usage": {
+        "input_tokens": 233,
+        "output_tokens": 2,
+        "cost": 4.66e-06
+      },
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/perplexity-pplx-decider-v1.2-image.jsonl",
+      "passed": true
+    },
+    {
+      "model": "cloudflare/clef",
+      "case": "text",
+      "exitCode": 0,
+      "durationMs": 582,
+      "response": {
+        "model": "cloudflare/clef",
+        "answers": {
+          "payment": {
+            "type": "noul",
+            "noul": 0.9918
+          },
+          "severity": {
+            "type": "score",
+            "score": 1.9834,
+            "legend": {
+              "0": "No disruption",
+              "1": "Some customers affected",
+              "2": "All customers blocked"
+            },
+            "probabilities": {
+              "0": 0.0045,
+              "1": 0.0075,
+              "2": 0.988
+            },
+            "confidence": 0.9752
+          },
+          "team": {
+            "type": "choice",
+            "choice": "payments",
+            "probabilities": {
+              "payments": 0.9878,
+              "account": 0.0049,
+              "other": 0.0073
+            },
+            "confidence": 0.9817
+          }
+        },
+        "usage": {
+          "input_tokens": 334,
+          "output_tokens": 0,
+          "cost": 1.4028e-05
+        },
+        "id": "gen-dec-1792212858-AahORAnTRBpklqrSJQej",
+        "provider": "PrimeIntellect"
+      },
+      "usage": {
+        "input_tokens": 334,
+        "output_tokens": 0,
+        "cost": 1.4028e-05
+      },
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/cloudflare-clef-text.jsonl",
+      "passed": true
+    },
+    {
+      "model": "cloudflare/clef",
+      "case": "structured",
+      "exitCode": 0,
+      "durationMs": 735,
+      "response": {
+        "model": "cloudflare/clef",
+        "answers": {
+          "active": {
+            "type": "noul",
+            "noul": 0.9961
+          },
+          "plan": {
+            "type": "choice",
+            "choice": "pro",
+            "probabilities": {
+              "free": 0.0074,
+              "pro": 0.9926
+            },
+            "confidence": 0.9852
+          }
+        },
+        "usage": {
+          "input_tokens": 228,
+          "output_tokens": 0,
+          "cost": 9.576e-06
+        },
+        "id": "gen-dec-1792212859-B6IMkFXiDyYvps5awyXx",
+        "provider": "PrimeIntellect"
+      },
+      "usage": {
+        "input_tokens": 228,
+        "output_tokens": 0,
+        "cost": 9.576e-06
+      },
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/cloudflare-clef-structured.jsonl",
+      "passed": true
+    },
+    {
+      "model": "cloudflare/clef",
+      "case": "image",
+      "exitCode": 0,
+      "durationMs": 802,
+      "response": {
+        "model": "cloudflare/clef",
+        "answers": {
+          "color": {
+            "type": "choice",
+            "choice": "red",
+            "probabilities": {
+              "red": 0.9944,
+              "green": 0.0029,
+              "blue": 0.0027
+            },
+            "confidence": 0.9834
+          },
+          "red": {
+            "type": "noul",
+            "noul": 0.991
+          }
+        },
+        "usage": {
+          "input_tokens": 337,
+          "output_tokens": 0,
+          "cost": 8.088e-05
+        },
+        "id": "gen-dec-1792212859-BGGg6z8K6s24YzpEzLXx",
+        "provider": "Cloudflare"
+      },
+      "usage": {
+        "input_tokens": 337,
+        "output_tokens": 0,
+        "cost": 8.088e-05
+      },
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/cloudflare-clef-image.jsonl",
+      "passed": true
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash -> typesafe/jev-1.14",
+      "case": "parent-agent",
+      "exitCode": 0,
+      "durationMs": 3362,
+      "eventsPath": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live/parent-agent.jsonl",
+      "passed": true
+    }
+  ],
+  "sdk": "github.com/OpenRouterTeam/go-sdk v0.9.59",
+  "verifiedAt": "2026-10-17T04:54:06Z",
+  "summary": {
+    "decisions": 10,
+    "modelCalls": 2,
+    "totalUsageCost": "0.001191550",
+    "resultCount": 10,
+    "allPassed": true,
+    "decisionCost": "0.000188626",
+    "parentModelCost": "0.001002924",
+    "artifacts": "/home/agent/.cache/noe-qjs-repl/noe-decision-1bv69irw/live",
+    "registryFiles": [],
+    "parentObservation": {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "phase": "run_js",
+      "status": "running"
+    },
+    "parentFinalAnswer": "The decision chose **payments** (confidence 1.0), so the **Payments/Checkout team** should handle the issue: \"Checkout fails after payment.\""
+  }
+}

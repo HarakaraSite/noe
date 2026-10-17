@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -33,29 +32,36 @@ type HTTPClient interface {
 // NOE_OPENROUTER_API_KEY_FILE, then the XDG/default config location. KeyFile is
 // read on the first Generate call, never during construction.
 type Options struct {
+	ConfigFile string
+	UserAgent  string
+	Profile    *Definition
 	KeyFile    string
 	BaseURL    string
 	HTTPClient HTTPClient
+	// DecisionServerURL is an origin (or gateway prefix), not the Chat base URL.
+	DecisionServerURL string
 }
 
 // OpenRouter implements Provider using OpenRouter's official Go SDK.
 type OpenRouter struct {
-	client   *openrouter.OpenRouter
-	keyFile  string
-	readFile func(string) ([]byte, error)
-
-	keyMu sync.Mutex
-	key   string
+	apiKeyFile
+	profile           Definition
+	client            *openrouter.OpenRouter
+	decisionServerURL string
 }
 
 // NewOpenRouter constructs an adapter without reading credentials or making a
 // network request.
 func NewOpenRouter(options Options) *OpenRouter {
+	profile := Definition{API: "chat-completions", Path: "/chat/completions", SessionField: "session_id", ReasoningField: "reasoning", EffortField: "reasoning.effort"}
+	if options.Profile != nil {
+		profile = *options.Profile
+	}
 	keyFile := options.KeyFile
-	if keyFile == "" {
+	if keyFile == "" && options.Profile == nil {
 		keyFile = os.Getenv(DefaultKeyFileEnv)
 	}
-	if keyFile == "" {
+	if keyFile == "" && options.Profile == nil {
 		keyFile = defaultKeyFile()
 	}
 	baseURL := options.BaseURL
@@ -67,11 +73,17 @@ func NewOpenRouter(options Options) *OpenRouter {
 		// No http.Client.Timeout: Generate is bounded by its caller's context.
 		httpClient = &http.Client{}
 	}
-	p := &OpenRouter{keyFile: keyFile, readFile: os.ReadFile}
+	decisionServerURL := options.DecisionServerURL
+	if decisionServerURL == "" {
+		decisionServerURL = strings.TrimSuffix(strings.TrimRight(baseURL, "/"), "/api/v1")
+	}
+	profile.BaseURL = baseURL
+	p := &OpenRouter{profile: profile, apiKeyFile: apiKeyFile{keyFile: keyFile, readFile: os.ReadFile}, decisionServerURL: decisionServerURL}
+	httpClient = &configuredHTTPClient{client: httpClient, profile: profile}
 	noRetries := retry.Config{Strategy: "none"}
 	p.client = openrouter.New(
 		openrouter.WithServerURL(baseURL),
-		openrouter.WithClient(&observedHTTPClient{client: httpClient}),
+		openrouter.WithClient(&decisionHTTPClient{client: &observedHTTPClient{client: httpClient}}),
 		openrouter.WithSecuritySource(p.securitySource),
 		openrouter.WithRetryConfig(noRetries),
 	)
@@ -101,32 +113,14 @@ func (p *OpenRouter) securitySource(ctx context.Context) (components.Security, e
 	return components.Security{APIKey: &key}, nil
 }
 
-func (p *OpenRouter) apiKey() (string, error) {
-	p.keyMu.Lock()
-	defer p.keyMu.Unlock()
-	if p.key != "" {
-		return p.key, nil
-	}
-	if p.keyFile == "" {
-		return "", errors.New("credential path is not configured")
-	}
-	contents, err := p.readFile(p.keyFile)
-	if err != nil {
-		return "", err
-	}
-	key := strings.TrimSpace(string(contents))
-	if key == "" {
-		return "", errors.New("credential file is empty")
-	}
-	p.key = key
-	return p.key, nil
-}
-
 type callContextKey struct{}
 
 type callState struct {
-	requestBody []byte
-	observe     func(StreamEvent)
+	requestBody    []byte
+	observe        func(StreamEvent)
+	runID          string
+	responseAPI    string
+	reasoningField string
 
 	mu     sync.Mutex
 	status int
@@ -180,6 +174,11 @@ func (c *observedHTTPClient) Do(request *http.Request) (*http.Response, error) {
 		}
 		body := newObservedBody(source)
 		body.observe = state.observe
+		if state.responseAPI == "responses" {
+			body.extract = responsesObservations
+		} else if state.reasoningField != "" {
+			body.extract = func(raw json.RawMessage) []StreamEvent { return streamObservationsForField(raw, state.reasoningField) }
+		}
 		state.setResponse(response.StatusCode, body)
 		response.Body = body
 	}
@@ -257,11 +256,14 @@ func (p *OpenRouter) Generate(ctx context.Context, request Request) (Response, e
 	if err := cancellationError(ctx); err != nil {
 		return Response{}, err
 	}
-	payload, err := makeChatRequestBody(request)
+	if p.profile.API == "responses" {
+		return p.generateResponses(ctx, request)
+	}
+	payload, err := p.chatRequestBody(request)
 	if err != nil {
 		return Response{}, err
 	}
-	state := &callState{requestBody: payload, observe: request.Observe}
+	state := &callState{requestBody: payload, observe: request.Observe, runID: request.RunID, reasoningField: p.profile.ReasoningField}
 	ctx = context.WithValue(ctx, callContextKey{}, state)
 	defer state.closeBody()
 
@@ -309,6 +311,7 @@ func (p *OpenRouter) Generate(ctx context.Context, request Request) (Response, e
 		return Response{}, providerError(ErrorStream, 0, nil)
 	}
 	accumulator := newStreamAccumulator()
+	accumulator.reasoningField = p.profile.ReasoningField
 	if err := accumulator.consume(events); err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}

@@ -90,6 +90,9 @@ run_agent({...config,name:'parent-B'},'B')
 		if kind == "run_js.started" && !strings.HasPrefix(record["text"].(string), "// ") {
 			t.Fatalf("comment missing: %+v", record)
 		}
+		if kind == "run_js.started" && record["code"] == nil {
+			t.Fatalf("generated source missing: %+v", record)
+		}
 		if kind == "thinking" || kind == "thinking_summary" || kind == "message_delta" {
 			if record["requestId"] == nil || record["runId"] == nil {
 				t.Fatalf("uncorrelated delta: %+v", record)
@@ -113,8 +116,8 @@ run_agent({...config,name:'parent-B'},'B')
 	if tools["delegate"]["success"] != true || tools["fails"]["success"] != false || tools["fails"]["exitCode"] != float64(7) {
 		t.Fatalf("tools: %+v", tools)
 	}
-	if strings.Contains(result.stdout, "agent-fixture-secret") || strings.Contains(result.stdout, "console.error('tool failure')") {
-		t.Fatal("credentials or generated source leaked into events")
+	if strings.Contains(result.stdout, "agent-fixture-secret") {
+		t.Fatal("credentials leaked into events")
 	}
 }
 

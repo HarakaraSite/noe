@@ -17,6 +17,7 @@ import (
 type observedBody struct {
 	source  io.ReadCloser
 	observe func(StreamEvent)
+	extract func(json.RawMessage) []StreamEvent
 
 	mu        sync.Mutex
 	line      []byte
@@ -47,8 +48,12 @@ func (b *observedBody) Read(p []byte) (int, error) {
 	}
 	b.mu.Unlock()
 	if b.observe != nil {
+		extract := b.extract
+		if extract == nil {
+			extract = streamObservations
+		}
 		for _, event := range completed {
-			for _, observation := range streamObservations(event) {
+			for _, observation := range extract(event) {
 				b.observe(observation)
 			}
 		}
@@ -146,6 +151,7 @@ func streamObservations(raw json.RawMessage) []StreamEvent {
 			Index int `json:"index"`
 			Delta struct {
 				Reasoning        json.RawMessage `json:"reasoning"`
+				ReasoningContent json.RawMessage `json:"reasoning_content"`
 				ReasoningDetails json.RawMessage `json:"reasoning_details"`
 				Content          json.RawMessage `json:"content"`
 			} `json:"delta"`
@@ -161,6 +167,9 @@ func streamObservations(raw json.RawMessage) []StreamEvent {
 			continue
 		}
 		reasoning, hasReasoning := streamText(choice.Delta.Reasoning)
+		if !hasReasoning || reasoning == "" {
+			reasoning, hasReasoning = streamText(choice.Delta.ReasoningContent)
+		}
 		type detailObservation struct {
 			event StreamEvent
 			text  bool
@@ -205,6 +214,33 @@ func streamObservations(raw json.RawMessage) []StreamEvent {
 	return observations
 }
 
+func streamObservationsForField(raw json.RawMessage, field string) []StreamEvent {
+	if field == "reasoning" || field == "reasoning_content" {
+		return streamObservations(raw)
+	}
+	var chunk map[string]json.RawMessage
+	if json.Unmarshal(raw, &chunk) != nil {
+		return nil
+	}
+	var choices []map[string]json.RawMessage
+	if json.Unmarshal(chunk["choices"], &choices) != nil {
+		return nil
+	}
+	for _, choice := range choices {
+		var delta map[string]json.RawMessage
+		if json.Unmarshal(choice["delta"], &delta) != nil {
+			continue
+		}
+		if value, ok := delta[field]; ok {
+			delta["reasoning"] = value
+			choice["delta"], _ = json.Marshal(delta)
+		}
+	}
+	chunk["choices"], _ = json.Marshal(choices)
+	encoded, _ := json.Marshal(chunk)
+	return streamObservations(encoded)
+}
+
 func streamText(raw json.RawMessage) (string, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return "", false
@@ -217,20 +253,21 @@ func streamText(raw json.RawMessage) (string, bool) {
 }
 
 type streamAccumulator struct {
-	contentSeen   bool
-	contentText   bool
-	content       strings.Builder
-	reasoning     strings.Builder
-	reasoningSet  bool
-	refusal       strings.Builder
-	refusalSet    bool
-	role          json.RawMessage
-	other         map[string]json.RawMessage
-	reasonDetails []*reasoningDetailAccumulator
-	reasonByKey   map[string]*reasoningDetailAccumulator
-	toolCalls     map[int]*toolCallAccumulator
-	finishReason  string
-	usage         json.RawMessage
+	reasoningField string
+	contentSeen    bool
+	contentText    bool
+	content        strings.Builder
+	reasoning      strings.Builder
+	reasoningSet   bool
+	refusal        strings.Builder
+	refusalSet     bool
+	role           json.RawMessage
+	other          map[string]json.RawMessage
+	reasonDetails  []*reasoningDetailAccumulator
+	reasonByKey    map[string]*reasoningDetailAccumulator
+	toolCalls      map[int]*toolCallAccumulator
+	finishReason   string
+	usage          json.RawMessage
 }
 
 type toolCallAccumulator struct {
@@ -293,6 +330,12 @@ func (a *streamAccumulator) consume(events []json.RawMessage) error {
 				return fmt.Errorf("invalid assistant delta")
 			}
 			for key, value := range delta {
+				if a.reasoningField != "" && key == a.reasoningField {
+					key = "reasoning"
+				} else if a.reasoningField != "" && (key == "reasoning" || key == "reasoning_content") {
+					a.other[key] = append(json.RawMessage(nil), value...)
+					continue
+				}
 				switch key {
 				case "role":
 					a.role = append(a.role[:0], value...)
@@ -307,7 +350,7 @@ func (a *streamAccumulator) consume(events []json.RawMessage) error {
 					}
 					a.contentText = true
 					a.content.WriteString(part)
-				case "reasoning":
+				case "reasoning", "reasoning_content":
 					a.reasoningSet = true
 					var part string
 					if string(value) != "null" {
@@ -486,7 +529,11 @@ func (a *streamAccumulator) response() (Response, error) {
 	}
 	if a.reasoningSet {
 		encoded, _ := json.Marshal(a.reasoning.String())
-		message["reasoning"] = encoded
+		field := a.reasoningField
+		if field == "" {
+			field = "reasoning"
+		}
+		message[field] = encoded
 	}
 	if a.refusalSet {
 		encoded, _ := json.Marshal(a.refusal.String())

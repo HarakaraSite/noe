@@ -1,0 +1,134 @@
+{
+  "sdk": "github.com/OpenRouterTeam/go-sdk v0.9.59",
+  "baseURL": "https://opencode.ai/inference/go/openai/v1",
+  "cases": [
+    {
+      "name": "chat-sdk",
+      "passed": true,
+      "durationMs": 1619,
+      "requests": [
+        {
+          "status": 200,
+          "url": "https://opencode.ai/inference/go/openai/v1/chat/completions",
+          "userAgent": "noe/v1.2.0",
+          "session": "noe-opencode-sdk-3g1e5kpn-chat-sdk",
+          "model": "deepseek-v4.1-flash",
+          "usage": {
+            "prompt_tokens": 49,
+            "completion_tokens": 59,
+            "total_tokens": 108,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "chat-noe-tool-cycle",
+      "passed": true,
+      "durationMs": 3025,
+      "requests": [
+        {
+          "status": 200,
+          "url": "https://opencode.ai/inference/go/openai/v1/chat/completions",
+          "userAgent": "noe/v1.2.0",
+          "session": "noe-opencode-sdk-3g1e5kpn-chat-noe-tool-cycle",
+          "model": "deepseek-v4.1-flash",
+          "usage": {
+            "prompt_tokens": 342,
+            "completion_tokens": 72,
+            "total_tokens": 414,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 26
+            }
+          }
+        },
+        {
+          "status": 200,
+          "url": "https://opencode.ai/inference/go/openai/v1/chat/completions",
+          "userAgent": "noe/v1.2.0",
+          "session": "noe-opencode-sdk-3g1e5kpn-chat-noe-tool-cycle",
+          "model": "deepseek-v4.1-flash",
+          "usage": {
+            "prompt_tokens": 420,
+            "completion_tokens": 2,
+            "total_tokens": 422,
+            "prompt_tokens_details": {
+              "cached_tokens": 256
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "responses-sdk",
+      "passed": true,
+      "durationMs": 1438,
+      "requests": [
+        {
+          "status": 200,
+          "url": "https://opencode.ai/inference/go/openai/v1/responses",
+          "userAgent": "noe/v1.2.0",
+          "session": "noe-opencode-sdk-3g1e5kpn-responses-sdk",
+          "model": "gpt-6-luna",
+          "usage": {
+            "input_tokens": 27,
+            "output_tokens": 13,
+            "total_tokens": 40,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0
+            },
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "responses-sdk-stream",
+      "passed": true,
+      "durationMs": 904,
+      "requests": [
+        {
+          "status": 200,
+          "url": "https://opencode.ai/inference/go/openai/v1/responses",
+          "userAgent": "noe/v1.2.0",
+          "session": "noe-opencode-sdk-3g1e5kpn-responses-sdk-stream",
+          "model": "gpt-6-luna",
+          "usage": {
+            "input_tokens": 27,
+            "output_tokens": 13,
+            "total_tokens": 40,
+            "input_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0
+            },
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "requestCount": 5,
+  "reasoningReplay": {
+    "field": "reasoning_content",
+    "fragmentCount": 10,
+    "rawCharacters": 101,
+    "assembledCharacters": 0,
+    "complete": false
+  }
+}

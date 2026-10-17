@@ -22,6 +22,9 @@
 | [http-server.js](http-server.js) | healthとJSON echoのHTTPサーバー |
 | [sleep-demo.js](sleep-demo.js) | 非同期の待機を使った定期表示 |
 | [repl-demo.js](repl-demo.js) | REPLへ1行ずつ貼り付けて試す計算例 |
+| [agent-route-model.js](agent-route-model.js) | カタログの候補からJevが選び、そのモデルで親agentを起動 |
+| [agent-openai.js](agent-openai.js) | ChatGPTサインインでOpenAI Sol/LunaのResponses agentを実行 |
+| [agent-opencode-go.js](agent-opencode-go.js) | OpenCode GoのChat / Responsesモデルを選んでagentを実行 |
 | [agent-summary.js](agent-summary.js) | `run_agent`で指定ファイルを読み、snapshotから要約を表示 |
 | [agent-parallel.js](agent-parallel.js) | `spawn_agent`で二つの子agentを起動・観察し、親agentが結果をまとめる |
 | [agent-control.js](agent-control.js) | keepAliveのroot agentを別terminalからsteer・queue・interrupt |
@@ -30,6 +33,12 @@
 `lib/`は例で使うモジュール、`data/`はサンプル入力です。agentの並行例は[左のJSON](data/agent/left.json)と[右のJSON](data/agent/right.json)を使います。
 
 ## OpenRouter agent
+
+OpenAIは`./noe run --observe examples/agent-openai.js gpt-6-luna`、または`gpt-6.1-sol`で実行します。先に[ChatGPT認証ヘルパー](../docs/openai.md)で登録するか、既存のcredential recordを用意します。
+
+`./noe run --observe examples/agent-route-model.js openrouter 'README.mdを3点に要約して'`は、カタログ取得・Jevによるモデル選択・親agentの起動を組み合わせた例です。候補の説明は[外部JSONで上書き](../docs/model-catalog.md)できます。
+
+OpenCode Goは`NOE_OPENCODE_GO_API_KEY_FILE=/path/to/key ./noe run examples/agent-opencode-go.js`で実行できます。第二のモデル例は`examples/agent-opencode-go.js gpt-6-luna`です。[組込みデフォルトと外部上書き](../docs/providers.md)も参照してください。
 
 agent例はOpenRouterへモデル要求を送ります。APIキーをテキストファイルに保存して、ファイルのpathを設定します。key valueをscriptやshell commandへ直接記述しません。
 
@@ -58,6 +67,17 @@ NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 ```
 
 `tail -f agent-trace.log`で実行状態を確認できます。traceは状態・使用量などのメタデータで、生成JS本文やtoolの出力を含みません。標準エラーには通常の診断も入りえます。
+
+## 意思決定モデル
+
+`decision-classify.js`は一つの文章をチーム別に分類し、providerの応答JSON全体を表示します。第一引数が判断対象、第二引数がモデルで、モデル省略時は`typesafe/jev-1.14`を使います。
+
+```sh
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/decision-classify.js 'Checkout failed.' typesafe/jev-1.14
+```
+
+モデルへ渡すtoolを増やさず、agentの`run_js`からも`await import("noe:decision")`で利用できます。並列化、画像part、REPL、失敗・取消し、観察は[意思決定APIガイド](../docs/decision.md)を参照してください。
 
 ## Live agent control
 

@@ -122,7 +122,6 @@ function finalAnswer(content) {
 function normalizeConfig(config) {
   if (!isRecord(config)) throw new TypeError("task config must be an object");
   const provider = requireString(config.provider === undefined ? inherited.provider : config.provider, "provider");
-  if (provider !== "openrouter") throw new TypeError("provider must be openrouter");
   const model = requireString(config.model === undefined ? inherited.model : config.model, "model");
   const name = config.name === undefined ? "agent" : requireString(config.name, "name");
   const system = config.system === undefined ? "" : requireString(config.system, "system", true);

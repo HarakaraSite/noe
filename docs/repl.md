@@ -27,7 +27,21 @@
 
 式の結果を表示し、`undefined`は省略します。文字列の結果には引用符が付きます。通常のJSエラーや未処理のPromise rejectionは標準エラーに表示して続行し、実行済みの変更を巻き戻しません。
 
+## 意思決定モデル
+
+`noe:decision`もdynamic importで呼べます。結果のJSON object全体を受け取り、次の入力で使えます。認証はOpenRouter agentと共通です。
+
+```text
+> const dm = await import("noe:decision")
+> const d = await dm.decide({provider:"openrouter",model:"typesafe/jev-1.14",state:"Checkout failed.",questions:{issue:{type:"noul",instructions:"Is this a payment issue?"}}})
+> d.answers.issue
+```
+
+引数・画像part・取消し・観察の契約は[意思決定APIガイド](decision.md)を参照してください。
+
 ## OpenRouter agent
+
+OpenCode Goも同じ`run_agent`で呼べます。`provider:"opencode-go"`とprefixなしのmodel IDを指定し、起動時に`NOE_OPENCODE_GO_API_KEY_FILE`を設定します。API形式と外部設定は[provider設定](providers.md)を参照してください。
 
 起動時にAPIキーのファイルパスを設定します。APIキーそのものをコマンドへ書かず、ファイルへ保存してください。
 

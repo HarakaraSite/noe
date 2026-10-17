@@ -18,7 +18,6 @@ function requireLimit(value, label) {
 function configFor(options) {
   if (!isRecord(options)) throw new TypeError("agent config must be an object");
   const provider = requireString(options.provider === undefined ? inherited.provider : options.provider, "provider");
-  if (provider !== "openrouter") throw new TypeError("provider must be openrouter");
   const model = requireString(options.model === undefined ? inherited.model : options.model, "model");
   const effort = options.effort === undefined ? inherited.effort : options.effort;
   if (!["auto", "none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(effort)) {
@@ -36,6 +35,21 @@ function configFor(options) {
 }
 async function rpc(method, payload) {
   return JSON.parse(await request(method, JSON.stringify(payload)));
+}
+
+// Read the host's merged model catalog, without contacting a model provider.
+export async function list_models(options = {}) {
+  if (!isRecord(options)) throw new TypeError("model query must be an object");
+  for (const key of Object.keys(options)) {
+    if (key !== "provider" && key !== "kind") throw new TypeError("unknown model query option: " + key);
+  }
+  const query = {};
+  if (options.provider !== undefined) query.provider = requireString(options.provider, "provider");
+  if (options.kind !== undefined) {
+    if (options.kind !== "agent" && options.kind !== "decision") throw new TypeError("kind must be agent or decision");
+    query.kind = options.kind;
+  }
+  return rpc("list_models", query);
 }
 
 // Launch acceptance is independent of the first model request. A local host

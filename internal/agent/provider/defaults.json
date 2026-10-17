@@ -1,0 +1,210 @@
+{
+  "providers": {
+    "openrouter": {
+      "api": "chat-completions",
+      "baseURL": "https://openrouter.ai/api/v1",
+      "path": "/chat/completions",
+      "keyFile": "${configDir}/credentials/openrouter-api-key",
+      "keyFileEnv": "NOE_OPENROUTER_API_KEY_FILE",
+      "sessionField": "session_id",
+      "reasoningField": "reasoning",
+      "effortField": "reasoning.effort",
+      "decisionServerURL": "https://openrouter.ai",
+      "models": {
+        "deepseek/deepseek-v4.1-flash": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Candidate for coding, terminal work, long-running multi-step tasks, and long-context analysis. Override this guidance with your own evaluations.",
+            "tags": [
+              "coding",
+              "multi-step",
+              "long-context"
+            ]
+          }
+        },
+        "typesafe/jev-1.14": {
+          "catalog": {
+            "kind": "decision",
+            "description": "One-shot structured classification and routing through the Decisions API.",
+            "tags": [
+              "classification",
+              "routing"
+            ]
+          }
+        },
+        "perplexity/pplx-decider-v1.2": {
+          "catalog": {
+            "kind": "decision",
+            "description": "One-shot structured classification and routing through the Decisions API.",
+            "tags": [
+              "classification",
+              "routing"
+            ]
+          }
+        },
+        "cloudflare/clef": {
+          "catalog": {
+            "kind": "decision",
+            "description": "One-shot structured classification and routing through the Decisions API.",
+            "tags": [
+              "classification",
+              "routing"
+            ]
+          }
+        },
+        "openai/gpt-6-luna": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Candidate for high-volume, latency-sensitive, and lightweight agent tasks. Override this guidance with your own evaluations.",
+            "tags": [
+              "lightweight",
+              "latency-sensitive"
+            ]
+          }
+        }
+      }
+    },
+    "opencode-go": {
+      "api": "chat-completions",
+      "baseURL": "https://opencode.ai/inference/go/openai/v1",
+      "path": "/chat/completions",
+      "keyFile": "${configDir}/credentials/opencode-go-api-key",
+      "keyFileEnv": "NOE_OPENCODE_GO_API_KEY_FILE",
+      "headers": {
+        "User-Agent": "${userAgent}"
+      },
+      "sessionHeader": "x-opencode-session",
+      "reasoningField": "reasoning_content",
+      "effortField": "reasoning_effort",
+      "models": {
+        "gpt-6-luna": {
+          "api": "responses",
+          "path": "/responses",
+          "effortField": "reasoning.effort",
+          "catalog": {
+            "kind": "agent",
+            "description": "Candidate for high-volume, latency-sensitive, and lightweight agent tasks. Override this guidance with your own evaluations.",
+            "tags": [
+              "lightweight",
+              "latency-sensitive"
+            ]
+          }
+        },
+        "gpt-5.6-luna": {
+          "api": "responses",
+          "path": "/responses",
+          "effortField": "reasoning.effort"
+        },
+        "grok-4.7": {
+          "api": "responses",
+          "path": "/responses",
+          "effortField": "reasoning.effort"
+        },
+        "grok-4.6": {
+          "api": "responses",
+          "path": "/responses",
+          "effortField": "reasoning.effort"
+        },
+        "muse-spark-1.3-contributor": {
+          "api": "responses",
+          "path": "/responses",
+          "effortField": "reasoning.effort"
+        },
+        "muse-spark-1.2-contributor": {
+          "api": "responses",
+          "path": "/responses",
+          "effortField": "reasoning.effort"
+        },
+        "deepseek-v4.1-flash": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Candidate for coding, terminal work, long-running multi-step tasks, and long-context analysis. Override this guidance with your own evaluations.",
+            "tags": [
+              "coding",
+              "multi-step",
+              "long-context"
+            ]
+          }
+        }
+      }
+    },
+    "openai-chatgpt": {
+      "sdk": "openai",
+      "auth": "chatgpt-oauth",
+      "api": "responses",
+      "baseURL": "https://api.openai.com/v1",
+      "path": "/responses",
+      "headers": {
+        "User-Agent": "${userAgent}"
+      },
+      "sessionField": "prompt_cache_key",
+      "effortField": "reasoning.effort",
+      "models": {
+        "gpt-6.1-sol": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Candidate for complex coding and multi-step agent work.",
+            "tags": [
+              "coding"
+            ]
+          }
+        },
+        "gpt-6-luna": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Candidate for lightweight and latency-sensitive agent work.",
+            "tags": [
+              "lightweight"
+            ]
+          }
+        }
+      },
+      "oauthFile": "${configDir}/credentials/openai-chatgpt.json",
+      "oauthFileEnv": "NOE_OPENAI_CHATGPT_CREDENTIALS_FILE",
+      "parameters": {
+        "reasoning": {
+          "summary": "auto"
+        }
+      }
+    },
+    "openai-api": {
+      "sdk": "openai",
+      "auth": "api-key",
+      "api": "responses",
+      "baseURL": "https://api.openai.com/v1",
+      "path": "/responses",
+      "headers": {
+        "User-Agent": "${userAgent}"
+      },
+      "sessionField": "prompt_cache_key",
+      "effortField": "reasoning.effort",
+      "models": {
+        "gpt-6.1-sol": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Candidate for complex coding and multi-step agent work.",
+            "tags": [
+              "coding"
+            ]
+          }
+        },
+        "gpt-6-luna": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Candidate for lightweight and latency-sensitive agent work.",
+            "tags": [
+              "lightweight"
+            ]
+          }
+        }
+      },
+      "keyFile": "${configDir}/credentials/openai-api-key",
+      "keyFileEnv": "NOE_OPENAI_API_KEY_FILE",
+      "parameters": {
+        "reasoning": {
+          "summary": "auto"
+        }
+      }
+    }
+  }
+}

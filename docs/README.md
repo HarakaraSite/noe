@@ -6,6 +6,12 @@
 
 ## 現在のAPIと移行
 
+[OpenAIガイド](openai.md)では、公式SDKのResponses・ChatGPTサインイン・APIキー・外部JS認証ヘルパー・ローカル互換接続を説明しています。[実装・検証記録](openai-implementation.md)も参照してください。
+
+[モデルカタログ](model-catalog.md)では、JSONによる候補の管理・外部上書き・`list_models`・Jevによる起動前選択を説明しています。
+
+[provider設定](providers.md)では、組込みデフォルトと外部JSONの上書き、OpenRouter・OpenCode Go、モデルごとのChat/Responses経路を説明しています。
+
 実行中の観察は[観察の入口](observe.md)と[JSONLイベントのガイド](events.md)を参照してください。`run`・`eval`・`repl`共通の`--events`で記録し、人間はGoの`noe observe`でinstance状態とtaskを読みやすく表示、親はJSの`observe_agent`でlive snapshotまたは保存ログの状態・差分・結果を取得できます。
 
 JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`process`・`timers/promises`とグローバルの`fetch`・`serve`などは、go-quickjs標準ライブラリへ統一しました。NOE固有の機能としてCLI・REPLの操作と、インクリメント13で追加した`noe:agent`モジュールがあります。[移行表](api.md#旧apiからの移行)と[インクリメント12の記録](increment-12.md)、[agent API](api.md)を参照してください。
@@ -36,11 +42,15 @@ agentの共通インストラクションは[`internal/agent/instructions.md`](.
 
 ## 今後の候補
 
-[起動と待受](agent-lifecycle-plan.md)の実装・検証・コードレビューが完了しました。結果とレビュー指摘の採否は[実装・検証記録](agent-lifecycle-implementation.md)を参照してください。公開APIは破壊的に変更し、互換aliasはありません。steer・明示的なinterrupt・人間用操作CLIも[実行中の操作計画](agent-control-plan.md)に沿って実装・総合検証・レビューを完了しました（[実装・検証記録](agent-control-implementation.md)）。
+[意思決定API](decision.md)の実装・テスト・コードレビューを完了しました。`noe:decision`の`decide`を通常agentと別の入口とし、既存OpenRouter SDK・認証・要求管理を共用します。[実装記録](decision-implementation.md)と[3モデルの実接続確認](decision-openrouter-validation.md)に結果を記録しています。
+
+[起動と待受](agent-lifecycle-plan.md)の実装・検証・コードレビューが完了しました。結果とレビュー指摘の採否は[実装・検証記録](agent-lifecycle-implementation.md)を参照してください。公開APIは破壊的に変更し、互換aliasはありません。steer・明示的なinterrupt・人間用操作CLIも[実行中の操作計画](agent-control-plan.md)に沿って実装・総合検証・レビューを完了しました（[実装・検証記録](agent-control-implementation.md)、[OpenRouter実接続確認](agent-control-openrouter-validation.md)）。
 
 [次の機能候補](future-candidates.md)には、Web検索の認証ラッパー、Workerからのagent利用、呼び出し元終了後も続く独立agent、実行コンテキスト圧縮、Jevなどの意思決定モデル、REPLとqjsの比較を記録しています。ライフサイクル作業で扱う親子agentの起動・観察・queue、推論エフォート、ログ観察の進捗は[実装・検証記録](agent-lifecycle-implementation.md)にあります。control操作の仕様と完了結果は[実行中の操作計画](agent-control-plan.md)と[実装・検証記録](agent-control-implementation.md)を参照してください。候補文書には設計経緯も残しています。v1.0.0時点の候補として、import mapとHTTP URLからのimportは未対応です。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。
 
 ## ビルドと検証
+
+[OpenRouter SDK → OpenCode Goの接続スパイク](opencode-go-sdk-spike.md)では、既存SDKでChat・Responsesの実接続を確認しています。本体にはChat・Responses対応を追加済みです。[provider設定](providers.md)と[本体の検証記録](provider-config-validation.md)を参照してください。
 
 Go 1.27.2以降を使います。現在の検証環境はLinux amd64です。通常のビルドはCGO不要で、race detectorの実行にはCツールチェーンが必要です。以下はリポジトリのルートで実行します。
 
@@ -66,4 +76,4 @@ E2Eは実際のCLIを別プロセスから起動し、出力・終了コード�
 
 参照資料・ソースを置く`_refs/`はローカル専用の未追跡ディレクトリです。ビルド・テストの依存には含めません。
 
-npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。Web APIとNode形式APIの互換範囲は固定したgo-quickjs標準ライブラリに従います。TypeScript対応は後から追加する予定です。
+npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。Web APIとNode形式APIの互換範囲は固定したgo-quickjs標準ライブラリに従います。現在はJavaScriptを対象としています。

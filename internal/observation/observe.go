@@ -536,7 +536,7 @@ func projectEvent(event events.Event, q Query) events.Event {
 	switch typeName {
 	case "agent.started", "agent.completed", "agent.failed", "agent.cancelled",
 		"agent.message", "agent.final", "model.started", "model.finished", "model.failed",
-		"run_js.started", "run_js.finished":
+		"run_js.started", "run_js.finished", "decision.started", "decision.completed", "decision.failed", "decision.cancelled":
 		return cloneEvent(event)
 	case "thinking", "thinking_summary":
 		if q.IncludeThinking {

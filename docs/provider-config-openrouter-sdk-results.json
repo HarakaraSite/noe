@@ -1,0 +1,88 @@
+{
+  "verifiedAt": "2026-10-17",
+  "sdk": "github.com/OpenRouterTeam/go-sdk v0.9.59",
+  "scope": [
+    "chat-completions",
+    "responses"
+  ],
+  "requestCount": 6,
+  "results": [
+    {
+      "case": "chat",
+      "provider": "opencode-go",
+      "model": "deepseek-v4.1-flash",
+      "runId": "3c67d0721343356b47548f88e2b0b6a529fa49bb412b35ac",
+      "answer": "437",
+      "durationMs": 2848,
+      "modelCalls": 2,
+      "jsExecutions": 1,
+      "thinkingEvents": 0,
+      "usage": [
+        {
+          "promptTokens": 2254,
+          "completionTokens": 58,
+          "totalTokens": 2312,
+          "cachedTokens": 0
+        },
+        {
+          "promptTokens": 2344,
+          "completionTokens": 2,
+          "totalTokens": 2346,
+          "cachedTokens": 2176
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "responses",
+      "provider": "opencode-go",
+      "model": "gpt-6-luna",
+      "runId": "5c5556158c08e2fce833d5813970929a062891119f81fa25",
+      "answer": "493",
+      "durationMs": 2456,
+      "modelCalls": 2,
+      "jsExecutions": 1,
+      "thinkingEvents": 0,
+      "usage": [
+        {
+          "totalTokens": 1963
+        },
+        {
+          "totalTokens": 1996
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "responses-high",
+      "provider": "opencode-go",
+      "model": "gpt-6-luna",
+      "effort": "high",
+      "runId": "40077ab531facdd7a8841c3e5e81effa3a1e71c82c284e38",
+      "answer": "1147",
+      "durationMs": 2458,
+      "modelCalls": 2,
+      "jsExecutions": 1,
+      "thinkingEvents": 0,
+      "usage": [
+        {
+          "promptTokens": 1931,
+          "completionTokens": 34,
+          "totalTokens": 1965,
+          "cachedTokens": 0
+        },
+        {
+          "promptTokens": 1994,
+          "completionTokens": 6,
+          "totalTokens": 2000,
+          "cachedTokens": 1928
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "notes": [
+    "Initial auto Responses run predated native input/output usage normalization; totalTokens was retained. The high-effort run includes normalized input/output/cache counts.",
+    "No visible thinking events were returned by these small live tasks. Native encrypted reasoning replay and Chat reasoning fragments were validated with local fixtures."
+  ]
+}

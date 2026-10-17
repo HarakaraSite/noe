@@ -11,7 +11,7 @@ console.log("実行中…");
 const result = await run_agent({
   provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",
-  effort: "auto",
+  effort: "max",
   name: "try-agent",
   system: "必要な処理を自律的に実行し、日本語で回答してください。",
   cacheKey: "noe-try-agent-v1",

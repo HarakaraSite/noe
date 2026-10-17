@@ -1,8 +1,8 @@
-# NOE — No Opulence Engine
+# NOE — No Ordinary Engine
+
+Just JavaScript. Until you need an agent.
 
 A tiny JavaScript runtime written in pure Go.
-
-No bloat. Just scripts.
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
@@ -14,7 +14,7 @@ NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript
 
 The linked guides and development notes are currently in Japanese.
 
-[v1.2.0 release notes](docs/releases/v1.2.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.2.0)
+[v1.3.0 release notes](docs/releases/v1.3.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.0)
 
 ## Build and run
 
@@ -28,7 +28,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.2.0
+# noe v1.3.0
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -63,99 +63,169 @@ Print three times, one second apart, using asynchronous sleep:
 
 See the [examples](examples/README.md) for file transformation, report generation, and HTTP downloads.
 
-## OpenRouter agent
+## Autonomous agents
 
-NOE includes the `noe:agent` module, with OpenRouter as its current provider. An agent can use `run_js` to inspect files, run JavaScript and commands, revise failed work, and delegate tasks. The model loop and provider connection run under the same operating-system permissions as NOE.
+Import `noe:agent` from a script to start an agent. The agent calls `run_js` to read and write files, execute JavaScript and commands, repair failures, and delegate to children. It continues without interactive approval and returns its answer when finished. Credentials and provider connections are handled by Go; generated JavaScript runs with the same OS permissions as NOE.
+
+### Choose a provider and register credentials
+
+| `provider` | Example `model` | Default credential file under `~/.config/noe/credentials/` |
+| --- | --- | --- |
+| `opencode-go` | `deepseek-v4.1-flash`, `gpt-6-luna` | `opencode-go-api-key` (text) |
+| `openrouter` | `deepseek/deepseek-v4.1-flash`, `openai/gpt-6-luna` | `openrouter-api-key` (text) |
+| `openai-chatgpt` | `gpt-6.1-sol`, `gpt-6-luna` | `openai-chatgpt.json` (ChatGPT sign-in) |
+| `openai-api` | `gpt-6.1-sol`, `gpt-6-luna` | `openai-api-key` (text) |
+
+Put your API key in the corresponding text file. To use another location, set `NOE_OPENCODE_GO_API_KEY_FILE`, `NOE_OPENROUTER_API_KEY_FILE`, or `NOE_OPENAI_API_KEY_FILE`. For ChatGPT credentials, use `NOE_OPENAI_CHATGPT_CREDENTIALS_FILE`. When `XDG_CONFIG_HOME` is set, defaults use `$XDG_CONFIG_HOME/noe/` instead of `~/.config/noe/`. Credentials are read lazily on the first model request.
+
+For ChatGPT sign-in, install the external helper and run it with NOE:
+
+```sh
+mkdir -p ~/.config/noe
+cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
+./noe run ~/.config/noe/auth-chatgpt.js
+```
+
+Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.3.0 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.0/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
+
+### Run one task and receive its answer
+
+Save this as `task.js`:
 
 ```js
 import { run_agent } from "noe:agent";
 
 const snapshot = await run_agent({
-  provider: "openrouter",
-  model: "deepseek/deepseek-v4.1-flash",
+  provider: "opencode-go",
+  model: "deepseek-v4.1-flash",
   effort: "auto",
   name: "summary",
-  cacheKey: "readme-summary-v1",
-}, "Read README.md and write a concise summary to SUMMARY.md.");
-console.log(snapshot.lastResult?.answer);
+}, "Read README.md and summarize it in three points.");
+
+if (snapshot.lastResult?.state !== "completed") {
+  throw new Error(snapshot.lastResult?.error || snapshot.reason || "Agent failed");
+}
+console.log(snapshot.lastResult.answer);
 ```
 
-The public API has six functions: `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `steer_agent`, and `interrupt_agent`. `run_agent` waits for the agent to stop and returns a snapshot; the task answer is `snapshot.lastResult.answer`. A normal task failure is reported in that snapshot. `spawn_agent` returns an `agentId` after startup and the first task are accepted. Use `observe_agent({agentId})` to read its current state. Start an agent with `{keepAlive: true}` to accept more work through `queue_agent({agentId, instruction})`; each queued task gets a fresh conversation history.
+```sh
+./noe run task.js
+# Print the answer after completion
 
-`steer_agent({runId, instruction})` adds guidance to an active task before its next model decision without stopping the current model request or JavaScript. `interrupt_agent({runId})` cancels one task and its child work while preserving the keepAlive instance and its other queued tasks. `interrupt_agent({agentId})` stops the whole instance and its queued work. These operations return when accepted; observe the agent or its JSONL events for the outcome. A waiting agent remains owned by the current NOE run and is collected when its owner exits.
+./noe run --observe --events=agent.jsonl task.js
+# Show progress live and also save detailed JSONL
+```
 
-You can also control a running NOE process from another terminal:
+The root agent requires explicit `provider`, `model`, and `effort`. Switch providers by changing the first two fields together; model IDs can differ between providers. `effort: "auto"` leaves the effort to the provider/model. Other accepted values are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`; actual support depends on the selected model.
+
+`run_agent` waits until the agent instance stops and cleanup finishes. Normal task failures are returned in `snapshot.lastResult`, so check its state as above. Invalid input and startup acceptance failures reject the Promise. Optional settings include:
+
+| Setting | Meaning |
+| --- | --- |
+| `name` | Label in observations; defaults to `agent` |
+| `system` | Additional instructions fixed during each task; pass file contents here to use external instructions |
+| `maxSteps` | Maximum model calls per task; omitted or `0` means no NOE limit |
+| `maxTokens` | Output token limit per model request; omitted or `0` leaves it unspecified |
+| `cacheKey` | Stable cache/routing key; omitted uses the task's `runId`, and `""` omits the field |
+
+For example, read an instruction file with `await readFile("instructions.md", "utf8")` from `node:fs/promises` and pass the resulting string as `system`. NOE does not automatically discover `AGENTS.md`. Cache keys do not preserve conversation history or guarantee cache hits. OpenRouter sends the key as `session_id`; OpenAI uses `prompt_cache_key`. OpenCode Go sends `x-opencode-session` with the actual run ID, fixed within a task and distinct for parent and child tasks, plus `User-Agent: noe/<version>`.
+
+To limit total execution time, put `--timeout 5m` before the script name. For an arbitrary task with the prepared OpenRouter configuration, use [try-agent.js](try-agent.js):
+
+```sh
+./noe run --observe try-agent.js 'Read README.md and write a summary to SUMMARY.md.'
+```
+
+### Start work without waiting, observe it, and delegate
+
+| Function | When it returns / purpose |
+| --- | --- |
+| `run_agent(config, instruction, options?)` | Waits for the instance to stop, then returns its snapshot |
+| `spawn_agent(config, instruction?, options?)` | Returns `{agentId}` after acceptance, before the task finishes |
+| `observe_agent({agentId})` | Immediately returns current state, `currentRunId`, and `lastResult` |
+| `queue_agent({agentId, instruction})` | Accepts another task for a `keepAlive` instance |
+| `steer_agent({runId, instruction})` | Adds guidance to the active task before its next model decision |
+| `interrupt_agent({runId})` / `interrupt_agent({agentId})` | Accepts cancellation of one task or the whole instance |
+
+Ordinary JavaScript can launch independent root agents concurrently with `Promise.all([run_agent(...), run_agent(...)])`; each root needs its own explicit provider/model/effort. Use `spawn_agent` when the caller needs to observe or steer work while it runs. See the [live-control example](examples/agent-control.js).
+
+In model-generated `run_js`, these six lifecycle functions are already bound. Children inherit the current parent's provider, model, effort, and `maxTokens` when omitted. For example, the parent can execute this tool code:
+
+```js
+// Summarize the two documents in parallel
+const results = await Promise.all([
+  run_agent({ name: "english" }, "Summarize README.md in three points."),
+  run_agent({ name: "japanese" }, "Summarize README.ja.md in three points."),
+]);
+console.log(JSON.stringify(results));
+```
+
+This shortened configuration is for children inside `run_js`; ordinary root scripts must specify all three required settings. Child `system`, `name`, `maxSteps`, `cacheKey`, and history are not inherited. Each `run_js` starts a fresh NOE process; use files when data must survive between tool calls. [agent-parallel.js](examples/agent-parallel.js) demonstrates parent-driven delegation.
+
+### Keep an agent available for more tasks
+
+Pass `{keepAlive: true}` as the **third argument** to keep an instance waiting after each task. Omit the initial instruction to start idle without a model request:
+
+```js
+import { spawn_agent } from "noe:agent";
+
+const { agentId } = await spawn_agent({
+  provider: "opencode-go",
+  model: "deepseek-v4.1-flash",
+  effort: "auto",
+  name: "worker",
+}, undefined, { keepAlive: true });
+console.log(agentId);
+```
+
+The NOE process keeps running even after this script body finishes. In another terminal, find its IDs and send work:
 
 ```sh
 ./noe agents
-./noe steer <run-id> 'Summarize the result as a table'
+./noe queue <agent-id> 'Summarize README.md'
+./noe steer <run-id> 'Use a table for the answer'
 ./noe queue <agent-id> 'Run the tests next'
 ./noe interrupt --run <run-id>
 ./noe interrupt --agent <agent-id>
 ```
 
-`noe interrupt --run` cancels only that task; `noe interrupt --agent` stops the instance. See the [API reference](docs/api.md), [observation guide](docs/observe.md), and [control example](examples/README.md#live-agent-control) for details.
+An `agentId` identifies the instance; each task has a new `runId` and fresh conversation history. Queued tasks run in order. `steer` adds to the current task's history without stopping its current request or JavaScript. Task interruption preserves a keepAlive instance and its other queued tasks; instance interruption stops all of them. Commands return after acceptance; use observations to confirm completion.
 
-Store an OpenRouter API key in a text file, then point NOE to that file:
+`run_agent(..., {keepAlive: true})` waits for the entire instance to stop, including idle time. In the REPL, a live keepAlive instance also keeps the current input active. Instances remain owned by the current NOE execution or parent run and are collected on owner exit, cancellation, timeout, or Ctrl+C; they do not continue independently after NOE exits. See the [lifecycle and control reference](docs/api.md).
 
-```sh
-NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
-  ./noe run examples/agent-summary.js README.md
-```
+### Observe progress and discover models
 
-The file is read on the first model request. If the variable is unset, NOE looks for `$XDG_CONFIG_HOME/noe/credentials/openrouter-api-key`, or `~/.config/noe/credentials/openrouter-api-key` when `XDG_CONFIG_HOME` is unset. Importing the module or starting an idle agent without an initial task does not read the key or contact the provider. Starting an agent with a task begins model requests asynchronously after acceptance.
-
-The root agent requires explicit `provider`, `model`, and `effort` values. `effort` accepts `"auto"`, `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"`. A child inherits provider, model, effort, and maxTokens when omitted; other config fields are not inherited. `maxSteps` limits model calls per task. An omitted `cacheKey` uses the task's `runId` as OpenRouter's `session_id`; an empty string omits `session_id`. Tasks do not share conversation history. Step and token limits are optional, and execution time can be limited with `run --timeout`.
-
-For parallel child agents that summarize the sample JSON files, run:
+`--observe` shows live thinking and summaries when supplied, intermediate messages, the first-line comment of each `run_js`, success/failure, stderr, and final answers. Consecutive thinking fragments are joined; messages and answers use color-free Markdown formatting with aligned tables. Ordinary script/tool stdout is hidden in this view.
 
 ```sh
-NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
-  ./noe run examples/agent-parallel.js
-```
-
-For an arbitrary task, [try-agent.js](try-agent.js) accepts an instruction as a command-line argument. Without an argument it asks the agent to calculate the sum of 1 through 100 using JavaScript:
-
-```sh
-NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
-  ./noe run try-agent.js "Read README.md and write a concise summary to SUMMARY.md."
-```
-
-In model-generated `run_js`, all six agent functions are already bound; use them without importing or redeclaring them. Each `run_js` call starts a fresh NOE process, so ordinary JavaScript variables do not persist between calls. See the [examples](examples/README.md) and [API reference](docs/api.md) for model settings, controls, errors, REPL use, and trace output.
-
-### Observing agent runs
-
-For readable live output without a pipe, use `--observe`. It joins thinking fragments, labels agents and tool calls, and displays tool results and final answers. Accepted agent messages and final answers use color-free Markdown formatting, including aligned tables. Script and tool stdout are hidden in this view; `run_js` actions appear as first-line comments, with success/failure and stderr still visible. Add `--events=path` to save the original JSONL too:
-
-```sh
-./noe run --observe try-agent.js 'Calculate the sum of 1 through 100'
-./noe run --observe --events=agent.jsonl try-agent.js 'Your task'
+./noe run --observe --events=agent.jsonl task.js
 ./noe observe --follow agent.jsonl
-```
-
-The `observe_agent({agentId})` export returns a live snapshot immediately. File observation remains available as `observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`; it reads saved JSONL without calling a model. See the [observation entry points](docs/observe.md) for both forms.
-
-Use `--events` with `run`, `eval`, or `repl` for detailed JSONL events: JS output, streamed thinking and summaries when supplied by the provider, intermediate messages, final answers, and `run_js` comments and results. `--events=-` sends JSONL to stdout, `--events=agent.jsonl` appends to a file, and bare `--events` creates `noe-events-<date>-<time>-<id>.jsonl` in the starting working directory. File logging preserves ordinary terminal output; REPL prompts and terminal controls are excluded. See the [observation guide](docs/events.md).
-
-```sh
-./noe run --events=- try-agent.js | jq --unbuffered -c .
+./noe run --events=- task.js | jq --unbuffered -c .
 ./noe repl --events=agent.jsonl
 ```
 
-Set `NOE_AGENT_TRACE=1` to write run metadata to standard error as JSON Lines. The example below saves the final answer to `answer.txt` and the trace to `agent-trace.log`:
+`--events` works with `run`, `eval`, and `repl`: `--events=-` writes JSONL to stdout, a path appends to that file, and bare `--events` creates `noe-events-<date>-<time>-<id>.jsonl` in the starting working directory. Events retain ordinary JS output, generated JavaScript source, and captured exception details. The legacy `NOE_AGENT_TRACE=1` metadata trace remains available on stderr. See the [event guide](docs/events.md) and [observation entry points](docs/observe.md); parents can also read saved JSONL through `observe_agent({logPath, runId, ...})`.
 
-```sh
-NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
-  ./noe run examples/agent-summary.js README.md >answer.txt 2>agent-trace.log
+`list_models({provider?, kind?})` returns built-in and externally configured model metadata without contacting a provider. Endpoints, headers, parameters, model-specific routes, and catalog entries can be overridden in `~/.config/noe/config.json` or `NOE_CONFIG_FILE`. See [provider configuration](docs/providers.md), the [model catalog](docs/model-catalog.md), and [Jev routing example](examples/agent-route-model.js). Directly specifying a model in JavaScript is also supported; the catalog is not an allowlist.
+
+For a one-off agent in the REPL:
+
+```text
+> const am = await import("noe:agent")
+> const result = await am.run_agent({provider:"opencode-go", model:"deepseek-v4.1-flash", effort:"auto"}, "Summarize README.md")
+> console.log(result.lastResult.answer)
 ```
 
-To watch a run live, start it in one terminal and follow the trace file from another:
+**Migrating from v1.2.0:** `createAgent()` and `agent.run()` have been removed. Import `run_agent` or `spawn_agent`, explicitly set provider/model/effort for roots, and read answers from `lastResult.answer`. There are no compatibility aliases. See the [API migration guide](docs/api.md#旧apiからの移行).
+
+## Structured decisions
+
+Use `import { decide } from "noe:decision"` to submit one structured decision request to OpenRouter. Pass explicit `provider`, `model`, `state`, and named `questions`; the Promise returns the full response JSON. It works in ordinary scripts and agent-generated `run_js`, sharing the existing credentials and cancellation scope. See the [decision guide](docs/decision.md) and [example](examples/decision-classify.js).
 
 ```sh
-tail -f agent-trace.log
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
+  ./noe run examples/decision-classify.js 'Checkout failed.' typesafe/jev-1.14
 ```
-
-Each trace line is a JSON object with fields such as the run ID, parent run ID, agent name, model, status, duration, and, when returned, prompt, completion, total, and cached token counts plus cost. `NOE_AGENT_TRACE=1` writes the trace to standard error, but standard error can also contain ordinary diagnostics, so not every line is necessarily a trace record. The trace does not include the generated JavaScript source, tool standard output or standard error, or the API key. See the [API reference](docs/api.md) for details.
 
 ## HTTP server
 
@@ -184,6 +254,11 @@ The global `serve(options, handler)` takes a Web `Request` and expects a Web `Re
 | `noe run <file> [args...]` | Run a file; script arguments are available in `process.argv.slice(2)` |
 | `noe eval <code>` | Run code; `process.argv.slice(2)` is empty |
 | `noe repl` | Run JavaScript interactively |
+| `noe observe --follow <log>` | Read agent events in a human-readable view |
+| `noe agents` | List active agents and their current run IDs |
+| `noe steer <run-id> <instruction>` | Add instructions to an active task |
+| `noe queue <agent-id> <instruction>` | Queue another task for a keepAlive instance |
+| `noe interrupt --run <id>` / `--agent <id>` | Cancel a task or stop an instance |
 | `noe --help` | Show usage; also shown when no arguments are supplied |
 | `noe --version` | Show the version |
 
@@ -228,6 +303,9 @@ REPL `await` supports expressions, single-variable initialization, and assignmen
 | Purpose | API |
 | --- | --- |
 | Autonomous tasks | `noe:agent` (`run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`) |
+| Structured decisions | `noe:decision` (`decide`) |
+| Model catalog | `noe:agent` (`list_models`) |
+| ChatGPT credential registration | `noe:auth` (`save_chatgpt_credentials`), used by the sign-in helper |
 | Output | `console.log`, `console.warn`, `console.error` |
 | Arguments, environment, and exit | `process.argv`, `process.env`, `process.cwd()`, `process.exit()` |
 | Standard input | `process.stdin.read()` |
@@ -240,7 +318,7 @@ See the [API reference](docs/api.md) for arguments, return values, errors, and s
 
 ## Built-in modules and capabilities
 
-Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE additionally provides `noe:agent` in the main runtime; importing it from a Worker is unsupported. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve only to installed built-ins; local source imports must use relative `.js` or `.mjs` paths.
+Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE additionally provides `noe:agent`, `noe:decision`, and `noe:auth` in the main runtime; importing them from a Worker is unsupported. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve only to installed built-ins; local source imports must use relative `.js` or `.mjs` paths.
 
 The runtime grants scripts full access to the current process environment and local filesystem, command execution, DNS and network requests, HTTP listeners, WebSocket connections, and workers. It is not a sandbox: scripts can act with the operating-system privileges of the user running NOE.
 

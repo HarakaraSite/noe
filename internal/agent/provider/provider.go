@@ -11,6 +11,8 @@ import (
 // Request is one chat completion request. Messages and Tools contain complete
 // provider-compatible JSON objects and are forwarded without SDK conversion.
 type Request struct {
+	Provider  string            `json:"provider,omitempty"`
+	RunID     string            `json:"runId,omitempty"`
 	Model     string            `json:"model"`
 	Messages  []json.RawMessage `json:"messages"`
 	Tools     []json.RawMessage `json:"tools,omitempty"`

@@ -4,7 +4,7 @@
 
 NOEはJavaScriptの実行環境として、固定したgo-quickjs v0.25.3の標準ライブラリを有効にします。標準ライブラリが持つWeb APIとNode形式APIを利用できます。各APIはgo-quickjsによる実装で、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`があります。`noe:agent`はWorkersでは利用できません。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](increment-12.md)も参照してください。
+JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:auth`があります。これらはWorkersでは利用できません。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](increment-12.md)も参照してください。
 
 ## 利用できる機能と権限
 
@@ -26,7 +26,11 @@ npm、パッケージ導入、URLからのモジュールimport、bare importに
 
 ## 自律agent（OpenRouter）
 
-`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`steer_agent`・`interrupt_agent`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。現在利用できるproviderはOpenRouterだけです。
+OpenAIのSol・LunaはResponsesを使います。[OpenAIガイド](openai.md)にChatGPTサインイン・APIキー・認証ヘルパーの手順があります。
+
+`list_models({provider?, kind?})`は、認証や外部API要求なしで内蔵デフォルトと外部上書きを統合した候補一覧を返します。詳細とJevでの選択例は[モデルカタログ](model-catalog.md)を参照してください。
+
+`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`steer_agent`・`interrupt_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
 
 ```js
 import { run_agent } from "noe:agent";
@@ -81,9 +85,9 @@ console.log(snapshot.lastResult);
 
 ### 設定
 
-`config`は`{provider, model, effort, name?, system?, maxTokens?, maxSteps?, cacheKey?}`です。rootで`provider`・`model`・`effort`を省略すると入力エラーです。子agentではprovider・model・effort・maxTokensを省略時に起動元から継承します。その他の項目は自動継承しません。`provider`は現在`openrouter`のみです。`model`と`name`は空でない文字列、`system`と`cacheKey`は文字列、`maxTokens`と`maxSteps`は0以上の整数です。`name`の既定値は`agent`、`system`は空文字、`maxTokens`と`maxSteps`は0です。`system`に渡した文字列は各タスクの実行中に固定されます。`instruction`は空でない文字列で、`keepAlive:true`なら省略できます。`options`は独立した第三引数で、受け取る項目は`keepAlive`のみです。`keepAlive`を`config`へ入れないでください。instructionを省略してoptionsを渡す場合は、第二引数に`undefined`を置きます。たとえば`spawn_agent({name:"worker"}, undefined, {keepAlive:true})`はidleで起動し、queueにtaskが届くまでモデルを呼びません。
+`config`は`{provider, model, effort, name?, system?, maxTokens?, maxSteps?, cacheKey?}`です。rootで`provider`・`model`・`effort`を省略すると入力エラーです。子agentではprovider・model・effort・maxTokensを省略時に起動元から継承します。その他の項目は自動継承しません。`provider`には組込みまたは外部設定で定義したIDを指定します。`model`と`name`は空でない文字列、`system`と`cacheKey`は文字列、`maxTokens`と`maxSteps`は0以上の整数です。`name`の既定値は`agent`、`system`は空文字、`maxTokens`と`maxSteps`は0です。`system`に渡した文字列は各タスクの実行中に固定されます。`instruction`は空でない文字列で、`keepAlive:true`なら省略できます。`options`は独立した第三引数で、受け取る項目は`keepAlive`のみです。`keepAlive`を`config`へ入れないでください。instructionを省略してoptionsを渡す場合は、第二引数に`undefined`を置きます。たとえば`spawn_agent({name:"worker"}, undefined, {keepAlive:true})`はidleで起動し、queueにtaskが届くまでモデルを呼びません。
 
-`effort`で指定できる値は`"auto"`・`"none"`・`"minimal"`・`"low"`・`"medium"`・`"high"`・`"xhigh"`・`"max"`です。明示的な`"auto"`は推論設定を送らず、provider/modelの既定動作に任せます。他の値はOpenRouterへ`reasoning: {effort: "high"}`の形で送り、各タスクで固定します。実際に利用できるエフォートと効果はmodel/providerに従います。NOEはモデル別の対応表による事前拒否や値の自動変更を行わず、APIからエラーが返ればprovider errorとして扱います。[OpenRouterのreasoning仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)を参照してください。
+`effort`で指定できる値は`"auto"`・`"none"`・`"minimal"`・`"low"`・`"medium"`・`"high"`・`"xhigh"`・`"max"`です。明示的な`"auto"`は推論設定を送らず、provider/modelの既定動作に任せます。他の値はprovider設定の`effortField`（OpenRouterは`reasoning.effort`、OpenCode GoのChatは`reasoning_effort`）へ送り、各タスクで固定します。実際に利用できるエフォートと効果はmodel/providerに従います。NOEはモデル別の対応表による事前拒否や値の自動変更を行わず、APIからエラーが返ればprovider errorとして扱います。[OpenRouterのreasoning仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)を参照してください。
 
 `maxSteps`はタスクごとのモデル要求回数を制限します。0はNOE側の上限なしです。`maxTokens`はモデル要求ごとの出力上限で、会話全体の累計ではありません。0の場合、NOEはOpenRouterへ`max_tokens`を送りません。どちらの上限も指定しない場合、NOEは独自の上限を追加しません。
 
@@ -178,6 +182,10 @@ traceにはrun ID、親run ID、agent名、model、status、duration（nanosecon
 通常の`run`・`eval`では`--timeout`が評価全体を制限できます。省略時はCLI独自の期限はありません。REPLでは通信中のCtrl+Cで要求を取り消し、稼働中のI/Oを残さないようREPL sessionを終了します。詳しくは[REPLガイド](repl.md)を参照してください。
 
 WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソースをカレントディレクトリ上の一時場所へ書き込み、相対importの基準を保ちます。その場合はカレントディレクトリへ一時ファイルを書き込める必要があります。書込みできない場合は、カレントディレクトリと同じvolumeの書込み可能な場所を`TEMP`に指定してください。
+
+## 意思決定モデル：`noe:decision`
+
+`import { decide } from "noe:decision"`で、`await decide({provider:"openrouter",model,state,questions})`を呼べます。`state`は文字列・JSON object/array、`questions`は名前付き質問objectです。provider/modelは毎回明示し、結果はproviderの応答JSON全体です。通常JSとagentの`run_js`から利用でき、agent loopは作りません。認証は既存OpenRouter設定を共用し、要求は現在の評価・所有scopeの取消しに従います。使用例、検証・エラー、画像part、REPL、観察は[意思決定APIガイド](decision.md)を参照してください。
 
 ## 構造化イベントの出力
 

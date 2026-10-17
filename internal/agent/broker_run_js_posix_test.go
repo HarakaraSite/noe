@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -186,9 +185,13 @@ esac
 			t.Errorf("stdout event for %s did not contain %q: %#v", toolCallID, wantText, outputs[toolCallID])
 		}
 	}
-	for _, event := range observed {
-		if event["type"] == "run_js.started" && strings.Contains(fmt.Sprint(event), "const result") {
-			t.Fatalf("run_js event included generated source: %#v", event)
+	for toolCallID, want := range map[string]string{
+		"tool-success":     "// inspect successful output\nconst result = 'SUCCESS';",
+		"tool-failure":     "// inspect failed output\nconst result = 'FAIL';",
+		"tool-commentless": "const result = 'NO_COMMENT';",
+	} {
+		if starts[toolCallID]["code"] != want {
+			t.Errorf("run_js source for %s = %q, want %q", toolCallID, starts[toolCallID]["code"], want)
 		}
 	}
 }

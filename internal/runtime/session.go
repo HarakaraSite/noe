@@ -138,6 +138,7 @@ func (s *Session) finishCancelledInput(ctx context.Context, name string, result 
 
 func (s *Session) finish(ctx context.Context, name string, value quickjs.Value, err error) Evaluation {
 	h := s.h
+	err = retainException(err)
 	if h.exitRequested {
 		h.takeUnhandled()
 		return Evaluation{Exit: true, Code: h.exitCode}
@@ -165,6 +166,7 @@ func (s *Session) finish(ctx context.Context, name string, value quickjs.Value, 
 		return Evaluation{}
 	}
 	formatted, err := h.inspect.CallContext(ctx, value)
+	err = retainException(err)
 	if h.exitRequested {
 		h.takeUnhandled()
 		return Evaluation{Exit: true, Code: h.exitCode}

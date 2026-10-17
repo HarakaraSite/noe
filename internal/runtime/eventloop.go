@@ -71,7 +71,8 @@ func (l *eventLoop) await(ctx context.Context, value quickjs.Value, fulfilled ..
 		return quickjs.Value{}, ctx.Err()
 	}
 	if rejected {
-		return p.Await(ctx)
+		result, err := p.Await(ctx)
+		return result, retainException(err)
 	}
 	if commitErr != nil {
 		return quickjs.Value{}, commitErr
@@ -117,7 +118,7 @@ func (l *eventLoop) drain(ctx context.Context) error {
 		return nil
 	}
 	if err != nil {
-		return &loopFailure{err}
+		return &loopFailure{retainException(err)}
 	}
 	return nil
 }

@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-17",
+  "provider": "openai-chatgpt",
+  "sdk": "github.com/openai/openai-go/v3 v3.79.0",
+  "api": "responses",
+  "results": [
+    {
+      "model": "gpt-6-luna",
+      "exitCode": 0,
+      "answer": "437",
+      "durationMs": 4549,
+      "modelRequests": 2,
+      "runJS": 1,
+      "summaries": 0,
+      "stderrEmpty": true,
+      "runId": "8e92ca1ed1c5c2930dbf1fd08d2fc93769f5c2ff44510c76",
+      "usage": [
+        {
+          "promptTokens": 2073,
+          "completionTokens": 34,
+          "totalTokens": 2107,
+          "cachedTokens": 0
+        },
+        {
+          "promptTokens": 2135,
+          "completionTokens": 5,
+          "totalTokens": 2140,
+          "cachedTokens": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "exitCode": 0,
+      "answer": "437",
+      "durationMs": 5114,
+      "modelRequests": 2,
+      "runJS": 1,
+      "summaries": 0,
+      "stderrEmpty": true,
+      "runId": "2b9b8bbdb06c39988a969d80609ad892844ac393b4b45ec3",
+      "usage": [
+        {
+          "promptTokens": 2073,
+          "completionTokens": 32,
+          "totalTokens": 2105,
+          "cachedTokens": 0
+        },
+        {
+          "promptTokens": 2133,
+          "completionTokens": 5,
+          "totalTokens": 2138,
+          "cachedTokens": 0
+        }
+      ]
+    }
+  ],
+  "earlierFailures": [
+    {
+      "model": "gpt-6-luna",
+      "reason": "completed.output empty; output_item.done not assembled"
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "reason": "completed.output empty; output_item.done not assembled"
+    }
+  ],
+  "diagnosticRequests": 1,
+  "totalModelRequests": 7,
+  "credentialRefresh": "succeeded; rotating token synchronized to hjh",
+  "platformAPIKeyLiveTest": false,
+  "freshBrowserRegistrationLiveTest": false,
+  "rawArtifacts": "/home/agent/.cache/noe-qjs-repl/noe-openai-live-ropouzp3"
+}

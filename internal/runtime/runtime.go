@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"noe/internal/agent"
+	"noe/internal/credentials"
+	"noe/internal/decision"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 	"github.com/go-quickjs/go-quickjs/stdlib"
@@ -34,6 +36,8 @@ type Options struct {
 	Cwd    string
 	// Agent supplies provider/child execution settings. Nil uses lazy defaults.
 	Agent *agent.Options
+	// Auth supplies HTTP/discovery settings for native sign-in verification.
+	Auth *credentials.Options
 
 	// SourceName is the entry name exposed in process.argv.
 	SourceName string
@@ -106,6 +110,10 @@ func newHost(opts Options) (*host, error) {
 		h.rt.Close()
 		return nil, err
 	}
+	if err := h.installAuth(opts); err != nil {
+		h.rt.Close()
+		return nil, err
+	}
 	if err := h.loop.trackTimers(); err != nil {
 		h.rt.Close()
 		return nil, err
@@ -120,12 +128,13 @@ func newHost(opts Options) (*host, error) {
 
 func (h *host) recordUnhandled(reason quickjs.Value) {
 	message := reason.String()
+	var trace string
 	if reason.IsObject() {
 		if stack, err := reason.Get("stack"); err == nil && stack.IsString() && stack.String() != "" {
-			message = stack.String()
+			trace = stack.String()
 		}
 	}
-	h.unhandled = append(h.unhandled, errors.New(message))
+	h.unhandled = append(h.unhandled, snapshotException(reason, message, trace, nil))
 	h.loop.interrupt()
 }
 
@@ -154,7 +163,7 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 		_, err = h.loop.await(ctx, p)
 	}
 	if err != nil {
-		return 1, err
+		return 1, retainException(err)
 	}
 	if err := h.drain(ctx); err != nil {
 		return 1, err
@@ -172,6 +181,12 @@ func (h *host) installLoader(entry *Source) {
 	h.rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
 		if specifier == "noe:agent" {
 			return agent.ModuleSource, "noe:agent", nil
+		}
+		if specifier == "noe:decision" {
+			return decision.ModuleSource, "noe:decision", nil
+		}
+		if specifier == "noe:auth" {
+			return credentials.ModuleSource, "noe:auth", nil
 		}
 		if specifier == "noe:agent/task" {
 			return agent.TaskModuleSource, "noe:agent/task", nil
@@ -223,26 +238,4 @@ func (h *host) takeUnhandled() error {
 	err := errors.Join(h.unhandled...)
 	h.unhandled = nil
 	return err
-}
-
-// Diagnostic includes a JavaScript stack where the engine supplies one.
-func Diagnostic(err error) string {
-	if jsErr, ok := err.(*quickjs.Error); ok {
-		if stack := jsErr.Stack(); stack != "" {
-			return stack
-		}
-	}
-	if joined, ok := err.(interface{ Unwrap() []error }); ok {
-		var parts []string
-		for _, child := range joined.Unwrap() {
-			parts = append(parts, Diagnostic(child))
-		}
-		return strings.Join(parts, "\n")
-	}
-	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
-		if child := wrapped.Unwrap(); child != nil {
-			return strings.Replace(err.Error(), child.Error(), Diagnostic(child), 1)
-		}
-	}
-	return err.Error()
 }

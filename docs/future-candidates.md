@@ -6,7 +6,21 @@
 
 観察・追加指示の主な利用者は親agentを想定する。「親が子を起動→実行状況を確認→必要なら子へ追加指示→結果を受け取る」を自律的に行える形を検討する。人間も同じ経路を使えるが、人間の操作を前提にはしない。
 
-### Web検索と検索APIの認証ラッパー — 2026-10-17
+### <一部完了> go-quickjs stdlibとNode.jsのAPI差異の説明整備 — 2026-10-17
+
+README編集の実試行で、agentがNode.jsでは一般的な`promisify(execFile)`を使い、NOEの実行環境とAPI契約が合わない事例があった。採用中のgo-quickjs v0.25.3では、`node:child_process`の`execFile`は最初からPromiseを返し、`const {stdout, stderr} = await execFile(command, args)`で結果を受け取る。callback形式を前提に`promisify`する必要はない。この差はJavaScript言語やQuickJS-NG本体ではなく、go-quickjsのstdlibが提供するAPIの差である。
+
+確認した上流資料では、`docs/stdlib.md`は提供関数の一覧、[CommandsのAPI説明](https://pkg.go.dev/github.com/go-quickjs/go-quickjs/stdlib#Commands)は直接`await execFile(...)`する例を示している。ただし、Node.jsのcallback形式との非互換や`promisify`が不要であることを明示する説明は見当たらなかった。使用例と実装から違いを読み取る必要がある。
+
+整備候補は、NOEの利用者向け資料・モデル向けinstructionsに実行環境と代表的なAPI差異、正しい短い使用例を示すこと、およびgo-quickjs側のJS API資料・Node.js互換性の説明を補うこと。差異をすべて列挙することを前提にせず、実際に誤用が起きた箇所から必要な説明を検討する。現行instructionsには`execFile (Promise)`の記載があるが、今回の誤用を避けるには説明が足りるか見直す余地がある。このメモでは文書整備や上流への提案の実施までは決めない。
+
+### <未完了> go-quickjsへの上流PR案：同期コマンドの失敗情報保持 — 2026-10-17
+
+go-quickjs v0.25.3の`execFileSync`はコマンドのstdout・stderrを内部で捕捉するが、失敗時にはそれらをErrorへ保持せず返すため、NOE側で未処理例外の詳細を保存しても出力を復元できない。非同期の`execFile`は、失敗時のErrorに`code`・`stdout`・`stderr`を既に付けている。
+
+上流PRの候補として、`execFileSync`も失敗時のErrorへ`code`・`stdout`・`stderr`を付ける改善を検討する。正常時の戻り値・呼出し方と既存のエラーメッセージを維持し、失敗するコマンドの終了コードと両出力を取得できるテストを添える。`execSync`等の同期経路への適用範囲は、PR作成時に実装を確認して決める。NOE固有の回避策ではなく、stdlib利用者全体の原因調査を助ける改善として提案する。現段階は検討メモのみで、上流の実装修正・PR作成・提出は行わない。
+
+### <未完了> Web検索と検索APIの認証ラッパー — 2026-10-17
 
 現在、NOEのagentに専用のWeb検索APIはない。既知のURLは`run_js`内の`fetch()`で取得でき、外部の検索APIも呼出しコードと認証を用意すれば利用できる。検索API向けの組込みラッパーと認証管理は未実装。
 
@@ -14,7 +28,27 @@
 
 検索結果はタイトル・URL・要旨などを構造化して返し、agentが必要なページを選んで取得・確認できるようにする。失敗もモデルが理解して次の処理を判断できる形で返す。検索provider、JS API名、引数・戻り値、キーの保存先は実装時に検討する。このメモでは実装・API・providerの採用は決めない。
 
-### Worker内からの`noe:agent`利用
+### <一部完了> OpenCode Go APIの組込み — 2026-10-17
+
+**検討事項：OpenCode Go（`opencode-go`）をNOEのagent用provider候補に加える。** APIの全体像が分かりにくいため、利用可能な形式と接続条件を確認してから設計する。ここでのGoはサービス名。
+
+2026-10-17の[公式Goドキュメント](https://opencode.ai/v2/docs/console/go/)では、契約後にAPIキーを取得でき、外部のcoding agentから利用するためのAPIも公開されている。モデルによってAPI形式が異なる。
+
+| 形式 | 公式に掲載された送信先 |
+| --- | --- |
+| OpenAI互換Chat Completions | `https://opencode.ai/inference/go/openai/v1/chat/completions` |
+| Responses | `https://opencode.ai/inference/go/openai/v1/responses` |
+| Anthropic Messages | `https://opencode.ai/inference/go/anthropic/v1/messages` |
+
+モデル一覧は`https://opencode.ai/inference/go/v1/models`。公式のDeepSeek V4.1 Flashのmodel IDは`deepseek-v4.1-flash`で、Chat Completions経路に掲載されている。旧ドキュメントや検索結果には`/zen/go/v1/...`も残っているため、実装時には公式の現行送信先を再確認する。
+
+公式はcoding agentとしての通常の通信、クライアント自身を示すUser-Agent、会話ごとに安定した`x-opencode-session`を送るよう案内している。NOE側でrun ID・cacheKey等との対応を決める。APIキーの読込みと付与はGoホストで扱う構成を候補とする。
+
+当初はAPIの確認のみ。2026-10-17、利用者の許可でhjh側のキーを使い、既存のOpenRouter Go SDKをOpenCode Goへ接続する[スパイク](opencode-go-sdk-spike.md)を実施した。Chat通常応答・NOEのJS tool往復・Responses通常応答・streamingが成功。`User-Agent: noe/<version>`と同じrunで固定した`x-opencode-session`を付与し、親子別IDもローカルで確認した。
+
+その後、利用者の指示でChat・Responsesに範囲を絞り、本体providerと[組込みデフォルト＋外部JSON上書き](providers.md)を実装した。OpenCode Goの`reasoning_content`の連結・履歴保持・観察、Responsesのnative reasoning/tool履歴、実run IDのヘッダへの接続に対応。親子の別ID・tool往復・取消しはローカルfixture、Chat・Responsesの通常agent起動は実接続で確認した。[実装・検証記録](provider-config-validation.md)。Messages形式と利用枠に達したときの実応答の確認は今後の候補とする。
+
+### <未完了> Worker内からの`noe:agent`利用
 
 **質問：Workerからagentを呼べるようにする必要性はあるか。**
 
@@ -24,7 +58,7 @@
 
 当面は現在の構成を使い、mainへの中継が実際の不便になった時に検討する。対応する場合は、Workerのmodule登録、認証・brokerへの接続、Worker終了時のrun取消し・回収をどこが所有するかを決める。Workerの並行実行と、モデルが判断する子agentへの委譲は別の仕組みとして扱う。
 
-### 親agentによる子agentの監督
+### <完了> 親agentによる子agentの監督
 
 **現行実装：** `run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`で単発task、待受instance、live snapshot、FIFO queueを利用できます。`steer_agent`・`interrupt_agent`と人間向けCLIから実行中の指示追加・取消しも利用できます。instanceは親runに所有されます。引数・戻り値・寿命は[APIリファレンス](api.md#自律agentopenrouter)を参照してください。以下は実装前の検討履歴であり、候補表と当時の未実装記述は現行API契約ではありません。
 
@@ -67,7 +101,7 @@ hjhを確認した後、NOEでは状態と結果を一つの入口へまとめ�
 
 まず親runが子を所有し、親の終了・取消しで子を回収する構成で監督できる。親終了後も子が続く完全な独立実行は、次項の別の寿命の選択肢として扱う。開始が戻っただけで子完了と扱わず、実行中/完了/失敗と結果を区別する。
 
-### 呼び出し元の終了後も続く独立agent実行
+### <未完了> 呼び出し元の終了後も続く独立agent実行
 
 **質問：起動したagentを独立したプロセスとして動かし、呼び出し元のNOEが終了しても処理を続けられるか。**
 
@@ -79,7 +113,7 @@ hjhを確認した後、NOEでは状態と結果を一つの入口へまとめ�
 
 採用する場合は、起動口をCLIにするかJS APIにするか、cwd・設定・認証の受渡し、呼び出し元と独立した寿命、ログ・最終結果・終了状態の保存、実行IDと停止方法を検討する。会話の永続化・中断後の再開・常駐daemon・再起動後の復旧まで必要かは別途判断し、独立実行と一括で必須にしない。会話中の`agent.start()`はAPI案であり、名称・戻り値とも未決定。
 
-### 簡易的な実行コンテキスト管理
+### <一部完了> 簡易的な実行コンテキスト管理
 
 **質問：一回の長いタスクで膨らむ実行履歴を、費用と作業の継続性を保ちながら圧縮できるか。**
 
@@ -123,7 +157,9 @@ hjhを確認した後、NOEでは状態と結果を一つの入口へまとめ�
 
 採否は、同じ長いタスクについて、切詰めなし・切詰めのみ・tmp退避付き切詰めを比較して判断する。総費用（切詰め後のcache missや読み戻しを含む）、入力/キャッシュtoken数、所要時間、再読込み・作業の繰返し、最終成果・制約の維持を観測する。cache hit率や削減率だけを成功基準にしない。前後のtoken数・退避先・理由・回数はメタデータのtrace候補。入力予算の具体値・目標の選び方・直近履歴の残し方・見積りと発火の詳細・公開設定・既定値は未決定であり、実装は行っていない。
 
-### 意思決定モデルの呼び出し
+### <完了> 意思決定モデルの呼び出し
+
+**現行実装：** `noe:decision`の`decide({provider,model,state,questions})`からOpenRouterのDecisions APIを利用できます。通常JS・agentの`run_js`に対応し、既存のGo側認証・SDK・Operationを共用します。Jev 1.14・Perplexity Decider V1.2・Clefの実接続を含め、実装・テスト・コードレビューを完了しました。[利用ガイド](decision.md)・[実装記録](decision-implementation.md)・[実接続記録](decision-openrouter-validation.md)。以下は実装前の検討履歴です。
 
 **検討事項：Jevなどの意思決定モデルをNOEから呼び出せるようにする。参考実装は`projects/henji`の`henji decision`。**
 
@@ -143,9 +179,34 @@ HenjiではOpenRouterの質問は名前付きobject、OpenAIの質問は配列�
 - `../henji/internal/decision/decision.go`：質問の検証、専用要求、完全な応答JSONの保持、取消しと再試行
 - `../henji/docs/examples/decision-openrouter-questions.json`：複数質問の例
 
-今回は検討メモのみ。Henji・NOEの実装変更、実プロバイダへの要求、公開APIの確定は行わない。
+2026-10-17、[意思決定APIの実装計画](decision-plan.md)に沿って実装・検証を完了。実接続は許可されたJev 1.14・Perplexity Decider V1.2・Clefの3モデルと親agent経路を確認し、`typesafe/jev-router`は利用者の追加指示で対象から外した。
 
-### モデルの推論エフォートの指定
+#### <一部完了> 応用例：Jevによる起動設定プリセットの選択 — 2026-10-17
+
+**新しい本体機能ではなく、既存の`decide`と`run_agent`・`spawn_agent`を組み合わせるJSの応用例。** よく使うモデル設定には一定のパターンがあるため、タスクに適したプリセットをJevに選ばせ、その設定で親agentを起動する。
+
+```text
+タスク＋プリセットごとの用途・得意分野・制約
+  → decide（Jevのchoiceでプリセットを選択）
+  → 返されたキーでJSの設定表を引く
+  → 選んだprovider・model・effortで親agentを起動
+```
+
+プリセットは、例えばlight・standard・deep、またはコード向け・画像向けなど。実際のprovider・model・effortの対応表と各候補の説明は共通のJSに持たせる。`questions`の`criteria`に候補の説明を渡し、タスクの難易度・必要な能力・費用や速度の優先方針に応じて選択する。返却された`result.answers`内の`choice`で設定を取得し、起動APIへ渡す。モデルの差替えはプリセット側で行える。
+
+同じ選択用JSを、親が子agentを起動するときにも利用できる。NOE本体に固定のルーティング方針を追加せず、候補と選択基準を呼出し元で組み立てる。`typesafe/jev-router`をテスト対象から外した背景も、この構成を通常のJevによる判断で作れると考えたため。2026-10-17、[モデルカタログ](model-catalog.md)と[起動前のモデル選択例](../examples/agent-route-model.js)を追加した。候補は内蔵JSON＋外部差分で管理し、`list_models`から取得する。カタログ→Jev→選択した親の起動→run_jsでのカタログ再参照をローカルfixtureで確認済み。サンプルのeffortは明示autoで、effortも含むプリセット選択とこの例の有料実接続は未実施。
+
+### <未完了> agentのVision対応 — 2026-10-17
+
+**検討事項：Vision対応モデルを使うagentへ画像を渡し、親agent自身が画像を見て判断できるようにする。**
+
+現在の`run_agent`・`spawn_agent`はinstructionを文字列で受け取り、`run_js`の結果もテキストとしてモデルへ返す。Vision対応モデルを指定するだけでは画像入力にならず、base64を通常の文字列に含めても画像パートにはならない。現時点では、`run_js`から`noe:decision`の画像入り`state`を送信し、判断結果を親へ返す経路は利用できる。
+
+候補は、起動時の入力と`run_js`の結果に、テキストと`image_url`等の画像パートを渡す経路を設けること。JSで画像ファイルを読み、base64のdata URLにして渡す形を出発点とする。Goの生成用provider層はメッセージをJSONで転送する土台があるため、公開API・agent loop・tool結果からモデルの画像入力へつなぐ契約を検討する。
+
+入力形式、子agentへの画像受渡し、画像の履歴保持と将来のコンテキスト圧縮、JSONLへの記録範囲は実装時に決める。`noe:decision`の画像対応と通常agentの画像対応を区別し、実装後はVision対応の実モデルで確認する。現段階は検討メモのみ。
+
+### <完了> モデルの推論エフォートの指定
 
 **実装済み：agentからモデルを呼ぶ際に、推論エフォートを指定する。ルートではprovider・model・effortを明示指定し、`effort: "auto"`も選べる。**
 
@@ -155,7 +216,7 @@ HenjiではOpenRouterの質問は名前付きobject、OpenAIの質問は配列�
 
 2026-10-16、OpenRouterの[公式仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)と採用中の公式Go SDK v0.9.59を確認。`auto`はNOE側で`reasoning`を省略する指定として扱い、他の値は`reasoning.effort`へ渡す。推論の有効化を強制せず、既定の送信内容を維持する。model/providerごとの対応はAPIに従い、NOE側でモデル別の対応表や自動変更は追加しない。詳細は[APIリファレンス](api.md#自律agentopenrouter)と[実装記録](increment-13-implementation.md)を参照。
 
-### agentの実行状況の観察
+### <完了> agentの実行状況の観察
 
 **質問：agentの様子を確認するには、ログをtailすればよいか。**
 
@@ -179,7 +240,9 @@ tail -f agent-trace.log
 
 機械処理ではstderrの通常診断とJSON Linesが混ざる点も考慮し、専用traceファイルを指定できる形を検討する。独立実行の案と組み合わせる場合は、起動結果として実行IDとログの場所を返し、最終的な終了状態・結果も確認できるようにする。将来のログ閲覧CLIはこの記録を読む窓口として追加できる。今回のメモでは実装・API・保存先は決めていない。
 
-#### 外部JSによるリアルタイム表示 — 2026-10-17
+<a id="外部jsによるリアルタイム表示--2026-10-17"></a>
+
+#### <完了> 外部JSによるリアルタイム表示 — 2026-10-17
 
 当初の利用者のイメージは`noe run xxx.js | 観察.js`。NOE本体から出るイベントを外部の観察用JSが逐次読み、ターミナルで見やすく表示する案だった。その後、利用者は組立てをGoに任せることも許容し、人間向けはJSONL表示に拘らず可読性を重視する方針を選んだ。現在はGoの`noe observe`で表示し、親向けにはGoが状態を組み立てる`observe_agent`を利用できる。外部の観察用JSは同梱していない。
 
@@ -196,7 +259,7 @@ tail -f agent-trace.log
 - 複数の親agentを`Promise.all`で並列実行した場合、イベントは到着順に混ざる。各表示行にagent名とrun IDを付け、複数行のthinking等もrunごとに区別して表示する。`runId`は`run()`ごとに異なり、子の`parentRunId`に親の`runId`が入る。子を起動しても親自身のIDは変わらない。
 - 元のJSONLは保存やjqでの絞り込みにも使う。親agent向けの有限な差分取得と、人間向けに入力を待ち続けるリアルタイム表示は用途を分ける。
 
-##### 親用・人間用の観察口の整理
+##### <完了> 親用・人間用の観察口の整理
 
 追加LLMによる要約は使わず、Go側で状態と差分を組み立てる。親用は`noe:agent`の`observe_agent`から構造化データを受け取り、人間用は`noe observe`で可読性を重視したテキストとして表示する。現在の引数・戻り値・CLIは[観察の入口](observe.md)を参照。以下には設計時の戻り値イメージも残す。
 
@@ -237,7 +300,7 @@ tail -f agent-trace.log
 
 SQLiteへのイベント保存も検索用の候補として挙がった。採用は未決定で、外部JSによる逐次表示とは併用可能。
 
-### 実行中のagentへの追加指示
+### <完了> 実行中のagentへの追加指示
 
 **質問：agentを実行したまま、外から追加指示を届ける経路を作れるか。**
 
@@ -259,7 +322,7 @@ system instructionは書き換えず、追加指示をuser入力として扱う�
 
 受領・適用・未適用を指示IDとrun IDでログへ記録し、tailで反映を確認できる形を検討する。指示本文はメタデータtraceへ自動追加せず、投入元の記録や詳細ログの扱いと合わせて決める。受け口・公開API・hookの順序・終了時の扱いは未決定であり、実装は行っていない。
 
-#### 外部からの操作：steer・interrupt・queue — 2026-10-17
+#### <完了> 外部からの操作：steer・interrupt・queue — 2026-10-17
 
 **この節は2026-10-17時点の実装前案を保存した履歴です。** 現行の`steer_agent`・`interrupt_agent`・人間用操作CLIの契約は[APIリファレンス](api.md#実行中taskへの指示と停止)と[実行中の操作計画](agent-control-plan.md)を参照してください。
 
@@ -275,7 +338,7 @@ system instructionは書き換えず、追加指示をuser入力として扱う�
 
 inboxはsteerの指示を一時保管する場所で、次の仕事を予約するqueueとは区別する。queueは現在のrunへの履歴追加ではなく、別のrunとしてタスクを開始する案。親は既存のrun_jsからJSラッパーを呼び、人間はCLI等から同じ操作を使うため、モデルに渡すtoolはrun_js一つのままにできる。
 
-### 自作REPLの必要性とqjsの再利用
+### <完了> 自作REPLの必要性とqjsの再利用
 
 **質問：qjsにREPLがあるなら、NOEが自作REPLを維持する必要はあるか。**
 
@@ -301,10 +364,10 @@ module登録だけでなく、入力ごとの評価context・agent Operationの�
 
 | 順番 | テーマ | 目的 | 最初に検討する範囲 |
 | --- | --- | --- | --- |
-| 1 | 外部コマンド | 既存ツールとファイル・HTTP処理を組み合わせる | コマンドと引数、stdin、stdout・stderr、終了コード、実行中断 |
-| 2 | ストリーミング | 大きなファイルやHTTP bodyを全量保持せず扱う | ファイルとHTTPクライアントの段階的な読取り・書込み |
-| 3 | import map | ローカルモジュールに名前を付け、配置変更を吸収する | CLIで指定するimport mapとローカルファイルの解決 |
-| 4 | HTTP URLからのimport | URLで公開されたJSモジュールを読み込む | モジュール取得、URL基準の相対import、キャッシュ、取得失敗の扱い |
+| 1 | <完了> 外部コマンド | 既存ツールとファイル・HTTP処理を組み合わせる | コマンドと引数、stdin、stdout・stderr、終了コード、実行中断 |
+| 2 | <完了> ストリーミング | 大きなファイルやHTTP bodyを全量保持せず扱う | ファイルとHTTPクライアントの段階的な読取り・書込み |
+| 3 | <未完了> import map | ローカルモジュールに名前を付け、配置変更を吸収する | CLIで指定するimport mapとローカルファイルの解決 |
+| 4 | <未完了> HTTP URLからのimport | URLで公開されたJSモジュールを読み込む | モジュール取得、URL基準の相対import、キャッシュ、取得失敗の扱い |
 
 当時、次のインクリメントの第一候補は外部コマンドだった。現在は標準ライブラリ導入により、外部コマンドは`child_process`から利用できる。
 
@@ -317,3 +380,11 @@ module登録だけでなく、入力ごとの評価context・agent Operationの�
 TypeScript対応は引き続き後回しとする。npm・パッケージ管理とNode.js/Denoの完全互換は対象外とする。Web APIとNode形式APIは固定したgo-quickjs標準ライブラリの互換範囲に従う。
 
 [開発記録へ戻る](README.md) · [現在のAPI](api.md) · [製品方針とMVP](mvp.md)
+
+### <一部完了> OpenAI SDK・Anthropic系SDKの追加 — 2026-10-17
+
+OpenRouter SDKに加え、今後OpenAI SDK、その先にAnthropic系の接続を追加する。モデルカタログのprovider・model・説明・能力はSDKから独立した共通データとし、Go側の通信adapterが各形式を扱う。現在の外部JSON上書きと`list_models`は共用する。2026-10-17、OpenAI SDKを組み込み、`openai-chatgpt`・`openai-api`のResponses、互換接続のChat Completions、外部JSのChatGPT認証ヘルパーを追加した。[利用ガイド](openai.md)・[実装記録](openai-implementation.md)。Anthropic系SDK・Messagesは未対応。
+
+#### 利用者のモデル・接続先の選択方針 — 2026-10-17
+
+普段はサブスクのOpenCode Goを優先し、OpenRouterは様々なモデルの試用と意思決定モデル3種類に使う。共通の利用順はDeepSeek V4.1 Flash、MiMo-V2.6-Flash、GPT 6 Luna、GLM 5.3。effortはタスクごとに変える。OpenAIではgpt-6.1-sol・gpt-6-lunaをResponsesで使い、ChatGPTサインインをAPIキーより優先する。OpenAI SDKは将来のローカルLLM接続にも使う。現在のカタログはprovider/model別の候補を返し、優先順位の自動適用やモデル横断の接続先選択は呼出し側のJSに任せる。MiMo・GLMの組込み候補追加と優先度項目は未実装。

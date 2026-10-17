@@ -75,6 +75,18 @@ func (r *agentRenderer) render(event events.Event) error {
 	key := eventString(event, "executionId") + "/" + eventString(event, "runId") + "/" + eventString(event, "requestId") + "/" + eventString(event, "toolCallId") + "/" + kind
 	text := eventString(event, "text")
 	switch kind {
+	case "decision.started", "decision.completed", "decision.failed", "decision.cancelled":
+		detail := eventString(event, "decisionModel") + " [" + shortID(eventString(event, "requestId")) + "]"
+		if responseModel := eventString(event, "responseModel"); responseModel != "" && responseModel != eventString(event, "decisionModel") {
+			detail += " -> " + responseModel
+		}
+		if duration, ok := event["duration"].(float64); ok {
+			detail += " / " + time.Duration(duration).Round(time.Millisecond).String()
+		}
+		if reason := eventString(event, "reason"); reason != "" {
+			detail += " / " + reason
+		}
+		return r.line(label, "decision "+strings.TrimPrefix(kind, "decision."), detail)
 	case "instance.started", "instance.running", "instance.idle", "instance.stopping", "instance.stopped", "instance.failed":
 		return r.line(label, "agent "+strings.TrimPrefix(kind, "instance."), eventString(event, "reason"))
 	case "command.accepted", "command.applied", "command.cancelled":
