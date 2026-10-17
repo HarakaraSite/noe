@@ -1,13 +1,13 @@
 # NOE — No Opulence Engine
 
-A tiny JavaScript/TypeScript runtime written in pure Go.
+A tiny JavaScript runtime written in pure Go.
 
 No bloat. Just scripts.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 小さなスクリプトと自律agentのタスクを実行するGo製ランタイムです。JavaScriptで処理を書いたり、`run_agent()`へ仕事を頼んでファイル操作・JS実行・修正・回答まで任せたりできます。JavaScriptエンジンには[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使います。
 
-**現在の対応言語はJavaScriptです。TypeScriptは後から追加する予定です。** npm・パッケージ管理は対象外で、Node.jsやDenoの完全互換は目標にしていません。固定したgo-quickjs標準ライブラリのWeb APIとNode形式APIを有効にしていますが、各APIは一部実装です。
+**現在の対応言語はJavaScriptです。** npm・パッケージ管理は対象外で、Node.jsやDenoの完全互換は目標にしていません。固定したgo-quickjs標準ライブラリのWeb APIとNode形式APIを有効にしていますが、各APIは一部実装です。
 
 [APIリファレンス](docs/api.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
 

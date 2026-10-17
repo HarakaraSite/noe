@@ -1,6 +1,6 @@
 # NOE — No Opulence Engine
 
-A tiny JavaScript/TypeScript runtime written in pure Go.
+A tiny JavaScript runtime written in pure Go.
 
 No bloat. Just scripts.
 
@@ -8,7 +8,7 @@ This English README is the canonical version. [日本語版](README.ja.md)
 
 NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript directly, or describe a task with `run_agent()` and let an agent read files, execute JavaScript, revise its work, and return an answer. It uses [go-quickjs](https://github.com/go-quickjs/go-quickjs) as its JavaScript engine.
 
-**JavaScript is supported today. TypeScript support is planned for later.** npm and package management are outside the project's scope. Complete Node.js or Deno compatibility is not a project goal. NOE enables the pinned go-quickjs standard library, whose Web and Node-style APIs are useful subsets rather than complete platform compatibility.
+**JavaScript is supported today.** npm and package management are outside the project's scope. Complete Node.js or Deno compatibility is not a project goal. NOE enables the pinned go-quickjs standard library, whose Web and Node-style APIs are useful subsets rather than complete platform compatibility.
 
 [API reference](docs/api.md) · [Migration from the old APIs](docs/api.md#旧apiからの移行) · [REPL guide](docs/repl.md) · [Examples](examples/README.md) · [Development notes](docs/README.md)
 
