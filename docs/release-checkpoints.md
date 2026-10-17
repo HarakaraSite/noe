@@ -18,7 +18,7 @@ The Forgejo workflow generated from this profile runs the following on the confi
 
 The uploader creates a non-draft Release within the existing repository visibility; it does not make a private repository public. Failed gates or builds must leave their output in native Actions logs and must not publish Release assets.
 
-The `v1.0.0`, `v1.1.0`, and `v1.2.0` Releases have been published through this workflow; see their validation records below. A successful cross-build verifies compilation; runtime and terminal behavior on macOS, Windows, and arm64 have not been tested here.
+The `v1.0.0`, `v1.1.0`, `v1.2.0`, and `v1.3.0` Releases have been published through this workflow; see their validation records below. A successful cross-build verifies compilation; runtime and terminal behavior on macOS, Windows, and arm64 have not been tested here.
 
 ## Reference checks before tagging
 
@@ -179,3 +179,15 @@ Local command/output records, checksums, and build artifacts are under `/home/ag
 Existing live acceptance evidence is recorded in [agent controls](agent-control-openrouter-validation.md), [decisions](decision-openrouter-validation.md), [OpenCode Go/provider configuration](provider-config-validation.md), and [OpenAI](openai-implementation.md). The live ChatGPT tests used refreshed existing credentials; fresh browser registration and the OpenAI API-key route were fixture-tested. No further external model request was made during this release preparation.
 
 The tag-triggered Forgejo workflow remains the distribution gate. Publication and downloaded assets are verified separately after tagging.
+
+## v1.3.0 Release validation — 2026-10-17
+
+- Annotated tag: `v1.3.0`, pointing to `68f1f298b6b5ba95659429b3f613fa665baa37db`. The peeled remote tag matches the successful workflow commit; this includes the checked source and preparation record above.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/4): succeeded (API run ID 185, job ID 206).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.0): published, neither draft nor prerelease (Release ID 119). Its description matches the committed [release notes](releases/v1.3.0.md).
+
+The actual workflow passed its CGO-free test/vet gates, built all six profile targets, and uploaded the binaries plus `SHA256SUMS`. All seven assets were downloaded after publication; every binary hash matched the published checksum file.
+
+The downloaded Linux amd64 binary passed four smoke checks with exit 0 and empty stderr: `--version` returned `noe v1.3.0`; arithmetic evaluation returned `2`; lazy agent/decision/auth imports, Fetch/serve, removed-global, and OpenAI catalog checks passed; the external ChatGPT helper displayed its help. No model provider request was needed. The helper's versioned download URL was also checked against the committed JavaScript. Downloaded artifacts and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.3.0-published-82a__6s7/`.
+
+The repository-root `./noe` is now the verified published Linux amd64 binary. This documentation-only verification commit follows publication without moving the tag. Native runtime behavior on macOS, Windows, and arm64 remains unverified.
