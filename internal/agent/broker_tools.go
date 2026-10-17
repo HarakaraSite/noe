@@ -108,6 +108,7 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		Executable: h.opts.Executable,
 		Cwd:        h.opts.Cwd,
 		Connection: connection,
+		ImportMap:  h.opts.ImportMap,
 	}).Run(childOperation.ctx, *request.Code)
 	contextErr := ctx.Err()
 	release()

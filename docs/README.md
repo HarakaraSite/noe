@@ -42,13 +42,15 @@ agentの共通インストラクションは[`internal/agent/instructions.md`](.
 
 ## 今後の候補
 
+[ローカルESMとimport mapの計画](local-import-map-plan.md)では、動作確認済みのJSを通常スクリプト・Worker・agent生成JSから同じ名前で再利用する構成を扱います。HTTP importや永続cacheは含めず、MCP SDKとNOE向けtransportを最初の応用例にします。実装の進捗は[検証記録](local-import-map-implementation.md)、利用方法は[import mapガイド](import-map.md)を参照してください。
+
 [汎用プロセスAPIと標準I/Oストリームの計画](process-io-plan.md)に従って、第1グループのNOE拡張を実装しました。[利用ガイド](process-io.md)と[実装・検証記録](process-io-implementation.md)を参照してください。
 
 [意思決定API](decision.md)の実装・テスト・コードレビューを完了しました。`noe:decision`の`decide`を通常agentと別の入口とし、既存OpenRouter SDK・認証・要求管理を共用します。[実装記録](decision-implementation.md)と[3モデルの実接続確認](decision-openrouter-validation.md)に結果を記録しています。
 
 [起動と待受](agent-lifecycle-plan.md)の実装・検証・コードレビューが完了しました。結果とレビュー指摘の採否は[実装・検証記録](agent-lifecycle-implementation.md)を参照してください。公開APIは破壊的に変更し、互換aliasはありません。steer・明示的なinterrupt・人間用操作CLIも[実行中の操作計画](agent-control-plan.md)に沿って実装・総合検証・レビューを完了しました（[実装・検証記録](agent-control-implementation.md)、[OpenRouter実接続確認](agent-control-openrouter-validation.md)）。
 
-[次の機能候補](future-candidates.md)には、Web検索の認証ラッパー、Workerからのagent利用、呼び出し元終了後も続く独立agent、実行コンテキスト圧縮、Jevなどの意思決定モデル、REPLとqjsの比較を記録しています。ライフサイクル作業で扱う親子agentの起動・観察・queue、推論エフォート、ログ観察の進捗は[実装・検証記録](agent-lifecycle-implementation.md)にあります。control操作の仕様と完了結果は[実行中の操作計画](agent-control-plan.md)と[実装・検証記録](agent-control-implementation.md)を参照してください。候補文書には設計経緯も残しています。v1.0.0時点の候補として、import mapとHTTP URLからのimportは未対応です。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。
+[次の機能候補](future-candidates.md)には、Web検索の認証ラッパー、Workerからのagent利用、呼び出し元終了後も続く独立agent、実行コンテキスト圧縮、Jevなどの意思決定モデル、REPLとqjsの比較を記録しています。ライフサイクル作業で扱う親子agentの起動・観察・queue、推論エフォート、ログ観察の進捗は[実装・検証記録](agent-lifecycle-implementation.md)にあります。control操作の仕様と完了結果は[実行中の操作計画](agent-control-plan.md)と[実装・検証記録](agent-control-implementation.md)を参照してください。候補文書には設計経緯も残しています。v1.0.0時点の候補として、import mapはローカルの完全一致名に対応し、HTTP URLからのimportは未対応です。標準ライブラリ導入後、ストリーミング、暗号・ハッシュ、外部コマンドは利用できるようになりました。
 
 ## ビルドと検証
 

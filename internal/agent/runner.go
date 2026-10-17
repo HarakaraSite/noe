@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"noe/internal/modulemap"
 )
 
 // Runner starts a fresh NOE process for each JavaScript execution.
@@ -19,6 +21,7 @@ type Runner struct {
 	Executable string
 	Cwd        string
 	Connection *Connection
+	ImportMap  *modulemap.Snapshot
 }
 
 // Result is the observable outcome of a child NOE process. A non-zero exit,
@@ -121,6 +124,19 @@ func (r Runner) runSource(ctx context.Context, source string) (result Result, re
 	if err := os.WriteFile(sourcePath, []byte(source), 0600); err != nil {
 		return failedResult(), fmt.Errorf("write private agent source: %w", err)
 	}
+	args := []string{"run"}
+	if r.ImportMap != nil {
+		snapshot, err := json.Marshal(r.ImportMap)
+		if err != nil {
+			return failedResult(), fmt.Errorf("encode import map snapshot: %w", err)
+		}
+		mapPath := filepath.Join(tempDir, "import-map.json")
+		if err := os.WriteFile(mapPath, snapshot, 0600); err != nil {
+			return failedResult(), fmt.Errorf("write private import map snapshot: %w", err)
+		}
+		args = append(args, "--import-map", mapPath)
+	}
+	args = append(args, sourcePath)
 	env, err := childEnvironment(os.Environ(), r.Connection)
 	if err != nil {
 		return failedResult(), fmt.Errorf("prepare agent child environment: %w", err)
@@ -145,7 +161,7 @@ func (r Runner) runSource(ctx context.Context, source string) (result Result, re
 		_ = stderrReader.Close()
 		_ = stderrWriter.Close()
 	}
-	cmd := exec.Command(executable, "run", sourcePath)
+	cmd := exec.Command(executable, args...)
 	cmd.Dir = cwd
 	cmd.Env = env
 	cmd.Stdout = stdoutWriter

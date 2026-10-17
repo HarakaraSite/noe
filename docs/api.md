@@ -24,7 +24,7 @@ Workersにも同じgo-quickjs標準ライブラリのホスト機能を渡しま
 
 go-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
-npm、パッケージ導入、URLからのモジュールimport、bare importによる外部パッケージ解決はありません。裸の組み込みモジュール名と対応する`node:`名で標準ライブラリをimportできます。ローカルモジュールは拡張子付きの相対`.js`・`.mjs`パスを使います。import先はimport元のファイルを基準に解決し、`eval`内ではカレントディレクトリが基準です。QuickJS本来の`std`モジュールは提供しません。
+npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗黙のbare importによる外部パッケージ探索はありません。裸の組み込みモジュール名と対応する`node:`名で標準ライブラリをimportできます。`run/eval/repl --import-map path`で完全一致のbare名をローカルESMに対応付けられ、Worker・agent生成JSへ同じ対応表を継承します。ローカルモジュールは拡張子付きの相対/絶対`.js`・`.mjs`パスとlocal file URLを使えます。詳細は[import mapガイド](import-map.md)を参照してください。相対importはimport元のファイルを基準に解決し、`eval`内ではカレントディレクトリが基準です。QuickJS本来の`std`モジュールは提供しません。
 
 ## 自律agent（OpenRouter）
 

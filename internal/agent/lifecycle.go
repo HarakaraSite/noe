@@ -512,7 +512,7 @@ func (i *agentInstance) execute(cmd *command) (taskOutcome, *agentRun, bool) {
 	b := h.broker
 	h.mu.Unlock()
 	connection := &Connection{URL: b.url, Token: b.token, Scope: op.scope, Defaults: Config{Provider: i.config.Provider, Model: i.config.Model, MaxTokens: i.config.MaxTokens, Effort: i.config.Effort}}
-	result, err := (Runner{Executable: h.opts.Executable, Cwd: h.opts.Cwd, Connection: connection}).RunTask(ctx, i.configJSON, cmd.instruction)
+	result, err := (Runner{Executable: h.opts.Executable, Cwd: h.opts.Cwd, Connection: connection, ImportMap: h.opts.ImportMap}).RunTask(ctx, i.configJSON, cmd.instruction)
 	op.Close() // Joins finish/model handlers before reading the authenticated report.
 	h.mu.Lock()
 	run, report := task.run, task.report

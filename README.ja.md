@@ -9,9 +9,9 @@ A tiny JavaScript runtime written in pure Go.
 
 **現在の対応言語はJavaScriptです。** npm・パッケージ管理は対象外で、Node.jsやDenoの完全互換は目標にしていません。固定したgo-quickjs標準ライブラリのWeb APIとNode形式APIを有効にしていますが、各APIは一部実装です。
 
-[APIリファレンス](docs/api.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
+[APIリファレンス](docs/api.md) · [import map](docs/import-map.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
 
-[v1.3.3リリースノート](docs/releases/v1.3.3.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.3)
+[v1.4.0リリースノート](docs/releases/v1.4.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.4.0)
 
 ## ビルドと実行
 
@@ -25,7 +25,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.3.3
+# noe v1.4.0
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -60,6 +60,41 @@ printf '[100,200,300]\n' | ./noe run examples/summarize-stdin.js
 
 ファイル加工・レポート保存・HTTPダウンロードなどは[実行例の一覧](examples/README.md)を参照してください。
 
+## ローカルモジュールとimport map
+
+`--import-map`で、自作JSや動作確認済みのESMライブラリに再利用しやすい名前を付けられます。[付属のmap](examples/import-map/import-map.json)は、`app/math`をローカルモジュールへ対応付けています。
+
+```json
+{
+  "imports": {
+    "app/math": "./lib/math.mjs"
+  }
+}
+```
+
+スクリプトからは名前でimportできます。
+
+```js
+import { sum } from "app/math";
+console.log(sum([1, 2, 3]));
+```
+
+```sh
+./noe run --import-map examples/import-map/import-map.json examples/import-map/main.js
+# 6
+./noe eval --import-map examples/import-map/import-map.json 'import {sum} from "app/math"; console.log(sum([1,2,3]))'
+# 6
+./noe repl --import-map examples/import-map/import-map.json
+```
+
+REPLでは`const math = await import("app/math")`で読み、次の入力で`math.sum([1, 2, 3])`を実行します。
+
+相対targetは**mapファイルのあるディレクトリ**が基準です。ライブラリ内部の相対importは、そのライブラリのファイルが基準になります。対応表は起動時に読み、Worker・agent task・各`run_js`・子agentへ継承します。agentには使わせたいaliasとライブラリのAPIを指示してください。読取り済みライブラリは同じruntime内で再利用し、新しい`run_js`では独立してファイルを読みます。
+
+初回は`imports`内の完全一致名に対応します。prefix mapping・`scopes`・HTTP/HTTPS import・npm package探索は未対応です。ESM形式でも、実行環境との互換性は別途確認が必要です。[MCP SDKの利用例](scripts/spikes/process-io-mcp/README.md)では、検証済みSDK bundleと独立したJS transportをmain・Worker・agentから使っています。Node/npm/esbuildが必要なのはbundleの準備時だけです。
+
+解決規則、対応するpath、ソースの寿命は[import mapガイド](docs/import-map.md)を参照してください。
+
 ## 自律agent
 
 スクリプトから`noe:agent`をimportして起動します。agentは`run_js`でファイルの読み書き、JavaScriptやコマンドの実行、失敗の修正、子agentへの委譲を行い、人間の承認を待たずに回答まで進みます。認証とprovider通信はGoが担当し、生成したJavaScriptはNOEと同じOS権限で動きます。
@@ -83,7 +118,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.3.3のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.3/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
+表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.4.0のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.4.0/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
 
 ### 1タスクを実行し、回答を受け取る
 
@@ -248,9 +283,9 @@ curl -H 'Content-Type: application/json' \
 
 | コマンド | 動作 |
 | --- | --- |
-| `noe run <file> [args...]` | ファイルを実行。スクリプト引数は`process.argv.slice(2)`で取得 |
-| `noe eval <code>` | コードを実行。`process.argv.slice(2)`は空配列 |
-| `noe repl` | 対話的にJavaScriptを実行 |
+| `noe run [options] <file> [args...]` | ファイルを実行。スクリプト引数は`process.argv.slice(2)`で取得 |
+| `noe eval [options] <code>` | コードを実行。`process.argv.slice(2)`は空配列 |
+| `noe repl [options]` | 対話的にJavaScriptを実行 |
 | `noe observe --follow <log>` | イベントを人間向けに整形して表示 |
 | `noe agents` | 稼働中agentとrun IDを一覧表示 |
 | `noe steer <run-id> <instruction>` | 実行中タスクへ追加指示 |
@@ -259,7 +294,7 @@ curl -H 'Content-Type: application/json' \
 | `noe --help` | 使い方を表示。引数なしでも表示 |
 | `noe --version` | バージョンを表示 |
 
-`.js`と`.mjs`をESモジュールとして実行し、Promise・`async/await`・top-level awaitを使えます。ローカルimportはimport元のファイルが基準で、拡張子を明示します。ファイル操作と`eval`内の相対importはカレントディレクトリが基準です。
+`.js`と`.mjs`をESモジュールとして実行し、Promise・`async/await`・top-level awaitを使えます。相対ローカルimportはimport元のファイルが基準で、拡張子を明示します。`--import-map path`でローカルESMに名前を付けられます。targetはmapファイル基準で、Worker・agent生成JSへ継承します。[import mapガイド](docs/import-map.md)を参照してください。ファイル操作と`eval`内の相対importはカレントディレクトリが基準です。
 
 ### 実行時間の上限
 
@@ -317,7 +352,7 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 
 ## 組み込みモジュールと利用権限
 
-`fs`・`process`・`os`・`path`・`child_process`・`dns`・`http`・`worker_threads`・`crypto`などのgo-quickjs標準ライブラリをimportできます。timer、Web Streams、WebSocket、Workersも利用できます。NOE独自の`noe:agent`・`noe:decision`・`noe:auth`はmain runtimeで使え、Workerからのimportは未対応です。`noe:process`と`noe:io`は通常JS・agent生成JS・Workerで利用できます。使い方は[プロセス・標準I/Oガイド](docs/process-io.md)を参照してください。JavaScriptのグローバル`noe`はありません。NodeやDenoの完全互換ではなく、npm・パッケージ導入・QuickJS本来の`std`モジュールも提供しません。bare importで解決できるのは組み込みモジュールだけです。ローカルのソースは相対`.js`・`.mjs` importを使います。
+`fs`・`process`・`os`・`path`・`child_process`・`dns`・`http`・`worker_threads`・`crypto`などのgo-quickjs標準ライブラリをimportできます。timer、Web Streams、WebSocket、Workersも利用できます。NOE独自の`noe:agent`・`noe:decision`・`noe:auth`はmain runtimeで使え、Workerからのimportは未対応です。`noe:process`と`noe:io`は通常JS・agent生成JS・Workerで利用できます。使い方は[プロセス・標準I/Oガイド](docs/process-io.md)を参照してください。JavaScriptのグローバル`noe`はありません。NodeやDenoの完全互換ではなく、npm・パッケージ導入・QuickJS本来の`std`モジュールも提供しません。bare importは組込み名と、明示したimport mapの完全一致entryを解決します。ローカルのソースは相対・絶対pathとローカルfile URLに対応し、`.js`・`.mjs`を明示します。`--import-map path`のtargetはmapファイル基準で、対応表はWorker・agent生成JSへ継承されます。[import mapガイド](docs/import-map.md)と[利用例](examples/import-map/main.js)を参照してください。
 
 スクリプトには、実行中プロセスの環境変数とローカルファイルシステム全体、コマンド実行、DNS・ネットワーク通信、HTTP待受、WebSocket、Workersの権限を渡します。NOEはsandboxではなく、スクリプトは実行ユーザーのOS権限で動作します。
 
@@ -327,7 +362,7 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 
 グローバルの`fetch()`はgo-quickjsのWeb APIで、`Request`・`Response`・`Headers`とストリーミングbodyを提供します。レスポンスbodyは一度だけ読み取れます。JSONを送る場合は、文字列化とContent-Type指定を明示します。
 
-HTTP 4xx・5xxもレスポンスとして返し、通信失敗はPromiseのrejectになります。URLからのモジュールimportには対応しません。HTTPサーバーはグローバルの`serve()`から、WebSocketは標準ライブラリから利用できます。
+HTTP 4xx・5xxもレスポンスとして返し、通信失敗はPromiseのrejectになります。HTTP/HTTPS URLからのモジュールimportには対応しません。HTTPサーバーはグローバルの`serve()`から、WebSocketは標準ライブラリから利用できます。
 
 [HTTP APIの詳細](docs/api.md#fetch) · [JSON APIへのリクエスト例](examples/README.md#json-apiへのリクエスト)
 

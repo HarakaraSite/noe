@@ -18,6 +18,7 @@ import (
 	"noe/internal/agent/provider"
 	"noe/internal/decision"
 	"noe/internal/events"
+	"noe/internal/modulemap"
 )
 
 // Options configures an agent host. Provider and ProviderOptions are used only
@@ -28,6 +29,7 @@ type Options struct {
 	ProviderOptions  provider.Options
 	Cwd              string
 	Executable       string
+	ImportMap        *modulemap.Snapshot // host module configuration; never provider config
 	Connection       *Connection
 	ControlDir       string // explicit human control registry directory
 	EnableControl    bool   // resolve the default directory lazily at first broker use

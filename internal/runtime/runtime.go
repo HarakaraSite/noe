@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"noe/internal/credentials"
 	"noe/internal/decision"
 	"noe/internal/hostio"
+	"noe/internal/modulemap"
 	"noe/internal/nativeio"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
@@ -42,6 +42,9 @@ type Options struct {
 	// Auth supplies HTTP/discovery settings for native sign-in verification.
 	Auth *credentials.Options
 
+	// ImportMap is an immutable, absolute-target local module map.
+	ImportMap *modulemap.Snapshot
+
 	// SourceName is the entry name exposed in process.argv.
 	SourceName string
 }
@@ -65,6 +68,7 @@ type host struct {
 	loop           *eventLoop
 	unhandled      []error
 	cwd            string
+	importMap      *modulemap.Snapshot
 	exitRequested  bool
 	exitCode       int
 	inspect        quickjs.Value
@@ -99,7 +103,7 @@ func newHost(opts Options) (*host, error) {
 	if err != nil {
 		return nil, err
 	}
-	h := &host{rt: quickjs.New(), cwd: cwd}
+	h := &host{rt: quickjs.New(), cwd: cwd, importMap: opts.ImportMap}
 	h.rt.OnClose(func() { _ = stdout.Close(); _ = stderr.Close() })
 	h.loop, err = newEventLoop(h)
 	if err != nil {
@@ -199,31 +203,23 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 }
 
 func (h *host) installLoader(entry *Source) {
+	var name, code string
+	if entry != nil {
+		name, code = entry.Name, entry.Code
+	}
+	local := modulemap.NewLoader(h.importMap, name, code)
 	h.rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
-		if specifier == "noe:agent" {
-			return agent.ModuleSource, "noe:agent", nil
+		switch specifier {
+		case "noe:agent":
+			return agent.ModuleSource, specifier, nil
+		case "noe:decision":
+			return decision.ModuleSource, specifier, nil
+		case "noe:auth":
+			return credentials.ModuleSource, specifier, nil
+		case "noe:agent/task":
+			return agent.TaskModuleSource, specifier, nil
 		}
-		if specifier == "noe:decision" {
-			return decision.ModuleSource, "noe:decision", nil
-		}
-		if specifier == "noe:auth" {
-			return credentials.ModuleSource, "noe:auth", nil
-		}
-		if specifier == "noe:agent/task" {
-			return agent.TaskModuleSource, "noe:agent/task", nil
-		}
-		if !strings.HasPrefix(specifier, "./") && !strings.HasPrefix(specifier, "../") {
-			return "", "", fmt.Errorf("only relative local imports are supported: %q", specifier)
-		}
-		resolved := filepath.Clean(filepath.Join(filepath.Dir(referrer), filepath.FromSlash(specifier)))
-		if ext := filepath.Ext(resolved); ext != ".js" && ext != ".mjs" {
-			return "", "", fmt.Errorf("import must name a .js or .mjs file: %q", specifier)
-		}
-		if entry != nil && resolved == entry.Name {
-			return entry.Code, resolved, nil
-		}
-		data, err := os.ReadFile(resolved)
-		return string(data), resolved, err
+		return local.Load(specifier, referrer)
 	})
 }
 

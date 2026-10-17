@@ -11,16 +11,17 @@ import (
 	"time"
 
 	"noe/internal/events"
+	"noe/internal/modulemap"
 	"noe/internal/runtime"
 )
 
 // Version can be set at build time using -ldflags '-X noe/internal/cli.Version=...'.
-var Version = "v1.3.3"
+var Version = "v1.4.0"
 
 const usage = `Usage:
-  noe run [--timeout duration] [--observe] [--events[=path|-]] script.js [args...]
-  noe eval [--timeout duration] [--observe] [--events[=path|-]] 'code'
-  noe repl [--observe] [--events[=path|-]]
+  noe run [--timeout duration] [--import-map path] [--observe] [--events[=path|-]] script.js [args...]
+  noe eval [--timeout duration] [--import-map path] [--observe] [--events[=path|-]] 'code'
+  noe repl [--import-map path] [--observe] [--events[=path|-]]
   noe observe [--run id] [--follow] [events.jsonl|-]
   noe observe --json --run id [--wait] events.jsonl
   noe agents
@@ -53,6 +54,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	var executionTimeout time.Duration
 	var eventOption *string
 	var humanOutput bool
+	var importMapPath string
 	switch args[0] {
 	case "--help", "-h", "help":
 		fmt.Fprint(stdout, usage)
@@ -74,6 +76,11 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			fmt.Fprint(stderr, usage)
 			return 2
 		}
+		importMap, err := loadImportMap(options.importMap)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
 		observationCtx, observed, err := openObservation(ctx, options.events, options.observe, stdout, stderr)
 		if err != nil {
 			fmt.Fprintln(stderr, err)
@@ -81,7 +88,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		}
 		defer func() { exitCode = observed.finish(exitCode, stderr) }()
 		observed.emit(events.Event{"type": "execution.started", "command": "repl"})
-		return runObservedREPL(observationCtx, stdin, stdout, stderr, observed)
+		return runObservedREPL(observationCtx, stdin, stdout, stderr, observed, importMap)
 	case "run":
 		options, operands, err := parseCommandOptions(args[1:])
 		if err != nil {
@@ -110,6 +117,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		scriptArgs = operands[1:]
 		executionTimeout, eventOption = options.timeout, options.events
 		humanOutput = options.observe
+		importMapPath = options.importMap
 	case "eval":
 		options, operands, err := parseCommandOptions(args[1:])
 		if err != nil {
@@ -128,9 +136,15 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		source = runtime.Source{Name: filepath.Join(cwd, "<eval>.js"), Code: operands[0]}
 		executionTimeout, eventOption = options.timeout, options.events
 		humanOutput = options.observe
+		importMapPath = options.importMap
 	default:
 		fmt.Fprintf(stderr, "noe: unknown command %q\n%s", args[0], usage)
 		return 2
+	}
+	importMap, err := loadImportMap(importMapPath)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
 	}
 	observationCtx, observed, err := openObservation(ctx, eventOption, humanOutput, stdout, stderr)
 	if err != nil {
@@ -139,7 +153,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	}
 	defer func() { exitCode = observed.finish(exitCode, stderr) }()
 	observed.emit(events.Event{"type": "execution.started", "command": args[0]})
-	runtimeOptions := runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs}
+	runtimeOptions := runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs, ImportMap: importMap}
 	if observed != nil {
 		runtimeOptions.Stdout, runtimeOptions.Stderr = observed.stdout, observed.stderr
 	}
@@ -168,4 +182,11 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return 1
 	}
 	return code
+}
+
+func loadImportMap(path string) (*modulemap.Snapshot, error) {
+	if path == "" {
+		return nil, nil
+	}
+	return modulemap.Load(path)
 }

@@ -3,6 +3,7 @@ package runtime
 import (
 	"fmt"
 	"net/url"
+	"noe/internal/modulemap"
 	"noe/internal/nativeio"
 	"os"
 	"path/filepath"
@@ -81,8 +82,13 @@ func currentEnvironment() map[string]string {
 
 func (h *host) newWorkerRuntime() (*quickjs.Runtime, error) {
 	rt := quickjs.New()
+	local := modulemap.NewLoader(h.importMap, "", "")
 	rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
-		return loadLocalModule(specifier, referrer)
+		switch specifier {
+		case "noe:agent", "noe:decision", "noe:auth", "noe:agent/task":
+			return "", "", fmt.Errorf("%s is not supported in Workers", specifier)
+		}
+		return local.Load(specifier, referrer)
 	})
 	return rt, nil
 }
@@ -138,19 +144,4 @@ func (h *host) workerPath(specifier string) (string, error) {
 
 func isDriveLetter(c byte) bool {
 	return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z'
-}
-
-func loadLocalModule(specifier, referrer string) (string, string, error) {
-	if specifier == "noe:agent" {
-		return "", "", fmt.Errorf("noe:agent is not supported in Workers")
-	}
-	if !strings.HasPrefix(specifier, "./") && !strings.HasPrefix(specifier, "../") {
-		return "", "", fmt.Errorf("only relative local imports are supported: %q", specifier)
-	}
-	resolved := filepath.Clean(filepath.Join(filepath.Dir(referrer), filepath.FromSlash(specifier)))
-	if ext := filepath.Ext(resolved); ext != ".js" && ext != ".mjs" {
-		return "", "", fmt.Errorf("import must name a .js or .mjs file: %q", specifier)
-	}
-	data, err := os.ReadFile(resolved)
-	return string(data), resolved, err
 }

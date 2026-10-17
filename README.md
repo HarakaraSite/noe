@@ -10,11 +10,11 @@ NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript
 
 **JavaScript is supported today.** npm and package management are outside the project's scope. Complete Node.js or Deno compatibility is not a project goal. NOE enables the pinned go-quickjs standard library, whose Web and Node-style APIs are useful subsets rather than complete platform compatibility.
 
-[API reference](docs/api.md) · [Migration from the old APIs](docs/api.md#旧apiからの移行) · [REPL guide](docs/repl.md) · [Examples](examples/README.md) · [Development notes](docs/README.md)
+[API reference](docs/api.md) · [Import maps](docs/import-map.md) · [Migration from the old APIs](docs/api.md#旧apiからの移行) · [REPL guide](docs/repl.md) · [Examples](examples/README.md) · [Development notes](docs/README.md)
 
 The linked guides and development notes are currently in Japanese.
 
-[v1.3.3 release notes](docs/releases/v1.3.3.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.3.3)
+[v1.4.0 release notes](docs/releases/v1.4.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.4.0)
 
 ## Build and run
 
@@ -28,7 +28,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.3.3
+# noe v1.4.0
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -63,6 +63,41 @@ Print three times, one second apart, using asynchronous sleep:
 
 See the [examples](examples/README.md) for file transformation, report generation, and HTTP downloads.
 
+## Local modules and import maps
+
+Give your own JavaScript and verified ESM libraries reusable names with `--import-map`. The included [example map](examples/import-map/import-map.json) assigns `app/math` to a local module:
+
+```json
+{
+  "imports": {
+    "app/math": "./lib/math.mjs"
+  }
+}
+```
+
+Scripts can then use the name directly:
+
+```js
+import { sum } from "app/math";
+console.log(sum([1, 2, 3]));
+```
+
+```sh
+./noe run --import-map examples/import-map/import-map.json examples/import-map/main.js
+# 6
+./noe eval --import-map examples/import-map/import-map.json 'import {sum} from "app/math"; console.log(sum([1,2,3]))'
+# 6
+./noe repl --import-map examples/import-map/import-map.json
+```
+
+In the REPL, use `const math = await import("app/math")`, then `math.sum([1, 2, 3])`.
+
+Relative targets resolve from the **map file's directory**. Imports inside a library resolve from that library. NOE loads the mapping once at startup and passes it to Workers, agent tasks, each `run_js`, and child agents. Tell the agent which aliases and library APIs to use. Imported libraries are reused within one runtime; each fresh `run_js` reads library files independently.
+
+The first version supports exact names in `imports`. Prefix mappings and `scopes`, HTTP/HTTPS imports, and npm package discovery are not supported. ESM format alone does not guarantee runtime compatibility. The [MCP SDK example](scripts/spikes/process-io-mcp/README.md) demonstrates a verified SDK bundle and a separate JavaScript transport in main, Worker, and agent execution; Node/npm/esbuild are used only to prepare the bundle.
+
+See the [import map guide](docs/import-map.md) for resolution rules, supported paths, and source lifetime.
+
 ## Autonomous agents
 
 Import `noe:agent` from a script to start an agent. The agent calls `run_js` to read and write files, execute JavaScript and commands, repair failures, and delegate to children. It continues without interactive approval and returns its answer when finished. Credentials and provider connections are handled by Go; generated JavaScript runs with the same OS permissions as NOE.
@@ -86,7 +121,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.3.3 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.3.3/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
+Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.4.0 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.4.0/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
 
 ### Run one task and receive its answer
 
@@ -251,9 +286,9 @@ The global `serve(options, handler)` takes a Web `Request` and expects a Web `Re
 
 | Command | Behavior |
 | --- | --- |
-| `noe run <file> [args...]` | Run a file; script arguments are available in `process.argv.slice(2)` |
-| `noe eval <code>` | Run code; `process.argv.slice(2)` is empty |
-| `noe repl` | Run JavaScript interactively |
+| `noe run [options] <file> [args...]` | Run a file; script arguments are available in `process.argv.slice(2)` |
+| `noe eval [options] <code>` | Run code; `process.argv.slice(2)` is empty |
+| `noe repl [options]` | Run JavaScript interactively |
 | `noe observe --follow <log>` | Read agent events in a human-readable view |
 | `noe agents` | List active agents and their current run IDs |
 | `noe steer <run-id> <instruction>` | Add instructions to an active task |
@@ -262,7 +297,7 @@ The global `serve(options, handler)` takes a Web `Request` and expects a Web `Re
 | `noe --help` | Show usage; also shown when no arguments are supplied |
 | `noe --version` | Show the version |
 
-`.js` and `.mjs` files run as ES modules with Promise, `async/await`, and top-level await support. Local imports are relative to the importing file and require an explicit extension. File operations and relative imports in `eval` use the current working directory.
+`.js` and `.mjs` files run as ES modules with Promise, `async/await`, and top-level await support. Local imports accept relative paths, absolute OS paths, and local file URLs, and require an explicit extension. Use `--import-map path` to map exact bare names to local files; targets are relative to the map file. The mapping is inherited by Workers and agent-generated JavaScript. See the [import map guide](docs/import-map.md) and [example](examples/import-map/main.js). File operations and relative imports in `eval` use the current working directory.
 
 ### Execution timeout
 
@@ -320,7 +355,7 @@ See the [API reference](docs/api.md) for arguments, return values, errors, and s
 
 ## Built-in modules and capabilities
 
-Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE additionally provides `noe:agent`, `noe:decision`, and `noe:auth` in the main runtime; importing them from a Worker is unsupported. `noe:process` and `noe:io` work in ordinary scripts, agent-generated JavaScript, and Workers. See the [process and standard I/O guide](docs/process-io.md) for live streams, process ownership, and cancellation. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve only to installed built-ins; local source imports must use relative `.js` or `.mjs` paths.
+Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE additionally provides `noe:agent`, `noe:decision`, and `noe:auth` in the main runtime; importing them from a Worker is unsupported. `noe:process` and `noe:io` work in ordinary scripts, agent-generated JavaScript, and Workers. See the [process and standard I/O guide](docs/process-io.md) for live streams, process ownership, and cancellation. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve to installed built-ins or exact entries in an explicitly supplied local import map; local modules require `.js` or `.mjs` extensions.
 
 The runtime grants scripts full access to the current process environment and local filesystem, command execution, DNS and network requests, HTTP listeners, WebSocket connections, and workers. It is not a sandbox: scripts can act with the operating-system privileges of the user running NOE.
 
@@ -330,7 +365,7 @@ On normal completion, NOE waits for started I/O, timers, and subsequent JS execu
 
 The global `fetch()` is the go-quickjs Web API. It provides `Request`, `Response`, and `Headers`, and response bodies can be read as streams. A response body is consumed once, as with the Web API. Serialize JSON and set Content-Type explicitly when sending JSON.
 
-HTTP 4xx and 5xx responses are returned as responses; transport failures reject the Promise. URL imports are not supported. HTTP servers use the global `serve()` API; WebSocket uses the standard library API.
+HTTP 4xx and 5xx responses are returned as responses; transport failures reject the Promise. HTTP/HTTPS module imports are not supported. HTTP servers use the global `serve()` API; WebSocket uses the standard library API.
 
 [HTTP API details](docs/api.md#fetch) · [JSON API request examples](examples/README.md#json-apiへのリクエスト)
 

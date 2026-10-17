@@ -20,9 +20,10 @@ func parseExecutionOptions(args []string) (time.Duration, []string, error) {
 }
 
 type commandOptions struct {
-	timeout time.Duration
-	events  *string // nil disables observation; empty chooses an automatic file name.
-	observe bool    // render human-readable events directly on stdout.
+	timeout   time.Duration
+	events    *string // nil disables observation; empty chooses an automatic file name.
+	observe   bool    // render human-readable events directly on stdout.
+	importMap string  // explicit import-map path; empty disables mappings.
 }
 
 func parseCommandOptions(args []string) (commandOptions, []string, error) {
@@ -35,6 +36,25 @@ func parseCommandOptions(args []string) (commandOptions, []string, error) {
 		if arg == "--" {
 			options.timeout = timeout
 			return options, args[i+1:], nil
+		}
+		if arg == "--import-map" || strings.HasPrefix(arg, "--import-map=") {
+			if options.importMap != "" {
+				return commandOptions{}, nil, errors.New("noe: --import-map may be specified only once")
+			}
+			value := strings.TrimPrefix(arg, "--import-map=")
+			if arg == "--import-map" {
+				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
+					return commandOptions{}, nil, errors.New("noe: --import-map requires a file path")
+				}
+				value = args[i+1]
+				i++
+			}
+			if value == "" {
+				return commandOptions{}, nil, errors.New("noe: --import-map requires a file path")
+			}
+			options.importMap = value
+			i++
+			continue
 		}
 		if arg == "--observe" {
 			if options.events != nil && *options.events == "-" {

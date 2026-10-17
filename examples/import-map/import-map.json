@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "app/math": "./lib/math.mjs"
+  }
+}

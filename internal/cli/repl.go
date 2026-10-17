@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"noe/internal/events"
+	"noe/internal/modulemap"
 	"noe/internal/runtime"
 )
 
@@ -20,10 +21,10 @@ type inputLine struct {
 }
 
 func runREPL(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer) int {
-	return runObservedREPL(ctx, stdin, stdout, stderr, nil)
+	return runObservedREPL(ctx, stdin, stdout, stderr, nil, nil)
 }
 
-func runObservedREPL(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, observed *observation) int {
+func runObservedREPL(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, observed *observation, importMap *modulemap.Snapshot) int {
 	if ctx.Err() != nil {
 		return interruptedCode(ctx, stderr)
 	}
@@ -36,14 +37,14 @@ func runObservedREPL(ctx context.Context, stdin io.Reader, stdout, stderr io.Wri
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	return runREPLWithObservation(ctx, input, stdout, stderr, observed)
+	return runREPLWithObservation(ctx, input, stdout, stderr, observed, importMap)
 }
 
 func runREPLWithInput(ctx context.Context, input replInput, stdout, stderr io.Writer) (code int) {
-	return runREPLWithObservation(ctx, input, stdout, stderr, nil)
+	return runREPLWithObservation(ctx, input, stdout, stderr, nil, nil)
 }
 
-func runREPLWithObservation(ctx context.Context, input replInput, stdout, stderr io.Writer, observed *observation) (code int) {
+func runREPLWithObservation(ctx context.Context, input replInput, stdout, stderr io.Writer, observed *observation, importMap *modulemap.Snapshot) (code int) {
 	ctx, stopRequests := context.WithCancel(ctx)
 	defer stopRequests()
 	edited, interactive := input.(*terminalREPLInput)
@@ -67,7 +68,7 @@ func runREPLWithObservation(ctx context.Context, input replInput, stdout, stderr
 		return 1
 	}
 	observed.configureAgent(agentSettings)
-	options := runtime.Options{Stdout: stdout, Stderr: stderr, Agent: agentSettings}
+	options := runtime.Options{Stdout: stdout, Stderr: stderr, Agent: agentSettings, ImportMap: importMap}
 	if observed != nil {
 		options.Stdout, options.Stderr = observed.stdout, observed.stderr
 	}

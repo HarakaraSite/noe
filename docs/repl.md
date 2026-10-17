@@ -27,6 +27,8 @@
 
 式の結果を表示し、`undefined`は省略します。文字列の結果には引用符が付きます。通常のJSエラーや未処理のPromise rejectionは標準エラーに表示して続行し、実行済みの変更を巻き戻しません。
 
+`./noe repl --import-map ./import-map.json`でローカルESMのaliasを使えます。`const helper = await import("app/helpers")`のように読み込みます。対応表はsession開始時に固定し、読取り済みmoduleは次の入力でも再利用します。[import mapガイド](import-map.md)を参照してください。
+
 ## 意思決定モデル
 
 `noe:decision`もdynamic importで呼べます。結果のJSON object全体を受け取り、次の入力で使えます。認証はOpenRouter agentと共通です。

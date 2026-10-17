@@ -18,6 +18,7 @@ func (h *host) installAgent(opts Options) error {
 		settings = *opts.Agent
 	}
 	settings.Cwd = h.cwd
+	settings.ImportMap = opts.ImportMap
 	h.agents = agent.NewHost(settings)
 	// OnClose runs after QuickJS shutdown: this callback only touches Go state.
 	h.rt.OnClose(h.agents.Close)
