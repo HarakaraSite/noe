@@ -4,15 +4,15 @@
 
 ## 出力先
 
-人間向けに直接表示する場合は`--observe`を使います。`./noe run --observe try-agent.js`でパイプなしに整形表示でき、`--events=agent.jsonl`を併用すれば元のJSONLも保存できます。詳細は[観察の入口](observe.md)を参照してください。以下はJSONLを出すオプションです。
+人間向けに直接表示する場合は`--observe`を使います。`./noe run --observe examples/try-agent.js`でパイプなしに整形表示でき、`--events=agent.jsonl`を併用すれば元のJSONLも保存できます。詳細は[観察の入口](observe.md)を参照してください。以下はJSONLを出すオプションです。
 
 ```sh
 # stdoutをJSONLにしてパイプで読む
-./noe run --events=- try-agent.js | jq --unbuffered -c .
+./noe run --events=- examples/try-agent.js | jq --unbuffered -c .
 ./noe eval --events=- 'console.log("hello")' | jq --unbuffered -c .
 
 # 通常の画面表示を保ち、ファイルにも記録する
-./noe run --events=agent.jsonl try-agent.js
+./noe run --events=agent.jsonl examples/try-agent.js
 ./noe repl --events=agent.jsonl
 
 # 名前を自動生成する
@@ -92,6 +92,6 @@ tail -f agent.jsonl | jq --unbuffered -c \
   'select(.runId == "aaa" or .parentRunId == "aaa")'
 ```
 
-人間向けの整形表示はGoの`noe observe`、親向けの状態・差分・結果取得は`noe:agent`の`observe_agent`を利用できます。`--observe`と`noe observe`は`instance.*`を`[name/<agentId8>] agent idle`のように表示し、taskの発言・tool・完了は従来どおりtaskのrun IDで表示します。steerの受付・適用・取消しとinterruptの受付も人間向け表示に出します。queueの`command.*`受付・結果はraw JSONLに記録し、人間向け表示では省略します。`./noe run --events=- try-agent.js | ./noe observe`で逐次表示できます。使い方は[観察の入口](observe.md)を参照してください。steer・interrupt・人間用control CLIの受付と確認方法は[APIリファレンス](api.md#実行中taskへの指示と停止)にまとめています。外部JSによる表示とSQLite保存は、当初の[検討メモ](future-candidates.md#外部jsによるリアルタイム表示--2026-10-17)に残しています。設計と対象範囲は[control計画](agent-control-plan.md)を参照してください。
+人間向けの整形表示はGoの`noe observe`、親向けの状態・差分・結果取得は`noe:agent`の`observe_agent`を利用できます。`--observe`と`noe observe`は`instance.*`を`[name/<agentId8>] agent idle`のように表示し、taskの発言・tool・完了は従来どおりtaskのrun IDで表示します。steerの受付・適用・取消しとinterruptの受付も人間向け表示に出します。queueの`command.*`受付・結果はraw JSONLに記録し、人間向け表示では省略します。`./noe run --events=- examples/try-agent.js | ./noe observe`で逐次表示できます。使い方は[観察の入口](observe.md)を参照してください。steer・interrupt・人間用control CLIの受付と確認方法は[APIリファレンス](api.md#実行中taskへの指示と停止)にまとめています。外部JSによる表示とSQLite保存は、当初の[検討メモ](future-candidates.md#外部jsによるリアルタイム表示--2026-10-17)に残しています。設計と対象範囲は[control計画](agent-control-plan.md)を参照してください。
 
 従来の`NOE_AGENT_TRACE=1`はメタデータのみをstderrへ出す機能として維持しています。詳細本文やtool出力を含む`--events`とは独立しており、従来のtraceの内容は変わりません。

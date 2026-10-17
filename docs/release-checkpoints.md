@@ -264,3 +264,27 @@ The workflow passed its CGO-free test/vet gates, built all six profile targets, 
 The published Linux amd64 binary passed five smoke checks with exit 0 and empty stderr: version (`noe v1.3.2`), arithmetic (`2`), lazy agent/decision/auth imports, Intl normalization/collation, and the external ChatGPT helper's help command. Its embedded Go build information confirms all eight updated dependency versions and go-quickjs v0.27.0. The helper's versioned download URL also matches the committed script. No model request was made. Artifacts and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.3.2-published-k371cnhz/`.
 
 The repository-root `./noe` is the verified published Linux amd64 binary. This documentation-only verification commit follows publication without moving the tag. macOS, Windows, and arm64 native runtime behavior remains unverified.
+
+## v1.3.3 preparation — 2026-10-17
+
+Checked source revision: `0387e10d8b22cc52beb8385ec182332d76fd5fc8`. Environment: Linux amd64, Go 1.27.2, a C toolchain for race, and Linux PTY support. Subsequent preparation changes only update this record and the observation guides' commands for the relocated example.
+
+This release reorganizes the agent broker, SSE handling, recorded-run observation, and E2E tests. All 107 original implementation declarations were compared before and after splitting, including their bodies and attached comments, and are byte-for-byte unchanged. Existing E2E test names and build tags are retained; live acceptance reports now obtain the SDK version from the tested CLI. Dependency versions remain those of v1.3.2. The example is now `examples/try-agent.js`. See the [release notes](releases/v1.3.3.md) and [E2E test guide](../tests/README.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1` | Passed, including Linux PTY checks |
+| `CGO_ENABLED=0 go vet ./...` | Passed |
+| `CGO_ENABLED=0 go vet -tags=e2e ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` | Passed |
+| Live-test build with `e2e agent_live decision_live`, `-run '^$'` | Passed; no live cases executed |
+| All six profile targets, CGO disabled, `-trimpath`, `-s -w -X noe/internal/cli.Version=v1.3.3` | Built successfully |
+| Local `SHA256SUMS` covering all six binaries | All hashes verified |
+| Built Linux amd64 version, arithmetic, lazy agent/decision/auth imports, Intl normalization/collation, external auth helper help | All five checks passed, exit 0 and empty stderr |
+| Embedded dependency information | Confirms the v1.3.2 module versions and go-quickjs v0.27.0 |
+| Changed Markdown relative links, Go formatting, and diff whitespace | Passed |
+
+The five main checks ran sequentially, followed by the six builds. The Linux amd64 binary is 47,976,608 bytes with the release flags. No real model request was made. Logs and build artifacts are under `/home/agent/.cache/noe-qjs-repl/noe-v1.3.3-release-1xqnnkw7/`. The declaration comparison and initial refactoring checks are under `/home/agent/.cache/noe-qjs-repl/noe-source-tidy-ti37tizi/`.
+
+The tag-triggered Forgejo workflow remains the distribution gate; publication and downloaded assets are verified separately. Native runtime execution on macOS, Windows, and arm64 remains unverified.
