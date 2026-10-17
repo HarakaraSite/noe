@@ -153,3 +153,29 @@ The actual workflow set up Go 1.27.2, passed the CGO-free unit-test and vet gate
 The downloaded Linux amd64 binary returned `noe v1.2.0` for `--version`, `2` for an arithmetic evaluation, and `function function function undefined` for lazy `noe:agent` import/create plus Fetch/server and removed-global checks. All three exited with 0 and empty stderr; the agent check did not make a model request. Downloaded artifacts and verification records are under `/tmp/noe-v1.2.0-published-izk96800/`.
 
 This verification entry is committed after publication and does not move or replace the `v1.2.0` tag. The repository-root `./noe` was updated to the verified published Linux amd64 binary. macOS/Windows/arm64 native execution is still unverified.
+
+## v1.3.0 preparation — 2026-10-17
+
+Checked source revision: `0c87d0fbb20fd06b69771ef0509da0058bedfde5`. The checks ran against this application source immediately before the commit; the final source-tree adjustment was removal of a trailing blank line in a validation document. This preparation entry is documentation-only. Environment: Linux amd64, Go 1.27.2, a C toolchain for race, and Linux PTY support.
+
+This release includes managed agent lifecycle/control and qjs REPL integration since v1.2.0, plus structured decisions, OpenCode Go, OpenAI SDK/ChatGPT credentials, configurable providers and a model catalog, and richer execution diagnostics. Both READMEs now explain credential registration, root startup, results and failures, child inheritance, concurrency, keepAlive, control commands, and observation. The public agent API breaks compatibility with v1.2.0; see the [release notes](releases/v1.3.0.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go vet ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` | Passed |
+| `go test -tags=e2e ./... -count=1` | Passed, including Linux PTY checks |
+| `go vet -tags=e2e ./...` | Passed |
+| All six profile targets, CGO disabled, `-trimpath`, `-s -w -X noe/internal/cli.Version=v1.3.0` | Built successfully |
+| Local `SHA256SUMS` covering all six binaries | All hashes verified |
+| Built Linux amd64 `--version` and arithmetic evaluation | `noe v1.3.0` and `2`, exit 0 |
+| Lazy agent/decision/auth imports, Fetch/serve, removed global, and OpenAI catalog | Passed without provider requests |
+| External ChatGPT helper `help` under the built binary | Passed, exit 0, empty stderr |
+| Changed Markdown relative links, JSON files, gofmt, and staged diff whitespace | Passed |
+
+Local command/output records, checksums, and build artifacts are under `/home/agent/.cache/noe-qjs-repl/noe-v1.3.0-release-n3m2z62v/`. The Linux amd64 binary is 47,739,040 bytes with the release flags. Native runtime behavior on other targets remains unverified.
+
+Existing live acceptance evidence is recorded in [agent controls](agent-control-openrouter-validation.md), [decisions](decision-openrouter-validation.md), [OpenCode Go/provider configuration](provider-config-validation.md), and [OpenAI](openai-implementation.md). The live ChatGPT tests used refreshed existing credentials; fresh browser registration and the OpenAI API-key route were fixture-tested. No further external model request was made during this release preparation.
+
+The tag-triggered Forgejo workflow remains the distribution gate. Publication and downloaded assets are verified separately after tagging.
