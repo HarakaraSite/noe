@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"net/http/httptest"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -269,10 +268,10 @@ func TestIdleExitFinishesBeforeInterruptAdmission(t *testing.T) {
 	}
 	// Exercise the real idle-exit branch, with terminal event publication
 	// paused. Admission must already be closed with counters settled.
-	response := httptest.NewRecorder()
-	h.interruptInstance(response, op, instance.id)
-	if response.Code != 409 {
-		t.Fatalf("interrupt during terminal publication returned status %d, want conflict: %s", response.Code, response.Body.String())
+	_, err := h.interrupt(op, interruptRequest{AgentID: instance.id})
+	operationErr, ok := err.(*operationError)
+	if !ok || operationErr.status != 409 {
+		t.Fatalf("interrupt during terminal publication returned error %v, want conflict", err)
 	}
 	h.mu.Lock()
 	state, reason, active := instance.state, instance.reason, group.counters.ActiveAgents

@@ -14,7 +14,7 @@ NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript
 
 The linked guides and development notes are currently in Japanese.
 
-[v1.7.0 release notes](docs/releases/v1.7.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.0)
+[v1.7.1 release notes](docs/releases/v1.7.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.1)
 
 ## Build and run
 
@@ -28,7 +28,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.7.0
+# noe v1.7.1
 
 ./noe run examples/basics/hello.js
 # Hello from NOE!
@@ -123,7 +123,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.7.0 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.7.0/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
+Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.7.1 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.7.1/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
 
 ### Run one task and receive its answer
 
@@ -257,6 +257,8 @@ An `agentId` identifies the instance; each task has a new `runId` and keeps its 
 ```
 
 `--events` works with `run`, `eval`, and `repl`: `--events=-` writes JSONL to stdout, a path appends to that file, and bare `--events` creates `noe-events-<date>-<time>-<id>.jsonl` in the starting working directory. Events retain ordinary JS output, generated JavaScript source, and captured exception details. The legacy `NOE_AGENT_TRACE=1` metadata trace remains available on stderr. See the [event guide](docs/events.md) and [observation entry points](docs/observe.md); parents can also read saved JSONL through `observe_agent({logPath, runId, ...})`.
+
+Captured `run_js` stdout and stderr each retain up to 64 KiB: the first 32 KiB and last 32 KiB. Larger output includes a truncation marker and omitted-byte counts in tool results and events. Omitted output is not saved automatically; write full logs to a file from the script or command when needed. Top-level script output is unchanged. See the [API reference](docs/api.md#run_jsからの利用).
 
 `list_models({provider?, kind?})` returns built-in and externally configured model metadata without contacting a provider. Endpoints, headers, parameters, model-specific routes, and catalog entries can be overridden in `~/.config/noe/config.json` or `NOE_CONFIG_FILE`. See [provider configuration](docs/providers.md), the [model catalog](docs/model-catalog.md), and [Jev routing example](examples/agent/agent-route-model.js). Directly specifying a model in JavaScript is also supported; the catalog is not an allowlist.
 

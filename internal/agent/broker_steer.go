@@ -8,28 +8,6 @@ import (
 	"noe/internal/events"
 )
 
-type steerRequest struct {
-	RunID       string `json:"runId"`
-	Instruction string `json:"instruction"`
-	CommandID   string `json:"commandId,omitempty"`
-}
-
-type steerCommand struct {
-	id          string
-	instruction string
-	status      string
-	activityID  string
-	causedBy    []string
-	origin      activityOrigin
-	accepted    chan struct{}
-	settled     chan struct{}
-}
-
-type steerInstruction struct {
-	CommandID   string `json:"commandId"`
-	Instruction string `json:"instruction"`
-}
-
 type applySteersRequest struct {
 	RunID      string                `json:"runId"`
 	CommandIDs []string              `json:"commandIds"`
@@ -47,147 +25,18 @@ type commitFinalResponse struct {
 	Instructions []steerInstruction `json:"instructions,omitempty"`
 }
 
-type steerLifecycleEvent struct {
-	run     *agentRun
-	command *steerCommand
-	status  string
-}
-
 func (b *broker) handleSteer(w http.ResponseWriter, r *http.Request, op *Operation) {
 	var request steerRequest
-	if err := decodeRequest(r, &request); err != nil || request.RunID == "" || strings.TrimSpace(request.Instruction) == "" {
+	if err := decodeRequest(r, &request); err != nil {
 		writeRPCError(w, http.StatusBadRequest, "request", "runId and instruction are required")
 		return
 	}
-	if request.CommandID == "" {
-		id, err := randomID()
-		if err != nil {
-			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate command ID")
-			return
-		}
-		request.CommandID = id
-	} else if strings.TrimSpace(request.CommandID) == "" {
-		writeRPCError(w, http.StatusBadRequest, "request", "commandId must be nonempty")
-		return
-	}
-
-	h := b.host
-	h.mu.Lock()
-	run := h.runs[request.RunID]
-	if run == nil || !h.canManageRunLocked(op, run) || run.ctx.Err() != nil || run.interrupting || op.closed || h.closed || run.finalClosed {
-		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "unknown, unowned, or finished agent run")
-		return
-	}
-	if !h.executionGroupOpenLocked(run.group) {
-		group := run.group
-		h.mu.Unlock()
-		code, message := executionLimitError(group)
-		writeRPCError(w, http.StatusConflict, code, message)
-		return
-	}
-	if previous := run.steerByID[request.CommandID]; previous != nil {
-		if previous.instruction != request.Instruction {
-			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "command", "commandId already used for a different instruction")
-			return
-		}
-		status := previous.status
-		h.mu.Unlock()
-		writeJSON(w, map[string]string{"commandId": request.CommandID, "status": status})
-		return
-	}
-	activityID, err := randomID()
+	response, err := b.host.steer(op, request)
 	if err != nil {
-		h.mu.Unlock()
-		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate steer activity")
+		writeOperationError(w, err)
 		return
 	}
-	senderRun := h.currentOwnerRunLocked(op)
-	origin := op.activityOrigin
-	if origin.Kind == "" {
-		origin.Kind = "script"
-		if op.control {
-			origin.Kind = "human"
-		}
-	}
-	if origin.RunID == "" && senderRun != nil {
-		origin.RunID = senderRun.id
-	}
-	if origin.AgentID == "" && senderRun != nil {
-		origin.AgentID = senderRun.agentID()
-	}
-	if origin.RunID == "" && run.operation == op {
-		origin.RunID = run.id
-		origin.AgentID = run.agentID()
-	}
-	if origin.RunID == "" && op.control {
-		origin.RunID = run.id
-		origin.AgentID = run.agentID()
-	}
-	origin.CommandID = request.CommandID
-	causedBy := append([]string(nil), op.causeActivityIDs...)
-	if len(causedBy) == 0 && !op.control && senderRun != nil && senderRun.activityID != "" {
-		causedBy = []string{senderRun.activityID}
-	}
-	if len(causedBy) == 0 && !op.control && run.operation == op && run.activityID != "" {
-		causedBy = []string{run.activityID}
-	}
-	command := &steerCommand{
-		id: request.CommandID, instruction: request.Instruction, status: "accepted",
-		activityID: activityID, causedBy: causedBy, origin: origin,
-		accepted: make(chan struct{}), settled: make(chan struct{}),
-	}
-	run.steerByID[command.id] = command
-	run.steerOrder = append(run.steerOrder, command)
-	h.mu.Unlock()
-
-	h.observeRun("command.accepted", run.id, run, steerEventFields(command, "accepted"))
-	close(command.accepted)
-	writeJSON(w, map[string]string{"commandId": command.id, "status": "accepted"})
-}
-
-// deliverPendingSteersLocked is called at the provider-call and final-answer
-// linearization points. Both accepted and previously delivered commands stay
-// pending until apply_steers acknowledges them.
-func (h *Host) deliverPendingSteersLocked(run *agentRun) []steerInstruction {
-	var instructions []steerInstruction
-	for _, command := range run.steerOrder {
-		if command.status != "accepted" && command.status != "delivered" {
-			continue
-		}
-		command.status = "delivered"
-		instructions = append(instructions, steerInstruction{CommandID: command.id, Instruction: command.instruction})
-	}
-	return instructions
-}
-
-func (h *Host) cancelPendingSteersLocked(run *agentRun) []steerLifecycleEvent {
-	var pending []steerLifecycleEvent
-	for _, command := range run.steerOrder {
-		if command.status != "accepted" && command.status != "delivered" {
-			continue
-		}
-		command.status = "cancelled"
-		pending = append(pending, steerLifecycleEvent{run: run, command: command, status: "cancelled"})
-	}
-	return pending
-}
-
-// emitSteerEvents preserves accepted-before-settled event ordering without
-// holding Host.mu while invoking the user observer.
-func (h *Host) emitSteerEvents(pending []steerLifecycleEvent) {
-	for _, item := range pending {
-		<-item.command.accepted
-		h.observeRun("command."+item.status, item.run.id, item.run, steerEventFields(item.command, item.status))
-		close(item.command.settled)
-	}
-}
-
-func steerEventFields(command *steerCommand, status string) events.Event {
-	fields := events.Event{"commandId": command.id, "status": status, "operation": "steer"}
-	addActivityFields(fields, command.activityID, command.causedBy, command.origin)
-	return fields
+	writeJSON(w, response)
 }
 
 func (b *broker) handleApplySteers(w http.ResponseWriter, r *http.Request, op *Operation) {

@@ -225,16 +225,28 @@ func (b *broker) finishJSResult(runID string, run *agentRun, started time.Time, 
 	addActivityFields(fields, activityID, causedBy, origin)
 	if result.Stdout != "" {
 		stdout := fieldsWith(fields, events.Event{"text": result.Stdout})
+		if result.StdoutOmittedBytes > 0 {
+			stdout["omittedBytes"] = result.StdoutOmittedBytes
+		}
 		b.host.observeRun("stdout", runID, run, stdout)
 	}
 	if result.Stderr != "" {
 		stderr := fieldsWith(fields, events.Event{"text": result.Stderr})
+		if result.StderrOmittedBytes > 0 {
+			stderr["omittedBytes"] = result.StderrOmittedBytes
+		}
 		b.host.observeRun("stderr", runID, run, stderr)
 	}
 	finishFields := events.Event{
 		"success":  result.Reason == "completed" && result.ExitCode == 0,
 		"exitCode": result.ExitCode, "reason": result.Reason,
 		"duration": time.Since(started),
+	}
+	if result.StdoutOmittedBytes > 0 {
+		finishFields["stdoutOmittedBytes"] = result.StdoutOmittedBytes
+	}
+	if result.StderrOmittedBytes > 0 {
+		finishFields["stderrOmittedBytes"] = result.StderrOmittedBytes
 	}
 	if origin.ModelStepID != "" {
 		finishFields["modelStepId"] = origin.ModelStepID

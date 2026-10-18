@@ -1,18 +1,15 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 
+	processrunner "noe/internal/agent/runner"
 	"noe/internal/modulemap"
 )
 
@@ -27,20 +24,9 @@ type Runner struct {
 // Result is the observable outcome of a child NOE process. A non-zero exit,
 // timeout, or cancellation is returned as a result; error is reserved for
 // setup and supervision failures.
-type Result struct {
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
-	ExitCode int    `json:"exitCode"`
-	Reason   string `json:"reason"`
-}
+type Result = processrunner.Result
 
 const childSourcePrelude = "import { run_agent, spawn_agent, observe_agent, queue_agent, steer_agent, interrupt_agent } from \"noe:agent\";\n"
-
-type processScope interface {
-	start() error
-	terminate() error
-	close() error
-}
 
 // Run prepends the public agent helper import used by run_js code.
 func (r Runner) Run(ctx context.Context, code string) (Result, error) {
@@ -145,126 +131,12 @@ func (r Runner) runSource(ctx context.Context, source string) (result Result, re
 		return Result{ExitCode: -1, Reason: reasonForContext(ctx.Err())}, nil
 	}
 
-	stdoutReader, stdoutWriter, err := os.Pipe()
-	if err != nil {
-		return failedResult(), fmt.Errorf("create child stdout pipe: %w", err)
-	}
-	stderrReader, stderrWriter, err := os.Pipe()
-	if err != nil {
-		_ = stdoutReader.Close()
-		_ = stdoutWriter.Close()
-		return failedResult(), fmt.Errorf("create child stderr pipe: %w", err)
-	}
-	closePipes := func() {
-		_ = stdoutReader.Close()
-		_ = stdoutWriter.Close()
-		_ = stderrReader.Close()
-		_ = stderrWriter.Close()
-	}
-	cmd := exec.Command(executable, args...)
-	cmd.Dir = cwd
-	cmd.Env = env
-	cmd.Stdout = stdoutWriter
-	cmd.Stderr = stderrWriter
-	scope, err := newProcessScope(cmd)
-	if err != nil {
-		closePipes()
-		return failedResult(), fmt.Errorf("prepare child process supervision: %w", err)
-	}
-	if ctx.Err() != nil {
-		_ = scope.close()
-		closePipes()
-		return Result{ExitCode: -1, Reason: reasonForContext(ctx.Err())}, nil
-	}
-	if err := scope.start(); err != nil {
-		var cleanupErr error
-		if cmd.Process != nil {
-			cleanupErr = errors.Join(cleanupErr, scope.terminate())
-			cleanupErr = errors.Join(cleanupErr, killRoot(cmd.Process))
-			cleanupErr = errors.Join(cleanupErr, cmd.Wait())
-		}
-		cleanupErr = errors.Join(cleanupErr, scope.close())
-		closePipes()
-		return failedResult(), errors.Join(fmt.Errorf("start child process: %w", err), cleanupErr)
-	}
-	// The parent must not retain write ends: only child processes should keep
-	// them open while output collectors drain the streams.
-	_ = stdoutWriter.Close()
-	_ = stderrWriter.Close()
-
-	var stdout, stderr bytes.Buffer
-	var collectors sync.WaitGroup
-	collectorErrors := make(chan error, 2)
-	collectors.Add(2)
-	go func() {
-		defer collectors.Done()
-		_, err := io.Copy(&stdout, stdoutReader)
-		collectorErrors <- err
-	}()
-	go func() {
-		defer collectors.Done()
-		_, err := io.Copy(&stderr, stderrReader)
-		collectorErrors <- err
-	}()
-	waited := make(chan error, 1)
-	go func() { waited <- cmd.Wait() }()
-
-	var waitErr error
-	waitReceived := false
-	select {
-	case waitErr = <-waited:
-		waitReceived = true
-	case <-ctx.Done():
-		result.Reason = reasonForContext(ctx.Err())
-	}
-	if ctx.Err() != nil {
-		result.Reason = reasonForContext(ctx.Err())
-	}
-	terminateErr := scope.terminate()
-	// POSIX scopes signal the group; Windows scopes terminate the Job Object.
-	// Kill the root as a fallback if scope termination failed before assignment.
-	if terminateErr != nil && cmd.Process != nil {
-		terminateErr = errors.Join(terminateErr, killRoot(cmd.Process))
-	}
-	closeErr := scope.close()
-	if !waitReceived {
-		// Reap the root after terminating the process scope.
-		waitErr = <-waited
-		waitReceived = true
-	}
-	collectors.Wait()
-	_ = stdoutReader.Close()
-	_ = stderrReader.Close()
-	close(collectorErrors)
-	var streamErr error
-	for err := range collectorErrors {
-		streamErr = errors.Join(streamErr, err)
-	}
-
-	result.Stdout = stdout.String()
-	result.Stderr = stderr.String()
-	result.ExitCode = processExitCode(cmd)
-	if result.Reason == "" {
-		if waitErr == nil && result.ExitCode == 0 {
-			result.Reason = "completed"
-		} else {
-			result.Reason = "failed"
-		}
-	}
-	var waitFailure *exec.ExitError
-	if waitErr != nil && !errors.As(waitErr, &waitFailure) {
-		retErr = errors.Join(retErr, fmt.Errorf("wait for child process: %w", waitErr))
-	}
-	if terminateErr != nil {
-		retErr = errors.Join(retErr, fmt.Errorf("terminate child process scope: %w", terminateErr))
-	}
-	if closeErr != nil {
-		retErr = errors.Join(retErr, fmt.Errorf("close child process scope: %w", closeErr))
-	}
-	if streamErr != nil {
-		retErr = errors.Join(retErr, fmt.Errorf("capture child output: %w", streamErr))
-	}
-	return result, retErr
+	return processrunner.Run(ctx, processrunner.Command{
+		Executable: executable,
+		Args:       args,
+		Cwd:        cwd,
+		Env:        env,
+	})
 }
 
 func failedResult() Result {
@@ -281,13 +153,6 @@ func reasonForContext(err error) string {
 	return ""
 }
 
-func processExitCode(cmd *exec.Cmd) int {
-	if cmd.ProcessState == nil {
-		return -1
-	}
-	return cmd.ProcessState.ExitCode()
-}
-
 // sourceTempDirBase keeps the generated module on the working-directory
 // volume when the system temp directory is on another volume. NOE resolves
 // relative module imports from the generated source path, so this preserves
@@ -300,17 +165,6 @@ func sourceTempDirBase(cwd, systemTemp string) string {
 		return cwd
 	}
 	return ""
-}
-
-func killRoot(process *os.Process) error {
-	if process == nil {
-		return nil
-	}
-	err := process.Kill()
-	if errors.Is(err, os.ErrProcessDone) {
-		return nil
-	}
-	return err
 }
 
 func childEnvironment(parent []string, connection *Connection) ([]string, error) {

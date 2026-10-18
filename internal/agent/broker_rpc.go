@@ -194,3 +194,12 @@ func writeRPCError(w http.ResponseWriter, status int, code, message string) {
 func writeJSON(w http.ResponseWriter, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
+
+func writeOperationError(w http.ResponseWriter, err error) {
+	var operationErr *operationError
+	if errors.As(err, &operationErr) {
+		writeRPCError(w, operationErr.status, operationErr.code, operationErr.message)
+		return
+	}
+	writeRPCError(w, http.StatusInternalServerError, "broker", "agent operation failed")
+}

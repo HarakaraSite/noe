@@ -111,6 +111,8 @@ thinking・summary・messageの断片はストリーム受信時に出ます。p
 
 `run_js.started.code`は実行開始時に記録するため、失敗・取消しの場合も呼出し方を確認できます。NOEが付けるhelper importや接続情報は含みません。人間向けの`--observe`と`noe observe`は従来どおり先頭コメントを表示し、JS全文は表示しません。コードの記録は`--events`に含まれ、従来のメタデータtraceには含まれません。
 
+`run_js`のstdout・stderrは各64KiB（先頭32KiB＋末尾32KiB）までの捕捉出力と省略マーカーを記録します。省略があるstreamの出力イベントには`omittedBytes`、`run_js.finished`には`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。`tool.finished.rawResult`にも同じ省略情報が入り、`result`はその後のhook変換に従います。JSONLは省略された出力の完全ログではありません。通常のトップレベルJS出力の記録は変更しません。
+
 未処理例外の診断には、従来のメッセージ・利用可能なstackに加え、取得できる`code`・`stdout`・`stderr`を`exception details: {…}`というJSON付きの行で残します。この診断は`run_js`のstderrとしてモデルへ返り、同じ内容がJSONLの`stderr`イベントにも入ります。`run_js.finished.exitCode`はNOEのJSプロセスの終了コードであり、例外内の`code`は内部コマンドの終了コード等を示す別の値です。
 
 詳細保持は固定した項目の文字列・有限の数値・booleanを対象とし、読取りに失敗する項目やオブジェクトは省略します。任意のプロパティ、循環参照、独自の`toJSON`、バイナリ出力等を完全に保存する仕組みではありません。JS内で捕捉して処理した例外は自動記録しません。go-quickjs v0.25.3の`execFile`は失敗時のErrorにコマンドの`code`・`stdout`・`stderr`を持つため取得できますが、`execFileSync`は失敗時に出力を保持しないため、この改善だけではその出力を復元できません。

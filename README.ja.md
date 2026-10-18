@@ -11,7 +11,7 @@ A tiny JavaScript runtime written in pure Go.
 
 [APIリファレンス](docs/api.md) · [import map](docs/import-map.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
 
-[v1.7.0リリースノート](docs/releases/v1.7.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.0)
+[v1.7.1リリースノート](docs/releases/v1.7.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.1)
 
 ## ビルドと実行
 
@@ -25,7 +25,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.7.0
+# noe v1.7.1
 
 ./noe run examples/basics/hello.js
 # Hello from NOE!
@@ -123,7 +123,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.7.0のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.7.0/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
+表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.7.1のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.7.1/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
 
 ### 1タスクを実行し、回答を受け取る
 
@@ -257,6 +257,8 @@ JS本文が終わってもNOEプロセスは待受を続けます。別terminal�
 ```
 
 `--events`はrun・eval・repl共通です。`--events=-`はstdout、パス指定はファイルへ追記、単独指定は起動時のcwdへ`noe-events-日時-ID.jsonl`を作ります。通常JSの出力、生成JS本文、取得できた例外詳細も記録します。従来の`NOE_AGENT_TRACE=1`によるstderrへのメタデータtraceも使えます。[イベントガイド](docs/events.md)と[観察の入口](docs/observe.md)を参照してください。親は`observe_agent({logPath, runId, ...})`で保存ログも読めます。
+
+`run_js`のstdout・stderrは各64KiB（先頭32KiB＋末尾32KiB）まで捕捉します。超過時は省略マーカーと省略バイト数をtool結果・イベントへ残します。省略分は自動保存しないため、完全なログが必要ならJSやコマンドからファイルへ書き出してください。トップレベルJSの通常出力は変更しません。詳細は[APIリファレンス](docs/api.md#run_jsからの利用)を参照してください。
 
 `list_models({provider?, kind?})`は外部通信なしで内蔵・外部設定のモデル候補を返します。接続先・header・パラメータ・モデル別API形式・カタログは、`~/.config/noe/config.json`または`NOE_CONFIG_FILE`で上書きできます。[provider設定](docs/providers.md)、[モデルカタログ](docs/model-catalog.md)、[Jevでの選択例](examples/agent/agent-route-model.js)を参照してください。JS内でカタログ未登録のモデルを直接指定することもできます。
 

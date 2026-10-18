@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"net/http"
 	"strings"
 
 	"noe/internal/events"
@@ -19,81 +18,62 @@ type interruptResponse struct {
 	AgentID string `json:"agentId,omitempty"`
 }
 
-// handleInterrupt accepts either a task-scoped cancellation or a whole-agent
-// stop. It records the request under Host.mu, cancels immediately, and leaves
-// event publication and process cleanup to independent goroutines.
-func (b *broker) handleInterrupt(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request interruptRequest
-	if err := decodeRequest(r, &request); err != nil {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid interrupt request")
-		return
-	}
+func (h *Host) interrupt(op *Operation, request interruptRequest) (interruptResponse, error) {
 	hasRun := strings.TrimSpace(request.RunID) != ""
 	hasAgent := strings.TrimSpace(request.AgentID) != ""
 	if hasRun == hasAgent {
-		writeRPCError(w, http.StatusBadRequest, "request", "specify exactly one of runId or agentId")
-		return
+		return interruptResponse{}, newOperationError(400, "request", "specify exactly one of runId or agentId")
 	}
-	h := b.host
 	if hasRun {
-		b.interruptRun(w, op, request.RunID)
-		return
+		return h.interruptRun(op, request.RunID)
 	}
-	h.interruptInstance(w, op, request.AgentID)
+	return h.interruptInstance(op, request.AgentID)
 }
 
-func (b *broker) interruptRun(w http.ResponseWriter, op *Operation, runID string) {
-	h := b.host
+// interruptRun records a managed task cancellation under Host.mu, cancels
+// immediately, and leaves event publication and process cleanup independent.
+func (h *Host) interruptRun(op *Operation, runID string) (interruptResponse, error) {
 	h.mu.Lock()
 	run := h.runs[runID]
 	if run == nil || !h.canManageRunLocked(op, run) {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "unknown or unowned agent run")
-		return
+		return interruptResponse{}, newOperationError(409, "run", "unknown or unowned agent run")
 	}
 	if op == nil || op.closed || op.ctx.Err() != nil || h.closed {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "scope", "agent operation has ended")
-		return
+		return interruptResponse{}, newOperationError(409, "scope", "agent operation has ended")
 	}
 	if run.finalClosed {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "agent run is already finished")
-		return
+		return interruptResponse{}, newOperationError(409, "run", "agent run is already finished")
 	}
 	instance := run.instance
 	if instance == nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "only managed task runs can be interrupted by runId")
-		return
+		return interruptResponse{}, newOperationError(409, "run", "only managed task runs can be interrupted by runId")
 	}
 	if _, accepted := instance.runInterruptAccepted[run.id]; accepted {
 		// Retrying an accepted interrupt is idempotent while the task is being
 		// reaped. It does not publish a second acceptance event.
 		h.mu.Unlock()
-		writeJSON(w, interruptResponse{Target: "run", Status: "accepted", RunID: run.id})
-		return
+		return interruptResponse{Target: "run", Status: "accepted", RunID: run.id}, nil
 	}
 	if run.interrupting {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "managed task is already stopping")
-		return
+		return interruptResponse{}, newOperationError(409, "run", "managed task is already stopping")
 	}
 	if run.ctx.Err() != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "agent run is already finished")
-		return
+		return interruptResponse{}, newOperationError(409, "run", "agent run is already finished")
 	}
 	if instance.taskCancel == nil || instance.state == "stopping" || instance.state == "stopped" || instance.state == "failed" {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "managed task is no longer interruptible")
-		return
+		return interruptResponse{}, newOperationError(409, "run", "managed task is no longer interruptible")
 	}
 	fields, err := h.interruptActivityLocked(op, "run")
 	if err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate interrupt activity")
-		return
+		return interruptResponse{}, newOperationError(500, "broker", "could not allocate interrupt activity")
 	}
 	accepted := make(chan struct{})
 	run.interrupting = true
@@ -109,42 +89,36 @@ func (b *broker) interruptRun(w http.ResponseWriter, op *Operation, runID string
 		h.observeRun("interrupt.accepted", run.id, run, fields)
 		close(accepted)
 	}()
-	writeJSON(w, interruptResponse{Target: "run", Status: "accepted", RunID: run.id})
+	return interruptResponse{Target: "run", Status: "accepted", RunID: run.id}, nil
 }
 
-func (h *Host) interruptInstance(w http.ResponseWriter, op *Operation, agentID string) {
+func (h *Host) interruptInstance(op *Operation, agentID string) (interruptResponse, error) {
 	if op == nil {
-		writeRPCError(w, http.StatusConflict, "scope", "agent operation has ended")
-		return
+		return interruptResponse{}, newOperationError(409, "scope", "agent operation has ended")
 	}
 	h.mu.Lock()
 	instance := h.instances[agentID]
 	if instance == nil || !h.canManageLocked(op, instance) {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "agent", "unknown or unowned agent")
-		return
+		return interruptResponse{}, newOperationError(409, "agent", "unknown or unowned agent")
 	}
-	if op == nil || op.closed || op.ctx.Err() != nil || h.closed {
+	if op.closed || op.ctx.Err() != nil || h.closed {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "scope", "agent operation has ended")
-		return
+		return interruptResponse{}, newOperationError(409, "scope", "agent operation has ended")
 	}
 	if instance.state == "stopping" && instance.interruptAccepted != nil && instance.reason == "interrupted" {
 		// Repeated whole-agent interrupt calls report the original acceptance.
 		h.mu.Unlock()
-		writeJSON(w, interruptResponse{Target: "agent", Status: "accepted", AgentID: instance.id})
-		return
+		return interruptResponse{Target: "agent", Status: "accepted", AgentID: instance.id}, nil
 	}
 	if instance.state == "stopping" || instance.state == "stopped" || instance.state == "failed" {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "agent", "agent is already stopping or finished")
-		return
+		return interruptResponse{}, newOperationError(409, "agent", "agent is already stopping or finished")
 	}
 	fields, err := h.interruptActivityLocked(op, "agent")
 	if err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate interrupt activity")
-		return
+		return interruptResponse{}, newOperationError(500, "broker", "could not allocate interrupt activity")
 	}
 
 	accepted := make(chan struct{})
@@ -179,11 +153,11 @@ func (h *Host) interruptInstance(w http.ResponseWriter, op *Operation, agentID s
 		}
 		close(settled)
 	}()
-	writeJSON(w, interruptResponse{Target: "agent", Status: "accepted", AgentID: instance.id})
+	return interruptResponse{Target: "agent", Status: "accepted", AgentID: instance.id}, nil
 }
 
-// Describe the requesting operation, independently of the target's creation.
-// Called only after retry/admission checks, so accepted retries emit no new ID.
+// interruptActivityLocked describes the requesting operation independently of
+// the target's creation. Accepted retries are handled before allocating IDs.
 func (h *Host) interruptActivityLocked(op *Operation, target string) (events.Event, error) {
 	id, err := randomID()
 	if err != nil {

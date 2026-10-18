@@ -171,6 +171,10 @@ Control接続はローカルで稼働中のNOEに限られ、daemonや再起動�
 
 モデル向けの`run_js`では6つのagent関数が事前に束縛されています。importや再宣言をせず、そのまま呼び出してください。`run_js`呼出しごとに新しいNOEプロセスが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
 
+捕捉するstdout・stderrは、それぞれ元の出力の先頭32KiBと末尾32KiB、合計64KiBまでを保持します。上限以内の出力は変更しません。超過した場合は途中に`[NOE: output truncated; N bytes omitted]`を挿入し、結果に`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。UTF-8の切断位置は文字境界へ寄せるため、保持量が数バイト減る場合があります。超過分も読み捨て続けるため、上限到達で子プロセスを停止したり出力pipeを詰まらせたりしません。省略だけで`exitCode`や`reason`は変更しません。内部のmanaged taskプロセスの捕捉出力も同じ制限に従います。
+
+省略分は自動保存しません。完全なログが必要な処理は、実行するJSやコマンド側で既知のファイルへ書き出し、必要な部分だけを読み戻してください。afterToolが受け取る元の結果とJSONLも、この制限後の出力です。hookが独自に生成した置換結果、子プロセス内部のメモリ、通常のトップレベル`run`・`eval`・`repl`の出力を制限する機能ではありません。
+
 `observe_agent`はlive状態と保存済みJSONLの二つのtargetを持ちます。live用は`observe_agent({agentId})`のみです。ファイル観察は既存の`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`を維持します。両方のtargetを同じ呼出しへ混在させられません。ファイル観察の戻り値・cursorは[観察ガイド](observe.md)を参照してください。
 
 ### 認証と設定

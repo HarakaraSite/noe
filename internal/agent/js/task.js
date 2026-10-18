@@ -9,7 +9,7 @@ const runJSTool = Object.freeze({
   type: "function",
   function: {
     name: "run_js",
-    description: "Execute JavaScript in a fresh NOE process and return stdout, stderr, exitCode, and reason.",
+    description: "Execute JavaScript in a fresh NOE process and return stdout, stderr, exitCode, and reason. Each output stream retains its first and last 32 KiB; truncated results include a marker and stdoutOmittedBytes or stderrOmittedBytes.",
     parameters: {
       type: "object",
       properties: {
