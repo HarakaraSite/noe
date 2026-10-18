@@ -376,3 +376,33 @@ The downloaded Linux amd64 binary passed all ten preparation smoke checks with e
 Downloaded binaries and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.5.0-published-vftdg42f/`; release orchestration, local checks, and both feature-smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.5.0-release-1ve_i8ix/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.5.0`.
 
 This documentation-only verification commit follows publication without moving the release tag. Native macOS, Windows, and arm64 execution remains unverified.
+
+
+## v1.6.0 preparation — 2026-10-18
+
+Checked source revision: `77259bd31384faf9ae73b63a17a190448e4e11b1`. Environment: Linux amd64, Go 1.27.2, a C toolchain for race, and Linux PTY support. The preparation follow-up adds this record and clarifies two release-note sentences; application and test source remain the checked revision.
+
+This release adds automatic agent context trimming, execution-history budget estimates and notifications, trim observation/cause tracking, inherited context policies, and a confirmed OpenRouter model-window entry. CLI version, assertions, README release/helper links and release notes use v1.6.0. Dependencies and release workflow/profile remain unchanged from v1.5.0. See the [release notes](releases/v1.6.0.md), [implementation record](context-trimming-implementation.md), and [live behavior results](context-trimming-live-results.json).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1` | Passed, including Linux PTY and opt-in local MCP SDK checks |
+| `CGO_ENABLED=0 go vet ./...` | Passed |
+| `CGO_ENABLED=0 go vet -tags=e2e ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` | Passed with `GORACE=atexit_sleep_ms=0` |
+| `e2e agent_live decision_live hooks_live context_live`, `-run '^$'` | Compiled; no real-provider cases executed |
+| All six profile targets, CGO disabled, `-trimpath`, `-s -w -X noe/internal/cli.Version=v1.6.0` | Built successfully |
+| Local `SHA256SUMS` covering all six binaries | All hashes verified |
+| Linux amd64 version, arithmetic, lazy agent/decision/auth imports, Intl, helper help, import-map run/eval, host streams, owned process and Exa import | All ten smoke checks passed, exit 0 and empty stderr |
+| Local-fixture feature smoke | Passed: shared/workspace/system order, two requests, one notice per request, all four hook phases, transformed tool payloads, counters/active work |
+| Local-fixture context smoke | Passed: four model requests, two actual trims, protected task and latest complete tool block, stable session, one post-trim notice, live/saved count agreement and causal IDs |
+| Embedded dependency information | Confirms retained module versions and go-quickjs v0.27.0 |
+| Changed Markdown relative links and diff whitespace | Passed: 171 relative references checked |
+| Release version/documentation/workflow review | Passed; no required finding; optional wording clarifications applied |
+
+Checks ran sequentially before the six release builds. E2E reused `NOE_MCP_SDK_BUNDLE=/tmp/noe-process-mcp.wzVT64/mcp-client.bundle.mjs`, prepared with SDK 1.32.1 and esbuild 0.25.12. The local Linux amd64 binary is 48,545,952 bytes with release flags. Logs, checksums, smoke scripts, and build artifacts are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.0-release-aeeac09q/`.
+
+Earlier authorized OpenCode Go / DeepSeek V4.1 Flash behavior trials and implementation-slice reviews are recorded separately, including the initial failed numeric-ID assertion and clarified successful retry. This release preparation made no additional real-provider calls. Native macOS, Windows, and arm64 execution remains unverified.
+
+The tag-triggered Forgejo workflow remains the distribution gate. Published assets and the installed native binary are checked after tagging.
