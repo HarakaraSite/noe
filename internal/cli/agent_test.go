@@ -79,7 +79,9 @@ func TestCLIAgentTimeoutPreservesExit124(t *testing.T) {
 	agentFixtureSettings(t, server.URL)
 	t.Setenv("NOE_AGENT_TRACE", "1")
 	var out, diagnostic bytes.Buffer
-	code := Run(context.Background(), []string{"eval", "--timeout", "300ms", `import {run_agent} from "noe:agent";await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"wait");`}, strings.NewReader(""), &out, &diagnostic)
+	// Allow managed-process startup under race instrumentation before testing
+	// cancellation of the deliberately blocked provider request.
+	code := Run(context.Background(), []string{"eval", "--timeout", "2s", `import {run_agent} from "noe:agent";await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"wait");`}, strings.NewReader(""), &out, &diagnostic)
 	if code != 124 || !started.Load() || !strings.Contains(diagnostic.String(), "execution timed out") {
 		t.Fatalf("code=%d started=%v stderr=%q", code, started.Load(), &diagnostic)
 	}
