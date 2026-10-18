@@ -511,3 +511,27 @@ Embedded build information confirms the tag revision, an unmodified source tree,
 Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.0-published-d_73t7c5/`; orchestration, gate output, CI diagnostics and fixture-smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.0-release-gf9uhahi/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.7.0` (49,164,448 bytes).
 
 The test and documentation follow-ups are pushed to main without moving the release tag. Native macOS, Windows and arm64 execution remains unverified.
+
+
+## v1.7.1 preparation — 2026-10-18
+
+Checked source revision: `cb0bd185210ccd541dde1de160e81f89c7aa0bce`. The preparation follow-up adds this record only. Checks and builds used a clean detached worktree, excluding the user's unrelated `agent-server-build.jsonl`.
+
+This maintenance release bounds captured agent stdout/stderr to 64 KiB per stream, retains the beginning and end with omission metadata, and reorganizes agent responsibilities without changing public APIs or shared locking. It also includes the asynchronous process-cleanup test correction committed after the v1.7.0 tag. CLI defaults, version assertions, README release/helper links and [release notes](releases/v1.7.1.md) use v1.7.1. Dependencies and the release profile/workflow are unchanged. Slice and overall reviews are recorded in the [implementation checks](agent-refactor-implementation.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1` | Passed, including Linux PTY and prepared local MCP SDK checks |
+| `CGO_ENABLED=0 go vet ./...` and `go vet -tags=e2e ./...` | Passed |
+| `CGO_ENABLED=1 GORACE=atexit_sleep_ms=0 go test -race ./internal/... -count=1` | Passed |
+| Six CGO-free profile builds with `-trimpath -s -w -X noe/internal/cli.Version=v1.7.1` | Passed; local SHA256SUMS verified |
+| Native CLI checks | Eleven passed, including version, lazy modules, import maps, streams, owned process, Exa import and image exports/catalog |
+| Hooks/instruction, context, queue and image fixture smokes | Passed: hook transforms/counters, two trims, conversation continuation and independent generation/readback |
+| Bounded-output fixture smoke | Passed: about 2 MiB each on stdout/stderr, first/last sections retained within each 64 KiB data budget, exact omitted-byte counts through afterTool, model result and JSONL, successful completion preserved |
+| Embedded dependencies and source information | Retained versions, go-quickjs v0.27.0, checked revision and `vcs.modified=false` |
+| Changed-document relative links and whitespace | All 235 references resolve; `git diff --check` passed |
+
+All five gates ran sequentially before the six release builds. Environment: Linux amd64, Go 1.27.2, C toolchain for race and Linux PTY. E2E reused `NOE_MCP_SDK_BUNDLE=/tmp/noe-process-mcp.wzVT64/mcp-client.bundle.mjs`. Local Linux amd64 size: 49,180,832 bytes. Logs, fixture scripts, builds and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.1-release-mtd4niey/`.
+
+No real-provider request was made. Other platforms have cross-build evidence only. The tag-triggered workflow and downloaded release assets are verified after publication.
