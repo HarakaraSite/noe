@@ -335,3 +335,30 @@ The workflow passed its CGO-free test/vet gates, built all six profile targets, 
 The published Linux amd64 binary passed all nine preparation smoke checks: version (`noe v1.4.0`), arithmetic, lazy agent/decision/auth imports, Intl, the external auth helper help command, import-map run/eval, host byte-stream output, and owned child-process execution. Every check returned exit 0 and empty stderr. Its embedded Go build information confirms go-quickjs v0.27.0, the retained dependencies, the release-tag commit, and an unmodified source tree. The helper's versioned download URL also returns the committed script byte-for-byte. No model request was made.
 
 Artifacts and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.4.0-published-a9qi92a7/`; preparation and orchestration records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.4.0-release-en13jon_/`. The repository-root `./noe` is the verified published Linux amd64 binary. This documentation-only verification commit also places the v1.4.0 preparation record after the earlier releases without moving the tag. macOS, Windows, and arm64 native runtime behavior remains unverified.
+
+## v1.5.0 preparation — 2026-10-18
+
+Checked source revision: `fad40a7ffd4f20bbca3b69919e28a816670500e9`. Environment: Linux amd64, Go 1.27.2, a C toolchain for race, and Linux PTY support. The preparation follow-up adds only this record; application and test source remain the checked revision.
+
+This release adds invocation-scoped agent hooks, execution groups and optional shared admission limits, context budget/usage observation and model notifications, default shared/workspace instruction loading, and the reusable Exa library example. CLI version, version assertions, both READMEs, and helper download links are updated for v1.5.0. Dependencies and the release workflow/profile are unchanged from v1.4.0. See the [release notes](releases/v1.5.0.md), [hooks implementation record](execution-hooks-implementation.md), and [instruction validation record](instructions-implementation.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1` | Passed, including Linux PTY and the opt-in local MCP SDK checks |
+| `CGO_ENABLED=0 go vet ./...` | Passed |
+| `CGO_ENABLED=0 go vet -tags=e2e ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` | Passed with `GORACE=atexit_sleep_ms=0` |
+| `e2e agent_live decision_live hooks_live`, `-run '^$'` | Compiled; no real-provider cases executed |
+| All six profile targets, CGO disabled, `-trimpath`, `-s -w -X noe/internal/cli.Version=v1.5.0` | Built successfully |
+| Local `SHA256SUMS` covering all six binaries | All hashes verified |
+| Linux amd64 version, arithmetic, lazy agent/decision/auth imports, Intl, auth helper help, import-map run/eval, host byte-stream output, owned child process, and Exa library import | All ten smoke checks passed, exit 0 and empty stderr |
+| Linux amd64 feature smoke with local HTTP fixture | Passed: shared/workspace/system order, two model requests with one context notice each, four hook phases, effective tool arguments/result, group counters and active counts zero |
+| Embedded dependency information | Confirms retained module versions and go-quickjs v0.27.0 |
+| Staged diff whitespace and release documentation/version review | Passed; no required review finding |
+
+The five main checks ran sequentially, followed by six builds. E2E explicitly used `NOE_MCP_SDK_BUNDLE=/tmp/noe-process-mcp.wzVT64/mcp-client.bundle.mjs`, prepared with SDK 1.32.1 and esbuild 0.25.12. The Linux amd64 binary is 48,488,608 bytes with release flags. Logs, checksums, smoke scripts, and artifacts are under `/home/agent/.cache/noe-qjs-repl/noe-v1.5.0-release-1ve_i8ix/`.
+
+Earlier authorized [OpenCode Go live acceptance](execution-hooks-opencode-validation.md) verified six hook/context/control scenarios on the pre-release implementation; failed authentication and stream attempts are retained separately from successful cases. The Exa library passed local mock tests and one authorized real search. This release preparation did not make additional paid requests or read real model credentials. Native macOS, Windows, and arm64 execution remains unverified.
+
+The tag-triggered Forgejo workflow remains the distribution gate. Publication, downloaded assets, and the native installed binary are verified after tagging.
