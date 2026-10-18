@@ -18,7 +18,7 @@ The Forgejo workflow generated from this profile runs the following on the confi
 
 The uploader creates a non-draft Release within the existing repository visibility; it does not make a private repository public. Failed gates or builds must leave their output in native Actions logs and must not publish Release assets.
 
-The `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`, `v1.3.1`, `v1.3.2`, `v1.3.3`, and `v1.4.0` Releases have been published through this workflow; see their validation records below. A successful cross-build verifies compilation; runtime and terminal behavior on macOS, Windows, and arm64 have not been tested here.
+The `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`, `v1.3.1`, `v1.3.2`, `v1.3.3`, `v1.4.0`, and `v1.5.0` Releases have been published through this workflow; see their validation records below. A successful cross-build verifies compilation; runtime and terminal behavior on macOS, Windows, and arm64 have not been tested here.
 
 ## Reference checks before tagging
 
@@ -362,3 +362,17 @@ The five main checks ran sequentially, followed by six builds. E2E explicitly us
 Earlier authorized [OpenCode Go live acceptance](execution-hooks-opencode-validation.md) verified six hook/context/control scenarios on the pre-release implementation; failed authentication and stream attempts are retained separately from successful cases. The Exa library passed local mock tests and one authorized real search. This release preparation did not make additional paid requests or read real model credentials. Native macOS, Windows, and arm64 execution remains unverified.
 
 The tag-triggered Forgejo workflow remains the distribution gate. Publication, downloaded assets, and the native installed binary are verified after tagging.
+
+## v1.5.0 Release validation — 2026-10-18
+
+- Annotated tag: `v1.5.0`, pointing to `653e64fe2d99eaac5d6700e7343434038dd87f7c`. The peeled remote tag matches the successful workflow commit and includes the checked source plus preparation record above.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/9): succeeded (API run ID 190, job ID 211).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.5.0): published, neither draft nor prerelease (Release ID 124). Its description matches the committed [release notes](releases/v1.5.0.md).
+
+The workflow passed the CGO-free test/vet gates, built all six profile targets, and uploaded six binaries plus `SHA256SUMS`. All seven assets were downloaded, and every binary checksum matched the published file.
+
+The downloaded Linux amd64 binary passed all ten preparation smoke checks with exit 0 and empty stderr. A separate local-fixture feature smoke verified automatic common/workspace/system instruction composition, two model/tool turns, context notifications and hook runtime information, all four hook phases with transformed tool arguments/results, and final group counters/active work. The published binary's embedded build information confirms the tag commit, an unmodified source tree, and the retained dependency versions. The versioned ChatGPT helper download is byte-for-byte identical to the committed script. No real-provider request was made during these publication checks.
+
+Downloaded binaries and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.5.0-published-vftdg42f/`; release orchestration, local checks, and both feature-smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.5.0-release-1ve_i8ix/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.5.0`.
+
+This documentation-only verification commit follows publication without moving the release tag. Native macOS, Windows, and arm64 execution remains unverified.
