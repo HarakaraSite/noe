@@ -60,7 +60,7 @@ func TestCatalogRoutingExampleAndRunJS(t *testing.T) {
 			args, _ := json.Marshal(map[string]string{"code": code})
 			delta = map[string]any{"role": "assistant", "tool_calls": []any{map[string]any{"index": 0, "id": "read-catalog", "type": "function", "function": map[string]any{"name": "run_js", "arguments": string(args)}}}}
 			finish = "tool_calls"
-		} else if len(body.Messages) < 4 || !strings.Contains(string(body.Messages[len(body.Messages)-1]["content"]), "child sees host catalog") {
+		} else if len(body.Messages) < 5 || !strings.Contains(string(body.Messages[len(body.Messages)-2]["content"]), "child sees host catalog") {
 			t.Error("run_js did not return the host catalog result")
 		}
 		chunk := map[string]any{"id": "catalog-test", "object": "chat.completion.chunk", "created": 1, "model": body.Model, "choices": []any{map[string]any{"index": 0, "delta": delta, "finish_reason": finish}}}

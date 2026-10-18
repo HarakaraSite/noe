@@ -139,7 +139,8 @@ func TestLifecycleIdleFIFOAndFailureRecovery(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for _, req := range requests {
-		if len(req.Messages) != 2 || req.CacheKey == "" || seen[req.CacheKey] {
+		messages := transcriptWithoutContextStatus(t, req.Messages)
+		if len(messages) != 2 || req.CacheKey == "" || seen[req.CacheKey] {
 			t.Fatalf("task history/cache not fresh: %+v", req)
 		}
 		seen[req.CacheKey] = true

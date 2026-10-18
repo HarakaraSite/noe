@@ -40,7 +40,7 @@ func TestCLIConfiguredProviderParentChildRunIDs(t *testing.T) {
 			raw, _ := json.Marshal(chunk)
 			fmt.Fprintf(w, "data: %s\n\n", raw)
 		}
-		if body.Model == "parent" && len(body.Messages) == 2 {
+		if body.Model == "parent" && len(body.Messages) == 3 {
 			write(map[string]any{"role": "assistant", "reasoning_content": "one "}, nil)
 			write(map[string]any{"reasoning_content": "two"}, nil)
 			arguments, _ := json.Marshal(map[string]any{"code": "// Run an inherited child task\nconst child=await run_agent({name:'child',model:'child'},'child task');console.log(child.lastResult.answer);"})

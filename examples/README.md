@@ -17,6 +17,7 @@
 | [collect-json.js](collect-json.js) | ディレクトリ内のJSON数値配列を集計 |
 | [process-json.js](process-json.js) | 集計レポートを保存し、処理済み入力を移動 |
 | [fetch-json.js](fetch-json.js) | HTTPでJSONを取得・保存 |
+| [exa.js](exa.js) | Exa検索用のESMライブラリ。配置・import map・公開APIは[exa.md](exa.md)を参照 |
 | [download-file.js](download-file.js) | HTTPでバイナリを取得・保存 |
 | [http-json.js](http-json.js) | JSON APIへのリクエスト |
 | [http-server.js](http-server.js) | healthとJSON echoのHTTPサーバー |
@@ -28,11 +29,17 @@
 | [agent-summary.js](agent-summary.js) | `run_agent`で指定ファイルを読み、snapshotから要約を表示 |
 | [agent-parallel.js](agent-parallel.js) | `spawn_agent`で二つの子agentを起動・観察し、親agentが結果をまとめる |
 | [agent-control.js](agent-control.js) | keepAliveのroot agentを別terminalからsteer・queue・interrupt |
+| [agent-hooks.js](agent-hooks.js) | 外部hook・要求限定のcontext情報・root共有上限を使うOpenCode Go agent |
 | [try-agent.js](try-agent.js) | 引数のタスクをagentへ依頼。引数なしならJSで1〜100の合計を計算 |
 
 `lib/`は例で使うモジュール、`data/`はサンプル入力です。agentの並行例は[左のJSON](data/agent/left.json)と[右のJSON](data/agent/right.json)を使います。
 
 ## OpenRouter agent
+
+`./noe run --observe --events=agent.jsonl examples/agent-hooks.js '任意のタスク'`は
+OpenCode Goの資格情報を使い、[外部hook](hooks/context.js)を実行します。
+例の予算と共有上限は選択例であり、NOEの既定値ではありません。
+hookのAPI・継承・停止契約は[hookガイド](../docs/hooks.md)を参照してください。
 
 OpenAIは`./noe run --observe examples/agent-openai.js gpt-6-luna`、または`gpt-6.1-sol`で実行します。先に[ChatGPT認証ヘルパー](../docs/openai.md)で登録するか、既存のcredential recordを用意します。
 
@@ -56,7 +63,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 
 並行例の既定入力は`examples/data/agent/left.json`と`examples/data/agent/right.json`です。必要なら二つのpathを引数で置き換えられます。モデル出力の文章や形式は変わる場合があります。`run_agent()`はinstance snapshotを返し、例は`snapshot.lastResult.answer`を表示します。並行例は`spawn_agent()`で子IDを受け取り、`observe_agent({agentId})`で終了までの状態を確認します。
 
-ルートagentには`provider`・`model`・`effort`を明示指定します。子agentはprovider・model・effort・`maxTokens`を省略時に起動元runから継承します。他のconfig項目は継承しません。`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、新しい関数APIの設定・戻り値・エラー、keepAliveとqueue、REPL、任意の実行timeout、traceは[APIリファレンス](../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
+ルートagentには`provider`・`model`・`effort`を明示指定します。子agentはprovider・model・effort・`maxTokens`・`hooks`・`contextBudget`を省略時に起動元runから継承します。その他のconfig項目は継承しません。共有上限はrootで設定します。`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、新しい関数APIの設定・戻り値・エラー、keepAliveとqueue、REPL、任意の実行timeout、traceは[APIリファレンス](../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
 
 任意のタスクを試す場合は、`examples/try-agent.js`へ指示を渡します。次の例はREADMEを読み、要約ファイルを作らせます。
 

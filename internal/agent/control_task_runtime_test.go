@@ -114,14 +114,15 @@ func TestSteerDuringProviderRequestPreservesCandidateAndSettings(t *testing.T) {
 	releaseProvider()
 	second := waitFixtureRequest(t, ctx, started)
 	assertSteeredRequestSettings(t, second, cacheKey)
-	if len(second.Messages) != 5 {
-		t.Fatalf("message count after final-candidate steers = %d, want 5: %s", len(second.Messages), second.Messages)
+	transcript := transcriptWithoutContextStatus(t, second.Messages)
+	if len(transcript) != 5 {
+		t.Fatalf("message count after final-candidate steers = %d, want 5: %s", len(transcript), second.Messages)
 	}
-	if !jsonEqual(second.Messages[2], candidate) {
-		t.Fatalf("full candidate assistant message was not preserved: %s", second.Messages[2])
+	if !jsonEqual(transcript[2], candidate) {
+		t.Fatalf("full candidate assistant message was not preserved: %s", transcript[2])
 	}
 	var steerMessages []string
-	for _, raw := range second.Messages[3:] {
+	for _, raw := range transcript[3:] {
 		var message struct {
 			Role    string `json:"role"`
 			Content string `json:"content"`
@@ -203,29 +204,30 @@ console.log("generated tool complete");`, toolStarted, releaseTool)
 	}
 	second := waitFixtureRequest(t, ctx, started)
 	assertSteeredRequestSettings(t, second, cacheKey)
-	if len(second.Messages) != 5 {
-		t.Fatalf("message count after tool steer = %d, want 5: %s", len(second.Messages), second.Messages)
+	transcript := transcriptWithoutContextStatus(t, second.Messages)
+	if len(transcript) != 5 {
+		t.Fatalf("message count after tool steer = %d, want 5: %s", len(transcript), second.Messages)
 	}
 	var assistant struct {
 		ReasoningDetails []map[string]string `json:"reasoning_details"`
 		VendorMetadata   map[string]string   `json:"vendor_metadata"`
 	}
-	if err := json.Unmarshal(second.Messages[2], &assistant); err != nil || assistant.ReasoningDetails[0]["text"] != "tool reasoning" || assistant.VendorMetadata["source"] != "tool-fixture" {
-		t.Fatalf("full tool assistant message was not preserved: %s (%v)", second.Messages[2], err)
+	if err := json.Unmarshal(transcript[2], &assistant); err != nil || assistant.ReasoningDetails[0]["text"] != "tool reasoning" || assistant.VendorMetadata["source"] != "tool-fixture" {
+		t.Fatalf("full tool assistant message was not preserved: %s (%v)", transcript[2], err)
 	}
 	var toolResult struct {
 		Role       string `json:"role"`
 		ToolCallID string `json:"tool_call_id"`
 		Content    string `json:"content"`
 	}
-	if err := json.Unmarshal(second.Messages[3], &toolResult); err != nil || toolResult.Role != "tool" || toolResult.ToolCallID != "tool-steer-1" || !strings.Contains(toolResult.Content, "generated tool complete") {
+	if err := json.Unmarshal(transcript[3], &toolResult); err != nil || toolResult.Role != "tool" || toolResult.ToolCallID != "tool-steer-1" || !strings.Contains(toolResult.Content, "generated tool complete") {
 		t.Fatalf("generated tool result was not preserved before steer: %+v (%v)", toolResult, err)
 	}
 	var steer struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	}
-	if err := json.Unmarshal(second.Messages[4], &steer); err != nil || steer.Role != "user" || steer.Content != "inspect the tool output" {
+	if err := json.Unmarshal(transcript[4], &steer); err != nil || steer.Role != "user" || steer.Content != "inspect the tool output" {
 		t.Fatalf("steer was not appended after tool result: %+v (%v)", steer, err)
 	}
 	snapshot = lifecycleSnapshot(t, op, agentID, true)

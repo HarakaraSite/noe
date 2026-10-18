@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -74,7 +75,8 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	env["NOE_AGENT_TRACE"] = ""
 	dir := t.TempDir()
 	source := `import {run_agent} from "noe:agent";const result=await run_agent({provider:"openrouter",model:"fixture/model",name:"human-control",effort:"auto",maxSteps:2},"first task",{keepAlive:true});console.log(JSON.stringify(result));`
-	cmd := exec.CommandContext(ctx, cliPath, "eval", source)
+	eventPath := filepath.Join(dir, "events.jsonl")
+	cmd := exec.CommandContext(ctx, cliPath, "eval", "--events="+eventPath, source)
 	cmd.Dir, cmd.Env = dir, os.Environ()
 	for key, value := range env {
 		cmd.Env = envWith(cmd.Env, key, value)
@@ -160,6 +162,38 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	}
 	if calls.Load() != 4 {
 		t.Fatalf("unexpected provider calls: %d", calls.Load())
+	}
+	data, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	creationIDs := map[string]bool{}
+	interruptIDs := map[string]bool{}
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		var event struct {
+			Type       string   `json:"type"`
+			ActivityID string   `json:"activityId"`
+			CausedBy   []string `json:"causedBy"`
+			Origin     struct {
+				Kind string `json:"kind"`
+			} `json:"origin"`
+		}
+		if json.Unmarshal(line, &event) != nil {
+			continue
+		}
+		if event.Type == "agent.started" || event.Type == "instance.started" {
+			creationIDs[event.ActivityID] = true
+		}
+		if event.Type != "interrupt.accepted" {
+			continue
+		}
+		if event.ActivityID == "" || interruptIDs[event.ActivityID] || creationIDs[event.ActivityID] || event.Origin.Kind != "human" || len(event.CausedBy) != 0 {
+			t.Fatalf("human interrupt sender lost: %s", line)
+		}
+		interruptIDs[event.ActivityID] = true
+	}
+	if len(interruptIDs) != 2 {
+		t.Fatalf("human run/instance interrupt records=%v", interruptIDs)
 	}
 	entries, err := os.ReadDir(env["NOE_AGENT_RUNTIME_DIR"])
 	if err != nil || len(entries) != 0 {

@@ -164,6 +164,22 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	switch method {
 	case "list_models":
 		b.handleListModels(w, r)
+	case "begin_hook_scope":
+		b.handleBeginHookScope(w, r, operation)
+	case "end_hook_scope":
+		b.handleEndHookScope(w, r, operation)
+	case "execution_get":
+		b.handleExecutionGet(w, r, operation)
+	case "begin_model_step":
+		b.handleBeginModelStep(w, r, operation)
+	case "context_prepare":
+		b.handleContextPrepare(w, r, operation)
+	case "context_get":
+		b.handleContextGet(w, r, operation)
+	case "context_set_runtime_info":
+		b.handleContextSetRuntimeInfo(w, r, operation)
+	case "tool_result":
+		b.handleToolResult(w, r, operation)
 	case "start":
 		b.handleStart(w, r, operation)
 	case "model":
@@ -191,7 +207,7 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 func validRPCMethod(method string) bool {
 	switch method {
-	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "apply_steers", "commit_final", "interrupt_agent", "decide", "list_models":
+	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "apply_steers", "commit_final", "interrupt_agent", "decide", "list_models", "begin_hook_scope", "end_hook_scope", "execution_get", "begin_model_step", "context_prepare", "context_get", "context_set_runtime_info", "tool_result":
 		return true
 	}
 	return false

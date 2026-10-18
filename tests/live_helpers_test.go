@@ -1,4 +1,4 @@
-//go:build e2e && (agent_live || decision_live)
+//go:build e2e && (agent_live || decision_live || hooks_live)
 
 package e2e_test
 

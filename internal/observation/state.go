@@ -1,6 +1,7 @@
 package observation
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -23,6 +24,7 @@ type runState struct {
 	phase       string
 	models      map[string]uint64
 	tools       map[string]activeTool
+	hooks       map[string]activeTool
 	outputs     map[string]*toolOutput
 	lastTool    activeTool
 	lastToolSet bool
@@ -35,6 +37,7 @@ func newRunState(runID string) *runState {
 			RunID: runID, Status: "unknown", Phase: "unknown", Events: make([]events.Event, 0),
 		},
 		models: make(map[string]uint64), tools: make(map[string]activeTool),
+		hooks:   make(map[string]activeTool),
 		outputs: make(map[string]*toolOutput),
 	}
 }
@@ -42,6 +45,16 @@ func newRunState(runID string) *runState {
 func (s *runState) apply(rec record, includeOutput bool) {
 	event := rec.event
 	typeName := rec.typeName
+	if value := stringField(event, "groupId"); value != "" {
+		s.snapshot.GroupID = value
+	}
+	for key, target := range map[string]*json.RawMessage{"execution": &s.snapshot.Execution, "context": &s.snapshot.Context} {
+		if value, ok := event[key]; ok {
+			if encoded, err := json.Marshal(value); err == nil {
+				*target = encoded
+			}
+		}
+	}
 	if value := stringField(event, "agentId"); value != "" {
 		s.snapshot.AgentID = value
 	}
@@ -59,6 +72,11 @@ func (s *runState) apply(rec record, includeOutput bool) {
 	}
 
 	switch typeName {
+	case "hook.started":
+		s.hooks[stringField(event, "invocationId")] = activeTool{seq: rec.seq, action: stringField(event, "phase") + " " + stringField(event, "module"), hasAction: true}
+	case "hook.finished", "hook.failed", "hook.cancelled":
+		delete(s.hooks, stringField(event, "invocationId"))
+		s.phase = "between_steps"
 	case "agent.started":
 		s.snapshot.Status = "running"
 		s.phase = "starting"
@@ -164,6 +182,9 @@ func (s *runState) currentPhase() string {
 	if isTerminalStatus(s.snapshot.Status) {
 		return "settled"
 	}
+	if len(s.hooks) > 0 {
+		return "hook"
+	}
 	if len(s.tools) > 0 {
 		return "run_js"
 	}
@@ -177,6 +198,15 @@ func (s *runState) currentPhase() string {
 }
 
 func (s *runState) currentAction() string {
+	if len(s.hooks) > 0 {
+		var newest activeTool
+		for _, active := range s.hooks {
+			if active.seq > newest.seq {
+				newest = active
+			}
+		}
+		return newest.action
+	}
 	if len(s.tools) > 0 {
 		var current activeTool
 		found := false

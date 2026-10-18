@@ -55,13 +55,20 @@ console.log(await executeTask({provider:"openrouter",model:"fixture/model",name:
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(requests) != 2 || len(requests[1].Messages) != 4 {
-		t.Fatalf("model calls/history lengths = %d/%d, want 2/4", len(requests), func() int {
+	if len(requests) != 2 || len(requests[1].Messages) != 5 {
+		t.Fatalf("model calls/history lengths = %d/%d, want 2/5 including the request-scoped context tail", len(requests), func() int {
 			if len(requests) < 2 {
 				return 0
 			}
 			return len(requests[1].Messages)
 		}())
+	}
+	var contextTail struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal(requests[1].Messages[4], &contextTail); err != nil || contextTail.Role != "system" || !strings.HasPrefix(contextTail.Content, "NOE_CONTEXT_STATUS\n") {
+		t.Fatalf("request-scoped context tail missing: %s (%v)", requests[1].Messages[4], err)
 	}
 	var assistant struct {
 		Reasoning      string         `json:"reasoning"`

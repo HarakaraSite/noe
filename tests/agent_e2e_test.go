@@ -36,12 +36,13 @@ type agentChatMessage struct {
 }
 
 type agentChatRequest struct {
-	Model     string             `json:"model"`
-	Messages  []agentChatMessage `json:"messages"`
-	Tools     []json.RawMessage  `json:"tools"`
-	SessionID string             `json:"session_id"`
-	MaxTokens int                `json:"max_tokens"`
-	Reasoning *struct {
+	RuntimeInfo string             `json:"-"`
+	Model       string             `json:"model"`
+	Messages    []agentChatMessage `json:"messages"`
+	Tools       []json.RawMessage  `json:"tools"`
+	SessionID   string             `json:"session_id"`
+	MaxTokens   int                `json:"max_tokens"`
+	Reasoning   *struct {
 		Effort string `json:"effort"`
 	} `json:"reasoning"`
 }
@@ -79,6 +80,24 @@ func agentAPIFixture(t *testing.T, handle func(context.Context, agentChatRequest
 			t.Error(err)
 			http.Error(w, "bad request", 400)
 			return
+		}
+		// Task fixtures assert the persistent transcript independently of the
+		// one request-scoped context notification. Validate the real wire tail
+		// before exposing that transcript, retaining the notice for hook tests.
+		if len(request.Messages) == 0 {
+			t.Error("missing context notification")
+			return
+		}
+		last := request.Messages[len(request.Messages)-1]
+		if last.Role != "system" || json.Unmarshal(last.Content, &request.RuntimeInfo) != nil || !strings.HasPrefix(request.RuntimeInfo, "NOE_CONTEXT_STATUS") {
+			t.Errorf("missing tagged context tail: %+v", last)
+		}
+		request.Messages = request.Messages[:len(request.Messages)-1]
+		for _, message := range request.Messages {
+			var text string
+			if message.Role == "system" && json.Unmarshal(message.Content, &text) == nil && strings.HasPrefix(text, "NOE_CONTEXT_STATUS") {
+				t.Error("context notification accumulated in transcript")
+			}
 		}
 		var tool struct {
 			Type     string `json:"type"`

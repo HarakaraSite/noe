@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -75,6 +76,20 @@ func (r *agentRenderer) render(event events.Event) error {
 	key := eventString(event, "executionId") + "/" + eventString(event, "runId") + "/" + eventString(event, "requestId") + "/" + eventString(event, "toolCallId") + "/" + kind
 	text := eventString(event, "text")
 	switch kind {
+	case "context.updated":
+		return r.line(label, "context", contextDetail(event["context"]))
+	case "hook.started", "hook.failed", "hook.cancelled":
+		detail := eventString(event, "phase") + " / " + eventString(event, "module")
+		if text := eventString(event, "error"); text != "" {
+			detail += " / " + text
+		}
+		return r.line(label, "hook "+strings.TrimPrefix(kind, "hook."), detail)
+	case "execution.limit_reached":
+		detail := eventString(event, "reason")
+		if dimension := eventString(event, "limitName"); dimension != "" {
+			detail = fmt.Sprintf("%s / used=%v / limit=%v", dimension, event["used"], event["limit"])
+		}
+		return r.line(label, "execution limit reached", detail)
 	case "decision.started", "decision.completed", "decision.failed", "decision.cancelled":
 		detail := eventString(event, "decisionModel") + " [" + shortID(eventString(event, "requestId")) + "]"
 		if responseModel := eventString(event, "responseModel"); responseModel != "" && responseModel != eventString(event, "decisionModel") {
@@ -144,6 +159,59 @@ func (r *agentRenderer) render(event events.Event) error {
 		return r.line(label, "finished", fmt.Sprintf("exitCode=%v", event["exitCode"]))
 	}
 	return nil
+}
+
+// The renderer accepts both live typed snapshots and decoded JSONL objects.
+func contextDetail(value any) string {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return "unknown"
+	}
+	var snapshot struct {
+		Budget struct {
+			InputTokens *int64 `json:"inputTokens"`
+		} `json:"budget"`
+		ModelWindow struct {
+			Tokens *int64 `json:"tokens"`
+		} `json:"modelWindow"`
+		Previous *struct {
+			RequestID    string `json:"requestId"`
+			Status       string `json:"status"`
+			PromptTokens *int64 `json:"promptTokens"`
+			CachedTokens *int64 `json:"cachedTokens"`
+		} `json:"previous"`
+		Estimate *struct {
+			Tokens int64  `json:"tokens"`
+			Stage  string `json:"stage"`
+		} `json:"estimate"`
+		RemainingTokens *int64 `json:"remainingTokens"`
+	}
+	if json.Unmarshal(encoded, &snapshot) != nil || string(encoded) == "null" {
+		return "unknown"
+	}
+	number := func(n *int64) string {
+		if n == nil {
+			return "unknown"
+		}
+		return strconv.FormatInt(*n, 10)
+	}
+	parts := []string{"budget=" + number(snapshot.Budget.InputTokens), "window=" + number(snapshot.ModelWindow.Tokens)}
+	if snapshot.Estimate != nil {
+		parts = append(parts, fmt.Sprintf("estimated=%d (%s)", snapshot.Estimate.Tokens, snapshot.Estimate.Stage))
+	} else {
+		parts = append(parts, "estimated=unknown")
+	}
+	parts = append(parts, "remaining="+number(snapshot.RemainingTokens))
+	if p := snapshot.Previous; p != nil {
+		measurement := "previous=" + number(p.PromptTokens)
+		if p.PromptTokens != nil {
+			measurement += " measured"
+		}
+		parts = append(parts, measurement+" ["+shortID(p.RequestID)+"]", "cached="+number(p.CachedTokens), p.Status)
+	} else {
+		parts = append(parts, "previous=unknown")
+	}
+	return strings.Join(parts, " / ")
 }
 
 func (r *agentRenderer) fragment(key, label, kind, text string) error {

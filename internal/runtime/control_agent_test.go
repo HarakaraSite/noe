@@ -94,7 +94,7 @@ console.log("public steer completed");`, providerStarted)
 	case <-ctx.Done():
 		t.Fatalf("steered provider request did not arrive: %v", ctx.Err())
 	}
-	if len(second.Messages) != 4 || second.CacheKey != "public-steer-cache" {
+	if len(second.Messages) != 5 || second.CacheKey != "public-steer-cache" {
 		t.Fatalf("public steer history/cache: %+v", second)
 	}
 	var candidate struct {

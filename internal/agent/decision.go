@@ -40,7 +40,18 @@ func (b *broker) handleDecide(w http.ResponseWriter, r *http.Request, op *Operat
 		writeRPCError(w, http.StatusInternalServerError, "request", "cannot identify decision request")
 		return
 	}
-	fields := b.host.decisionFields(op, requestID, request)
+	activityID, err := randomID()
+	if err != nil {
+		writeRPCError(w, http.StatusInternalServerError, "request", "cannot identify decision activity")
+		return
+	}
+	fields, group, limitAction, admitted := b.host.beginDecisionActivity(op, requestID, activityID, request)
+	if !admitted {
+		b.host.finishExecutionLimit(limitAction)
+		code, message := executionLimitError(group)
+		writeRPCError(w, http.StatusConflict, code, message)
+		return
+	}
 	started := time.Now()
 	b.host.decisionEvent("decision.started", fields, nil)
 	response, err := b.host.decider.Decide(ctx, request)
@@ -61,6 +72,7 @@ func (b *broker) handleDecide(w http.ResponseWriter, r *http.Request, op *Operat
 		if errors.As(err, &providerErr) && providerErr.StatusCode != 0 {
 			end["statusCode"] = providerErr.StatusCode
 		}
+		b.host.decorateExecution(end, group)
 		b.host.decisionEvent(kind, fields, end)
 		writeRPCError(w, status, code, message)
 		return
@@ -79,25 +91,96 @@ func (b *broker) handleDecide(w http.ResponseWriter, r *http.Request, op *Operat
 	}
 	if len(meta.Usage) != 0 {
 		end["usage"] = meta.Usage
+		b.host.mu.Lock()
+		if group != nil {
+			group.usage.add(summarizeUsage(meta.Usage))
+		}
+		b.host.mu.Unlock()
 	}
+	b.host.decorateExecution(end, group)
 	b.host.decisionEvent("decision.completed", fields, end)
 	writeJSON(w, response.JSON)
 }
 
 func (h *Host) decisionFields(op *Operation, requestID string, request decision.Request) events.Event {
-	fields := events.Event{"requestId": requestID, "provider": request.Provider, "decisionModel": request.Model}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for key, value := range op.decisionOwner {
-		fields[key] = value
-	}
+	activityID, _ := randomID()
+	fields, _, _, _ := h.prepareDecisionFields(op, requestID, activityID, request, false)
 	return fields
+}
+
+func (h *Host) beginDecisionActivity(op *Operation, requestID, activityID string, request decision.Request) (events.Event, *executionGroup, *executionLimitAction, bool) {
+	return h.prepareDecisionFields(op, requestID, activityID, request, true)
+}
+
+func (h *Host) prepareDecisionFields(op *Operation, requestID, activityID string, request decision.Request, count bool) (events.Event, *executionGroup, *executionLimitAction, bool) {
+	fields := events.Event{"requestId": requestID, "provider": request.Provider, "decisionModel": request.Model}
+	group := (*executionGroup)(nil)
+	h.mu.Lock()
+	run := h.currentOwnerRunLocked(op)
+	group = h.executionForOperationLocked(op)
+	var causedBy []string
+	origin := activityOrigin{Kind: "script"}
+	if run != nil {
+		for key, value := range decisionOwnerFields(run.id, run, "") {
+			fields[key] = value
+		}
+		if run.activityID != "" {
+			causedBy = []string{run.activityID}
+		}
+		origin.RunID, origin.AgentID = run.id, run.agentID()
+	}
+	if op != nil {
+		for key, value := range op.decisionOwner {
+			fields[key] = value
+		}
+		if len(op.causeActivityIDs) != 0 {
+			causedBy = append([]string(nil), op.causeActivityIDs...)
+		}
+		if op.activityOrigin.Kind != "" {
+			origin = op.activityOrigin
+		}
+	}
+	if len(causedBy) == 0 {
+		if ownerActivity, _ := fields["ownerActivityId"].(string); ownerActivity != "" {
+			causedBy = []string{ownerActivity}
+		}
+	}
+	if origin.RunID == "" {
+		origin.RunID, _ = fields["runId"].(string)
+	}
+	if origin.AgentID == "" {
+		origin.AgentID, _ = fields["agentId"].(string)
+	}
+	toolCallID, _ := fields["toolCallId"].(string)
+	origin.ToolCallID = toolCallID
+	addActivityFields(fields, activityID, causedBy, origin)
+	var limitAction *executionLimitAction
+	admitted := true
+	if group != nil {
+		if count {
+			limitAction, admitted = h.reserveExecutionLocked(group, "providerCalls", "decision", activityID, origin)
+		} else {
+			admitted = h.executionGroupOpenLocked(group)
+		}
+		if admitted {
+			fields["groupId"] = group.id
+			fields["execution"] = group.snapshotLocked()
+		}
+	}
+	h.mu.Unlock()
+	return fields, group, limitAction, admitted
 }
 
 // Capture ownership before the child can make requests. Parent shutdown removes
 // its run before joining child work, so event attribution must outlive that map.
 func decisionOwnerFields(runID string, run *agentRun, toolCallID string) events.Event {
 	fields := events.Event{"runId": runID, "parentRunId": run.parentRunID, "name": run.config.Name, "model": run.config.Model}
+	if run.activityID != "" {
+		fields["ownerActivityId"] = run.activityID
+	}
+	if run.group != nil {
+		fields["groupId"] = run.group.id
+	}
 	if id := run.agentID(); id != "" {
 		fields["agentId"] = id
 	}

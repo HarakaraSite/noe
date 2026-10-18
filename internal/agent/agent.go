@@ -42,23 +42,105 @@ type Options struct {
 // Config contains inheritable public agent defaults. Empty fields are omitted
 // so a root host exposes an empty object.
 type Config struct {
-	Provider  string `json:"provider,omitempty"`
-	Model     string `json:"model,omitempty"`
-	Name      string `json:"name,omitempty"`
-	System    string `json:"system,omitempty"`
-	MaxTokens int    `json:"maxTokens,omitempty"`
-	Effort    string `json:"effort,omitempty"`
-	Cwd       string `json:"cwd,omitempty"`
+	Provider               string           `json:"provider,omitempty"`
+	Model                  string           `json:"model,omitempty"`
+	Name                   string           `json:"name,omitempty"`
+	System                 string           `json:"system,omitempty"`
+	MaxTokens              int              `json:"maxTokens,omitempty"`
+	Effort                 string           `json:"effort,omitempty"`
+	Cwd                    string           `json:"cwd,omitempty"`
+	Hooks                  *HookModules     `json:"hooks,omitempty"`
+	ContextBudget          *ContextBudget   `json:"contextBudget,omitempty"`
+	ExecutionLimits        *ExecutionLimits `json:"executionLimits,omitempty"`
+	contextBudgetPresent   bool
+	executionLimitsPresent bool
+}
+
+type configAlias Config
+
+func (c *Config) UnmarshalJSON(data []byte) error {
+	var decoded configAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*c = Config(decoded)
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	_, c.contextBudgetPresent = fields["contextBudget"]
+	if raw, exists := fields["executionLimits"]; exists {
+		if string(raw) == "null" {
+			return fmt.Errorf("executionLimits must be an object")
+		}
+		c.executionLimitsPresent = true
+	}
+	return nil
+}
+
+func (c Config) MarshalJSON() ([]byte, error) {
+	var rawBudget json.RawMessage
+	if c.ContextBudget != nil {
+		encoded, err := json.Marshal(c.ContextBudget)
+		if err != nil {
+			return nil, err
+		}
+		rawBudget = encoded
+	} else if c.contextBudgetPresent {
+		rawBudget = json.RawMessage("null")
+	}
+	var rawExecutionLimits json.RawMessage
+	if c.ExecutionLimits != nil {
+		encoded, err := json.Marshal(c.ExecutionLimits)
+		if err != nil {
+			return nil, err
+		}
+		rawExecutionLimits = encoded
+	} else if c.executionLimitsPresent {
+		rawExecutionLimits = json.RawMessage("null")
+	}
+	return json.Marshal(struct {
+		Provider        string          `json:"provider,omitempty"`
+		Model           string          `json:"model,omitempty"`
+		Name            string          `json:"name,omitempty"`
+		System          string          `json:"system,omitempty"`
+		MaxTokens       int             `json:"maxTokens,omitempty"`
+		Effort          string          `json:"effort,omitempty"`
+		Cwd             string          `json:"cwd,omitempty"`
+		Hooks           *HookModules    `json:"hooks,omitempty"`
+		ContextBudget   json.RawMessage `json:"contextBudget,omitempty"`
+		ExecutionLimits json.RawMessage `json:"executionLimits,omitempty"`
+	}{c.Provider, c.Model, c.Name, c.System, c.MaxTokens, c.Effort, c.Cwd, c.Hooks, rawBudget, rawExecutionLimits})
+}
+
+// HookModules keeps Config comparable for callers that use it as a settings
+// value while retaining an array in the JSON connection contract.
+type HookModules []string
+
+func cloneHookModules(modules []string) *HookModules {
+	if len(modules) == 0 {
+		return nil
+	}
+	copy := HookModules(append([]string(nil), modules...))
+	return &copy
+}
+
+func (c Config) hookModules() []string {
+	if c.Hooks == nil {
+		return nil
+	}
+	return append([]string(nil), (*c.Hooks)...)
 }
 
 // Connection is the capability a child process receives from its parent.
 // JSON tags are intentionally stable because the CLI passes this object via an
 // environment variable to a future runner.
 type Connection struct {
-	URL      string `json:"url"`
-	Token    string `json:"token"`
-	Scope    string `json:"scope"`
-	Defaults Config `json:"defaults"`
+	URL         string `json:"url"`
+	Token       string `json:"token"`
+	Scope       string `json:"scope"`
+	Defaults    Config `json:"defaults"`
+	ModelWindow *int64 `json:"modelWindow,omitempty"`
 }
 
 // Host owns the provider and broker. It is safe to close concurrently with
@@ -77,6 +159,7 @@ type Host struct {
 	operations map[*Operation]struct{}
 	runs       map[string]*agentRun
 	instances  map[string]*agentInstance
+	groups     map[string]*executionGroup
 	traceMu    sync.Mutex
 	observeMu  sync.Mutex
 }
@@ -84,21 +167,27 @@ type Host struct {
 // Operation is the cancellation and scope boundary for one runtime evaluation.
 // It contains no QuickJS values and may be used by Go worker goroutines.
 type Operation struct {
-	host          *Host
-	ctx           context.Context
-	cancel        context.CancelFunc
-	stopHost      func() bool
-	scope         string
-	initErr       error
-	closed        bool // protected by host.mu
-	remoteBase    string
-	remoteAuth    string
-	client        *http.Client
-	parentRunID   string
-	decisionOwner events.Event              // immutable after the run_js scope is registered
-	instances     map[string]*agentInstance // direct evaluation-owned instances; host.mu
-	task          *managedTask              // task bootstrap scope; host.mu
-	control       bool                      // trusted host control, never delegated to JS
+	host             *Host
+	ctx              context.Context
+	cancel           context.CancelFunc
+	stopHost         func() bool
+	scope            string
+	initErr          error
+	closed           bool // protected by host.mu
+	remoteBase       string
+	remoteAuth       string
+	client           *http.Client
+	parentRunID      string
+	ownerRun         *agentRun
+	hookScope        bool
+	hookInvocation   *hookInvocation
+	group            *executionGroup
+	causeActivityIDs []string
+	activityOrigin   activityOrigin
+	decisionOwner    events.Event              // immutable after the run_js scope is registered
+	instances        map[string]*agentInstance // direct evaluation-owned instances; host.mu
+	task             *managedTask              // task bootstrap scope; host.mu
+	control          bool                      // trusted host control, never delegated to JS
 
 	requestMu      sync.Mutex
 	requestClosing bool
@@ -108,12 +197,16 @@ type Operation struct {
 }
 
 type endedRun struct {
-	id       string
-	agentID  string
-	parentID string
-	name     string
-	model    string
-	started  time.Time
+	id         string
+	agentID    string
+	parentID   string
+	name       string
+	model      string
+	started    time.Time
+	group      *executionGroup
+	activityID string
+	causedBy   []string
+	origin     activityOrigin
 }
 
 // NewHost allocates Go state only. In particular it does not read a key file,
@@ -143,6 +236,7 @@ func NewHost(opts Options) *Host {
 		operations: make(map[*Operation]struct{}),
 		runs:       make(map[string]*agentRun),
 		instances:  make(map[string]*agentInstance),
+		groups:     make(map[string]*executionGroup),
 	}
 }
 
@@ -226,6 +320,10 @@ func (h *Host) Defaults() string {
 	defaults := Config{}
 	if h.opts.Connection != nil {
 		defaults = h.opts.Connection.Defaults
+		// Shared group limits are owned by the root group and never become
+		// child defaults through a connected runtime.
+		defaults.ExecutionLimits = nil
+		defaults.executionLimitsPresent = false
 	}
 	encoded, err := json.Marshal(defaults)
 	if err != nil { // Config has no fields that can fail to marshal.
@@ -247,7 +345,19 @@ func (h *Host) Close() {
 	defer close(h.closeDone)
 	h.cancel()
 	var closedOps []*Operation
+	type hookTerminal struct {
+		event     events.Event
+		startDone <-chan struct{}
+	}
+	var hookTerminals []hookTerminal
 	for op := range h.operations {
+		if op.hookInvocation != nil && op.hookInvocation.state == "active" {
+			op.hookInvocation.state = "cancelled"
+			hookTerminals = append(hookTerminals, hookTerminal{
+				event:     terminalHookEventLocked(op.hookInvocation, "cancelled", "", op.group),
+				startDone: op.hookInvocation.startEventDone,
+			})
+		}
 		op.closed = true
 		op.cancel()
 		op.closeRequestGate()
@@ -264,7 +374,8 @@ func (h *Host) Close() {
 		pendingSteers = append(pendingSteers, h.cancelPendingSteersLocked(run)...)
 		ended = append(ended, endedRun{
 			id: id, agentID: run.agentID(), parentID: run.parentRunID, name: run.config.Name,
-			model: run.config.Model, started: run.started,
+			model: run.config.Model, started: run.started, group: run.group,
+			activityID: run.activityID, causedBy: append([]string(nil), run.causedBy...), origin: run.origin,
 		})
 		if run.instance == nil {
 			delete(h.runs, id)
@@ -278,6 +389,12 @@ func (h *Host) Close() {
 	}
 	b := h.broker
 	h.mu.Unlock()
+	for _, terminal := range hookTerminals {
+		if terminal.startDone != nil {
+			<-terminal.startDone
+		}
+		h.observe(terminal.event)
+	}
 	h.emitSteerEvents(pendingSteers)
 	for _, run := range ended {
 		h.traceEvent(traceEvent{
@@ -301,6 +418,7 @@ func (h *Host) Close() {
 	h.mu.Lock()
 	clear(h.instances)
 	clear(h.runs)
+	clear(h.groups)
 	h.mu.Unlock()
 }
 
@@ -331,6 +449,13 @@ func (op *Operation) Close() {
 	var pendingSteers []steerLifecycleEvent
 	var childScopes []*Operation
 	var instances []*agentInstance
+	var terminalHookEvent events.Event
+	var hookStartEventDone <-chan struct{}
+	if op.hookInvocation != nil && op.hookInvocation.state == "active" {
+		op.hookInvocation.state = "cancelled"
+		terminalHookEvent = terminalHookEventLocked(op.hookInvocation, "cancelled", "", op.group)
+		hookStartEventDone = op.hookInvocation.startEventDone
+	}
 	for _, instance := range op.instances {
 		instances = append(instances, instance)
 	}
@@ -341,7 +466,8 @@ func (op *Operation) Close() {
 			if run.instance == nil {
 				ended = append(ended, endedRun{
 					id: id, parentID: run.parentRunID, name: run.config.Name,
-					model: run.config.Model, started: run.started,
+					model: run.config.Model, started: run.started, group: run.group,
+					activityID: run.activityID, causedBy: append([]string(nil), run.causedBy...), origin: run.origin,
 				})
 			}
 			for _, instance := range run.instances {
@@ -353,7 +479,17 @@ func (op *Operation) Close() {
 			delete(h.runs, id)
 		}
 	}
+	if op.ownerRun != nil {
+		delete(op.ownerRun.childScopes, op)
+		op.ownerRun = nil
+	}
 	h.mu.Unlock()
+	if terminalHookEvent != nil {
+		if hookStartEventDone != nil {
+			<-hookStartEventDone
+		}
+		h.observe(terminalHookEvent)
+	}
 	h.emitSteerEvents(pendingSteers)
 	for _, childScope := range childScopes {
 		childScope.Close()
@@ -399,6 +535,8 @@ func (h *Host) observeRun(eventType, runID string, run *agentRun, fields events.
 		"type": eventType, "runId": runID,
 		"parentRunId": run.parentRunID, "name": run.config.Name, "model": run.config.Model,
 	}
+	addActivityFields(event, run.activityID, run.causedBy, run.origin)
+	h.decorateExecution(event, run.group)
 	if id := run.agentID(); id != "" {
 		event["agentId"] = id
 	}
@@ -413,6 +551,8 @@ func (h *Host) observeEndedRun(eventType string, run endedRun, fields events.Eve
 		"type": eventType, "runId": run.id,
 		"parentRunId": run.parentID, "name": run.name, "model": run.model,
 	}
+	addActivityFields(event, run.activityID, run.causedBy, run.origin)
+	h.decorateExecution(event, run.group)
 	if run.agentID != "" {
 		event["agentId"] = run.agentID
 	}

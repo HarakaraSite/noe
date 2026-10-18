@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -11,24 +12,54 @@ import (
 )
 
 type agentRun struct {
-	id             string
-	operation      *Operation
-	ctx            context.Context
-	cancel         context.CancelFunc
-	started        time.Time
-	config         runConfig
-	parentRunID    string
-	childScopes    map[*Operation]struct{}
-	instances      map[string]*agentInstance
-	instance       *agentInstance
-	steerByID      map[string]*steerCommand
-	steerOrder     []*steerCommand
-	finalAnswer    string
-	finalDone      chan struct{}
-	finalClosed    bool
-	finalEventDone bool
-	providerCalls  int
-	interrupting   bool
+	id                      string
+	operation               *Operation
+	ctx                     context.Context
+	cancel                  context.CancelFunc
+	started                 time.Time
+	config                  runConfig
+	parentRunID             string
+	group                   *executionGroup
+	activityID              string
+	causedBy                []string
+	origin                  activityOrigin
+	childScopes             map[*Operation]struct{}
+	instances               map[string]*agentInstance
+	instance                *agentInstance
+	steerByID               map[string]*steerCommand
+	steerOrder              []*steerCommand
+	pendingSteerActivityIDs []string
+	finalAnswer             string
+	finalDone               chan struct{}
+	finalClosed             bool
+	finalEventDone          bool
+	providerCalls           int
+	interrupting            bool
+	modelStep               *modelStepState
+	context                 contextRunState
+}
+
+// modelStepState retains only the current logical judgment and the IDs needed
+// to connect its provider response and tool calls to hook activity.
+type modelStepState struct {
+	id                      string
+	activityID              string
+	predecessorActivityIDs  []string
+	beforeHookActivityIDs   []string
+	requestCauseActivityIDs []string
+	requestID               string
+	requestActivityID       string
+	responseComplete        bool
+	finished                bool
+	toolCalls               map[string]*toolCallState
+	toolCallOrder           []string
+}
+
+type toolCallState struct {
+	name           string
+	activityID     string
+	started        bool
+	resultRecorded bool
 }
 
 func (r *agentRun) agentID() string {
@@ -39,21 +70,26 @@ func (r *agentRun) agentID() string {
 }
 
 type runConfig struct {
-	Provider  string
-	Model     string
-	Name      string
-	MaxTokens int
-	Effort    string
-	MaxSteps  int
+	Provider             string
+	Model                string
+	Name                 string
+	MaxTokens            int
+	Effort               string
+	MaxSteps             int
+	Hooks                []string
+	ContextBudget        *ContextBudget
+	ContextBudgetPresent bool
 }
 
 type startRequest struct {
-	Provider  string `json:"provider"`
-	Model     string `json:"model"`
-	Name      string `json:"name"`
-	MaxTokens int    `json:"maxTokens"`
-	Effort    string `json:"effort,omitempty"`
-	MaxSteps  int    `json:"maxSteps,omitempty"`
+	Provider      string          `json:"provider"`
+	Model         string          `json:"model"`
+	Name          string          `json:"name"`
+	MaxTokens     int             `json:"maxTokens"`
+	Effort        string          `json:"effort,omitempty"`
+	MaxSteps      int             `json:"maxSteps,omitempty"`
+	Hooks         []string        `json:"hooks,omitempty"`
+	ContextBudget json.RawMessage `json:"contextBudget,omitempty"`
 }
 
 type finishRequest struct {
@@ -66,8 +102,9 @@ type finishRequest struct {
 func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operation) {
 	var request startRequest
 	err := decodeRequest(r, &request)
+	requestedBudget, budgetPresent, budgetErr := parseContextBudget(request.ContextBudget)
 	effort, validEffort := provider.NormalizeEffort(request.Effort)
-	if err != nil || strings.TrimSpace(request.Provider) == "" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || request.MaxSteps < 0 || !validEffort {
+	if err != nil || budgetErr != nil || strings.TrimSpace(request.Provider) == "" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || request.MaxSteps < 0 || !validEffort {
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid start request")
 		return
 	}
@@ -75,26 +112,44 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		writeRPCError(w, http.StatusBadRequest, "provider", err.Error())
 		return
 	}
+	hookModules, err := normalizeHookModules(request.Hooks, b.host.opts.Cwd, b.host.opts.ImportMap)
+	if err != nil {
+		writeRPCError(w, http.StatusBadRequest, "request", err.Error())
+		return
+	}
 	id, err := randomID()
 	if err != nil {
 		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate agent run")
+		return
+	}
+	activityID, err := randomID()
+	if err != nil {
+		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate agent activity")
 		return
 	}
 	ctx, cancel := context.WithCancel(op.ctx)
 	config := runConfig{
 		Provider: request.Provider, Model: request.Model,
 		Name: request.Name, MaxTokens: request.MaxTokens, Effort: effort, MaxSteps: request.MaxSteps,
+		Hooks: hookModules, ContextBudget: cloneContextBudget(requestedBudget), ContextBudgetPresent: budgetPresent,
 	}
 	run := &agentRun{
 		id:        id,
 		operation: op, ctx: ctx, cancel: cancel, started: time.Now(),
 		config: config, parentRunID: op.parentRunID,
+		activityID:  activityID,
 		childScopes: make(map[*Operation]struct{}),
 		instances:   make(map[string]*agentInstance),
 		steerByID:   make(map[string]*steerCommand),
 		finalDone:   make(chan struct{}),
 	}
 	h := b.host
+	resolvedModelWindow := (*int64)(nil)
+	if h.opts.Connection != nil {
+		resolvedModelWindow = cloneInt64(h.opts.Connection.ModelWindow)
+	} else {
+		resolvedModelWindow = contextWindowForModel(h.catalog, request.Provider, request.Model)
+	}
 	h.mu.Lock()
 	if op.closed || op.ctx.Err() != nil || h.closed {
 		h.mu.Unlock()
@@ -104,13 +159,42 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	}
 	if op.task != nil {
 		instance := op.task.instance
+		if !h.executionGroupOpenLocked(instance.group) {
+			group := instance.group
+			h.mu.Unlock()
+			cancel()
+			code, message := executionLimitError(group)
+			writeRPCError(w, http.StatusConflict, code, message)
+			return
+		}
 		if instance.state == "stopping" || instance.state == "stopped" || instance.state == "failed" || instance.ctx.Err() != nil {
 			h.mu.Unlock()
 			cancel()
 			writeRPCError(w, http.StatusConflict, "scope", "agent instance is stopping or finished")
 			return
 		}
+		run.group = instance.group
+		run.config.Hooks = instance.config.hookModules()
+		run.config.ContextBudget = cloneContextBudget(instance.config.ContextBudget)
+		run.config.ContextBudgetPresent = instance.config.contextBudgetPresent
+		run.context.modelWindow = cloneInt64(instance.modelWindow)
+		run.origin = activityOrigin{Kind: "script", AgentID: instance.id, CommandID: op.task.command.id}
+		if op.task.command.activityID != "" {
+			run.causedBy = []string{op.task.command.activityID}
+		}
+	} else {
+		owner := h.currentOwnerRunLocked(op)
+		run.group = h.executionForOperationLocked(op)
+		run.context.modelWindow = cloneInt64(resolvedModelWindow)
+		run.origin = activityOrigin{Kind: "script"}
+		if owner != nil {
+			run.origin.RunID = owner.id
+			if owner.activityID != "" {
+				run.causedBy = []string{owner.activityID}
+			}
+		}
 	}
+	run.context.budget = cloneContextBudget(run.config.ContextBudget)
 	h.runs[id] = run
 	if op.task != nil {
 		if op.task.run != nil {
@@ -123,14 +207,20 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		run.instance = op.task.instance
 		op.task.run = run
 		op.task.instance.currentRunID = id
+		h.storeContextSnapshotLocked(run, time.Now())
 	}
 	h.mu.Unlock()
+	userInstructions, instructionErr := loadUserInstructions(h.opts.Cwd)
 	h.traceEvent(traceEvent{
 		RunID: id, ParentID: run.parentRunID, Name: config.Name, Model: config.Model,
 		Status: "started",
 	})
 	h.observeRun("agent.started", id, run, events.Event{"status": "started"})
-	writeJSON(w, map[string]string{"runId": id})
+	startResponse := map[string]string{"runId": id, "instructions": userInstructions}
+	if instructionErr != nil {
+		startResponse["instructionError"] = instructionErr.Error()
+	}
+	writeJSON(w, startResponse)
 }
 
 func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operation) {

@@ -18,6 +18,10 @@ JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`proces
 
 agentの共通インストラクションは[`internal/agent/instructions.md`](../internal/agent/instructions.md)で管理します。Goの`embed`でバイナリに含め、モデルのtask loopを実行するprivate moduleが利用します。公開`noe:agent` moduleは起動・観察・queue・steer・interruptのAPIを提供します。文面の変更を実行へ反映するには再ビルドします。
 
+利用者の追加指示は共通設定とworkspaceの`instructions/*.md`からrunごとに読み込みます。
+配置・合成・`system`との併用は[インストラクションガイド](instructions.md)、
+確認結果は[実装・検証記録](instructions-implementation.md)を参照してください。
+
 以下のインクリメント1〜11、レビュー、比較スパイクは当時の設計・検証履歴です。そこに記載された旧API・対象外・ソース構成・中断動作は、現在の仕様や最新コードの検証結果を示すものではありません。
 
 ## インクリメント

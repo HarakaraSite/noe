@@ -14,16 +14,18 @@ import (
 )
 
 type modelRequest struct {
-	RunID     string            `json:"runId"`
-	Model     string            `json:"model"`
-	Messages  []json.RawMessage `json:"messages"`
-	Tools     []json.RawMessage `json:"tools,omitempty"`
-	CacheKey  string            `json:"cacheKey,omitempty"`
-	MaxTokens int               `json:"maxTokens,omitempty"`
-	Effort    string            `json:"effort,omitempty"`
+	RunID       string            `json:"runId"`
+	ModelStepID string            `json:"modelStepId,omitempty"`
+	Model       string            `json:"model"`
+	Messages    []json.RawMessage `json:"messages"`
+	Tools       []json.RawMessage `json:"tools,omitempty"`
+	CacheKey    string            `json:"cacheKey,omitempty"`
+	MaxTokens   int               `json:"maxTokens,omitempty"`
+	Effort      string            `json:"effort,omitempty"`
 }
 
 type modelResponse struct {
+	RequestID    string             `json:"requestId,omitempty"`
 	Message      json.RawMessage    `json:"message,omitempty"`
 	FinishReason string             `json:"finishReason,omitempty"`
 	Usage        json.RawMessage    `json:"usage,omitempty"`
@@ -51,6 +53,11 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		}
 	}
 	h := b.host
+	requestID, activityID := "", ""
+	causedBy := []string(nil)
+	var sentContext contextSnapshot
+	var sentContextActivityID string
+	var sentContextCauses []string
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	valid := run != nil && run.operation == op && run.ctx.Err() == nil && !run.interrupting && !op.closed && !h.closed && !run.finalClosed
@@ -59,9 +66,21 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
 		return
 	}
+	if !h.executionGroupOpenLocked(run.group) {
+		group := run.group
+		h.mu.Unlock()
+		code, message := executionLimitError(group)
+		writeRPCError(w, http.StatusConflict, code, message)
+		return
+	}
 	if request.Model != run.config.Model || request.MaxTokens != run.config.MaxTokens || effort != run.config.Effort {
 		h.mu.Unlock()
 		writeRPCError(w, http.StatusBadRequest, "request", "model request does not match agent run configuration")
+		return
+	}
+	if request.ModelStepID != "" && (run.modelStep == nil || run.modelStep.id != request.ModelStepID || run.modelStep.finished) {
+		h.mu.Unlock()
+		writeRPCError(w, http.StatusConflict, "model_step", "model request does not match the active logical step")
 		return
 	}
 	steers := h.deliverPendingSteersLocked(run)
@@ -72,92 +91,155 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			writeRPCError(w, http.StatusConflict, "max_steps", fmt.Sprintf("agent reached maxSteps=%d without a final answer", limit))
 			return
 		}
+		var err error
+		requestID, err = randomID()
+		if err == nil {
+			activityID, err = randomID()
+		}
+		if err != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate model request activity")
+			return
+		}
+		origin := activityOrigin{Kind: "model", RunID: run.id, AgentID: run.agentID(), ModelStepID: request.ModelStepID}
+		limitAction, admitted := h.reserveExecutionLocked(run.group, "providerCalls", "agent", activityID, origin)
+		if !admitted {
+			group := run.group
+			h.mu.Unlock()
+			h.finishExecutionLimit(limitAction)
+			code, message := executionLimitError(group)
+			writeRPCError(w, http.StatusConflict, code, message)
+			return
+		}
+		if request.ModelStepID != "" {
+			step := run.modelStep
+			step.requestID = requestID
+			step.requestActivityID = activityID
+			causedBy = appendUniqueActivityIDs(causedBy, step.activityID)
+			causedBy = appendUniqueActivityIDs(causedBy, step.beforeHookActivityIDs...)
+			causedBy = appendUniqueActivityIDs(causedBy, run.pendingSteerActivityIDs...)
+			step.requestCauseActivityIDs = append([]string(nil), causedBy...)
+		} else if run.activityID != "" {
+			causedBy = append(causedBy, run.activityID)
+		}
+		// Applied steering instructions are consumed by the next actual
+		// provider request, after any steer-only model RPCs have returned.
+		run.pendingSteerActivityIDs = nil
 		// Count only requests that cross the provider boundary. Returning a
 		// queued steer batch does not consume the task's model-call budget.
 		run.providerCalls++
+		sentContext, sentContextActivityID, sentContextCauses = h.markContextSentLocked(run, request, requestID, time.Now())
 	}
 	h.mu.Unlock()
 	if len(steers) != 0 {
 		writeJSON(w, modelResponse{Steers: steers})
 		return
 	}
-	requestID := ""
+	h.emitContextUpdated(run, sentContext, "sent", sentContextActivityID, sentContextCauses)
+	origin := activityOrigin{Kind: "model", RunID: run.id, AgentID: run.agentID(), ModelStepID: request.ModelStepID}
 	if h.opts.Observe != nil {
-		var err error
-		requestID, err = randomID()
-		if err != nil {
-			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate model request ID")
-			return
+		fields := events.Event{"requestId": requestID, "status": "started"}
+		if request.ModelStepID != "" {
+			fields["modelStepId"] = request.ModelStepID
 		}
-		h.observeRun("model.started", request.RunID, run, events.Event{
-			"requestId": requestID, "status": "started",
-		})
+		addActivityFields(fields, activityID, causedBy, origin)
+		h.observeRun("model.started", request.RunID, run, fields)
 	}
 	ctx, cancel := context.WithCancel(run.ctx)
 	stopRequest := context.AfterFunc(r.Context(), cancel)
 	defer func() { stopRequest(); cancel() }()
 	started := time.Now()
 	var observeStream func(provider.StreamEvent)
-	if requestID != "" {
+	if h.opts.Observe != nil {
 		observeStream = func(streamEvent provider.StreamEvent) {
 			switch streamEvent.Type {
 			case "thinking", "thinking_summary", "message_delta":
-				h.observeRun(streamEvent.Type, request.RunID, run, events.Event{
-					"requestId": requestID, "text": streamEvent.Text,
-				})
+				fields := events.Event{"requestId": requestID, "text": streamEvent.Text}
+				if request.ModelStepID != "" {
+					fields["modelStepId"] = request.ModelStepID
+				}
+				addActivityFields(fields, activityID, causedBy, origin)
+				h.observeRun(streamEvent.Type, request.RunID, run, fields)
 			}
 		}
 	}
-	response, err := h.provider.Generate(ctx, provider.Request{
+	providerRequest := provider.Request{
 		Provider: run.config.Provider, RunID: request.RunID,
 		Model: run.config.Model, Messages: request.Messages, Tools: request.Tools,
 		CacheKey: request.CacheKey, MaxTokens: run.config.MaxTokens, Effort: run.config.Effort,
 		Observe: observeStream,
-	})
+	}
+	// Admission above is the provider-call boundary. Even if cancellation
+	// arrives after admission (for example while the started observer runs),
+	// enter the adapter with the cancelled context so accounting and terminal
+	// events describe the same attempt.
+	response, err := h.provider.Generate(ctx, providerRequest)
 	if err != nil {
 		status, code, message := classifyProviderError(err, ctx)
+		modelStatus := "failed"
+		if code == "cancelled" {
+			modelStatus = "cancelled"
+		}
+		h.mu.Lock()
+		contextSnapshot, contextActivityID, contextCauses := h.completeContextRequestLocked(run, requestID, modelStatus, nil, time.Now())
+		h.mu.Unlock()
+		h.emitContextUpdated(run, contextSnapshot, modelStatus, contextActivityID, contextCauses)
 		h.traceEvent(traceEvent{
 			RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
 			Status: "provider_error", Duration: time.Since(started),
 		})
-		if requestID != "" {
+		if h.opts.Observe != nil {
 			modelStatus := "failed"
 			if code == "cancelled" {
 				modelStatus = "cancelled"
 			}
-			h.observeRun("model.failed", request.RunID, run, events.Event{
-				"requestId": requestID, "status": modelStatus, "reason": code,
-				"duration": time.Since(started),
-			})
+			fields := events.Event{"requestId": requestID, "status": modelStatus, "reason": code, "duration": time.Since(started)}
+			if request.ModelStepID != "" {
+				fields["modelStepId"] = request.ModelStepID
+			}
+			addActivityFields(fields, activityID, causedBy, origin)
+			h.observeRun("model.failed", request.RunID, run, fields)
 		}
 		writeRPCError(w, status, code, message)
 		return
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		status, code, message := classifyProviderError(ctxErr, ctx)
+		h.mu.Lock()
+		contextSnapshot, contextActivityID, contextCauses := h.completeContextRequestLocked(run, requestID, "cancelled", nil, time.Now())
+		h.mu.Unlock()
+		h.emitContextUpdated(run, contextSnapshot, "cancelled", contextActivityID, contextCauses)
 		h.traceEvent(traceEvent{
 			RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
 			Status: "cancelled", Duration: time.Since(started),
 		})
-		if requestID != "" {
-			h.observeRun("model.failed", request.RunID, run, events.Event{
-				"requestId": requestID, "status": "cancelled", "reason": "cancelled",
-				"duration": time.Since(started),
-			})
+		if h.opts.Observe != nil {
+			fields := events.Event{"requestId": requestID, "status": "cancelled", "reason": "cancelled", "duration": time.Since(started)}
+			if request.ModelStepID != "" {
+				fields["modelStepId"] = request.ModelStepID
+			}
+			addActivityFields(fields, activityID, causedBy, origin)
+			h.observeRun("model.failed", request.RunID, run, fields)
 		}
 		writeRPCError(w, status, code, message)
 		return
 	}
 	if !json.Valid(response.Message) || len(response.Message) == 0 || (len(response.Usage) != 0 && !json.Valid(response.Usage)) {
+		h.mu.Lock()
+		contextSnapshot, contextActivityID, contextCauses := h.completeContextRequestLocked(run, requestID, "failed", nil, time.Now())
+		h.mu.Unlock()
+		h.emitContextUpdated(run, contextSnapshot, "failed", contextActivityID, contextCauses)
 		h.traceEvent(traceEvent{
 			RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
 			Status: "invalid_response", Duration: time.Since(started),
 		})
-		if requestID != "" {
-			h.observeRun("model.failed", request.RunID, run, events.Event{
-				"requestId": requestID, "status": "invalid_response", "reason": "provider_response",
-				"duration": time.Since(started),
-			})
+		if h.opts.Observe != nil {
+			fields := events.Event{"requestId": requestID, "status": "invalid_response", "reason": "provider_response", "duration": time.Since(started)}
+			if request.ModelStepID != "" {
+				fields["modelStepId"] = request.ModelStepID
+			}
+			addActivityFields(fields, activityID, causedBy, origin)
+			h.observeRun("model.failed", request.RunID, run, fields)
 		}
 		writeRPCError(w, http.StatusBadGateway, "provider_response", "provider returned an invalid response")
 		return
@@ -166,18 +248,80 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
 		Status: "model_response", Duration: time.Since(started), Usage: summarizeUsage(response.Usage),
 	})
-	if requestID != "" {
-		h.observeRun("model.finished", request.RunID, run, events.Event{
-			"requestId": requestID, "status": "finished", "finishReason": response.FinishReason,
-			"duration": time.Since(started), "usage": summarizeUsage(response.Usage),
-		})
+	usage := summarizeUsage(response.Usage)
+	h.mu.Lock()
+	if run.group != nil {
+		run.group.usage.add(usage)
+	}
+	if request.ModelStepID != "" && run.modelStep != nil && run.modelStep.id == request.ModelStepID {
+		toolCalls, toolCallOrder, toolErr := modelToolCallStates(response.Message)
+		if toolErr != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate tool activity IDs")
+			return
+		}
+		run.modelStep.responseComplete = true
+		run.modelStep.toolCalls = toolCalls
+		run.modelStep.toolCallOrder = toolCallOrder
+	}
+	contextSnapshot, contextActivityID, contextCauses := h.completeContextRequestLocked(run, requestID, "completed", usage, time.Now())
+	h.mu.Unlock()
+	h.emitContextUpdated(run, contextSnapshot, "completed", contextActivityID, contextCauses)
+	if h.opts.Observe != nil {
+		fields := events.Event{"requestId": requestID, "status": "finished", "finishReason": response.FinishReason, "duration": time.Since(started), "usage": usage}
+		if request.ModelStepID != "" {
+			fields["modelStepId"] = request.ModelStepID
+		}
+		addActivityFields(fields, activityID, causedBy, origin)
+		h.observeRun("model.finished", request.RunID, run, fields)
 		if text, toolCallIDs, ok := intermediateMessage(response.Message); ok && strings.TrimSpace(text) != "" {
-			h.observeRun("agent.message", request.RunID, run, events.Event{
-				"requestId": requestID, "status": "intermediate", "text": text, "toolCallIds": toolCallIDs,
-			})
+			fields := events.Event{"requestId": requestID, "status": "intermediate", "text": text, "toolCallIds": toolCallIDs}
+			if request.ModelStepID != "" {
+				fields["modelStepId"] = request.ModelStepID
+			}
+			addActivityFields(fields, activityID, causedBy, origin)
+			h.observeRun("agent.message", request.RunID, run, fields)
 		}
 	}
-	writeJSON(w, modelResponse{Message: response.Message, FinishReason: response.FinishReason, Usage: response.Usage})
+	writeJSON(w, modelResponse{RequestID: requestID, Message: response.Message, FinishReason: response.FinishReason, Usage: response.Usage})
+}
+
+func modelToolCallStates(raw json.RawMessage) (map[string]*toolCallState, []string, error) {
+	var message struct {
+		ToolCalls []struct {
+			ID       string `json:"id"`
+			Function struct {
+				Name json.RawMessage `json:"name"`
+			} `json:"function"`
+		} `json:"tool_calls"`
+	}
+	if json.Unmarshal(raw, &message) != nil || len(message.ToolCalls) == 0 {
+		return nil, nil, nil
+	}
+	toolCalls := make(map[string]*toolCallState, len(message.ToolCalls))
+	var toolCallOrder []string
+	for _, call := range message.ToolCalls {
+		if call.ID == "" {
+			continue
+		}
+		if _, exists := toolCalls[call.ID]; exists {
+			continue
+		}
+		activityID, err := randomID()
+		if err != nil {
+			return nil, nil, err
+		}
+		toolName := ""
+		if json.Unmarshal(call.Function.Name, &toolName) != nil || strings.TrimSpace(toolName) == "" {
+			toolName = "<invalid>"
+		}
+		toolCalls[call.ID] = &toolCallState{name: toolName, activityID: activityID}
+		toolCallOrder = append(toolCallOrder, call.ID)
+	}
+	if len(toolCalls) == 0 {
+		return nil, nil, nil
+	}
+	return toolCalls, toolCallOrder, nil
 }
 
 func intermediateMessage(raw json.RawMessage) (string, []string, bool) {

@@ -1,5 +1,19 @@
 # agentの観察：人間用CLIと親用API
 
+`--observe`と保存ログの表示では、`context:`行に入力予算・モデルwindow・次要求の
+`estimated`値・残量・`previous`実測を表示する。未知値は`unknown`。
+概算はtokenizerによる実測ではなく、`preparing`/`sent`は算出した段階を示す。
+`hook started`は実行中のphase/moduleを表示し、失敗・取消しも確認できる。
+JSONLと観察snapshotには`groupId`、group累計の`execution`、要求単位の`context`を残す。
+保存ログのsnapshotはcursorで差分を絞ってもこれらを全履歴から復元する。
+hookが待機中なら`phase: "hook"`と実行中のhandlerを`action`に返す。
+保存ログの`tool.finished`差分は、`includeOutput: true`で元の`rawResult`とモデル向け
+`result`を返す。既定ではこれらのpayloadを省き、ID・実行状態・結果の有無を返す。
+元のJSONLファイルには両方を保持する。
+保存runの`execution`は、そのrunに一致した最後のイベント時点のgroup集計です。
+runの完了後に出るinstance終端など、別のイベントによる更新は取り込みません。
+groupの現在状態はliveの`observe_agent({agentId})`、回収完了はinstance終端イベントで確認します。
+
 実行イベントの保存形式は[JSONL](events.md)、人間向けの表示は読みやすいテキスト、親agent向けは構造化した状態・差分に分けます。組立てと表示はGoで行い、追加のLLMは呼びません。人間向けのMarkdown整形には、mdcli v0.0.5のソースから取り込んだ、Go標準ライブラリだけを使う整形処理を利用します。
 
 ## 人間向け：noe observe

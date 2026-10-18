@@ -1,5 +1,24 @@
 # JSONLによる実行状況の観察
 
+agentイベントには、CLI全体の`executionId`に加え、所有ルートの`groupId`、
+仕事の`activityId`、原因の`causedBy`と`origin`を付ける。
+独立したrootは別group、子孫・同instanceのqueueは同groupになる。
+`execution`はgroupの累計で、個々の要求のcontext量とは区別する。
+`interrupt.accepted`のactivityとoriginは停止を要求した操作を示し、
+`runId` / `agentId`は停止対象を示す。再送で新しい受付イベントは作らない。
+
+| イベント | 内容 |
+| --- | --- |
+| `model.step.started` | 論理判断の開始。steer再準備中は同じ`modelStepId` |
+| `hook.started` / `hook.finished` / `hook.failed` / `hook.cancelled` | module・phase・invocationの寿命 |
+| `tool.finished` | 元引数・実行引数、元結果・モデル向け結果を区別したtool結果 |
+| `context.updated` | run/判断/要求に対応する`context` snapshot |
+
+`context`は明示入力予算、catalogのwindow、直前要求の実測、次要求の概算を持つ。
+未知は`null`。cached入力は実測promptの一部で、groupの累積tokenや応答上限とは別。
+概算方式・snapshotの型・hook APIは[hookガイド](hooks.md)を参照。
+標準通知は観察無効時もモデルに届き、JSONL記録自体は従来どおり`--events`で選ぶ。
+
 `run`・`eval`・`repl`は共通の`--events`オプションで、通常出力とagentの詳細イベントをJSON Linesとして記録できます。省略時の出力は変わりません。人間と親agentが同じイベントを読み、runや種類で絞り込むための形式です。
 
 ## 出力先

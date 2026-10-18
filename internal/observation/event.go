@@ -15,6 +15,17 @@ func projectEvent(event events.Event, q Query) events.Event {
 		"agent.message", "agent.final", "model.started", "model.finished", "model.failed",
 		"run_js.started", "run_js.finished", "decision.started", "decision.completed", "decision.failed", "decision.cancelled":
 		return cloneEvent(event)
+	case "tool.finished":
+		projected := cloneEvent(event)
+		if !q.IncludeOutput {
+			// Results may be arbitrary JSON after an afterTool hook. Preserve
+			// execution facts and IDs, and opt in to full raw/effective payloads.
+			delete(projected, "rawResult")
+			delete(projected, "result")
+		}
+		return projected
+	case "model.step.started", "context.updated", "hook.started", "hook.finished", "hook.failed", "hook.cancelled", "execution.limit_reached":
+		return cloneEvent(event)
 	case "thinking", "thinking_summary":
 		if q.IncludeThinking {
 			return cloneEvent(event)

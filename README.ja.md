@@ -11,7 +11,7 @@ A tiny JavaScript runtime written in pure Go.
 
 [APIリファレンス](docs/api.md) · [import map](docs/import-map.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
 
-[v1.4.0リリースノート](docs/releases/v1.4.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.4.0)
+[v1.5.0リリースノート](docs/releases/v1.5.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.5.0)
 
 ## ビルドと実行
 
@@ -25,7 +25,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.4.0
+# noe v1.5.0
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -110,6 +110,11 @@ REPLでは`const math = await import("app/math")`で読み、次の入力で`mat
 
 APIキーは対応するテキストファイルへ保存します。別の場所を使う場合は`NOE_OPENCODE_GO_API_KEY_FILE`、`NOE_OPENROUTER_API_KEY_FILE`、`NOE_OPENAI_API_KEY_FILE`で指定できます。ChatGPT認証は`NOE_OPENAI_CHATGPT_CREDENTIALS_FILE`です。`XDG_CONFIG_HOME`があれば、既定の基点は`~/.config/noe/`から`$XDG_CONFIG_HOME/noe/`へ変わります。認証ファイルは最初のモデル要求時に読み込みます。
 
+agentへの共通の指示は`~/.config/noe/instructions/*.md`（XDG指定時はその設定先）、
+workspaceの指示は起動時の作業ディレクトリの`.noe/instructions/*.md`へ置けます。
+共通→workspace→明示した`system`の順で追記し、各ディレクトリ内はファイル名順です。
+各run開始時に読み、同じrunの間は固定します。[インストラクションガイド](docs/instructions.md)を参照してください。
+
 ChatGPTサインインには外部JSヘルパーを配置し、NOEで実行します。
 
 ```sh
@@ -118,7 +123,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.4.0のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.4.0/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
+表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.5.0のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.5.0/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
 
 ### 1タスクを実行し、回答を受け取る
 
@@ -159,6 +164,11 @@ console.log(snapshot.lastResult.answer);
 | `maxSteps` | タスクごとのモデル呼出し上限。省略・`0`はNOE側の上限なし |
 | `maxTokens` | モデル要求1回あたりの出力token上限。省略・`0`は指定なし |
 | `cacheKey` | キャッシュ・routing用の固定キー。省略するとタスクの`runId`、空文字はフィールド省略 |
+| `hooks` | モデル/tool前後に実行する外部ESM一覧。子は継承、`[]`で解除 |
+| `contextBudget` | runごとの入力目安`{inputTokens:200000}`。子は継承、`null`で解除 |
+| `executionLimits` | root共有の任意上限。`providerCalls`・`agentStarts`・`queuedTasks`・`hookCalls`。省略項目は無制限、`0`は受付枠0 |
+
+各モデル要求へ、明示入力予算・取得できたcatalog window・直前の実測・次要求の概算を通知します。未知値は未取得のままです。概算はJSON UTF-8 bytes/4による近似で、tokenizerの実測ではありません。通知は会話履歴に蓄積せず、入力目安を超えただけで自動停止・圧縮しません。`--observe`でcontext行を表示し、live/保存観察も同じsnapshotを返します。`executionLimits`は別の共有受付上限で、所有rootと子孫に適用します。[hook・contextガイド](docs/hooks.md)を参照してください。
 
 外部インストラクションは、たとえば`node:fs/promises`の`await readFile("instructions.md", "utf8")`で読み、得た文字列を`system`へ渡します。`AGENTS.md`の自動探索は行いません。cacheKeyは会話履歴の保存やキャッシュヒットを保証するものではありません。OpenRouterでは`session_id`、OpenAIでは`prompt_cache_key`へ送ります。OpenCode Goは実際のrun IDを`x-opencode-session`へ送り、同一タスク内では固定、親子では別IDです。`User-Agent: noe/<version>`も送ります。
 
@@ -181,7 +191,7 @@ console.log(snapshot.lastResult.answer);
 
 通常JSでも`Promise.all([run_agent(...), run_agent(...)])`で独立したルートagentを並列起動できます。それぞれprovider・model・effortを明示します。実行中に親が観察・追加指示を行う場合は`spawn_agent`を使います。[操作例](examples/agent-control.js)も参照してください。
 
-モデルが生成する`run_js`には6つのライフサイクル関数が事前に束縛されています。子はprovider・model・effort・maxTokensを省略すると親から継承します。たとえば親は次のtoolコードを実行できます。
+モデルが生成する`run_js`には6つのライフサイクル関数が事前に束縛されています。子はprovider・model・effort・maxTokens・hooks・contextBudgetを省略すると親から継承します。たとえば親は次のtoolコードを実行できます。
 
 ```js
 // Summarize the two documents in parallel

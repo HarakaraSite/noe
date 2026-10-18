@@ -1,4 +1,5 @@
 import { request, defaults, instructions } from "noe:agent/internal";
+import { callHooks, hookErrorText, loadHookModules } from "noe:agent/hooks";
 
 const inherited = JSON.parse(defaults());
 const systemInstruction = instructions();
@@ -48,6 +49,23 @@ function requireEffort(value) {
   return value;
 }
 
+function requireHooks(value) {
+  if (!Array.isArray(value)) throw new TypeError("hooks must be an array of module specifiers");
+  return value.map((specifier, index) => requireString(specifier, "hooks[" + index + "]"));
+}
+
+function requireContextBudget(value) {
+  if (value === null) return null;
+  if (!isRecord(value)) throw new TypeError("contextBudget must be an object or null");
+  for (const key of Object.keys(value)) {
+    if (key !== "inputTokens") throw new TypeError("unknown contextBudget option: " + key);
+  }
+  if (!Number.isSafeInteger(value.inputTokens) || value.inputTokens <= 0) {
+    throw new TypeError("contextBudget.inputTokens must be a positive safe integer");
+  }
+  return {inputTokens: value.inputTokens};
+}
+
 function failedToolResult(message) {
   return { stdout: "", stderr: message, exitCode: -1, reason: "failed" };
 }
@@ -60,7 +78,7 @@ function requireRunnerResult(value) {
   return value;
 }
 
-async function executeToolCall(runId, toolCall) {
+async function executeToolCall(runId, modelStepId, toolCall) {
   if (!isRecord(toolCall.function)) {
     return failedToolResult("tool call has no function object");
   }
@@ -88,7 +106,57 @@ async function executeToolCall(runId, toolCall) {
     return failedToolResult("run_js code must be a string");
   }
 
-  return requireRunnerResult(await rpc("run_js", { runId, toolCallId: toolCall.id, code: args.code }));
+  return requireRunnerResult(await rpc("run_js", { runId, modelStepId, toolCallId: toolCall.id, code: args.code }));
+}
+
+function parsedToolArguments(call) {
+  if (typeof call.function.arguments !== "string") return null;
+  try { return JSON.parse(call.function.arguments); } catch (_) { return null; }
+}
+
+// The wrapper is independent of the tool implementation. The model's full
+// original call remains in history; effective arguments and results are
+// recorded separately from actual execution facts.
+export async function executeToolWithHooks(loaded, event, toolCall, execute) {
+  const fn = toolCall.function;
+  const toolName = typeof fn.name === "string" && fn.name.trim() ? fn.name : "<invalid>";
+  const originalArguments = fn.arguments === undefined ? null : fn.arguments;
+  const before = await callHooks(loaded, "beforeTool", {
+    ...event, toolCallId: toolCall.id, toolName,
+    rawArguments: originalArguments, arguments: parsedToolArguments(toolCall),
+  }, args => {
+    if (!isRecord(args)) throw new TypeError("tool arguments must be an object");
+    if (fn.name === "run_js" && (typeof args.code !== "string" || Object.keys(args).some(key => key !== "code"))) {
+      throw new TypeError("run_js hook arguments must contain only code: string");
+    }
+  });
+  const effectiveCall = before.changed ? {
+    ...toolCall, function: {...fn, arguments: JSON.stringify(before.event.arguments)},
+  } : toolCall;
+  const rawResult = await execute(effectiveCall);
+  const report = {
+    runId: event.runId, modelStepId: event.modelStepId,
+    toolCallId: toolCall.id, toolName,
+    rawArguments: originalArguments, arguments: before.event.arguments,
+    rawResult,
+  };
+  let after;
+  try {
+    after = await callHooks(loaded, "afterTool", {
+      ...event, toolCallId: toolCall.id, toolName,
+      rawArguments: originalArguments, arguments: before.event.arguments, result: rawResult,
+    });
+  } catch (error) {
+    try {
+      await rpc("tool_result", {...report, result: null, modelResultAvailable: false, hookError: hookErrorText(error)});
+    } catch (_) {
+      // Cancellation may already have closed admission. Keep the hook error.
+    }
+    throw error;
+  }
+  const result = after.changed ? after.event.result : rawResult;
+  await rpc("tool_result", {...report, result, modelResultAvailable: true});
+  return result;
 }
 
 function validateToolCalls(message) {
@@ -129,7 +197,16 @@ function normalizeConfig(config) {
   const maxTokens = config.maxTokens === undefined ? (inherited.maxTokens || 0) : requireLimit(config.maxTokens, "maxTokens");
   const maxSteps = config.maxSteps === undefined ? 0 : requireLimit(config.maxSteps, "maxSteps");
   const cacheKey = config.cacheKey === undefined ? undefined : requireString(config.cacheKey, "cacheKey", true);
-  return { provider, model, name, system, effort, maxTokens, maxSteps, cacheKey };
+  const hooks = config.hooks === undefined
+    ? (inherited.hooks === undefined ? [] : requireHooks(inherited.hooks))
+    : requireHooks(config.hooks);
+  const contextBudget = config.contextBudget === undefined
+    ? inherited.contextBudget
+    : requireContextBudget(config.contextBudget);
+  return {
+    provider, model, name, system, effort, maxTokens, maxSteps, cacheKey, hooks,
+    contextBudget: contextBudget === undefined ? undefined : requireContextBudget(contextBudget),
+  };
 }
 
 function validatedSteers(value) {
@@ -158,7 +235,10 @@ export async function executeTask(config, instruction) {
   requireString(instruction, "instruction");
 
   const { provider, model, name, system, effort, maxTokens, maxSteps } = normalized;
-  const start = await rpc("start", { provider, model, name, maxTokens, effort, maxSteps });
+  const start = await rpc("start", {
+    provider, model, name, maxTokens, effort, maxSteps, hooks: normalized.hooks,
+    contextBudget: normalized.contextBudget,
+  });
   const runId = start.runId;
   if (typeof runId !== "string" || !runId) throw new Error("agent broker returned an invalid run ID");
   const cacheKey = normalized.cacheKey === undefined ? runId : normalized.cacheKey;
@@ -166,19 +246,46 @@ export async function executeTask(config, instruction) {
   let acceptedAnswer = "";
   let failureMessage = "";
   try {
+    if (typeof start.instructionError === "string" && start.instructionError) {
+      throw new Error(start.instructionError);
+    }
+    const userInstructions = typeof start.instructions === "string" ? start.instructions : "";
+    const systemMessage = userInstructions
+      ? [systemInstruction, userInstructions, ...(system ? [system] : [])].join("\n\n")
+      : systemInstruction + (system ? "\n" + system : "");
+    const loadedHooks = await loadHookModules(normalized.hooks);
     const messages = [
-      { role: "system", content: systemInstruction + (system ? "\n" + system : "") },
+      { role: "system", content: systemMessage },
       { role: "user", content: instruction },
     ];
+    let modelStepId = null;
     while (true) {
+      if (modelStepId === null) {
+        const prepared = await rpc("begin_model_step", { runId, messages, tools: [runJSTool] });
+        modelStepId = requireString(prepared.modelStepId, "modelStepId");
+        if (prepared.steers !== undefined) await appendAndApplySteers(runId, messages, prepared.steers);
+        await rpc("context_prepare", {runId, modelStepId, messages, tools: [runJSTool]});
+        await callHooks(loadedHooks, "beforeModelRequest", {runId, modelStepId});
+      }
+      const context = await rpc("context_get", {runId, modelStepId});
+      if (!isRecord(context) || typeof context.notification !== "string") {
+        throw new Error("agent broker returned an invalid context notification");
+      }
+      // The status is request-scoped: provider history retains only the source
+      // transcript, never this diagnostic tail message.
+      const modelMessages = [...messages, {role: "system", content: context.notification}];
       const response = await rpc("model", {
-        runId, model, messages, tools: [runJSTool], cacheKey, maxTokens, effort,
+        runId, modelStepId, model, messages: modelMessages, tools: [runJSTool], cacheKey, maxTokens, effort,
       });
       if (!isRecord(response)) throw new Error("provider returned an invalid response");
       if (response.steers !== undefined) {
         await appendAndApplySteers(runId, messages, response.steers);
+        await rpc("context_prepare", {runId, modelStepId, messages, tools: [runJSTool]});
         continue;
       }
+      await callHooks(loadedHooks, "afterModelResponse", {
+        runId, modelStepId, requestId: response.requestId, response,
+      });
       if (!isRecord(response) || !isRecord(response.message) || response.message.role !== "assistant") {
         throw new Error("provider returned an invalid assistant message");
       }
@@ -198,7 +305,10 @@ export async function executeTask(config, instruction) {
         // Keep the provider's full assistant object, including reasoning,
         // call IDs, and extension fields, for the next request.
         messages.push(response.message);
-        const results = await Promise.all(calls.map((call) => executeToolCall(runId, call)));
+        const results = await Promise.all(calls.map(call => executeToolWithHooks(
+          loadedHooks, {runId, modelStepId, requestId: response.requestId}, call,
+          effective => executeToolCall(runId, modelStepId, effective),
+        )));
         for (let i = 0; i < calls.length; i++) {
           messages.push({
             role: "tool",
@@ -206,6 +316,7 @@ export async function executeTask(config, instruction) {
             content: JSON.stringify(results[i]),
           });
         }
+        modelStepId = null;
         continue;
       }
 
@@ -230,6 +341,7 @@ export async function executeTask(config, instruction) {
         // messages, including reasoning_details and provider extensions.
         messages.push(response.message);
         await appendAndApplySteers(runId, messages, committed.instructions);
+        modelStepId = null;
         continue;
       }
       acceptedAnswer = answer;

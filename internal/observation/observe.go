@@ -3,6 +3,7 @@ package observation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -52,22 +53,25 @@ type ToolResult struct {
 // delta. State fields are always derived from the full run history; Cursor
 // filters only Events.
 type Snapshot struct {
-	AgentID        string         `json:"agentId,omitempty"`
-	RunID          string         `json:"runId"`
-	ParentRunID    string         `json:"parentRunId"`
-	Name           string         `json:"name"`
-	Model          string         `json:"model"`
-	Status         string         `json:"status"`
-	Phase          string         `json:"phase"`
-	Action         string         `json:"action"`
-	LastMessage    string         `json:"lastMessage"`
-	FinalText      string         `json:"finalText,omitempty"`
-	Error          string         `json:"error,omitempty"`
-	LastToolResult *ToolResult    `json:"lastToolResult,omitempty"`
-	Usage          *Usage         `json:"usage,omitempty"`
-	UpdatedAt      string         `json:"updatedAt"`
-	Cursor         Cursor         `json:"cursor"`
-	Events         []events.Event `json:"events"`
+	GroupID        string          `json:"groupId,omitempty"`
+	Execution      json.RawMessage `json:"execution,omitempty"`
+	Context        json.RawMessage `json:"context,omitempty"`
+	AgentID        string          `json:"agentId,omitempty"`
+	RunID          string          `json:"runId"`
+	ParentRunID    string          `json:"parentRunId"`
+	Name           string          `json:"name"`
+	Model          string          `json:"model"`
+	Status         string          `json:"status"`
+	Phase          string          `json:"phase"`
+	Action         string          `json:"action"`
+	LastMessage    string          `json:"lastMessage"`
+	FinalText      string          `json:"finalText,omitempty"`
+	Error          string          `json:"error,omitempty"`
+	LastToolResult *ToolResult     `json:"lastToolResult,omitempty"`
+	Usage          *Usage          `json:"usage,omitempty"`
+	UpdatedAt      string          `json:"updatedAt"`
+	Cursor         Cursor          `json:"cursor"`
+	Events         []events.Event  `json:"events"`
 }
 
 // Observe reads the log on every call so callers can reuse a cursor without

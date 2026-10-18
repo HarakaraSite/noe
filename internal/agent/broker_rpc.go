@@ -44,10 +44,30 @@ func (e *RPCError) Unwrap() error {
 
 // Call invokes one operation-scoped broker RPC.
 func (op *Operation) Call(method, payload string) (string, error) {
+	if op == nil {
+		return "", ErrOperationClosed
+	}
+	return op.call(op.ctx, "", method, payload)
+}
+
+// CallWithScope invokes an RPC using a child broker scope while retaining the
+// operation's connection capability. ctx lets the caller end one hook's
+// in-flight requests without closing the enclosing runtime operation.
+func (op *Operation) CallWithScope(ctx context.Context, scope, method, payload string) (string, error) {
+	if scope == "" || ctx == nil {
+		return "", &RPCError{Code: "scope", Message: "agent operation scope is incomplete"}
+	}
+	return op.call(ctx, scope, method, payload)
+}
+
+func (op *Operation) call(ctx context.Context, scopeOverride, method, payload string) (string, error) {
 	if op == nil || op.host == nil {
 		return "", ErrOperationClosed
 	}
 	if err := op.ctx.Err(); err != nil {
+		return "", err
+	}
+	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 	if op.initErr != nil {
@@ -67,26 +87,42 @@ func (op *Operation) Call(method, payload string) (string, error) {
 		}
 		urlBase, token = b.url, b.token
 	}
-	if op.scope == "" || token == "" {
+	scope := op.scope
+	if scopeOverride != "" {
+		scope = scopeOverride
+	}
+	if scope == "" || token == "" {
 		return "", &RPCError{Code: "connection", Message: "agent connection is incomplete"}
 	}
 	if err := validateConnectionURL(urlBase); err != nil {
 		return "", err
 	}
 	requestURL := strings.TrimRight(urlBase, "/") + "/rpc/" + method
-	req, err := http.NewRequestWithContext(op.ctx, http.MethodPost, requestURL, strings.NewReader(payload))
+	requestCtx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(op.ctx, cancel)
+	defer func() {
+		stop()
+		cancel()
+	}()
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, requestURL, strings.NewReader(payload))
 	if err != nil {
 		if ctxErr := op.ctx.Err(); ctxErr != nil {
+			return "", ctxErr
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
 			return "", ctxErr
 		}
 		return "", &RPCError{Code: "transport", Message: "agent broker request failed"}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-Noe-Scope", op.scope)
+	req.Header.Set("X-Noe-Scope", scope)
 	response, err := op.client.Do(req)
 	if err != nil {
 		if ctxErr := op.ctx.Err(); ctxErr != nil {
+			return "", ctxErr
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
 			return "", ctxErr
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -101,6 +137,9 @@ func (op *Operation) Call(method, payload string) (string, error) {
 			err := &RPCError{Code: body.Error.Code, Message: body.Error.Message}
 			if body.Error.Code == "cancelled" {
 				if ctxErr := op.ctx.Err(); ctxErr != nil {
+					return "", ctxErr
+				}
+				if ctxErr := ctx.Err(); ctxErr != nil {
 					return "", ctxErr
 				}
 				err.cause = context.Canceled

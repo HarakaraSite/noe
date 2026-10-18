@@ -127,7 +127,7 @@ func TestRunJSCommandFailureDetailsReachModelAndEvents(t *testing.T) {
 		ToolCallID string `json:"tool_call_id"`
 		Content    string `json:"content"`
 	}
-	last := requests[1].Messages[len(requests[1].Messages)-1]
+	last := requests[1].Messages[len(requests[1].Messages)-2]
 	if err := json.Unmarshal(last, &tool); err != nil {
 		t.Fatal(err)
 	}

@@ -37,7 +37,7 @@ func TestAgentMinimalRunHasIndependentHistories(t *testing.T) {
 		var user struct {
 			Content string `json:"content"`
 		}
-		if err := json.Unmarshal(req.Messages[len(req.Messages)-1], &user); err != nil {
+		if err := json.Unmarshal(req.Messages[1], &user); err != nil {
 			return provider.Response{}, err
 		}
 		return agentAnswer(user.Content), nil
@@ -64,7 +64,7 @@ console.log(JSON.stringify([first.lastResult.answer,second.lastResult.answer,[le
 	}
 	byInstruction := make(map[string]provider.Request, len(requests))
 	for _, req := range requests {
-		if req.Model != "fixture/model" || req.MaxTokens != 123 || req.Effort != "high" || len(req.Messages) != 2 || !strings.Contains(string(req.Messages[0]), "additional") {
+		if req.Model != "fixture/model" || req.MaxTokens != 123 || req.Effort != "high" || len(req.Messages) != 3 || !strings.Contains(string(req.Messages[0]), "additional") {
 			t.Fatalf("settings/history not isolated: %+v", req)
 		}
 		var system struct {

@@ -89,6 +89,12 @@ func (b *broker) interruptRun(w http.ResponseWriter, op *Operation, runID string
 		writeRPCError(w, http.StatusConflict, "run", "managed task is no longer interruptible")
 		return
 	}
+	fields, err := h.interruptActivityLocked(op, "run")
+	if err != nil {
+		h.mu.Unlock()
+		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate interrupt activity")
+		return
+	}
 	accepted := make(chan struct{})
 	run.interrupting = true
 	instance.interruptedRunID = run.id
@@ -100,9 +106,7 @@ func (b *broker) interruptRun(w http.ResponseWriter, op *Operation, runID string
 	// request, generated JS, and descendants all inherit this controller.
 	cancel()
 	go func() {
-		h.observeRun("interrupt.accepted", run.id, run, events.Event{
-			"target": "run", "status": "accepted",
-		})
+		h.observeRun("interrupt.accepted", run.id, run, fields)
 		close(accepted)
 	}()
 	writeJSON(w, interruptResponse{Target: "run", Status: "accepted", RunID: run.id})
@@ -136,6 +140,12 @@ func (h *Host) interruptInstance(w http.ResponseWriter, op *Operation, agentID s
 		writeRPCError(w, http.StatusConflict, "agent", "agent is already stopping or finished")
 		return
 	}
+	fields, err := h.interruptActivityLocked(op, "agent")
+	if err != nil {
+		h.mu.Unlock()
+		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate interrupt activity")
+		return
+	}
 
 	accepted := make(chan struct{})
 	settled := make(chan struct{})
@@ -158,7 +168,6 @@ func (h *Host) interruptInstance(w http.ResponseWriter, op *Operation, agentID s
 
 	cancel()
 	go func() {
-		fields := events.Event{"target": "agent", "status": "accepted"}
 		if currentRunID != "" {
 			fields["runId"] = currentRunID
 		}
@@ -171,4 +180,39 @@ func (h *Host) interruptInstance(w http.ResponseWriter, op *Operation, agentID s
 		close(settled)
 	}()
 	writeJSON(w, interruptResponse{Target: "agent", Status: "accepted", AgentID: instance.id})
+}
+
+// Describe the requesting operation, independently of the target's creation.
+// Called only after retry/admission checks, so accepted retries emit no new ID.
+func (h *Host) interruptActivityLocked(op *Operation, target string) (events.Event, error) {
+	id, err := randomID()
+	if err != nil {
+		return nil, err
+	}
+	origin := op.activityOrigin
+	if origin.Kind == "" {
+		origin.Kind = "script"
+		if op.control {
+			origin.Kind = "human"
+		}
+	}
+	causes := append([]string(nil), op.causeActivityIDs...)
+	if sender := h.currentOwnerRunLocked(op); sender != nil {
+		if origin.RunID == "" {
+			origin.RunID = sender.id
+		}
+		if origin.AgentID == "" {
+			origin.AgentID = sender.agentID()
+		}
+		if len(causes) == 0 && !op.control && sender.activityID != "" {
+			causes = []string{sender.activityID}
+		}
+	}
+	fields := events.Event{"target": target, "status": "accepted"}
+	addActivityFields(fields, id, causes, origin)
+	// An empty caller cause must override, rather than inherit, target causes.
+	if len(causes) == 0 {
+		fields["causedBy"] = []string{}
+	}
+	return fields, nil
 }

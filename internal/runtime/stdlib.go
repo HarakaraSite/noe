@@ -85,7 +85,7 @@ func (h *host) newWorkerRuntime() (*quickjs.Runtime, error) {
 	local := modulemap.NewLoader(h.importMap, "", "")
 	rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
 		switch specifier {
-		case "noe:agent", "noe:decision", "noe:auth", "noe:agent/task":
+		case "noe:agent", "noe:agent/api", "noe:agent/hooks", "noe:decision", "noe:auth", "noe:agent/task":
 			return "", "", fmt.Errorf("%s is not supported in Workers", specifier)
 		}
 		return local.Load(specifier, referrer)

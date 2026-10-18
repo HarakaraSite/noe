@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 
 	"noe/internal/agent"
 	"noe/internal/credentials"
@@ -76,7 +77,15 @@ type host struct {
 	completion     quickjs.Value
 	agents         *agent.Host
 	agentOperation *agent.Operation
+	hookMu         sync.Mutex
+	hookScopes     map[string]runtimeHookScope
 	ioHost         *nativeio.Host
+}
+
+type runtimeHookScope struct {
+	owner  *agent.Operation
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func newHost(opts Options) (*host, error) {
@@ -212,6 +221,10 @@ func (h *host) installLoader(entry *Source) {
 		switch specifier {
 		case "noe:agent":
 			return agent.ModuleSource, specifier, nil
+		case "noe:agent/api":
+			return agent.APIModuleSource, specifier, nil
+		case "noe:agent/hooks":
+			return agent.HooksModuleSource, specifier, nil
 		case "noe:decision":
 			return decision.ModuleSource, specifier, nil
 		case "noe:auth":

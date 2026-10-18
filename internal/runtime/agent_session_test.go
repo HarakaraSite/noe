@@ -18,7 +18,7 @@ func TestAgentSessionReusesCachedModuleAndRecoversAfterError(t *testing.T) {
 	var calls atomic.Int32
 	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
 		calls.Add(1)
-		if len(req.Messages) != 2 {
+		if len(req.Messages) != 3 {
 			t.Errorf("history persisted across REPL inputs: %s", req.Messages)
 		}
 		var user struct {
