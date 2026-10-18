@@ -535,3 +535,20 @@ This maintenance release bounds captured agent stdout/stderr to 64 KiB per strea
 All five gates ran sequentially before the six release builds. Environment: Linux amd64, Go 1.27.2, C toolchain for race and Linux PTY. E2E reused `NOE_MCP_SDK_BUNDLE=/tmp/noe-process-mcp.wzVT64/mcp-client.bundle.mjs`. Local Linux amd64 size: 49,180,832 bytes. Logs, fixture scripts, builds and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.1-release-mtd4niey/`.
 
 No real-provider request was made. Other platforms have cross-build evidence only. The tag-triggered workflow and downloaded release assets are verified after publication.
+
+
+## v1.7.1 Release validation — 2026-10-18
+
+- Annotated tag: `v1.7.1`, pointing to `1fe99ed6e15de4b7be999004fb0119b4ecafabc5`. The peeled remote tag matches the successful workflow commit.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/14): succeeded (API run ID 195, job ID 216).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.1): published, neither draft nor prerelease (Release ID 128). Its description matches the committed [release notes](releases/v1.7.1.md).
+
+The tag-triggered workflow passed its unit/vet gates, built all six targets and uploaded six binaries plus `SHA256SUMS`. All seven assets were downloaded, and every binary checksum matched the published manifest.
+
+The downloaded Linux amd64 binary passed all eleven native CLI checks and five local-fixture smokes: instruction/hook ordering and transformed tool results; four requests across two context trims; queue conversation continuation; independent image generation and readback; and large-output capture. The output fixture emitted 2,097,170 bytes on each stream, retained the first/last 32 KiB and reported exactly 2,031,634 omitted bytes per stream through the hook, model result, stream events and completion event. Execution still completed successfully.
+
+Embedded build information confirms the release-tag revision, `vcs.modified=false`, go-quickjs v0.27.0 and the retained dependencies. The versioned ChatGPT helper matches the committed script byte-for-byte. No real-provider request was made during release checks.
+
+Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.1-published-o58ng4ux/`; orchestration, gate logs and fixture records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.1-release-mtd4niey/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.7.1` (49,180,832 bytes).
+
+This documentation-only follow-up records publication without moving the tag. Native execution on macOS, Windows and arm64 remains unverified.
