@@ -448,3 +448,20 @@ This release fixes same-instance queue continuation: retained conversation and f
 The five main checks ran sequentially, followed by the six builds. E2E reused `NOE_MCP_SDK_BUNDLE=/tmp/noe-process-mcp.wzVT64/mcp-client.bundle.mjs`, prepared with SDK 1.32.1 and esbuild 0.25.12. The local Linux amd64 binary is 48,586,912 bytes with release flags. Embedded build information confirms the checked revision, an unmodified source tree, go-quickjs v0.27.0 and retained dependencies.
 
 Logs, checksums, smoke scripts and build artifacts are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.1-release-lx0i3r48/`. No real-provider request was made. Native execution on other platforms remains unverified. Tag-triggered publication and downloaded assets are verified separately after tagging.
+
+
+## v1.6.1 Release validation — 2026-10-18
+
+- Annotated tag: `v1.6.1`, pointing to `d1b93ca4b620ec688cb29175df567d979b51a4c4`. The peeled remote tag matches the successful workflow commit and includes the checked source plus preparation record above.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/11): succeeded (API run ID 192, job ID 213).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.6.1): published, neither draft nor prerelease (Release ID 126). Its description matches the committed [release notes](releases/v1.6.1.md).
+
+The workflow passed CGO-free unit test/vet gates, built all six profile targets, and uploaded six binaries plus SHA256SUMS. All seven assets were downloaded; every binary checksum matched the published manifest.
+
+The downloaded Linux amd64 binary passed all ten native smoke checks with exit 0 and empty stderr. Fixture-backed hooks/instruction, trimming, and queue-continuation smokes also passed: two model/tool requests with all four hook phases; four requests across two trims with live/saved counts and causal IDs; and three requests over two queue runs with a complete tool exchange, previous final answer and reasoning retained. The queue smoke also verified pending-task exclusion, frozen system instructions after a file change, distinct run IDs, and unchanged cache/session boundaries.
+
+Embedded build information confirms the release-tag revision, an unmodified source tree, go-quickjs v0.27.0, and the retained dependencies. The versioned ChatGPT helper download matches the committed script byte-for-byte. No real-provider request was made during release preparation or publication checks.
+
+Downloaded assets and checksum records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.1-published-p2dzbaaf/`; orchestration, gate output and feature-smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.1-release-lx0i3r48/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.6.1` (48,586,912 bytes).
+
+This documentation-only verification commit follows publication without moving the release tag. Native macOS, Windows and arm64 execution remains unverified.
