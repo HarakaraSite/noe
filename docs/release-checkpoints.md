@@ -406,3 +406,20 @@ Checks ran sequentially before the six release builds. E2E reused `NOE_MCP_SDK_B
 Earlier authorized OpenCode Go / DeepSeek V4.1 Flash behavior trials and implementation-slice reviews are recorded separately, including the initial failed numeric-ID assertion and clarified successful retry. This release preparation made no additional real-provider calls. Native macOS, Windows, and arm64 execution remains unverified.
 
 The tag-triggered Forgejo workflow remains the distribution gate. Published assets and the installed native binary are checked after tagging.
+
+
+## v1.6.0 Release validation — 2026-10-18
+
+- Annotated tag: `v1.6.0`, pointing to `883045a2ccfff3c754ad6498440b5e589c16347b`. The peeled remote tag matches the successful workflow commit and includes the checked application source plus preparation record above.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/10): succeeded (API run ID 191, job ID 212).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.6.0): published, neither draft nor prerelease (Release ID 125). Its description matches the committed [release notes](releases/v1.6.0.md).
+
+The workflow passed CGO-free test/vet gates, built all six profile targets and uploaded six binaries plus `SHA256SUMS`. All seven assets were downloaded, and every binary checksum matched the published file.
+
+The downloaded Linux amd64 binary passed all ten preparation smoke checks with exit 0 and empty stderr. Local-fixture feature and context smokes also passed on the downloaded binary: automatic instruction ordering, all four hook phases, transformed tool arguments/results, group counters and active work, then four model requests across two actual trims with the original task and newest whole tool block preserved, live/saved trim-count agreement, stable session and trim causal IDs.
+
+The published binary's embedded build information confirms the tag revision, unmodified source tree, go-quickjs v0.27.0 and retained dependencies. The versioned ChatGPT helper download matches the committed script byte-for-byte. No real-provider request was made during release preparation or publication checks.
+
+Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.0-published-99b2aw6d/`; release orchestration, local gates and smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.0-release-aeeac09q/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.6.0` (48,545,952 bytes).
+
+This documentation-only verification commit follows publication without moving the release tag. Native macOS, Windows, and arm64 execution remains unverified.

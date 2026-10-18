@@ -1,6 +1,6 @@
 # 実行コンテキスト管理の実装・検証
 
-2026-10-18。[承認済み計画](context-trimming-plan.md)に沿って実装・総合確認を実施。commit・release・既存`./noe`置換は行っていない。
+2026-10-18。[承認済み計画](context-trimming-plan.md)に沿って実装・総合確認を実施。v1.6.0として公開済み。リリース用の確認と配布物の検証は[release checkpoints](release-checkpoints.md)を参照。
 
 ## スライスの進行
 
@@ -37,7 +37,7 @@ focused testsで、繰り返し削減後のtask完了、並列tool順序、reaso
 - 20個の完了blockを用いるローカル検証ではretainRatio 0.1と0.2が異なる直近suffixを保持することを確認。
 - 通知に記載した総入力概算が、実際のprovider境界へ渡すmessages/toolsの同じ概算式と一致することを確認。
 
-build出力：`/tmp/noe-context-final-20261018-ZGkIrT/builds/`。試す場合は同directoryの`noe-linux-amd64`を利用できる。既存repository直下の`./noe`はv1.5.0のまま。
+build出力：`/tmp/noe-context-final-20261018-ZGkIrT/builds/`。試す場合は同directoryの`noe-linux-amd64`を利用できる。実装検証時点ではrepository直下の`./noe`はv1.5.0のままとし、後続のリリース時に検証済みの配布v1.6.0へ更新した。
 
 ## 実モデルの挙動
 
