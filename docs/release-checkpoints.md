@@ -423,3 +423,28 @@ The published binary's embedded build information confirms the tag revision, unm
 Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.0-published-99b2aw6d/`; release orchestration, local gates and smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.0-release-aeeac09q/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.6.0` (48,545,952 bytes).
 
 This documentation-only verification commit follows publication without moving the release tag. Native macOS, Windows, and arm64 execution remains unverified.
+
+
+## v1.6.1 preparation — 2026-10-18
+
+Checked source revision: `c4f7b25f42a302c23745982698bbd25b5ad1cd0b`. Environment: Linux amd64, Go 1.27.2, a C toolchain for race, and Linux PTY support. The preparation follow-up adds only this record.
+
+This release fixes same-instance queue continuation: retained conversation and final answers survive task boundaries, started queued instructions are protected, system instructions stay frozen, and trim state continues without resurrecting removed blocks. Run IDs, maxSteps, cancellation scopes, hook-module state, and cache/session behavior keep their existing task boundaries. Both READMEs, default CLI version, and version assertions use v1.6.1. Dependencies and release workflow/profile are unchanged. See the [release notes](releases/v1.6.1.md) and [implementation record](queue-continuation-implementation.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1` | Passed, including Linux PTY and opt-in local MCP SDK checks |
+| `CGO_ENABLED=0 go vet ./...` and `go vet -tags=e2e ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` with `GORACE=atexit_sleep_ms=0` | Passed |
+| All six CGO-free profile builds with v1.6.1 release flags | Passed; all local SHA256SUMS entries verified |
+| Native binary smoke checks | All ten passed, exit 0 and empty stderr |
+| Local-fixture hooks/instruction smoke | Passed: two requests, all four hook phases, transformed tool arguments/results and group counters |
+| Local-fixture trimming smoke | Passed: four requests, two trims, whole tool blocks, live/saved counts and causal IDs |
+| Local-fixture queue smoke | Passed: three requests over two runs, prior tool exchange/final answer/reasoning preserved, pending queue excluded, system frozen despite file change, per-run cache/session boundary unchanged |
+| Markdown relative links | All 305 changed-document references resolve |
+| Code review and post-review delta | No required finding; bootstrap cancellation regression fixed and verified |
+
+The five main checks ran sequentially, followed by the six builds. E2E reused `NOE_MCP_SDK_BUNDLE=/tmp/noe-process-mcp.wzVT64/mcp-client.bundle.mjs`, prepared with SDK 1.32.1 and esbuild 0.25.12. The local Linux amd64 binary is 48,586,912 bytes with release flags. Embedded build information confirms the checked revision, an unmodified source tree, go-quickjs v0.27.0 and retained dependencies.
+
+Logs, checksums, smoke scripts and build artifacts are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.1-release-lx0i3r48/`. No real-provider request was made. Native execution on other platforms remains unverified. Tag-triggered publication and downloaded assets are verified separately after tagging.
