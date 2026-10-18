@@ -37,7 +37,7 @@ NOE_OPENCODE_GO_API_KEY_FILE=/path/to/key \
   go test -v -failfast -tags='e2e hooks_live' ./tests -run '^TestHooksOpenCodeLive$' -count=1 -timeout=30m
 ```
 
-These cases use only `opencode-go` / `deepseek-v4.1-flash`. See the [validation record](../docs/execution-hooks-opencode-validation.md) for current acceptance results.
+These cases use only `opencode-go` / `deepseek-v4.1-flash`. See the [validation record](../docs/development/execution-hooks-opencode-validation.md) for current acceptance results.
 
 Context trimming has a separate opt-in behavior test. Use a new artifact directory for every trial; existing case directories are rejected so a previous report cannot affect the result.
 
@@ -47,6 +47,6 @@ NOE_OPENCODE_GO_API_KEY_FILE=/path/to/key \
   go test -v -tags='e2e context_live' ./tests -run '^TestContextOpenCodeLive$' -count=1 -timeout=14m
 ```
 
-It compares retain ratios 0.1/0.2 and disabled trimming with controlled tool-output padding, then runs a natural task without padding. Each task has a 12-request / 180-second experiment bound. See the [implementation and behavior record](../docs/context-trimming-implementation.md); optional memory-file creation is not a success condition.
+It compares retain ratios 0.1/0.2 and disabled trimming with controlled tool-output padding, then runs a natural task without padding. Each task has a 12-request / 180-second experiment bound. See the [implementation and behavior record](../docs/development/context-trimming-implementation.md); optional memory-file creation is not a success condition.
 
 `process_io*_e2e_test.go`は新しい`noe:process`・`noe:io`を実CLIで確認します。開いたままの入力、40 MiBの転送、観察出力、Worker終了、fixture providerからの生成run_jsのinterrupt/timeout/SIGINTと子・孫回収を含みます。実providerへの接続は不要です。公式MCP SDKの任意の適合確認は[scripts/spikes/process-io-mcp](../scripts/spikes/process-io-mcp/README.md)へ分離しています。

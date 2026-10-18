@@ -27,8 +27,8 @@ The artifact directory contains `input.png`, generated images and `report.json`.
 
 Credentials follow the existing NOE paths. The direct image probes use `XDG_CONFIG_HOME/noe/credentials` (or `~/.config/noe/credentials`); the vision registry uses NOE's normal provider configuration. If ChatGPT refresh rotates an existing shared refresh token, the matching hjh record is synchronized under its lock, using the previously authorized synchronization policy. Other accounts are not changed.
 
-See the [plan](../../docs/agent-images-plan.md) and [spike findings](../../docs/agent-images-spike.md).
+See the [plan](../../docs/development/agent-images-plan.md) and [spike findings](../../docs/development/agent-images-spike.md).
 
 ## 本体の実接続とwire診断
 
-`integration.js`は公開APIを使う本体確認script、`wire_test.go`はHTTP実送信直前の画像hashとnative keysを照合する任意の診断です。結果は[実接続記録](../../docs/agent-images-integration.md)を参照。通常の`go test`では実providerを呼びません。wire診断を使うには、実画像`input-followup.png`のある`NOE_IMAGE_WIRE_DIR`と本体binaryの`NOE_IMAGE_WIRE_EXECUTABLE`を指定し、`NOE_IMAGE_WIRE_LIVE=1 go test ./spikes/agent-images -run TestImageWireLiveDiagnostic -count=1 -v`を実行します。診断結果は同directoryへ出力します。`NOE_IMAGE_WIRE_AGENT_ONLY=1 NOE_IMAGE_WIRE_AGENT_MODEL=gpt-6.1-sol`は直接比較を省いてSol agentだけを確認します。認証はNOEの既存設定を利用し、model要求数に応じた利用料が発生する場合があります。
+`integration.js`は公開APIを使う本体確認script、`wire_test.go`はHTTP実送信直前の画像hashとnative keysを照合する任意の診断です。結果は[実接続記録](../../docs/development/agent-images-integration.md)を参照。通常の`go test`では実providerを呼びません。wire診断を使うには、実画像`input-followup.png`のある`NOE_IMAGE_WIRE_DIR`と本体binaryの`NOE_IMAGE_WIRE_EXECUTABLE`を指定し、`NOE_IMAGE_WIRE_LIVE=1 go test ./spikes/agent-images -run TestImageWireLiveDiagnostic -count=1 -v`を実行します。診断結果は同directoryへ出力します。`NOE_IMAGE_WIRE_AGENT_ONLY=1 NOE_IMAGE_WIRE_AGENT_MODEL=gpt-6.1-sol`は直接比較を省いてSol agentだけを確認します。認証はNOEの既存設定を利用し、model要求数に応じた利用料が発生する場合があります。

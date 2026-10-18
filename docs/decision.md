@@ -69,4 +69,4 @@ JSONLには`decision.started`・`decision.completed`・`decision.failed`・`deci
 
 `run_js`内からの要求には親run・toolのIDが付きます。共通の`model`は親agentの設定モデルを保持し、観察の段階も`run_js`のままです。通常JSからの直接要求にagent/run IDを新設しません。親のファイル観察では意思決定イベントを差分として受け取れます。通常stdoutの結果は人間向け`--observe`表示では省略するため、判断JSONを見る場合は通常出力または保存したstdoutイベントを確認してください。
 
-[APIリファレンス](api.md) · [実装計画](decision-plan.md)
+[APIリファレンス](api.md) · [実装計画](development/decision-plan.md)

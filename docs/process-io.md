@@ -78,4 +78,4 @@ await (async () => {
 
 生存する子やI/Oを残したエラー・中断では、既存のリソースと同様にREPLセッションを終了して回収します。
 
-[実行例](../examples/README.md) · [実装記録・OS別検証](process-io-implementation.md)
+[実行例](../examples/README.md) · [実装記録・OS別検証](development/process-io-implementation.md)

@@ -45,4 +45,4 @@ pre_release:
       command: go test -tags=e2e ./... -count=1
     - name: vet-including-e2e
       command: go vet -tags=e2e ./...
-  evidence_location: docs/release-checkpoints.md
+  evidence_location: docs/releases/release-checkpoints.md

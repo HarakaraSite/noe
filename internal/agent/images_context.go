@@ -7,7 +7,7 @@ import (
 )
 
 // An explicitly labelled approximation, not a provider tokenizer or billing
-// calculation. Details and source are recorded in docs/agent-images-plan.md.
+// calculation. Details and source are recorded in docs/development/agent-images-plan.md.
 func estimateImageTokens(data *imageapi.Data) int64 {
 	w, h := float64(data.Width), float64(data.Height)
 	if data.Detail == "low" {

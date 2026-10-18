@@ -84,4 +84,4 @@ module IDは字句上の絶対pathで統一します。symlink・hardlink・file
 
 ESM形式でも、必要なホストAPIがNOEにあるかは別途確認が必要です。npm/package.json/node_modules探索、CommonJS loader、TypeScript変換、HTTP/HTTPS importは提供しません。外部ツールで準備したbundleと、NOE向けに適合させたJSを利用できます。[MCP SDKの分割例](../scripts/spikes/process-io-mcp/README.md)を参照してください。
 
-[API](api.md) · [REPL](repl.md) · [実装・検証記録](local-import-map-implementation.md)
+[API](api.md) · [REPL](repl.md) · [実装・検証記録](development/local-import-map-implementation.md)

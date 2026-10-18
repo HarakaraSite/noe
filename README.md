@@ -74,7 +74,7 @@ Roots require explicit `provider`, `model`, and `effort`. `--observe` displays p
 | Inspect running work and process logs | [Observation](docs/observe.md) · [JSONL events](docs/events.md) |
 | Inspect/generate images or request structured decisions | [Images](docs/agent-images.md) · [Decisions](docs/decision.md) |
 | Use live child-process I/O or HTTP | [Processes and streams](docs/process-io.md) · [HTTP examples](examples/http/README.md) |
-| Explore examples or develop NOE | [Examples](examples/README.md) · [Development notes](docs/README.md) |
+| Explore examples or develop NOE | [Examples](examples/README.md) · [Documentation](docs/README.md) · [Development guide](docs/development/README.md) |
 
 The linked guides are currently in Japanese. For older scripts, see the [API migration guide](docs/api.md#旧apiからの移行).
 

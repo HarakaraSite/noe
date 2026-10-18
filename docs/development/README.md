@@ -1,0 +1,72 @@
+# NOE 開発ガイドと記録
+
+[ドキュメント一覧](../README.md) · [README](../../README.md) · [初期開発の履歴](../archive/README.md) · [リリース](../releases/README.md)
+
+## ビルドと検証
+
+Go 1.27.2以降を使います。現在の検証環境はLinux amd64です。通常のビルドはCGO不要で、race detectorの実行にはCツールチェーンが必要です。以下はリポジトリのルートで実行します。
+
+```sh
+CGO_ENABLED=0 go build -o noe ./cmd/noe
+go test ./...
+go test -tags=e2e ./... -count=1 -v
+CGO_ENABLED=1 go test -race ./internal/... -count=1
+go vet -tags=e2e ./...
+```
+
+[E2Eの構成と実行方法](../../tests/README.md)を参照してください。通常のE2Eは一時ディレクトリとローカルサーバーを使い、外部サービスに接続しません。LinuxのPTYテストは編集、日本語、履歴、複数行、補完、Ctrl+Cと端末設定の復元を確認します。
+
+実プロバイダの検証は別の明示的な設定・認証を必要とします。過去の[OpenRouterの検証](../archive/increment-13-implementation.md)や[OpenCode Goの検証](execution-hooks-opencode-validation.md)は実施時点の記録であり、新しい変更の確認はそのソースに対して行います。
+
+## 実装を変更するときの入口
+
+| 対象 | 文書 |
+| --- | --- |
+| agent内部の責務・JSとGoの分担・所有関係・同期 | [agentの構成](agent-architecture.md) |
+| agentへ渡す組込みの説明 | [instructions.md](../../internal/agent/instructions.md) |
+| 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
+| qjsから取り込んだREPL入力UIの保守 | [統合と更新手順](qjs-repl-integration.md) |
+| 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
+| 配布対象・品質確認・公開手順 | [リリースチェックポイント](../releases/release-checkpoints.md) |
+
+組込みinstructionはGoのembedでバイナリへ含めるため、変更の反映には再ビルドします。公開`noe:agent`は起動・観察・操作を提供し、モデルのtask loopはprivate moduleで実行します。
+
+## 機能別の計画と検証記録
+
+各文書は実施時点の設計・受入条件・結果を記録しています。後続の変更で契約やファイル構成が変わった場合、現在の利用方法は[利用ガイド](../README.md)を参照してください。初期agent loopとstdlib移行以前の記録は[archive](../archive/README.md)にあります。
+
+| テーマ | 計画・調査 | 実装・検証 |
+| --- | --- | --- |
+| agentの起動・待受・queue | [計画](agent-lifecycle-plan.md) | [実装記録](agent-lifecycle-implementation.md) |
+| steer・interrupt・人間向け操作 | [計画](agent-control-plan.md) | [実装記録](agent-control-implementation.md)・[OpenRouter検証](agent-control-openrouter-validation.md) |
+| provider設定とOpenCode Go | [計画](provider-config-plan.md)・[SDK接続スパイク](opencode-go-sdk-spike.md) | [検証記録](provider-config-validation.md) |
+| OpenAI SDK・ChatGPT認証 | [利用ガイド](../openai.md) | [実装記録](openai-implementation.md) |
+| 意思決定API | [計画](decision-plan.md) | [実装記録](decision-implementation.md)・[実接続](decision-openrouter-validation.md) |
+| プロセス・標準I/Oストリーム | [計画](process-io-plan.md) | [実装記録](process-io-implementation.md) |
+| ローカルESM・import map | [計画](local-import-map-plan.md) | [実装記録](local-import-map-implementation.md)・[MCPクライアントのスパイク](../../scripts/spikes/process-io-mcp/README.md) |
+| hook・処理の連鎖・コンテキスト通知 | [計画](execution-hooks-plan.md) | [実装記録](execution-hooks-implementation.md)・[OpenCode Go検証](execution-hooks-opencode-validation.md) |
+| 共通・workspace instructions | [利用ガイド](../instructions.md) | [実装記録](instructions-implementation.md) |
+| 自動コンテキスト切り捨て | [計画](context-trimming-plan.md) | [実装記録](context-trimming-implementation.md) |
+| queueの会話継続 | [計画](queue-continuation-plan.md) | [実装記録](queue-continuation-implementation.md) |
+| Vision入力・画像生成 | [計画](agent-images-plan.md)・[スパイク](agent-images-spike.md) | [実装記録](agent-images-implementation.md)・[実接続](agent-images-integration.md) |
+| agentの責務整理・捕捉出力上限 | [計画](agent-refactor-plan.md) | [実装記録](agent-refactor-implementation.md) |
+
+## 構造化された検証結果
+
+元の計画・実装記録と一緒に保存します。実行時に参照する設定ファイルではありません。
+
+| 対象 | 結果 |
+| --- | --- |
+| agent操作 | [OpenRouter](agent-control-openrouter-results.json) |
+| provider設定 | [OpenRouter SDK](provider-config-openrouter-sdk-results.json)・[OpenCode Goスパイク](opencode-go-sdk-spike-results.json) |
+| OpenAI | [ChatGPT](openai-chatgpt-results.json) |
+| 意思決定 | [OpenRouter](decision-openrouter-results.json) |
+| コンテキスト切り捨て | [実プロバイダの挙動](context-trimming-live-results.json) |
+
+## 配置と製品方針
+
+利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補と完了区分は[次の機能候補](../future-candidates.md)を更新します。
+
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンと汎用JavaScript APIには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)とstdlibを使います。NOE固有のCLI、REPL、実行期限、agentなどをその上へ実装します。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
+
+`_refs/`はローカル専用の未追跡の参考資料で、ビルド・テスト依存に含めません。リリースの配布対象・品質確認は[プロファイル](../../.forgejo/release-profile.yml)と[ワークフロー](../../.forgejo/workflows/release.yml)に定義されています。

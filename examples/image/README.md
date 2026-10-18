@@ -18,7 +18,7 @@
 ./noe run examples/image/read.js ./tmp/screenshot.png openrouter openai/gpt-6-luna
 ```
 
-今回の[モデル比較](../../docs/agent-images-integration.md#実送信bytesの照合とモデル比較)では、4色画像をLunaが誤認し、Solは正答しました。Solを試す場合は次のように指定できます。
+今回の[モデル比較](../../docs/development/agent-images-integration.md#実送信bytesの照合とモデル比較)では、4色画像をLunaが誤認し、Solは正答しました。Solを試す場合は次のように指定できます。
 
 ```sh
 ./noe run examples/image/read.js ./tmp/screenshot.png openai-api gpt-6.1-sol

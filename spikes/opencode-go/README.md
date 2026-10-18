@@ -1,6 +1,6 @@
 # OpenRouter SDK → OpenCode Go spike
 
-Use the existing pinned OpenRouter Go SDK (`v0.9.59`) against OpenCode Go without adding SDK dependencies or changing production provider selection. Results and limitations: [validation record](../../docs/opencode-go-sdk-spike.md).
+Use the existing pinned OpenRouter Go SDK (`v0.9.59`) against OpenCode Go without adding SDK dependencies or changing production provider selection. Results and limitations: [validation record](../../docs/development/opencode-go-sdk-spike.md).
 
 Local verification (no credentials or network):
 

@@ -1,6 +1,6 @@
 # agent hookと実行状況
 
-実装済みのhook APIとコンテキスト通知の使い方。総合テスト・実接続の確認結果は[実装記録](execution-hooks-implementation.md)、範囲は[計画](execution-hooks-plan.md)を参照。
+実装済みのhook APIとコンテキスト通知の使い方。総合テスト・実接続の確認結果は[実装記録](development/execution-hooks-implementation.md)、範囲は[計画](development/execution-hooks-plan.md)を参照。
 
 ## 登録
 
@@ -193,7 +193,8 @@ handlerがspawnしたagentの寿命は現在のrunに属し、handlerのreturn�
 
 一つのroot agentと所有下の子・孫・予約は同じ`groupId`を持つ。
 rootの`agentId`が`groupId`であり、同じNOE内の独立した親agentは別groupになる。
-同じkeepAlive instanceの次taskも同じgroupだが、run IDと会話履歴は新しい。
+同じkeepAlive instanceの次taskも同じgroupで、run IDは新しくなる。
+会話履歴は前taskの最終回答を含む確定済み・trim後の内容を引き継ぐ。
 取消しは所有関係に従い、原因の参照を辿って別groupへ波及させない。
 
 JSONLとlive snapshotの`execution`は、group IDと`counters`、取得できた累積`usage`を持つ。

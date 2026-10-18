@@ -4,7 +4,7 @@
 
 NOEはJavaScriptの実行環境として、固定したgo-quickjs v0.27.0の標準ライブラリを有効にします。標準ライブラリが持つWeb APIとNode形式APIを利用できます。各APIはgo-quickjsによる実装で、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](increment-12.md)も参照してください。
+JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
 
 ## 利用できる機能と権限
 

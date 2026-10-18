@@ -99,4 +99,4 @@ ChatGPTのrefresh tokenは更新時に置き換わります。同じ認証セッ
 
 `response.completed`まで読み、完成したoutput itemsを保持します。最終イベントの`output`が空の場合も、途中の`response.output_item.done`から組み立てます。reasoningの暗号化された内容や未知の追加フィールドもraw JSONで保持し、次のモデル要求へtool結果とともに再送します。応答完了後はHTTP EOFを待ちません。
 
-途中のtext・thinking・summaryは既存のJSONLと`--observe`で観察できます。stream開始後のChatGPT利用枠エラーはquotaとして扱います。詳しい確認結果は[実装・検証記録](openai-implementation.md)を参照してください。
+途中のtext・thinking・summaryは既存のJSONLと`--observe`で観察できます。stream開始後のChatGPT利用枠エラーはquotaとして扱います。詳しい確認結果は[実装・検証記録](development/openai-implementation.md)を参照してください。

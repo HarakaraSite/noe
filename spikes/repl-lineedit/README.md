@@ -1,10 +1,10 @@
 # NOE REPL行編集ライブラリ比較スパイク
 
-> この文書と比較結果は行編集ライブラリ選定時の記録です。製品はその後stdlibへ移行しており、当時のホストAPIやHTTP中断の期待値は現行仕様を示しません。[現在の移行記録](../../docs/increment-12.md)を参照してください。
+> この文書と比較結果は行編集ライブラリ選定時の記録です。製品はその後stdlibへ移行しており、当時のホストAPIやHTTP中断の期待値は現行仕様を示しません。[現在の移行記録](../../docs/archive/increment-12.md)を参照してください。
 
 `chzyer/readline v1.5.1`と`peterh/liner v1.2.3`を、Go 1.27.2でNOEの既存Sessionへ接続して比較する。スパイク専用のGo moduleであり、製品のCLIとルートの依存定義には行編集を導入しない。
 
-比較では、**現在のLinux CLIには`peterh/liner v1.2.3`を選ぶ**。両候補は同じ28シナリオを通ったが、既存の終了契約を維持するための追加処理はlinerの方が少ない。readlineも公開APIを使ったアダプターで適合できる。詳細は[比較結果](../../docs/repl-lineedit-spike.md)に記載する。
+比較では、**現在のLinux CLIには`peterh/liner v1.2.3`を選ぶ**。両候補は同じ28シナリオを通ったが、既存の終了契約を維持するための追加処理はlinerの方が少ない。readlineも公開APIを使ったアダプターで適合できる。詳細は[比較結果](../../docs/archive/repl-lineedit-spike.md)に記載する。
 
 ## 再実行
 
