@@ -22,7 +22,7 @@
 | グループ | 現在の状態 | 残る検討 |
 | --- | --- | --- |
 | 1：プロセスと標準I/O | **完了**。`noe:process`の子プロセスハンドルとstdin/stdout/stderr、`noe:io`のホスト標準I/Oストリーム | [公開契約](process-io.md)・[実装記録](development/process-io-implementation.md)を参照 |
-| 2：具体的な用途に合わせて追加 | **未完了**。NOE拡張としてのファイルハンドル、OSシグナル受信、TCP・Unixドメインソケット | 各機能の必要性を独立に判断。既存stdlib・CLIとの重複を確認 |
+| 2：具体的な用途に合わせて追加 | **本体は未完了、計画確定前スパイクは実施済み**。ファイルハンドル、OSシグナル受信、TCP・Unixドメインソケット | [スパイク結果](development/low-level-group2-spike.md)を反映した[複数sliceの計画](development/low-level-group2-plan.md)と[レビュー記録](development/low-level-group2-review.md)。各機能の追加価値を独立に判断 |
 | 3：後続候補 | **未完了**。ファイル変更通知、端末操作 | ポーリングやCLIと比較。TTY判定・サイズ・raw mode・PTYは別々に評価 |
 
 `execFile`は既に非同期、ファイルの逐次I/Oも既存stdlibで利用可能です。第1グループの追加価値は実行中の入出力・終了観察・停止をハンドルで扱えることです。Ctrl+Cの取消しは既にあり、JSへのOSシグナル配送は別候補です。元QuickJSのfd番号・`dup`・readiness callbackの再現は要件にしません。
