@@ -91,14 +91,14 @@ console.log(snapshot.lastResult);
 組込み指示 → 共通 → workspace → 明示した`system`の順で追記し、run中は固定します。
 探索場所・読込み失敗・子やqueueの扱いは[インストラクションガイド](instructions.md)を参照してください。
 
-`hooks`・`contextBudget`・`executionLimits`の契約、4種のhandlerとhook用操作API、
+`hooks`・`contextBudget`・`contextPolicy`・`executionLimits`の契約、4種のhandlerとhook用操作API、
 context snapshotは[hook・実行groupガイド](hooks.md)を参照してください。
-`hooks:[]`と`contextBudget:null`は子の継承を解除します。
-`contextBudget.inputTokens`は正のsafe integerの入力目安で、超過だけで停止しません。
+`hooks:[]`と`contextBudget:null`は子の継承を解除します。`contextPolicy:null`は自動切り捨てを無効化し、子にも継承されます。
+`contextBudget.inputTokens`は固定入力込みの総入力目安（正のsafe integer）で、超過だけで停止しません。自動policyが有効なら古い完了blockを切り捨てる発動目安にも使います。`contextPolicy`は省略または`{}`で有効、`retainRatio`は0より大きく1未満（既定0.1）、任意の`responseReserveTokens`は正のsafe integerです。window不明・明示予算なしでは総入力目安を100万tokensとし、モデル容量とは区別します。
 `executionLimits`はrootのみ指定でき、省略項目は無制限、0は受付枠0です。
 runのsnapshotに`groupId`・`execution`・`context`が加わります。
 
-`config`は`{provider, model, effort, name?, system?, maxTokens?, maxSteps?, cacheKey?, hooks?, contextBudget?, executionLimits?}`です。rootで`provider`・`model`・`effort`を省略すると入力エラーです。子agentではprovider・model・effort・maxTokens・hooks・contextBudgetを省略時に起動元から継承します。その他の項目は自動継承しません。executionLimitsはrootのみ指定でき、子は同じgroupの残量を共有します。`provider`には組込みまたは外部設定で定義したIDを指定します。`model`と`name`は空でない文字列、`system`と`cacheKey`は文字列、`maxTokens`と`maxSteps`は0以上の整数です。`name`の既定値は`agent`、`system`は空文字、`maxTokens`と`maxSteps`は0です。`system`に渡した文字列は各タスクの実行中に固定されます。`instruction`は空でない文字列で、`keepAlive:true`なら省略できます。`options`は独立した第三引数で、受け取る項目は`keepAlive`のみです。`keepAlive`を`config`へ入れないでください。instructionを省略してoptionsを渡す場合は、第二引数に`undefined`を置きます。たとえば`spawn_agent({name:"worker"}, undefined, {keepAlive:true})`はidleで起動し、queueにtaskが届くまでモデルを呼びません。
+`config`は`{provider, model, effort, name?, system?, maxTokens?, maxSteps?, cacheKey?, hooks?, contextBudget?, contextPolicy?, executionLimits?}`です。rootで`provider`・`model`・`effort`を省略すると入力エラーです。子agentではprovider・model・effort・maxTokens・hooks・contextBudget・contextPolicyを省略時に起動元から継承します。その他の項目は自動継承しません。executionLimitsはrootのみ指定でき、子は同じgroupの残量を共有します。`provider`には組込みまたは外部設定で定義したIDを指定します。`model`と`name`は空でない文字列、`system`と`cacheKey`は文字列、`maxTokens`と`maxSteps`は0以上の整数です。`name`の既定値は`agent`、`system`は空文字、`maxTokens`と`maxSteps`は0です。`system`に渡した文字列は各タスクの実行中に固定されます。`instruction`は空でない文字列で、`keepAlive:true`なら省略できます。`options`は独立した第三引数で、受け取る項目は`keepAlive`のみです。`keepAlive`を`config`へ入れないでください。instructionを省略してoptionsを渡す場合は、第二引数に`undefined`を置きます。たとえば`spawn_agent({name:"worker"}, undefined, {keepAlive:true})`はidleで起動し、queueにtaskが届くまでモデルを呼びません。
 
 `effort`で指定できる値は`"auto"`・`"none"`・`"minimal"`・`"low"`・`"medium"`・`"high"`・`"xhigh"`・`"max"`です。明示的な`"auto"`は推論設定を送らず、provider/modelの既定動作に任せます。他の値はprovider設定の`effortField`（OpenRouterは`reasoning.effort`、OpenCode GoのChatは`reasoning_effort`）へ送り、各タスクで固定します。実際に利用できるエフォートと効果はmodel/providerに従います。NOEはモデル別の対応表による事前拒否や値の自動変更を行わず、APIからエラーが返ればprovider errorとして扱います。[OpenRouterのreasoning仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)を参照してください。
 

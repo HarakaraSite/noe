@@ -66,30 +66,45 @@ type contextEstimate struct {
 }
 
 type contextSnapshot struct {
-	RunID           string                `json:"runId"`
-	ModelStepID     string                `json:"modelStepId"`
-	Budget          contextBudgetSnapshot `json:"budget"`
-	ModelWindow     contextModelWindow    `json:"modelWindow"`
-	Previous        *contextPrevious      `json:"previous"`
-	Estimate        *contextEstimate      `json:"estimate"`
-	RemainingTokens *int64                `json:"remainingTokens"`
-	UsedPercent     *float64              `json:"usedPercent"`
-	UpdatedAt       time.Time             `json:"updatedAt"`
+	ExecutionContext *executionContextSnapshot `json:"executionContext,omitempty"`
+	RunID            string                    `json:"runId"`
+	ModelStepID      string                    `json:"modelStepId"`
+	Budget           contextBudgetSnapshot     `json:"budget"`
+	ModelWindow      contextModelWindow        `json:"modelWindow"`
+	Previous         *contextPrevious          `json:"previous"`
+	Estimate         *contextEstimate          `json:"estimate"`
+	RemainingTokens  *int64                    `json:"remainingTokens"`
+	UsedPercent      *float64                  `json:"usedPercent"`
+	UpdatedAt        time.Time                 `json:"updatedAt"`
 }
 
 // contextRunState deliberately stores only the current estimate inputs and
 // runtime information. The transcript remains in the task runtime.
 type contextRunState struct {
-	budget            *ContextBudget
-	modelWindow       *int64
-	previous          *contextPrevious
-	modelStepID       string
-	estimate          *contextEstimate
-	runtimeInfo       map[string]string
-	baseMessagesBytes int
-	baseMessageCount  int
-	toolsBytes        int
-	prepared          bool
+	policy                 *ContextPolicy
+	policyDisabled         bool
+	maxTokens              int
+	catalogMaxOutput       *int64
+	fixedTokens            int64
+	executionTokens        int64
+	targetUnreachable      bool
+	trimCount              int
+	lastTrim               *contextTrimSnapshot
+	pendingNotice          *contextTrimSnapshot
+	pendingPlan            *pendingContextTrim
+	pendingTrimActivityIDs []string
+	preparedDigest         string
+	finalPrepared          bool
+	budget                 *ContextBudget
+	modelWindow            *int64
+	previous               *contextPrevious
+	modelStepID            string
+	estimate               *contextEstimate
+	runtimeInfo            map[string]string
+	baseMessagesBytes      int
+	baseMessageCount       int
+	toolsBytes             int
+	prepared               bool
 }
 
 func parseContextBudget(raw json.RawMessage) (*ContextBudget, bool, error) {
@@ -141,11 +156,16 @@ func (s *contextRunState) resetStep(modelStepID string) {
 	s.baseMessageCount = 0
 	s.toolsBytes = 0
 	s.prepared = false
+	s.finalPrepared = false
+	s.preparedDigest = ""
+	s.pendingPlan = nil
+	s.targetUnreachable = false
 }
 
 func (s *contextRunState) snapshot(runID string, now time.Time) contextSnapshot {
 	snapshot := contextSnapshot{
-		RunID: runID, ModelStepID: s.modelStepID,
+		ExecutionContext: s.executionSnapshot(),
+		RunID:            runID, ModelStepID: s.modelStepID,
 		Budget:      contextBudgetSnapshot{},
 		ModelWindow: contextModelWindow{},
 		Previous:    cloneContextPrevious(s.previous),
@@ -237,7 +257,28 @@ func (h *Host) emitContextUpdated(run *agentRun, snapshot contextSnapshot, statu
 func contextMessage(snapshot contextSnapshot, runtimeInfo map[string]string) string {
 	var out strings.Builder
 	out.WriteString("NOE_CONTEXT_STATUS\n")
-	out.WriteString("Diagnostic estimate only (messages/tools UTF-8 JSON bytes divided by 4); this does not enforce a limit or alter conversation history.\n")
+	out.WriteString("Estimated messages/tools UTF-8 JSON bytes divided by 4; not a hard execution limit.\n")
+	if execution := snapshot.ExecutionContext; execution != nil {
+		percent := "unknown"
+		if execution.UsedPercent != nil {
+			percent = fmt.Sprintf("%.1f%%", *execution.UsedPercent)
+		}
+		fmt.Fprintf(&out, "Execution context: ~%d / %d tokens (%s); source=%s; total input allowance=%d.\n", execution.EstimatedTokens, execution.BudgetTokens, percent, execution.BudgetSource, execution.TotalInputBudgetTokens)
+		if execution.Policy == "auto" {
+			out.WriteString("Older completed history may be discarded at the budget threshold. Save information only if useful for the task; saving is optional.\n")
+			if execution.NearBudget {
+				out.WriteString("Context budget is near or exceeded; avoid unnecessary archival work.\n")
+			}
+		} else {
+			out.WriteString("Automatic context trimming is disabled; conversation history is unchanged.\n")
+		}
+		if execution.BudgetExceeded {
+			out.WriteString("Execution context budget exceeded; protected input or the newest complete block may prevent further trimming.\n")
+		}
+		if trim := execution.PendingTrim; trim != nil {
+			fmt.Fprintf(&out, "Context trimmed: ~%d -> ~%d tokens; older execution history was removed.\n", trim.BeforeTokens, trim.AfterTokens)
+		}
+	}
 	if snapshot.Budget.InputTokens == nil {
 		out.WriteString("Input budget: unknown.\n")
 	} else {

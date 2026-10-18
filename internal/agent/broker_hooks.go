@@ -200,6 +200,8 @@ func hookDefaults(owner *agentRun) Config {
 		Hooks:                cloneHookModules(owner.config.Hooks),
 		ContextBudget:        cloneContextBudget(owner.config.ContextBudget),
 		contextBudgetPresent: owner.config.ContextBudgetPresent || owner.config.ContextBudget != nil,
+		ContextPolicy:        cloneContextPolicy(owner.config.ContextPolicy),
+		contextPolicyPresent: owner.config.ContextPolicyPresent || owner.config.ContextPolicy != nil,
 	}
 }
 

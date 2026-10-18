@@ -79,6 +79,8 @@ type runConfig struct {
 	Hooks                []string
 	ContextBudget        *ContextBudget
 	ContextBudgetPresent bool
+	ContextPolicy        *ContextPolicy
+	ContextPolicyPresent bool
 }
 
 type startRequest struct {
@@ -90,6 +92,7 @@ type startRequest struct {
 	MaxSteps      int             `json:"maxSteps,omitempty"`
 	Hooks         []string        `json:"hooks,omitempty"`
 	ContextBudget json.RawMessage `json:"contextBudget,omitempty"`
+	ContextPolicy json.RawMessage `json:"contextPolicy,omitempty"`
 }
 
 type finishRequest struct {
@@ -103,8 +106,9 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	var request startRequest
 	err := decodeRequest(r, &request)
 	requestedBudget, budgetPresent, budgetErr := parseContextBudget(request.ContextBudget)
+	requestedPolicy, policyPresent, policyErr := parseContextPolicy(request.ContextPolicy)
 	effort, validEffort := provider.NormalizeEffort(request.Effort)
-	if err != nil || budgetErr != nil || strings.TrimSpace(request.Provider) == "" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || request.MaxSteps < 0 || !validEffort {
+	if err != nil || budgetErr != nil || policyErr != nil || strings.TrimSpace(request.Provider) == "" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || request.MaxSteps < 0 || !validEffort {
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid start request")
 		return
 	}
@@ -132,6 +136,7 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		Provider: request.Provider, Model: request.Model,
 		Name: request.Name, MaxTokens: request.MaxTokens, Effort: effort, MaxSteps: request.MaxSteps,
 		Hooks: hookModules, ContextBudget: cloneContextBudget(requestedBudget), ContextBudgetPresent: budgetPresent,
+		ContextPolicy: cloneContextPolicy(requestedPolicy), ContextPolicyPresent: policyPresent,
 	}
 	run := &agentRun{
 		id:        id,
@@ -144,12 +149,7 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		finalDone:   make(chan struct{}),
 	}
 	h := b.host
-	resolvedModelWindow := (*int64)(nil)
-	if h.opts.Connection != nil {
-		resolvedModelWindow = cloneInt64(h.opts.Connection.ModelWindow)
-	} else {
-		resolvedModelWindow = contextWindowForModel(h.catalog, request.Provider, request.Model)
-	}
+	resolvedModelWindow, resolvedMaxOutput := h.contextModelLimits(request.Provider, request.Model)
 	h.mu.Lock()
 	if op.closed || op.ctx.Err() != nil || h.closed {
 		h.mu.Unlock()
@@ -177,7 +177,10 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		run.config.Hooks = instance.config.hookModules()
 		run.config.ContextBudget = cloneContextBudget(instance.config.ContextBudget)
 		run.config.ContextBudgetPresent = instance.config.contextBudgetPresent
+		run.config.ContextPolicy = cloneContextPolicy(instance.config.ContextPolicy)
+		run.config.ContextPolicyPresent = instance.config.contextPolicyPresent || instance.config.ContextPolicy != nil
 		run.context.modelWindow = cloneInt64(instance.modelWindow)
+		run.context.catalogMaxOutput = cloneInt64(instance.modelMaxOutputTokens)
 		run.origin = activityOrigin{Kind: "script", AgentID: instance.id, CommandID: op.task.command.id}
 		if op.task.command.activityID != "" {
 			run.causedBy = []string{op.task.command.activityID}
@@ -186,6 +189,7 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		owner := h.currentOwnerRunLocked(op)
 		run.group = h.executionForOperationLocked(op)
 		run.context.modelWindow = cloneInt64(resolvedModelWindow)
+		run.context.catalogMaxOutput = cloneInt64(resolvedMaxOutput)
 		run.origin = activityOrigin{Kind: "script"}
 		if owner != nil {
 			run.origin.RunID = owner.id
@@ -195,6 +199,9 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		}
 	}
 	run.context.budget = cloneContextBudget(run.config.ContextBudget)
+	run.context.policy = cloneContextPolicy(run.config.ContextPolicy)
+	run.context.policyDisabled = run.config.ContextPolicyPresent && run.config.ContextPolicy == nil
+	run.context.maxTokens = run.config.MaxTokens
 	h.runs[id] = run
 	if op.task != nil {
 		if op.task.run != nil {

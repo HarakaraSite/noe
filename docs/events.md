@@ -13,11 +13,20 @@ agentイベントには、CLI全体の`executionId`に加え、所有ルート�
 | `hook.started` / `hook.finished` / `hook.failed` / `hook.cancelled` | module・phase・invocationの寿命 |
 | `tool.finished` | 元引数・実行引数、元結果・モデル向け結果を区別したtool結果 |
 | `context.updated` | run/判断/要求に対応する`context` snapshot |
+| `context.trimmed` | 実際に適用した切り捨ての前後概算、削除block数、理由、予算source、原因情報と更新snapshot |
 
-`context`は明示入力予算、catalogのwindow、直前要求の実測、次要求の概算を持つ。
-未知は`null`。cached入力は実測promptの一部で、groupの累積tokenや応答上限とは別。
+`context`は明示入力予算、catalogのwindow、直前要求の実測、次要求の概算を持ち、
+`executionContext`に実行履歴の有効予算・source・使用率・切り捨て回数を持つ。
+`contextBudget.inputTokens`は固定入力を含む総入力目安のまま。未知値は`null`。
+catalog window不明かつ明示予算なしの場合に使う1,000,000-token fallbackは総入力目安であり、モデルcapacityを表さない。
+cached入力は実測promptの一部で、group累積tokenや応答上限とは別。
 概算方式・snapshotの型・hook APIは[hookガイド](hooks.md)を参照。
 標準通知は観察無効時もモデルに届き、JSONL記録自体は従来どおり`--events`で選ぶ。
+
+`context.trimmed`はJS履歴への削除適用を確認した後に一度だけ出し、削除したtool本文やreasoning本文は含めない。
+steer-onlyの再準備中は切り捨て通知とcauseを次の実provider要求まで保持する。
+`observe_agent`はこのeventと同じ汎用`context` snapshotを返す。過去のJSONLも未変更で、
+そのevent以後に削除された会話本文を再構成するものではない。
 
 `run`・`eval`・`repl`は共通の`--events`オプションで、通常出力とagentの詳細イベントをJSON Linesとして記録できます。省略時の出力は変わりません。人間と親agentが同じイベントを読み、runや種類で絞り込むための形式です。
 

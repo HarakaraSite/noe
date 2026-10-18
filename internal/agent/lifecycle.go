@@ -30,6 +30,16 @@ func (c taskConfig) MarshalJSON() ([]byte, error) {
 	} else if c.Config.contextBudgetPresent {
 		rawBudget = json.RawMessage("null")
 	}
+	var rawContextPolicy json.RawMessage
+	if c.Config.ContextPolicy != nil {
+		encoded, err := json.Marshal(c.Config.ContextPolicy)
+		if err != nil {
+			return nil, err
+		}
+		rawContextPolicy = encoded
+	} else if c.Config.contextPolicyPresent {
+		rawContextPolicy = json.RawMessage("null")
+	}
 	return json.Marshal(struct {
 		Provider      string          `json:"provider,omitempty"`
 		Model         string          `json:"model,omitempty"`
@@ -40,9 +50,10 @@ func (c taskConfig) MarshalJSON() ([]byte, error) {
 		Cwd           string          `json:"cwd,omitempty"`
 		Hooks         *HookModules    `json:"hooks,omitempty"`
 		ContextBudget json.RawMessage `json:"contextBudget,omitempty"`
+		ContextPolicy json.RawMessage `json:"contextPolicy,omitempty"`
 		MaxSteps      int             `json:"maxSteps"`
 		CacheKey      *string         `json:"cacheKey,omitempty"`
-	}{c.Config.Provider, c.Config.Model, c.Config.Name, c.Config.System, c.Config.MaxTokens, c.Config.Effort, c.Config.Cwd, c.Config.Hooks, rawBudget, c.MaxSteps, c.CacheKey})
+	}{c.Config.Provider, c.Config.Model, c.Config.Name, c.Config.System, c.Config.MaxTokens, c.Config.Effort, c.Config.Cwd, c.Config.Hooks, rawBudget, rawContextPolicy, c.MaxSteps, c.CacheKey})
 }
 
 func (c *taskConfig) UnmarshalJSON(data []byte) error {
@@ -115,23 +126,24 @@ type instanceSnapshot struct {
 }
 
 type agentInstance struct {
-	host        *Host
-	id          string
-	config      taskConfig
-	configJSON  json.RawMessage
-	keepAlive   bool
-	owner       *Operation
-	parent      *agentRun
-	group       *executionGroup
-	modelWindow *int64
-	context     *contextSnapshot
-	activityID  string
-	causedBy    []string
-	origin      activityOrigin
-	ctx         context.Context
-	cancel      context.CancelFunc
-	done        chan struct{}
-	wake        chan struct{}
+	host                 *Host
+	id                   string
+	config               taskConfig
+	configJSON           json.RawMessage
+	keepAlive            bool
+	owner                *Operation
+	parent               *agentRun
+	group                *executionGroup
+	modelWindow          *int64
+	modelMaxOutputTokens *int64
+	context              *contextSnapshot
+	activityID           string
+	causedBy             []string
+	origin               activityOrigin
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	done                 chan struct{}
+	wake                 chan struct{}
 	// Mutable fields below are protected by Host.mu.
 	state                   string
 	reason                  string
@@ -207,7 +219,7 @@ func (b *broker) handleSpawn(w http.ResponseWriter, r *http.Request, op *Operati
 		initial = &command{id: commandID, activityID: commandActivityID, instruction: *req.Instruction, operation: "queue", status: "accepted", initial: true, accepted: make(chan struct{})}
 	}
 	h := b.host
-	modelWindow := contextWindowForModel(h.catalog, req.Config.Provider, req.Config.Model)
+	modelWindow, modelMaxOutput := h.contextModelLimits(req.Config.Provider, req.Config.Model)
 	h.mu.Lock()
 	if op.closed || op.ctx.Err() != nil || h.closed {
 		h.mu.Unlock()
@@ -262,7 +274,7 @@ func (b *broker) handleSpawn(w http.ResponseWriter, r *http.Request, op *Operati
 		h.groups[id] = group
 	}
 	ctx, cancel := context.WithCancel(ownerCtx)
-	instance := &agentInstance{host: h, id: id, config: req.Config, configJSON: encoded, keepAlive: req.KeepAlive, owner: op, parent: parent, group: group, modelWindow: modelWindow, activityID: activityID, causedBy: causedBy, origin: origin, activeCounted: true, ctx: ctx, cancel: cancel, done: make(chan struct{}), wake: make(chan struct{}, 1), state: "starting", commands: make(map[string]*command), runInterruptAccepted: make(map[string]chan struct{})}
+	instance := &agentInstance{host: h, id: id, config: req.Config, configJSON: encoded, keepAlive: req.KeepAlive, owner: op, parent: parent, group: group, modelWindow: modelWindow, modelMaxOutputTokens: modelMaxOutput, activityID: activityID, causedBy: causedBy, origin: origin, activeCounted: true, ctx: ctx, cancel: cancel, done: make(chan struct{}), wake: make(chan struct{}, 1), state: "starting", commands: make(map[string]*command), runInterruptAccepted: make(map[string]chan struct{})}
 	group.counters.ActiveAgents++
 	if initial != nil {
 		initial.causedBy = []string{activityID}
@@ -738,10 +750,11 @@ func (i *agentInstance) execute(cmd *command) (taskOutcome, *agentRun, bool) {
 	}
 	b := h.broker
 	h.mu.Unlock()
-	connection := &Connection{URL: b.url, Token: b.token, Scope: op.scope, ModelWindow: cloneInt64(i.modelWindow), Defaults: Config{
+	connection := &Connection{URL: b.url, Token: b.token, Scope: op.scope, ModelWindow: cloneInt64(i.modelWindow), ModelMaxOutputTokens: cloneInt64(i.modelMaxOutputTokens), Defaults: Config{
 		Provider: i.config.Provider, Model: i.config.Model, MaxTokens: i.config.MaxTokens,
 		Effort: i.config.Effort, Hooks: cloneHookModules(i.config.hookModules()),
 		ContextBudget: cloneContextBudget(i.config.ContextBudget), contextBudgetPresent: i.config.contextBudgetPresent || i.config.ContextBudget != nil,
+		ContextPolicy: cloneContextPolicy(i.config.ContextPolicy), contextPolicyPresent: i.config.contextPolicyPresent || i.config.ContextPolicy != nil,
 	}}
 	h.mu.Lock()
 	groupOpen := h.executionGroupOpenLocked(i.group)

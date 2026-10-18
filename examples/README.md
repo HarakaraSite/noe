@@ -29,7 +29,7 @@
 | [agent-summary.js](agent-summary.js) | `run_agent`で指定ファイルを読み、snapshotから要約を表示 |
 | [agent-parallel.js](agent-parallel.js) | `spawn_agent`で二つの子agentを起動・観察し、親agentが結果をまとめる |
 | [agent-control.js](agent-control.js) | keepAliveのroot agentを別terminalからsteer・queue・interrupt |
-| [agent-hooks.js](agent-hooks.js) | 外部hook・要求限定のcontext情報・root共有上限を使うOpenCode Go agent |
+| [agent-hooks.js](agent-hooks.js) | 外部hook・context使用量通知と自動切り捨て・root共有上限を使うOpenCode Go agent |
 | [try-agent.js](try-agent.js) | 引数のタスクをagentへ依頼。引数なしならJSで1〜100の合計を計算 |
 
 `lib/`は例で使うモジュール、`data/`はサンプル入力です。agentの並行例は[左のJSON](data/agent/left.json)と[右のJSON](data/agent/right.json)を使います。
@@ -39,6 +39,7 @@
 `./noe run --observe --events=agent.jsonl examples/agent-hooks.js '任意のタスク'`は
 OpenCode Goの資格情報を使い、[外部hook](hooks/context.js)を実行します。
 例の予算と共有上限は選択例であり、NOEの既定値ではありません。
+`contextPolicy`は既定で自動切り捨て、`null`なら通知のみです。例では既定の保持比率0.1を明示しています。
 hookのAPI・継承・停止契約は[hookガイド](../docs/hooks.md)を参照してください。
 
 OpenAIは`./noe run --observe examples/agent-openai.js gpt-6-luna`、または`gpt-6.1-sol`で実行します。先に[ChatGPT認証ヘルパー](../docs/openai.md)で登録するか、既存のcredential recordを用意します。

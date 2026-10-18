@@ -24,7 +24,7 @@ func projectEvent(event events.Event, q Query) events.Event {
 			delete(projected, "result")
 		}
 		return projected
-	case "model.step.started", "context.updated", "hook.started", "hook.finished", "hook.failed", "hook.cancelled", "execution.limit_reached":
+	case "model.step.started", "context.updated", "context.trimmed", "hook.started", "hook.finished", "hook.failed", "hook.cancelled", "execution.limit_reached":
 		return cloneEvent(event)
 	case "thinking", "thinking_summary":
 		if q.IncludeThinking {

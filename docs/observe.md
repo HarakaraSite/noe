@@ -1,12 +1,14 @@
 # agentの観察：人間用CLIと親用API
 
 `--observe`と保存ログの表示では、`context:`行に入力予算・モデルwindow・次要求の
-`estimated`値・残量・`previous`実測を表示する。未知値は`unknown`。
+`estimated`値・残量・`previous`実測と、実行履歴の使用量／予算／sourceを表示する。未知値は`unknown`。
+実際に切り捨てた時だけ`context.trimmed`から前後概算と削除block数を表示する。
 概算はtokenizerによる実測ではなく、`preparing`/`sent`は算出した段階を示す。
 `hook started`は実行中のphase/moduleを表示し、失敗・取消しも確認できる。
 JSONLと観察snapshotには`groupId`、group累計の`execution`、要求単位の`context`を残す。
 保存ログのsnapshotはcursorで差分を絞ってもこれらを全履歴から復元する。
 hookが待機中なら`phase: "hook"`と実行中のhandlerを`action`に返す。
+削除済み本文は人間向け表示・`observe_agent`のsnapshotから復元しません。
 保存ログの`tool.finished`差分は、`includeOutput: true`で元の`rawResult`とモデル向け
 `result`を返す。既定ではこれらのpayloadを省き、ID・実行状態・結果の有無を返す。
 元のJSONLファイルには両方を保持する。
@@ -56,6 +58,8 @@ tail -f agent.jsonl | ./noe observe
 
 ```text
 [parent-A/12345678] model: waiting for response
+[parent-A/12345678] context: budget=unknown / window=unknown / estimated=... / execution=~.../... tokens (..., source=fallback)
+[parent-A/12345678] context trimmed: ~... -> ~... tokens / removed blocks=12 / reason=input_budget / source=fallback
 [parent-A/12345678/abcdef12] run_js started: Read README.md
 [parent-A/12345678/abcdef12] run_js succeeded: 28ms
 [parent-A/12345678] thinking: 次に結果をまとめます。
@@ -152,6 +156,10 @@ console.log(settled.finalText ?? settled.error ?? settled.status);
 - `usage`：そのrunでproviderから返った使用量の合計。`updatedAt`：最後に観察した関連イベントの時刻
 - `events`：選択runの状態・発言・tool等の差分。空の場合は`[]`
 - `cursor`：次回へ渡す実行IDとイベント番号
+
+`context`はJSON snapshotをそのまま保持し、`executionContext`に実行履歴のbudget/source/estimate、
+予算超過状態、trim回数と最後のtrimを含みます。`context.trimmed`差分には実際に適用したtrimの前後概算、
+削除block数と原因情報を含みます。snapshotはliveと保存済みJSONLで同じcontext形を使います。
 
 `events`はcursor以降に限定しますが、現在の状態や最終回答はファイル全体から再構成します。同じcursorを繰り返し読んでも共有の既読状態は進めません。rawの`message_delta`は返さず、thinking・通常出力も既定では含めないため、親へ細かい断片を毎回すべて渡す必要はありません。thinkingを要求した場合は、連続する同じrun・要求・種類の断片を結合します。
 

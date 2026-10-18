@@ -231,6 +231,8 @@ func (h *host) installLoader(entry *Source) {
 			return credentials.ModuleSource, specifier, nil
 		case "noe:agent/task":
 			return agent.TaskModuleSource, specifier, nil
+		case "noe:agent/history":
+			return agent.HistoryModuleSource, specifier, nil
 		}
 		return local.Load(specifier, referrer)
 	})

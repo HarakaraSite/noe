@@ -70,9 +70,35 @@ snapshotは取得時点の情報であり、hook実行中に新しいsteerが届
 group summaryの`groupId`・`counters`・`limits`・`elapsedMs`・任意`usage`/`stop`に加え、
 現在handlerの`activityId`・`causedBy`・`origin`を返す。これらはcallback eventと同じinvocationを指す。
 
-`contextBudget: {inputTokens: 200000}`は入力の目安を明示する設定。
-子で省略すると継承し、`null`で解除する。超過だけで停止・圧縮しない。
-catalogのwindowは別項目で、未知なら未取得のまま。応答上限から入力予算を逆算しない。
+`contextBudget: {inputTokens: 200000}`は固定入力を含む総入力の目安を明示する設定。
+子で省略すると継承し、`null`で解除する。実行履歴だけの予算とは別の尺度としてsnapshotに残る。
+`contextPolicy`は省略または`{}`なら自動切り捨てを有効にし、子では省略時に継承する。
+`contextPolicy: null`は切り捨てを無効化する設定で、context通知は続ける。
+`retainRatio`は`0 < ratio < 1`で指定し、既定値は`0.1`。任意の`responseReserveTokens`は正のsafe integerで、window由来の予算計算にだけ使い、providerの出力上限は変更しない。
+正の`maxTokens`も応答予約として扱い、両方指定した場合は大きい方を使う。どちらもなければcatalogの`maxOutputTokens`が利用可能な場合に使う。
+windowが不明で明示予算もなければ、NOEは総入力目安として1,000,000 tokensを使うが、モデルwindowの値とは扱わない。
+同じinstanceの次queue taskにもpolicy設定を保つが、履歴とtrim回数は新しいrunでリセットする。
+catalogのwindowは別項目で、未知なら未取得のまま。既知windowの代わりにfallback値を使ってcapacityを保証しない。
+
+windowと応答予約から予算を計算する場合、次の記号を使う。
+
+| 記号 | 意味 |
+| --- | --- |
+| `W` | catalogで確認できたモデルwindow |
+| `F` | 保持するsystem・元task・適用済みsteer・tool定義の概算 |
+| `N` | 今回だけのruntime情報とcontext通知の概算 |
+| `R` | 応答用token予約 |
+
+`W`と`R`が既知の場合、window由来の実行履歴予算は
+`max(0, floor((W - F - N - R) × 0.9))`。window由来の総入力目安は`F + N + 実行履歴予算`で、
+明示`contextBudget.inputTokens`を`I`とすると、実効総入力目安は`min(I, window由来の総入力目安)`。
+`I`がなければwindow由来の総入力目安をそのまま使い、実効総入力目安から`F`と`N`を引いて実行履歴予算を得る。
+どちらの場合も、実行履歴予算は`max(0, 実効総入力目安 - F - N)`。
+`W`は既知でも`R`が不明なら、総入力目安を`min(明示予算または1,000,000, floor(W × 0.9))`とし、
+そこから`F`と`N`を引いて実行履歴予算を出す。この場合も実行履歴予算は`max(0, 総入力目安 - F - N)`で、
+`responseReserveUnknown: true`をsnapshotに残す。
+`W`自体が不明ならwindow由来の計算はせず、明示予算または1,000,000-token fallbackを総入力目安にする。
+
 context snapshotの形は次のとおり（数値は例）。
 
 ```js
@@ -88,9 +114,25 @@ context snapshotの形は次のとおり（数値は例）。
     tokens: 13000, method: "json_utf8_bytes/4", stage: "preparing",
     modelStepId: "...", requestId: null, estimatedAt: "..."
   },
+  executionContext: {
+    policy: "auto", budgetSource: "input_budget",
+    fixedTokens: 12000, transientTokens: 300,
+    responseReserveTokens: null, responseReserveUnknown: true,
+    estimatedTokens: 700, budgetTokens: 187700,
+    totalInputBudgetTokens: 200000, usedPercent: 0.37,
+    nearBudget: false, budgetExceeded: false, targetUnreachable: false,
+    trimCount: 1,
+    lastTrim: {id: "...", beforeTokens: 905000, afterTokens: 700, removedBlocks: 12}
+  },
   remainingTokens: 187000, usedPercent: 6.5, updatedAt: "..."
 }
 ```
+
+`executionContext.budgetTokens`は可変の実行履歴に対する予算、
+`totalInputBudgetTokens`は固定入力を含む総入力目安。既存の`budget.inputTokens`は後者の尺度である。
+`budgetSource`は`model_window`・`input_budget`・`combined`・`fallback_window_cap`・`fallback`のいずれか。
+切り捨て後は再計算したsnapshotが要求へ送られる。`context.trimmed`には前後の概算、削除block数、理由、source、
+`activityId`・`causedBy`・`origin`が記録される。削除したtool本文やreasoning本文はsnapshotやtrim eventから復元しない。
 
 明示予算・window・実測の未知値は`null`。最初の要求前は`previous: null`。
 実測が返らない要求や失敗を、前要求の数値で補わない。

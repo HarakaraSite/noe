@@ -1,0 +1,243 @@
+{
+  "date": "2026-10-18",
+  "provider": "opencode-go",
+  "model": "deepseek-v4.1-flash",
+  "effort": "auto",
+  "inputBudgetTokens": 11000,
+  "maxTokens": 8192,
+  "maxProviderCalls": 12,
+  "taskTimeoutSeconds": 175,
+  "estimator": "json_utf8_bytes/4",
+  "cost": "not reported; no monetary estimate",
+  "trials": [
+    {
+      "case": "controlled_retain_01",
+      "trial": "initial-final-code",
+      "artifactDirectory": "/tmp/noe-context-final-20261018-ZGkIrT/controlled_retain_01",
+      "controlled": true,
+      "policy": {
+        "retainRatio": 0.1
+      },
+      "elapsedMs": 17051,
+      "providerRequests": 7,
+      "toolExecutions": 6,
+      "trimCount": 5,
+      "runCompleted": true,
+      "reportValidationPassed": true,
+      "reportTotal": 70,
+      "notes": "",
+      "usage": {
+        "promptTokens": 45600,
+        "cachedTokens": 19200,
+        "completionTokens": 1858,
+        "totalTokens": 47458
+      },
+      "trims": [
+        {
+          "beforeTokens": 12789,
+          "afterTokens": 6547,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 12884,
+          "afterTokens": 6337,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 12740,
+          "afterTokens": 6403,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 12760,
+          "afterTokens": 6357,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 12733,
+          "afterTokens": 6376,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        }
+      ],
+      "wireBlocksComplete": true,
+      "stableSession": true,
+      "ownUserAgent": true,
+      "extraMemoryFiles": []
+    },
+    {
+      "case": "controlled_retain_02",
+      "trial": "initial-final-code",
+      "artifactDirectory": "/tmp/noe-context-final-20261018-ZGkIrT/controlled_retain_02",
+      "controlled": true,
+      "policy": {
+        "retainRatio": 0.2
+      },
+      "elapsedMs": 20149,
+      "providerRequests": 7,
+      "toolExecutions": 6,
+      "trimCount": 5,
+      "runCompleted": true,
+      "reportValidationPassed": false,
+      "reportTotal": 70,
+      "notes": "IDs 3/4 were strings; numeric ID contract clarified in retry; no product fix",
+      "usage": {
+        "promptTokens": 46025,
+        "cachedTokens": 18304,
+        "completionTokens": 2317,
+        "totalTokens": 48342
+      },
+      "trims": [
+        {
+          "beforeTokens": 13616,
+          "afterTokens": 7296,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 13580,
+          "afterTokens": 6284,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 12609,
+          "afterTokens": 6326,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 12570,
+          "afterTokens": 6245,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 12588,
+          "afterTokens": 6343,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        }
+      ],
+      "wireBlocksComplete": true,
+      "stableSession": true,
+      "ownUserAgent": true,
+      "extraMemoryFiles": []
+    },
+    {
+      "case": "controlled_disabled",
+      "trial": "initial-final-code",
+      "artifactDirectory": "/tmp/noe-context-final-20261018-ZGkIrT/controlled_disabled",
+      "controlled": true,
+      "policy": null,
+      "elapsedMs": 35161,
+      "providerRequests": 7,
+      "toolExecutions": 6,
+      "trimCount": 0,
+      "runCompleted": true,
+      "reportValidationPassed": true,
+      "reportTotal": 70,
+      "notes": "",
+      "usage": {
+        "promptTokens": 116392,
+        "cachedTokens": 89856,
+        "completionTokens": 5537,
+        "totalTokens": 121929
+      },
+      "trims": [],
+      "wireBlocksComplete": true,
+      "stableSession": true,
+      "ownUserAgent": true,
+      "extraMemoryFiles": []
+    },
+    {
+      "case": "natural_task",
+      "trial": "initial-final-code",
+      "artifactDirectory": "/tmp/noe-context-final-20261018-ZGkIrT/natural_task",
+      "controlled": false,
+      "policy": {},
+      "elapsedMs": 15777,
+      "providerRequests": 8,
+      "toolExecutions": 7,
+      "trimCount": 0,
+      "runCompleted": true,
+      "reportValidationPassed": true,
+      "reportTotal": 70,
+      "notes": "",
+      "usage": {
+        "promptTokens": 37065,
+        "cachedTokens": 29824,
+        "completionTokens": 1479,
+        "totalTokens": 38544
+      },
+      "trims": [],
+      "wireBlocksComplete": true,
+      "stableSession": true,
+      "ownUserAgent": true,
+      "extraMemoryFiles": []
+    },
+    {
+      "case": "controlled_retain_02",
+      "trial": "numeric-contract-clarified",
+      "artifactDirectory": "/tmp/noe-context-retry-20261018-hRjLJ3/controlled_retain_02",
+      "controlled": true,
+      "policy": {
+        "retainRatio": 0.2
+      },
+      "elapsedMs": 28391,
+      "providerRequests": 7,
+      "toolExecutions": 6,
+      "trimCount": 5,
+      "runCompleted": true,
+      "reportValidationPassed": true,
+      "reportTotal": 70,
+      "notes": "",
+      "usage": {
+        "promptTokens": 48118,
+        "cachedTokens": 23808,
+        "completionTokens": 4215,
+        "totalTokens": 52333
+      },
+      "trims": [
+        {
+          "beforeTokens": 14048,
+          "afterTokens": 7746,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 14546,
+          "afterTokens": 6800,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 13325,
+          "afterTokens": 6525,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 13324,
+          "afterTokens": 6799,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        },
+        {
+          "beforeTokens": 13136,
+          "afterTokens": 6338,
+          "removedBlocks": 1,
+          "targetUnreachable": true
+        }
+      ],
+      "wireBlocksComplete": true,
+      "stableSession": true,
+      "ownUserAgent": true,
+      "extraMemoryFiles": []
+    }
+  ]
+}

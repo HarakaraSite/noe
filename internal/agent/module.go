@@ -28,6 +28,9 @@ var HooksModuleSource string
 //go:embed js/task.js
 var TaskModuleSource string
 
+//go:embed js/history.js
+var HistoryModuleSource string
+
 //go:embed instructions.md
 var instructionMarkdown string
 

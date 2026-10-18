@@ -85,6 +85,16 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 	}
 	steers := h.deliverPendingSteersLocked(run)
 	if len(steers) == 0 {
+		if run.context.pendingPlan != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "context_plan", "context trim has not been acknowledged")
+			return
+		}
+		if run.context.finalPrepared && (len(request.Messages) < 2 || contextHistoryDigest(request.Messages[:len(request.Messages)-1], request.Tools) != run.context.preparedDigest) {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "context_plan", "model transcript differs from prepared context")
+			return
+		}
 		if run.config.MaxSteps > 0 && run.providerCalls >= run.config.MaxSteps {
 			limit := run.config.MaxSteps
 			h.mu.Unlock()
@@ -118,6 +128,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			causedBy = appendUniqueActivityIDs(causedBy, step.activityID)
 			causedBy = appendUniqueActivityIDs(causedBy, step.beforeHookActivityIDs...)
 			causedBy = appendUniqueActivityIDs(causedBy, run.pendingSteerActivityIDs...)
+			causedBy = appendUniqueActivityIDs(causedBy, run.context.pendingTrimActivityIDs...)
 			step.requestCauseActivityIDs = append([]string(nil), causedBy...)
 		} else if run.activityID != "" {
 			causedBy = append(causedBy, run.activityID)
@@ -129,6 +140,8 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		// queued steer batch does not consume the task's model-call budget.
 		run.providerCalls++
 		sentContext, sentContextActivityID, sentContextCauses = h.markContextSentLocked(run, request, requestID, time.Now())
+		run.context.pendingNotice = nil
+		run.context.pendingTrimActivityIDs = nil
 	}
 	h.mu.Unlock()
 	if len(steers) != 0 {

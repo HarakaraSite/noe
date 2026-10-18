@@ -78,6 +78,8 @@ func (r *agentRenderer) render(event events.Event) error {
 	switch kind {
 	case "context.updated":
 		return r.line(label, "context", contextDetail(event["context"]))
+	case "context.trimmed":
+		return r.line(label, "context trimmed", contextTrimDetail(event))
 	case "hook.started", "hook.failed", "hook.cancelled":
 		detail := eventString(event, "phase") + " / " + eventString(event, "module")
 		if text := eventString(event, "error"); text != "" {
@@ -184,6 +186,12 @@ func contextDetail(value any) string {
 			Tokens int64  `json:"tokens"`
 			Stage  string `json:"stage"`
 		} `json:"estimate"`
+		ExecutionContext *struct {
+			BudgetSource    string   `json:"budgetSource"`
+			EstimatedTokens int64    `json:"estimatedTokens"`
+			BudgetTokens    int64    `json:"budgetTokens"`
+			UsedPercent     *float64 `json:"usedPercent"`
+		} `json:"executionContext"`
 		RemainingTokens *int64 `json:"remainingTokens"`
 	}
 	if json.Unmarshal(encoded, &snapshot) != nil || string(encoded) == "null" {
@@ -210,6 +218,52 @@ func contextDetail(value any) string {
 		parts = append(parts, measurement+" ["+shortID(p.RequestID)+"]", "cached="+number(p.CachedTokens), p.Status)
 	} else {
 		parts = append(parts, "previous=unknown")
+	}
+	if execution := snapshot.ExecutionContext; execution != nil {
+		percent := "unknown"
+		if execution.UsedPercent != nil {
+			percent = fmt.Sprintf("%.1f%%", *execution.UsedPercent)
+		}
+		source := execution.BudgetSource
+		if source == "" {
+			source = "unknown"
+		}
+		parts = append(parts, fmt.Sprintf("execution=~%d/%d tokens (%s, source=%s)", execution.EstimatedTokens, execution.BudgetTokens, percent, source))
+	}
+	return strings.Join(parts, " / ")
+}
+
+func contextTrimDetail(event events.Event) string {
+	encoded, err := json.Marshal(event)
+	if err != nil {
+		return "usage reduced"
+	}
+	var trim struct {
+		BeforeTokens  *int64 `json:"beforeTokens"`
+		AfterTokens   *int64 `json:"afterTokens"`
+		RemovedBlocks *int   `json:"removedBlocks"`
+		Reason        string `json:"reason"`
+		BudgetSource  string `json:"budgetSource"`
+	}
+	if err := json.Unmarshal(encoded, &trim); err != nil {
+		return "usage reduced"
+	}
+	format := func(value *int64) string {
+		if value == nil {
+			return "unknown"
+		}
+		return strconv.FormatInt(*value, 10)
+	}
+	blocks := "unknown"
+	if trim.RemovedBlocks != nil {
+		blocks = strconv.Itoa(*trim.RemovedBlocks)
+	}
+	parts := []string{fmt.Sprintf("~%s -> ~%s tokens", format(trim.BeforeTokens), format(trim.AfterTokens)), "removed blocks=" + blocks}
+	if trim.Reason != "" {
+		parts = append(parts, "reason="+trim.Reason)
+	}
+	if trim.BudgetSource != "" {
+		parts = append(parts, "source="+trim.BudgetSource)
 	}
 	return strings.Join(parts, " / ")
 }

@@ -31,6 +31,31 @@ function contextBudget(value, label = "contextBudget") {
   return {inputTokens: value.inputTokens};
 }
 
+function contextPolicy(value, label = "contextPolicy") {
+  if (value === null) return null;
+  if (!isRecord(value)) throw new TypeError(label + " must be an object or null");
+  for (const key of Object.keys(value)) {
+    if (key !== "retainRatio" && key !== "responseReserveTokens") {
+      throw new TypeError("unknown " + label + " option: " + key);
+    }
+  }
+  const policy = {};
+  if (value.retainRatio !== undefined) {
+    if (typeof value.retainRatio !== "number" || !Number.isFinite(value.retainRatio) ||
+        value.retainRatio <= 0 || value.retainRatio >= 1) {
+      throw new TypeError(label + ".retainRatio must be finite and between 0 and 1");
+    }
+    policy.retainRatio = value.retainRatio;
+  }
+  if (value.responseReserveTokens !== undefined) {
+    if (!Number.isSafeInteger(value.responseReserveTokens) || value.responseReserveTokens <= 0) {
+      throw new TypeError(label + ".responseReserveTokens must be a positive safe integer");
+    }
+    policy.responseReserveTokens = value.responseReserveTokens;
+  }
+  return policy;
+}
+
 function executionLimits(value) {
   if (!isRecord(value)) throw new TypeError("executionLimits must be an object");
   const limits = {};
@@ -67,6 +92,9 @@ export function createAgentAPI({ request, defaults, observe }) {
     const budget = options.contextBudget === undefined
       ? inherited.contextBudget
       : contextBudget(options.contextBudget);
+    const policy = options.contextPolicy === undefined
+      ? inherited.contextPolicy
+      : contextPolicy(options.contextPolicy);
     const limits = options.executionLimits === undefined
       ? inherited.executionLimits
       : executionLimits(options.executionLimits);
@@ -78,6 +106,7 @@ export function createAgentAPI({ request, defaults, observe }) {
       maxSteps: requireLimit(options.maxSteps === undefined ? 0 : options.maxSteps, "maxSteps"),
     };
     if (budget !== undefined) config.contextBudget = contextBudget(budget);
+    if (policy !== undefined) config.contextPolicy = contextPolicy(policy);
     if (limits !== undefined) config.executionLimits = executionLimits(limits);
     if (options.cacheKey !== undefined) config.cacheKey = requireString(options.cacheKey, "cacheKey", true);
     return config;

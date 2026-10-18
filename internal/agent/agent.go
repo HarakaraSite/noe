@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -51,8 +52,10 @@ type Config struct {
 	Cwd                    string           `json:"cwd,omitempty"`
 	Hooks                  *HookModules     `json:"hooks,omitempty"`
 	ContextBudget          *ContextBudget   `json:"contextBudget,omitempty"`
+	ContextPolicy          *ContextPolicy   `json:"contextPolicy,omitempty"`
 	ExecutionLimits        *ExecutionLimits `json:"executionLimits,omitempty"`
 	contextBudgetPresent   bool
+	contextPolicyPresent   bool
 	executionLimitsPresent bool
 }
 
@@ -69,6 +72,16 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	_, c.contextBudgetPresent = fields["contextBudget"]
+	if raw, exists := fields["contextPolicy"]; exists {
+		c.contextPolicyPresent = true
+		if !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			var policy ContextPolicy
+			if err := json.Unmarshal(raw, &policy); err != nil {
+				return err
+			}
+			c.ContextPolicy = &policy
+		}
+	}
 	if raw, exists := fields["executionLimits"]; exists {
 		if string(raw) == "null" {
 			return fmt.Errorf("executionLimits must be an object")
@@ -99,6 +112,16 @@ func (c Config) MarshalJSON() ([]byte, error) {
 	} else if c.executionLimitsPresent {
 		rawExecutionLimits = json.RawMessage("null")
 	}
+	var rawContextPolicy json.RawMessage
+	if c.ContextPolicy != nil {
+		encoded, err := json.Marshal(c.ContextPolicy)
+		if err != nil {
+			return nil, err
+		}
+		rawContextPolicy = encoded
+	} else if c.contextPolicyPresent {
+		rawContextPolicy = json.RawMessage("null")
+	}
 	return json.Marshal(struct {
 		Provider        string          `json:"provider,omitempty"`
 		Model           string          `json:"model,omitempty"`
@@ -109,8 +132,9 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		Cwd             string          `json:"cwd,omitempty"`
 		Hooks           *HookModules    `json:"hooks,omitempty"`
 		ContextBudget   json.RawMessage `json:"contextBudget,omitempty"`
+		ContextPolicy   json.RawMessage `json:"contextPolicy,omitempty"`
 		ExecutionLimits json.RawMessage `json:"executionLimits,omitempty"`
-	}{c.Provider, c.Model, c.Name, c.System, c.MaxTokens, c.Effort, c.Cwd, c.Hooks, rawBudget, rawExecutionLimits})
+	}{c.Provider, c.Model, c.Name, c.System, c.MaxTokens, c.Effort, c.Cwd, c.Hooks, rawBudget, rawContextPolicy, rawExecutionLimits})
 }
 
 // HookModules keeps Config comparable for callers that use it as a settings
@@ -136,11 +160,12 @@ func (c Config) hookModules() []string {
 // JSON tags are intentionally stable because the CLI passes this object via an
 // environment variable to a future runner.
 type Connection struct {
-	URL         string `json:"url"`
-	Token       string `json:"token"`
-	Scope       string `json:"scope"`
-	Defaults    Config `json:"defaults"`
-	ModelWindow *int64 `json:"modelWindow,omitempty"`
+	URL                  string `json:"url"`
+	Token                string `json:"token"`
+	Scope                string `json:"scope"`
+	Defaults             Config `json:"defaults"`
+	ModelWindow          *int64 `json:"modelWindow,omitempty"`
+	ModelMaxOutputTokens *int64 `json:"modelMaxOutputTokens,omitempty"`
 }
 
 // Host owns the provider and broker. It is safe to close concurrently with

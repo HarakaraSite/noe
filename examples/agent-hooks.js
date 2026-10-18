@@ -10,6 +10,8 @@ const result = await run_agent({
   name: "context-example",
   hooks: ["./examples/hooks/context.js"],
   contextBudget: {inputTokens: 20000},
+  // Automatic by default; use null for notices without trimming.
+  contextPolicy: {retainRatio: 0.1},
   executionLimits: {providerCalls: 12, agentStarts: 4, queuedTasks: 4, hookCalls: 100},
   maxSteps: 6,
 }, instruction);

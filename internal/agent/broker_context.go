@@ -8,10 +8,13 @@ import (
 )
 
 type contextPrepareRequest struct {
-	RunID       string            `json:"runId"`
-	ModelStepID string            `json:"modelStepId"`
-	Messages    []json.RawMessage `json:"messages"`
-	Tools       []json.RawMessage `json:"tools,omitempty"`
+	RunID         string                `json:"runId"`
+	ModelStepID   string                `json:"modelStepId"`
+	Messages      []json.RawMessage     `json:"messages"`
+	Tools         []json.RawMessage     `json:"tools,omitempty"`
+	History       *contextHistoryLayout `json:"history,omitempty"`
+	Final         bool                  `json:"final,omitempty"`
+	AppliedPlanID string                `json:"appliedPlanId,omitempty"`
 }
 
 type contextAccessRequest struct {
@@ -59,20 +62,61 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 		return
 	}
 	wasPrepared := run.context.prepared
+	fixed, execution, _, partsErr := historyParts(request.Messages, request.Tools, request.History)
+	if partsErr != nil {
+		h.mu.Unlock()
+		writeRPCError(w, http.StatusBadRequest, "request", partsErr.Error())
+		return
+	}
+	if run.context.pendingPlan != nil && request.AppliedPlanID == "" {
+		h.mu.Unlock()
+		writeRPCError(w, http.StatusConflict, "context_plan", "context trim plan must be acknowledged before preparing again")
+		return
+	}
+	run.context.fixedTokens, run.context.executionTokens = fixed, execution
+	var trimmed *contextTrimSnapshot
+	if request.AppliedPlanID != "" {
+		var ackErr error
+		trimmed, ackErr = run.context.acknowledgeTrim(request.AppliedPlanID, request.History, request.Messages, request.Tools)
+		if ackErr != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "context_plan", ackErr.Error())
+			return
+		}
+	}
 	snapshot, _, err := prepareContextEstimate(&run.context, run.id, request.Messages, request.Tools)
 	if err != nil {
 		h.mu.Unlock()
 		writeRPCError(w, http.StatusBadRequest, "request", "could not estimate model context")
 		return
 	}
+	var plan *contextTrimPlan
+	if request.Final && request.AppliedPlanID == "" {
+		plan, err = run.context.planTrim(request.Messages, request.Tools, request.History)
+		if err != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusBadRequest, "context_plan", err.Error())
+			return
+		}
+	}
+	run.context.finalPrepared = request.Final && plan == nil
+	if run.context.finalPrepared {
+		run.context.preparedDigest = contextHistoryDigest(request.Messages, request.Tools)
+	}
 	snapshot = h.storeContextSnapshotLocked(run, time.Now())
 	stepActivityID := run.modelStep.activityID
 	causes := append([]string(nil), run.modelStep.predecessorActivityIDs...)
 	h.mu.Unlock()
+	if trimmed != nil {
+		h.emitContextTrimmed(run, snapshot, *trimmed, request.ModelStepID, appendUniqueActivityIDs(causes, stepActivityID))
+	}
 	if !wasPrepared {
 		h.emitContextUpdated(run, snapshot, "preparing", stepActivityID, causes)
 	}
-	writeJSON(w, map[string]bool{"prepared": true})
+	writeJSON(w, struct {
+		Prepared bool             `json:"prepared"`
+		Plan     *contextTrimPlan `json:"plan,omitempty"`
+	}{true, plan})
 }
 
 func (b *broker) handleContextGet(w http.ResponseWriter, r *http.Request, op *Operation) {

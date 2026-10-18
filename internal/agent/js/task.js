@@ -1,5 +1,6 @@
 import { request, defaults, instructions } from "noe:agent/internal";
 import { callHooks, hookErrorText, loadHookModules } from "noe:agent/hooks";
+import { TaskHistory } from "noe:agent/history";
 
 const inherited = JSON.parse(defaults());
 const systemInstruction = instructions();
@@ -64,6 +65,31 @@ function requireContextBudget(value) {
     throw new TypeError("contextBudget.inputTokens must be a positive safe integer");
   }
   return {inputTokens: value.inputTokens};
+}
+
+function requireContextPolicy(value) {
+  if (value === null) return null;
+  if (!isRecord(value)) throw new TypeError("contextPolicy must be an object or null");
+  for (const key of Object.keys(value)) {
+    if (key !== "retainRatio" && key !== "responseReserveTokens") {
+      throw new TypeError("unknown contextPolicy option: " + key);
+    }
+  }
+  const policy = {};
+  if (value.retainRatio !== undefined) {
+    if (typeof value.retainRatio !== "number" || !Number.isFinite(value.retainRatio) ||
+        value.retainRatio <= 0 || value.retainRatio >= 1) {
+      throw new TypeError("contextPolicy.retainRatio must be finite and between 0 and 1");
+    }
+    policy.retainRatio = value.retainRatio;
+  }
+  if (value.responseReserveTokens !== undefined) {
+    if (!Number.isSafeInteger(value.responseReserveTokens) || value.responseReserveTokens <= 0) {
+      throw new TypeError("contextPolicy.responseReserveTokens must be a positive safe integer");
+    }
+    policy.responseReserveTokens = value.responseReserveTokens;
+  }
+  return policy;
 }
 
 function failedToolResult(message) {
@@ -203,9 +229,13 @@ function normalizeConfig(config) {
   const contextBudget = config.contextBudget === undefined
     ? inherited.contextBudget
     : requireContextBudget(config.contextBudget);
+  const contextPolicy = config.contextPolicy === undefined
+    ? inherited.contextPolicy
+    : requireContextPolicy(config.contextPolicy);
   return {
     provider, model, name, system, effort, maxTokens, maxSteps, cacheKey, hooks,
     contextBudget: contextBudget === undefined ? undefined : requireContextBudget(contextBudget),
+    contextPolicy: contextPolicy === undefined ? {retainRatio: 0.1} : requireContextPolicy(contextPolicy),
   };
 }
 
@@ -222,9 +252,9 @@ function validatedSteers(value) {
   });
 }
 
-async function appendAndApplySteers(runId, messages, value) {
+async function appendAndApplySteers(runId, history, value) {
   const steers = validatedSteers(value);
-  for (const steer of steers) messages.push({ role: "user", content: steer.instruction });
+  for (const steer of steers) history.appendSteer(steer);
   await rpc("apply_steers", { runId, commandIds: steers.map((steer) => steer.commandId) });
 }
 
@@ -237,7 +267,7 @@ export async function executeTask(config, instruction) {
   const { provider, model, name, system, effort, maxTokens, maxSteps } = normalized;
   const start = await rpc("start", {
     provider, model, name, maxTokens, effort, maxSteps, hooks: normalized.hooks,
-    contextBudget: normalized.contextBudget,
+    contextBudget: normalized.contextBudget, contextPolicy: normalized.contextPolicy,
   });
   const runId = start.runId;
   if (typeof runId !== "string" || !runId) throw new Error("agent broker returned an invalid run ID");
@@ -254,18 +284,32 @@ export async function executeTask(config, instruction) {
       ? [systemInstruction, userInstructions, ...(system ? [system] : [])].join("\n\n")
       : systemInstruction + (system ? "\n" + system : "");
     const loadedHooks = await loadHookModules(normalized.hooks);
-    const messages = [
+    const history = new TaskHistory(
       { role: "system", content: systemMessage },
       { role: "user", content: instruction },
-    ];
+    );
+    async function prepareContext(modelStepId, final = false, appliedPlanId = undefined, candidate = undefined) {
+      return rpc("context_prepare", {runId, modelStepId, messages: candidate ? candidate.messages : history.messages(),
+        tools: [runJSTool], history: candidate ? candidate.layout : history.layout(), final, appliedPlanId});
+    }
     let modelStepId = null;
     while (true) {
       if (modelStepId === null) {
-        const prepared = await rpc("begin_model_step", { runId, messages, tools: [runJSTool] });
+        const prepared = await rpc("begin_model_step", { runId, messages: history.messages(), tools: [runJSTool] });
         modelStepId = requireString(prepared.modelStepId, "modelStepId");
-        if (prepared.steers !== undefined) await appendAndApplySteers(runId, messages, prepared.steers);
-        await rpc("context_prepare", {runId, modelStepId, messages, tools: [runJSTool]});
+        if (prepared.steers !== undefined) await appendAndApplySteers(runId, history, prepared.steers);
+        await prepareContext(modelStepId);
         await callHooks(loadedHooks, "beforeModelRequest", {runId, modelStepId});
+      }
+      const preparedContext = await prepareContext(modelStepId, true);
+      if (preparedContext.plan !== undefined) {
+        // Stage without deleting. The broker commits the candidate revision
+        // and its factual event before local installation, so interruption
+        // cannot leave an applied deletion with no receipt. No model request
+        // can occur until the committed candidate is installed below.
+        const candidate = history.stage(preparedContext.plan);
+        await prepareContext(modelStepId, true, preparedContext.plan.id, candidate);
+        history.commit(candidate);
       }
       const context = await rpc("context_get", {runId, modelStepId});
       if (!isRecord(context) || typeof context.notification !== "string") {
@@ -273,14 +317,13 @@ export async function executeTask(config, instruction) {
       }
       // The status is request-scoped: provider history retains only the source
       // transcript, never this diagnostic tail message.
-      const modelMessages = [...messages, {role: "system", content: context.notification}];
+      const modelMessages = [...history.messages(), {role: "system", content: context.notification}];
       const response = await rpc("model", {
         runId, modelStepId, model, messages: modelMessages, tools: [runJSTool], cacheKey, maxTokens, effort,
       });
       if (!isRecord(response)) throw new Error("provider returned an invalid response");
       if (response.steers !== undefined) {
-        await appendAndApplySteers(runId, messages, response.steers);
-        await rpc("context_prepare", {runId, modelStepId, messages, tools: [runJSTool]});
+        await appendAndApplySteers(runId, history, response.steers);
         continue;
       }
       await callHooks(loadedHooks, "afterModelResponse", {
@@ -304,18 +347,11 @@ export async function executeTask(config, instruction) {
         }
         // Keep the provider's full assistant object, including reasoning,
         // call IDs, and extension fields, for the next request.
-        messages.push(response.message);
         const results = await Promise.all(calls.map(call => executeToolWithHooks(
           loadedHooks, {runId, modelStepId, requestId: response.requestId}, call,
           effective => executeToolCall(runId, modelStepId, effective),
         )));
-        for (let i = 0; i < calls.length; i++) {
-          messages.push({
-            role: "tool",
-            tool_call_id: calls[i].id,
-            content: JSON.stringify(results[i]),
-          });
-        }
+        history.completeBlock(response.message, results);
         modelStepId = null;
         continue;
       }
@@ -339,8 +375,8 @@ export async function executeTask(config, instruction) {
       if (!committed.committed) {
         // Retain the complete candidate object before adding the new user
         // messages, including reasoning_details and provider extensions.
-        messages.push(response.message);
-        await appendAndApplySteers(runId, messages, committed.instructions);
+        history.completeBlock(response.message);
+        await appendAndApplySteers(runId, history, committed.instructions);
         modelStepId = null;
         continue;
       }

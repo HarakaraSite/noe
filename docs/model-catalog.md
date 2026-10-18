@@ -54,11 +54,13 @@ console.log(JSON.stringify(agents, null, 2));
 | `maxOutputTokens` | モデルの最大出力token数。省略または0なら不明 |
 | `efforts` | 選択候補として記録するeffortの配列 |
 
-能力の項目がない場合は不明です。`false`は未対応という記録です。モデル能力とNOEの入力対応は別で、モデルに`vision: true`を設定してもagentへ画像を渡す機能は追加されません。上限・effortも選択用の情報で、実行設定への自動適用・呼出しの制限は行いません。ルートagent起動時は引き続きprovider・model・effortを明示します。
+能力の項目がない場合は不明です。`false`は未対応という記録です。モデル能力とNOEの入力対応は別で、モデルに`vision: true`を設定してもagentへ画像を渡す機能は追加されません。既知の`contextWindow`は自動context管理で実行履歴の入力予算を計算する際に使われます。window由来の予算計算では、`maxOutputTokens`は正の`maxTokens`と`contextPolicy.responseReserveTokens`のどちらも指定されていない場合に応答予約として使われます。これらのcatalog値はproviderへの出力上限を設定せず、呼出しを制限しません。windowが不明で明示`contextBudget.inputTokens`もない場合の1,000,000-token fallbackは、モデルcapacityを表しません。`efforts`と`capabilities`は選択用の情報です。ルートagent起動時は引き続きprovider・model・effortを明示します。
 
 カタログは利用者が選んだ候補一覧であり、プロバイダの全モデル一覧や利用可能性の保証ではありません。`catalog`がない通信設定だけのモデルは一覧へ出ませんが、直接指定して実行できます。`"catalog": null`で一覧から外し、`"モデルID": null`でそのモデルの通信上書きも含めて削除します。新しいモデルの追加も同じJSONで行えます。
 
 組込み候補はOpenRouterのDeepSeek V4.1 Flash・GPT-6 Lunaと3種類の意思決定モデル、OpenCode GoのDeepSeek V4.1 Flash・GPT-6 Luna、OpenAIのChatGPT/APIキー経路それぞれのgpt-6.1-sol・gpt-6-lunaです。生成モデルのIDと初期説明は[DeepSeekのモデルページ](https://openrouter.ai/deepseek/deepseek-v4.1-flash)・[GPT-6 Lunaのモデルページ](https://openrouter.ai/openai/gpt-6-luna)を2026-10-17に確認したものです。意思決定モデルとOpenCode Go経路の実接続範囲は[Decisions検証](decision-openrouter-validation.md)・[provider検証](provider-config-validation.md)を参照してください。価格や性能の自動更新は行いません。説明・タグは自身の評価と選択方針に合わせて上書きしてください。
+
+**実行予算に使うcontext metadata:** 2026-10-18確認時、[OpenRouterのDeepSeek V4.1 Flashページ](https://openrouter.ai/deepseek/deepseek-v4.1-flash)は1,048,576-token context windowを示しています。この値はOpenRouterの該当catalog項目だけに設定し、[OpenCode Goの公式console docs](https://opencode.ai/v2/docs/console/go/)にはwindow値の記載がないため、同名modelでもprovider間で転用しません。確認できていない`maxOutputTokens`は未設定のままです。正の`maxTokens`、`contextPolicy.responseReserveTokens`、catalogの`maxOutputTokens`がすべてない場合、応答予約はunknownとして扱われます。
 
 ## Jevによる起動前の選択
 

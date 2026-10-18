@@ -166,12 +166,15 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	}
 	connection := &Connection{
 		URL: b.url, Token: b.token, Scope: childOperation.scope,
+		ModelWindow: cloneInt64(run.context.modelWindow), ModelMaxOutputTokens: cloneInt64(run.context.catalogMaxOutput),
 		Defaults: Config{
 			Provider: run.config.Provider, Model: run.config.Model,
 			MaxTokens: run.config.MaxTokens, Effort: run.config.Effort,
 			Hooks:                cloneHookModules(run.config.Hooks),
 			ContextBudget:        cloneContextBudget(run.config.ContextBudget),
 			contextBudgetPresent: run.config.ContextBudgetPresent || run.config.ContextBudget != nil,
+			ContextPolicy:        cloneContextPolicy(run.config.ContextPolicy),
+			contextPolicyPresent: run.config.ContextPolicyPresent || run.config.ContextPolicy != nil,
 		},
 	}
 	result, err := (Runner{

@@ -14,7 +14,7 @@ NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript
 
 The linked guides and development notes are currently in Japanese.
 
-[v1.5.0 release notes](docs/releases/v1.5.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.5.0)
+[v1.6.0 release notes](docs/releases/v1.6.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.6.0)
 
 ## Build and run
 
@@ -28,7 +28,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.5.0
+# noe v1.6.0
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -123,7 +123,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.5.0 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.5.0/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
+Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.6.0 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.6.0/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
 
 ### Run one task and receive its answer
 
@@ -166,9 +166,10 @@ The root agent requires explicit `provider`, `model`, and `effort`. Switch provi
 | `cacheKey` | Stable cache/routing key; omitted uses the task's `runId`, and `""` omits the field |
 | `hooks` | Ordered external ESM modules for model/tool callbacks; children inherit, `[]` clears |
 | `contextBudget` | Advisory `{inputTokens: 200000}` per run; children inherit, `null` clears |
+| `contextPolicy` | Automatic history trimming by default; children inherit, `null` disables it |
 | `executionLimits` | Optional root group limits for `providerCalls`, `agentStarts`, `queuedTasks`, `hookCalls`; omitted fields are unlimited, `0` admits none |
 
-Agents receive a context status notice on each model request, with the explicit budget, available catalog window, previous measured input usage, and next input estimate. Unknown values remain unknown. The estimate uses JSON UTF-8 bytes divided by four; it is not a tokenizer measurement. Notices do not accumulate in conversation history, and exceeding the advisory input budget does not automatically stop or compress it. `--observe` shows context progress; live and saved observations retain the same snapshot. Shared execution limits are separate hard admission limits for the owning root and descendants. See the [hooks and context guide](docs/hooks.md).
+Agents receive a context status notice on each model request, with the explicit budget, available catalog window, previous measured input usage, and next input estimate. Unknown values remain unknown. The estimate uses JSON UTF-8 bytes divided by four; it is not a tokenizer measurement. Notices do not accumulate in conversation history. `contextBudget.inputTokens` remains a total input allowance; automatic trimming uses a separate execution-history budget. `contextPolicy` defaults to automatic trimming with a `retainRatio` of `0.1`; pass `contextPolicy: null` to disable trimming. If neither a catalog window nor an explicit input budget is known, NOE uses a 1,000,000-token input-budget fallback without treating it as the model's context capacity. When a catalog window is known, the optional `responseReserveTokens` helps calculate the input allowance and does not change the provider output limit. `--observe` shows the execution budget and trim events; live and saved observations retain the same context snapshot. Shared execution limits are separate hard admission limits for the owning root and descendants. See the [hooks and context guide](docs/hooks.md).
 
 For example, read an instruction file with `await readFile("instructions.md", "utf8")` from `node:fs/promises` and pass the resulting string as `system`. NOE does not automatically discover `AGENTS.md`. Cache keys do not preserve conversation history or guarantee cache hits. OpenRouter sends the key as `session_id`; OpenAI uses `prompt_cache_key`. OpenCode Go sends `x-opencode-session` with the actual run ID, fixed within a task and distinct for parent and child tasks, plus `User-Agent: noe/<version>`.
 
@@ -191,7 +192,7 @@ To limit total execution time, put `--timeout 5m` before the script name. For an
 
 Ordinary JavaScript can launch independent root agents concurrently with `Promise.all([run_agent(...), run_agent(...)])`; each root needs its own explicit provider/model/effort. Use `spawn_agent` when the caller needs to observe or steer work while it runs. See the [live-control example](examples/agent-control.js).
 
-In model-generated `run_js`, these six lifecycle functions are already bound. Children inherit the current parent's provider, model, effort, `maxTokens`, `hooks`, and `contextBudget` when omitted. For example, the parent can execute this tool code:
+In model-generated `run_js`, these six lifecycle functions are already bound. Children inherit the current parent's provider, model, effort, `maxTokens`, `hooks`, `contextBudget`, and `contextPolicy` when omitted. Each queued task starts with fresh history and trim counters. For example, the parent can execute this tool code:
 
 ```js
 // Summarize the two documents in parallel

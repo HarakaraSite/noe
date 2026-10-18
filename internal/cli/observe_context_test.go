@@ -38,3 +38,28 @@ func TestObserveContextAndHookProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestObserveContextTrimming(t *testing.T) {
+	input := `{"type":"context.updated","name":"worker","runId":"run-12345678","context":{"budget":{"inputTokens":1000},"modelWindow":{"tokens":null},"previous":null,"estimate":{"tokens":850,"stage":"preparing"},"remainingTokens":150,"executionContext":{"policy":"auto","budgetSource":"fallback","estimatedTokens":700,"budgetTokens":800,"usedPercent":87.5,"pendingTrim":{"id":"activity-1","beforeTokens":1200,"afterTokens":700,"removedBlocks":6}}}}
+{"type":"stdout","name":"worker","runId":"run-12345678","text":"hidden tool stdout"}
+{"type":"context.trimmed","name":"worker","runId":"run-12345678","activityId":"activity-1","beforeTokens":1200,"afterTokens":700,"removedBlocks":6,"reason":"input_budget","budgetSource":"fallback","text":"must not be shown"}
+`
+	var out, stderr bytes.Buffer
+	if code := Run(t.Context(), []string{"observe"}, strings.NewReader(input), &out, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, &stderr)
+	}
+	for _, want := range []string{
+		"context: budget=1000 / window=unknown / estimated=850 (preparing) / remaining=150 / previous=unknown / execution=~700/800 tokens (87.5%, source=fallback)",
+		"context trimmed: ~1200 -> ~700 tokens / removed blocks=6 / reason=input_budget / source=fallback",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("missing %q in %s", want, &out)
+		}
+	}
+	if strings.Contains(out.String(), "hidden tool stdout") || strings.Contains(out.String(), "must not be shown") {
+		t.Fatalf("raw output was rendered: %s", &out)
+	}
+	if strings.Count(out.String(), "context trimmed:") != 1 {
+		t.Fatalf("trim notification should be rendered only from context.trimmed: %s", &out)
+	}
+}
