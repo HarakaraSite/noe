@@ -21,6 +21,7 @@
 | [download-file.js](download-file.js) | HTTPでバイナリを取得・保存 |
 | [http-json.js](http-json.js) | JSON APIへのリクエスト |
 | [http-server.js](http-server.js) | healthとJSON echoのHTTPサーバー |
+| [agent-server/](agent-server/README.md) | HTTP / ブラウザから依頼・進捗確認・追加指示・task単位の停止を行う常駐agent |
 | [sleep-demo.js](sleep-demo.js) | 非同期の待機を使った定期表示 |
 | [repl-demo.js](repl-demo.js) | REPLへ1行ずつ貼り付けて試す計算例 |
 | [agent-route-model.js](agent-route-model.js) | カタログの候補からJevが選び、そのモデルで親agentを起動 |
@@ -30,7 +31,7 @@
 | [agent-parallel.js](agent-parallel.js) | `spawn_agent`で二つの子agentを起動・観察し、親agentが結果をまとめる |
 | [agent-control.js](agent-control.js) | keepAliveのroot agentを別terminalからsteer・queue・interrupt |
 | [agent-hooks.js](agent-hooks.js) | 外部hook・context使用量通知と自動切り捨て・root共有上限を使うOpenCode Go agent |
-| [try-agent.js](try-agent.js) | 引数のタスクをagentへ依頼。引数なしならJSで1〜100の合計を計算 |
+| [try-agent.js](try-agent.js) | 指示文・`--task-file`をagentへ渡す。provider・model・effortも指定可能 |
 
 `lib/`は例で使うモジュール、`data/`はサンプル入力です。agentの並行例は[左のJSON](data/agent/left.json)と[右のJSON](data/agent/right.json)を使います。
 
@@ -75,6 +76,16 @@ NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 ```
 
 `tail -f agent-trace.log`で実行状態を確認できます。traceは状態・使用量などのメタデータで、生成JS本文やtoolの出力を含みません。標準エラーには通常の診断も入りえます。
+
+UTF-8ファイルの指示を渡し、モデルを指定することもできます。次は[agentサーバー作成の指示](tasks/build-agent-server.md)をChatGPT経由のSolへ渡します。
+
+```sh
+./noe run --observe --events=agent-server-build.jsonl examples/try-agent.js \
+  --provider openai-chatgpt --model gpt-6.1-sol --effort high \
+  --task-file examples/tasks/build-agent-server.md
+```
+
+`--task-file`の相対パスは起動時の作業ディレクトリが基準です。省略時は従来どおり引数を指示文として使い、provider・model・effortの既定値はOpenRouter・DeepSeek V4.1 Flash・maxです。
 
 ## 意思決定モデル
 
@@ -246,3 +257,7 @@ printf 'bytes through two children\n' | ./noe run examples/process-pipeline.js
 ```
 
 `process-worker.js`は一つの子へ3件送り応答を取得します。`stdio-jsonl.js`は入力のEOFを待たずJSONLの行ごとに応答し、`process-pipeline.js`は二つの子をWeb Streamsで接続します。認証・外部provider・Nodeは不要です。[プロセス・標準I/Oガイド](../docs/process-io.md)を参照してください。
+
+## HTTP agent サーバー
+
+[agent-server](agent-server/README.md) は、ブラウザや curl から依頼を予約し、進捗・回答の確認、追加指示、依頼単位の停止ができるローカル専用の例です。`./noe run examples/agent-server/server.js` で起動します。既定は ChatGPT 経由の `gpt-6.1-sol` / `high`、ポート8080です。認証なし・全クライアントで一つの会話を共有するため、外部公開しないでください。起動設定、詳細進捗用の同一プロセスの events ログ、curl とテストの手順、安全上の制約はリンク先を参照してください。

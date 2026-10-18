@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOE agent サーバー</title>
+<style>
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.6; }
+body { max-width: 1100px; margin: auto; padding: 1rem; }
+h1, h2, h3 { line-height: 1.3; }
+h1 { font-size: 1.5rem; } h2 { font-size: 1.2rem; } h3 { font-size: 1rem; }
+.notice { border-left: .3rem solid #b77b13; padding: .5rem 1rem; }
+.layout { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr); gap: 1.5rem; }
+textarea { display: block; box-sizing: border-box; width: 100%; min-height: 6rem; margin: .4rem 0; font: inherit; }
+button { font: inherit; padding: .35rem .7rem; cursor: pointer; }
+button:disabled { cursor: default; opacity: .6; }
+button:focus-visible, textarea:focus-visible { outline: 3px solid #4b92dd; outline-offset: 2px; }
+#task-list { list-style: none; padding: 0; }
+#task-list li { margin: .5rem 0; }
+#task-list button { width: 100%; text-align: left; overflow-wrap: anywhere; }
+#task-list button[aria-current="true"] { border: 2px solid #4b92dd; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #8881; padding: .6rem; max-height: 32rem; overflow: auto; }
+.error { color: #b32323; white-space: pre-wrap; overflow-wrap: anywhere; }
+.muted { opacity: .8; font-size: .9rem; }
+#steers { overflow-wrap: anywhere; padding-left: 1.5rem; }
+[hidden] { display: none !important; }
+@media (prefers-color-scheme: dark) { .error { color: #ff9b9b; } }
+@media (max-width: 700px) { .layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>NOE agent サーバー</h1>
+<p class="notice">ローカル専用・認証なし。全利用者で一つの会話を共有します。agent はこのプロセスと同じ OS 権限で動作します。秘密情報を入力しないでください。</p>
+<p id="agent-status">接続中…</p>
+<details><summary>agent のコンテキスト・実行情報</summary><pre id="agent-context">未取得</pre></details>
+<p id="poll-status" class="muted" role="status"></p>
+<p id="poll-error" class="error" role="alert"></p>
+<p id="supervisor-error" class="error" role="alert"></p>
+<p id="log-error" class="error" role="alert"></p>
+<p id="action-status" role="status"></p>
+<p id="action-error" class="error" role="alert"></p>
+<section aria-labelledby="new-heading">
+<h2 id="new-heading">仕事を依頼</h2>
+<form id="task-form">
+<label for="instruction">指示文</label>
+<textarea id="instruction" required placeholder="例: README.md の要点を日本語で説明してください。"></textarea>
+<button id="submit-task" type="submit">依頼を予約</button>
+</form>
+</section>
+<div class="layout">
+<section aria-labelledby="list-heading">
+<h2 id="list-heading">依頼一覧</h2>
+<button id="refresh" type="button">今すぐ更新</button>
+<p id="empty-list">まだ依頼はありません。</p>
+<ul id="task-list"></ul>
+</section>
+<section aria-labelledby="detail-heading">
+<h2 id="detail-heading">依頼の詳細</h2>
+<p id="selection-hint">一覧から依頼を選択してください。</p>
+<div id="detail" hidden>
+<p id="task-meta"></p>
+<h3>指示</h3><pre id="task-instruction"></pre>
+<h3>進捗・コンテキスト</h3><pre id="progress"></pre>
+<p class="muted">定期取得した状態です。トークンの逐次配信ではありません。詳細な進捗・正確な適用記録は起動時の events ログ設定に依存します。</p>
+<h3>回答</h3><pre id="answer"></pre>
+<h3>失敗情報</h3><pre id="task-error"></pre>
+<details><summary>結果データ (result)</summary><pre id="result"></pre></details>
+<h3>追加指示</h3>
+<p class="muted">accepted / delivered は受付・配送であり、適用完了ではありません。applied のみ適用済み、cancelled は取消し、unknown は適用確認不能です。正常完了時は受理済みの指示が適用済みと判断されます。</p>
+<ul id="steers"></ul>
+<form id="steer-form">
+<label for="steer-instruction">選択した依頼への追加指示（実行中のみ）</label>
+<textarea id="steer-instruction" required></textarea>
+<button id="submit-steer" type="submit" disabled>追加指示を送信</button>
+</form>
+<p><button id="interrupt" type="button" disabled>この依頼を停止 / 予約を取消し</button></p>
+<p class="muted">停止受付は停止完了ではありません。他の予約と agent の会話は残ります。</p>
+</div>
+</section>
+</div>
+<script>
+'use strict';
+const el = id => document.getElementById(id);
+const stateNames = {
+  queued: '予約中', starting: '開始中', running: '実行中', stopping: '停止処理中',
+  completed: '完了', failed: '失敗', cancelled: '取消し'
+};
+const steerNames = {
+  accepted: '受付済み（適用未確認）', delivered: '配送済み（適用未確認）',
+  applied: '適用済み', cancelled: '取消し', unknown: '適用確認不能'
+};
+let selectedId = null;
+let selectedTask = null;
+let polling = false;
+let pollAgain = false;
+let timer;
+let submitting = false;
+let steering = false;
+let interrupting = false;
+const drafts = new Map();
+const rows = new Map();
+function text(value) {
+  if (value === undefined || value === null) return '—';
+  return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+}
+function stateLabel(state) { return (stateNames[state] || '不明') + ' (' + (state || 'unknown') + ')'; }
+function taskPath(id) { return '/tasks/' + encodeURIComponent(id); }
+async function api(path, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(path, { ...options, cache: 'no-store', signal: controller.signal });
+    const body = await response.text();
+    let value;
+    try { value = body ? JSON.parse(body) : null; } catch { value = body; }
+    if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + text(value));
+    return value;
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('通信がタイムアウトしました。受付済みの可能性があるため、一覧を確認してから再操作してください。');
+    throw error;
+  } finally { clearTimeout(timeout); }
+}
+function postInstruction(path, instruction) {
+  return api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({instruction}) });
+}
+function controls() {
+  el('submit-task').disabled = submitting;
+  el('submit-steer').disabled = steering || !selectedTask || selectedTask.state !== 'running' || !selectedTask.runId;
+  el('interrupt').disabled = interrupting || !selectedTask || !['queued', 'running'].includes(selectedTask.state);
+}
+function renderDetail(task) {
+  selectedTask = task;
+  el('detail').hidden = !task;
+  el('selection-hint').hidden = !!task;
+  el('selection-hint').textContent = selectedId ? '詳細を取得中…' : '一覧から依頼を選択してください。';
+  if (task) {
+    el('task-meta').textContent = 'ID: ' + task.id + ' / ' + stateLabel(task.state) + ' / runId: ' + (task.runId || '未開始');
+    el('task-instruction').textContent = text(task.instruction);
+    el('progress').textContent = task.progress ? text(task.progress) : '詳細な進捗は未取得です。状態: ' + stateLabel(task.state);
+    el('answer').textContent = task.answer == null ? '回答はまだありません。' : text(task.answer);
+    el('task-error').textContent = text(task.error);
+    el('result').textContent = text(task.result);
+    el('steers').replaceChildren();
+    for (const steer of task.steers || []) {
+      const li = document.createElement('li');
+      // Never infer "applied" from receipt or from failed/cancelled task states.
+      li.textContent = (steerNames[steer.status] || '未確認') + ' (' + (steer.status || 'unknown') + ') / ' +
+        text(steer.commandId) + '\n' + text(steer.instruction);
+      el('steers').append(li);
+    }
+    if (!(task.steers || []).length) {
+      const li = document.createElement('li');
+      li.textContent = '追加指示はありません。';
+      el('steers').append(li);
+    }
+  }
+  controls();
+}
+function select(id) {
+  if (id === selectedId) return;
+  if (selectedId !== null) drafts.set(selectedId, el('steer-instruction').value);
+  selectedId = id;
+  el('steer-instruction').value = drafts.get(id) || '';
+  renderDetail(null);
+  for (const [key, row] of rows) row.button.setAttribute('aria-current', String(key === selectedId));
+  refreshSoon();
+}
+function renderList(tasks) {
+  const ids = new Set(tasks.map(task => task.id));
+  for (const [id, row] of rows) {
+    if (!ids.has(id)) { row.li.remove(); rows.delete(id); }
+  }
+  for (const task of tasks) {
+    let row = rows.get(task.id);
+    if (!row) {
+      const li = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.addEventListener('click', () => select(task.id));
+      li.append(button);
+      el('task-list').append(li);
+      row = {li, button};
+      rows.set(task.id, row);
+    }
+    row.button.textContent = task.id + ' · ' + stateLabel(task.state) + '\n' + text(task.instruction).slice(0, 140);
+    row.button.setAttribute('aria-current', String(task.id === selectedId));
+  }
+  el('empty-list').hidden = tasks.length !== 0;
+}
+function refreshSoon() {
+  clearTimeout(timer);
+  if (polling) { pollAgain = true; return; }
+  timer = setTimeout(poll, 0);
+}
+async function poll() {
+  if (polling) { pollAgain = true; return; }
+  polling = true;
+  pollAgain = false;
+  try {
+    const data = await api('/tasks');
+    if (!data || !Array.isArray(data.tasks)) throw new Error('一覧 API の応答形式が不正です。');
+    renderList(data.tasks);
+    el('agent-status').textContent = 'agent: ' + text(data.agent && data.agent.agentId) + ' / ' + text(data.agent && data.agent.state);
+    el('supervisor-error').textContent = data.supervisorError ? '監視エラー: ' + text(data.supervisorError) : '';
+    el('log-error').textContent = data.logError ? 'ログ取得エラー: ' + text(data.logError) + '（詳細な進捗・追加指示の適用記録が不完全な可能性があります。表示を最新・正確とはみなさないでください）' : '';
+    el('agent-context').textContent = text(data.agent ? { context: data.agent.context, execution: data.agent.execution } : null);
+    const id = selectedId;
+    if (id !== null) {
+      const task = await api(taskPath(id));
+      if (!task || task.id !== id) throw new Error('詳細 API の応答形式が不正です。');
+      if (selectedId === id) renderDetail(task);
+    }
+    el('poll-error').textContent = '';
+    el('poll-status').textContent = '最終取得: ' + new Date().toLocaleTimeString('ja-JP') + '（約1.5秒ごとに更新）';
+  } catch (error) {
+    el('poll-error').textContent = '取得エラー: ' + error.message + '（表示は前回取得時の内容です。自動で再試行します）';
+  } finally {
+    polling = false;
+    timer = setTimeout(poll, pollAgain ? 0 : 1500);
+  }
+}
+function beginAction() { el('action-error').textContent = ''; el('action-status').textContent = ''; }
+el('task-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (submitting) return;
+  const original = el('instruction').value;
+  if (!original.trim()) { el('action-error').textContent = '指示文を入力してください。'; return; }
+  submitting = true; controls(); beginAction();
+  try {
+    const receipt = await postInstruction('/tasks', original);
+    if (el('instruction').value === original) el('instruction').value = '';
+    el('action-status').textContent = '依頼を受け付けました（完了ではありません）。';
+    const id = receipt && (receipt.id || (receipt.task && receipt.task.id));
+    if (id) select(id);
+  } catch (error) { el('action-error').textContent = '依頼エラー: ' + error.message; }
+  finally { submitting = false; controls(); refreshSoon(); }
+});
+el('steer-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (el('submit-steer').disabled) return;
+  const id = selectedId;
+  const original = el('steer-instruction').value;
+  if (!original.trim()) { el('action-error').textContent = '追加指示を入力してください。'; return; }
+  steering = true; controls(); beginAction();
+  try {
+    const receipt = await postInstruction(taskPath(id) + '/steer', original);
+    if (selectedId === id && el('steer-instruction').value === original) el('steer-instruction').value = '';
+    if (drafts.get(id) === original) drafts.delete(id);
+    el('action-status').textContent = '依頼 ' + id + ' への追加指示を受け付けました。適用は一覧のステータスで確認してください。受付: ' + text(receipt);
+  } catch (error) { el('action-error').textContent = '追加指示エラー: ' + error.message; }
+  finally { steering = false; controls(); refreshSoon(); }
+});
+el('interrupt').addEventListener('click', async () => {
+  if (el('interrupt').disabled) return;
+  const id = selectedId;
+  interrupting = true; controls(); beginAction();
+  try {
+    await api(taskPath(id) + '/interrupt', {method: 'POST'});
+    el('action-status').textContent = '依頼 ' + id + ' の停止 / 予約取消しを受け付けました。完了は状態表示で確認してください。';
+  } catch (error) { el('action-error').textContent = '停止エラー: ' + error.message; }
+  finally { interrupting = false; controls(); refreshSoon(); }
+});
+el('refresh').addEventListener('click', refreshSoon);
+refreshSoon();
+</script>
+</body>
+</html>
