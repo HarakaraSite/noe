@@ -75,6 +75,32 @@ func TestContextSnapshotKeepsUnknownsAndCachedUsageSeparate(t *testing.T) {
 	}
 }
 
+func TestContextMessageReportsComputedBudgetAndSeparateExplicitSetting(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		explicit *int64
+		total    int64
+		want     []string
+	}{
+		{name: "fallback", total: 1000000, want: []string{"Input budget: 1000000 tokens.", "Explicit input budget: not set.", "Model context window: unknown.", "Remaining input budget: 999150 tokens.", "Estimated budget use: 0.1%."}},
+		{name: "computed cap", explicit: new(int64(1000)), total: 900, want: []string{"Input budget: 900 tokens.", "Explicit input budget: 1000 tokens.", "Remaining input budget: 50 tokens.", "Estimated budget use: 94.4%."}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			snapshot := contextSnapshot{
+				Budget:           contextBudgetSnapshot{InputTokens: test.explicit},
+				Estimate:         &contextEstimate{Tokens: 850, Stage: "sent"},
+				ExecutionContext: &executionContextSnapshot{Policy: "auto", TotalInputBudgetTokens: test.total, BudgetTokens: test.total - 100, BudgetSource: "fallback"},
+			}
+			text := contextMessage(snapshot, nil)
+			for _, want := range test.want {
+				if !strings.Contains(text, want) {
+					t.Fatalf("notification missing %q: %s", want, text)
+				}
+			}
+		})
+	}
+}
+
 func TestContextPrepareAndActualRequestMeasurementWithoutObservation(t *testing.T) {
 	var sent provider.Request
 	p := &fixtureProvider{gen: func(_ context.Context, request provider.Request) (provider.Response, error) {

@@ -143,6 +143,9 @@ providerのtokenizerやadapter変換後のwire量とは一致しない。
 応答後のsnapshotは最新の送信概算を`sent`として保持し、次の判断を準備すると置き換える。
 
 標準通知は外部hookなしでもモデル要求へ一つだけ添える。
+`Execution context: ~使用量 / 予算 tokens`の分母が、実行履歴の計算済み予算と自動切り捨て有効時の閾値。
+`Input budget`は計算済みの総入力予算、`Explicit input budget`は手動指定した予算、`Model context window`はcatalogの値を表す。window不明でも計算済み予算を通知する。
+`source=fallback`はNOEの既定予算を示し、モデルの実際のwindowを示さない。この区別を組込みinstructionと毎回の通知にも記載する。
 不変instructionや保持する会話履歴へ通知をappendしないため、往復しても蓄積しない。
 各runのprovider使用量は独立して計測し、同じinstanceの次queue taskも新しいrun IDを持つ。会話のcontext trim countはinstance内で続く。
 

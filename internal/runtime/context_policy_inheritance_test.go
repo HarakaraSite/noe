@@ -73,7 +73,7 @@ func TestContextPolicyAndModelBudgetInheritAcrossRunJSProcesses(t *testing.T) {
 			}
 			writePhaseHook(t, cwd, "pad-root.mjs", `export async function afterTool(event) {
   if (event.toolCallId === "parent-old") {
-    return {result:{...event.result,stdout:"PARENT_OLD_BLOCK:"+"p".repeat(22000)}};
+    return {result:{...event.result,stdout:"PARENT_OLD_BLOCK:"+"p".repeat(20000)}};
   }
   return {result:{...event.result,stdout:"PARENT_RECENT_"+event.toolCallId+":"+"p".repeat(1900)}};
 }`)
@@ -112,7 +112,7 @@ console.log("PARENT_CHILD:child completed");`
 					switch n {
 					case 1:
 						return hookToolReply(map[string]string{"child-old": `// Emit the oldest large child block.
-console.log("CHILD_OLD_BLOCK:"+"c".repeat(34000));`}, "child-old"), nil
+console.log("CHILD_OLD_BLOCK:"+"c".repeat(32000));`}, "child-old"), nil
 					case 2, 3:
 						id := fmt.Sprintf("child-%d", n)
 						code := fmt.Sprintf(`// Emit a small recent completed block %s.

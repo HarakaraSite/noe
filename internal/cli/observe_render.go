@@ -187,10 +187,11 @@ func contextDetail(value any) string {
 			Stage  string `json:"stage"`
 		} `json:"estimate"`
 		ExecutionContext *struct {
-			BudgetSource    string   `json:"budgetSource"`
-			EstimatedTokens int64    `json:"estimatedTokens"`
-			BudgetTokens    int64    `json:"budgetTokens"`
-			UsedPercent     *float64 `json:"usedPercent"`
+			BudgetSource           string   `json:"budgetSource"`
+			EstimatedTokens        int64    `json:"estimatedTokens"`
+			BudgetTokens           int64    `json:"budgetTokens"`
+			TotalInputBudgetTokens *int64   `json:"totalInputBudgetTokens"`
+			UsedPercent            *float64 `json:"usedPercent"`
 		} `json:"executionContext"`
 		RemainingTokens *int64 `json:"remainingTokens"`
 	}
@@ -203,13 +204,22 @@ func contextDetail(value any) string {
 		}
 		return strconv.FormatInt(*n, 10)
 	}
-	parts := []string{"budget=" + number(snapshot.Budget.InputTokens), "window=" + number(snapshot.ModelWindow.Tokens)}
+	budget, remaining := snapshot.Budget.InputTokens, snapshot.RemainingTokens
+	if execution := snapshot.ExecutionContext; execution != nil && execution.TotalInputBudgetTokens != nil {
+		budget = execution.TotalInputBudgetTokens
+		remaining = nil
+		if snapshot.Estimate != nil {
+			value := *budget - snapshot.Estimate.Tokens
+			remaining = &value
+		}
+	}
+	parts := []string{"budget=" + number(budget), "window=" + number(snapshot.ModelWindow.Tokens)}
 	if snapshot.Estimate != nil {
 		parts = append(parts, fmt.Sprintf("estimated=%d (%s)", snapshot.Estimate.Tokens, snapshot.Estimate.Stage))
 	} else {
 		parts = append(parts, "estimated=unknown")
 	}
-	parts = append(parts, "remaining="+number(snapshot.RemainingTokens))
+	parts = append(parts, "remaining="+number(remaining))
 	if p := snapshot.Previous; p != nil {
 		measurement := "previous=" + number(p.PromptTokens)
 		if p.PromptTokens != nil {
@@ -229,6 +239,9 @@ func contextDetail(value any) string {
 			source = "unknown"
 		}
 		parts = append(parts, fmt.Sprintf("execution=~%d/%d tokens (%s, source=%s)", execution.EstimatedTokens, execution.BudgetTokens, percent, source))
+	}
+	if snapshot.Budget.InputTokens != nil {
+		parts = append(parts, "explicitBudget="+number(snapshot.Budget.InputTokens))
 	}
 	return strings.Join(parts, " / ")
 }

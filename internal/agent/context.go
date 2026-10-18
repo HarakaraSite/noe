@@ -305,6 +305,7 @@ func contextMessage(snapshot contextSnapshot, runtimeInfo map[string]string) str
 			percent = fmt.Sprintf("%.1f%%", *execution.UsedPercent)
 		}
 		fmt.Fprintf(&out, "Execution context: ~%d / %d tokens (%s); source=%s; total input allowance=%d.\n", execution.EstimatedTokens, execution.BudgetTokens, percent, execution.BudgetSource, execution.TotalInputBudgetTokens)
+		out.WriteString("The Execution context denominator is the history budget and trimming threshold when enabled. Input budget is the computed total allowance, including fixed instructions; it remains available when Model context window is unknown.\n")
 		if execution.Policy == "auto" {
 			out.WriteString("Older completed history may be discarded at the budget threshold. Save information only if useful for the task; saving is optional.\n")
 			if execution.NearBudget {
@@ -320,10 +321,29 @@ func contextMessage(snapshot contextSnapshot, runtimeInfo map[string]string) str
 			fmt.Fprintf(&out, "Context trimmed: ~%d -> ~%d tokens; older execution history was removed.\n", trim.BeforeTokens, trim.AfterTokens)
 		}
 	}
-	if snapshot.Budget.InputTokens == nil {
+	budget, remaining, usedPercent := snapshot.Budget.InputTokens, snapshot.RemainingTokens, snapshot.UsedPercent
+	if execution := snapshot.ExecutionContext; execution != nil {
+		value := execution.TotalInputBudgetTokens
+		budget = &value
+		remaining, usedPercent = nil, nil
+		if snapshot.Estimate != nil {
+			left := value - snapshot.Estimate.Tokens
+			remaining = &left
+			if value > 0 {
+				percent := float64(snapshot.Estimate.Tokens) * 100 / float64(value)
+				usedPercent = &percent
+			}
+		}
+	}
+	if budget == nil {
 		out.WriteString("Input budget: unknown.\n")
 	} else {
-		fmt.Fprintf(&out, "Input budget: %d tokens.\n", *snapshot.Budget.InputTokens)
+		fmt.Fprintf(&out, "Input budget: %d tokens.\n", *budget)
+	}
+	if snapshot.Budget.InputTokens == nil {
+		out.WriteString("Explicit input budget: not set.\n")
+	} else {
+		fmt.Fprintf(&out, "Explicit input budget: %d tokens.\n", *snapshot.Budget.InputTokens)
 	}
 	if snapshot.ModelWindow.Tokens == nil {
 		out.WriteString("Model context window: unknown.\n")
@@ -342,15 +362,15 @@ func contextMessage(snapshot contextSnapshot, runtimeInfo map[string]string) str
 	} else {
 		fmt.Fprintf(&out, "Next request estimate: about %d tokens (%s).\n", snapshot.Estimate.Tokens, snapshot.Estimate.Stage)
 	}
-	if snapshot.RemainingTokens == nil {
+	if remaining == nil {
 		out.WriteString("Remaining input budget: unknown.\n")
 	} else {
-		fmt.Fprintf(&out, "Remaining input budget: %d tokens.\n", *snapshot.RemainingTokens)
+		fmt.Fprintf(&out, "Remaining input budget: %d tokens.\n", *remaining)
 	}
-	if snapshot.UsedPercent == nil {
+	if usedPercent == nil {
 		out.WriteString("Estimated budget use: unknown.\n")
 	} else {
-		fmt.Fprintf(&out, "Estimated budget use: %.1f%%.\n", *snapshot.UsedPercent)
+		fmt.Fprintf(&out, "Estimated budget use: %.1f%%.\n", *usedPercent)
 	}
 	keys := make([]string, 0, len(runtimeInfo))
 	for key := range runtimeInfo {

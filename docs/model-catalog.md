@@ -60,7 +60,31 @@ console.log(JSON.stringify(agents, null, 2));
 
 組込み候補はOpenRouterのDeepSeek V4.1 Flash・GPT-6 Lunaと3種類の意思決定モデル、OpenCode GoのDeepSeek V4.1 Flash・GPT-6 Luna、OpenAIのChatGPT/APIキー経路それぞれのgpt-6.1-sol・gpt-6-lunaです。生成モデルのIDと初期説明は[DeepSeekのモデルページ](https://openrouter.ai/deepseek/deepseek-v4.1-flash)・[GPT-6 Lunaのモデルページ](https://openrouter.ai/openai/gpt-6-luna)を2026-10-17に確認したものです。意思決定モデルとOpenCode Go経路の実接続範囲は[Decisions検証](decision-openrouter-validation.md)・[provider検証](provider-config-validation.md)を参照してください。価格や性能の自動更新は行いません。説明・タグは自身の評価と選択方針に合わせて上書きしてください。
 
-**実行予算に使うcontext metadata:** 2026-10-18確認時、[OpenRouterのDeepSeek V4.1 Flashページ](https://openrouter.ai/deepseek/deepseek-v4.1-flash)は1,048,576-token context windowを示しています。この値はOpenRouterの該当catalog項目だけに設定し、[OpenCode Goの公式console docs](https://opencode.ai/v2/docs/console/go/)にはwindow値の記載がないため、同名modelでもprovider間で転用しません。確認できていない`maxOutputTokens`は未設定のままです。正の`maxTokens`、`contextPolicy.responseReserveTokens`、catalogの`maxOutputTokens`がすべてない場合、応答予約はunknownとして扱われます。
+## context metadataの設定値
+
+2026-10-18確認。単位はtokens。`—`はカタログの`maxOutputTokens`を未設定としている項目。
+
+| provider | model | contextWindow | maxOutputTokens | 根拠 |
+| --- | --- | ---: | ---: | --- |
+| openrouter | deepseek/deepseek-v4.1-flash | 1,048,576 | — | [モデルページ](https://openrouter.ai/deepseek/deepseek-v4.1-flash)・[モデルAPI](https://openrouter.ai/api/v1/models) |
+| openrouter | openai/gpt-6-luna | 1,050,000 | 128,000 | [モデルページ](https://openrouter.ai/openai/gpt-6-luna)・モデルAPI |
+| openrouter | typesafe/jev-1.14 | 262,144 | — | [モデルページ](https://openrouter.ai/typesafe/jev-1.14)・[endpoint API](https://openrouter.ai/api/v1/models/typesafe/jev-1.14/endpoints) |
+| openrouter | perplexity/pplx-decider-v1.2 | 262,144 | — | [モデルページ](https://openrouter.ai/perplexity/pplx-decider-v1.2)・[endpoint API](https://openrouter.ai/api/v1/models/perplexity/pplx-decider-v1.2/endpoints) |
+| openrouter | cloudflare/clef | 65,536 | — | [モデルページ](https://openrouter.ai/cloudflare/clef)・[endpoint API](https://openrouter.ai/api/v1/models/cloudflare/clef/endpoints) |
+| opencode-go | deepseek-v4.1-flash | 1,048,576 | — | 利用者指定により対応するOpenRouterモデルから採用 |
+| opencode-go | gpt-6-luna | 1,050,000 | 128,000 | 利用者指定により対応するOpenRouterモデルから採用 |
+| openai-chatgpt | gpt-6.1-sol | 872,000 | 128,000 | アカウントのモデルAPI最大window・[公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6.1-sol) |
+| openai-chatgpt | gpt-6-luna | 872,000 | 128,000 | アカウントのモデルAPI最大window・[公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6-luna) |
+| openai-api | gpt-6.1-sol | 1,050,000 | 128,000 | [公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6.1-sol) |
+| openai-api | gpt-6-luna | 1,050,000 | 128,000 | [公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6-luna) |
+
+**ChatGPT経路:** [公式のモデル取得手順](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)に従い、NOEで使用する認証の`GET https://api.openai.com/v1/models`を確認した。Solは`context_window: 500000`、Lunaは`context_window: 272000`、両方とも`max_context_window: 872000`だった。NOEは長い入力に使う最大値を採用し、最大出力の予約には公式モデル仕様の128,000を使う。アカウントの取得値は全アカウント共通の保証ではなく、利用者の取得値に合わせて外部JSONで上書きできる。モデル要求bodyは変更していない。
+
+**OpenCode Go:** [公式Goドキュメント](https://opencode.ai/v2/docs/console/go/)でwindow・最大出力を確認できなかったため、今回の利用者指定で対応するOpenRouterの設定値を採用した。OpenCode Go経路で実測したcapacityを表すものではない。
+
+**DeepSeekの出力予約:** [endpoint API](https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints)の最大出力は提供元ごとに異なり、取得例では131,072〜943,718 tokens。モデルページのFAQには1,048,576 completion tokensともある。単一の`maxOutputTokens`としては未設定を維持する。現行実装はこの値を出力予約にも使うため、943,718を設定すると1M windowでも実行履歴予算が約9万tokensへ減る。出力予約を明示したい場合は`contextPolicy.responseReserveTokens`、または実際の出力上限を指定する`maxTokens`を利用できる。
+
+**意思決定モデル:** `kind: decision`の3件はwindowだけを記録し、生成モデル用の出力予約は設定しない。`noe:decision`へのstateは引き続き切り捨て・圧縮せず、一度の要求として渡す。ClefのWorkers AI経路が長いtext stateの先頭約2,000 tokensだけを扱う制約は、window値とは別に[意思決定ガイド](decision.md)を参照すること。
 
 ## Jevによる起動前の選択
 

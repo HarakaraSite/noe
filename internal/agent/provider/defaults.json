@@ -30,7 +30,8 @@
             "tags": [
               "classification",
               "routing"
-            ]
+            ],
+            "contextWindow": 262144
           }
         },
         "perplexity/pplx-decider-v1.2": {
@@ -40,7 +41,8 @@
             "tags": [
               "classification",
               "routing"
-            ]
+            ],
+            "contextWindow": 262144
           }
         },
         "cloudflare/clef": {
@@ -50,7 +52,8 @@
             "tags": [
               "classification",
               "routing"
-            ]
+            ],
+            "contextWindow": 65536
           }
         },
         "openai/gpt-6-luna": {
@@ -60,7 +63,9 @@
             "tags": [
               "lightweight",
               "latency-sensitive"
-            ]
+            ],
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000
           }
         }
       }
@@ -88,7 +93,9 @@
             "tags": [
               "lightweight",
               "latency-sensitive"
-            ]
+            ],
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000
           }
         },
         "gpt-5.6-luna": {
@@ -124,7 +131,8 @@
               "coding",
               "multi-step",
               "long-context"
-            ]
+            ],
+            "contextWindow": 1048576
           }
         }
       }
@@ -145,6 +153,8 @@
           "catalog": {
             "kind": "agent",
             "description": "Candidate for complex coding and multi-step agent work.",
+            "contextWindow": 872000,
+            "maxOutputTokens": 128000,
             "tags": [
               "coding"
             ]
@@ -156,7 +166,9 @@
             "description": "Candidate for lightweight and latency-sensitive agent work.",
             "tags": [
               "lightweight"
-            ]
+            ],
+            "contextWindow": 872000,
+            "maxOutputTokens": 128000
           }
         }
       },
@@ -184,6 +196,8 @@
           "catalog": {
             "kind": "agent",
             "description": "Candidate for complex coding and multi-step agent work.",
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
             "tags": [
               "coding"
             ]
@@ -195,7 +209,9 @@
             "description": "Candidate for lightweight and latency-sensitive agent work.",
             "tags": [
               "lightweight"
-            ]
+            ],
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000
           }
         }
       },

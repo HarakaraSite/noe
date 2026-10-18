@@ -178,7 +178,7 @@ console.log("child budgets verified");`}, "children"), nil
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if !strings.Contains(seen["inherited-budget"], "Input budget: 9000") || !strings.Contains(seen["cleared-budget"], "Input budget: unknown") {
+	if !strings.Contains(seen["inherited-budget"], "Input budget: 9000") || (!strings.Contains(seen["cleared-budget"], "Input budget: 1000000 tokens") || !strings.Contains(seen["cleared-budget"], "Explicit input budget: not set")) {
 		t.Fatalf("run_js defaults lost inheritance/clear: %+v", seen)
 	}
 }

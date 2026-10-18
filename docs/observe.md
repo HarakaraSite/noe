@@ -6,7 +6,7 @@ protected user messageとして追加します。live contextのtrim回数もins
 新しいagent instanceは独立した会話とtrim状態を持ちます。
 
 `--observe`と保存ログの表示では、`context:`行に入力予算・モデルwindow・次要求の
-`estimated`値・残量・`previous`実測と、実行履歴の使用量／予算／sourceを表示する。未知値は`unknown`。
+`estimated`値・残量・`previous`実測と、実行履歴の使用量／予算／sourceを表示する。`budget`と`remaining`には計算済みの総入力予算とその残量を使い、window不明時もfallback予算を表示する。明示した設定値は`explicitBudget`として別に表示する。古いログに計算済み予算がなければ明示予算を使い、それも不明なら`unknown`。
 実際に切り捨てた時だけ`context.trimmed`から前後概算と削除block数を表示する。
 概算はtokenizerによる実測ではなく、`preparing`/`sent`は算出した段階を示す。
 `hook started`は実行中のphase/moduleを表示し、失敗・取消しも確認できる。
@@ -63,7 +63,7 @@ tail -f agent.jsonl | ./noe observe
 
 ```text
 [parent-A/12345678] model: waiting for response
-[parent-A/12345678] context: budget=unknown / window=unknown / estimated=... / execution=~.../... tokens (..., source=fallback)
+[parent-A/12345678] context: budget=1000000 / window=unknown / estimated=... / execution=~.../... tokens (..., source=fallback)
 [parent-A/12345678] context trimmed: ~... -> ~... tokens / removed blocks=12 / reason=input_budget / source=fallback
 [parent-A/12345678/abcdef12] run_js started: Read README.md
 [parent-A/12345678/abcdef12] run_js succeeded: 28ms

@@ -63,3 +63,25 @@ func TestObserveContextTrimming(t *testing.T) {
 		t.Fatalf("trim notification should be rendered only from context.trimmed: %s", &out)
 	}
 }
+
+func TestObserveComputedBudgetWithoutExplicitBudgetOrWindow(t *testing.T) {
+	input := `{"type":"context.updated","context":{"budget":{"inputTokens":null},"modelWindow":{"tokens":null},"estimate":{"tokens":6000,"stage":"sent"},"remainingTokens":null,"executionContext":{"budgetSource":"fallback","estimatedTokens":1000,"budgetTokens":995000,"totalInputBudgetTokens":1000000}}}
+{"type":"context.updated","context":{"budget":{"inputTokens":1000},"modelWindow":{"tokens":2000},"estimate":{"tokens":850,"stage":"sent"},"remainingTokens":150,"executionContext":{"budgetSource":"combined","estimatedTokens":700,"budgetTokens":800,"totalInputBudgetTokens":900}}}
+`
+	var out, stderr bytes.Buffer
+	if code := Run(t.Context(), []string{"observe"}, strings.NewReader(input), &out, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, &stderr)
+	}
+	for _, want := range []string{
+		"budget=1000000 / window=unknown / estimated=6000 (sent) / remaining=994000",
+		"budget=900 / window=2000 / estimated=850 (sent) / remaining=50",
+		"explicitBudget=1000",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("missing %q in %s", want, &out)
+		}
+	}
+	if strings.Contains(out.String(), "budget=unknown") {
+		t.Fatalf("computed budget was hidden: %s", &out)
+	}
+}
