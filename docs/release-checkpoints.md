@@ -465,3 +465,30 @@ Embedded build information confirms the release-tag revision, an unmodified sour
 Downloaded assets and checksum records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.1-published-p2dzbaaf/`; orchestration, gate output and feature-smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.6.1-release-lx0i3r48/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.6.1` (48,586,912 bytes).
 
 This documentation-only verification commit follows publication without moving the release tag. Native macOS, Windows and arm64 execution remains unverified.
+
+
+## v1.7.0 preparation — 2026-10-18
+
+Checked source revision: `d09a365d1416c9a8e9ee1f10046e75f167722aca` (image implementation `9e472e2`, followed by a test-fixture timing correction). The preparation commit adds this record and completes the image entries in both READMEs; application and test source remain the checked revision. Checks and builds used a clean detached checkout, preserving the user's unrelated `agent-server-build.jsonl` outside the release.
+
+This release adds agent image input and independent image generation, including owned snapshots, complete-block conversation/queue/trim integration, hook selection, context estimates, provider configuration/catalog, structured errors and observation. It also includes the model-window/budget clarifications, HTTP agent-server example and example reorganization committed since v1.6.1. See the [release notes](releases/v1.7.0.md), [implementation record](agent-images-implementation.md), and [live checks](agent-images-integration.md). CLI version, version assertions, both README release/helper links, and notes use v1.7.0.
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed on the final checked revision |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1` | Passed, including Linux PTY and opt-in local MCP SDK checks |
+| `CGO_ENABLED=0 go vet ./...` and `go vet -tags=e2e ./...` | Passed |
+| `CGO_ENABLED=1 go test -race ./internal/... -count=1` | Passed after the timing-fixture correction, with `GORACE=atexit_sleep_ms=0` |
+| Focused CLI timeout race check, repeated three times | Passed |
+| Six CGO-free profile builds, `-trimpath -s -w -X noe/internal/cli.Version=v1.7.0` | Passed; all local SHA256SUMS entries verified |
+| Native binary checks | Eleven passed: version, arithmetic, lazy modules, Intl, helper help, import maps, streams, owned process, Exa import, image exports/catalog |
+| Hooks/instruction, context and queue fixture smokes | Passed: hook transforms/counters, four requests across two trims, and prior tool/final/reasoning continuation over two queue runs |
+| New image fixture smoke | Passed: parent chat→independent OpenAI image endpoint→atomic save→read_image→next chat; original PNG bytes preserved, null result replacement retains the image, correct counters and metadata-only events |
+| Embedded dependencies and VCS information | go-quickjs v0.27.0, added x/image v0.47.0, checked source revision and `vcs.modified=false` |
+| Markdown references and whitespace | All 394 changed-document local references resolve; `git diff --check` passed |
+
+The initial race run hit the existing CLI timeout fixture before its managed process reached HTTP: the CLI correctly returned 124, but the test assumed startup within 300ms. The fixture now allows 2 seconds before testing cancellation of the deliberately blocked request. No application behavior changed; the focused test, CLI suite, full race suite, full unit suite and E2E suite passed afterward.
+
+Environment: Linux amd64, Go 1.27.2, C toolchain for race, Linux PTY. E2E reused the prepared MCP SDK bundle at `/tmp/noe-process-mcp.wzVT64/mcp-client.bundle.mjs`. The release profile/workflow is unchanged. The local Linux amd64 binary is 49,164,448 bytes with release flags. Records, checksums, logs, fixture servers and builds are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.0-release-gf9uhahi/`.
+
+The earlier authorized real-provider checks are recorded separately, including Sol's four-quadrant recognition and generation/readback. Release preparation and publication verification use local fixtures, without further provider calls. Native macOS, Windows and arm64 execution remains unverified. Tag-triggered workflow publication and downloaded assets are verified after tagging.

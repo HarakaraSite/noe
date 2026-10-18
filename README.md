@@ -158,7 +158,7 @@ The root agent requires explicit `provider`, `model`, and `effort`. Switch provi
 Agents can inspect local PNG, JPEG, and WebP files with `read_image()` from `run_js`. Top-level JavaScript can generate one image with `generate_image()` using an explicitly selected provider and model:
 
 ```sh
-./noe run examples/image/read.js ./tmp/screenshot.png
+./noe run examples/image/read.js ./tmp/screenshot.png openai-api gpt-6.1-sol
 ./noe run examples/image/generate.js
 ```
 
@@ -358,6 +358,7 @@ REPL `await` supports expressions, single-variable initialization, and assignmen
 | Live child-process I/O and termination | `noe:process` (`spawn`) |
 | Standard byte streams | `noe:io` (`stdin`, `stdout`, `stderr`, cancellation-aware `pipe`) |
 | Structured decisions | `noe:decision` (`decide`) |
+| Image input and generation | `noe:image` (`read_image`, `generate_image`) |
 | Model catalog | `noe:agent` (`list_models`) |
 | ChatGPT credential registration | `noe:auth` (`save_chatgpt_credentials`), used by the sign-in helper |
 | Output | `console.log`, `console.warn`, `console.error` |
@@ -372,7 +373,7 @@ See the [API reference](docs/api.md) for arguments, return values, errors, and s
 
 ## Built-in modules and capabilities
 
-Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE additionally provides `noe:agent`, `noe:decision`, and `noe:auth` in the main runtime; importing them from a Worker is unsupported. `noe:process` and `noe:io` work in ordinary scripts, agent-generated JavaScript, and Workers. See the [process and standard I/O guide](docs/process-io.md) for live streams, process ownership, and cancellation. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve to installed built-ins or exact entries in an explicitly supplied local import map; local modules require `.js` or `.mjs` extensions.
+Scripts use the go-quickjs standard library's Web APIs and Node-style modules, including `fs`, `process`, `os`, `path`, `child_process`, `dns`, `http`, `worker_threads`, and `crypto`. It also provides timers, Web Streams, WebSocket, and workers. NOE additionally provides `noe:agent`, `noe:decision`, `noe:image`, and `noe:auth` in the main runtime; importing them from a Worker is unsupported. `noe:process` and `noe:io` work in ordinary scripts, agent-generated JavaScript, and Workers. See the [process and standard I/O guide](docs/process-io.md) for live streams, process ownership, and cancellation. NOE has no separate `noe` JavaScript global. These APIs are partial implementations; NOE provides the compatibility implemented by the pinned stdlib; full Node.js or Deno compatibility, npm, package installation, and the original QuickJS `std` module are not provided. Bare imports resolve to installed built-ins or exact entries in an explicitly supplied local import map; local modules require `.js` or `.mjs` extensions.
 
 The runtime grants scripts full access to the current process environment and local filesystem, command execution, DNS and network requests, HTTP listeners, WebSocket connections, and workers. It is not a sandbox: scripts can act with the operating-system privileges of the user running NOE.
 

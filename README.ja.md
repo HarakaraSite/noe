@@ -358,6 +358,7 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 | 子プロセスの逐次I/O・停止 | `noe:process`の`spawn` |
 | 標準I/Oのバイトストリーム | `noe:io`の`stdin`・`stdout`・`stderr`・取消し対応`pipe` |
 | 構造化された意思決定 | `noe:decision`の`decide` |
+| 画像入力・生成 | `noe:image`の`read_image`・`generate_image` |
 | モデルカタログ | `noe:agent`の`list_models` |
 | ChatGPT認証登録 | 認証ヘルパーから使う`noe:auth`の`save_chatgpt_credentials` |
 | 出力 | `console.log`・`console.warn`・`console.error` |
@@ -372,7 +373,7 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 
 ## 組み込みモジュールと利用権限
 
-`fs`・`process`・`os`・`path`・`child_process`・`dns`・`http`・`worker_threads`・`crypto`などのgo-quickjs標準ライブラリをimportできます。timer、Web Streams、WebSocket、Workersも利用できます。NOE独自の`noe:agent`・`noe:decision`・`noe:auth`はmain runtimeで使え、Workerからのimportは未対応です。`noe:process`と`noe:io`は通常JS・agent生成JS・Workerで利用できます。使い方は[プロセス・標準I/Oガイド](docs/process-io.md)を参照してください。JavaScriptのグローバル`noe`はありません。NodeやDenoの完全互換ではなく、npm・パッケージ導入・QuickJS本来の`std`モジュールも提供しません。bare importは組込み名と、明示したimport mapの完全一致entryを解決します。ローカルのソースは相対・絶対pathとローカルfile URLに対応し、`.js`・`.mjs`を明示します。`--import-map path`のtargetはmapファイル基準で、対応表はWorker・agent生成JSへ継承されます。[import mapガイド](docs/import-map.md)と[利用例](examples/import-map/main.js)を参照してください。
+`fs`・`process`・`os`・`path`・`child_process`・`dns`・`http`・`worker_threads`・`crypto`などのgo-quickjs標準ライブラリをimportできます。timer、Web Streams、WebSocket、Workersも利用できます。NOE独自の`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`はmain runtimeで使え、Workerからのimportは未対応です。`noe:process`と`noe:io`は通常JS・agent生成JS・Workerで利用できます。使い方は[プロセス・標準I/Oガイド](docs/process-io.md)を参照してください。JavaScriptのグローバル`noe`はありません。NodeやDenoの完全互換ではなく、npm・パッケージ導入・QuickJS本来の`std`モジュールも提供しません。bare importは組込み名と、明示したimport mapの完全一致entryを解決します。ローカルのソースは相対・絶対pathとローカルfile URLに対応し、`.js`・`.mjs`を明示します。`--import-map path`のtargetはmapファイル基準で、対応表はWorker・agent生成JSへ継承されます。[import mapガイド](docs/import-map.md)と[利用例](examples/import-map/main.js)を参照してください。
 
 スクリプトには、実行中プロセスの環境変数とローカルファイルシステム全体、コマンド実行、DNS・ネットワーク通信、HTTP待受、WebSocket、Workersの権限を渡します。NOEはsandboxではなく、スクリプトは実行ユーザーのOS権限で動作します。
 
