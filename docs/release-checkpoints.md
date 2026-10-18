@@ -492,3 +492,22 @@ The initial race run hit the existing CLI timeout fixture before its managed pro
 Environment: Linux amd64, Go 1.27.2, C toolchain for race, Linux PTY. E2E reused the prepared MCP SDK bundle at `/tmp/noe-process-mcp.wzVT64/mcp-client.bundle.mjs`. The release profile/workflow is unchanged. The local Linux amd64 binary is 49,164,448 bytes with release flags. Records, checksums, logs, fixture servers and builds are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.0-release-gf9uhahi/`.
 
 The earlier authorized real-provider checks are recorded separately, including Sol's four-quadrant recognition and generation/readback. Release preparation and publication verification use local fixtures, without further provider calls. Native macOS, Windows and arm64 execution remains unverified. Tag-triggered workflow publication and downloaded assets are verified after tagging.
+
+
+## v1.7.0 Release validation — 2026-10-18
+
+- Annotated tag: `v1.7.0`, pointing to `09f21a8790488a234bb6092b120e2914305e7aba`. The peeled remote tag matches the successful workflow commit.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/13): succeeded (API run ID 194).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.0): published, neither draft nor prerelease (Release ID 127). Its description matches the committed [release notes](releases/v1.7.0.md).
+
+The first tag-triggered workflow (run 12, API ID 193) failed the existing process-cleanup fixture: it checked for immediate PID disappearance after agent-group completion. Source inspection and independent review confirmed that the separately supervised process is reaped asynchronously after its owner closes; agent completion does not wait for that final reap. The failed run did not capture the process state, so its exact state is unknown. A 200-run diagnostic did not reproduce a persistent process. The follow-up test commit `0531679` allows two seconds for disappearance, still requiring ENOENT and rejecting a remaining process or zombie; it passed 100 normal and 30 race repetitions. This test-only correction follows the release tag on main and is not included in the tagged source.
+
+The tag was left unchanged. Manually dispatching the release workflow through the Forgejo API against the same `v1.7.0` ref passed all publication gates. The workflow built all six profile targets and uploaded six binaries plus `SHA256SUMS`. All seven assets were downloaded; every binary checksum matched the published manifest.
+
+The downloaded Linux amd64 binary passed all eleven native checks. Four local-fixture smokes also passed: hooks/instruction ordering and transformed tool results; four requests across two context trims; conversation continuation over two queue runs; and parent chat → independent image generation → atomic file save → read_image → next model request. The image check verified the original PNG bytes, metadata-only events, retained image after a null result replacement, and three provider calls split into two chat calls and one image call.
+
+Embedded build information confirms the tag revision, an unmodified source tree, go-quickjs v0.27.0 and x/image v0.47.0. The versioned ChatGPT helper download matches the committed script byte-for-byte. No additional real-provider request was made during release preparation or publication verification.
+
+Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.0-published-d_73t7c5/`; orchestration, gate output, CI diagnostics and fixture-smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.0-release-gf9uhahi/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.7.0` (49,164,448 bytes).
+
+The test and documentation follow-ups are pushed to main without moving the release tag. Native macOS, Windows and arm64 execution remains unverified.
