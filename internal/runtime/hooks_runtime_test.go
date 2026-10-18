@@ -49,11 +49,7 @@ func TestHookModuleMapDependenciesAndFreshQueueRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
-		var input struct{ Content string }
-		if err := json.Unmarshal(req.Messages[1], &input); err != nil {
-			return provider.Response{}, err
-		}
-		return agentAnswer(input.Content), nil
+		return agentAnswer(interruptUserPrompt(req)), nil
 	})
 	source := `import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",hooks:["project-hooks"]},undefined,{keepAlive:true});

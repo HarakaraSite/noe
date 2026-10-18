@@ -107,6 +107,46 @@ type contextRunState struct {
 	prepared               bool
 }
 
+// contextContinuation carries only facts that remain meaningful when a queue
+// task starts a new run. Pending plans and prepared request state stay local
+// to their run.
+type contextContinuation struct {
+	previous               *contextPrevious
+	trimCount              int
+	lastTrim               *contextTrimSnapshot
+	pendingNotice          *contextTrimSnapshot
+	pendingTrimActivityIDs []string
+}
+
+func (s *contextRunState) restoreConversation(previous *contextContinuation) {
+	if previous == nil {
+		return
+	}
+	s.previous = cloneContextPrevious(previous.previous)
+	s.trimCount = previous.trimCount
+	s.lastTrim = cloneContextTrimSnapshot(previous.lastTrim)
+	s.pendingNotice = cloneContextTrimSnapshot(previous.pendingNotice)
+	s.pendingTrimActivityIDs = append([]string(nil), previous.pendingTrimActivityIDs...)
+}
+
+func (s *contextRunState) conversationContinuation() *contextContinuation {
+	return &contextContinuation{
+		previous:               cloneContextPrevious(s.previous),
+		trimCount:              s.trimCount,
+		lastTrim:               cloneContextTrimSnapshot(s.lastTrim),
+		pendingNotice:          cloneContextTrimSnapshot(s.pendingNotice),
+		pendingTrimActivityIDs: append([]string(nil), s.pendingTrimActivityIDs...),
+	}
+}
+
+func cloneContextTrimSnapshot(trim *contextTrimSnapshot) *contextTrimSnapshot {
+	if trim == nil {
+		return nil
+	}
+	copy := *trim
+	return &copy
+}
+
 func parseContextBudget(raw json.RawMessage) (*ContextBudget, bool, error) {
 	if len(raw) == 0 {
 		return nil, false, nil
@@ -233,6 +273,7 @@ func (h *Host) storeContextSnapshotLocked(run *agentRun, now time.Time) contextS
 		copy.Previous = cloneContextPrevious(snapshot.Previous)
 		copy.Estimate = cloneContextEstimate(snapshot.Estimate)
 		run.instance.context = &copy
+		run.instance.conversationContext = run.context.conversationContinuation()
 	}
 	return snapshot
 }

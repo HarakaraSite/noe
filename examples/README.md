@@ -109,6 +109,8 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 ./noe queue <agent-id> 'README.mdの目的を一文で説明してください'
 ```
 
+queueで始まるtaskは新しいrun IDを持ちますが、同じagentが前taskで作った会話と最終回答を引き継ぎます。予約した指示はtask開始時にprotected user messageとして追加され、trim済みの古い履歴は戻りません。system instructionはagentの最初のtaskで読み込み、その後のqueueでは再読込みしません。各taskのruntime・hook module・`maxSteps`・task interrupt scopeは新しくなり、trim countはagent内で続きます。
+
 `./noe interrupt --run <run-id>`はそのtaskだけを止め、instanceをidleにします。実行を完全に終了するには`agentId`を指定します。
 
 ```sh

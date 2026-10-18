@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -30,13 +31,15 @@ type steerInstruction struct {
 }
 
 type applySteersRequest struct {
-	RunID      string   `json:"runId"`
-	CommandIDs []string `json:"commandIds"`
+	RunID      string                `json:"runId"`
+	CommandIDs []string              `json:"commandIds"`
+	Snapshot   *conversationSnapshot `json:"snapshot,omitempty"`
 }
 
 type commitFinalRequest struct {
-	RunID  string `json:"runId"`
-	Answer string `json:"answer"`
+	RunID    string                `json:"runId"`
+	Answer   string                `json:"answer"`
+	Snapshot *conversationSnapshot `json:"snapshot,omitempty"`
 }
 
 type commitFinalResponse struct {
@@ -272,10 +275,50 @@ func (b *broker) handleApplySteers(w http.ResponseWriter, r *http.Request, op *O
 			}
 		}
 	}
+	if run.instance != nil {
+		if request.Snapshot == nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusBadRequest, "conversation", "managed task steer acknowledgement requires a snapshot")
+			return
+		}
+		if err := validateConversationSnapshot(request.Snapshot); err != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusBadRequest, "conversation", err.Error())
+			return
+		}
+		if allApplied {
+			if !conversationSnapshotEqual(run.instance.conversation, request.Snapshot) {
+				h.mu.Unlock()
+				writeRPCError(w, http.StatusConflict, "conversation", "applied steer snapshot is stale")
+				return
+			}
+		} else {
+			if err := validateConversationAppend(run.instance.conversation, request.Snapshot, len(commands), "protected"); err != nil {
+				h.mu.Unlock()
+				writeRPCError(w, http.StatusConflict, "conversation", err.Error())
+				return
+			}
+			entries := request.Snapshot.Entries[len(run.instance.conversation.Entries):]
+			for index, command := range commands {
+				var message struct {
+					Role    string `json:"role"`
+					Content string `json:"content"`
+				}
+				if len(entries[index].Messages) != 1 || json.Unmarshal(entries[index].Messages[0], &message) != nil || message.Role != "user" || message.Content != command.instruction {
+					h.mu.Unlock()
+					writeRPCError(w, http.StatusConflict, "conversation", "steer snapshot does not match the delivered commands")
+					return
+				}
+			}
+		}
+	}
 	if !allApplied {
 		for _, command := range commands {
 			command.status = "applied"
 			run.pendingSteerActivityIDs = appendUniqueActivityIDs(run.pendingSteerActivityIDs, command.activityID)
+		}
+		if run.instance != nil {
+			run.instance.conversation = cloneConversationSnapshot(request.Snapshot)
 		}
 	}
 	h.mu.Unlock()
@@ -310,6 +353,24 @@ func (b *broker) handleCommitFinal(w http.ResponseWriter, r *http.Request, op *O
 		writeRPCError(w, http.StatusConflict, code, message)
 		return
 	}
+	if run.instance != nil {
+		if request.Snapshot == nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusBadRequest, "conversation", "managed task final commit requires a snapshot")
+			return
+		}
+		if run.modelStep == nil || !run.modelStep.responseComplete || len(run.modelStep.toolCalls) != 0 {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "final", "managed task has no complete final assistant response")
+			return
+		}
+		alreadyStored := conversationSnapshotEqual(run.instance.conversation, request.Snapshot)
+		if err := validateFinalConversationCandidate(run.instance.conversation, request.Snapshot, request.Answer, alreadyStored); err != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "conversation", err.Error())
+			return
+		}
+	}
 	if run.finalClosed {
 		if run.finalAnswer != request.Answer {
 			h.mu.Unlock()
@@ -334,6 +395,11 @@ func (b *broker) handleCommitFinal(w http.ResponseWriter, r *http.Request, op *O
 		// A rejected final candidate starts a new logical judgment, but only
 		// after its afterModelResponse hooks and this finalization gate finish.
 		run.modelStep.finished = true
+	}
+	if run.instance != nil {
+		// The full provider assistant object is committed together with the
+		// finalization gate, including candidates rejected by a pending steer.
+		run.instance.conversation = cloneConversationSnapshot(request.Snapshot)
 	}
 	if len(instructions) != 0 {
 		h.mu.Unlock()

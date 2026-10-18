@@ -18,7 +18,7 @@ JavaScriptの`noe`グローバルは廃止済みです。`fs/promises`・`proces
 
 agentの共通インストラクションは[`internal/agent/instructions.md`](../internal/agent/instructions.md)で管理します。Goの`embed`でバイナリに含め、モデルのtask loopを実行するprivate moduleが利用します。公開`noe:agent` moduleは起動・観察・queue・steer・interruptのAPIを提供します。文面の変更を実行へ反映するには再ビルドします。
 
-利用者の追加指示は共通設定とworkspaceの`instructions/*.md`からrunごとに読み込みます。
+利用者の追加指示は共通設定とworkspaceの`instructions/*.md`からinstanceの最初のtaskで読み込み、同じinstanceのqueueでは保持します。
 配置・合成・`system`との併用は[インストラクションガイド](instructions.md)、
 確認結果は[実装・検証記録](instructions-implementation.md)を参照してください。
 
@@ -43,6 +43,8 @@ agentの共通インストラクションは[`internal/agent/instructions.md`](.
 | [13](increment-13.md) | OpenRouter agent loop、子JS実行、親子agent、Go側の認証・通信（[実装・検証記録](increment-13-implementation.md)、[計画レビュー](increment-13-review.md)） |
 
 現在の入力UIは[qjs固定版からの取り込みと保守手順](qjs-repl-integration.md)を参照してください。過去の選定記録として[比較スパイク](repl-lineedit-spike.md)と[インクリメント3・4の計画レビュー](increment-3-4-review.md)もあります。
+
+[queue会話継続の修正](queue-continuation-implementation.md)では、同じinstanceの履歴・最終回答・保護された追加指示を次taskへ引き継ぐ動作を確認しました。
 
 ## 今後の候補
 

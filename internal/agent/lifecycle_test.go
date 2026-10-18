@@ -91,7 +91,13 @@ func TestLifecycleIdleFIFOAndFailureRecovery(t *testing.T) {
 		var user struct {
 			Content string `json:"content"`
 		}
-		json.Unmarshal(req.Messages[1], &user)
+		for index := len(req.Messages) - 1; index >= 0; index-- {
+			var m struct{ Role, Content string }
+			if json.Unmarshal(req.Messages[index], &m) == nil && m.Role == "user" {
+				user.Content = m.Content
+				break
+			}
+		}
 		if user.Content == "fail" {
 			return provider.Response{}, errors.New("fixture failure")
 		}
@@ -138,10 +144,10 @@ func TestLifecycleIdleFIFOAndFailureRecovery(t *testing.T) {
 		t.Fatalf("model calls=%d", len(requests))
 	}
 	seen := map[string]bool{}
-	for _, req := range requests {
+	for index, req := range requests {
 		messages := transcriptWithoutContextStatus(t, req.Messages)
-		if len(messages) != 2 || req.CacheKey == "" || seen[req.CacheKey] {
-			t.Fatalf("task history/cache not fresh: %+v", req)
+		if len(messages) != []int{2, 4, 5}[index] || req.CacheKey == "" || seen[req.CacheKey] {
+			t.Fatalf("task continuation/cache boundary incorrect: %+v", req)
 		}
 		seen[req.CacheKey] = true
 	}

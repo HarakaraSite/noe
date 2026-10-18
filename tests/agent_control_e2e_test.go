@@ -45,6 +45,7 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	firstStarted, corrected := make(chan agentChatRequest, 1), make(chan agentChatRequest, 1)
+	resumed := make(chan agentChatRequest, 1)
 	blocked, cancelled := make(chan struct{}), make(chan struct{})
 	release := make(chan struct{})
 	var calls atomic.Int32
@@ -67,7 +68,15 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 			close(cancelled)
 			return agentModelReply{Status: 500}
 		default:
-			return agentModelReply{Content: agentUser(req) + " answer"}
+			resumed <- req
+			for index := len(req.Messages) - 1; index >= 0; index-- {
+				if req.Messages[index].Role == "user" {
+					var text string
+					_ = json.Unmarshal(req.Messages[index].Content, &text)
+					return agentModelReply{Content: text + " answer"}
+				}
+			}
+			return agentModelReply{Status: 500}
 		}
 	})
 	defer server.Close()
@@ -144,6 +153,22 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool {
 		return s.State == "idle" && s.LastResult != nil && s.LastResult.Answer == "reserved task answer"
 	})
+	select {
+	case request := <-resumed:
+		var history []string
+		for _, message := range request.Messages {
+			var text string
+			_ = json.Unmarshal(message.Content, &text)
+			if message.Role != "system" {
+				history = append(history, message.Role+":"+text)
+			}
+		}
+		if strings.Join(history, "|") != "user:first task|assistant:candidate|user:add a correction|assistant:corrected answer|user:blocked task|user:reserved task" {
+			t.Fatalf("human queue/interrupt lost the continuing conversation: %v", history)
+		}
+	case <-ctx.Done():
+		t.Fatal("resumed provider request was not captured")
+	}
 	command("interrupt", "--agent", snapshot.AgentID)
 	select {
 	case err := <-done:

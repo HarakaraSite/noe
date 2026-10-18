@@ -83,12 +83,12 @@ while (true) {
 console.log(snapshot.lastResult);
 ```
 
-`queue_agent({agentId, instruction, commandId?})`は受領後に`{commandId, status}`を返します。タスクはFIFOで処理され、各タスクは新しい履歴とrun IDを持ちます。`starting`・`running`・`idle`の`keepAlive` instanceで受け付けます。終了済みinstanceや`keepAlive:false`のinstanceは受け付けません。同じ`commandId`と同じ指示の再送は再実行せず現在statusを返し、異なる指示での再利用はエラーになります。既定では`commandId`が自動発行されます。
+`queue_agent({agentId, instruction, commandId?})`は受領後に`{commandId, status}`を返します。タスクはFIFOで処理され、新しいrun IDを持ちますが、同じkeepAlive instanceに確定済みの会話を引き継ぎます。過去のuser・assistant・tool往復と最終回答のうち、context trimming後も残っている内容が続きます。実行開始時に新しい指示を時系列どおりuser messageとして追加し、元のtask指示・適用済みsteerと同様に以後の切り捨てから保護します。既に切り捨てた履歴は戻りません。trim回数と直近のtrim情報もinstance内で続きます。`starting`・`running`・`idle`の`keepAlive` instanceで受け付けます。終了済みinstanceや`keepAlive:false`のinstanceは受け付けません。同じ`commandId`と同じ指示の再送は再実行せず現在statusを返し、異なる指示での再利用はエラーになります。既定では`commandId`が自動発行されます。
 
 ### 設定
 
-各task run開始時に、共通設定とworkspaceの`instructions/*.md`をファイル名順で読み込みます。
-組込み指示 → 共通 → workspace → 明示した`system`の順で追記し、run中は固定します。
+各instanceの最初の実行開始時に、共通設定とworkspaceの`instructions/*.md`をファイル名順で読み込みます。
+組込み指示 → 共通 → workspace → 明示した`system`の順で追記し、同じinstanceのqueue taskにも固定します。子など新しいinstanceは独立して読み込みます。
 探索場所・読込み失敗・子やqueueの扱いは[インストラクションガイド](instructions.md)を参照してください。
 
 `hooks`・`contextBudget`・`contextPolicy`・`executionLimits`の契約、4種のhandlerとhook用操作API、
@@ -98,19 +98,19 @@ context snapshotは[hook・実行groupガイド](hooks.md)を参照してくだ�
 `executionLimits`はrootのみ指定でき、省略項目は無制限、0は受付枠0です。
 runのsnapshotに`groupId`・`execution`・`context`が加わります。
 
-`config`は`{provider, model, effort, name?, system?, maxTokens?, maxSteps?, cacheKey?, hooks?, contextBudget?, contextPolicy?, executionLimits?}`です。rootで`provider`・`model`・`effort`を省略すると入力エラーです。子agentではprovider・model・effort・maxTokens・hooks・contextBudget・contextPolicyを省略時に起動元から継承します。その他の項目は自動継承しません。executionLimitsはrootのみ指定でき、子は同じgroupの残量を共有します。`provider`には組込みまたは外部設定で定義したIDを指定します。`model`と`name`は空でない文字列、`system`と`cacheKey`は文字列、`maxTokens`と`maxSteps`は0以上の整数です。`name`の既定値は`agent`、`system`は空文字、`maxTokens`と`maxSteps`は0です。`system`に渡した文字列は各タスクの実行中に固定されます。`instruction`は空でない文字列で、`keepAlive:true`なら省略できます。`options`は独立した第三引数で、受け取る項目は`keepAlive`のみです。`keepAlive`を`config`へ入れないでください。instructionを省略してoptionsを渡す場合は、第二引数に`undefined`を置きます。たとえば`spawn_agent({name:"worker"}, undefined, {keepAlive:true})`はidleで起動し、queueにtaskが届くまでモデルを呼びません。
+`config`は`{provider, model, effort, name?, system?, maxTokens?, maxSteps?, cacheKey?, hooks?, contextBudget?, contextPolicy?, executionLimits?}`です。rootで`provider`・`model`・`effort`を省略すると入力エラーです。子agentではprovider・model・effort・maxTokens・hooks・contextBudget・contextPolicyを省略時に起動元から継承します。その他の項目は自動継承しません。executionLimitsはrootのみ指定でき、子は同じgroupの残量を共有します。`provider`には組込みまたは外部設定で定義したIDを指定します。`model`と`name`は空でない文字列、`system`と`cacheKey`は文字列、`maxTokens`と`maxSteps`は0以上の整数です。`name`の既定値は`agent`、`system`は空文字、`maxTokens`と`maxSteps`は0です。`system`と自動読込みinstructionはinstanceの最初のtaskで構成して固定し、同じinstanceのqueue taskではinstruction fileを再読込みしません。新しいinstanceは独自のsystemと会話を持ちます。`instruction`は空でない文字列で、`keepAlive:true`なら省略できます。`options`は独立した第三引数で、受け取る項目は`keepAlive`のみです。`keepAlive`を`config`へ入れないでください。instructionを省略してoptionsを渡す場合は、第二引数に`undefined`を置きます。たとえば`spawn_agent({name:"worker"}, undefined, {keepAlive:true})`はidleで起動し、queueにtaskが届くまでモデルを呼びません。
 
 `effort`で指定できる値は`"auto"`・`"none"`・`"minimal"`・`"low"`・`"medium"`・`"high"`・`"xhigh"`・`"max"`です。明示的な`"auto"`は推論設定を送らず、provider/modelの既定動作に任せます。他の値はprovider設定の`effortField`（OpenRouterは`reasoning.effort`、OpenCode GoのChatは`reasoning_effort`）へ送り、各タスクで固定します。実際に利用できるエフォートと効果はmodel/providerに従います。NOEはモデル別の対応表による事前拒否や値の自動変更を行わず、APIからエラーが返ればprovider errorとして扱います。[OpenRouterのreasoning仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)を参照してください。
 
 `maxSteps`はタスクごとのモデル要求回数を制限します。0はNOE側の上限なしです。`maxTokens`はモデル要求ごとの出力上限で、会話全体の累計ではありません。0の場合、NOEはOpenRouterへ`max_tokens`を送りません。どちらの上限も指定しない場合、NOEは独自の上限を追加しません。
 
-`cacheKey`はOpenRouterの`session_id`として送られ、routingやprompt cacheで使われる値です。未指定（`undefined`を含む）の場合は各task runの`runId`を使い、同じtask内の全モデル要求へ同じIDを送ります。明示した`cacheKey`は各taskで再利用されます。`cacheKey: ""`は`session_id`を送らない指定です。キャッシュヒットは保証せず、会話履歴を保存・再開する機能でもありません。[OpenRouter session_id仕様](https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions)を参照してください。
+`cacheKey`はOpenRouterの`session_id`として送られ、routingやprompt cacheで使われる値です。未指定（`undefined`を含む）の場合は各task runの`runId`を使い、同じtask内の全モデル要求へ同じIDを送ります。明示した`cacheKey`は各taskで再利用されます。`cacheKey: ""`は`session_id`を送らない指定です。queue会話の保持はNOE instanceが行い、cacheKeyは会話を保存・再開せず、キャッシュヒットも保証しません。[OpenRouter session_id仕様](https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions)を参照してください。
 
 ### 戻り値・状態・寿命
 
 run snapshotは`{agentId, parentRunId, name, state, reason, keepAlive, currentRunId, queueLength, lastResult}`です。instance stateは`starting`・`idle`・`running`・`stopping`・`stopped`・`failed`です。起動直後やidleでは`currentRunId`が空です。`lastResult`は最後のtaskの`{runId, commandId, state, answer, error?}`で、まだtaskを実行していなければ`null`です。
 
-`keepAlive`の既定値は`false`です。`false`なら一つのtaskの後に停止し、instructionは必須です。`true`ならtask完了・失敗後も待受を続け、通常のtask失敗後も次のqueue taskを受け付けます。instructionを省略するとidleから開始します。idle中にモデルは呼び出しません。`run_agent(config, instruction, {keepAlive:true})`はinstance停止まで戻りません。
+`keepAlive`の既定値は`false`です。`false`なら一つのtaskの後に停止し、instructionは必須です。`true`ならtask完了・失敗後も待受を続け、通常のtask失敗後も次のqueue taskを受け付けます。instructionを省略するとidleから開始します。idle中にモデルは呼び出しません。同じinstanceのqueue taskは確定済み会話とtrim状態を続けますが、各taskのrun ID・`maxSteps`・task単位interrupt scopeは独立し、実行runtimeとhook moduleの状態は新しくなります。`run_agent(config, instruction, {keepAlive:true})`はinstance停止まで戻りません。
 
 rootのrun/evalではJS本文が終わってもnative追跡によって待受が続き、現在の終了方法はCtrl+C・timeoutなどです。REPLでもkeepAlive instanceが残る入力は次のpromptへ進みません。親run_jsから起動した子はtool本文の終了後も親runに所有されます。
 

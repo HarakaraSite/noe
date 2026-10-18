@@ -180,6 +180,8 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		b.handleContextSetRuntimeInfo(w, r, operation)
 	case "tool_result":
 		b.handleToolResult(w, r, operation)
+	case "conversation_checkpoint":
+		b.handleConversationCheckpoint(w, r, operation)
 	case "start":
 		b.handleStart(w, r, operation)
 	case "model":
@@ -207,7 +209,7 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 func validRPCMethod(method string) bool {
 	switch method {
-	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "apply_steers", "commit_final", "interrupt_agent", "decide", "list_models", "begin_hook_scope", "end_hook_scope", "execution_get", "begin_model_step", "context_prepare", "context_get", "context_set_runtime_info", "tool_result":
+	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "apply_steers", "commit_final", "interrupt_agent", "decide", "list_models", "begin_hook_scope", "end_hook_scope", "execution_get", "begin_model_step", "context_prepare", "context_get", "context_set_runtime_info", "tool_result", "conversation_checkpoint":
 		return true
 	}
 	return false

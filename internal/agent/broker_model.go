@@ -142,6 +142,12 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		sentContext, sentContextActivityID, sentContextCauses = h.markContextSentLocked(run, request, requestID, time.Now())
 		run.context.pendingNotice = nil
 		run.context.pendingTrimActivityIDs = nil
+		// markContextSentLocked stores the request snapshot before the notice is
+		// consumed. Persist the post-admission state too so a later queue task
+		// does not repeat an already delivered trim notice or its causes.
+		if run.instance != nil {
+			h.storeContextSnapshotLocked(run, time.Now())
+		}
 	}
 	h.mu.Unlock()
 	if len(steers) != 0 {

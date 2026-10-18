@@ -131,6 +131,37 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate agent activity")
 		return
 	}
+	h := b.host
+	var task *managedTask
+	var managedCommand bool
+	var managedBase, managedConversation *conversationSnapshot
+	var taskInstruction, explicitSystem string
+	var userInstructions string
+	var instructionErr error
+	h.mu.Lock()
+	task = op.task
+	if task != nil && task.instance != nil {
+		managedBase = cloneConversationSnapshot(task.instance.conversation)
+		explicitSystem = task.instance.config.System
+		managedCommand = task.command != nil
+		if managedCommand {
+			taskInstruction = task.command.instruction
+		}
+	}
+	h.mu.Unlock()
+	if !managedCommand {
+		userInstructions, instructionErr = loadUserInstructions(h.opts.Cwd)
+	} else if managedBase != nil {
+		managedConversation = cloneConversationSnapshot(managedBase)
+		if err := managedConversation.appendProtected(taskInstruction); err != nil {
+			instructionErr = err
+		}
+	} else {
+		userInstructions, instructionErr = loadUserInstructions(h.opts.Cwd)
+		if instructionErr == nil {
+			managedConversation, instructionErr = initialConversation(composeSystemMessage(userInstructions, explicitSystem), taskInstruction)
+		}
+	}
 	ctx, cancel := context.WithCancel(op.ctx)
 	config := runConfig{
 		Provider: request.Provider, Model: request.Model,
@@ -148,7 +179,6 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		steerByID:   make(map[string]*steerCommand),
 		finalDone:   make(chan struct{}),
 	}
-	h := b.host
 	resolvedModelWindow, resolvedMaxOutput := h.contextModelLimits(request.Provider, request.Model)
 	h.mu.Lock()
 	if op.closed || op.ctx.Err() != nil || h.closed {
@@ -159,6 +189,13 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	}
 	if op.task != nil {
 		instance := op.task.instance
+		if instance == nil {
+			delete(h.runs, id)
+			h.mu.Unlock()
+			cancel()
+			writeRPCError(w, http.StatusConflict, "scope", "agent task has no instance")
+			return
+		}
 		if !h.executionGroupOpenLocked(instance.group) {
 			group := instance.group
 			h.mu.Unlock()
@@ -181,8 +218,11 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		run.config.ContextPolicyPresent = instance.config.contextPolicyPresent || instance.config.ContextPolicy != nil
 		run.context.modelWindow = cloneInt64(instance.modelWindow)
 		run.context.catalogMaxOutput = cloneInt64(instance.modelMaxOutputTokens)
-		run.origin = activityOrigin{Kind: "script", AgentID: instance.id, CommandID: op.task.command.id}
-		if op.task.command.activityID != "" {
+		run.origin = activityOrigin{Kind: "script", AgentID: instance.id}
+		if op.task.command != nil {
+			run.origin.CommandID = op.task.command.id
+		}
+		if op.task.command != nil && op.task.command.activityID != "" {
 			run.causedBy = []string{op.task.command.activityID}
 		}
 	} else {
@@ -211,21 +251,38 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 			writeRPCError(w, http.StatusConflict, "run", "task scope already claimed a run")
 			return
 		}
+		if managedCommand && !conversationSnapshotEqual(op.task.instance.conversation, managedBase) {
+			delete(h.runs, id)
+			h.mu.Unlock()
+			cancel()
+			writeRPCError(w, http.StatusConflict, "conversation", "agent conversation changed while starting the task")
+			return
+		}
+		if managedCommand && instructionErr == nil && managedConversation != nil {
+			op.task.instance.conversation = cloneConversationSnapshot(managedConversation)
+		}
+		run.context.restoreConversation(op.task.instance.conversationContext)
 		run.instance = op.task.instance
 		op.task.run = run
 		op.task.instance.currentRunID = id
 		h.storeContextSnapshotLocked(run, time.Now())
 	}
 	h.mu.Unlock()
-	userInstructions, instructionErr := loadUserInstructions(h.opts.Cwd)
 	h.traceEvent(traceEvent{
 		RunID: id, ParentID: run.parentRunID, Name: config.Name, Model: config.Model,
 		Status: "started",
 	})
 	h.observeRun("agent.started", id, run, events.Event{"status": "started"})
-	startResponse := map[string]string{"runId": id, "instructions": userInstructions}
+	startResponse := map[string]any{"runId": id}
 	if instructionErr != nil {
 		startResponse["instructionError"] = instructionErr.Error()
+	}
+	if managedCommand {
+		if instructionErr == nil && managedConversation != nil {
+			startResponse["snapshot"] = cloneConversationSnapshot(managedConversation)
+		}
+	} else {
+		startResponse["instructions"] = userInstructions
 	}
 	writeJSON(w, startResponse)
 }

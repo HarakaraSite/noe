@@ -14,7 +14,7 @@ NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript
 
 The linked guides and development notes are currently in Japanese.
 
-[v1.6.0 release notes](docs/releases/v1.6.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.6.0)
+[v1.6.1 release notes](docs/releases/v1.6.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.6.1)
 
 ## Build and run
 
@@ -28,7 +28,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.6.0
+# noe v1.6.1
 
 ./noe run examples/hello.js
 # Hello from NOE!
@@ -123,7 +123,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.6.0 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.6.0/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
+Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.6.1 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.6.1/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
 
 ### Run one task and receive its answer
 
@@ -160,7 +160,7 @@ The root agent requires explicit `provider`, `model`, and `effort`. Switch provi
 | Setting | Meaning |
 | --- | --- |
 | `name` | Label in observations; defaults to `agent` |
-| `system` | Additional instructions fixed during each task; pass file contents here to use external instructions |
+| `system` | Additional instructions fixed for the agent instance; pass file contents here to use external instructions |
 | `maxSteps` | Maximum model calls per task; omitted or `0` means no NOE limit |
 | `maxTokens` | Output token limit per model request; omitted or `0` leaves it unspecified |
 | `cacheKey` | Stable cache/routing key; omitted uses the task's `runId`, and `""` omits the field |
@@ -192,7 +192,7 @@ To limit total execution time, put `--timeout 5m` before the script name. For an
 
 Ordinary JavaScript can launch independent root agents concurrently with `Promise.all([run_agent(...), run_agent(...)])`; each root needs its own explicit provider/model/effort. Use `spawn_agent` when the caller needs to observe or steer work while it runs. See the [live-control example](examples/agent-control.js).
 
-In model-generated `run_js`, these six lifecycle functions are already bound. Children inherit the current parent's provider, model, effort, `maxTokens`, `hooks`, `contextBudget`, and `contextPolicy` when omitted. Each queued task starts with fresh history and trim counters. For example, the parent can execute this tool code:
+In model-generated `run_js`, these six lifecycle functions are already bound. Children inherit the current parent's provider, model, effort, `maxTokens`, `hooks`, `contextBudget`, and `contextPolicy` when omitted. A queued task continues the same keepAlive agent conversation: it retains completed exchanges and final answers that survived trimming, then adds the queued instruction as a protected user message when the task starts. Trimmed-away history stays removed, and trim counters continue across tasks. The queue task still gets its own run ID, `maxSteps`, and cancellation scope. For example, the parent can execute this tool code:
 
 ```js
 // Summarize the two documents in parallel
@@ -203,7 +203,7 @@ const results = await Promise.all([
 console.log(JSON.stringify(results));
 ```
 
-This shortened configuration is for children inside `run_js`; ordinary root scripts must specify all three required settings. Child `system`, `name`, `maxSteps`, `cacheKey`, and history are not inherited. Each `run_js` starts a fresh NOE process; use files when data must survive between tool calls. [agent-parallel.js](examples/agent-parallel.js) demonstrates parent-driven delegation.
+This shortened configuration is for children inside `run_js`; ordinary root scripts must specify all three required settings. A child starts an independent conversation with its own system instructions and history; child `system`, `name`, `maxSteps`, and `cacheKey` are not inherited. A keepAlive instance freezes its composed system instructions at its first task, so later queue tasks do not reread instruction files. Each task still gets a fresh runtime and hook-module state. Each `run_js` starts a fresh NOE process; use files when data must survive between tool calls. [agent-parallel.js](examples/agent-parallel.js) demonstrates parent-driven delegation.
 
 ### Keep an agent available for more tasks
 
@@ -232,7 +232,7 @@ The NOE process keeps running even after this script body finishes. In another t
 ./noe interrupt --agent <agent-id>
 ```
 
-An `agentId` identifies the instance; each task has a new `runId` and fresh conversation history. Queued tasks run in order. `steer` adds to the current task's history without stopping its current request or JavaScript. Task interruption preserves a keepAlive instance and its other queued tasks; instance interruption stops all of them. Commands return after acceptance; use observations to confirm completion.
+An `agentId` identifies the instance; each task has a new `runId` and keeps its own `maxSteps` and task-interruption scope. Queued tasks run in order and continue that instance's surviving conversation, including completed tool exchanges and final answers. The queued instruction is appended as a protected user message when its task starts; trimmed-away history is never restored, and trim counters carry forward. The system instructions stay as they were composed for the instance's first task. Each task still creates a fresh runtime and hook-module state. `steer` adds to the current task's history without stopping its current request or JavaScript. Task interruption preserves a keepAlive instance and its other queued tasks; instance interruption stops all of them. Commands return after acceptance; use observations to confirm completion.
 
 `run_agent(..., {keepAlive: true})` waits for the entire instance to stop, including idle time. In the REPL, a live keepAlive instance also keeps the current input active. Instances remain owned by the current NOE execution or parent run and are collected on owner exit, cancellation, timeout, or Ctrl+C; they do not continue independently after NOE exits. See the [lifecycle and control reference](docs/api.md).
 

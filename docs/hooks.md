@@ -9,7 +9,7 @@
 hook moduleからの相対importはそのmoduleの場所を基準にする。
 子は省略時に一覧を継承し、明示配列で置換、`[]`で解除する。
 module本文と依存moduleは各task開始時に読み込み、そのtask中は再読込みしない。
-同じkeepAlive instanceの次taskは、新しいruntimeとmodule状態を使う。
+同じkeepAlive instanceの次taskも、新しいruntimeとmodule状態を使う。会話履歴と最初のtaskで構成したsystem instructionはinstance側に引き継ぐ。
 
 ## handler
 
@@ -77,7 +77,8 @@ group summaryの`groupId`・`counters`・`limits`・`elapsedMs`・任意`usage`/
 `retainRatio`は`0 < ratio < 1`で指定し、既定値は`0.1`。任意の`responseReserveTokens`は正のsafe integerで、window由来の予算計算にだけ使い、providerの出力上限は変更しない。
 正の`maxTokens`も応答予約として扱い、両方指定した場合は大きい方を使う。どちらもなければcatalogの`maxOutputTokens`が利用可能な場合に使う。
 windowが不明で明示予算もなければ、NOEは総入力目安として1,000,000 tokensを使うが、モデルwindowの値とは扱わない。
-同じinstanceの次queue taskにもpolicy設定を保つが、履歴とtrim回数は新しいrunでリセットする。
+同じinstanceの次queue taskにもpolicy設定を保ち、trim後の会話履歴・trim回数・直近のtrim情報も続ける。
+各taskのrun IDと実行runtimeは新しく、hook moduleも再読込みする。新しいagent instanceは独立したsystem・会話・trim状態を持つ。
 catalogのwindowは別項目で、未知なら未取得のまま。既知windowの代わりにfallback値を使ってcapacityを保証しない。
 
 windowと応答予約から予算を計算する場合、次の記号を使う。
@@ -143,7 +144,7 @@ providerのtokenizerやadapter変換後のwire量とは一致しない。
 
 標準通知は外部hookなしでもモデル要求へ一つだけ添える。
 不変instructionや保持する会話履歴へ通知をappendしないため、往復しても蓄積しない。
-各runは独立して計測し、同じinstanceの次queue taskでも新しいrunになる。
+各runのprovider使用量は独立して計測し、同じinstanceの次queue taskも新しいrun IDを持つ。会話のcontext trim countはinstance内で続く。
 
 `await api.context.setRuntimeInfo({key, text})`は`beforeModelRequest`で利用できる。
 同じkeyは置換し、今回の論理判断の要求だけに添える。元の会話履歴は変更しない。

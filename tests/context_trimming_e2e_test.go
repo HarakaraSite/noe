@@ -11,12 +11,16 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 const (
 	contextTrimOriginalTask = "Keep this original task while trimming old execution history."
-	contextTrimQueuedTask   = "Run a fresh queued task with the inherited context policy."
+	contextTrimQueuedTask   = "Continue the same work and inspect another batch of results."
+	contextTrimFutureTask   = "After that, report the final status of the continuing work."
 	contextTrimTaskAnswer   = "continued after trimming"
+	contextTrimQueuedAnswer = "queued work continued after trimming"
+	contextTrimFutureAnswer = "future queued task completed"
 )
 
 type contextTrimExecution struct {
@@ -186,15 +190,19 @@ func TestContextTrimmingCLISurfacesAndSavedObservation(t *testing.T) {
 	}
 }
 
-func TestContextTrimmingQueuedTaskResetsRunSnapshotAndInheritsPolicy(t *testing.T) {
+func TestContextTrimmingQueuedTaskContinuesConversationAndTrimState(t *testing.T) {
 	work := t.TempDir()
 	var mu sync.Mutex
 	var requests []agentChatRequest
 	longCalls := 0
+	queuedCalls := 0
+	futureCalls := 0
+	queueReadyPath := filepath.Join(work, "queue-submissions-ready")
+	futureReadyPath := filepath.Join(work, "future-task-ready")
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		mu.Lock()
 		requests = append(requests, req)
-		user := agentUser(req)
+		user := contextTrimLatestUser(req)
 		switch user {
 		case contextTrimOriginalTask:
 			longCalls++
@@ -205,11 +213,49 @@ func TestContextTrimmingQueuedTaskResetsRunSnapshotAndInheritsPolicy(t *testing.
 			}
 			return agentModelReply{Content: contextTrimTaskAnswer}
 		case contextTrimQueuedTask:
+			queuedCalls++
+			call := queuedCalls
 			mu.Unlock()
-			if len(req.Messages) != 2 || !strings.Contains(req.RuntimeInfo, "Older completed history may be discarded") || !strings.Contains(req.RuntimeInfo, "Input budget: 16000 tokens") {
-				t.Errorf("queued task did not start fresh with inherited automatic policy and budget: %+v", req)
+			if call == 1 {
+				if !waitForQueueSubmissions(queueReadyPath) {
+					t.Errorf("the later queued task was not accepted while this task was active")
+					return agentModelReply{Status: 500}
+				}
+				if contextTrimHasUser(req, contextTrimFutureTask) {
+					t.Errorf("a pending future queue instruction leaked into the active task: %v", contextTrimUsers(req))
+				}
 			}
-			return agentModelReply{Content: "queued task completed"}
+			if !contextTrimHasUser(req, contextTrimOriginalTask) || !contextTrimHasUser(req, contextTrimQueuedTask) {
+				t.Errorf("queue task lost a protected task instruction: %v", contextTrimUsers(req))
+			}
+			if contextTrimHasUser(req, contextTrimFutureTask) {
+				t.Errorf("a later queued instruction leaked into this task: %v", contextTrimUsers(req))
+			}
+			if call == 1 && !contextTrimHasAssistantText(req, contextTrimTaskAnswer) {
+				t.Errorf("queue task did not receive the previous task's final answer")
+			}
+			if !strings.Contains(req.RuntimeInfo, "Input budget: 16000 tokens") {
+				t.Errorf("queued task lost the inherited input budget: %+v", req)
+			}
+			if call <= 3 {
+				return contextTrimQueuedToolReply(call)
+			}
+			return agentModelReply{Content: contextTrimQueuedAnswer}
+		case contextTrimFutureTask:
+			futureCalls++
+			call := futureCalls
+			mu.Unlock()
+			if call == 1 && !waitForQueueSubmissions(futureReadyPath) {
+				t.Errorf("future task was not held until its prior run snapshot was observed")
+				return agentModelReply{Status: 500}
+			}
+			if !contextTrimHasUser(req, contextTrimOriginalTask) || !contextTrimHasUser(req, contextTrimQueuedTask) || !contextTrimHasUser(req, contextTrimFutureTask) {
+				t.Errorf("future task did not receive the protected queue instructions: %v", contextTrimUsers(req))
+			}
+			if !contextTrimHasAssistantText(req, contextTrimQueuedAnswer) {
+				t.Errorf("future task did not receive the previous queued task's final answer")
+			}
+			return agentModelReply{Content: contextTrimFutureAnswer}
 		default:
 			mu.Unlock()
 			t.Errorf("unexpected model task %q", user)
@@ -229,33 +275,41 @@ func TestContextTrimmingQueuedTaskResetsRunSnapshotAndInheritsPolicy(t *testing.
 	}
 	var summary contextTrimSummary
 	readJSONFile(t, filepath.Join(work, "context-summary.json"), &summary)
-	if len(summary.Runs) != 2 {
+	if len(summary.Runs) != 3 {
 		t.Fatalf("queued run snapshots = %+v", summary.Runs)
 	}
-	first, second := summary.Runs[0], summary.Runs[1]
+	first, second, third := summary.Runs[0], summary.Runs[1], summary.Runs[2]
 	if first.Answer != contextTrimTaskAnswer || first.Context.ExecutionContext.TrimCount == 0 {
 		t.Fatalf("first queued task did not trim and continue: %+v", first)
 	}
-	if second.Answer != "queued task completed" || second.RunID == first.RunID || second.Context.ExecutionContext.Policy != "auto" || second.Context.ExecutionContext.TrimCount != 0 || second.Context.ExecutionContext.LastTrim != nil {
-		t.Fatalf("next queued task did not inherit policy with fresh trim state: %+v", second)
+	if second.Answer != contextTrimQueuedAnswer || second.RunID == first.RunID || second.Context.ExecutionContext.Policy != "auto" || second.Context.ExecutionContext.TrimCount <= first.Context.ExecutionContext.TrimCount || second.Context.ExecutionContext.LastTrim == nil {
+		t.Fatalf("next queued task did not continue the conversation and trim state: first=%+v second=%+v", first, second)
 	}
 	if second.Context.Budget.InputTokens == nil || *second.Context.Budget.InputTokens != 16_000 {
 		t.Fatalf("next queued task did not inherit input budget: %+v", second.Context.Budget)
 	}
+	if third.Answer != contextTrimFutureAnswer || third.RunID == second.RunID || third.Context.ExecutionContext.TrimCount != second.Context.ExecutionContext.TrimCount || third.Context.ExecutionContext.LastTrim == nil {
+		t.Fatalf("later queued task did not retain the current conversation state: second=%+v third=%+v", second, third)
+	}
 
 	mu.Lock()
 	requestCopy := append([]agentChatRequest(nil), requests...)
+	gotLongCalls, gotQueuedCalls, gotFutureCalls := longCalls, queuedCalls, futureCalls
 	mu.Unlock()
-	assertCompleteLatestBlockAfterTrim(t, requestCopy, contextTrimOriginalTask, contextTrimQueuedTask)
+	if gotLongCalls != 5 || gotQueuedCalls != 4 || gotFutureCalls != 1 {
+		t.Fatalf("fixture requests first=%d queued=%d future=%d, want 5/4/1", gotLongCalls, gotQueuedCalls, gotFutureCalls)
+	}
+	assertQueueHistoryAndDroppedTools(t, requestCopy)
 
 	eventPath = filepath.Join(work, eventPath)
 	firstEvents := readContextTrimEvents(t, eventPath, first.RunID)
 	secondEvents := readContextTrimEvents(t, eventPath, second.RunID)
-	if len(firstEvents) != first.Context.ExecutionContext.TrimCount || len(secondEvents) != 0 {
-		t.Fatalf("queue run event counts first=%d/%d second=%d", len(firstEvents), first.Context.ExecutionContext.TrimCount, len(secondEvents))
+	thirdEvents := readContextTrimEvents(t, eventPath, third.RunID)
+	if len(firstEvents) != first.Context.ExecutionContext.TrimCount || len(secondEvents) == 0 || len(secondEvents) != second.Context.ExecutionContext.TrimCount-first.Context.ExecutionContext.TrimCount || len(thirdEvents) != 0 {
+		t.Fatalf("queue run event counts first=%d/%d second=%d/%d third=%d", len(firstEvents), first.Context.ExecutionContext.TrimCount, len(secondEvents), second.Context.ExecutionContext.TrimCount-first.Context.ExecutionContext.TrimCount, len(thirdEvents))
 	}
-	if got := strings.Count(result.stdout, "context trimmed:"); got != len(firstEvents) {
-		t.Fatalf("human trim lines=%d, first-run JSONL trim events=%d", got, len(firstEvents))
+	if got := strings.Count(result.stdout, "context trimmed:"); got != len(firstEvents)+len(secondEvents) {
+		t.Fatalf("human trim lines=%d, JSONL trim events across the first two runs=%d", got, len(firstEvents)+len(secondEvents))
 	}
 }
 
@@ -270,11 +324,133 @@ func contextTrimRunSource(queued bool) string {
 	if !queued {
 		return `import {run_agent,observe_agent} from "noe:agent";import {writeFileSync} from "node:fs";const task=await run_agent(` + config + `,` + mustJSONString(contextTrimOriginalTask) + `);const live=await observe_agent({agentId:task.agentId});if(live.lastResult?.answer!==` + mustJSONString(contextTrimTaskAnswer) + `)throw Error(JSON.stringify(live));writeFileSync("context-summary.json",JSON.stringify({agentId:live.agentId,runs:[{runId:live.lastResult.runId,answer:live.lastResult.answer,context:live.context}]}));`
 	}
-	return `import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";import {writeFileSync} from "node:fs";const agent=await spawn_agent(` + config + `,undefined,{keepAlive:true});const waitFor=async commandId=>{for(let i=0;i<900;i++){const value=await observe_agent({agentId:agent.agentId});if(value.state==="idle"&&value.lastResult?.commandId===commandId)return value;await new Promise(resolve=>setTimeout(resolve,5));}throw Error("queued task timed out: "+commandId);};await queue_agent({agentId:agent.agentId,instruction:` + mustJSONString(contextTrimOriginalTask) + `,commandId:"trim-first"});const first=await waitFor("trim-first");await queue_agent({agentId:agent.agentId,instruction:` + mustJSONString(contextTrimQueuedTask) + `,commandId:"trim-second"});const second=await waitFor("trim-second");writeFileSync("context-summary.json",JSON.stringify({agentId:agent.agentId,runs:[{runId:first.lastResult.runId,answer:first.lastResult.answer,context:first.context},{runId:second.lastResult.runId,answer:second.lastResult.answer,context:second.context}]}));await interrupt_agent({agentId:agent.agentId});`
+	return `import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";import {writeFileSync} from "node:fs";const agent=await spawn_agent(` + config + `,undefined,{keepAlive:true});const waitFor=async(commandId,requireIdle)=>{for(let i=0;i<900;i++){const value=await observe_agent({agentId:agent.agentId});if(value.lastResult?.commandId===commandId&&(!requireIdle||value.state==="idle"))return value;await new Promise(resolve=>setTimeout(resolve,5));}throw Error("queued task timed out: "+commandId);};await queue_agent({agentId:agent.agentId,instruction:` + mustJSONString(contextTrimOriginalTask) + `,commandId:"trim-first"});const first=await waitFor("trim-first",true);await queue_agent({agentId:agent.agentId,instruction:` + mustJSONString(contextTrimQueuedTask) + `,commandId:"trim-second"});await queue_agent({agentId:agent.agentId,instruction:` + mustJSONString(contextTrimFutureTask) + `,commandId:"trim-third"});writeFileSync("queue-submissions-ready","ready");const second=await waitFor("trim-second",false);writeFileSync("future-task-ready","ready");const third=await waitFor("trim-third",true);writeFileSync("context-summary.json",JSON.stringify({agentId:agent.agentId,runs:[{runId:first.lastResult.runId,answer:first.lastResult.answer,context:first.context},{runId:second.lastResult.runId,answer:second.lastResult.answer,context:second.context},{runId:third.lastResult.runId,answer:third.lastResult.answer,context:third.context}]}));await interrupt_agent({agentId:agent.agentId});`
+}
+
+func contextTrimQueuedToolReply(call int) agentModelReply {
+	id := fmt.Sprintf("queue-trim-block-%d", call)
+	code := fmt.Sprintf("// emit queued context block %d\nconsole.log('QUEUE_TRIM_E2E_BLOCK_%d:' + 'x'.repeat(24000));", call, call)
+	return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool(id, code)}}}, FinishReason: "tool_calls"}
+}
+
+func waitForQueueSubmissions(path string) bool {
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return false
 }
 
 func contextTrimSavedObservationSource() string {
 	return `import {observe_agent} from "noe:agent";import {readFileSync,writeFileSync} from "node:fs";const summary=JSON.parse(readFileSync("context-summary.json","utf8"));const result=[];for(const run of summary.runs){const saved=await observe_agent({logPath:"context-events.jsonl",runId:run.runId});result.push({runId:saved.runId,status:saved.status,context:saved.context,events:saved.events.filter(event=>event.type==="context.trimmed")});}writeFileSync("saved-context-observation.json",JSON.stringify(result));`
+}
+
+func contextTrimLatestUser(req agentChatRequest) string {
+	for i := len(req.Messages) - 1; i >= 0; i-- {
+		if req.Messages[i].Role == "user" {
+			return contextTrimMessageText(req.Messages[i].Content)
+		}
+	}
+	return ""
+}
+
+func contextTrimUsers(req agentChatRequest) []string {
+	var users []string
+	for _, message := range req.Messages {
+		if message.Role == "user" {
+			users = append(users, contextTrimMessageText(message.Content))
+		}
+	}
+	return users
+}
+
+func contextTrimHasUser(req agentChatRequest, want string) bool {
+	for _, user := range contextTrimUsers(req) {
+		if user == want {
+			return true
+		}
+	}
+	return false
+}
+
+func contextTrimHasAssistantText(req agentChatRequest, want string) bool {
+	for _, message := range req.Messages {
+		if message.Role == "assistant" && strings.Contains(contextTrimMessageText(message.Content), want) {
+			return true
+		}
+	}
+	return false
+}
+
+func contextTrimMessageText(raw json.RawMessage) string {
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text
+	}
+	return string(raw)
+}
+
+func contextTrimToolCallIDs(req agentChatRequest) map[string]bool {
+	ids := make(map[string]bool)
+	for _, message := range req.Messages {
+		if message.Role == "assistant" {
+			for _, call := range message.ToolCalls {
+				ids[call.ID] = true
+			}
+		}
+	}
+	return ids
+}
+
+func assertQueueHistoryAndDroppedTools(t *testing.T, requests []agentChatRequest) {
+	t.Helper()
+	seenToolIDs := make(map[string]bool)
+	droppedToolIDs := make(map[string]bool)
+	queuedRequests := 0
+	for i, request := range requests {
+		user := contextTrimLatestUser(request)
+		switch user {
+		case contextTrimOriginalTask:
+			if !contextTrimHasUser(request, contextTrimOriginalTask) || contextTrimHasUser(request, contextTrimQueuedTask) || contextTrimHasUser(request, contextTrimFutureTask) {
+				t.Fatalf("first task history contains another task instruction at request %d: %v", i, contextTrimUsers(request))
+			}
+		case contextTrimQueuedTask:
+			queuedRequests++
+			if !contextTrimHasUser(request, contextTrimOriginalTask) || !contextTrimHasUser(request, contextTrimQueuedTask) || contextTrimHasUser(request, contextTrimFutureTask) {
+				t.Fatalf("queued task history lost protected instructions or leaked a future one at request %d: %v", i, contextTrimUsers(request))
+			}
+		case contextTrimFutureTask:
+			if !contextTrimHasUser(request, contextTrimOriginalTask) || !contextTrimHasUser(request, contextTrimQueuedTask) || !contextTrimHasUser(request, contextTrimFutureTask) {
+				t.Fatalf("future task history lost protected instructions at request %d: %v", i, contextTrimUsers(request))
+			}
+		default:
+			t.Fatalf("request %d has unexpected latest user instruction %q", i, user)
+		}
+
+		currentToolIDs := contextTrimToolCallIDs(request)
+		if strings.Contains(request.RuntimeInfo, "Context trimmed:") {
+			for id := range seenToolIDs {
+				if !currentToolIDs[id] {
+					droppedToolIDs[id] = true
+				}
+			}
+		}
+		for id := range currentToolIDs {
+			if droppedToolIDs[id] {
+				t.Fatalf("trimmed tool call %q returned in a later request %d", id, i)
+			}
+			seenToolIDs[id] = true
+		}
+	}
+	if queuedRequests < 4 {
+		t.Fatalf("queued task had %d model requests; want tool exchanges followed by another preparation", queuedRequests)
+	}
+	if len(droppedToolIDs) == 0 {
+		t.Fatal("no previously observed tool call was removed by trimming")
+	}
 }
 
 func mustJSONString(value string) string {

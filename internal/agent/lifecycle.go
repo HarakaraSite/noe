@@ -137,6 +137,8 @@ type agentInstance struct {
 	modelWindow          *int64
 	modelMaxOutputTokens *int64
 	context              *contextSnapshot
+	conversation         *conversationSnapshot
+	conversationContext  *contextContinuation
 	activityID           string
 	causedBy             []string
 	origin               activityOrigin
@@ -709,6 +711,8 @@ func (i *agentInstance) finishLocked(state, reason string) events.Event {
 	i.state = state
 	i.reason = reason
 	i.currentRunID = ""
+	i.conversation = nil
+	i.conversationContext = nil
 	if i.activeCounted {
 		i.activeCounted = false
 		if i.group != nil && i.group.counters.ActiveAgents > 0 {

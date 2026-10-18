@@ -112,7 +112,7 @@ go-quickjs v0.25.3の`execFileSync`はコマンドのstdout・stderrを内部で
 
 ### <完了> 親agentによる子agentの監督
 
-**現行実装：** `run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`で単発task、待受instance、live snapshot、FIFO queueを利用できます。`steer_agent`・`interrupt_agent`と人間向けCLIから実行中の指示追加・取消しも利用できます。instanceは親runに所有されます。引数・戻り値・寿命は[APIリファレンス](api.md#自律agentopenrouter)を参照してください。以下は実装前の検討履歴であり、候補表と当時の未実装記述は現行API契約ではありません。
+**現行実装：** `run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`で単発task、待受instance、live snapshot、FIFO queueを利用できます。同じinstance内のqueueは新しいrun IDを持ちますが、前taskの最終回答を含むtrim後の確定済み会話から続きます。開始したqueue指示はuser messageとして保護し、trim回数もinstance内で続けます。`steer_agent`・`interrupt_agent`と人間向けCLIから実行中の指示追加・取消しも利用できます。instanceは親runに所有されます。引数・戻り値・寿命は[APIリファレンス](api.md#自律agentopenrouter)を参照してください。以下は実装前の検討履歴であり、候補表と当時の未実装記述は現行API契約ではありません。
 
 **主なユースケース：親agentが子agentを起動し、処理中の様子を確認して追加指示する。**
 
@@ -169,7 +169,7 @@ hjhを確認した後、NOEでは状態と結果を一つの入口へまとめ�
 
 ### <完了> ユーザー共通インストラクションの既定読込み — 2026-10-18
 
-**現行実装：** 共通設定とworkspaceのMarkdownを各run開始時に読み、組込み指示と明示した`system`へ追記します。子・次のqueue taskは新しく読み、そのrun中は固定します。workspaceはNOE起動時の作業ディレクトリです。[使い方](instructions.md)・[実装と検証](instructions-implementation.md)を参照してください。
+**現行実装：** 各agent instanceの最初のtask開始時に共通設定とworkspaceのMarkdownを一度読み、組込み指示と明示した`system`へ追記してinstance内で固定します。同じinstanceの次queue taskは再読込みせず、別のchild・agent instanceは自分の初回taskで新しく読みます。workspaceはNOE起動時の作業ディレクトリです。[使い方](instructions.md)・[実装と検証](instructions-implementation.md)を参照してください。
 
 **利用者の希望：共通の設定ディレクトリとworkspaceの両方からMarkdownファイルを既定で読み込み、agentの不変インストラクションへ追加する。** ライブラリの利用案内などを置き、各JSで毎回`readFile`と`system`への設定を書かずに使えるようにする。共通側の基本パスは`~/.config/noe/instructions/`。会話中の`~/.congig/noe/instraction/`は、このパス表記へ補正して記録する。
 
@@ -185,7 +185,7 @@ hjhを確認した後、NOEでは状態と結果を一つの入口へまとめ�
 
 ### <完了> 簡易的な実行コンテキスト管理
 
-**現行実装 — 2026-10-18：** `contextPolicy`による要求直前の自動切り捨てと使用量／予算通知を実装。元のsystem・task・適用済みsteerと直近の完了blockを保護し、古いtool往復は分断せず削除する。保存・要約は必須にしない。総合回帰・実プロバイダの挙動確認は[実装記録](context-trimming-implementation.md)を参照。以下の「未実装」「未決定」は当時の検討履歴であり、現在の仕様は[hook・contextガイド](hooks.md)を正本とする。
+**現行実装 — 2026-10-18：** `contextPolicy`による要求直前の自動切り捨てと使用量／予算通知を実装。元のsystem・task・適用済みsteerと直近の完了blockを保護し、古いtool往復は分断せず削除する。同じkeepAlive instanceのqueueでは、trim後に残る会話・trim回数・直近のtrim情報を次taskへ引き継ぐ。保存・要約は必須にしない。総合回帰・実プロバイダの挙動確認は[実装記録](context-trimming-implementation.md)を参照。以下の「未実装」「未決定」は当時の検討履歴であり、現在の仕様は[hook・contextガイド](hooks.md)を正本とする。
 
 **追加合意 — 2026-10-18：** 保存は任意で、必要な情報がなければ保存しない。保存専用turn・必須checkpoint・要約モデルを追加せず、使用量／予算と切り捨て方針を事前に通知する。切り捨て発動後は再推定した値と削減後の履歴を送る。window既知時は固定入力と応答予約を除いた残りの約90%を実行予算とし、未知かつ明示予算なしのNOE既定入力予算は1,000,000 tokensとする。これはモデルwindowの推測値ではない。Jevなど`noe:decision`の単発要求は切り捨て対象外。既存の入力全体の`contextBudget.inputTokens`と実行履歴だけの予算を区別する。[実装計画](context-trimming-plan.md)へsliceと検証方法を具体化した。以下の当初案・未決事項は、更新後の計画と区別する。
 

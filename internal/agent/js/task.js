@@ -255,7 +255,7 @@ function validatedSteers(value) {
 async function appendAndApplySteers(runId, history, value) {
   const steers = validatedSteers(value);
   for (const steer of steers) history.appendSteer(steer);
-  await rpc("apply_steers", { runId, commandIds: steers.map((steer) => steer.commandId) });
+  await rpc("apply_steers", { runId, commandIds: steers.map((steer) => steer.commandId), snapshot: history.snapshot() });
 }
 
 // This internal entry point is used by the managed-task bootstrap. It keeps the
@@ -271,6 +271,7 @@ export async function executeTask(config, instruction) {
   });
   const runId = start.runId;
   if (typeof runId !== "string" || !runId) throw new Error("agent broker returned an invalid run ID");
+  const managedConversation = start.snapshot !== undefined;
   const cacheKey = normalized.cacheKey === undefined ? runId : normalized.cacheKey;
   let status = "failed";
   let acceptedAnswer = "";
@@ -280,17 +281,19 @@ export async function executeTask(config, instruction) {
       throw new Error(start.instructionError);
     }
     const userInstructions = typeof start.instructions === "string" ? start.instructions : "";
-    const systemMessage = userInstructions
-      ? [systemInstruction, userInstructions, ...(system ? [system] : [])].join("\n\n")
-      : systemInstruction + (system ? "\n" + system : "");
     const loadedHooks = await loadHookModules(normalized.hooks);
-    const history = new TaskHistory(
-      { role: "system", content: systemMessage },
-      { role: "user", content: instruction },
-    );
+    const history = managedConversation
+      ? TaskHistory.restore(start.snapshot)
+      : new TaskHistory(
+          { role: "system", content: userInstructions
+            ? [systemInstruction, userInstructions, ...(system ? [system] : [])].join("\n\n")
+            : systemInstruction + (system ? "\n" + system : "") },
+          { role: "user", content: instruction },
+        );
     async function prepareContext(modelStepId, final = false, appliedPlanId = undefined, candidate = undefined) {
       return rpc("context_prepare", {runId, modelStepId, messages: candidate ? candidate.messages : history.messages(),
-        tools: [runJSTool], history: candidate ? candidate.layout : history.layout(), final, appliedPlanId});
+        tools: [runJSTool], history: candidate ? candidate.layout : history.layout(),
+        snapshot: candidate ? candidate.snapshot : undefined, final, appliedPlanId});
     }
     let modelStepId = null;
     while (true) {
@@ -352,6 +355,9 @@ export async function executeTask(config, instruction) {
           effective => executeToolCall(runId, modelStepId, effective),
         )));
         history.completeBlock(response.message, results);
+        if (managedConversation) {
+          await rpc("conversation_checkpoint", {runId, snapshot: history.snapshot()});
+        }
         modelStepId = null;
         continue;
       }
@@ -368,14 +374,14 @@ export async function executeTask(config, instruction) {
       const answer = finalAnswer(response.message.content);
       if (!answer.trim()) throw new Error("model returned an empty final answer");
 
-      const committed = await rpc("commit_final", { runId, answer });
+      // Append before the finalization gate. The broker commits this complete
+      // assistant object on both accepted and steer-rejected candidates.
+      history.completeBlock(response.message);
+      const committed = await rpc("commit_final", { runId, answer, snapshot: history.snapshot() });
       if (!isRecord(committed) || typeof committed.committed !== "boolean") {
         throw new Error("agent broker returned an invalid final-answer result");
       }
       if (!committed.committed) {
-        // Retain the complete candidate object before adding the new user
-        // messages, including reasoning_details and provider extensions.
-        history.completeBlock(response.message);
         await appendAndApplySteers(runId, history, committed.instructions);
         modelStepId = null;
         continue;

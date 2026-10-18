@@ -106,7 +106,7 @@ console.log(result.lastResult.answer);`, filepath.Join(cwd, "first.md"), filepat
 	}
 }
 
-func TestAgentInstructionsLazyIdleFailureAndFreshQueue(t *testing.T) {
+func TestAgentInstructionsLazyIdleFailureAndFrozenQueue(t *testing.T) {
 	cwd, config := t.TempDir(), t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", config)
 	// A malformed instruction directory must not affect import or idle spawn.
@@ -119,9 +119,7 @@ func TestAgentInstructionsLazyIdleFailureAndFreshQueue(t *testing.T) {
 		if err := json.Unmarshal(req.Messages[0], &system); err != nil {
 			return provider.Response{}, err
 		}
-		if err := json.Unmarshal(req.Messages[1], &input); err != nil {
-			return provider.Response{}, err
-		}
+		input.Content = interruptUserPrompt(req)
 		mu.Lock()
 		seen[input.Content] = system.Content
 		mu.Unlock()
@@ -161,7 +159,7 @@ console.log("queue snapshots verified");`, bad)
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(seen) != 2 || !strings.Contains(seen["first-good"], "QUEUED_VERSION_ONE") || strings.Contains(seen["first-good"], "VERSION_TWO") || !strings.Contains(seen["second-good"], "QUEUED_VERSION_TWO") || strings.Contains(seen["second-good"], "VERSION_ONE") {
+	if len(seen) != 2 || !strings.Contains(seen["first-good"], "QUEUED_VERSION_ONE") || strings.Contains(seen["first-good"], "VERSION_TWO") || !strings.Contains(seen["second-good"], "QUEUED_VERSION_ONE") || strings.Contains(seen["second-good"], "VERSION_TWO") {
 		t.Fatalf("queue task instruction snapshots: %v", seen)
 	}
 	for _, system := range seen {

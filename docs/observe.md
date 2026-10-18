@@ -1,5 +1,10 @@
 # agentの観察：人間用CLIと親用API
 
+同じkeepAlive instanceのqueue taskは新しいrun IDになりますが、前taskの最終回答を含む
+確定済み・trim後の会話から続きます。予約した指示は受付時に現在の会話へ混ぜず、task開始時に
+protected user messageとして追加します。live contextのtrim回数もinstance内で継続し、
+新しいagent instanceは独立した会話とtrim状態を持ちます。
+
 `--observe`と保存ログの表示では、`context:`行に入力予算・モデルwindow・次要求の
 `estimated`値・残量・`previous`実測と、実行履歴の使用量／予算／sourceを表示する。未知値は`unknown`。
 実際に切り捨てた時だけ`context.trimmed`から前後概算と削除block数を表示する。

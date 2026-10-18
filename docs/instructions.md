@@ -1,6 +1,6 @@
 # agentの不変インストラクション
 
-agentの各task run開始時に、次の順で指示を結合します。
+agent instanceの最初のtask開始時に、次の順でinstructionを一度構成します。
 
 1. NOE組込みの実行環境・toolの説明。
 2. 共通ディレクトリの`*.md`。
@@ -65,19 +65,22 @@ console.log(result.lastResult);
 
 ## 読込みのタイミング
 
-自動読込みは各runで一度だけ、hookとモデル要求より前に行います。
-そのrunの途中でファイルを書き換えても、保持する指示と後続モデル要求には反映しません。
-moduleのimportやtaskなしのidle起動では読みません。
+最初の実task開始時に一度だけ、hookとモデル要求より前に自動読込みします。
+idle起動では読みません。読込み前にtaskが開始されずに終わった場合も読みません。
+同じinstanceでqueueされた次taskは、instruction fileを再読込みせず最初に構成したsystemを使います。
+そのinstanceの最初のtask開始後にファイルを書き換えても、queue taskへ反映しません。
 
-子agentの新しいrunや、keepAlive instanceの次のqueue taskではその時点のファイルを読みます。
-親の自動読込み済み本文を子へ重ねて継承することはありません。
-明示した`system`はinstance設定なので、同じinstanceの各taskに保持されます。
-子の`system`はこれまでどおり明示した場合だけ適用され、親から自動継承しません。
+新しいchild agentなど別instanceは、自分の最初のtask開始時に最新ファイルを読みます。
+親の自動読込み済み本文や会話は子へ継承しません。明示した`system`はinstance単位で固定され、
+queue taskでは維持しますが、新しいchildへは明示した場合だけ適用されます。
 
 結合した本文は不変のsystemメッセージとして保持します。動的な予算・使用量通知は
 [hook・contextガイド](hooks.md)の要求限定情報として別に扱い、元の指示へ蓄積しません。
 自動管理時は、予算に達すると古い完了済みの実行履歴がまとめて切り捨てられる場合があります。
-system、元のtask指示、適用済みsteerは保持します。直近の完了blockも残ります。
+system、元のtask指示、適用済みsteer、開始した各queue taskの指示は保持します。queue指示は、
+実行開始時に会話の順序どおりuser messageとして追加されます。直近の完了blockも残ります。
+同じinstanceの次queue taskへはtrim後の有効な会話とtrim回数・直近のtrim情報を引き継ぎます。
+一度切り捨てたblockは復活しません。別instanceの会話は独立しています。
 それより古いblockは削除対象となり、削除時もassistantのtool callと対応する全tool結果を一体として扱います。
 必要な情報が後でも役立つ場合だけ、通常のtask作業として既知のファイルへ保存できます。保存は任意で、
 保存しなくても処理は続きます。設定と予算の意味は[hook・contextガイド](hooks.md)を参照してください。

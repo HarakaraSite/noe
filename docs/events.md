@@ -7,6 +7,11 @@ agentイベントには、CLI全体の`executionId`に加え、所有ルート�
 `interrupt.accepted`のactivityとoriginは停止を要求した操作を示し、
 `runId` / `agentId`は停止対象を示す。再送で新しい受付イベントは作らない。
 
+同じinstanceのqueue taskにはそれぞれ新しい`runId`が付きますが、会話は前taskの最終回答を含む
+確定済みのtrim後snapshotから続きます。queue指示は受付時点で現在の会話へ加わらず、
+task開始時にuser messageとして追加されます。`context.trimmed`は実際にtrimを行ったrunへ記録し、
+trim回数は同instanceの後続queue taskにも引き継ぎます。新しいinstanceは別の会話です。
+
 | イベント | 内容 |
 | --- | --- |
 | `model.step.started` | 論理判断の開始。steer再準備中は同じ`modelStepId` |

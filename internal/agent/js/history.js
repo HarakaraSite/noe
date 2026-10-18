@@ -10,6 +10,37 @@ export class TaskHistory {
     this.add("protected", [task]);
   }
 
+  static restore(snapshot) {
+    if (snapshot === null || typeof snapshot !== "object" || Array.isArray(snapshot) ||
+        !Number.isSafeInteger(snapshot.revision) || snapshot.revision < 2 ||
+        !Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < 2 ||
+        snapshot.sequence > snapshot.revision || !Array.isArray(snapshot.entries) || snapshot.entries.length < 2) {
+      throw new Error("agent broker returned an invalid conversation snapshot");
+    }
+    const history = Object.create(TaskHistory.prototype);
+    history.revision = snapshot.revision;
+    history.sequence = snapshot.sequence;
+    history.steers = new Set();
+    const seen = new Set();
+    history.entries = snapshot.entries.map((entry) => {
+      if (entry === null || typeof entry !== "object" || Array.isArray(entry) ||
+          typeof entry.id !== "string" || !entry.id || seen.has(entry.id) ||
+          (entry.kind !== "protected" && entry.kind !== "block") || !Array.isArray(entry.messages) || entry.messages.length === 0) {
+        throw new Error("agent broker returned an invalid conversation entry");
+      }
+      seen.add(entry.id);
+      if (entry.messages.some(message => message === null || typeof message !== "object" || Array.isArray(message))) {
+        throw new Error("agent broker returned an invalid conversation message");
+      }
+      if (entry.kind === "protected" && entry.messages.length !== 1) {
+        throw new Error("agent broker returned an invalid protected conversation entry");
+      }
+      if (entry.kind === "block") validateCompleteBlock(entry.messages);
+      return {id: entry.id, kind: entry.kind, messages: entry.messages};
+    });
+    return history;
+  }
+
   add(kind, messages) {
     this.entries.push({id: "history-" + (++this.sequence), kind, messages});
     this.revision++;
@@ -33,6 +64,14 @@ export class TaskHistory {
 
   messages() { return this.entries.flatMap(entry => entry.messages); }
 
+  snapshot() {
+    return {
+      revision: this.revision,
+      sequence: this.sequence,
+      entries: this.entries.map(entry => ({id: entry.id, kind: entry.kind, messages: entry.messages})),
+    };
+  }
+
   layout() {
     return {
       revision: this.revision,
@@ -54,6 +93,8 @@ export class TaskHistory {
     const entries = this.entries.filter(entry => !removed.has(entry.id));
     return {fromRevision: this.revision, entries,
       messages: entries.flatMap(entry => entry.messages),
+      snapshot: {revision: this.revision + 1, sequence: this.sequence,
+        entries: entries.map(entry => ({id: entry.id, kind: entry.kind, messages: entry.messages}))},
       layout: {revision: this.revision + 1,
         entries: entries.map(entry => ({id: entry.id, kind: entry.kind, count: entry.messages.length}))}};
   }
@@ -66,4 +107,23 @@ export class TaskHistory {
   }
 
   apply(plan) { return this.commit(this.stage(plan)); }
+}
+
+function validateCompleteBlock(messages) {
+  const assistant = messages[0];
+  if (assistant.role !== "assistant") throw new Error("agent broker returned an incomplete conversation block");
+  const calls = assistant.tool_calls === undefined || assistant.tool_calls === null ? [] : assistant.tool_calls;
+  if (!Array.isArray(calls) || messages.length !== calls.length + 1) {
+    throw new Error("agent broker returned an incomplete conversation block");
+  }
+  const seen = new Set();
+  for (let index = 0; index < calls.length; index++) {
+    const call = calls[index];
+    const result = messages[index + 1];
+    if (call === null || typeof call !== "object" || typeof call.id !== "string" || !call.id || seen.has(call.id) ||
+        result.role !== "tool" || result.tool_call_id !== call.id) {
+      throw new Error("agent broker returned an incomplete conversation block");
+    }
+    seen.add(call.id);
+  }
 }

@@ -13,6 +13,7 @@ type contextPrepareRequest struct {
 	Messages      []json.RawMessage     `json:"messages"`
 	Tools         []json.RawMessage     `json:"tools,omitempty"`
 	History       *contextHistoryLayout `json:"history,omitempty"`
+	Snapshot      *conversationSnapshot `json:"snapshot,omitempty"`
 	Final         bool                  `json:"final,omitempty"`
 	AppliedPlanID string                `json:"appliedPlanId,omitempty"`
 }
@@ -73,6 +74,23 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 		writeRPCError(w, http.StatusConflict, "context_plan", "context trim plan must be acknowledged before preparing again")
 		return
 	}
+	if request.AppliedPlanID != "" && run.instance != nil {
+		if run.context.pendingPlan == nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "context_plan", "no context trim plan is pending")
+			return
+		}
+		if err := validateConversationSnapshotMatches(request.Snapshot, request.Messages, request.History); err != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusBadRequest, "conversation", err.Error())
+			return
+		}
+		if err := validateConversationTrim(run.instance.conversation, request.Snapshot, run.context.pendingPlan.plan.RemoveIDs); err != nil {
+			h.mu.Unlock()
+			writeRPCError(w, http.StatusConflict, "conversation", err.Error())
+			return
+		}
+	}
 	run.context.fixedTokens, run.context.executionTokens = fixed, execution
 	var trimmed *contextTrimSnapshot
 	if request.AppliedPlanID != "" {
@@ -82,6 +100,9 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 			h.mu.Unlock()
 			writeRPCError(w, http.StatusConflict, "context_plan", ackErr.Error())
 			return
+		}
+		if run.instance != nil {
+			run.instance.conversation = cloneConversationSnapshot(request.Snapshot)
 		}
 	}
 	snapshot, _, err := prepareContextEstimate(&run.context, run.id, request.Messages, request.Tools)
