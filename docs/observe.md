@@ -9,6 +9,7 @@ protected user messageとして追加します。live contextのtrim回数もins
 `estimated`値・残量・`previous`実測と、実行履歴の使用量／予算／sourceを表示する。`budget`と`remaining`には計算済みの総入力予算とその残量を使い、window不明時もfallback予算を表示する。明示した設定値は`explicitBudget`として別に表示する。古いログに計算済み予算がなければ明示予算を使い、それも不明なら`unknown`。
 実際に切り捨てた時だけ`context.trimmed`から前後概算と削除block数を表示する。
 概算はtokenizerによる実測ではなく、`preparing`/`sent`は算出した段階を示す。
+画像を含む要求では`context.estimate.imageTokens`に画像分の概算を分けて記録し、`method`に`image_32px_patches_x1.2_fallback`を含めます。これはtokenizerや請求額の実測ではありません。式と`low` detailの寸法扱いは[画像ガイド](agent-images.md)を参照してください。
 `hook started`は実行中のphase/moduleを表示し、失敗・取消しも確認できる。
 JSONLと観察snapshotには`groupId`、group累計の`execution`、要求単位の`context`を残す。
 保存ログのsnapshotはcursorで差分を絞ってもこれらを全履歴から復元する。
@@ -17,6 +18,8 @@ hookが待機中なら`phase: "hook"`と実行中のhandlerを`action`に返す�
 保存ログの`tool.finished`差分は、`includeOutput: true`で元の`rawResult`とモデル向け
 `result`を返す。既定ではこれらのpayloadを省き、ID・実行状態・結果の有無を返す。
 元のJSONLファイルには両方を保持する。
+
+`image.read`は`image read <path>`として表示し、生成eventは種別・`imageModel`・pathを短く表示します。画像metadataはJSONLの`image`項目と`tool.finished.rawImages` / `images`に残ります。失敗・取消しの構造化理由は生成eventの`error`にあります。`observe_agent`のevent差分にも画像eventを含みます。
 保存runの`execution`は、そのrunに一致した最後のイベント時点のgroup集計です。
 runの完了後に出るinstance終端など、別のイベントによる更新は取り込みません。
 groupの現在状態はliveの`observe_agent({agentId})`、回収完了はinstance終端イベントで確認します。

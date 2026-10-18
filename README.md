@@ -14,7 +14,7 @@ NOE is a Go runtime for small scripts and autonomous agent tasks. Run JavaScript
 
 The linked guides and development notes are currently in Japanese.
 
-[v1.6.1 release notes](docs/releases/v1.6.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.6.1)
+[v1.7.0 release notes](docs/releases/v1.7.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.0)
 
 ## Build and run
 
@@ -28,7 +28,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.6.1
+# noe v1.7.0
 
 ./noe run examples/basics/hello.js
 # Hello from NOE!
@@ -123,7 +123,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.6.1 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.6.1/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
+Open the displayed URL in a browser. If you downloaded only the binary, [download the v1.7.0 helper](https://forge.harakara.site/littleisland/noe/raw/tag/v1.7.0/scripts/auth-chatgpt.js) in place of the `cp` step. The [OpenAI guide](docs/openai.md) covers remote-terminal sign-in and credential renewal. OpenAI uses the official OpenAI Go SDK and defaults to Responses; OpenRouter and OpenCode Go use the OpenRouter Go SDK. Chat Completions and Responses are supported; Messages is not implemented.
 
 ### Run one task and receive its answer
 
@@ -154,6 +154,15 @@ console.log(snapshot.lastResult.answer);
 ```
 
 The root agent requires explicit `provider`, `model`, and `effort`. Switch providers by changing the first two fields together; model IDs can differ between providers. `effort: "auto"` leaves the effort to the provider/model. Other accepted values are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`; actual support depends on the selected model.
+
+Agents can inspect local PNG, JPEG, and WebP files with `read_image()` from `run_js`. Top-level JavaScript can generate one image with `generate_image()` using an explicitly selected provider and model:
+
+```sh
+./noe run examples/image/read.js ./tmp/screenshot.png
+./noe run examples/image/generate.js
+```
+
+Image generation uses the selected provider's service and may incur charges. See the [image guide](docs/agent-images.md) and [image examples](examples/image/README.md) for provider support and details.
 
 `run_agent` waits until the agent instance stops and cleanup finishes. Normal task failures are returned in `snapshot.lastResult`, so check its state as above. Invalid input and startup acceptance failures reject the Promise. Optional settings include:
 

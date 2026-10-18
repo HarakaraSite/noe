@@ -72,6 +72,16 @@ func (b *broker) handleBeginModelStep(w http.ResponseWriter, r *http.Request, op
 	causedBy := []string(nil)
 	predecessors := []string(nil)
 	if previous := run.modelStep; previous != nil {
+		if !previous.imagesCommitted {
+			for _, call := range previous.toolCalls {
+				if len(call.images) > 0 {
+					h.mu.Unlock()
+					writeRPCError(w, 409, "image", "image tool exchange has not been checkpointed")
+					return
+				}
+			}
+			discardStepImages(previous)
+		}
 		predecessors = completedStepActivityIDs(previous)
 	} else if run.activityID != "" {
 		predecessors = append(predecessors, run.activityID)

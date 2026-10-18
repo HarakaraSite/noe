@@ -11,7 +11,7 @@ A tiny JavaScript runtime written in pure Go.
 
 [APIリファレンス](docs/api.md) · [import map](docs/import-map.md) · [旧APIからの移行](docs/api.md#旧apiからの移行) · [REPLガイド](docs/repl.md) · [実行例](examples/README.md) · [開発記録](docs/README.md)
 
-[v1.6.1リリースノート](docs/releases/v1.6.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.6.1)
+[v1.7.0リリースノート](docs/releases/v1.7.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.0)
 
 ## ビルドと実行
 
@@ -25,7 +25,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 ```sh
 ./noe --version
-# noe v1.6.1
+# noe v1.7.0
 
 ./noe run examples/basics/hello.js
 # Hello from NOE!
@@ -123,7 +123,7 @@ cp scripts/auth-chatgpt.js ~/.config/noe/auth-chatgpt.js
 ./noe run ~/.config/noe/auth-chatgpt.js
 ```
 
-表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.6.1のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.6.1/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
+表示されたURLをブラウザで開いてください。バイナリだけを取得した場合は、`cp`の代わりに[v1.7.0のヘルパーをダウンロード](https://forge.harakara.site/littleisland/noe/raw/tag/v1.7.0/scripts/auth-chatgpt.js)します。リモート端末での登録や認証更新は[OpenAIガイド](docs/openai.md)を参照してください。OpenAIは公式OpenAI Go SDKのResponsesを既定とし、OpenRouter・OpenCode GoはOpenRouter Go SDKを使います。Chat CompletionsとResponsesに対応し、Messagesは未対応です。
 
 ### 1タスクを実行し、回答を受け取る
 
@@ -154,6 +154,15 @@ console.log(snapshot.lastResult.answer);
 ```
 
 ルートagentでは`provider`・`model`・`effort`の明示が必須です。providerを変更するときは、providerごとに異なるmodel IDも合わせて変更します。`effort: "auto"`は推論エフォートをprovider/modelに任せます。他に`none`・`minimal`・`low`・`medium`・`high`・`xhigh`・`max`を指定でき、実際の対応はモデルによります。
+
+agentは`run_js`内の`read_image()`でPNG・JPEG・WebPを読み、次のモデル要求で画像を確認できます。通常のJavaScriptからは、provider・modelを明示した`generate_image()`で画像を1枚生成して保存できます。
+
+```sh
+./noe run examples/image/read.js ./tmp/screenshot.png openai-api gpt-6.1-sol
+./noe run examples/image/generate.js
+```
+
+画像生成はOpenRouterとOpenAI APIキーに対応し、利用料が発生する場合があります。ChatGPTサインインとOpenCode Goの画像生成は未対応です。[画像ガイド](docs/agent-images.md)と[画像の実行例](examples/image/README.md)を参照してください。
 
 `run_agent`はinstanceの停止と後始末が終わるまで待ちます。通常のタスク失敗も`snapshot.lastResult`へ返るため、上の例のようにstateを確認してください。入力不正や起動受付の失敗はPromiseがrejectします。追加設定は次のとおりです。
 

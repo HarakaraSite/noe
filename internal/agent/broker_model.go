@@ -11,6 +11,7 @@ import (
 
 	"noe/internal/agent/provider"
 	"noe/internal/events"
+	imageapi "noe/internal/image"
 )
 
 type modelRequest struct {
@@ -81,6 +82,12 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 	if request.ModelStepID != "" && (run.modelStep == nil || run.modelStep.id != request.ModelStepID || run.modelStep.finished) {
 		h.mu.Unlock()
 		writeRPCError(w, http.StatusConflict, "model_step", "model request does not match the active logical step")
+		return
+	}
+	expandedMessages, imageErr := h.expandImagesLocked(run, request.Messages)
+	if imageErr != nil {
+		h.mu.Unlock()
+		writeRPCError(w, 400, "image", imageErr.Error())
 		return
 	}
 	steers := h.deliverPendingSteersLocked(run)
@@ -184,7 +191,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 	}
 	providerRequest := provider.Request{
 		Provider: run.config.Provider, RunID: request.RunID,
-		Model: run.config.Model, Messages: request.Messages, Tools: request.Tools,
+		Model: run.config.Model, Messages: expandedMessages, Tools: request.Tools,
 		CacheKey: request.CacheKey, MaxTokens: run.config.MaxTokens, Effort: run.config.Effort,
 		Observe: observeStream,
 	}
@@ -268,7 +275,14 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		Status: "model_response", Duration: time.Since(started), Usage: summarizeUsage(response.Usage),
 	})
 	usage := summarizeUsage(response.Usage)
+	var explicitRefusal struct {
+		Refusal string `json:"refusal"`
+	}
+	_ = json.Unmarshal(response.Message, &explicitRefusal)
 	h.mu.Lock()
+	if strings.TrimSpace(explicitRefusal.Refusal) != "" {
+		run.refusal = &imageapi.Error{Code: "refusal", Message: "model refused the request", ProviderMessage: explicitRefusal.Refusal, RequestID: requestID}
+	}
 	if run.group != nil {
 		run.group.usage.add(usage)
 	}
@@ -290,6 +304,9 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		fields := events.Event{"requestId": requestID, "status": "finished", "finishReason": response.FinishReason, "duration": time.Since(started), "usage": usage}
 		if request.ModelStepID != "" {
 			fields["modelStepId"] = request.ModelStepID
+		}
+		if explicitRefusal.Refusal != "" {
+			fields["errorDetails"] = run.refusal
 		}
 		addActivityFields(fields, activityID, causedBy, origin)
 		h.observeRun("model.finished", request.RunID, run, fields)

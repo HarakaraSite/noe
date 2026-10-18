@@ -121,7 +121,7 @@ export function createAgentAPI({ request, defaults, observe }) {
     const query = {};
     if (options.provider !== undefined) query.provider = requireString(options.provider, "provider");
     if (options.kind !== undefined) {
-      if (options.kind !== "agent" && options.kind !== "decision") throw new TypeError("kind must be agent or decision");
+      if (options.kind !== "agent" && options.kind !== "decision" && options.kind !== "image") throw new TypeError("kind must be agent, decision, or image");
       query.kind = options.kind;
     }
     return rpc("list_models", query);

@@ -13,6 +13,7 @@
 | [process](process/README.md) | 常駐子プロセス、JSONL通信、パイプライン | 不要 |
 | [import-map](import-map/README.md) | ローカルESMへの名前付け | 不要 |
 | [agent](agent/README.md) | 任意タスク、要約、並列委譲、provider選択、hook、steer・queue・interrupt | 各providerの認証 |
+| [image](image/README.md) | agentによる画像読取り、JavaScriptからの画像生成 | 読取りはagent用provider認証、生成は対応provider認証と利用料 |
 | [decision](decision/README.md) | Jev等による単発の構造化判断 | OpenRouter認証 |
 | [exa](exa/README.md) | 再利用できるExa検索ライブラリ | Exa APIキー |
 | [agent-server](agent-server/README.md) | HTTP・ブラウザから常駐agentへ依頼・観察・制御 | 各providerの認証 |
@@ -28,5 +29,7 @@
 ```
 
 HTTPサーバーを作らせた[指示文](agent-server/build-task.md)と、生成された[サーバー](agent-server/README.md)も同じフォルダに置いています。
+
+画像例は`./noe run examples/image/read.js ./tmp/screenshot.png`でagentに画像を見せ、`./noe run examples/image/generate.js`で画像を生成します。利用できるprovider/modelや認証条件は[画像例のREADME](image/README.md)を参照してください。
 
 [動作確認結果と利用条件](VALIDATION.md)を参照してください。HTTPの`example.com`は説明用URLなので、実際のAPI・ファイルURLへ置き換えます。Exaは単体実行では検索せず、`search`をimportして呼び出すライブラリです。

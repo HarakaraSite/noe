@@ -16,6 +16,7 @@ import (
 	"noe/internal/credentials"
 	"noe/internal/decision"
 	"noe/internal/hostio"
+	imageapi "noe/internal/image"
 	"noe/internal/modulemap"
 	"noe/internal/nativeio"
 
@@ -225,6 +226,8 @@ func (h *host) installLoader(entry *Source) {
 			return agent.APIModuleSource, specifier, nil
 		case "noe:agent/hooks":
 			return agent.HooksModuleSource, specifier, nil
+		case "noe:image":
+			return imageapi.ModuleSource, specifier, nil
 		case "noe:decision":
 			return decision.ModuleSource, specifier, nil
 		case "noe:auth":

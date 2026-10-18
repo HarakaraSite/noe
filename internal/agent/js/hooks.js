@@ -134,12 +134,37 @@ export async function callHooks(loaded, phase, event, validateReplacement) {
       if (phase !== "beforeTool" && phase !== "afterTool") return undefined;
       if (value === undefined) return undefined;
       const field = phase === "beforeTool" ? "arguments" : "result";
-      if (!isRecord(value) || Object.keys(value).length !== 1 || !Object.hasOwn(value, field)) {
+      const keys = isRecord(value) ? Object.keys(value) : [];
+      if (!isRecord(value) || !Object.hasOwn(value, field) ||
+          keys.some(key => key !== field && !(phase === "afterTool" && key === "imageIds"))) {
         throw new TypeError(phase + " must return undefined or {" + field + "}");
       }
       const replacement = copyJSON(value[field]);
       if (validateReplacement) validateReplacement(replacement);
-      return {value: replacement};
+      if (phase !== "afterTool" || !Object.hasOwn(value, "imageIds")) return {value: replacement};
+
+      if (!Array.isArray(value.imageIds)) throw new TypeError("afterTool imageIds must be an array");
+      const selected = copyJSON(value.imageIds);
+      const availableImages = current.images === undefined ? [] : current.images;
+      if (!Array.isArray(availableImages)) throw new TypeError("afterTool event.images must be an array");
+      const availableIDs = new Set();
+      for (const image of availableImages) {
+        if (!isRecord(image) || typeof image.imageId !== "string" || !image.imageId || availableIDs.has(image.imageId)) {
+          throw new TypeError("afterTool event.images contains invalid metadata");
+        }
+        availableIDs.add(image.imageId);
+      }
+      const selectedIDs = new Set();
+      for (const imageId of selected) {
+        if (typeof imageId !== "string" || !imageId) throw new TypeError("afterTool imageIds must contain nonempty strings");
+        if (selectedIDs.has(imageId)) throw new TypeError("afterTool imageIds must not contain duplicates");
+        if (!availableIDs.has(imageId)) throw new TypeError("afterTool imageIds must be a subset of current event.images");
+        selectedIDs.add(imageId);
+      }
+      return {
+        value: replacement,
+        images: availableImages.filter(image => selectedIDs.has(image.imageId)),
+      };
     }, {
       runId: event.runId, modelStepId: event.modelStepId,
       phase, hookIndex: registration.index, module: registration.module,
@@ -148,6 +173,7 @@ export async function callHooks(loaded, phase, event, validateReplacement) {
     if (replacement !== undefined) {
       const field = phase === "beforeTool" ? "arguments" : "result";
       current[field] = replacement.value;
+      if (replacement.images !== undefined) current.images = replacement.images;
       changed = true;
     }
   }

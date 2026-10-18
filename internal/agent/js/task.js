@@ -101,7 +101,20 @@ function requireRunnerResult(value) {
       !Number.isInteger(value.exitCode) || !["completed", "failed", "timeout", "cancelled"].includes(value.reason)) {
     throw new Error("runner returned an invalid tool result");
   }
+  if (value.images !== undefined && value.images !== null) validateImageMetadata(value.images);
   return value;
+}
+
+function validateImageMetadata(images) {
+  if (!Array.isArray(images)) throw new Error("runner returned invalid image metadata");
+  const seenIDs = new Set();
+  for (const image of images) {
+    if (!isRecord(image) || typeof image.imageId !== "string" || !image.imageId || seenIDs.has(image.imageId)) {
+      throw new Error("runner returned invalid image metadata");
+    }
+    seenIDs.add(image.imageId);
+  }
+  return images;
 }
 
 async function executeToolCall(runId, modelStepId, toolCall) {
@@ -143,7 +156,10 @@ function parsedToolArguments(call) {
 // The wrapper is independent of the tool implementation. The model's full
 // original call remains in history; effective arguments and results are
 // recorded separately from actual execution facts.
-export async function executeToolWithHooks(loaded, event, toolCall, execute) {
+export async function executeToolWithHooks(loaded, event, toolCall, execute, onImages = undefined) {
+  if (onImages !== undefined && typeof onImages !== "function") {
+    throw new TypeError("onImages must be a function");
+  }
   const fn = toolCall.function;
   const toolName = typeof fn.name === "string" && fn.name.trim() ? fn.name : "<invalid>";
   const originalArguments = fn.arguments === undefined ? null : fn.arguments;
@@ -159,29 +175,41 @@ export async function executeToolWithHooks(loaded, event, toolCall, execute) {
   const effectiveCall = before.changed ? {
     ...toolCall, function: {...fn, arguments: JSON.stringify(before.event.arguments)},
   } : toolCall;
-  const rawResult = await execute(effectiveCall);
+  const executedResult = await execute(effectiveCall);
+  let rawResult = executedResult;
+  let rawImages = [];
+  if (toolName === "run_js" && isRecord(executedResult) && Object.hasOwn(executedResult, "images")) {
+    rawImages = executedResult.images === null ? [] : validateImageMetadata(executedResult.images);
+    rawResult = {...executedResult};
+    delete rawResult.images;
+  }
   const report = {
     runId: event.runId, modelStepId: event.modelStepId,
     toolCallId: toolCall.id, toolName,
     rawArguments: originalArguments, arguments: before.event.arguments,
-    rawResult,
+    rawResult, rawImages,
   };
   let after;
   try {
     after = await callHooks(loaded, "afterTool", {
       ...event, toolCallId: toolCall.id, toolName,
-      rawArguments: originalArguments, arguments: before.event.arguments, result: rawResult,
+      rawArguments: originalArguments, arguments: before.event.arguments,
+      result: rawResult, images: rawImages,
     });
   } catch (error) {
     try {
-      await rpc("tool_result", {...report, result: null, modelResultAvailable: false, hookError: hookErrorText(error)});
+      await rpc("tool_result", {
+        ...report, result: null, images: [], modelResultAvailable: false, hookError: hookErrorText(error),
+      });
     } catch (_) {
       // Cancellation may already have closed admission. Keep the hook error.
     }
     throw error;
   }
   const result = after.changed ? after.event.result : rawResult;
-  await rpc("tool_result", {...report, result, modelResultAvailable: true});
+  const images = after.event.images === undefined ? rawImages : validateImageMetadata(after.event.images);
+  await rpc("tool_result", {...report, result, images, modelResultAvailable: true});
+  if (onImages !== undefined) onImages(images);
   return result;
 }
 
@@ -350,12 +378,26 @@ export async function executeTask(config, instruction) {
         }
         // Keep the provider's full assistant object, including reasoning,
         // call IDs, and extension fields, for the next request.
-        const results = await Promise.all(calls.map(call => executeToolWithHooks(
-          loadedHooks, {runId, modelStepId, requestId: response.requestId}, call,
-          effective => executeToolCall(runId, modelStepId, effective),
-        )));
-        history.completeBlock(response.message, results);
-        if (managedConversation) {
+        const imagesByCall = new Array(calls.length);
+        let results;
+        try {
+          results = await Promise.all(calls.map((call, index) => executeToolWithHooks(
+            loadedHooks, {runId, modelStepId, requestId: response.requestId}, call,
+            effective => executeToolCall(runId, modelStepId, effective),
+            images => { imagesByCall[index] = images; },
+          )));
+        } catch (error) {
+          try { await rpc("discard_images", {runId, modelStepId}); } catch (_) {}
+          throw error;
+        }
+        const images = imagesByCall.flatMap(images => images || []);
+        try {
+          history.completeBlock(response.message, results, images);
+        } catch (error) {
+          try { await rpc("discard_images", {runId, modelStepId}); } catch (_) {}
+          throw error;
+        }
+        if (managedConversation || images.length > 0) {
           await rpc("conversation_checkpoint", {runId, snapshot: history.snapshot()});
         }
         modelStepId = null;

@@ -92,6 +92,17 @@ func (r *agentRenderer) render(event events.Event) error {
 			detail = fmt.Sprintf("%s / used=%v / limit=%v", dimension, event["used"], event["limit"])
 		}
 		return r.line(label, "execution limit reached", detail)
+	case "image.read":
+		return r.line(label, "image read", eventString(event, "path"))
+	case "image.started", "image.completed", "image.failed", "image.cancelled":
+		detail := eventString(event, "imageModel")
+		if path := eventString(event, "path"); path != "" {
+			detail += " / " + path
+		}
+		if reason := eventString(event, "reason"); reason != "" {
+			detail += " / " + reason
+		}
+		return r.line(label, "image "+strings.TrimPrefix(kind, "image."), detail)
 	case "decision.started", "decision.completed", "decision.failed", "decision.cancelled":
 		detail := eventString(event, "decisionModel") + " [" + shortID(eventString(event, "requestId")) + "]"
 		if responseModel := eventString(event, "responseModel"); responseModel != "" && responseModel != eventString(event, "decisionModel") {

@@ -6,19 +6,22 @@ import (
 	"strings"
 
 	"noe/internal/events"
+	imageapi "noe/internal/image"
 )
 
 type toolResultRequest struct {
-	RunID                string          `json:"runId"`
-	ModelStepID          string          `json:"modelStepId"`
-	ToolCallID           string          `json:"toolCallId"`
-	ToolName             string          `json:"toolName"`
-	RawArguments         json.RawMessage `json:"rawArguments"`
-	Arguments            json.RawMessage `json:"arguments"`
-	RawResult            json.RawMessage `json:"rawResult"`
-	Result               json.RawMessage `json:"result"`
-	ModelResultAvailable *bool           `json:"modelResultAvailable,omitempty"`
-	HookError            string          `json:"hookError,omitempty"`
+	RunID                string              `json:"runId"`
+	ModelStepID          string              `json:"modelStepId"`
+	ToolCallID           string              `json:"toolCallId"`
+	ToolName             string              `json:"toolName"`
+	RawArguments         json.RawMessage     `json:"rawArguments"`
+	Arguments            json.RawMessage     `json:"arguments"`
+	RawResult            json.RawMessage     `json:"rawResult"`
+	Result               json.RawMessage     `json:"result"`
+	ModelResultAvailable *bool               `json:"modelResultAvailable,omitempty"`
+	RawImages            []imageapi.Metadata `json:"rawImages,omitempty"`
+	Images               []imageapi.Metadata `json:"images,omitempty"`
+	HookError            string              `json:"hookError,omitempty"`
 }
 
 func (b *broker) handleToolResult(w http.ResponseWriter, r *http.Request, op *Operation) {
@@ -54,6 +57,17 @@ func (b *broker) handleToolResult(w http.ResponseWriter, r *http.Request, op *Op
 		}
 		toolState.activityID = activityID
 	}
+	selected, imageErr := selectedToolImages(toolState, request.RawImages, request.Images)
+	if imageErr != nil {
+		h.mu.Unlock()
+		writeRPCError(w, 400, "image", imageErr.Error())
+		return
+	}
+	if request.HookError != "" || (request.ModelResultAvailable != nil && !*request.ModelResultAvailable) {
+		discardStepImages(run.modelStep)
+	} else {
+		toolState.images = selected
+	}
 	toolState.resultRecorded = true
 	allRecorded := len(run.modelStep.toolCalls) != 0
 	for _, call := range run.modelStep.toolCalls {
@@ -79,13 +93,14 @@ func (b *broker) handleToolResult(w http.ResponseWriter, r *http.Request, op *Op
 		modelResult = json.RawMessage("null")
 	}
 	fields := events.Event{
-		"modelStepId":          request.ModelStepID,
-		"requestId":            requestID,
-		"toolCallId":           request.ToolCallID,
-		"toolName":             request.ToolName,
-		"rawArguments":         cloneRawJSON(request.RawArguments),
-		"arguments":            cloneRawJSON(request.Arguments),
-		"rawResult":            cloneRawJSON(request.RawResult),
+		"modelStepId":  request.ModelStepID,
+		"requestId":    requestID,
+		"toolCallId":   request.ToolCallID,
+		"toolName":     request.ToolName,
+		"rawArguments": cloneRawJSON(request.RawArguments),
+		"arguments":    cloneRawJSON(request.Arguments),
+		"rawResult":    cloneRawJSON(request.RawResult),
+		"rawImages":    request.RawImages, "images": imageMetadata(selected),
 		"result":               modelResult,
 		"modelResultAvailable": modelResultAvailable,
 	}

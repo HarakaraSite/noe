@@ -89,6 +89,7 @@ Chatの思考はprovider設定の`reasoningField`に従って連結・保持・�
 | `reasoningField` | Chat応答の思考フィールド名 |
 | `effortField` | 明示effortの送信先。例：`reasoning.effort`、`reasoning_effort` |
 | `decisionServerURL` | OpenRouter Decisions操作のserver URL。operationが`/api/alpha/decisions`を加える |
+| `imageGeneration` | 画像生成用endpointの`baseURL`・`path`とprovider既定の`parameters` |
 | `models` | model IDごとの項目上書き |
 
 モデルentryの`catalog`は選択用metadataとして通信設定から分離し、送信パラメータには含めません。
@@ -98,6 +99,26 @@ Chatの思考はprovider設定の`reasoningField`に従って連結・保持・�
 静的`parameters`を土台に、実行時のmodel・messages/input・tools・streamを設定します。明示した`maxTokens`と`effort`が対応するパラメータより優先します。`effort: "auto"`は実行時のeffort指定を加えず、設定されたprovider既定値に任せます。APIやモデルが受け取るパラメータの違いは設定側で合わせてください。
 
 Responsesでは全履歴を送る方式を使い、`store: false`にします。既定で`include: ["reasoning.encrypted_content"]`を要求し、返されたreasoning itemsをtool callと一緒に次のinputへ渡します。独自の会話履歴をサーバーへ保存するAPIは提供しません。
+
+## 画像生成endpoint
+
+組込みdefaultsは`openrouter`に`imageGeneration: {baseURL: "https://openrouter.ai/api/v1", path: "/images"}`、`openai-api`に`imageGeneration: {baseURL: "https://api.openai.com/v1", path: "/images/generations"}`を設定しています。`baseURL`はHTTP/HTTPS URL、`path`は`/`で始まるendpoint pathです。通常のchat/Responses endpointとは独立した画像生成経路です。`parameters`にはprovider既定の画像生成optionを置けます。
+
+外部JSONは組込みdefaultsへ再帰的にmergeされるため、画像生成optionだけの差分を指定できます。
+
+```json
+{
+  "providers": {
+    "openrouter": {
+      "imageGeneration": {
+        "parameters": {"quality": "low"}
+      }
+    }
+  }
+}
+```
+
+呼び出しごとの`generate_image({..., parameters})`はこれらのprovider既定optionを上書きします。初期対応の組込みproviderはOpenRouterとOpenAI API key (`openai-api`)です。ChatGPT OAuth (`openai-chatgpt`)とOpenCode Go (`opencode-go`)の画像生成は未対応です。非対応providerから別経路へ自動fallbackしません。画像生成にはprovider認証が必要で、利用料が発生する場合があります。引数と保存動作は[画像ガイド](agent-images.md)を参照してください。
 
 ## 独自providerとモデル
 

@@ -50,7 +50,7 @@ func TestCatalogMergeFreezeAndTransportSeparation(t *testing.T) {
 func TestCatalogDefaultsCustomProviderAndDeletion(t *testing.T) {
 	r, _ := registryFixture(t, `{"providers":{"opencode-go":{"models":{"deepseek-v4.1-flash":{"catalog":null}}},"custom":{"api":"chat-completions","baseURL":"http://localhost:2345/v1","path":"/chat/completions","models":{"custom-model":{"catalog":{"description":"My local worker"}},"route-only":{}}}}}`)
 	models, err := r.ListModels(ModelQuery{})
-	if err != nil || len(models) != 11 {
+	if err != nil || len(models) != 13 {
 		t.Fatalf("merged catalog: %+v %v", models, err)
 	}
 	for i, model := range models {

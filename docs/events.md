@@ -85,18 +85,23 @@ agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等�
 | `instance.started` / `instance.idle` / `instance.running` / `instance.stopping` / `instance.stopped` / `instance.failed` | AgentInstance状態の変化。`agentId`・状態・停止理由など。taskの成功・失敗イベントとは別に記録 |
 | `command.accepted` / `command.applied` / `command.completed` / `command.failed` / `command.cancelled` | queueまたはsteer commandの受領・適用・結果。`operation`は`queue`または`steer`、`commandId`とstatusも付く。queueの結果にはtaskの`runId`も付く |
 | `interrupt.accepted` | taskまたはinstanceへの停止要求の受付。`target`は`run`または`agent`、`status`は`accepted`。run対象には`runId`、agent対象には`agentId`が付き、taskが実行中なら`runId`も付く。いずれも`parentRunId`・`name`・`model`を含む |
-| `agent.started` / `agent.completed` / `agent.failed` / `agent.cancelled` | TaskRunの状態・終了時の`duration`。instanceが管理するrunにはinstance側の`agentId`も付く |
-| `model.started` / `model.finished` / `model.failed` | モデル要求の`requestId`。完了時は`finishReason`・`usage`・`duration`、失敗時は`reason`等 |
+| `agent.started` / `agent.completed` / `agent.failed` / `agent.cancelled` | TaskRunの状態・終了時の`duration`。instanceが管理するrunにはinstance側の`agentId`も付く。失敗時は`error`、明示的なVision refusalがあるrunでは`errorDetails`も付く |
+| `model.started` / `model.finished` / `model.failed` | モデル要求の`requestId`。完了時は`finishReason`・`usage`・`duration`、失敗時は`reason`等。明示的なVision refusalを含む`model.finished`には`errorDetails`が付く |
 | `thinking` / `thinking_summary` | providerから返った推論本文・要約の断片`text`と`requestId` |
 | `message_delta` | モデルの発言本文の断片`text`と`requestId` |
 | `agent.message` | toolを呼ぶ応答に含まれる途中の発言`text`と`requestId` |
 | `agent.final` | loopが正常な最終回答として受け入れた`text` |
 | `run_js.started` | `toolCallId`・モデルが渡したJS全文の`code`と、codeの先頭行が`//`コメントならその行の`text` |
 | `run_js.finished` | `toolCallId`・`success`・`exitCode`・`reason`・`duration` |
+| `image.read` | `path`・`modelStepId`・`toolCallId`と、`image`内のimage ID・MIME・byte数・寸法・detail |
+| `image.started` / `image.completed` / `image.failed` / `image.cancelled` | `provider`・`imageModel`・`path`。完了時は画像metadata・取得できる`responseModel`・`providerRequestId`・`usage`・`duration`、失敗・取消し時は`error`と`duration` |
+| `tool.finished` | `run_js`では`rawImages`（hook前の読取り候補）と`images`（採用後）を`rawResult`・`result`と分けて記録。画像項目はmetadataのみ |
 | `decision.started` | `requestId`・`provider`・要求モデルの`decisionModel` |
 | `decision.completed` / `decision.failed` / `decision.cancelled` | 同じ要求IDと`duration`。取得できる`statusCode`・`responseModel`・`usage`、失敗時の`reason`・`error` |
 
 `duration`はnanosecondsです。並列実行のイベントは到着順に並びますが、同じNOE内の書込みを直列化するため、JSON同士が文字単位で混ざりません。
+
+Vision応答でproviderが明示的にrefusalを返した場合、`model.finished`および失敗した`agent.failed`の`errorDetails`に`code: "refusal"`と取得できる`providerMessage`・`requestId`を残します。モデルのrefusal本文を検出した場合の情報で、通常の通信・入力エラーをrefusalと推定しません。画像の生成と読取りの使い方は[画像ガイド](agent-images.md)を参照してください。
 
 意思決定要求は[noe:decision](decision.md)を使います。`run_js`内からの要求には所有runのmetadataと`toolCallId`を付け、共通の`model`は親agentの設定モデルを維持します。意思決定のモデル名は`decisionModel`・`responseModel`へ分けます。通常JSからの直接要求にはagent/run IDや共通の`model`を割り当てません。人間向けは要求の開始・終了を短く表示し、親のファイル観察は差分イベントへ含めます。意思決定イベントで親runのphaseや終了状態を変更しません。応答本文はJSへ返し、JSONLのdecisionイベントはmetadataを記録します。
 

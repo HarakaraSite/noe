@@ -57,7 +57,33 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 		default:
 			return nil, errors.New("unsupported conversation role")
 		}
-		encoded, err := json.Marshal(map[string]any{"role": role, "content": message["content"]})
+		content := message["content"]
+		if role == "user" {
+			var parts []map[string]json.RawMessage
+			if json.Unmarshal(content, &parts) == nil {
+				for index, part := range parts {
+					var kind string
+					json.Unmarshal(part["type"], &kind)
+					switch kind {
+					case "text":
+						part["type"] = json.RawMessage(`"input_text"`)
+					case "image_url":
+						var image struct {
+							URL    string `json:"url"`
+							Detail string `json:"detail"`
+						}
+						if json.Unmarshal(part["image_url"], &image) != nil || image.URL == "" {
+							return nil, errors.New("invalid image content")
+						}
+						raw, _ := json.Marshal(map[string]string{"type": "input_image", "image_url": image.URL, "detail": image.Detail})
+						parts[index] = nil
+						json.Unmarshal(raw, &parts[index])
+					}
+				}
+				content, _ = json.Marshal(parts)
+			}
+		}
+		encoded, err := json.Marshal(map[string]any{"role": role, "content": content})
 		if err != nil {
 			return nil, err
 		}

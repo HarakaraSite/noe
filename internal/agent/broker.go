@@ -153,6 +153,19 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		writeRPCError(w, http.StatusConflict, "scope", "agent operation has ended")
 		return
 	}
+	if h.opts.Connection == nil {
+		switch method {
+		case "read_image":
+			b.handleReadImage(w, r, operation)
+			return
+		case "generate_image":
+			b.handleGenerateImage(w, r, operation)
+			return
+		case "discard_images":
+			b.handleDiscardImages(w, r, operation)
+			return
+		}
+	}
 	if method == "decide" && h.opts.Connection == nil {
 		b.handleDecide(w, r, operation)
 		return
@@ -209,7 +222,7 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 func validRPCMethod(method string) bool {
 	switch method {
-	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "apply_steers", "commit_final", "interrupt_agent", "decide", "list_models", "begin_hook_scope", "end_hook_scope", "execution_get", "begin_model_step", "context_prepare", "context_get", "context_set_runtime_info", "tool_result", "conversation_checkpoint":
+	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "apply_steers", "commit_final", "interrupt_agent", "decide", "list_models", "begin_hook_scope", "end_hook_scope", "execution_get", "begin_model_step", "context_prepare", "context_get", "context_set_runtime_info", "tool_result", "conversation_checkpoint", "read_image", "generate_image", "discard_images":
 		return true
 	}
 	return false

@@ -62,8 +62,14 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 		writeRPCError(w, http.StatusConflict, "scope", "context preparation is outside the current model step")
 		return
 	}
+	if _, err := h.expandImagesLocked(run, request.Messages); err != nil {
+		h.mu.Unlock()
+		writeRPCError(w, 400, "image", err.Error())
+		return
+	}
 	wasPrepared := run.context.prepared
-	fixed, execution, _, partsErr := historyParts(request.Messages, request.Tools, request.History)
+	run.context.imageEstimates = imageEstimatesLocked(run)
+	fixed, execution, _, partsErr := historyParts(request.Messages, request.Tools, request.History, run.context.imageEstimates)
 	if partsErr != nil {
 		h.mu.Unlock()
 		writeRPCError(w, http.StatusBadRequest, "request", partsErr.Error())
@@ -104,6 +110,9 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 		if run.instance != nil {
 			run.instance.conversation = cloneConversationSnapshot(request.Snapshot)
 		}
+	}
+	if request.AppliedPlanID != "" {
+		reconcileImagesLocked(run, request.Messages)
 	}
 	snapshot, _, err := prepareContextEstimate(&run.context, run.id, request.Messages, request.Tools)
 	if err != nil {
@@ -244,11 +253,12 @@ func contextScopeError() error {
 func (h *Host) markContextSentLocked(run *agentRun, request modelRequest, requestID string, now time.Time) (contextSnapshot, string, []string) {
 	messageData, _ := json.Marshal(request.Messages)
 	toolData, _ := json.Marshal(request.Tools)
-	tokens := estimateContextTokens(len(messageData), len(toolData))
+	imageTokens := historyImageTokens(request.Messages, run.context.imageEstimates)
+	tokens := estimateContextTokens(len(messageData), len(toolData)) + imageTokens
 	requestIDCopy := requestID
 	run.context.modelStepID = request.ModelStepID
 	run.context.estimate = &contextEstimate{
-		Tokens: tokens, Method: "json_utf8_bytes/4", Stage: "sent",
+		Tokens: tokens, ImageTokens: imageTokens, Method: imageEstimateMethod(imageTokens), Stage: "sent",
 		ModelStepID: request.ModelStepID, RequestID: &requestIDCopy, EstimatedAt: now,
 	}
 	snapshot := h.storeContextSnapshotLocked(run, now)

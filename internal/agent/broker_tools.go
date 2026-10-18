@@ -118,6 +118,7 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	registered := h.runs[request.RunID] == run && run.ctx.Err() == nil && !run.interrupting && !op.closed && !h.closed && !childOperation.closed && groupOpen
 	if registered {
 		childOperation.parentRunID = request.RunID
+		childOperation.imageOwner = &imageOwner{runID: request.RunID, stepID: request.ModelStepID, toolID: request.ToolCallID}
 		childOperation.group = run.group
 		childOperation.causeActivityIDs = []string{activityID}
 		childOperation.activityOrigin = origin
@@ -211,7 +212,11 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		}
 	}
 	b.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-	writeJSON(w, result)
+	images := h.finishToolImages(run, request.ModelStepID, request.ToolCallID, result.ExitCode == 0 && result.Reason == "completed")
+	writeJSON(w, struct {
+		Result
+		Images any `json:"images,omitempty"`
+	}{result, images})
 }
 
 func (b *broker) finishJSResult(runID string, run *agentRun, started time.Time, toolCallID, activityID string, causedBy []string, origin activityOrigin, result Result) {

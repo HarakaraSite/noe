@@ -140,3 +140,29 @@ func TestConfiguredChatReasoningContentIsConcatenatedAndReplayed(t *testing.T) {
 		})
 	}
 }
+
+func TestResponsesImagePartsContainOnlyNativeFields(t *testing.T) {
+	raw := json.RawMessage(`{"role":"user","content":[{"type":"text","text":"inspect"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA","detail":"low"}}]}`)
+	body, err := configuredResponsesRequestBody(Definition{}, Request{Model: "fixture/model", Messages: []json.RawMessage{raw}, Effort: "auto"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var request struct {
+		Input []struct {
+			Content []map[string]json.RawMessage `json:"content"`
+		} `json:"input"`
+	}
+	if json.Unmarshal(body, &request) != nil || len(request.Input) != 1 || len(request.Input[0].Content) != 2 {
+		t.Fatalf("body=%s", body)
+	}
+	part := request.Input[0].Content[1]
+	if len(part) != 3 || string(part["type"]) != `"input_image"` || string(part["image_url"]) != `"data:image/png;base64,AAAA"` || string(part["detail"]) != `"low"` {
+		t.Fatalf("native image part=%s", body)
+	}
+	if string(request.Input[0].Content[0]["type"]) != `"input_text"` {
+		t.Fatalf("native text part=%s", body)
+	}
+	if string(raw) != `{"role":"user","content":[{"type":"text","text":"inspect"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA","detail":"low"}}]}` {
+		t.Fatal("mutated history")
+	}
+}

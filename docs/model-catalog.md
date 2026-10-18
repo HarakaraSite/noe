@@ -35,7 +35,9 @@ import { list_models } from "noe:agent";
 const all = await list_models();
 const agents = await list_models({ provider: "opencode-go", kind: "agent" });
 const decisions = await list_models({ kind: "decision" });
+const imageModels = await list_models({ kind: "image" });
 console.log(JSON.stringify(agents, null, 2));
+console.log(JSON.stringify(imageModels, null, 2));
 ```
 
 返却値は`[{provider, model, kind, description?, tags?, capabilities?, contextWindow?, maxOutputTokens?, efforts?}, ...]`です。provider、model IDの順で並び、該当なしは`[]`、不明なprovider指定はエラーです。`provider`・`kind`はどちらも省略できます。通常JS・REPL・agentの`run_js`で利用でき、`run_js`では`await import("noe:agent")`から取得します。
@@ -46,7 +48,7 @@ console.log(JSON.stringify(agents, null, 2));
 
 | 項目 | 意味 |
 | --- | --- |
-| `kind` | `agent`または`decision`。省略時は`agent` |
+| `kind` | `agent`・`decision`・`image`。省略時は`agent`。`image`は画像生成候補 |
 | `description` | 用途・得意分野・選択方針の説明 |
 | `tags` | 呼出し側で絞り込むための文字列配列。上書き時は配列全体を置換 |
 | `capabilities` | `tools`・`vision`・`reasoning`など、能力名と真偽値のmap |
@@ -58,7 +60,9 @@ console.log(JSON.stringify(agents, null, 2));
 
 カタログは利用者が選んだ候補一覧であり、プロバイダの全モデル一覧や利用可能性の保証ではありません。`catalog`がない通信設定だけのモデルは一覧へ出ませんが、直接指定して実行できます。`"catalog": null`で一覧から外し、`"モデルID": null`でそのモデルの通信上書きも含めて削除します。新しいモデルの追加も同じJSONで行えます。
 
-組込み候補はOpenRouterのDeepSeek V4.1 Flash・GPT-6 Lunaと3種類の意思決定モデル、OpenCode GoのDeepSeek V4.1 Flash・GPT-6 Luna、OpenAIのChatGPT/APIキー経路それぞれのgpt-6.1-sol・gpt-6-lunaです。生成モデルのIDと初期説明は[DeepSeekのモデルページ](https://openrouter.ai/deepseek/deepseek-v4.1-flash)・[GPT-6 Lunaのモデルページ](https://openrouter.ai/openai/gpt-6-luna)を2026-10-17に確認したものです。意思決定モデルとOpenCode Go経路の実接続範囲は[Decisions検証](decision-openrouter-validation.md)・[provider検証](provider-config-validation.md)を参照してください。価格や性能の自動更新は行いません。説明・タグは自身の評価と選択方針に合わせて上書きしてください。
+組込み候補はOpenRouterのDeepSeek V4.1 Flash・GPT-6 Lunaと3種類の意思決定モデル、OpenCode GoのDeepSeek V4.1 Flash・GPT-6 Luna、OpenAIのChatGPT/APIキー経路それぞれのgpt-6.1-sol・gpt-6-lunaです。画像生成候補としてOpenRouterの`openai/gpt-image-2.5-flare`とOpenAI APIキー経路の`gpt-image-2.5-flare`も`kind: "image"`で一覧できます。生成モデルのIDと初期説明は[DeepSeekのモデルページ](https://openrouter.ai/deepseek/deepseek-v4.1-flash)・[GPT-6 Lunaのモデルページ](https://openrouter.ai/openai/gpt-6-luna)を2026-10-17に確認したものです。意思決定モデルとOpenCode Go経路の実接続範囲は[Decisions検証](decision-openrouter-validation.md)・[provider検証](provider-config-validation.md)を参照してください。価格や性能の自動更新は行いません。説明・タグは自身の評価と選択方針に合わせて上書きしてください。
+
+画像の利用例と生成providerの制約は[画像ガイド](agent-images.md)を参照してください。`kind: "image"`はcatalogで選択する候補の分類であり、認証やproviderの機能対応を保証するものではありません。
 
 ## context metadataの設定値
 

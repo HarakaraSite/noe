@@ -37,6 +37,18 @@ export async function afterTool(event, api) {
 }
 ```
 
+`run_js`が画像を読んだ場合、`afterTool`は`event.images`でそのtool callの画像metadataを受け取ります。画像bytesは含みません。既存の`undefined`と`{result}`は画像候補を保ち、添付を選ぶときは`{result, imageIds}`を返します。
+
+```js
+export async function afterTool(event) {
+  if (event.toolName !== "run_js") return;
+  const imageIds = event.images.slice(0, 1).map(image => image.imageId);
+  return {result: event.result, imageIds};
+}
+```
+
+`imageIds`は現在の`event.images`から選ぶID配列です。`[]`は全候補を除外し、部分選択後も候補の元順序を保ちます。重複、未知・他toolのID、前のhookが除外したIDの再追加はエラーになります。通常のtool `result`の選択とは独立しています。
+
 モデル前後handlerの戻り値は使わず、要求限定の情報は`setRuntimeInfo`で設定する。
 tool handlerは`undefined`で変更なし、上記objectで置換する。
 tool名・call IDは変更できない。tool完了後の置換は実際の終了状態を書き換えない。
@@ -142,6 +154,9 @@ providerのtokenizerやadapter変換後のwire量とは一致しない。
 `preparing`は判断準備時、`sent`は実要求の送信時を示す。
 応答後のsnapshotは最新の送信概算を`sent`として保持し、次の判断を準備すると置き換える。
 
+画像を含む場合、`estimate.imageTokens`は画像分の概算を別に示し、`estimate.method`は
+`json_utf8_bytes/4+image_32px_patches_x1.2_fallback`になります。画像の推定はtokenizerや課金額の実測ではなく、`low` detailでは最大辺512pxに収めた寸法、それ以外では原寸を使います。式の詳細は[画像ガイド](agent-images.md)を参照してください。
+
 標準通知は外部hookなしでもモデル要求へ一つだけ添える。
 `Execution context: ~使用量 / 予算 tokens`の分母が、実行履歴の計算済み予算と自動切り捨て有効時の閾値。
 `Input budget`は計算済みの総入力予算、`Explicit input budget`は手動指定した予算、`Model context window`はcatalogの値を表す。window不明でも計算済み予算を通知する。
@@ -165,8 +180,9 @@ afterから追加されたsteerは最終確定前の確認で扱う。
 結果追加はモデルが返したcall順。現在のtoolは`run_js`。
 
 `tool.finished`には元の`rawArguments` / `rawResult`、実行用の`arguments`と
-モデル向け`result`を分けて記録する。`afterTool`で例外が起きた場合も取得済みの
-実行結果を保持し、`modelResultAvailable: false`と`hookError`を記録する。
+モデル向け`result`を分けて記録する。`run_js`の画像候補は`rawImages`、hook選択後は`images`へ
+metadataのみを記録する。`afterTool`で例外が起きた場合も取得済みの実行結果を保持し、
+`modelResultAvailable: false`と`hookError`を記録する。hookが除外した画像は`images`に含めない。
 既存の`run_js.started` / `run_js.finished`は、実際の実行ソースと成功・失敗を示す。
 
 interruptはhandlerの完了を待たずに取消しを開始する。終了しないJSやPromiseも

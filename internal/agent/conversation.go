@@ -42,7 +42,7 @@ func (b *broker) handleConversationCheckpoint(w http.ResponseWriter, r *http.Req
 	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
-	if op == nil || op.task == nil || run == nil || run.operation != op || run.instance != op.task.instance ||
+	if op == nil || run == nil || run.operation != op || (run.instance != nil && (op.task == nil || run.instance != op.task.instance)) ||
 		run.ctx.Err() != nil || run.interrupting || op.closed || h.closed || !h.executionGroupOpenLocked(run.group) {
 		h.mu.Unlock()
 		writeRPCError(w, http.StatusConflict, "scope", "conversation checkpoint is outside the active managed task")
@@ -55,7 +55,11 @@ func (b *broker) handleConversationCheckpoint(w http.ResponseWriter, r *http.Req
 		return
 	}
 	instance := run.instance
-	if err := validateConversationAppend(instance.conversation, request.Snapshot, 1, "block"); err != nil {
+	var appendErr error
+	if instance != nil {
+		appendErr = validateConversationAppend(instance.conversation, request.Snapshot, 1, "block")
+	}
+	if err := appendErr; err != nil {
 		h.mu.Unlock()
 		writeRPCError(w, http.StatusConflict, "conversation", err.Error())
 		return
@@ -66,7 +70,14 @@ func (b *broker) handleConversationCheckpoint(w http.ResponseWriter, r *http.Req
 		writeRPCError(w, http.StatusConflict, "conversation", err.Error())
 		return
 	}
-	instance.conversation = cloneConversationSnapshot(request.Snapshot)
+	if err := commitStepImagesLocked(run, entry); err != nil {
+		h.mu.Unlock()
+		writeRPCError(w, 409, "image", err.Error())
+		return
+	}
+	if instance != nil {
+		instance.conversation = cloneConversationSnapshot(request.Snapshot)
+	}
 	h.mu.Unlock()
 	writeJSON(w, map[string]bool{"committed": true})
 }
@@ -293,7 +304,11 @@ func validateConversationBlock(messages []json.RawMessage) error {
 	if json.Unmarshal(messages[0], &assistant) != nil || assistant.Role != "assistant" {
 		return errors.New("conversation blocks must start with an assistant message")
 	}
-	if len(messages) != len(assistant.ToolCalls)+1 {
+	expected := len(assistant.ToolCalls) + 1
+	if len(messages) == expected+1 && len(assistant.ToolCalls) > 0 && imageAttachmentMessage(messages[len(messages)-1]) {
+		expected++
+	}
+	if len(messages) != expected {
 		return errors.New("conversation block is incomplete")
 	}
 	seen := make(map[string]struct{}, len(assistant.ToolCalls))

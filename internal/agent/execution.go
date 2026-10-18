@@ -109,6 +109,7 @@ type executionCounters struct {
 	ProviderCalls         int64 `json:"providerCalls"`
 	AgentProviderCalls    int64 `json:"agentProviderCalls"`
 	DecisionProviderCalls int64 `json:"decisionProviderCalls"`
+	ImageProviderCalls    int64 `json:"imageProviderCalls"`
 	AgentStarts           int64 `json:"agentStarts"`
 	QueuedTasks           int64 `json:"queuedTasks"`
 	HookCalls             int64 `json:"hookCalls"`
@@ -227,7 +228,9 @@ func (c *executionCounters) admit(name string, providerKind string) {
 	switch name {
 	case "providerCalls":
 		c.ProviderCalls++
-		if providerKind == "decision" {
+		if providerKind == "image" {
+			c.ImageProviderCalls++
+		} else if providerKind == "decision" {
 			c.DecisionProviderCalls++
 		} else {
 			c.AgentProviderCalls++

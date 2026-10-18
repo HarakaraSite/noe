@@ -22,6 +22,9 @@ func (h *host) installAgent(opts Options) error {
 	h.agents = agent.NewHost(settings)
 	// OnClose runs after QuickJS shutdown: this callback only touches Go state.
 	h.rt.OnClose(h.agents.Close)
+	if err := h.rt.SetModule("noe:image/internal", map[string]any{"request": h.agentRequest}); err != nil {
+		return err
+	}
 	if err := h.rt.SetModule("noe:decision/internal", map[string]any{"request": h.agentRequest}); err != nil {
 		return err
 	}

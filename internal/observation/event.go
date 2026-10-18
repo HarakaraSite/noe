@@ -13,7 +13,7 @@ func projectEvent(event events.Event, q Query) events.Event {
 	switch typeName {
 	case "agent.started", "agent.completed", "agent.failed", "agent.cancelled",
 		"agent.message", "agent.final", "model.started", "model.finished", "model.failed",
-		"run_js.started", "run_js.finished", "decision.started", "decision.completed", "decision.failed", "decision.cancelled":
+		"run_js.started", "run_js.finished", "decision.started", "decision.completed", "decision.failed", "decision.cancelled", "image.read", "image.started", "image.completed", "image.failed", "image.cancelled":
 		return cloneEvent(event)
 	case "tool.finished":
 		projected := cloneEvent(event)

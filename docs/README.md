@@ -10,6 +10,8 @@
 
 [モデルカタログ](model-catalog.md)では、JSONによる候補の管理・外部上書き・`list_models`・Jevによる起動前選択を説明しています。
 
+[画像ガイド](agent-images.md)では、`noe:image`の`read_image`・`generate_image`、対応provider、履歴・hook・観察の契約を説明しています。
+
 [provider設定](providers.md)では、組込みデフォルトと外部JSONの上書き、OpenRouter・OpenCode Go、モデルごとのChat/Responses経路を説明しています。
 
 実行中の観察は[観察の入口](observe.md)と[JSONLイベントのガイド](events.md)を参照してください。`run`・`eval`・`repl`共通の`--events`で記録し、人間はGoの`noe observe`でinstance状態とtaskを読みやすく表示、親はJSの`observe_agent`でlive snapshotまたは保存ログの状態・差分・結果を取得できます。
@@ -47,6 +49,8 @@ agentの共通インストラクションは[`internal/agent/instructions.md`](.
 [queue会話継続の修正](queue-continuation-implementation.md)では、同じinstanceの履歴・最終回答・保護された追加指示を次taskへ引き継ぐ動作を確認しました。
 
 ## 今後の候補
+
+[画像入力・生成](agent-images.md)を実装しました。[実装・検証記録](agent-images-implementation.md)にsliceと総合テスト、[実接続記録](agent-images-integration.md)にモデルごとの挙動を記載しています。設計は[計画](agent-images-plan.md)、SDK調査は[スパイク](agent-images-spike.md)を参照してください。
 
 [ローカルESMとimport mapの計画](local-import-map-plan.md)では、動作確認済みのJSを通常スクリプト・Worker・agent生成JSから同じ名前で再利用する構成を扱います。HTTP importや永続cacheは含めず、MCP SDKとNOE向けtransportを最初の応用例にします。実装の進捗は[検証記録](local-import-map-implementation.md)、利用方法は[import mapガイド](import-map.md)を参照してください。
 

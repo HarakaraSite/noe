@@ -280,15 +280,11 @@ HenjiではOpenRouterの質問は名前付きobject、OpenAIの質問は配列�
 
 同じ選択用JSを、親が子agentを起動するときにも利用できる。NOE本体に固定のルーティング方針を追加せず、候補と選択基準を呼出し元で組み立てる。`typesafe/jev-router`をテスト対象から外した背景も、この構成を通常のJevによる判断で作れると考えたため。2026-10-17、[モデルカタログ](model-catalog.md)と[起動前のモデル選択例](../examples/agent/agent-route-model.js)を追加した。候補は内蔵JSON＋外部差分で管理し、`list_models`から取得する。カタログ→Jev→選択した親の起動→run_jsでのカタログ再参照をローカルfixtureで確認済み。サンプルのeffortは明示autoで、effortも含むプリセット選択とこの例の有料実接続は未実施。
 
-### <未完了> agentのVision対応 — 2026-10-17
+### <完了> agentのVision対応 — 2026-10-17
 
-**検討事項：Vision対応モデルを使うagentへ画像を渡し、親agent自身が画像を見て判断できるようにする。**
+2026-10-18、[計画](agent-images-plan.md)に沿って`noe:image`の`read_image`と独立した`generate_image`を実装した。agentのrun_jsからローカル画像を読み、Go所有の固定bytesを次のモデル要求へ添付する。画像履歴は同じinstanceのqueueへ継続し、完全blockのtrimで解放する。通常JSからの直接生成、異なるproviderで生成して読む経路、hookによる添付選択、画像イベントにも対応。使い方は[画像ガイド](agent-images.md)、確認結果と制約は[実装記録](agent-images-implementation.md)・[実接続記録](agent-images-integration.md)を参照。
 
-現在の`run_agent`・`spawn_agent`はinstructionを文字列で受け取り、`run_js`の結果もテキストとしてモデルへ返す。Vision対応モデルを指定するだけでは画像入力にならず、base64を通常の文字列に含めても画像パートにはならない。現時点では、`run_js`から`noe:decision`の画像入り`state`を送信し、判断結果を親へ返す経路は利用できる。
-
-候補は、起動時の入力と`run_js`の結果に、テキストと`image_url`等の画像パートを渡す経路を設けること。JSで画像ファイルを読み、base64のdata URLにして渡す形を出発点とする。Goの生成用provider層はメッセージをJSONで転送する土台があるため、公開API・agent loop・tool結果からモデルの画像入力へつなぐ契約を検討する。
-
-入力形式、子agentへの画像受渡し、画像の履歴保持と将来のコンテキスト圧縮、JSONLへの記録範囲は実装時に決める。`noe:decision`の画像対応と通常agentの画像対応を区別し、実装後はVision対応の実モデルで確認する。現段階は検討メモのみ。
+画像生成はOpenRouterとOpenAI APIキーに対応し、ChatGPTプラン/OpenCode Goの生成、画像編集・mask・複数枚生成・入力URLは今回の対象外。モデルのVision能力と認識精度はNOEの入力経路と区別する。期待値を伏せた4色テストではLunaが誤認し、同一bytesを送ったSolは直接要求・agent経由とも正答した。
 
 ### <完了> モデルの推論エフォートの指定
 

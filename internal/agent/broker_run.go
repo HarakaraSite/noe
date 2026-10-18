@@ -9,6 +9,7 @@ import (
 
 	"noe/internal/agent/provider"
 	"noe/internal/events"
+	imageapi "noe/internal/image"
 )
 
 type agentRun struct {
@@ -37,6 +38,8 @@ type agentRun struct {
 	interrupting            bool
 	modelStep               *modelStepState
 	context                 contextRunState
+	images                  map[string]*imageapi.Data
+	refusal                 *imageapi.Error
 }
 
 // modelStepState retains only the current logical judgment and the IDs needed
@@ -53,6 +56,8 @@ type modelStepState struct {
 	finished                bool
 	toolCalls               map[string]*toolCallState
 	toolCallOrder           []string
+	imagesClosed            bool
+	imagesCommitted         bool
 }
 
 type toolCallState struct {
@@ -60,6 +65,10 @@ type toolCallState struct {
 	activityID     string
 	started        bool
 	resultRecorded bool
+	imageOrders    map[int]bool
+	rawImages      []*imageapi.Data
+	images         []*imageapi.Data
+	imagesReady    bool
 }
 
 func (r *agentRun) agentID() string {
@@ -348,6 +357,8 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 		}
 	}
 	pending := h.cancelPendingSteersLocked(run)
+	discardStepImages(run.modelStep)
+	run.images = nil
 	delete(h.runs, request.RunID)
 	if op.task != nil && op.task.run == run {
 		report := request
@@ -400,6 +411,9 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 	}
 	if status == "failed" && request.Error != "" {
 		fields["error"] = request.Error
+	}
+	if run.refusal != nil {
+		fields["errorDetails"] = run.refusal
 	}
 	h.observeRun("agent."+status, request.RunID, run, fields)
 	writeJSON(w, map[string]bool{})

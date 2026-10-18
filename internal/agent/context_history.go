@@ -66,7 +66,7 @@ func (s *contextRunState) executionSnapshot() *executionContextSnapshot {
 	}
 	transient := int64(0)
 	if s.estimate != nil {
-		transient = max(0, s.estimate.Tokens-estimateContextTokens(s.baseMessagesBytes, s.toolsBytes))
+		transient = max(0, s.estimate.Tokens-estimateContextTokens(s.baseMessagesBytes, s.toolsBytes)-s.baseImageTokens)
 	}
 	budget := resolveExecutionBudget(s.budget, s.modelWindow, s.maxTokens, s.catalogMaxOutput, s.policy, s.fixedTokens, transient)
 	policy := "auto"
@@ -115,13 +115,17 @@ func contextHistoryDigest(messages, tools []json.RawMessage) string {
 	return hex.EncodeToString(digest[:])
 }
 
-func historyParts(messages []json.RawMessage, tools []json.RawMessage, layout *contextHistoryLayout) (int64, int64, []int64, error) {
+func historyParts(messages []json.RawMessage, tools []json.RawMessage, layout *contextHistoryLayout, imageEstimates ...map[string]int64) (int64, int64, []int64, error) {
+	var estimates map[string]int64
+	if len(imageEstimates) > 0 {
+		estimates = imageEstimates[0]
+	}
 	if layout == nil {
 		// Old internal callers only supply a transcript, without deletion metadata.
 		// Treat it as protected rather than guessing ownership from roles.
 		encoded, _ := json.Marshal(messages)
 		toolData, _ := json.Marshal(tools)
-		return estimateContextTokens(len(encoded), len(toolData)), 0, nil, nil
+		return estimateContextTokens(len(encoded), len(toolData)) + historyImageTokens(messages, estimates), 0, nil, nil
 	}
 	if layout.Revision <= 0 || len(layout.Entries) < 2 {
 		return 0, 0, nil, fmt.Errorf("invalid context history layout")
@@ -140,7 +144,7 @@ func historyParts(messages []json.RawMessage, tools []json.RawMessage, layout *c
 			protected = append(protected, group...)
 		} else {
 			encoded, _ := json.Marshal(group)
-			weights = append(weights, estimateContextTokens(len(encoded)-1, 0))
+			weights = append(weights, estimateContextTokens(len(encoded)-1, 0)+historyImageTokens(group, estimates))
 		}
 		offset += entry.Count
 	}
@@ -150,8 +154,8 @@ func historyParts(messages []json.RawMessage, tools []json.RawMessage, layout *c
 	fixedData, _ := json.Marshal(protected)
 	toolData, _ := json.Marshal(tools)
 	allData, _ := json.Marshal(messages)
-	fixed := estimateContextTokens(len(fixedData), len(toolData))
-	execution := max(0, estimateContextTokens(len(allData), len(toolData))-fixed)
+	fixed := estimateContextTokens(len(fixedData), len(toolData)) + historyImageTokens(protected, estimates)
+	execution := max(0, estimateContextTokens(len(allData), len(toolData))+historyImageTokens(messages, estimates)-fixed)
 	return fixed, execution, weights, nil
 }
 
@@ -164,7 +168,7 @@ func (s *contextRunState) planTrim(messages, tools []json.RawMessage, layout *co
 		s.targetUnreachable = false
 		return nil, nil
 	}
-	_, _, weights, err := historyParts(messages, tools, layout)
+	_, _, weights, err := historyParts(messages, tools, layout, s.imageEstimates)
 	if err != nil {
 		return nil, err
 	}

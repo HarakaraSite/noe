@@ -58,6 +58,7 @@ type contextPrevious struct {
 
 type contextEstimate struct {
 	Tokens      int64     `json:"tokens"`
+	ImageTokens int64     `json:"imageTokens,omitempty"`
 	Method      string    `json:"method"`
 	Stage       string    `json:"stage"`
 	ModelStepID string    `json:"modelStepId"`
@@ -101,6 +102,8 @@ type contextRunState struct {
 	modelStepID            string
 	estimate               *contextEstimate
 	runtimeInfo            map[string]string
+	baseImageTokens        int64
+	imageEstimates         map[string]int64
 	baseMessagesBytes      int
 	baseMessageCount       int
 	toolsBytes             int
@@ -410,6 +413,7 @@ func prepareContextEstimate(state *contextRunState, runID string, messages []jso
 	if err != nil {
 		return contextSnapshot{}, "", fmt.Errorf("encode context tools: %w", err)
 	}
+	state.baseImageTokens = historyImageTokens(messages, state.imageEstimates)
 	state.baseMessagesBytes = len(messageData)
 	state.baseMessageCount = len(messages)
 	state.toolsBytes = len(toolData)
@@ -424,7 +428,7 @@ func recalculatePreparedContext(state *contextRunState, runID string, now time.T
 	var note string
 	for i := 0; i < 8; i++ {
 		estimate := &contextEstimate{
-			Tokens: candidate, Method: "json_utf8_bytes/4", Stage: "preparing",
+			Tokens: candidate, ImageTokens: state.baseImageTokens, Method: imageEstimateMethod(state.baseImageTokens), Stage: "preparing",
 			ModelStepID: state.modelStepID, EstimatedAt: now,
 		}
 		state.estimate = estimate
@@ -436,14 +440,14 @@ func recalculatePreparedContext(state *contextRunState, runID string, now time.T
 			messagesBytes += 1 // comma before the ephemeral tail message
 		}
 		messagesBytes += len(noteMessage)
-		next := estimateContextTokens(messagesBytes, state.toolsBytes)
+		next := estimateContextTokens(messagesBytes, state.toolsBytes) + state.baseImageTokens
 		if next == candidate {
 			return snapshot
 		}
 		candidate = next
 	}
 	state.estimate = &contextEstimate{
-		Tokens: candidate, Method: "json_utf8_bytes/4", Stage: "preparing",
+		Tokens: candidate, ImageTokens: state.baseImageTokens, Method: imageEstimateMethod(state.baseImageTokens), Stage: "preparing",
 		ModelStepID: state.modelStepID, EstimatedAt: now,
 	}
 	snapshot := state.snapshot(runID, now)

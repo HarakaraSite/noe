@@ -16,6 +16,7 @@ import (
 	"sync"
 
 	"noe/internal/decision"
+	imageapi "noe/internal/image"
 )
 
 //go:embed defaults.json
@@ -39,7 +40,16 @@ type Definition struct {
 	ReasoningField    string                     `json:"reasoningField"`
 	EffortField       string                     `json:"effortField"`
 	DecisionServerURL string                     `json:"decisionServerURL"`
+	ImageGeneration   *ImageGenerationDefinition `json:"imageGeneration,omitempty"`
 	Models            map[string]json.RawMessage `json:"models"`
+}
+
+// ImageGenerationDefinition configures the provider-specific image generation
+// endpoint independently of the provider's chat or Responses endpoint.
+type ImageGenerationDefinition struct {
+	BaseURL    string                     `json:"baseURL"`
+	Path       string                     `json:"path"`
+	Parameters map[string]json.RawMessage `json:"parameters"`
 }
 
 type definitions struct {
@@ -57,10 +67,11 @@ type Registry struct {
 	mu            sync.Mutex
 	clients       map[string]Provider
 	sharedClients map[string]Provider
+	imageClients  map[string]imageapi.Provider
 }
 
 func NewRegistry(opts Options) *Registry {
-	return &Registry{opts: opts, clients: make(map[string]Provider), sharedClients: make(map[string]Provider)}
+	return &Registry{opts: opts, clients: make(map[string]Provider), sharedClients: make(map[string]Provider), imageClients: make(map[string]imageapi.Provider)}
 }
 
 func decodeObject(data []byte) (map[string]any, error) {
@@ -139,6 +150,15 @@ func decodeDefinition(data []byte) (Definition, error) {
 	}
 	if d.Path == "" || !strings.HasPrefix(d.Path, "/") {
 		return d, errors.New("provider path must start with /")
+	}
+	if d.ImageGeneration != nil {
+		imageURL, err := url.Parse(d.ImageGeneration.BaseURL)
+		if err != nil || imageURL.Host == "" || (imageURL.Scheme != "http" && imageURL.Scheme != "https") {
+			return d, errors.New("imageGeneration baseURL must be an HTTP URL")
+		}
+		if d.ImageGeneration.Path == "" || !strings.HasPrefix(d.ImageGeneration.Path, "/") {
+			return d, errors.New("imageGeneration path must start with /")
+		}
 	}
 	return d, nil
 }

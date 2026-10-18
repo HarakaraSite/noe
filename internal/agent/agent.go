@@ -19,6 +19,7 @@ import (
 	"noe/internal/agent/provider"
 	"noe/internal/decision"
 	"noe/internal/events"
+	imageapi "noe/internal/image"
 	"noe/internal/modulemap"
 )
 
@@ -27,6 +28,7 @@ import (
 type Options struct {
 	Provider         provider.Provider
 	DecisionProvider decision.Provider
+	ImageProvider    imageapi.Provider
 	ProviderOptions  provider.Options
 	Cwd              string
 	Executable       string
@@ -176,6 +178,7 @@ type Host struct {
 	provider   provider.Provider
 	catalog    *provider.Registry
 	decider    decision.Provider
+	imager     imageapi.Provider
 	ctx        context.Context
 	cancel     context.CancelFunc
 	closed     bool
@@ -209,6 +212,7 @@ type Operation struct {
 	group            *executionGroup
 	causeActivityIDs []string
 	activityOrigin   activityOrigin
+	imageOwner       *imageOwner
 	decisionOwner    events.Event              // immutable after the run_js scope is registered
 	instances        map[string]*agentInstance // direct evaluation-owned instances; host.mu
 	task             *managedTask              // task bootstrap scope; host.mu
@@ -250,7 +254,12 @@ func NewHost(opts Options) *Host {
 		// The provider itself performs credential lookup lazily on Generate.
 		p = catalog
 	}
+	imager := opts.ImageProvider
+	if imager == nil {
+		imager, _ = p.(imageapi.Provider)
+	}
 	return &Host{
+		imager:     imager,
 		opts:       opts,
 		provider:   p,
 		catalog:    catalog,
@@ -395,6 +404,8 @@ func (h *Host) Close() {
 	var ended []endedRun
 	var pendingSteers []steerLifecycleEvent
 	for id, run := range h.runs {
+		discardStepImages(run.modelStep)
+		run.images = nil
 		run.cancel()
 		pendingSteers = append(pendingSteers, h.cancelPendingSteersLocked(run)...)
 		ended = append(ended, endedRun{
@@ -486,6 +497,8 @@ func (op *Operation) Close() {
 	}
 	for id, run := range h.runs {
 		if run.operation == op {
+			discardStepImages(run.modelStep)
+			run.images = nil
 			run.cancel()
 			pendingSteers = append(pendingSteers, h.cancelPendingSteersLocked(run)...)
 			if run.instance == nil {

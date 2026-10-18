@@ -4,7 +4,7 @@
 
 NOEはJavaScriptの実行環境として、固定したgo-quickjs v0.27.0の標準ライブラリを有効にします。標準ライブラリが持つWeb APIとNode形式APIを利用できます。各APIはgo-quickjsによる実装で、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:auth`があります。これらのagent・decision・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](increment-12.md)も参照してください。
+JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](increment-12.md)も参照してください。
 
 ## 利用できる機能と権限
 
@@ -20,7 +20,7 @@ NOEは次のホスト機能をスクリプトに渡します。
 - HTTPサーバーの待受
 - Workersとメッセージング
 
-Workersにも同じgo-quickjs標準ライブラリのホスト機能を渡します（`noe:agent`を除く）。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
+Workersにも同じgo-quickjs標準ライブラリのホスト機能を渡します。NOE固有moduleでは`noe:process`・`noe:io`をWorkerで利用でき、`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`は利用できません。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
 
 go-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
@@ -203,6 +203,10 @@ WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソ
 ## 意思決定モデル：`noe:decision`
 
 `import { decide } from "noe:decision"`で、`await decide({provider:"openrouter",model,state,questions})`を呼べます。`state`は文字列・JSON object/array、`questions`は名前付き質問objectです。provider/modelは毎回明示し、結果はproviderの応答JSON全体です。通常JSとagentの`run_js`から利用でき、agent loopは作りません。認証は既存OpenRouter設定を共用し、要求は現在の評価・所有scopeの取消しに従います。使用例、検証・エラー、画像part、REPL、観察は[意思決定APIガイド](decision.md)を参照してください。
+
+## 画像の読み込みと生成：`noe:image`
+
+`noe:image`は`read_image(path, {detail?})`と`generate_image({provider, model, prompt, output, parameters?})`を公開します。`read_image`はagentの`run_js` tool call内だけで画像を添付し、通常のトップレベル`run`・`eval`・`repl`やWorkerでは画像入力できません。`generate_image`は通常JSとagentの`run_js`で利用できます。JavaScriptへ返るのはmetadataで、画像bytesやBase64ではありません。provider/model、対応形式、hook、履歴、エラーの契約は[画像ガイド](agent-images.md)を参照してください。
 
 ## 構造化イベントの出力
 

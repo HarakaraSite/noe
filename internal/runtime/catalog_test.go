@@ -20,7 +20,8 @@ func TestModelCatalogInJSAndREPLWithoutCredentials(t *testing.T) {
 	opts := Options{Agent: &agent.Options{ProviderOptions: provider.Options{ConfigFile: config}}}
 	source := `import {list_models} from "noe:agent";
 const all=await list_models();
-if(all.length!==11 || all.some(m=>"keyFile" in m || "baseURL" in m))throw Error("catalog shape");
+if(all.length!==13 || all.some(m=>"keyFile" in m || "baseURL" in m))throw Error("catalog shape");
+const images=await list_models({kind:"image"});if(images.length!==2)throw Error("image catalog");
 const agents=await list_models({provider:"openrouter",kind:"agent"});
 if(agents.length!==2 || agents[0].description!=="local selection policy")throw Error("external override");
 for(const bad of [null,[],{kind:"other"},{provider:""},{unexpected:true}]){

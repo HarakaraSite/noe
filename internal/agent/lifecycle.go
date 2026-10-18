@@ -10,6 +10,7 @@ import (
 
 	"noe/internal/agent/provider"
 	"noe/internal/events"
+	imageapi "noe/internal/image"
 )
 
 // taskConfig is frozen at registration and copied into each fresh task runner.
@@ -100,11 +101,12 @@ type command struct {
 }
 
 type taskOutcome struct {
-	RunID     string `json:"runId"`
-	CommandID string `json:"commandId"`
-	State     string `json:"state"`
-	Answer    string `json:"answer"`
-	Error     string `json:"error,omitempty"`
+	RunID        string          `json:"runId"`
+	CommandID    string          `json:"commandId"`
+	State        string          `json:"state"`
+	Answer       string          `json:"answer"`
+	Error        string          `json:"error,omitempty"`
+	ErrorDetails *imageapi.Error `json:"errorDetails,omitempty"`
 }
 
 type instanceSnapshot struct {
@@ -138,6 +140,7 @@ type agentInstance struct {
 	modelMaxOutputTokens *int64
 	context              *contextSnapshot
 	conversation         *conversationSnapshot
+	images               map[string]*imageapi.Data
 	conversationContext  *contextContinuation
 	activityID           string
 	causedBy             []string
@@ -670,6 +673,9 @@ func (i *agentInstance) serve() {
 		h.mu.Unlock()
 		if run != nil {
 			fields := events.Event{"status": outcome.State, "duration": time.Since(run.started)}
+			if outcome.ErrorDetails != nil {
+				fields["errorDetails"] = outcome.ErrorDetails
+			}
 			if outcome.Error != "" {
 				fields["error"] = outcome.Error
 			}
@@ -712,6 +718,7 @@ func (i *agentInstance) finishLocked(state, reason string) events.Event {
 	i.reason = reason
 	i.currentRunID = ""
 	i.conversation = nil
+	i.images = nil
 	i.conversationContext = nil
 	if i.activeCounted {
 		i.activeCounted = false
@@ -797,6 +804,7 @@ func (i *agentInstance) execute(cmd *command) (taskOutcome, *agentRun, bool) {
 	outcome := taskOutcome{CommandID: cmd.id, State: "failed"}
 	if run != nil {
 		outcome.RunID = run.id
+		outcome.ErrorDetails = run.refusal
 	}
 	fatal := false
 	switch {

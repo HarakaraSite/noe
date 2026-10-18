@@ -52,12 +52,25 @@ export class TaskHistory {
     this.steers.add(command.commandId);
   }
 
-  completeBlock(assistant, results = []) {
+  completeBlock(assistant, results = [], images = undefined) {
     const calls = assistant.tool_calls || [];
     if (calls.length !== results.length) throw Error("incomplete history block");
     const messages = [assistant];
     for (let i = 0; i < calls.length; i++) {
       messages.push({role: "tool", tool_call_id: calls[i].id, content: JSON.stringify(results[i])});
+    }
+    if (images !== undefined && images !== null) {
+      if (!Array.isArray(images)) throw Error("invalid image history references");
+      const seenIDs = new Set();
+      const parts = images.map(image => {
+        if (image === null || typeof image !== "object" || Array.isArray(image) ||
+            typeof image.imageId !== "string" || !image.imageId || seenIDs.has(image.imageId)) {
+          throw Error("invalid image history references");
+        }
+        seenIDs.add(image.imageId);
+        return {type: "noe_image", imageId: image.imageId};
+      });
+      if (parts.length > 0) messages.push({role: "user", content: parts});
     }
     this.add("block", messages);
   }
@@ -113,7 +126,7 @@ function validateCompleteBlock(messages) {
   const assistant = messages[0];
   if (assistant.role !== "assistant") throw new Error("agent broker returned an incomplete conversation block");
   const calls = assistant.tool_calls === undefined || assistant.tool_calls === null ? [] : assistant.tool_calls;
-  if (!Array.isArray(calls) || messages.length !== calls.length + 1) {
+  if (!Array.isArray(calls) || (messages.length !== calls.length + 1 && messages.length !== calls.length + 2)) {
     throw new Error("agent broker returned an incomplete conversation block");
   }
   const seen = new Set();
@@ -125,5 +138,19 @@ function validateCompleteBlock(messages) {
       throw new Error("agent broker returned an incomplete conversation block");
     }
     seen.add(call.id);
+  }
+  if (messages.length === calls.length + 2) {
+    const imageMessage = messages[messages.length - 1];
+    if (imageMessage.role !== "user" || !Array.isArray(imageMessage.content) || imageMessage.content.length === 0) {
+      throw new Error("agent broker returned invalid image references in a conversation block");
+    }
+    const imageIDs = new Set();
+    for (const part of imageMessage.content) {
+      if (part === null || typeof part !== "object" || Array.isArray(part) || part.type !== "noe_image" ||
+          typeof part.imageId !== "string" || !part.imageId || imageIDs.has(part.imageId)) {
+        throw new Error("agent broker returned invalid image references in a conversation block");
+      }
+      imageIDs.add(part.imageId);
+    }
   }
 }

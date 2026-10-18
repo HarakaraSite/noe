@@ -61,8 +61,8 @@ func splitModel(raw json.RawMessage) (*ModelInfo, map[string]any, error) {
 	if info.Kind == "" {
 		info.Kind = "agent"
 	}
-	if info.Kind != "agent" && info.Kind != "decision" {
-		return nil, nil, errors.New("catalog kind must be agent or decision")
+	if info.Kind != "agent" && info.Kind != "decision" && info.Kind != "image" {
+		return nil, nil, errors.New("catalog kind must be agent, decision, or image")
 	}
 	if info.ContextWindow < 0 || info.MaxOutputTokens < 0 {
 		return nil, nil, errors.New("catalog token limits must be nonnegative")
@@ -83,8 +83,8 @@ func (r *Registry) ListModels(query ModelQuery) ([]Model, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	if query.Kind != "" && query.Kind != "agent" && query.Kind != "decision" {
-		return nil, errors.New("model kind must be agent or decision")
+	if query.Kind != "" && query.Kind != "agent" && query.Kind != "decision" && query.Kind != "image" {
+		return nil, errors.New("model kind must be agent, decision, or image")
 	}
 	if query.Provider != "" {
 		if _, exists := r.definitions.Providers[query.Provider]; !exists {
