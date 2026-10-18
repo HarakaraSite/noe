@@ -1,12 +1,12 @@
-// ./noe run examples/http-server.js [port]
+// ./noe run examples/http/http-server.js [port]
 const args = process.argv.slice(2);
 if (args.length > 1 || (args.length === 1 && !/^\d+$/.test(args[0]))) {
-  console.error("Usage: noe run examples/http-server.js [port: 0..65535]");
+  console.error("Usage: noe run examples/http/http-server.js [port: 0..65535]");
   process.exit(2);
 }
 const port = args.length === 0 ? 8080 : Number(args[0]);
 if (!Number.isInteger(port) || port > 65535) {
-  console.error("Usage: noe run examples/http-server.js [port: 0..65535]");
+  console.error("Usage: noe run examples/http/http-server.js [port: 0..65535]");
   process.exit(2);
 }
 

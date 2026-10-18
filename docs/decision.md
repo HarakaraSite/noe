@@ -42,7 +42,7 @@ console.log(team.choice, team.probabilities, team.confidence);
 
 ```sh
 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
-  ./noe run --events=decision.jsonl examples/decision-classify.js \
+  ./noe run --events=decision.jsonl examples/decision/decision-classify.js \
   'Checkout fails after payment.' typesafe/jev-1.14
 ```
 

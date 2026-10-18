@@ -4,7 +4,7 @@ import { readFile, writeFile } from "fs/promises";
 
 const args = process.argv.slice(2);
 if (args.length !== 2) {
-  console.error("Usage: noe run examples/transform-json.js input.json output.json");
+  console.error("Usage: noe run examples/json/transform-json.js input.json output.json");
   process.exit(2);
 }
 

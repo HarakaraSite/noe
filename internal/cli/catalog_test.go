@@ -92,7 +92,7 @@ func TestCatalogRoutingExampleAndRunJS(t *testing.T) {
 	// A child process must use the root host's frozen catalog, even when its
 	// inherited config path has disappeared before run_js begins.
 	var out, diagnostic bytes.Buffer
-	code := Run(context.Background(), []string{"run", "--events=" + filepath.Join(dir, "events.jsonl"), filepath.Join("..", "..", "examples", "agent-route-model.js"), "fixture", "inspect catalog"}, strings.NewReader(""), &out, &diagnostic)
+	code := Run(context.Background(), []string{"run", "--events=" + filepath.Join(dir, "events.jsonl"), filepath.Join("..", "..", "examples", "agent", "agent-route-model.js"), "fixture", "inspect catalog"}, strings.NewReader(""), &out, &diagnostic)
 	if code != 0 || out.String() != "catalog observed\n" || decisionCalls.Load() != 1 || modelCalls.Load() != 2 {
 		t.Fatalf("code=%d out=%q stderr=%q decisions=%d model=%d", code, &out, &diagnostic, decisionCalls.Load(), modelCalls.Load())
 	}

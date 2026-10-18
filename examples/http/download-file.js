@@ -1,9 +1,9 @@
 import { writeFile } from "fs/promises";
 
-// ./noe run --timeout 10s examples/download-file.js URL output-file
+// ./noe run --timeout 10s examples/http/download-file.js URL output-file
 const args = process.argv.slice(2);
 if (args.length !== 2) {
-  console.error("Usage: noe run examples/download-file.js URL output-file");
+  console.error("Usage: noe run examples/http/download-file.js URL output-file");
   process.exit(2);
 }
 

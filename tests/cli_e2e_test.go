@@ -100,7 +100,7 @@ func TestRunRejectsTypeScript(t *testing.T) {
 func TestReadmeExamples(t *testing.T) {
 	work := t.TempDir()
 
-	hello := runCLI(t, repoRootPath, nil, "run", filepath.Join("examples", "hello.js"))
+	hello := runCLI(t, repoRootPath, nil, "run", filepath.Join("examples", "basics", "hello.js"))
 	requireExit(t, hello, 0)
 	if hello.stdout != "Hello from NOE!\n" || hello.stderr != "" {
 		t.Fatalf("hello example: stdout=%q stderr=%q", hello.stdout, hello.stderr)
@@ -109,7 +109,7 @@ func TestReadmeExamples(t *testing.T) {
 	input := filepath.Join(work, "input.json")
 	transformOutput := filepath.Join(work, "transform-output.json")
 	writeFixture(t, input, `{"value":21}`)
-	transform := runCLI(t, repoRootPath, nil, "run", filepath.Join("examples", "transform-json.js"), input, transformOutput)
+	transform := runCLI(t, repoRootPath, nil, "run", filepath.Join("examples", "json", "transform-json.js"), input, transformOutput)
 	requireExit(t, transform, 0)
 	if transform.stdout != "Saved "+transformOutput+"\n" || transform.stderr != "" {
 		t.Fatalf("transform example: stdout=%q stderr=%q", transform.stdout, transform.stderr)
@@ -134,7 +134,7 @@ func TestReadmeExamples(t *testing.T) {
 	}))
 	defer server.Close()
 	fetchOutput := filepath.Join(work, "fetch-output.json")
-	fetched := runCLI(t, repoRootPath, nil, "run", filepath.Join("examples", "fetch-json.js"), server.URL+"/api/data.json", fetchOutput)
+	fetched := runCLI(t, repoRootPath, nil, "run", filepath.Join("examples", "http", "fetch-json.js"), server.URL+"/api/data.json", fetchOutput)
 	requireExit(t, fetched, 0)
 	if fetched.stdout != "Saved "+fetchOutput+"\n" || fetched.stderr != "" {
 		t.Fatalf("fetch example: stdout=%q stderr=%q", fetched.stdout, fetched.stderr)

@@ -2,7 +2,7 @@ import { writeFile } from "fs/promises";
 
 const args = process.argv.slice(2);
 if (args.length !== 2) {
-  console.error("Usage: noe run examples/fetch-json.js URL output.json");
+  console.error("Usage: noe run examples/http/fetch-json.js URL output.json");
   process.exit(2);
 }
 

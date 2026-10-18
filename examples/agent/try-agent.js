@@ -2,7 +2,7 @@ import { run_agent } from "noe:agent";
 import { readFile } from "node:fs/promises";
 
 // 指示を直接渡すか、--task-fileでUTF-8ファイルから読み込めます。
-const usage = "Usage: noe run examples/try-agent.js [--provider ID] [--model ID] [--effort LEVEL] [--task-file PATH | instruction ...]";
+const usage = "Usage: noe run examples/agent/try-agent.js [--provider ID] [--model ID] [--effort LEVEL] [--task-file PATH | instruction ...]";
 const config = {
   provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",

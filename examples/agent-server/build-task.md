@@ -10,7 +10,7 @@ examples/README.mdに案内を追加する。
 
 実行環境：
 NOEはgo-quickjsを使ったJavaScriptランタイムです。
-Node.jsとの完全互換を前提にせず、README・docs/api.md・docs/observe.md・examples/http-server.jsを確認して、実際に利用できるAPIで実装してください。
+Node.jsとの完全互換を前提にせず、README・docs/api.md・docs/observe.md・examples/http/http-server.jsを確認して、実際に利用できるAPIで実装してください。
 テストや動作確認にOSのコマンドを使って構いません。
 
 構成：

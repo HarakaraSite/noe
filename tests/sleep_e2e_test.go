@@ -10,7 +10,7 @@ import (
 )
 
 func TestSleepExampleAndUnawaitedCompletionThroughCLI(t *testing.T) {
-	got := runCLI(t, t.TempDir(), nil, "run", filepath.Join(repoRootPath, "examples", "sleep-demo.js"))
+	got := runCLI(t, t.TempDir(), nil, "run", filepath.Join(repoRootPath, "examples", "basics", "sleep-demo.js"))
 	requireExit(t, got, 0)
 	if got.stdout != "実行 1\n実行 2\n実行 3\n" || got.stderr != "" {
 		t.Fatalf("demo=%+v", got)

@@ -176,7 +176,7 @@ func (process *openStdinCLI) wait(t *testing.T, timeout time.Duration) cliResult
 
 func TestSummarizeStdinExampleAndPipeline(t *testing.T) {
 	work := t.TempDir()
-	example := filepath.Join(repoRootPath, "examples", "summarize-stdin.js")
+	example := filepath.Join(repoRootPath, "examples", "json", "summarize-stdin.js")
 	got := runCLIWithInput(t, work, "[100,200,300]\n", "run", example)
 	requireExit(t, got, 0)
 	if got.stdout != "{\"count\":3,\"total\":600,\"average\":200}\n" || got.stderr != "" {
@@ -209,8 +209,8 @@ console.log("pipeline verified");`
 
 func TestCollectJSONExampleAggregatesSortedFilesAndSkipsOtherEntries(t *testing.T) {
 	work := t.TempDir()
-	example := filepath.Join(repoRootPath, "examples", "collect-json.js")
-	fixtureDir := filepath.Join(repoRootPath, "examples", "data", "numbers")
+	example := filepath.Join(repoRootPath, "examples", "json", "collect-json.js")
+	fixtureDir := filepath.Join(repoRootPath, "examples", "json", "data", "numbers")
 	firstInfo, err := os.Stat(filepath.Join(fixtureDir, "first.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -219,7 +219,7 @@ func TestCollectJSONExampleAggregatesSortedFilesAndSkipsOtherEntries(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := runCLI(t, repoRootPath, nil, "run", example, filepath.Join("examples", "data", "numbers"))
+	got := runCLI(t, repoRootPath, nil, "run", example, filepath.Join("examples", "json", "data", "numbers"))
 	requireExit(t, got, 0)
 	want := fmt.Sprintf(`{"files":[{"name":"first.json","bytes":%d,"count":3,"total":600},{"name":"second.json","bytes":%d,"count":2,"total":200}],"count":5,"total":800,"average":160}`+"\n", firstInfo.Size(), secondInfo.Size())
 	if got.stdout != want || got.stderr != "" {
@@ -265,7 +265,7 @@ func TestCollectJSONExampleAggregatesSortedFilesAndSkipsOtherEntries(t *testing.
 
 func TestCollectJSONExampleReportsUsageAndInvalidFiles(t *testing.T) {
 	work := t.TempDir()
-	example := filepath.Join(repoRootPath, "examples", "collect-json.js")
+	example := filepath.Join(repoRootPath, "examples", "json", "collect-json.js")
 	missingArg := runCLI(t, work, nil, "run", example)
 	requireExit(t, missingArg, 2)
 	if missingArg.stdout != "" || !strings.Contains(missingArg.stderr, "Usage:") {

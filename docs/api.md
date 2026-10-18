@@ -178,7 +178,7 @@ Control接続はローカルで稼働中のNOEに限られ、daemonや再起動�
 OpenRouter APIキーをテキストファイルへ保存し、`NOE_OPENROUTER_API_KEY_FILE`でパスを指定します。
 
 ```sh
-NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key ./noe run examples/agent-summary.js README.md
+NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key ./noe run examples/agent/agent-summary.js README.md
 ```
 
 この変数が空または未設定なら、`$XDG_CONFIG_HOME/noe/credentials/openrouter-api-key`を探します。`XDG_CONFIG_HOME`が未設定なら`~/.config/noe/credentials/openrouter-api-key`を使います。ファイル内容の前後の空白は取り除きます。Go側が最初のモデル要求時にファイルを読みます。moduleのimportや初期taskなしのidle起動では読みません。task付きのrun/spawnは受領後にモデル要求を開始します。キー値はモデル履歴・子接続情報・traceへ含めません。NOEはsandboxではなく、実行するJSは同一ユーザーのOS権限でファイルや環境変数へアクセスできます。
@@ -187,7 +187,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key ./noe run examples/agent
 
 ```sh
 NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
-  ./noe run examples/agent-summary.js README.md 2>agent-trace.log
+  ./noe run examples/agent/agent-summary.js README.md 2>agent-trace.log
 ```
 
 traceにはrun ID、親run ID、agent名、model、status、duration（nanoseconds）、返された場合はprompt/completion/total/cached token数とcostを記録します。`js_result`にはtoolの終了コードと理由も含みます。prompt、生成code、toolのstdout/stderr、APIキーは記録しません。標準エラーには通常の診断も含まれる場合があります。

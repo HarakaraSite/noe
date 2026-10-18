@@ -28,14 +28,14 @@ groupの現在状態はliveの`observe_agent({agentId})`、回収完了はinstan
 `--observe`を付けると、パイプなしで実行中のイベントを人間向けに表示できます。
 
 ```sh
-./noe run --observe examples/try-agent.js '1から100までの合計を計算して'
+./noe run --observe examples/agent/try-agent.js '1から100までの合計を計算して'
 ./noe eval --observe 'console.log("hello")'
 ./noe repl --observe
 
 # 画面はテキスト表示、ファイルには元のJSONLを保存
-./noe run --observe --events=agent.jsonl examples/try-agent.js '任意の指示'
+./noe run --observe --events=agent.jsonl examples/agent/try-agent.js '任意の指示'
 # --events単独なら保存先をcwdに自動命名
-./noe run --observe --events examples/try-agent.js '任意の指示'
+./noe run --observe --events examples/agent/try-agent.js '任意の指示'
 ```
 
 `--observe`だけではJSONLファイルを作りません。`--events=path`または`--events`を併用すると記録も残せます。stdoutには整形したイベントを出します。スクリプトと`run_js`のstdoutは人間向け表示から省き、JSの処理内容は先頭の1行コメントで確認します。NOE自体の実行診断はstderrへ出ます。REPLの入力画面はstdoutに保ちます。
@@ -43,7 +43,7 @@ groupの現在状態はliveの`observe_agent({agentId})`、回収完了はinstan
 JSONLを別の処理へ渡す場合は、従来どおり`--events=-`を使います。パイプ先の`noe observe`も同じ整形処理を利用します。
 
 ```sh
-./noe run --events=- examples/try-agent.js '任意の指示' | ./noe observe
+./noe run --events=- examples/agent/try-agent.js '任意の指示' | ./noe observe
 ```
 
 `--observe`と`--events=-`は両方ともstdoutを使うため同時指定できません。表示とJSONL保存を両立する場合はファイルを指定します。agentを実行する例では、従来どおりOpenRouterの認証設定が必要です。保存済みログの観察自体はproviderへ要求しません。

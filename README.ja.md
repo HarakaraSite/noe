@@ -27,7 +27,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
 # noe v1.6.1
 
-./noe run examples/hello.js
+./noe run examples/basics/hello.js
 # Hello from NOE!
 
 ./noe eval 'console.log(1 + 1)'
@@ -41,21 +41,21 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 標準入力のJSONを集計します。
 
 ```sh
-printf '[100,200,300]\n' | ./noe run examples/summarize-stdin.js
+printf '[100,200,300]\n' | ./noe run examples/json/summarize-stdin.js
 # {"count":3,"total":600,"average":200}
 ```
 
 ディレクトリ内のJSONファイルをまとめて集計します。
 
 ```sh
-./noe run examples/collect-json.js examples/data/numbers
+./noe run examples/json/collect-json.js examples/json/data/numbers
 # ファイルごとの結果と、count: 5、total: 800、average: 160を表示
 ```
 
 非同期の待機を使い、1秒間隔で3回表示します。
 
 ```sh
-./noe run examples/sleep-demo.js
+./noe run examples/basics/sleep-demo.js
 ```
 
 ファイル加工・レポート保存・HTTPダウンロードなどは[実行例の一覧](examples/README.md)を参照してください。
@@ -173,10 +173,10 @@ console.log(snapshot.lastResult.answer);
 
 外部インストラクションは、たとえば`node:fs/promises`の`await readFile("instructions.md", "utf8")`で読み、得た文字列を`system`へ渡します。`AGENTS.md`の自動探索は行いません。cacheKeyは会話履歴の保存やキャッシュヒットを保証するものではありません。OpenRouterでは`session_id`、OpenAIでは`prompt_cache_key`へ送ります。OpenCode Goは実際のrun IDを`x-opencode-session`へ送り、同一タスク内では固定、親子では別IDです。`User-Agent: noe/<version>`も送ります。
 
-全体の実行時間を制限する場合は、スクリプト名の前に`--timeout 5m`を置きます。任意の指示を試す場合は、OpenRouter設定済みの[try-agent.js](examples/try-agent.js)も使えます。
+全体の実行時間を制限する場合は、スクリプト名の前に`--timeout 5m`を置きます。任意の指示を試す場合は、OpenRouter設定済みの[try-agent.js](examples/agent/try-agent.js)も使えます。
 
 ```sh
-./noe run --observe examples/try-agent.js 'README.mdを読み、要点をSUMMARY.mdへ保存してください。'
+./noe run --observe examples/agent/try-agent.js 'README.mdを読み、要点をSUMMARY.mdへ保存してください。'
 ```
 
 ### 待たずに起動する・観察する・子へ委譲する
@@ -190,7 +190,7 @@ console.log(snapshot.lastResult.answer);
 | `steer_agent({runId, instruction})` | 実行中タスクの次のモデル判断前に指示を加える |
 | `interrupt_agent({runId})` / `interrupt_agent({agentId})` | タスク単位またはinstance全体の停止を受け付ける |
 
-通常JSでも`Promise.all([run_agent(...), run_agent(...)])`で独立したルートagentを並列起動できます。それぞれprovider・model・effortを明示します。実行中に親が観察・追加指示を行う場合は`spawn_agent`を使います。[操作例](examples/agent-control.js)も参照してください。
+通常JSでも`Promise.all([run_agent(...), run_agent(...)])`で独立したルートagentを並列起動できます。それぞれprovider・model・effortを明示します。実行中に親が観察・追加指示を行う場合は`spawn_agent`を使います。[操作例](examples/agent/agent-control.js)も参照してください。
 
 モデルが生成する`run_js`には6つのライフサイクル関数が事前に束縛されています。子はprovider・model・effort・maxTokens・hooks・contextBudget・contextPolicyを省略すると親から継承します。たとえば親は次のtoolコードを実行できます。
 
@@ -203,7 +203,7 @@ const results = await Promise.all([
 console.log(JSON.stringify(results));
 ```
 
-この省略形は`run_js`内の子向けです。通常のルートスクリプトでは3項目を明示します。子のsystem・name・maxSteps・cacheKey・履歴は継承されません。`run_js`ごとに新しいNOEプロセスが動き、JS変数は持ち越せないため、呼出し間のデータはファイルなどへ保存します。[agent-parallel.js](examples/agent-parallel.js)は親による委譲の例です。
+この省略形は`run_js`内の子向けです。通常のルートスクリプトでは3項目を明示します。子のsystem・name・maxSteps・cacheKey・履歴は継承されません。`run_js`ごとに新しいNOEプロセスが動き、JS変数は持ち越せないため、呼出し間のデータはファイルなどへ保存します。[agent-parallel.js](examples/agent/agent-parallel.js)は親による委譲の例です。
 
 ### 次のタスクを待ち受ける
 
@@ -249,7 +249,7 @@ JS本文が終わってもNOEプロセスは待受を続けます。別terminal�
 
 `--events`はrun・eval・repl共通です。`--events=-`はstdout、パス指定はファイルへ追記、単独指定は起動時のcwdへ`noe-events-日時-ID.jsonl`を作ります。通常JSの出力、生成JS本文、取得できた例外詳細も記録します。従来の`NOE_AGENT_TRACE=1`によるstderrへのメタデータtraceも使えます。[イベントガイド](docs/events.md)と[観察の入口](docs/observe.md)を参照してください。親は`observe_agent({logPath, runId, ...})`で保存ログも読めます。
 
-`list_models({provider?, kind?})`は外部通信なしで内蔵・外部設定のモデル候補を返します。接続先・header・パラメータ・モデル別API形式・カタログは、`~/.config/noe/config.json`または`NOE_CONFIG_FILE`で上書きできます。[provider設定](docs/providers.md)、[モデルカタログ](docs/model-catalog.md)、[Jevでの選択例](examples/agent-route-model.js)を参照してください。JS内でカタログ未登録のモデルを直接指定することもできます。
+`list_models({provider?, kind?})`は外部通信なしで内蔵・外部設定のモデル候補を返します。接続先・header・パラメータ・モデル別API形式・カタログは、`~/.config/noe/config.json`または`NOE_CONFIG_FILE`で上書きできます。[provider設定](docs/providers.md)、[モデルカタログ](docs/model-catalog.md)、[Jevでの選択例](examples/agent/agent-route-model.js)を参照してください。JS内でカタログ未登録のモデルを直接指定することもできます。
 
 REPLから単発で呼ぶ場合は次の形です。
 
@@ -263,11 +263,11 @@ REPLから単発で呼ぶ場合は次の形です。
 
 ## 構造化された意思決定
 
-`import { decide } from "noe:decision"`から、`provider`・`model`・`state`・名前付き`questions`を明示して一回のDecisions要求を送れます。Promiseは応答JSON全体を返します。通常JSとagentの`run_js`から利用でき、既存の認証・取消しscopeを共用します。[意思決定APIガイド](docs/decision.md)と[実行例](examples/decision-classify.js)を参照してください。
+`import { decide } from "noe:decision"`から、`provider`・`model`・`state`・名前付き`questions`を明示して一回のDecisions要求を送れます。Promiseは応答JSON全体を返します。通常JSとagentの`run_js`から利用でき、既存の認証・取消しscopeを共用します。[意思決定APIガイド](docs/decision.md)と[実行例](examples/decision/decision-classify.js)を参照してください。
 
 ```sh
 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
-  ./noe run examples/decision-classify.js 'Checkout failed.' typesafe/jev-1.14
+  ./noe run examples/decision/decision-classify.js 'Checkout failed.' typesafe/jev-1.14
 ```
 
 ## HTTPサーバー
@@ -275,7 +275,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 小さなHTTPサーバーもJavaScriptで書けます。まず起動します。
 
 ```sh
-./noe run examples/http-server.js 8080
+./noe run examples/http/http-server.js 8080
 ```
 
 別の端末から試します。
@@ -312,7 +312,7 @@ curl -H 'Content-Type: application/json' \
 `run`・`eval`には任意の上限を指定できます。指定しなければ上限を設けません。
 
 ```sh
-./noe run --timeout 5s examples/hello.js
+./noe run --timeout 5s examples/basics/hello.js
 ./noe eval --timeout=500ms 'await new Promise(resolve => setTimeout(resolve, 60000))'
 # 終了コード124、標準エラーへ時間切れの診断
 ```
@@ -375,7 +375,7 @@ REPLの`await`は式、単一変数の初期化・代入に対応します。任
 
 HTTP 4xx・5xxもレスポンスとして返し、通信失敗はPromiseのrejectになります。HTTP/HTTPS URLからのモジュールimportには対応しません。HTTPサーバーはグローバルの`serve()`から、WebSocketは標準ライブラリから利用できます。
 
-[HTTP APIの詳細](docs/api.md#fetch) · [JSON APIへのリクエスト例](examples/README.md#json-apiへのリクエスト)
+[HTTP APIの詳細](docs/api.md#fetch) · [JSON APIへのリクエスト例](examples/http/README.md#json-apiへのリクエスト)
 
 ## エラーと検証
 

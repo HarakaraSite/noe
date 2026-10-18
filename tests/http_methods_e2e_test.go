@@ -175,7 +175,7 @@ func TestHTTPJSONExampleSendsUpdatesAndHandlesResponses(t *testing.T) {
 		_, _ = w.Write(body)
 	}))
 	defer server.Close()
-	example := filepath.Join(repoRootPath, "examples", "http-json.js")
+	example := filepath.Join(repoRootPath, "examples", "http", "http-json.js")
 	for _, method := range []string{"PUT", "patch", "DELETE"} {
 		t.Run(method, func(t *testing.T) {
 			args := []string{"run", example, method, server.URL}

@@ -51,7 +51,7 @@ import { stdin, stdout, pipe } from "noe:io";
 await pipe(stdin, stdout, { preventClose: true });
 ```
 
-stdinはread要求から逐次読み、EOFを待たずにバイト列を返します。importだけでは読取りを始めません。stdout/stderrへのwriteは非同期で、実際の書込み完了を待ちます。文字列にはTextEncoder/TextDecoderを使います。JSONLの例は[stdio-jsonl.js](../examples/stdio-jsonl.js)です。
+stdinはread要求から逐次読み、EOFを待たずにバイト列を返します。importだけでは読取りを始めません。stdout/stderrへのwriteは非同期で、実際の書込み完了を待ちます。文字列にはTextEncoder/TextDecoderを使います。JSONLの例は[stdio-jsonl.js](../examples/process/stdio-jsonl.js)です。
 
 ホストのstdin/stdout/stderrは借用品です。ストリームのclose/abort/cancelやNOEの終了で元のI/Oを閉じません。既存のconsoleとprocess.stdin.read()/stdout.write()も使えます。同じstdinを新旧APIから並行して消費する使い方には読取り順の保証がありません。
 

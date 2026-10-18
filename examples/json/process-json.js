@@ -2,10 +2,10 @@ import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "fs/promi
 import { join } from "path";
 
 // Copy inputs into a work directory first: this example moves processed files.
-// ./noe run examples/process-json.js <input-directory> <output-directory>
+// ./noe run examples/json/process-json.js <input-directory> <output-directory>
 const args = process.argv.slice(2);
 if (args.length !== 2) {
-  console.error("Usage: noe run examples/process-json.js <input-directory> <output-directory>");
+  console.error("Usage: noe run examples/json/process-json.js <input-directory> <output-directory>");
   process.exit(2);
 }
 

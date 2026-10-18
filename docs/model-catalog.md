@@ -88,7 +88,7 @@ console.log(JSON.stringify(agents, null, 2));
 
 ## Jevによる起動前の選択
 
-[agent-route-model.js](../examples/agent-route-model.js)は、次の順で処理します。
+[agent-route-model.js](../examples/agent/agent-route-model.js)は、次の順で処理します。
 
 1. `list_models({provider, kind:"agent"})`から候補を取得。
 2. 説明をJevの`choice`の`criteria`へ渡す。
@@ -96,7 +96,7 @@ console.log(JSON.stringify(agents, null, 2));
 4. 選ばれたprovider・modelと明示した`effort:"auto"`で親agentを起動。
 
 ```sh
-./noe run --observe examples/agent-route-model.js openrouter 'README.mdを3点に要約して'
+./noe run --observe examples/agent/agent-route-model.js openrouter 'README.mdを3点に要約して'
 ```
 
 Jev用のOpenRouterキーと、選択先providerのキーが必要です。呼出し元のJSで候補の絞込み・effortのプリセットを追加できます。NOEが全agentの起動前にJevを強制的に呼ぶ仕組みではありません。

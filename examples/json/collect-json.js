@@ -1,10 +1,10 @@
 import { lstat, readFile, readdir } from "fs/promises";
 import { join } from "path";
 
-// ./noe run examples/collect-json.js examples/data/numbers
+// ./noe run examples/json/collect-json.js examples/json/data/numbers
 const args = process.argv.slice(2);
 if (args.length !== 1) {
-  console.error("Usage: noe run examples/collect-json.js <directory>");
+  console.error("Usage: noe run examples/json/collect-json.js <directory>");
   process.exit(2);
 }
 

@@ -94,7 +94,7 @@ func TestServeExampleThroughCLI(t *testing.T) {
 	script := filepath.Join(work, "example.js")
 	writeFixture(t, script, `console.log = ((log) => (...args) => log("SERVER_URL", ...args))(console.log);
 await import(`+strconv.Quote("./http-server.js")+`);`)
-	data, err := os.ReadFile(filepath.Join(repoRootPath, "examples", "http-server.js"))
+	data, err := os.ReadFile(filepath.Join(repoRootPath, "examples", "http", "http-server.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ await import(`+strconv.Quote("./http-server.js")+`);`)
 	requireExit(t, p.wait(t, 3*time.Second), 1)
 	requireServeRebind(t, address)
 	for _, args := range [][]string{{"-1"}, {"65536"}, {"x"}, {"1", "2"}} {
-		got := runCLI(t, work, nil, append([]string{"run", filepath.Join(repoRootPath, "examples", "http-server.js")}, args...)...)
+		got := runCLI(t, work, nil, append([]string{"run", filepath.Join(repoRootPath, "examples", "http", "http-server.js")}, args...)...)
 		requireExit(t, got, 2)
 		if !strings.Contains(got.stderr, "Usage:") {
 			t.Fatalf("usage: %+v", got)

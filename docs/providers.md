@@ -57,10 +57,10 @@ console.log(snapshot.lastResult.answer);
 
 ```sh
 NOE_OPENCODE_GO_API_KEY_FILE=/path/to/opencode-go-api-key \
-  ./noe run --observe examples/agent-opencode-go.js
+  ./noe run --observe examples/agent/agent-opencode-go.js
 
 NOE_OPENCODE_GO_API_KEY_FILE=/path/to/opencode-go-api-key \
-  ./noe run --observe examples/agent-opencode-go.js gpt-6-luna
+  ./noe run --observe examples/agent/agent-opencode-go.js gpt-6-luna
 ```
 
 OpenCode Goのmodel IDには`deepseek/`や`opencode-go/`のprefixを付けません。既定ではChat Completionsを使い、組込みモデル表の`gpt-6-luna`等はResponsesを使います。**Messages形式は未対応です。** 新しいモデルの対応形式は[OpenCode公式資料](https://opencode.ai/v2/docs/console/go/)で確認し、必要に応じて`models`へ設定を追加します。

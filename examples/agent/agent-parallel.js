@@ -1,7 +1,7 @@
 import { run_agent } from "noe:agent";
 
-const left = process.argv[2] ?? "examples/data/agent/left.json";
-const right = process.argv[3] ?? "examples/data/agent/right.json";
+const left = process.argv[2] ?? "examples/agent/data/left.json";
+const right = process.argv[3] ?? "examples/agent/data/right.json";
 const result = await run_agent({
   provider: "openrouter",
   model: "deepseek/deepseek-v4.1-flash",

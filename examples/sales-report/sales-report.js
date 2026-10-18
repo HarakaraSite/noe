@@ -4,8 +4,8 @@ import { readFile, writeFile } from "fs/promises";
 const args = process.argv.slice(2);
 const outputPrefix = args[0] ?? "/tmp/noe-sales-report";
 const inputFiles = args.length > 1 ? args.slice(1) : [
-  "examples/data/sales-day-1.json",
-  "examples/data/sales-day-2.json",
+  "examples/sales-report/data/sales-day-1.json",
+  "examples/sales-report/data/sales-day-2.json",
 ];
 const title = process.env.REPORT_TITLE ?? "NOE sample sales report";
 

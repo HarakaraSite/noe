@@ -8,7 +8,7 @@ const result = await run_agent({
   model: "deepseek-v4.1-flash",
   effort: "auto",
   name: "context-example",
-  hooks: ["./examples/hooks/context.js"],
+  hooks: ["./examples/agent/hooks/context.js"],
   contextBudget: {inputTokens: 20000},
   // Automatic by default; use null for notices without trimming.
   contextPolicy: {retainRatio: 0.1},

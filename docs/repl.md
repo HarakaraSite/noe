@@ -15,11 +15,11 @@
 > count += 1
 2
 > const fs = await import("fs/promises")
-> const text = await fs.readFile("examples/data/sales-day-1.json", "utf8")
+> const text = await fs.readFile("examples/sales-report/data/sales-day-1.json", "utf8")
 > const orders = JSON.parse(text)
 > orders.length
 4
-> const sales = await import("./examples/lib/sales.js")
+> const sales = await import("./examples/sales-report/lib/sales.js")
 > sales.summarizeSales(orders).totalRevenue
 3100
 > process.exit()

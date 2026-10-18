@@ -278,7 +278,7 @@ HenjiではOpenRouterの質問は名前付きobject、OpenAIの質問は配列�
 
 プリセットは、例えばlight・standard・deep、またはコード向け・画像向けなど。実際のprovider・model・effortの対応表と各候補の説明は共通のJSに持たせる。`questions`の`criteria`に候補の説明を渡し、タスクの難易度・必要な能力・費用や速度の優先方針に応じて選択する。返却された`result.answers`内の`choice`で設定を取得し、起動APIへ渡す。モデルの差替えはプリセット側で行える。
 
-同じ選択用JSを、親が子agentを起動するときにも利用できる。NOE本体に固定のルーティング方針を追加せず、候補と選択基準を呼出し元で組み立てる。`typesafe/jev-router`をテスト対象から外した背景も、この構成を通常のJevによる判断で作れると考えたため。2026-10-17、[モデルカタログ](model-catalog.md)と[起動前のモデル選択例](../examples/agent-route-model.js)を追加した。候補は内蔵JSON＋外部差分で管理し、`list_models`から取得する。カタログ→Jev→選択した親の起動→run_jsでのカタログ再参照をローカルfixtureで確認済み。サンプルのeffortは明示autoで、effortも含むプリセット選択とこの例の有料実接続は未実施。
+同じ選択用JSを、親が子agentを起動するときにも利用できる。NOE本体に固定のルーティング方針を追加せず、候補と選択基準を呼出し元で組み立てる。`typesafe/jev-router`をテスト対象から外した背景も、この構成を通常のJevによる判断で作れると考えたため。2026-10-17、[モデルカタログ](model-catalog.md)と[起動前のモデル選択例](../examples/agent/agent-route-model.js)を追加した。候補は内蔵JSON＋外部差分で管理し、`list_models`から取得する。カタログ→Jev→選択した親の起動→run_jsでのカタログ再参照をローカルfixtureで確認済み。サンプルのeffortは明示autoで、effortも含むプリセット選択とこの例の有料実接続は未実施。
 
 ### <未完了> agentのVision対応 — 2026-10-17
 

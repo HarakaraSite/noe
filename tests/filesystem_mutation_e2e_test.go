@@ -102,7 +102,7 @@ func TestProcessJSONExampleSavesAndArchives(t *testing.T) {
 	if err := os.Symlink("first.json", filepath.Join(input, "linked.json")); err != nil {
 		t.Fatal(err)
 	}
-	example := filepath.Join(repoRootPath, "examples", "process-json.js")
+	example := filepath.Join(repoRootPath, "examples", "json", "process-json.js")
 	got := runCLI(t, work, nil, "run", example, "input", "output/nested")
 	requireExit(t, got, 0)
 	if got.stderr != "" {
@@ -165,7 +165,7 @@ func TestProcessJSONExampleSavesAndArchives(t *testing.T) {
 }
 
 func TestProcessJSONExampleEmptyUsageAndInvalidData(t *testing.T) {
-	example := filepath.Join(repoRootPath, "examples", "process-json.js")
+	example := filepath.Join(repoRootPath, "examples", "json", "process-json.js")
 	work := t.TempDir()
 	usage := runCLI(t, work, nil, "run", example)
 	requireExit(t, usage, 2)
@@ -209,7 +209,7 @@ func TestProcessJSONExamplePartialFailureKeepsCompletedChanges(t *testing.T) {
 	// A directory at the second archive destination makes the second rename
 	// fail after the report and first input have already been saved/moved.
 	writeFixture(t, filepath.Join(work, "output", "processed", "second.json", "child.txt"), "kept")
-	example := filepath.Join(repoRootPath, "examples", "process-json.js")
+	example := filepath.Join(repoRootPath, "examples", "json", "process-json.js")
 	got := runCLI(t, work, nil, "run", example, "input", "output")
 	requireExit(t, got, 1)
 	if got.stdout != "" || !strings.Contains(got.stderr, "second.json") {

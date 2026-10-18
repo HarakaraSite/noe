@@ -71,7 +71,7 @@ func TestBinaryHTTPDownloadExampleAndPipedREPL(t *testing.T) {
 	}))
 	defer server.Close()
 	work := t.TempDir()
-	example := filepath.Join(repoRootPath, "examples", "download-file.js")
+	example := filepath.Join(repoRootPath, "examples", "http", "download-file.js")
 	for _, tc := range []struct {
 		path, output string
 		want         []byte
@@ -147,7 +147,7 @@ func TestBinaryDownloadFailuresAndTimeout(t *testing.T) {
 	}))
 	t.Cleanup(func() { close(release); server.Close() })
 	work := t.TempDir()
-	example := filepath.Join(repoRootPath, "examples", "download-file.js")
+	example := filepath.Join(repoRootPath, "examples", "http", "download-file.js")
 	usage := runCLI(t, work, nil, "run", example)
 	requireExit(t, usage, 2)
 	if usage.stdout != "" || !strings.Contains(usage.stderr, "Usage:") {

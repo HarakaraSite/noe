@@ -30,7 +30,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
 # noe v1.6.1
 
-./noe run examples/hello.js
+./noe run examples/basics/hello.js
 # Hello from NOE!
 
 ./noe eval 'console.log(1 + 1)'
@@ -44,21 +44,21 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 Summarize a JSON array from standard input:
 
 ```sh
-printf '[100,200,300]\n' | ./noe run examples/summarize-stdin.js
+printf '[100,200,300]\n' | ./noe run examples/json/summarize-stdin.js
 # {"count":3,"total":600,"average":200}
 ```
 
 Summarize JSON files in a directory:
 
 ```sh
-./noe run examples/collect-json.js examples/data/numbers
+./noe run examples/json/collect-json.js examples/json/data/numbers
 # Prints per-file results and totals: count: 5, total: 800, average: 160
 ```
 
 Print three times, one second apart, using asynchronous sleep:
 
 ```sh
-./noe run examples/sleep-demo.js
+./noe run examples/basics/sleep-demo.js
 ```
 
 See the [examples](examples/README.md) for file transformation, report generation, and HTTP downloads.
@@ -173,10 +173,10 @@ Agents receive a context status notice on each model request, with the explicit 
 
 For example, read an instruction file with `await readFile("instructions.md", "utf8")` from `node:fs/promises` and pass the resulting string as `system`. NOE does not automatically discover `AGENTS.md`. Cache keys do not preserve conversation history or guarantee cache hits. OpenRouter sends the key as `session_id`; OpenAI uses `prompt_cache_key`. OpenCode Go sends `x-opencode-session` with the actual run ID, fixed within a task and distinct for parent and child tasks, plus `User-Agent: noe/<version>`.
 
-To limit total execution time, put `--timeout 5m` before the script name. For an arbitrary task with the prepared OpenRouter configuration, use [try-agent.js](examples/try-agent.js):
+To limit total execution time, put `--timeout 5m` before the script name. For an arbitrary task with the prepared OpenRouter configuration, use [try-agent.js](examples/agent/try-agent.js):
 
 ```sh
-./noe run --observe examples/try-agent.js 'Read README.md and write a summary to SUMMARY.md.'
+./noe run --observe examples/agent/try-agent.js 'Read README.md and write a summary to SUMMARY.md.'
 ```
 
 ### Start work without waiting, observe it, and delegate
@@ -190,7 +190,7 @@ To limit total execution time, put `--timeout 5m` before the script name. For an
 | `steer_agent({runId, instruction})` | Adds guidance to the active task before its next model decision |
 | `interrupt_agent({runId})` / `interrupt_agent({agentId})` | Accepts cancellation of one task or the whole instance |
 
-Ordinary JavaScript can launch independent root agents concurrently with `Promise.all([run_agent(...), run_agent(...)])`; each root needs its own explicit provider/model/effort. Use `spawn_agent` when the caller needs to observe or steer work while it runs. See the [live-control example](examples/agent-control.js).
+Ordinary JavaScript can launch independent root agents concurrently with `Promise.all([run_agent(...), run_agent(...)])`; each root needs its own explicit provider/model/effort. Use `spawn_agent` when the caller needs to observe or steer work while it runs. See the [live-control example](examples/agent/agent-control.js).
 
 In model-generated `run_js`, these six lifecycle functions are already bound. Children inherit the current parent's provider, model, effort, `maxTokens`, `hooks`, `contextBudget`, and `contextPolicy` when omitted. A queued task continues the same keepAlive agent conversation: it retains completed exchanges and final answers that survived trimming, then adds the queued instruction as a protected user message when the task starts. Trimmed-away history stays removed, and trim counters continue across tasks. The queue task still gets its own run ID, `maxSteps`, and cancellation scope. For example, the parent can execute this tool code:
 
@@ -203,7 +203,7 @@ const results = await Promise.all([
 console.log(JSON.stringify(results));
 ```
 
-This shortened configuration is for children inside `run_js`; ordinary root scripts must specify all three required settings. A child starts an independent conversation with its own system instructions and history; child `system`, `name`, `maxSteps`, and `cacheKey` are not inherited. A keepAlive instance freezes its composed system instructions at its first task, so later queue tasks do not reread instruction files. Each task still gets a fresh runtime and hook-module state. Each `run_js` starts a fresh NOE process; use files when data must survive between tool calls. [agent-parallel.js](examples/agent-parallel.js) demonstrates parent-driven delegation.
+This shortened configuration is for children inside `run_js`; ordinary root scripts must specify all three required settings. A child starts an independent conversation with its own system instructions and history; child `system`, `name`, `maxSteps`, and `cacheKey` are not inherited. A keepAlive instance freezes its composed system instructions at its first task, so later queue tasks do not reread instruction files. Each task still gets a fresh runtime and hook-module state. Each `run_js` starts a fresh NOE process; use files when data must survive between tool calls. [agent-parallel.js](examples/agent/agent-parallel.js) demonstrates parent-driven delegation.
 
 ### Keep an agent available for more tasks
 
@@ -249,7 +249,7 @@ An `agentId` identifies the instance; each task has a new `runId` and keeps its 
 
 `--events` works with `run`, `eval`, and `repl`: `--events=-` writes JSONL to stdout, a path appends to that file, and bare `--events` creates `noe-events-<date>-<time>-<id>.jsonl` in the starting working directory. Events retain ordinary JS output, generated JavaScript source, and captured exception details. The legacy `NOE_AGENT_TRACE=1` metadata trace remains available on stderr. See the [event guide](docs/events.md) and [observation entry points](docs/observe.md); parents can also read saved JSONL through `observe_agent({logPath, runId, ...})`.
 
-`list_models({provider?, kind?})` returns built-in and externally configured model metadata without contacting a provider. Endpoints, headers, parameters, model-specific routes, and catalog entries can be overridden in `~/.config/noe/config.json` or `NOE_CONFIG_FILE`. See [provider configuration](docs/providers.md), the [model catalog](docs/model-catalog.md), and [Jev routing example](examples/agent-route-model.js). Directly specifying a model in JavaScript is also supported; the catalog is not an allowlist.
+`list_models({provider?, kind?})` returns built-in and externally configured model metadata without contacting a provider. Endpoints, headers, parameters, model-specific routes, and catalog entries can be overridden in `~/.config/noe/config.json` or `NOE_CONFIG_FILE`. See [provider configuration](docs/providers.md), the [model catalog](docs/model-catalog.md), and [Jev routing example](examples/agent/agent-route-model.js). Directly specifying a model in JavaScript is also supported; the catalog is not an allowlist.
 
 For a one-off agent in the REPL:
 
@@ -263,11 +263,11 @@ For a one-off agent in the REPL:
 
 ## Structured decisions
 
-Use `import { decide } from "noe:decision"` to submit one structured decision request to OpenRouter. Pass explicit `provider`, `model`, `state`, and named `questions`; the Promise returns the full response JSON. It works in ordinary scripts and agent-generated `run_js`, sharing the existing credentials and cancellation scope. See the [decision guide](docs/decision.md) and [example](examples/decision-classify.js).
+Use `import { decide } from "noe:decision"` to submit one structured decision request to OpenRouter. Pass explicit `provider`, `model`, `state`, and named `questions`; the Promise returns the full response JSON. It works in ordinary scripts and agent-generated `run_js`, sharing the existing credentials and cancellation scope. See the [decision guide](docs/decision.md) and [example](examples/decision/decision-classify.js).
 
 ```sh
 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
-  ./noe run examples/decision-classify.js 'Checkout failed.' typesafe/jev-1.14
+  ./noe run examples/decision/decision-classify.js 'Checkout failed.' typesafe/jev-1.14
 ```
 
 ## HTTP server
@@ -275,7 +275,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 You can write a small HTTP server in JavaScript. Start the demo:
 
 ```sh
-./noe run examples/http-server.js 8080
+./noe run examples/http/http-server.js 8080
 ```
 
 Try it from another terminal:
@@ -312,7 +312,7 @@ The global `serve(options, handler)` takes a Web `Request` and expects a Web `Re
 You can set an optional timeout for `run` and `eval`. There is no time limit by default.
 
 ```sh
-./noe run --timeout 5s examples/hello.js
+./noe run --timeout 5s examples/basics/hello.js
 ./noe eval --timeout=500ms 'await new Promise(resolve => setTimeout(resolve, 60000))'
 # Exit code 124, with a timeout diagnostic on stderr
 ```
@@ -375,7 +375,7 @@ The global `fetch()` is the go-quickjs Web API. It provides `Request`, `Response
 
 HTTP 4xx and 5xx responses are returned as responses; transport failures reject the Promise. HTTP/HTTPS module imports are not supported. HTTP servers use the global `serve()` API; WebSocket uses the standard library API.
 
-[HTTP API details](docs/api.md#fetch) · [JSON API request examples](examples/README.md#json-apiへのリクエスト)
+[HTTP API details](docs/api.md#fetch) · [JSON API request examples](examples/http/README.md#json-apiへのリクエスト)
 
 ## Errors and testing
 

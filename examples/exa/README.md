@@ -1,8 +1,10 @@
 # exa — NOE向け小さなExa検索ライブラリ
 
+[実行例一覧へ戻る](../README.md)
+
 このディレクトリの`exa.js`はライブラリ本体の配布例です。以下は
 `~/.config/noe/lib/exa.js`へコピーして使う配置例です。リポジトリ内のまま使う場合も、
-相対importまたはimport mapの指定先を`examples/exa.js`へ合わせれば利用できます。
+相対importまたはimport mapの指定先を`examples/exa/exa.js`へ合わせれば利用できます。
 
 NOE（go-quickjs）の標準APIだけで動くExa検索クライアントです。npm依存や公式SDKは
 使いません。REST API `POST https://api.exa.ai/search` をグローバルの`fetch`で
