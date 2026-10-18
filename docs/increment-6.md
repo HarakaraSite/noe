@@ -70,4 +70,4 @@ READMEのデモと同じfixtureの一時コピーで、5件・合計800・平均
 
 - [製品方針・MVP](mvp.md)
 - [インクリメント5](increment-5.md)
-- [現在のAPI](../README.md#api)
+- [現在のAPI](api.md)

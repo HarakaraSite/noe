@@ -6,6 +6,8 @@
 
 ## 現在のAPIと移行
 
+認証の登録からtaskの実行・観察までの手順は[agent起動ガイド](agents.md)へまとめています。引数・戻り値・状態・CLIオプションは[APIリファレンス](api.md)を参照してください。
+
 [OpenAIガイド](openai.md)では、公式SDKのResponses・ChatGPTサインイン・APIキー・外部JS認証ヘルパー・ローカル互換接続を説明しています。[実装・検証記録](openai-implementation.md)も参照してください。
 
 [モデルカタログ](model-catalog.md)では、JSONによる候補の管理・外部上書き・`list_models`・Jevによる起動前選択を説明しています。

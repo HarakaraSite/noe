@@ -171,7 +171,7 @@ overlayと総合E2Eログは作業用一時ファイルに置き、repositoryへ
 
 - [製品方針とMVP](mvp.md)
 - [インクリメント9](increment-9.md)
-- [既存API](../README.md#api)
+- [既存API](api.md)
 - [既存の実行・ジョブ待機](../internal/runtime/runtime.go)
 - 当時の非同期処理とキャンセル: `internal/runtime/asyncwork.go`（stdlib移行で削除。現行構成は[移行記録](increment-12.md#実装の変更)を参照）
 - txiki.js参照コミット: `b82d829a4a5febcdba834bcf4d38fb9d89461eee`。ローカルの`_refs/txikijs/source/src/js/core/index.js`・`fs.js`・`httpserver.js`、`src/mod_fs.c`・`httpserver.c`・`vm.c`を構成の参考にする。

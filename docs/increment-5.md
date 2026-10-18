@@ -69,4 +69,4 @@ stdinの実バイナリE2Eは、一時的なGo overlayでTestMainのCLIビルド
 
 - [MVP案](mvp.md)
 - [インクリメント4](increment-4.md)
-- [現在のAPI](../README.md#api)
+- [現在のAPI](api.md)

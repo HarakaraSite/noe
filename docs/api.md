@@ -1,6 +1,6 @@
 # NOE APIリファレンス
 
-[READMEへ戻る](../README.md) · [REPLガイド](repl.md) · [実行例](../examples/README.md)
+[READMEへ戻る](../README.md) · [agent起動ガイド](agents.md) · [REPLガイド](repl.md) · [実行例](../examples/README.md)
 
 NOEはJavaScriptの実行環境として、固定したgo-quickjs v0.27.0の標準ライブラリを有効にします。標準ライブラリが持つWeb APIとNode形式APIを利用できます。各APIはgo-quickjsによる実装で、Node.js全体との互換性を保証するものではありません。
 
@@ -25,6 +25,46 @@ Workersにも同じgo-quickjs標準ライブラリのホスト機能を渡しま
 go-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
 npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗黙のbare importによる外部パッケージ探索はありません。裸の組み込みモジュール名と対応する`node:`名で標準ライブラリをimportできます。`run/eval/repl --import-map path`で完全一致のbare名をローカルESMに対応付けられ、Worker・agent生成JSへ同じ対応表を継承します。ローカルモジュールは拡張子付きの相対/絶対`.js`・`.mjs`パスとlocal file URLを使えます。詳細は[import mapガイド](import-map.md)を参照してください。相対importはimport元のファイルを基準に解決し、`eval`内ではカレントディレクトリが基準です。QuickJS本来の`std`モジュールは提供しません。
+
+## CLI
+
+| コマンド | 動作 |
+| --- | --- |
+| `noe run [options] <file> [args...]` | ファイルを実行。引数は`process.argv.slice(2)`で取得 |
+| `noe eval [options] <code>` | コードを実行。`process.argv.slice(2)`は空配列 |
+| `noe repl [options]` | 対話的に実行 |
+| `noe observe --follow <log>` | 保存中のagentイベントを人間向けに表示 |
+| `noe agents` | 実行中のagentとcurrent run IDを一覧表示 |
+| `noe steer <run-id> <instruction>` | 実行中taskへ追加指示 |
+| `noe queue <agent-id> <instruction>` | keepAlive instanceへ次のtaskを予約 |
+| `noe interrupt --run <id>` / `--agent <id>` | taskを取消し、またはinstanceを停止 |
+| `noe --help` | usageを表示。引数なしでも同じ |
+| `noe --version` | versionを表示 |
+
+`run`・`eval`・`repl`の`--import-map path`、`--observe`、`--events[=path|-]`はソースより前に指定します。`--`でオプション解析を終えます。`.js`・`.mjs`はES modulesとして、Promise・`async/await`・top-level awaitを利用できます。import解決は[import map](import-map.md)、対話入力は[REPL](repl.md)、ログの出力先は[イベントガイド](events.md)を参照してください。
+
+### 実行時間の上限
+
+`run`・`eval`は省略時にCLI独自の期限を設けません。必要ならソースより前に`--timeout`を指定します。
+
+```sh
+./noe run --timeout 5s examples/basics/hello.js
+./noe eval --timeout=500ms 'await new Promise(resolve => setTimeout(resolve, 60000))'
+# 終了コード124、stderrへ時間切れの診断
+```
+
+`500ms`・`5s`・`1m`など正のGo durationを指定します。空・不正・0・負数・重複指定はusage errorです。時間の計測はentry source読込み後から始まり、runtime初期化、JS評価、非同期I/O、待機、サーバー待受と後続処理を含みます。同期host I/O（`process.stdin.read()`など）やlocal import中のOS読込みの強制停止は保証しません。中断前の出力やファイル変更は残ります。
+
+### 終了コードと診断
+
+| run/evalの終了コード | 意味 |
+| --- | --- |
+| `0` | 成功 |
+| `1` | 実行失敗、未処理のPromise rejection、SIGINTによる中断 |
+| `2` | CLI引数の誤り |
+| `124` | 実行時間切れ |
+
+`process.exit(code)`で指定したコードでも終了できます。エラーはエンジンが提供する位置とstackを表示します。解決する処理が残っていない未完了のtop-level awaitも実行失敗として診断します。REPLは回復可能な入力エラーの後も続行し、EOFで0、回復できない読取り/エンジンエラー等では1で終了します。非端末入力や入力待ちでの外部SIGINTは130です。対話端末の中断・I/O回収は[REPLガイド](repl.md)を参照してください。
 
 ## 自律agent（OpenRouter）
 

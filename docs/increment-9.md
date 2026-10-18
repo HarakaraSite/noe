@@ -71,4 +71,4 @@ git diff --check
 
 - [製品方針・MVP](mvp.md)
 - [インクリメント8](increment-8.md)
-- [現在のAPI](../README.md#api)
+- [現在のAPI](api.md)

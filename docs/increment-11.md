@@ -52,4 +52,4 @@ git diff --check
 
 - [製品方針とMVP](mvp.md)
 - [共通イベントループ](increment-10.md)
-- [API](../README.md#api)
+- [API](api.md)
