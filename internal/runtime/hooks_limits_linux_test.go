@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"noe/internal/agent/provider"
 )
@@ -52,7 +53,23 @@ console.log(JSON.stringify(await run_agent({provider:"openrouter",model:"fixture
 	if err != nil || pid <= 0 {
 		t.Fatalf("invalid PID %q %v", data, err)
 	}
-	if _, err := os.Stat(filepath.Join("/proc", strconv.Itoa(pid))); !os.IsNotExist(err) {
-		t.Fatalf("owned process %d still exists after group terminal: %v", pid, err)
+	// The run_js owner is killed before its separate process supervisor
+	// observes pipe EOF and reaps this target. Retain the reap requirement,
+	// but allow the supervisor to finish its asynchronous cleanup.
+	processPath := filepath.Join("/proc", strconv.Itoa(pid))
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		_, err := os.Stat(processPath)
+		if os.IsNotExist(err) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("inspect owned process %d: %v", pid, err)
+		}
+		if time.Now().After(deadline) {
+			stat, readErr := os.ReadFile(filepath.Join(processPath, "stat"))
+			t.Fatalf("owned process %d still exists after cleanup deadline: stat=%q readErr=%v", pid, stat, readErr)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
