@@ -615,3 +615,20 @@ This release removes the REPL CLI, line editor, history/completion, Session, and
 All five gates ran sequentially before the builds. Environment: Linux amd64, Go 1.27.2 and C toolchain for race. The MCP bundle was prepared from the existing npm cache at `/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs`; its consumers run on NOE. Local Linux amd64 size: 49,303,712 bytes. Gate logs, clean source, builds, checksums and smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.9.0-release-_84uvtgf/`.
 
 No real-provider request was made. Other platforms have cross-build evidence only. The tag-triggered workflow and downloaded release assets are verified after publication.
+
+
+## v1.9.0 Release validation — 2026-10-19
+
+- Annotated tag: `v1.9.0`, pointing to `5658f9f2384e89cbd9453aff5c452fd0614f71aa`. The peeled remote tag matches the successful workflow commit and includes the checked source plus its preparation record.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/16): succeeded (API run ID 197, job ID 218).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.9.0): published, neither draft nor prerelease (Release ID 130). Its description matches the committed [release notes](v1.9.0.md).
+
+The tag-triggered workflow passed the CGO-free unit/vet gates, built all six profile targets, and uploaded the six binaries plus `SHA256SUMS`. All seven assets were downloaded, and all six binary hashes matched the published manifest.
+
+The downloaded Linux amd64 binary passed all 29 native CLI checks: eleven base checks, nine docs/owned I/O checks, and nine removal/cancellation/history/legacy-log checks. In particular, help omits REPL, `noe repl` exits with code 2 without executing stdin, run/eval keep their stdin and top-level await behavior, timeout returns 124, SIGINT cancels with code 1, and saved REPL events remain readable. TCP/Unix positional I/O, Worker docs, and SIGTERM subscription cleanup also passed. The local provider fixture passed with two requests and six hook invocations, verifying agent→run_js, instruction ordering, context status, result transformation, and final execution counters.
+
+Embedded build information confirms the release-tag revision, `vcs.modified=false`, go-quickjs v0.27.0 and all retained dependency versions. The versioned ChatGPT helper matches the tagged source byte-for-byte. No real-provider request was made during release preparation or publication verification.
+
+Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.9.0-published-856ro7oq/`; gate logs, clean source, local builds and publication smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.9.0-release-_84uvtgf/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.9.0` (49,303,712 bytes).
+
+This documentation-only verification commit follows publication without moving the release tag. Native execution on macOS, Windows and arm64 remains unverified.
