@@ -678,3 +678,30 @@ Embedded build information confirms the release-tag revision, `vcs.modified=fals
 Downloaded assets and verification records are under `/tmp/noe-v1.10.0-published-kdm90dws/`; gate logs, clean source, local builds, initial failure evidence and smoke records are under `/tmp/noe-v1.10.0-release-npfmrpt0/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.10.0` (49,291,424 bytes).
 
 This documentation-only verification commit follows publication without moving the release tag. Native execution on macOS, Windows and arm64 remains unverified.
+
+
+## v1.11.0 preparation — 2026-10-19
+
+Checked source revision: `378ed576d5c6d9f4801b345f3a728bc6aecd5e13`. Gates and profile builds used a clean detached worktree, excluding the unrelated `agent-server-build.jsonl`. This preparation follow-up adds only this record; the release tag includes it without changing the checked application or test source.
+
+This release adds the `noe:http` entry point and incremental request uploads through the shared fetch implementation. It includes one-shot Request ownership, backpressure, abort/timeout and runtime cleanup, early-response preservation, English bundled docs, and a finite upload example. Existing entry points, finite-body replay, response streaming and read caps remain available. Incoming serve bodies still buffer up to the existing read cap; general full-duplex HTTP is not promised. See the [release notes](v1.11.0.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1 -timeout=180s` | Passed, 44.833 seconds |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1 -timeout=180s` | Passed, 41.48 seconds, including the prepared MCP SDK bundle |
+| `CGO_ENABLED=0 go vet ./...` | Passed, 0.686 seconds |
+| `CGO_ENABLED=0 go vet -tags=e2e ./...` | Passed, 0.719 seconds |
+| `CGO_ENABLED=1 GORACE=atexit_sleep_ms=0 go test -race ./internal/... -count=1 -timeout=300s` | Passed, 67.228 seconds |
+| Six CGO-free profile builds, `-trimpath -s -w -X noe/internal/cli.Version=v1.11.0` | Passed; all local SHA256SUMS entries verified |
+| Existing native CLI checks | All 29 passed: base APIs, docs/owned IO, REPL removal, cancellation and legacy-log rendering |
+| Fixture-agent smoke | Passed: agent→run_js, instruction/context/hooks/counters; two local requests, six hook invocations |
+| Four-mode API inventory | Main, Node-style Worker, nested Worker and Web Worker match the feature baseline; 41 topics, 100 details, 26 Node-style modules |
+| HTTP upload and docs | Prefix→ACK→remainder/EOF through a transferred Request; wire length unknown and chunked, response bytes correct, CLI/JS docs identical; finite upload example passed |
+| Embedded dependencies and source information | Retained versions including go-quickjs v0.27.0, no x/term, checked revision and `vcs.modified=false` |
+
+All five gates ran before the builds. Environment: Linux amd64, Go 1.27.2 and C toolchain for race. E2E reused the prepared MCP SDK 1.32.1 bundle at `/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs`. Local Linux amd64 size: 49,332,384 bytes. Logs, clean source, builds, checksums, scripts and smoke records are under `/tmp/noe-v1.11.0-release-2_dsnb0k/`.
+
+Before the version update, the [HTTP entry-point](../development/stdlib-step3-http-implementation.md) and [upload-streaming](../development/stdlib-step4-upload-implementation.md) changes passed independent code review, API comparisons, unit/race/E2E/vet and six-target compilation. The authorized real-provider upload task completed on retry after concurrent POST/ACK instructions were clarified; its initial failure and harness correction are retained in the implementation record. No additional real-provider request was made for release preparation.
+
+Native execution was performed on Linux amd64; other targets have compilation evidence. The tag-triggered workflow and downloaded release assets are verified separately after publication.
