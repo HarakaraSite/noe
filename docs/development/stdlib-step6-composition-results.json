@@ -1,0 +1,972 @@
+{
+  "date": "2026-10-19",
+  "baseline": "4ee824d20b78279979176410ebfe79bcc2480277",
+  "step": 6,
+  "status": "complete",
+  "approvedPlanSHA256": "d4fe2d3ac4d6a4bdd0de2a02eb81ba52d9e9770165ec220eb09d1277204b092b",
+  "slices": {
+    "S6-A": "complete: composition, partial configuration, cloned settings, outputs and docs",
+    "S6-B": "complete: Worker extras and ownership, child DNS loop, error cleanup",
+    "S6-C": "complete: NOE runtime switch and English internal embedding example",
+    "S6-D": "complete: independent review and comprehensive verification"
+  },
+  "environment": {
+    "baseline": "4ee824d20b78279979176410ebfe79bcc2480277",
+    "go": "go version go1.27.2 linux/amd64",
+    "engine": "v0.27.0",
+    "artifacts": "/home/agent/.cache/noe-stdlib-step6-p38edv26",
+    "gotmp": "/var/tmp/n6-mwtprqle",
+    "baselineInventoryInitialAttempt": {
+      "exit_code": 1,
+      "reason": "Worker file resolution used repository cwd; rerun using the inventory script directory succeeded. No product change."
+    },
+    "permissions": "Implementation, tests, independent code review and comprehensive tests authorized; no commit or release requested."
+  },
+  "focusedChecks": {
+    "normal": {
+      "command": "CGO_ENABLED=0 go test ./internal/noestdlib ./internal/stdlib ./internal/nativeio -count=1 -timeout=180s",
+      "exit_code": 0,
+      "wall_time_seconds": null,
+      "wall_time_note": "Not recorded by the command session.",
+      "package_seconds_reported_by_go_test": {
+        "noe/internal/noestdlib": 0.17,
+        "noe/internal/stdlib": 15.588,
+        "noe/internal/nativeio": 0.619
+      },
+      "log": "/home/agent/.cache/noe-stdlib-step6-p38edv26/focused-unit.log"
+    },
+    "focused_race": {
+      "command": "CGO_ENABLED=1 GORACE=atexit_sleep_ms=0 go test -race ./internal/noestdlib ./internal/stdlib -run 'Test(ValidationHappensBeforeRegistration|DocsAreIndependentFromIOAndProcess|InstallClonesSettingsAndCanReuseConfiguration|CloneConfigKeepsServeAliasAndCopiesSeparateServe|OutputNormalizationAliasesAndBorrowsWriters|ExistingSharedWriterIsBorrowed|WorkerAndGrandchildGetExtrasAndNoStdin|WorkerInstalledFailureKeepsRootOutputUsable|SpawnUsesProcessEnvironmentAndWorkingDirectory|BindLoopCopiesDNSAndDeliversOnChildLoop)' -count=1 -timeout=300s",
+      "run_regex": "Test(ValidationHappensBeforeRegistration|DocsAreIndependentFromIOAndProcess|InstallClonesSettingsAndCanReuseConfiguration|CloneConfigKeepsServeAliasAndCopiesSeparateServe|OutputNormalizationAliasesAndBorrowsWriters|ExistingSharedWriterIsBorrowed|WorkerAndGrandchildGetExtrasAndNoStdin|WorkerInstalledFailureKeepsRootOutputUsable|SpawnUsesProcessEnvironmentAndWorkingDirectory|BindLoopCopiesDNSAndDeliversOnChildLoop)",
+      "exit_code": 0,
+      "wall_time_seconds": null,
+      "wall_time_note": "Not recorded by the command session.",
+      "package_seconds_reported_by_go_test": {
+        "noe/internal/noestdlib": 2.981,
+        "noe/internal/stdlib": 0.023
+      },
+      "log": "/home/agent/.cache/noe-stdlib-step6-p38edv26/focused-race.log"
+    }
+  },
+  "related": [
+    {
+      "name": "runtime-related",
+      "cases": 138,
+      "packages": [
+        {
+          "Package": "noe/internal/apidocs",
+          "Action": "pass",
+          "Elapsed": 0.003
+        },
+        {
+          "Package": "noe/internal/runtime",
+          "Action": "pass",
+          "Elapsed": 40.176
+        }
+      ],
+      "failed": []
+    },
+    {
+      "name": "related-e2e",
+      "cases": 90,
+      "packages": [
+        {
+          "Package": "noe/tests",
+          "Action": "pass",
+          "Elapsed": 21.666
+        }
+      ],
+      "failed": []
+    }
+  ],
+  "comprehensiveChecks": [
+    {
+      "name": "unit",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "./...",
+        "-count=1",
+        "-timeout=180s"
+      ],
+      "environment": {
+        "CGO_ENABLED": "0",
+        "GOTMPDIR": "/var/tmp/n6-mwtprqle",
+        "TMPDIR": "/var/tmp/n6-mwtprqle",
+        "NOE_MCP_SDK_BUNDLE": "/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 42.83
+    },
+    {
+      "name": "race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "./internal/...",
+        "-count=1",
+        "-timeout=300s"
+      ],
+      "environment": {
+        "CGO_ENABLED": "1",
+        "GORACE": "atexit_sleep_ms=0",
+        "GOTMPDIR": "/var/tmp/n6-mwtprqle",
+        "TMPDIR": "/var/tmp/n6-mwtprqle",
+        "NOE_MCP_SDK_BUNDLE": "/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 62.274
+    },
+    {
+      "name": "e2e",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-tags=e2e",
+        "./tests",
+        "-count=1",
+        "-timeout=10m"
+      ],
+      "environment": {
+        "CGO_ENABLED": "0",
+        "GOTMPDIR": "/var/tmp/n6-mwtprqle",
+        "TMPDIR": "/var/tmp/n6-mwtprqle",
+        "NOE_MCP_SDK_BUNDLE": "/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 36.096
+    },
+    {
+      "name": "vet",
+      "command": [
+        "go",
+        "vet",
+        "-tags=e2e",
+        "./..."
+      ],
+      "environment": {
+        "CGO_ENABLED": "0",
+        "GOTMPDIR": "/var/tmp/n6-mwtprqle",
+        "TMPDIR": "/var/tmp/n6-mwtprqle",
+        "NOE_MCP_SDK_BUNDLE": "/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.51
+    }
+  ],
+  "tests": {
+    "unit": {
+      "casesPassed": 1147,
+      "casesSkipped": 5,
+      "packages": [
+        "noe/internal/agent/runner",
+        "noe/internal/apidocs",
+        "noe/internal/agent/provider",
+        "noe/internal/decision",
+        "noe/internal/events",
+        "noe/internal/credentials",
+        "noe/internal/mdcli/highlight",
+        "noe/internal/mdcli/markdown",
+        "noe/internal/image",
+        "noe/internal/modulemap",
+        "noe/internal/hostio",
+        "noe/internal/observation",
+        "noe/internal/signals",
+        "noe/internal/noestdlib",
+        "noe/internal/nativeio",
+        "noe/internal/stdlib/internal/wsproto",
+        "noe/internal/process",
+        "noe/spikes/openai",
+        "noe/spikes/agent-images",
+        "noe/spikes/opencode-go",
+        "noe/internal/cli",
+        "noe/internal/agent",
+        "noe/internal/stdlib",
+        "noe/internal/runtime"
+      ],
+      "failures": []
+    },
+    "race": {
+      "casesPassed": 1146,
+      "casesSkipped": 1,
+      "packages": [
+        "noe/internal/apidocs",
+        "noe/internal/decision",
+        "noe/internal/events",
+        "noe/internal/credentials",
+        "noe/internal/image",
+        "noe/internal/mdcli/highlight",
+        "noe/internal/mdcli/markdown",
+        "noe/internal/agent/provider",
+        "noe/internal/modulemap",
+        "noe/internal/hostio",
+        "noe/internal/observation",
+        "noe/internal/signals",
+        "noe/internal/agent/runner",
+        "noe/internal/stdlib/internal/wsproto",
+        "noe/internal/noestdlib",
+        "noe/internal/nativeio",
+        "noe/internal/cli",
+        "noe/internal/agent",
+        "noe/internal/stdlib",
+        "noe/internal/process",
+        "noe/internal/runtime"
+      ],
+      "failures": []
+    },
+    "e2e": {
+      "casesPassed": 203,
+      "casesSkipped": 0,
+      "packages": [
+        "noe/tests"
+      ],
+      "failures": []
+    }
+  },
+  "review": {
+    "reviewer": "/root/stdlib_step6_code_review",
+    "kind": "independent normal code review",
+    "initial": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 1,
+      "P3": 0
+    },
+    "finalUnresolved": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 0
+    },
+    "initialTimeLimitMinutes": 30,
+    "reReviewTimeLimitMinutes": 15,
+    "finding": {
+      "id": "CR-01",
+      "severity": "P2",
+      "problem": "Type.Comparable does not guarantee that an interface field holds a comparable value; valid struct writers could panic during Install.",
+      "fix": "Check reflect.Value.Comparable for both actual values.",
+      "regression": "Five Install cases cover slice/map inside interfaces, nested interfaces and only one comparable operand. Old source panicked; fixed package unit/race passed."
+    },
+    "changedForReReview": [
+      "internal/noestdlib/noestdlib.go",
+      "internal/noestdlib/writer_test.go"
+    ],
+    "initialManifestSHA256": "e2fed2f8fe8e474926fd3ee9e1001836a8a006ed29f0e5766b9c1cf05d4f339f",
+    "finalReviewedManifestSHA256": "16e83d3644854634b68aa83d22a14e8a2dd12b93f7a05e3e4314a4c888aa5ef1",
+    "files": {
+      "docs/development/README.md": "9e373a6605e054810ae4217c21d1a3e92897a192024ff178299bb195bae02f9d",
+      "examples/README.md": "f57e682f2c3e52245507347ee0bf85dee1e15407898dba750a6857a0f0784031",
+      "examples/embedding/README.md": "16e115803fd91a384ce67822355cff29cf14a2bcd1ec5cd530ffa06d7e1614d9",
+      "examples/embedding/main.go": "c740351c38e1fa614a7d253cd2b6b345b1818d054dcc61321c3cb1bf6e18b2f2",
+      "internal/nativeio/host.go": "320a607f887686f3d088afac74a941a69ab3f3c3f2b7d549b39be8c67cc888c0",
+      "internal/noestdlib/noestdlib.go": "79ae0fe5c8e011c167025bfef7cb3158b20d3e9ec3b918471954e5b145b30e8d",
+      "internal/noestdlib/noestdlib_test.go": "b189f0289905bca60d5c7cc14b0a0c88ae4930fe10bf14513cb7cc592b7849a0",
+      "internal/runtime/docs.go": null,
+      "internal/runtime/runtime.go": "bc5129341af96ff75672f9b4f093b241d2e343f74289b9edba6cf2c8cadf91c4",
+      "internal/runtime/stdlib.go": "ff78fb2b1081446132cf1fa463803bd15f5afb210bfa18cb75f179042873bcc3",
+      "internal/stdlib/UPSTREAM.md": "3cb6148b19a1b881caffff91eee111c994c709d2bd29c65c1f14fd948f67cc71",
+      "internal/stdlib/worker.go": "f459b4396a9509f458ef169f0f71102b332cf4870a7ee0cffaab2df09d740359",
+      "internal/stdlib/worker_dns_test.go": "add19754f54b5bd82c2f6a4aa714326309d37ca1bcaebb5a21379c8123068dc5",
+      "internal/noestdlib/writer_test.go": "9de523275f2a7686b9949272543c31d2c38de1b7c45861a7c5b9059c7633bc7c"
+    },
+    "initialFilesMatchedAtReviewStartAndEnd": 13,
+    "finalFilesMatchedAtReviewStartAndEnd": 14,
+    "filesMatchedAfterComprehensiveChecks": 14,
+    "postReviewStatusOnlyUpdate": [
+      "docs/development/README.md"
+    ],
+    "sourceTestsExamplesUnchangedAfterReview": true
+  },
+  "inventory": {
+    "equal": true,
+    "modes": {
+      "main": {
+        "globals": 119,
+        "nodeModules": 26,
+        "topics": 41,
+        "details": 100
+      },
+      "nodeWorker": {
+        "globals": 119,
+        "nodeModules": 26,
+        "topics": 41,
+        "details": 100
+      },
+      "nestedWorker": {
+        "globals": 119,
+        "nodeModules": 26,
+        "topics": 41,
+        "details": 100
+      },
+      "webWorker": {
+        "globals": 129,
+        "nodeModules": 26,
+        "topics": 41,
+        "details": 100
+      }
+    }
+  },
+  "crossCompile": [
+    {
+      "target": "linux-amd64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-trimpath",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noe-linux-amd64",
+        "./cmd/noe"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.388
+    },
+    {
+      "target": "linux-amd64",
+      "name": "./internal/noestdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noestdlib-linux-amd64",
+        "./internal/noestdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.417
+    },
+    {
+      "target": "linux-amd64",
+      "name": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/stdlib-linux-amd64",
+        "./internal/stdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.418
+    },
+    {
+      "target": "linux-amd64",
+      "name": "./internal/nativeio",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/nativeio-linux-amd64",
+        "./internal/nativeio"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.428
+    },
+    {
+      "target": "linux-amd64",
+      "name": "./internal/runtime",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/runtime-linux-amd64",
+        "./internal/runtime"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.863
+    },
+    {
+      "target": "linux-amd64",
+      "name": "./tests",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/tests-linux-amd64",
+        "-tags=e2e",
+        "./tests"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.581
+    },
+    {
+      "target": "linux-arm64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-trimpath",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noe-linux-arm64",
+        "./cmd/noe"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.559
+    },
+    {
+      "target": "linux-arm64",
+      "name": "./internal/noestdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noestdlib-linux-arm64",
+        "./internal/noestdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.903
+    },
+    {
+      "target": "linux-arm64",
+      "name": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/stdlib-linux-arm64",
+        "./internal/stdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.827
+    },
+    {
+      "target": "linux-arm64",
+      "name": "./internal/nativeio",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/nativeio-linux-arm64",
+        "./internal/nativeio"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.614
+    },
+    {
+      "target": "linux-arm64",
+      "name": "./internal/runtime",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/runtime-linux-arm64",
+        "./internal/runtime"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.582
+    },
+    {
+      "target": "linux-arm64",
+      "name": "./tests",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/tests-linux-arm64",
+        "-tags=e2e",
+        "./tests"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.834
+    },
+    {
+      "target": "darwin-amd64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-trimpath",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noe-darwin-amd64",
+        "./cmd/noe"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.811
+    },
+    {
+      "target": "darwin-amd64",
+      "name": "./internal/noestdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noestdlib-darwin-amd64",
+        "./internal/noestdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.078
+    },
+    {
+      "target": "darwin-amd64",
+      "name": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/stdlib-darwin-amd64",
+        "./internal/stdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.911
+    },
+    {
+      "target": "darwin-amd64",
+      "name": "./internal/nativeio",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/nativeio-darwin-amd64",
+        "./internal/nativeio"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.647
+    },
+    {
+      "target": "darwin-amd64",
+      "name": "./internal/runtime",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/runtime-darwin-amd64",
+        "./internal/runtime"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.779
+    },
+    {
+      "target": "darwin-amd64",
+      "name": "./tests",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/tests-darwin-amd64",
+        "-tags=e2e",
+        "./tests"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.87
+    },
+    {
+      "target": "darwin-arm64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-trimpath",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noe-darwin-arm64",
+        "./cmd/noe"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.55
+    },
+    {
+      "target": "darwin-arm64",
+      "name": "./internal/noestdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noestdlib-darwin-arm64",
+        "./internal/noestdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.087
+    },
+    {
+      "target": "darwin-arm64",
+      "name": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/stdlib-darwin-arm64",
+        "./internal/stdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.926
+    },
+    {
+      "target": "darwin-arm64",
+      "name": "./internal/nativeio",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/nativeio-darwin-arm64",
+        "./internal/nativeio"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.695
+    },
+    {
+      "target": "darwin-arm64",
+      "name": "./internal/runtime",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/runtime-darwin-arm64",
+        "./internal/runtime"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.862
+    },
+    {
+      "target": "darwin-arm64",
+      "name": "./tests",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/tests-darwin-arm64",
+        "-tags=e2e",
+        "./tests"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.877
+    },
+    {
+      "target": "windows-amd64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-trimpath",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noe-windows-amd64.exe",
+        "./cmd/noe"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.498
+    },
+    {
+      "target": "windows-amd64",
+      "name": "./internal/noestdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noestdlib-windows-amd64.exe",
+        "./internal/noestdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.986
+    },
+    {
+      "target": "windows-amd64",
+      "name": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/stdlib-windows-amd64.exe",
+        "./internal/stdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.859
+    },
+    {
+      "target": "windows-amd64",
+      "name": "./internal/nativeio",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/nativeio-windows-amd64.exe",
+        "./internal/nativeio"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.63
+    },
+    {
+      "target": "windows-amd64",
+      "name": "./internal/runtime",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/runtime-windows-amd64.exe",
+        "./internal/runtime"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.706
+    },
+    {
+      "target": "windows-amd64",
+      "name": "./tests",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/tests-windows-amd64.exe",
+        "-tags=e2e",
+        "./tests"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.823
+    },
+    {
+      "target": "windows-arm64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-trimpath",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noe-windows-arm64.exe",
+        "./cmd/noe"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.421
+    },
+    {
+      "target": "windows-arm64",
+      "name": "./internal/noestdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/noestdlib-windows-arm64.exe",
+        "./internal/noestdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.944
+    },
+    {
+      "target": "windows-arm64",
+      "name": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/stdlib-windows-arm64.exe",
+        "./internal/stdlib"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.851
+    },
+    {
+      "target": "windows-arm64",
+      "name": "./internal/nativeio",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/nativeio-windows-arm64.exe",
+        "./internal/nativeio"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.623
+    },
+    {
+      "target": "windows-arm64",
+      "name": "./internal/runtime",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/runtime-windows-arm64.exe",
+        "./internal/runtime"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 1.682
+    },
+    {
+      "target": "windows-arm64",
+      "name": "./tests",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-o",
+        "/home/agent/.cache/noe-stdlib-step6-p38edv26/cross/tests-windows-arm64.exe",
+        "-tags=e2e",
+        "./tests"
+      ],
+      "returncode": 0,
+      "elapsed_seconds": 0.849
+    }
+  ],
+  "dependencyBoundary": {
+    "productionPackageCount": 257,
+    "forbiddenImportsAbsent": [
+      "noe/internal/cli",
+      "noe/internal/runtime",
+      "noe/internal/agent",
+      "noe/internal/credentials",
+      "github.com/OpenRouterTeam",
+      "github.com/openai"
+    ],
+    "scope": "internal/noestdlib and examples/embedding"
+  },
+  "cli": {
+    "baselineCases": 9,
+    "stdoutStderrExitCodesMatch": true,
+    "embeddingExamplePassed": true,
+    "httpExamplesPassed": [
+      "roundtrip.js",
+      "upload-stream.js",
+      "receive-stream.js"
+    ],
+    "receiveEdge": {
+      "cases": [
+        {
+          "case": "GET wire body hidden",
+          "passed": true
+        },
+        {
+          "case": "HEAD wire body hidden",
+          "passed": true
+        },
+        {
+          "case": "known empty POST is null",
+          "passed": true
+        },
+        {
+          "case": "unknown empty POST is a stream",
+          "passed": true
+        },
+        {
+          "case": "default32MiB prefix ends before wire EOF without413",
+          "byteCount": 33554432,
+          "declaredLength": 33554433,
+          "passed": true,
+          "elapsed_seconds": 0.047
+        }
+      ],
+      "listenerRebind": true,
+      "exit_code": 1
+    },
+    "edgeShutdownExpected": "SIGINT yields context canceled / exit 1; listener port rebind succeeds"
+  },
+  "liveProvider": {
+    "provider": "opencode-go",
+    "model": "deepseek-v4.1-flash",
+    "effort": "auto",
+    "singleBasicTask": true,
+    "attempts": 2,
+    "providerRequestsTotal": 10,
+    "perAttemptLimits": {
+      "providerCalls": 6,
+      "timeoutSeconds": 115
+    },
+    "taskMentionsDocs": false,
+    "firstAttempt": {
+      "provider_calls": 6,
+      "tool_calls": 6,
+      "tool_exit_codes": [
+        0,
+        1,
+        0,
+        1,
+        0,
+        0
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 16.237,
+      "report": null,
+      "successful_docs_calls": 3,
+      "passed": false,
+      "artifacts": "/home/agent/.cache/noe-stdlib-step6-p38edv26/live-smoke"
+    },
+    "firstFailure": "Node createServer assumption, then missing node:http/serve detail; docs discovery reached noe:http but maxSteps=6 stopped before completion.",
+    "retryClarification": "Explicitly name noe:http for the same HTTP task; no docs instruction or implementation provided.",
+    "retry": {
+      "provider_calls": 4,
+      "tool_calls": 3,
+      "tool_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 11.976,
+      "report": {
+        "rowCount": 3,
+        "total": 31
+      },
+      "successful_docs_calls": 2,
+      "passed": true,
+      "task_state": "completed",
+      "answer": "Task complete.\n\n- Read `input.json` (3 rows: amounts 7, 11, 13) with `node:fs` in JavaScript.\n- Computed `rowCount = 3` and `total = 31`.\n- Started a temporary `noe:http` server on `127.0.0.1` with port `0` (OS-assigned, resolved to `http://127.0.0.1:46057`) that returned `{\"rowCount\":3,\"total\":31}` as JSON.\n- Fetched that loopback URL with `noe:http` `fetch`, and verified the parsed response equals rowCount 3 and total 31.\n- Closed the server after consuming the response and saved the verified JSON as `report.json` (`{\"rowCount\": 3, \"total\": 31}`), then re-read the file to confirm its contents.\n\nOnly JavaScript in-process APIs were used: no external commands, no delegation, and the only network contact was my own loopback listener.",
+      "artifacts": "/home/agent/.cache/noe-stdlib-step6-p38edv26/live-smoke-retry"
+    },
+    "audit": {
+      "url": "http://127.0.0.1:46057",
+      "listenerClosed": true,
+      "listenerPortRebind": true,
+      "inputReadFromFile": true,
+      "actualFetchResponseVerified": true,
+      "serverClosedInFinally": true,
+      "docsTools": 2,
+      "successfulDocsLookups": 3,
+      "report": {
+        "rowCount": 3,
+        "total": 31
+      },
+      "answerPresent": true
+    },
+    "taskInstructions": [
+      "Read input.json in the workspace using JavaScript, calculate rowCount and the total of its amount fields, then create a temporary HTTP server on hostname 127.0.0.1 and port 0 that returns those values as JSON. Fetch that local server, verify the response equals rowCount 3 and total 31, and save the verified JSON as report.json. Close the server after consuming the response and briefly report completion in English. Use JavaScript only, with no external commands or delegation, and contact only your own loopback listener.",
+      "Read input.json in the workspace using JavaScript and use the NOE-specific noe:http module for HTTP, calculate rowCount and the total of its amount fields, then create a temporary HTTP server on hostname 127.0.0.1 and port 0 that returns those values as JSON. Fetch that local server, verify the response equals rowCount 3 and total 31, and save the verified JSON as report.json. Close the server after consuming the response and briefly report completion in English. Use JavaScript only, with no external commands or delegation, and contact only your own loopback listener."
+    ],
+    "successfulToolCode": [
+      "// Inspect workspace files and noe:http docs\nconst {docs} = await import(\"noe:docs\");\nconsole.log(docs(\"noe:http\"));\nconst fs = await import(\"node:fs\");\nconsole.log(\"cwd:\", process.cwd());\nconsole.log(fs.readdirSync(\".\").join(\"\\n\"));\ntry { console.log(\"INPUT:\", fs.readFileSync(\"input.json\",\"utf8\")); } catch(e) { console.log(\"no input.json:\", e.message); }\n",
+      "// Check serve and fetch member docs\nconst {docs} = await import(\"noe:docs\");\nconsole.log(docs(\"noe:http\",\"serve\"));\nconsole.log(\"-----\");\nconsole.log(docs(\"noe:http\",\"fetch\"));\n",
+      "// Sum amounts from input.json, serve JSON on loopback, fetch-verify, and write report.json\nconst { fetch, serve } = await import(\"noe:http\");\nconst fs = await import(\"node:fs\");\n\nconst rows = JSON.parse(fs.readFileSync(\"input.json\", \"utf8\"));\nconst rowCount = rows.length;\nconst total = rows.reduce((sum, row) => sum + row.amount, 0);\nconst payload = { rowCount, total };\n\nconst server = serve({ hostname: \"127.0.0.1\", port: 0 }, async (request) => {\n  return Response.json(payload);\n});\n\nlet verified = false;\ntry {\n  console.log(\"listening on\", server.url);\n  const response = await fetch(server.url);\n  if (!response.ok) throw new Error(\"HTTP \" + response.status);\n  const data = await response.json();\n  const bodyOk = data.rowCount === rowCount && data.total === total;\n  const expectOk = data.rowCount === 3 && data.total === 31;\n  verified = bodyOk && expectOk;\n  if (!verified) throw new Error(\"verification failed: \" + JSON.stringify(data));\n  fs.writeFileSync(\"report.json\", JSON.stringify(data, null, 2) + \"\\n\", \"utf8\");\n  console.log(\"response:\", JSON.stringify(data));\n} finally {\n  server.close();\n}\n\nconst saved = JSON.parse(fs.readFileSync(\"report.json\", \"utf8\"));\nconsole.log(\"verified:\", verified);\nconsole.log(\"report.json:\", JSON.stringify(saved));\n"
+    ]
+  },
+  "boundary": {
+    "engineVersion": "v0.27.0",
+    "goModGoSumUnchanged": true,
+    "apiDocsAndAgentInstructionsUnchanged": true,
+    "httpTransportUnchanged": true,
+    "rootDistributionBinaryNotModified": true,
+    "userJSONLNotReadOrModified": true,
+    "refsNotReadOrModified": true,
+    "publicGoLibraryStep7": "not implemented",
+    "commitPushReleasePerformed": false
+  },
+  "limits": [
+    "Runtime/Loop and original streams remain caller-owned; registration is not transactional.",
+    "Native IO remains one explicit OS-authority group, independent of core FS/Fetch restrictions.",
+    "No new guarantee cancels permanently blocking legacy io.Writer.Write.",
+    "Nativeio late module-registration errors were statically reviewed; no artificial test seam was added.",
+    "Only Linux amd64 executed natively; other target results are compile checks."
+  ],
+  "artifacts": "/home/agent/.cache/noe-stdlib-step6-p38edv26"
+}

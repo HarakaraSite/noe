@@ -126,6 +126,11 @@ testdata/pathcorpus_node.js
    shutdown retains its five-second bound and force-closes remaining
    connections afterward. These are NOE-local changes, not upstream behavior.
 
+8. Worker capability rebinding copies DNS configuration onto the child's own
+   Loop. This prevents asynchronous DNS results from being delivered through
+   the parent's Loop and keeps the parent's configuration unchanged. A local
+   fake-resolver regression test covers ownership without external DNS.
+
 The initial snapshot import did not intentionally change HTTP behavior, body
 limits, timeouts, module names, exports, or protocols. Subsequent NOE-local
 changes should be recorded here with their rationale and validation. Upstream

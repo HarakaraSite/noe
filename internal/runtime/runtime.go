@@ -8,17 +8,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 
 	"noe/internal/agent"
 	"noe/internal/credentials"
 	"noe/internal/decision"
-	"noe/internal/hostio"
 	imageapi "noe/internal/image"
 	"noe/internal/modulemap"
-	"noe/internal/nativeio"
+	"noe/internal/noestdlib"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 	"noe/internal/stdlib"
@@ -86,17 +84,6 @@ type runtimeHookScope struct {
 }
 
 func newHost(opts Options) (*host, error) {
-	// One writer boundary is shared by console, native streams and Workers.
-	// The pinned stdlib's own wrappers still receive these same writers.
-	stdout := hostio.NewSharedWriter(opts.Stdout)
-	// Preserve aliases before replacing the destinations with wrappers. Stdlib
-	// and Workers must see the same lock when both channels share one sink.
-	sameOutput := opts.Stdout == nil && opts.Stderr == nil || (opts.Stdout != nil && reflect.TypeOf(opts.Stdout).Comparable() && opts.Stdout == opts.Stderr)
-	stderr := stdout
-	if !sameOutput {
-		stderr = hostio.NewSharedWriter(opts.Stderr)
-	}
-	opts.Stdout, opts.Stderr = stdout, stderr
 	cwd := opts.Cwd
 	var err error
 	if cwd == "" {
@@ -110,25 +97,22 @@ func newHost(opts Options) (*host, error) {
 		return nil, err
 	}
 	h := &host{rt: quickjs.New(), cwd: cwd, importMap: opts.ImportMap}
-	h.rt.OnClose(func() { _ = stdout.Close(); _ = stderr.Close() })
 	h.loop, err = newEventLoop(h)
 	if err != nil {
 		h.rt.Close()
 		return nil, err
 	}
-	if err := h.installStdlib(opts); err != nil {
-		h.rt.Close()
-		return nil, err
-	}
-	if err := installDocs(h.rt); err != nil {
-		h.rt.Close()
-		return nil, err
-	}
-	_, err = nativeio.Install(h.rt, nativeio.Options{Stdin: opts.Stdin, Stdout: opts.Stdout, Stderr: opts.Stderr, Cwd: cwd})
+	bindings, err := noestdlib.Install(h.rt, noestdlib.Config{
+		Core: h.stdlibConfig(opts),
+		IO:   &noestdlib.IOConfig{Stdin: opts.Stdin, Cwd: cwd},
+		Docs: true,
+	})
 	if err != nil {
 		h.rt.Close()
 		return nil, err
 	}
+	// Agent and auth borrow the same output boundary as generic APIs.
+	opts.Stdout, opts.Stderr = bindings.Stdout, bindings.Stderr
 	if err := h.installAgent(opts); err != nil {
 		h.rt.Close()
 		return nil, err

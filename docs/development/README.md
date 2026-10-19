@@ -52,6 +52,7 @@ go vet -tags=e2e ./...
 | NOE版stdlib・ステップ3のnoe:http入口 | [計画](stdlib-step3-http-plan.md)・[計画/コードレビュー](stdlib-step3-http-review.md) | [実装・検証記録](stdlib-step3-http-implementation.md) |
 | NOE版stdlib・ステップ4の要求送信streaming | [計画](stdlib-step4-upload-plan.md)・[計画/コードレビュー](stdlib-step4-upload-review.md) | [実装・検証記録](stdlib-step4-upload-implementation.md) |
 | NOE版stdlib・ステップ5の要求受信streaming | [計画](stdlib-step5-receive-plan.md)・[計画/コードレビュー](stdlib-step5-receive-review.md) | [実装・検証記録](stdlib-step5-receive-implementation.md) |
+| NOE版stdlib・ステップ6のAPI導入と所有関係 | [計画](stdlib-step6-composition-plan.md)・[計画/コードレビュー](stdlib-step6-composition-review.md) | [実装・検証記録](stdlib-step6-composition-implementation.md) |
 | REPL削除 | [計画](repl-removal-plan.md) | [実装・検証記録](repl-removal-implementation.md) |
 | 自動コンテキスト切り捨て | [計画](context-trimming-plan.md) | [実装記録](context-trimming-implementation.md) |
 | queueの会話継続 | [計画](queue-continuation-plan.md) | [実装記録](queue-continuation-implementation.md) |
@@ -72,6 +73,8 @@ go vet -tags=e2e ./...
 
 [ステップ5の検証結果](stdlib-step5-receive-results.json)には、要求受信streaming・需要計数・早期応答/Expect/終了回収、4mode比較、全体/race/E2E・6対象compile、コードレビュー修正、環境上の復旧と実プロバイダ基本フローを保存しています。
 
+[ステップ6の検証結果](stdlib-step6-composition-results.json)には、汎用API組立・部分構成・設定/出力/Workerの所有、DNS子Loop、writer比較のレビュー修正、全体/race/E2E・6対象compile、実プロバイダ初回失敗と限定再試を保存しています。
+
 | 対象 | 結果 |
 | --- | --- |
 | agent操作 | [OpenRouter](agent-control-openrouter-results.json) |
@@ -85,6 +88,6 @@ go vet -tags=e2e ./...
 
 利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補と完了区分は[次の機能候補](../future-candidates.md)を更新します。
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)、汎用JavaScript APIには同版のstdlibを原型とするNOE管理の`internal/stdlib`を使います。NOE固有のCLI、実行期限、agentなどをその上へ実装します。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)、汎用JavaScript APIには同版のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)はrepository内で動く内部packageの例で、外部向け公開Go APIはまだ提供していません。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
 
 `_refs/`はローカル専用の未追跡の参考資料で、ビルド・テスト依存に含めません。リリースの配布対象・品質確認は[プロファイル](../../.forgejo/release-profile.yml)と[ワークフロー](../../.forgejo/workflows/release.yml)に定義されています。

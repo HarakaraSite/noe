@@ -36,10 +36,15 @@ type Host struct {
 }
 
 // Install must run on the runtime owner, after stdlib.Install.
-func Install(rt *quickjs.Runtime, opts Options) (*Host, error) {
+func Install(rt *quickjs.Runtime, opts Options) (result *Host, err error) {
 	ctx, cancel := context.WithCancel(rt.Context())
 	h := &Host{rt: rt, ctx: ctx, cancel: cancel, opts: opts, resources: make(map[io.Closer]struct{})}
 	rt.OnClose(h.Close)
+	defer func() {
+		if err != nil {
+			h.Close()
+		}
+	}()
 	input := h.endpoint(opts.Stdin, nil, nil)
 	output := h.endpoint(nil, opts.Stdout, nil)
 	errout := h.endpoint(nil, opts.Stderr, nil)

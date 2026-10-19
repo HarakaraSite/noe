@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"noe/internal/modulemap"
-	"noe/internal/nativeio"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,13 +12,8 @@ import (
 	"noe/internal/stdlib"
 )
 
-// installStdlib gives scripts the full set of capabilities provided by the
-// NOE-maintained standard library. NOE is a local command-line runtime, so
-// these capabilities have the same authority as the user running it.
-func (h *host) installStdlib(opts Options) error {
-	return stdlib.Install(h.rt, h.stdlibConfig(opts))
-}
-
+// stdlibConfig supplies NOE's local CLI authority and execution callbacks.
+// Generic module registration and Worker additions belong to noestdlib.
 func (h *host) stdlibConfig(opts Options) stdlib.Config {
 	env := currentEnvironment()
 	workers := &stdlib.Workers{
@@ -27,13 +21,6 @@ func (h *host) stdlibConfig(opts Options) stdlib.Config {
 		Load: h.loadWorker,
 		// Preserve NOE's existing unlimited worker count; zero now means 64.
 		Max: -1,
-		Installed: func(rt *quickjs.Runtime) error {
-			if err := installDocs(rt); err != nil {
-				return err
-			}
-			_, err := nativeio.Install(rt, nativeio.Options{Stdout: opts.Stdout, Stderr: opts.Stderr, Cwd: h.cwd})
-			return err
-		},
 	}
 
 	return stdlib.Config{

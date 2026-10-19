@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -380,6 +381,12 @@ func (c *Config) bindLoop(loop *Loop) {
 		f := *c.Fetch
 		f.Loop = loop
 		c.Fetch = &f
+	}
+	if c.DNS != nil {
+		d := *c.DNS
+		d.Loop = loop
+		d.Servers = slices.Clone(c.DNS.Servers)
+		c.DNS = &d
 	}
 	if c.Run != nil {
 		r := *c.Run
