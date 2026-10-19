@@ -883,3 +883,16 @@ This patch adds fixed built-in agent-provider retries (three attempts, 2-second 
 The first E2E gate used `/var/tmp/n141-vkkqk2vc` as its temporary directory and failed only the Unix-socket observation case because its generated socket pathname exceeded the OS limit of 107 bytes. The same source and assertions passed with the shorter temporary directory `/tmp/n141`. The initial log and checks-attempt1.json are preserved; no application or test source was changed to bypass the failure.
 
 Environment: Linux amd64, Go 1.27.2 and a C toolchain. E2E used the prepared MCP SDK bundle. Logs, clean checkout, local binaries, checksums and verification scripts are under `/home/agent/.cache/noe-v1.14.1-release-uegu4t7l`. No real model-provider request was made. Cross-builds establish compilation only; runtime behavior on macOS, Windows and arm64 remains unverified. The tag-triggered workflow and downloaded Release assets are verified separately after publication.
+
+
+## v1.14.1 Release validation — 2026-10-20
+
+- Annotated tag: `v1.14.1`, pointing to `877cea99604dc8dae2e8a87cd444c6538f9a320e`. The peeled remote tag matches the successful workflow commit and includes the checked code plus its documentation-only preparation record.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/22): succeeded (API run ID 203).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.14.1): published, neither draft nor prerelease (Release ID 136). Its body matches the committed [English notes](v1.14.1.md).
+
+The workflow passed the CGO-free unit-test and vet gates, built all six targets and uploaded six binaries plus SHA256SUMS. All seven assets were downloaded, and all six binary hashes matched the published checksums. The downloaded Linux amd64 binary reports `noe v1.14.1`, passed arithmetic, `agents --full` help and two-line context percentage checks, and recovered from a fixture HTTP 503 followed by a truncated SSE stream. Its retry input stayed identical, one completed tool ran once, six hook invocations were retained, two logical requests produced four HTTP attempts, and no intermediate model/context/retry events were added. Previously emitted partial thinking remained in JSONL. No real model-provider request was made.
+
+Build information matches the tagged revision with `vcs.modified=false` and go-quickjs v0.27.0. The verified published Linux amd64 binary was installed to both the repository-root `./noe` and `~/.local/bin/noe`; their bytes match the downloaded asset. Downloads and verification are under `/home/agent/.cache/noe-v1.14.1-published-9881qqfr`, with pre-release evidence and publication scripts under `/home/agent/.cache/noe-v1.14.1-release-uegu4t7l`. Other targets have compilation evidence, not native execution validation.
+
+This documentation-only follow-up does not move or replace the release tag. The release remains on the v1 executable line and does not publish a v2 Go module.
