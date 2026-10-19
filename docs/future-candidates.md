@@ -315,3 +315,6 @@ MiMo・GLMの組込み候補、優先度項目、providerをまたいだ自動�
 外部コマンド、ファイル・HTTPのストリーミング、暗号・ハッシュは既にstdlibから利用できます。v1.0.0時点の未対応候補とは区別します。TypeScriptは後回し、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。元QuickJSの`std`・`os`の提供を前提にしません。
 
 [開発記録へ戻る](README.md) · [検討履歴](archive/future-candidates-history.md) · [現在のAPI](api.md)
+
+
+2026-10-19の追加指示で、7.1/7.2を含むCLIを **v1.14.0** として公開した。v1系での常用・小さな不具合修正を続け、v2.0.0の公開時期はその後に判断する。詳細は[リリース記録](releases/release-checkpoints.md)を参照。

@@ -847,3 +847,16 @@ The first E2E attempt failed only because `TestEvalAndCLICommands/version` still
 Before release preparation, [Step7.1](../development/stdlib-step7-library-implementation.md) and [Step7.2](../development/stdlib-step72-agent-implementation.md) passed independent review (final P0–P3 all zero), full unit/race/E2E/vet, outside local-replace and synthetic no-replace artifact consumers, and six-target compilation. The generic stdlib closure remains 257 packages with no agent/provider SDK dependency. Step7.2's actual external Go consumer used OpenCode Go / deepseek-v4.1-flash / effort auto, three model requests and two run_js calls to save and reread count3/total31, then verify task completion and a final answer. No additional real-provider requests were made for this release.
 
 Environment: Linux amd64, Go 1.27.2 and C toolchain for race. Go temporary directory: `/var/tmp/n14`. E2E reused the prepared MCP SDK bundle. Raw logs, clean source, six binaries, checksums and scripts: `/home/agent/.cache/noe-v1.14.0-release-bcw68s4d`. Native execution on other targets is unverified. The tag-triggered workflow and downloaded assets are verified separately after publication.
+
+
+## v1.14.0 Release validation — 2026-10-19
+
+- Annotated tag: `v1.14.0`, pointing to `d086281c691b541daf929f507bfca0e4ef81eeca`. The peeled remote tag matches the successful workflow commit and includes the checked code plus its preparation record.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/21): succeeded (API run ID 202).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.14.0): published, neither draft nor prerelease (Release ID 135). Its body matches the committed [English notes](v1.14.0.md).
+
+The actual runner passed its CGO-free unit/vet gates and built all six profile targets. All seven published assets were downloaded; all six binary hashes matched SHA256SUMS. The downloaded Linux amd64 binary reports `noe v1.14.0` and passed all 29 native CLI checks, fixture agent/run_js/hooks, the unchanged four-mode API inventory, HTTP upload/receive prefix-before-EOF barriers, docs equality, finite examples and listener rebind. The external Go consumer reference also passed against this downloaded binary, including real child NOE execution, provider/decision/image injection, queue/observe/interrupt, active-request Close cleanup and Auth fixtures. No additional model-provider request was made during publication.
+
+Build information confirms the tagged revision with vcs.modified=false, go-quickjs v0.27.0, unchanged dependency versions and no x/term. The versioned ChatGPT helper matches the tagged source. Published downloads are under `/home/agent/.cache/noe-v1.14.0-published-6oyku759`; raw checks, local builds and publication records are under `/home/agent/.cache/noe-v1.14.0-release-bcw68s4d`. The existing repository-root binary was preserved. Runtime behavior on non-Linux targets remains unverified.
+
+This documentation-only follow-up does not move the release tag. The CLI release stays on v1; there is no v2 tag or claim of a downloadable v2 Go module. Daily use and small bug fixes precede the decision to publish v2.0.0.

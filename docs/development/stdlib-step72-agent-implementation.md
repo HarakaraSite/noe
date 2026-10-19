@@ -62,3 +62,6 @@ bridge testのerrors import漏れ、consumerのEvalContext戻り値とunused imp
 S72-A〜Fは完了。段階7は7.1の汎用Go提供と7.2のagent接続まで実装・検証済み。go.mod/go.sum、engine v0.27.0、CLI既定version v1.13.0、既存JS APIを維持した。API docs・GoDoc・新しいGo利用ガイドと例は英文。非Linux対象はcompileのみで実行試験ではない。
 
 v2 tag公開、常用での安定性判断は未実施。今回commit/push/releaseはしていない。次は利用者の方針どおり常用して小さな不具合を修正し、問題なさそうと判断してからv2.0.0を公開する。
+
+
+本記録と結果JSONは実装検証時点の状態。後続の明示依頼により7.2をコミットし、CLIをv1.14.0として公開した。版更新・配布物の確認は[リリース記録](../releases/release-checkpoints.md)を参照。v2タグは未公開。
