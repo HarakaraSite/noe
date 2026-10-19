@@ -168,6 +168,7 @@ const streamsJS = `(function (host) {
       host.cloneAs(this, "transfer");
       this._source = source || {};
       this._state = "readable";
+      this._disturbed = false;
       this._storedError = undefined;
       this._reader = null;
       this._reads = [];
@@ -198,6 +199,7 @@ const streamsJS = `(function (host) {
     }
 
     _cancel(reason) {
+      this._disturbed = true;
       if (this._state === "closed") return Promise.resolve(undefined);
       if (this._state === "errored") return Promise.reject(this._storedError);
       this._controller._queue = [];
@@ -362,6 +364,7 @@ const streamsJS = `(function (host) {
     read() {
       const stream = this._stream;
       if (!stream) return Promise.reject(new TypeError("this reader has been released"));
+      stream._disturbed = true;
       if (stream._controller._queue.length > 0) {
         return Promise.resolve({value: stream._controller._take(), done: false});
       }

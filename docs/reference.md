@@ -33,4 +33,4 @@ stdlibは全対応moduleの概要とexport一覧を収録し、よく使うAPI�
 
 ## HTTPの契約を調べる
 
-`noe docs noe:http fetch`と`noe docs noe:http serve`で、推奨入口の英文API契約を参照できます。既存globalと同じ関数を使い、要求buffering・応答streaming・abort・server.closeの寿命も説明しています。
+`noe docs noe:http fetch`と`noe docs noe:http serve`で、推奨入口の英文API契約を参照できます。既存globalと同じ関数を使い、要求bodyのstreamingと一回限りの所有権、受信bodyのbuffering、応答streaming、abort、server.closeの寿命も説明しています。

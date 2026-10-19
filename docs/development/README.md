@@ -50,6 +50,7 @@ go vet -tags=e2e ./...
 | NOE版stdlib・ステップ1の取り込み | [計画](stdlib-step1-import-plan.md)・[計画/コードレビュー](stdlib-step1-import-review.md) | [実装・検証記録](stdlib-step1-import-implementation.md) |
 | NOE版stdlib・ステップ2のruntime切替 | [計画](stdlib-step2-runtime-plan.md)・[計画/コードレビュー](stdlib-step2-runtime-review.md) | [実装・検証記録](stdlib-step2-runtime-implementation.md) |
 | NOE版stdlib・ステップ3のnoe:http入口 | [計画](stdlib-step3-http-plan.md)・[計画/コードレビュー](stdlib-step3-http-review.md) | [実装・検証記録](stdlib-step3-http-implementation.md) |
+| NOE版stdlib・ステップ4の要求送信streaming | [計画](stdlib-step4-upload-plan.md)・[計画/コードレビュー](stdlib-step4-upload-review.md) | [実装・検証記録](stdlib-step4-upload-implementation.md) |
 | REPL削除 | [計画](repl-removal-plan.md) | [実装・検証記録](repl-removal-implementation.md) |
 | 自動コンテキスト切り捨て | [計画](context-trimming-plan.md) | [実装記録](context-trimming-implementation.md) |
 | queueの会話継続 | [計画](queue-continuation-plan.md) | [実装記録](queue-continuation-implementation.md) |
@@ -65,6 +66,8 @@ go vet -tags=e2e ./...
 [ステップ2の検証結果](stdlib-step2-runtime-results.json)には、runtime切替、4モードのAPI比較、全体/race/E2E、6対象のビルドと統合test cross-compile、実プロバイダでの基本フロー、依存境界とコードレビューの記録があります。
 
 [ステップ3の検証結果](stdlib-step3-http-results.json)には、noe:http登録・設定・各実行mode・英文docs、関連/総合テスト、6対象のbuild/compile、コードレビューと再レビュー、実プロバイダでのHTTP往復を保存しています。
+
+[ステップ4の検証結果](stdlib-step4-upload-results.json)には、要求送信streaming・Request所有権・取消し/早期応答、4mode比較、関連/全体/race/E2E・6対象compile、コードレビュー修正、実プロバイダの初回失敗と再試成功を保存しています。
 
 | 対象 | 結果 |
 | --- | --- |

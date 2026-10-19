@@ -95,11 +95,25 @@ testdata/pathcorpus_node.js
 4. `eval_internal_test.go` is a NOE test for the public evaluation adapter's
    result, Promise-job processing and error-source behavior.
 5. This provenance document is a NOE addition.
+6. The Fetch implementation is locally adapted for NOE's event loop. In a
+   runtime with a Loop, outgoing ReadableStream bodies are written
+   incrementally from Uint8Array chunks instead of being collected in full.
+   The Request path preserves one-shot body ownership, and stream bodies are
+   not replayed when a 307/308 redirect would require resending them. A final
+   response may stop an unfinished upload while leaving the response readable.
+   Hosts that install Fetch without a Loop retain the synchronous finite-body
+   path; they do not get the same incremental upload behavior. These are NOE
+   local changes, not upstream behavior.
+   The Go upload bridge lives in fetch_upload.go. streams.go records whether
+   a readable stream has been read or cancelled so that releasing a reader
+   cannot make a consumed Request body reusable. fetch_upload_test.go and
+   runtime/CLI integration tests cover these changes.
 
-No HTTP behavior, body limit, timeout, module name, export or protocol behavior
-is intentionally changed in this import. Future changes should be recorded
-here with their rationale and validation. Upstream updates are selected and
-reviewed explicitly; this directory is not an automatic mirror.
+The initial snapshot import did not intentionally change HTTP behavior, body
+limits, timeouts, module names, exports, or protocols. Subsequent NOE-local
+changes should be recorded here with their rationale and validation. Upstream
+updates are selected and reviewed explicitly; this directory is not an
+automatic mirror.
 
 ## Evaluation and debugger difference
 

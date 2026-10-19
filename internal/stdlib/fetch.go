@@ -34,7 +34,8 @@ type Fetch struct {
 	// a chunk at a time as the script asks for it. Without one the request is
 	// made and waited for in full before fetch returns, which blocks
 	// everything else; that is fine for a script that is the only thing
-	// running and wrong for anything else.
+	// running and wrong for anything else. Stream uploads are incremental
+	// with a loop; without one they are collected before synchronous IO.
 	Loop *Loop
 	// Client makes the requests. Nil uses a client with a sensible timeout
 	// rather than http.DefaultClient, which has none.
@@ -51,7 +52,7 @@ type Fetch struct {
 
 // Network installs Headers, Request and Response, and fetch.
 //
-// The three types are data -- a Request is a method, a URL and some bytes --
+// The three types are data -- a Request holds metadata and a body --
 // so they need no capability and a nil cfg installs those alone, which is what
 // a runtime that serves but may not fetch wants. fetch itself reaches the
 // network, and is installed only when a host has said what it may reach.
@@ -78,6 +79,9 @@ func Network(rt *quickjs.Runtime, cfg *Fetch) error {
 	}
 
 	host := rt.NewObject()
+	if err := host.Set("streaming", cfg.Loop != nil); err != nil {
+		return err
+	}
 	if err := host.Set("send", func(r *quickjs.Runtime, req quickjs.Value, register quickjs.Value) *quickjs.Promise {
 		p := r.NewPromise()
 		if typesOnly {
@@ -96,9 +100,27 @@ func Network(rt *quickjs.Runtime, cfg *Fetch) error {
 		// it hangs on its abort signal. Cancelling stops the request wherever
 		// it has got to rather than merely ignoring the answer.
 		// Nor does a request outlive the runtime it was made for.
-		spec.ctx, spec.cancel = context.WithCancel(loopContext(cfg.Loop))
+		stream, _ := req.Get("stream")
+		streaming := stream.Bool() && cfg.Loop != nil
+		if streaming && client.Timeout > 0 {
+			// Transport can wait for a blocked Body.Read before Do returns a
+			// timeout. Give the producer the same deadline independently, so
+			// that read is released even before the first chunk arrives.
+			spec.ctx, spec.cancel = context.WithTimeout(loopContext(cfg.Loop), client.Timeout)
+		} else {
+			spec.ctx, spec.cancel = context.WithCancel(loopContext(cfg.Loop))
+		}
+		var outgoing quickjs.Value
+		if streaming {
+			spec.upload, outgoing, err = newUploadBody(r, cfg.Loop, spec.ctx, spec.cancel)
+			if err != nil {
+				spec.cancel()
+				p.RejectError(err)
+				return p
+			}
+		}
 		if register.IsFunction() {
-			if _, err := register.Call(func() { spec.cancel() }); err != nil {
+			if _, err := register.Call(func() { spec.cancel() }, outgoing); err != nil {
 				spec.cancel()
 				p.RejectError(err)
 				return p
@@ -148,6 +170,7 @@ type requestSpec struct {
 	headers [][2]string
 	body    []byte
 	hasBody bool
+	upload  *uploadBody
 	// ctx is cancelled when the script's AbortSignal fires, which stops the
 	// request wherever it has got to. Cancelling it is also how a finished
 	// request lets go of what it was holding.
@@ -236,7 +259,9 @@ func allowRedirects(client *http.Client, allow func(*http.Request) error) *http.
 // response a chunk at a time is reading the network rather than a copy of it.
 func doFetch(client *http.Client, cfg *Fetch, spec *requestSpec, limit int64, loop *Loop) (*fetchResult, error) {
 	var body io.Reader
-	if spec.hasBody {
+	if spec.upload != nil {
+		body = spec.upload
+	} else if spec.hasBody {
 		body = strings.NewReader(string(spec.body))
 	}
 	req, err := http.NewRequestWithContext(spec.ctx, spec.method, spec.url, body)
@@ -257,7 +282,17 @@ func doFetch(client *http.Client, cfg *Fetch, spec *requestSpec, limit int64, lo
 	res, err := client.Do(req)
 	if err != nil {
 		spec.cancel()
+		if spec.upload != nil {
+			if cause := spec.upload.failure(); cause != nil {
+				err = cause
+			}
+		}
 		return nil, err
+	}
+	if spec.upload != nil {
+		// Do can finish before the producer. End only the upload, preserving
+		// the connection and context from which the response is still read.
+		spec.upload.stop()
 	}
 
 	out := &fetchResult{
@@ -542,7 +577,7 @@ const fetchJS = `(function (host) {
     // stream means a reader has been taken: the bytes may still be arriving,
     // but they are somebody else's now.
     get bodyUsed() {
-      return this._used || !!(this._stream && this._stream.locked);
+      return this._used || !!(this._stream && (this._stream.locked || this._stream._disturbed));
     }
 
     // body is the stream form, which is the same body seen the other way
@@ -558,7 +593,7 @@ const fetchJS = `(function (host) {
           if (bytes.length > 0) controller.enqueue(bytes);
           controller.close();
         },
-      });
+      }, {highWaterMark: 0});
       return this._stream;
     }
 
@@ -622,12 +657,36 @@ const fetchJS = `(function (host) {
   // A body that is still a stream is split in two rather than read, since a
   // clone of something that has not arrived cannot be a copy of it.
   function cloneBody(body) {
+    if (body.bodyUsed) throw new TypeError("the body has already been read");
     if (body._bytes !== undefined) return body._bytes;
     if (!body._stream) return null;
-    if (body.bodyUsed) throw new TypeError("the body has already been read");
     const [mine, theirs] = body._stream.tee();
     body._stream = mine;
     return theirs;
+  }
+
+  // A transfer locks the original stream instead of sharing an unlocked body
+  // between two Requests. This forwards demand without teeing or buffering.
+  function transferStream(stream) {
+    const reader = stream.getReader();
+    let released = false;
+    const release = () => {
+      if (!released) { reader.releaseLock(); released = true; }
+    };
+    return new ReadableStream({
+      async pull(controller) {
+        try {
+          const {value, done} = await reader.read();
+          if (done) { release(); controller.close(); }
+          else controller.enqueue(value);
+        } catch (cause) { release(); throw cause; }
+      },
+      cancel(reason) {
+        const cancelled = reader.cancel(reason);
+        release();
+        return cancelled;
+      },
+    }, {highWaterMark: 0});
   }
 
   class Request extends Body {
@@ -635,19 +694,26 @@ const fetchJS = `(function (host) {
       const from = input instanceof Request ? input : null;
       const url = from ? from.url : String(input instanceof URL ? input.href : input);
       const headers = new Headers(init.headers || (from ? from.headers : undefined));
-      let body = init.body !== undefined && init.body !== null
+      const replacement = init.body !== undefined && init.body !== null;
+      let body = replacement
         ? encodeBody(init.body, headers)
-        : (from ? from._bytes : null);
+        : (from ? (from._stream && from._bytes === undefined ? from._stream : from._bytes) : null);
+      const inherited = from && !replacement && body !== null && body !== undefined;
+      if (inherited && from.bodyUsed) throw new TypeError("the body has already been read");
+      const method = String(init.method || (from ? from.method : "GET")).toUpperCase();
+      if ((method === "GET" || method === "HEAD") && body !== null && body !== undefined) {
+        throw new TypeError("a " + method + " request cannot have a body");
+      }
+      if (inherited && isStream(body)) body = transferStream(body);
       super(body, headers);
       this.url = url;
-      this.method = String(init.method || (from ? from.method : "GET")).toUpperCase();
+      this.method = method;
       this.signal = init.signal || (from ? from.signal : undefined);
       this.redirect = init.redirect || "follow";
       this.credentials = init.credentials || "same-origin";
       this.mode = init.mode || "cors";
-      if ((this.method === "GET" || this.method === "HEAD") && body !== null && body !== undefined) {
-        throw new TypeError("a " + this.method + " request cannot have a body");
-      }
+      // Constructing from a Request transfers its body. Only clone() tees it.
+      if (inherited) from._used = true;
     }
     clone() {
       return new Request(this.url, {
@@ -829,39 +895,127 @@ const fetchJS = `(function (host) {
     return String(Math.random()).slice(2) + String(Date.now());
   }
 
-  async function fetch(input, init = {}) {
-    const request = input instanceof Request && init === undefined
-      ? input : new Request(input, init);
-    const signal = request.signal;
+  // Pump exactly one chunk at a time. Stopping native IO must not wait for a
+  // user-supplied cancel promise, which may never settle.
+  function pumpUpload(reader, upload) {
+    let stopped = false;
+    let finished = false;
+    const stop = () => {
+      if (stopped || finished) return;
+      stopped = true;
+      reader.cancel().catch(() => {});
+    };
+    upload.stopped.then(stop);
+    (async () => {
+      try {
+        while (!stopped) {
+          const {value, done} = await reader.read();
+          if (stopped) break;
+          if (done) {
+            finished = true;
+            upload.close();
+            break;
+          }
+          if (!(value instanceof Uint8Array)) {
+            throw new TypeError("an upload chunk must be a Uint8Array");
+          }
+          if (value.byteLength > 0 && !await upload.write(value)) {
+            stop();
+            break;
+          }
+        }
+      } catch (cause) {
+        if (!stopped) {
+          upload.fail(String(cause));
+          stop();
+        }
+      } finally {
+        finished = true;
+        reader.releaseLock();
+      }
+    })().catch(() => {});
+    return stop;
+  }
+
+  async function fetch(input, init) {
+    // Reject pre-abort before constructing from a Request: that construction
+    // transfers its body and locks the original stream.
+    const signal = (init && init.signal) || (input instanceof Request ? input.signal : undefined);
     if (signal && signal.aborted) {
       throw signal.reason || new Error("This operation was aborted");
     }
+    const request = input instanceof Request && init === undefined
+      ? input : new Request(input, init);
 
-    // A request body that is still arriving is gathered first: what goes out
-    // is one request, and its length is part of it.
-    const body = request._stream && request._bytes === undefined
-      ? await request._consume() : request._bytes;
+    const hasBody = request._stream !== null || (request._bytes !== null && request._bytes !== undefined);
+    if (hasBody && request.bodyUsed) throw new TypeError("the body has already been read");
+    let reader = null;
+    let body = null;
+    if (request._stream && request._bytes === undefined) {
+      if (host.streaming) {
+        reader = request._stream.getReader();
+        request._used = true;
+      } else {
+        // Synchronous Go hosts cannot run a producer during network IO.
+        body = await request._consume();
+      }
+    } else if (hasBody) {
+      body = request._take();
+    }
+
+    let cancelNative;
+    let onAbort;
+    let rejectAbort;
+    let started = false;
+    let stopPump = () => {};
+    const cleanup = () => {
+      if (signal && onAbort) {
+        signal.removeEventListener("abort", onAbort);
+        onAbort = null;
+      }
+    };
+    const aborted = signal ? new Promise((_, reject) => {
+      rejectAbort = reject;
+    }) : null;
+    if (signal) {
+      onAbort = () => {
+        if (cancelNative) cancelNative();
+        stopPump();
+        cleanup();
+        rejectAbort(signal.reason || new Error("This operation was aborted"));
+      };
+      signal.addEventListener("abort", onAbort, {once: true});
+    }
 
     // A request that fails -- refused, unreachable, cut off -- rejects with a
     // TypeError, as the standard has it, and as Node words it: "fetch
     // failed", with what went wrong as its cause.
-    const sent = host.send({
-      method: request.method,
-      url: request.url,
-      headers: [...request.headers._list],
-      body,
-    }, (cancel) => {
-      if (signal) signal.addEventListener("abort", cancel, {once: true});
-    }).catch((cause) => { throw new TypeError("fetch failed", {cause}); });
-
-    // An abort races the request: whichever settles first is the answer.
-    const raw = signal
-      ? await Promise.race([sent, new Promise((_, reject) => {
-          signal.addEventListener("abort", () => {
-            reject(signal.reason || new Error("This operation was aborted"));
-          }, {once: true});
-        })])
-      : await sent;
+    let raw;
+    try {
+      const sent = host.send({
+        method: request.method,
+        url: request.url,
+        headers: [...request.headers._list],
+        body,
+        stream: reader !== null,
+      }, (cancel, upload) => {
+        cancelNative = cancel;
+        if (reader) {
+          started = true;
+          stopPump = pumpUpload(reader, upload);
+        }
+      }).catch((cause) => { throw new TypeError("fetch failed", {cause}); });
+      // An abort races the request; later aborts still cancel body reading.
+      raw = aborted ? await Promise.race([sent, aborted]) : await sent;
+    } catch (cause) {
+      cleanup();
+      stopPump();
+      if (reader && !started) {
+        reader.cancel(cause).catch(() => {});
+        reader.releaseLock();
+      }
+      throw cause;
+    }
 
     // A body still on the connection is read through a stream, a chunk at a
     // time; one that arrived whole is already bytes.
@@ -871,14 +1025,20 @@ const fetchJS = `(function (host) {
             // A body cut off part way is a TypeError too, which Node calls
             // "terminated".
             const chunk = await raw.read().catch((cause) => {
+              cleanup();
               throw new TypeError("terminated", {cause});
             });
-            if (chunk === null || chunk === undefined) controller.close();
+            if (chunk === null || chunk === undefined) {
+              cleanup();
+              controller.close();
+            }
             else controller.enqueue(chunk);
           },
-          cancel() { raw.cancel(); },
+          cancel() { cleanup(); raw.cancel(); },
         })
       : raw.body;
+
+    if (typeof raw.read !== "function") cleanup();
 
     const response = new Response(incoming, {
       status: raw.status,

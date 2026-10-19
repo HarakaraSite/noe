@@ -100,7 +100,9 @@ if (!response.ok) throw new Error("HTTP " + response.status);
 const data = await response.json();
 ~~~
 
-NOE enables outbound fetch with its host HTTP client and a 32 MiB response-body limit. AbortSignal cancels the request and body reading. Redirect and cache behavior follows the host client; broader Node/browser redirect and cache options are not implemented.
+NOE enables outbound fetch with its host HTTP client. A ReadableStream request body is sent incrementally and must yield Uint8Array chunks; empty chunks are skipped. The next read waits until the current chunk has been written to the request body. This bounds the NOE upload bridge to one in-flight chunk, not queues in the source stream, HTTP transport, operating system, or peer. Upload bodies are one-shot: an already-used or locked stream is rejected before sending. Passing a Request to fetch consumes the selected body; constructing a Request from an unused Request transfers its body. Use clone() explicitly before consumption when two branches are needed.
+
+The 32 MiB limit applies to response-body reads, not uploads. AbortSignal cancels an in-progress upload or response-body read. If final response headers arrive before upload EOF, NOE stops the unfinished upload and returns a readable Response; this does not provide general full-duplex HTTP. A stream body is not replayed for a 307 or 308 redirect; the host client may follow 301, 302, or 303 by continuing with a bodyless request. Other redirect and cache behavior follows the host client; broader Node/browser redirect and cache options are not implemented.
 
 ## Request
 
@@ -114,7 +116,7 @@ const request = new Request("https://example.com/items", {
 });
 ~~~
 
-Bodies are one-shot. Methods such as text() and json() return promises; clone the request before consuming if another read is needed.
+Bodies are one-shot. Methods such as text() and json() return promises; clone the request before consuming if another read is needed. Constructing a new Request from an unused Request transfers its body, so the original cannot consume that body. A stream body must be unlocked and unused when fetch starts. Producer failures abort the request; a race with response delivery may surface as a response-body read failure. Late errors from an intentionally stopped producer are ignored.
 
 ## Response
 

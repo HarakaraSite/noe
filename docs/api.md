@@ -333,7 +333,7 @@ const response = await fetch("https://example.com/api/items", {
 console.log(response.status, await response.text());
 ```
 
-要求の送信・受信は現在bufferingします。応答本文はstreamingできます。既定値、abort、closeと本文上限の詳細は`noe docs noe:http`で確認できます。
+`ReadableStream`を要求bodyに渡すと、`Uint8Array`チャンクを全量収集せず逐次送信できます。bodyは一度だけ使え、途中で応答headersが届くと未完了の送信を止めてResponseを返します。`serve`は受信bodyを読取り上限までbufferingしてからhandlerを呼びます。受信streamingや全二重HTTPの保証はありません。既定値、redirect、abort、closeとresponse本文上限の詳細は`noe docs noe:http`で確認できます。
 
 ## HTTPサーバー
 

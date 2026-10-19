@@ -4,7 +4,7 @@
 
 コマンドはリポジトリのルートで、ビルド済みの`./noe`を使って実行します。
 
-HTTPの入口は`import { fetch, serve } from "noe:http"`です。既存globalの同名関数と同じ実装を使います。API契約は`./noe docs noe:http`で確認できます。応答はstreamingできますが、要求の送受信は現在bufferingします。
+HTTPの入口は`import { fetch, serve } from "noe:http"`です。既存globalの同名関数と同じ実装を使います。API契約は`./noe docs noe:http`で確認できます。`fetch`は`Uint8Array`を返す`ReadableStream`の要求bodyを逐次送信できます。`serve`の受信bodyは読取り上限までbufferingしてからhandlerへ渡します。
 
 ## ローカルでJSONを往復する
 
@@ -38,6 +38,14 @@ ITEM_URL='https://example.com/api/items/1'
 ```
 
 JSON-bodyがある場合は解析して検証し、明示的に文字列化してapplication/jsonで送ります。成功時は`{status, ok, body}`のJSONを表示し、空レスポンスのbodyはnullです。この例はHTTP失敗を診断してコード1で終了します。`fetch`自体は4xx・5xxもレスポンスとして返します。レスポンスbodyは`text()`で一度だけ読み取ります。
+
+## Streaming request body
+
+```sh
+./noe run examples/http/upload-stream.js
+```
+
+引数なしではport 0のloopback serverへ有限のbinary streamをPOSTし、echoされたbytesを確認して終了します。外部サービスや固定portは使いません。`URL [output]`を渡すと、同じstreamを指定URLへ送り、`output`があればresponse bodyをraw bytesで保存します。保存先の親ディレクトリは事前に用意してください。要求streamは一度だけ送信され、各chunkは`Uint8Array`です。未完了の送信中に最終Responseが返る場合、残りのuploadは停止します。これはfull-duplex通信の例ではありません。`serve`は受信bodyをEOFまで読んでからhandlerを呼ぶため、loopbackの例は送信先がEOFより前にprefixを受け取った証拠にはなりません。
 
 ## HTTPサーバー
 
