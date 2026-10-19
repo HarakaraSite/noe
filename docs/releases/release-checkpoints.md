@@ -592,3 +592,26 @@ Embedded build information confirms the release-tag revision, `vcs.modified=fals
 Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.8.0-published-v2oof0uy/`; gate logs, local builds and new-API smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.8.0-release-xf677opo/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.8.0` (49,483,936 bytes).
 
 This documentation-only verification commit follows publication without moving the release tag. Native execution on macOS, Windows and arm64 remains unverified.
+
+
+## v1.9.0 preparation — 2026-10-19
+
+Checked source revision: `8a5394ec7cb5ad72f0c22bb7208ae034598f2d65`. This preparation follow-up adds only this record. Gates and builds used a clean detached worktree, excluding the unrelated `agent-server-build.jsonl`.
+
+This release removes the REPL CLI, line editor, history/completion, Session, and recovery/tracking helpers used only by REPL. `run`, `eval`, Workers, agents, `run_js`, docs, cancellation and owned-resource cleanup retain their contracts. Saved REPL JSONL events remain readable. CLI defaults, version assertions, README release/helper links and [release notes](v1.9.0.md) use v1.9.0. Dependencies and distribution targets are unchanged; the reference profile no longer lists the removed REPL's PTY requirement. Independent review and the narrowly scoped process-test helper correction are recorded in the [implementation checks](../development/repl-removal-implementation.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed, 43.338 seconds |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1` | Passed, 39.840 seconds, including the prepared MCP SDK 1.32.1 bundle and local provider fixtures |
+| `CGO_ENABLED=0 go vet ./...` and `go vet -tags=e2e ./...` | Passed |
+| `CGO_ENABLED=1 GORACE=atexit_sleep_ms=0 go test -race ./internal/... -count=1` | Passed, 64.403 seconds |
+| Six CGO-free profile builds, `-trimpath -s -w -X noe/internal/cli.Version=v1.9.0` | Passed; local checksum manifest generated |
+| Native CLI smoke checks | All 29 passed: eleven base checks, nine docs/owned I/O checks, nine REPL removal/cancellation/history/legacy-log checks |
+| Local provider fixture | Passed: agent→run_js, instruction ordering, context status, hook transformations and counters; two local model requests, six hook invocations |
+| Embedded dependency and source information | Retained versions including go-quickjs v0.27.0, checked revision, `vcs.modified=false` |
+| Local document references and whitespace | No new broken links; existing temporary image and archival sibling-repository references recorded separately; `git diff --check` passed |
+
+All five gates ran sequentially before the builds. Environment: Linux amd64, Go 1.27.2 and C toolchain for race. The MCP bundle was prepared from the existing npm cache at `/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs`; its consumers run on NOE. Local Linux amd64 size: 49,303,712 bytes. Gate logs, clean source, builds, checksums and smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.9.0-release-_84uvtgf/`.
+
+No real-provider request was made. Other platforms have cross-build evidence only. The tag-triggered workflow and downloaded release assets are verified after publication.
