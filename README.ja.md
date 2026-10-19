@@ -6,7 +6,7 @@ Just JavaScript. Until you need an agent.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v1.13.0リリースノート](docs/releases/v1.13.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.13.0)
+[v1.14.0リリースノート](docs/releases/v1.14.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.14.0)
 
 ## ビルドと実行
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.13.0
+# noe v1.14.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
@@ -75,7 +75,7 @@ root agentには`provider`・`model`・`effort`の明示指定が必要です。
 | 画像を読取・生成する、構造化判断を依頼する | [画像](docs/agent-images.md) · [意思決定](docs/decision.md) |
 | 子プロセスの逐次I/OやHTTPを使う | [プロセスとストリーム](docs/process-io.md) · [HTTPの実行例](examples/http/README.md) |
 | ファイルの位置指定I/O・TCP/Unix通信・OSシグナルを使う | [ファイル・ソケット・シグナル](docs/low-level-io.md) |
-| 外部Goアプリへ汎用APIを組み込む | [Go embedding guide（英文）](docs/go-embedding.md) |
+| 外部Goアプリへ汎用APIを組み込む | [stdlib](docs/go-embedding.md) · [agent](docs/go-agent-embedding.md)（英文） |
 | 実行例を探す、NOEを開発する | [実行例](examples/README.md) · [ドキュメント一覧](docs/README.md) · [開発ガイド](docs/development/README.md) |
 
 旧スクリプトの移行は[API移行ガイド](docs/api.md#旧apiからの移行)を参照してください。

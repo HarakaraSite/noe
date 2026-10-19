@@ -53,7 +53,8 @@ go vet -tags=e2e ./...
 | NOE版stdlib・ステップ4の要求送信streaming | [計画](stdlib-step4-upload-plan.md)・[計画/コードレビュー](stdlib-step4-upload-review.md) | [実装・検証記録](stdlib-step4-upload-implementation.md) |
 | NOE版stdlib・ステップ5の要求受信streaming | [計画](stdlib-step5-receive-plan.md)・[計画/コードレビュー](stdlib-step5-receive-review.md) | [実装・検証記録](stdlib-step5-receive-implementation.md) |
 | NOE版stdlib・ステップ6のAPI導入と所有関係 | [計画](stdlib-step6-composition-plan.md)・[計画/コードレビュー](stdlib-step6-composition-review.md) | [実装・検証記録](stdlib-step6-composition-implementation.md) |
-| NOE版stdlib・ステップ7の外部Go提供 | [計画](stdlib-step7-library-plan.md)・[計画/コードレビュー](stdlib-step7-library-review.md) | [実装・検証記録](stdlib-step7-library-implementation.md)（7.1完了、7.2agent後続） |
+| NOE版stdlib・ステップ7の外部Go提供 | [計画](stdlib-step7-library-plan.md)・[計画/コードレビュー](stdlib-step7-library-review.md) | [実装・検証記録](stdlib-step7-library-implementation.md)（7.1完了、agentは次行の7.2） |
+| NOE版stdlib・ステップ7.2のagent外部接続 | [計画](stdlib-step72-agent-plan.md)・[計画/コードレビュー](stdlib-step72-agent-review.md) | [実装・検証記録](stdlib-step72-agent-implementation.md)（完了・v2未公開） |
 | REPL削除 | [計画](repl-removal-plan.md) | [実装・検証記録](repl-removal-implementation.md) |
 | 自動コンテキスト切り捨て | [計画](context-trimming-plan.md) | [実装記録](context-trimming-implementation.md) |
 | queueの会話継続 | [計画](queue-continuation-plan.md) | [実装記録](queue-continuation-implementation.md) |
@@ -76,7 +77,9 @@ go vet -tags=e2e ./...
 
 [ステップ6の検証結果](stdlib-step6-composition-results.json)には、汎用API組立・部分構成・設定/出力/Workerの所有、DNS子Loop、writer比較のレビュー修正、全体/race/E2E・6対象compile、実プロバイダ初回失敗と限定再試を保存しています。
 
-[ステップ7.1の検証結果](stdlib-step7-library-results.json)には、公開Go API・正規module移行、外部consumer/local artifact・6対象compile、JS inventory維持、独立コードレビュー、全体unit/race/E2E/vetと実プロバイダ基本フローを保存しています。7.2とv2公開は後続です。
+[ステップ7.1の検証結果](stdlib-step7-library-results.json)には、公開Go API・正規module移行、外部consumer/local artifact・6対象compile、JS inventory維持、独立コードレビュー、全体unit/race/E2E/vetと実プロバイダ基本フローを保存しています。agent接続は次の7.2で実装しました。v2公開は後続です。
+
+[ステップ7.2の検証結果](stdlib-step72-agent-results.json)には、公開agent API・共通bridge、外部consumer/local artifact・6対象compile、JS inventory維持、独立コードレビューと限定再レビュー、全体unit/race/E2E/vetと実プロバイダ基本フローを保存しています。7.1/7.2の実装・検証は完了し、常用確認とv2公開は後続です。
 
 | 対象 | 結果 |
 | --- | --- |

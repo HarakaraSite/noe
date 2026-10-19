@@ -6,7 +6,7 @@ A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://gi
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
-[v1.13.0 release notes](docs/releases/v1.13.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.13.0)
+[v1.14.0 release notes](docs/releases/v1.14.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.14.0)
 
 ## Build and run
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.13.0
+# noe v1.14.0
 ```
 
 The examples below assume the repository root is your working directory.
@@ -75,7 +75,7 @@ Roots require explicit `provider`, `model`, and `effort`. `--observe` displays p
 | Inspect/generate images or request structured decisions | [Images](docs/agent-images.md) · [Decisions](docs/decision.md) |
 | Use live child-process I/O or HTTP | [Processes and streams](docs/process-io.md) · [HTTP examples](examples/http/README.md) |
 | Use positional file I/O, TCP/Unix sockets, or OS signals | [Files, sockets, and signals](docs/low-level-io.md) |
-| Embed generic JavaScript APIs in a Go application | [Go embedding guide](docs/go-embedding.md) (English) |
+| Embed generic JavaScript APIs in a Go application | [Standard library](docs/go-embedding.md) · [Agents](docs/go-agent-embedding.md) (English) |
 | Explore examples or develop NOE | [Examples](examples/README.md) · [Documentation](docs/README.md) · [Development guide](docs/development/README.md) |
 
 Most linked guides are currently in Japanese. For older scripts, see the [API migration guide](docs/api.md#旧apiからの移行).

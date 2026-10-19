@@ -3,7 +3,8 @@
 Import `forge.harakara.site/littleisland/noe/v2/stdlib` to install generic NOE
 APIs into a caller-owned [go-quickjs](https://github.com/go-quickjs/go-quickjs)
 runtime. The package does not install the NOE CLI, agent, authentication, or
-provider integrations. Agent embedding will be planned separately.
+provider integrations. Install the separate [agent package](go-agent-embedding.md)
+when an application needs those features.
 
 The source module uses the `/v2` path. A v2 tag has **not been published** as part
 of this implementation. Existing v1 binaries remain usable; their tags are not

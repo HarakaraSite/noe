@@ -1,0 +1,1708 @@
+{
+  "step": "7.2",
+  "status": "complete",
+  "date": "2026-10-19",
+  "baseline": "5d00ed9cb194febc8d523980558f0e56b75883ac",
+  "uncommitted": true,
+  "published": false,
+  "module": "forge.harakara.site/littleisland/noe/v2",
+  "package": "forge.harakara.site/littleisland/noe/v2/agent",
+  "defaultCLIVersion": "v1.13.0",
+  "engine": "github.com/go-quickjs/go-quickjs v0.27.0",
+  "dependencyVersionsUnchanged": true,
+  "goSumUnchanged": true,
+  "approvedPlanSha256": "a481fe341b0b874f649745edf02d3e25a1e4e27a016f4fbec07935fff0174bcd",
+  "review": {
+    "initial": {
+      "reviewer": "/root/stdlib_step72_code_review",
+      "counts": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 1,
+        "P3": 0
+      },
+      "finding": {
+        "id": "S72-C01",
+        "severity": "P2",
+        "path": "agent/testdata/consumer/live.go",
+        "line": 133,
+        "description": "run_agent snapshot was ignored, allowing report creation followed by a failed task to pass live consumer",
+        "accepted": true,
+        "fix": "Require top-level stopped, lastResult completed, nonempty answer, and ask for an English completion answer"
+      },
+      "initial_manifest_sha256": "a61e3fc09613a3b27b6b516fb9e92a7ae421ec756bb18fd5d86381b806817a72",
+      "independent_check": "go list -mod=readonly -deps; stdlib agent/SDK dependency and public agent CLI/runtime dependency counts zero",
+      "paid_provider_calls": 0
+    },
+    "final": {
+      "reviewer": "/root/stdlib_step72_code_review",
+      "type": "limited re-review",
+      "counts": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0,
+        "P3": 0
+      },
+      "findingResolved": "S72-C01",
+      "manifest": [
+        {
+          "path": "agent/testdata/consumer/live.go",
+          "sha256": "bd0a412246b6b6c9a4f3d71ebf13b8e5a9583a141caf0a6302568ed3f5c5c587"
+        },
+        {
+          "path": "agent/testdata/consumer/reference.go",
+          "sha256": "7a14846d8cdfd2130afeeface349a433946783114d5682b346659c209d817f2a"
+        },
+        {
+          "path": "scripts/check-stdlib-consumer.py",
+          "sha256": "3d0a4ec7c3fa3e128a0c5a2f7d4f640c6301d2b417513ec3b6c093e1e26e1c0b"
+        }
+      ],
+      "manifestMatches": true,
+      "productSourceChangedAfterInitialReview": false,
+      "comprehensivePendingAtReview": true
+    },
+    "sourceManifestSha256": "694958ef9efaa1b04f10cff67256beb8594914bd984d5a62244ff9c7f03ef3aa",
+    "sourceFiles": 24,
+    "sourceUnchangedAfterTests": true
+  },
+  "related": {
+    "core": {
+      "reportedBy": "/root/stdlib_step72_core",
+      "checks": [
+        {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./internal/agentbridge",
+            "./internal/runtime",
+            "-count=1",
+            "-timeout=300s"
+          ],
+          "CGO_ENABLED": "0",
+          "status": "passed"
+        },
+        {
+          "name": "bridge-race",
+          "command": [
+            "go",
+            "test",
+            "-race",
+            "./internal/agentbridge",
+            "-count=1",
+            "-timeout=180s"
+          ],
+          "CGO_ENABLED": "1",
+          "status": "passed"
+        },
+        {
+          "name": "runtime-focused-race",
+          "command": [
+            "go",
+            "test",
+            "-race",
+            "./internal/runtime",
+            "-run",
+            "TestAgentMinimalRunHasIndependentHistories|TestObserveAgentWaitYieldsToJSAndIsCancelledWithEvaluation|TestExternalChatGPTHelperHeadlessRegistrationAndReauthorization|TestRunJSCommandFailureDetailsReachModelAndEvents",
+            "-count=1",
+            "-timeout=240s"
+          ],
+          "CGO_ENABLED": "1",
+          "status": "passed"
+        }
+      ],
+      "rawLogsSaved": false,
+      "evidence": "implementer tool outputs and final report; comprehensive suite will preserve fresh raw logs",
+      "initialFailure": "bridge test missing errors import; added import and reran unit successfully"
+    },
+    "consumer": {
+      "reportedBy": "/root/stdlib_step72_consumer",
+      "checks": [
+        {
+          "name": "portable",
+          "status": "passed",
+          "command": [
+            "go",
+            "test",
+            "./agent",
+            "-run",
+            "^TestExternalPortableConsumer$",
+            "-count=1",
+            "-v"
+          ],
+          "log": "consumer-portable.log"
+        },
+        {
+          "name": "reference",
+          "status": "passed",
+          "command": [
+            "go",
+            "run",
+            "-mod=mod",
+            ".",
+            "reference",
+            "--noe",
+            "/home/agent/.cache/noe-stdlib-step72/noe"
+          ],
+          "log": "consumer-reference.log",
+          "outsideCheckout": true
+        }
+      ],
+      "initialFixtureFailures": [
+        "EvalContext two return values and unused flag import",
+        "URL-like child import-map key",
+        "image output is normalized to absolute path",
+        "hardcoded PNG checksum invalid",
+        "fixture provider matched first task in historical messages and timed out; corrected to last user task"
+      ],
+      "reviewFix": "S72-C01 live snapshot state/completed/nonempty answer validation"
+    },
+    "exampleCurrentCLI": {
+      "command": [
+        "/home/agent/.cache/noe-stdlib-step72/embedding-example",
+        "-noe",
+        "/home/agent/.cache/noe-stdlib-step72/noe"
+      ],
+      "exit_code": 0,
+      "seconds": 0.087,
+      "stdout": "The total is 31.\n",
+      "stderr": ""
+    },
+    "exampleExternalModule": [
+      {
+        "name": "tidy",
+        "exit_code": 0,
+        "seconds": 0.035,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "name": "run",
+        "exit_code": 0,
+        "seconds": 0.815,
+        "stdout": "The total is 31.\n",
+        "stderr": ""
+      }
+    ]
+  },
+  "comprehensive": [
+    {
+      "name": "unit",
+      "command": [
+        "go",
+        "test",
+        "./...",
+        "-count=1",
+        "-timeout=300s"
+      ],
+      "exit_code": 0,
+      "seconds": 49.955
+    },
+    {
+      "name": "e2e",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./tests",
+        "-count=1",
+        "-timeout=10m"
+      ],
+      "exit_code": 0,
+      "seconds": 42.349
+    },
+    {
+      "name": "vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 0.718
+    },
+    {
+      "name": "vet-e2e",
+      "command": [
+        "go",
+        "vet",
+        "-tags=e2e",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 0.652
+    },
+    {
+      "name": "race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "./internal/...",
+        "./stdlib/...",
+        "./agent/...",
+        "-count=1",
+        "-timeout=300s"
+      ],
+      "exit_code": 0,
+      "seconds": 62.592
+    }
+  ],
+  "cross": {
+    "targets": [
+      "linux/amd64",
+      "linux/arm64",
+      "darwin/amd64",
+      "darwin/arm64",
+      "windows/amd64",
+      "windows/arm64"
+    ],
+    "cliBuilds": 6,
+    "testCompiles": 48,
+    "checks": [
+      {
+        "target": "linux-amd64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/noe-linux-amd64",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.368
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./agent",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/agent-linux-amd64",
+          "./agent"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.781
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./internal/agentbridge",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-agentbridge-linux-amd64",
+          "./internal/agentbridge"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 3.252
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/stdlib-linux-amd64",
+          "./stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.899
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./internal/noestdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-noestdlib-linux-amd64",
+          "./internal/noestdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.863
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-stdlib-linux-amd64",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.282
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./internal/nativeio",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-nativeio-linux-amd64",
+          "./internal/nativeio"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.081
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-runtime-linux-amd64",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 3.182
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/tests-linux-amd64",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.003
+      },
+      {
+        "target": "linux-arm64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/noe-linux-arm64",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.817
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./agent",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/agent-linux-arm64",
+          "./agent"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.537
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./internal/agentbridge",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-agentbridge-linux-arm64",
+          "./internal/agentbridge"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.167
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/stdlib-linux-arm64",
+          "./stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.351
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./internal/noestdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-noestdlib-linux-arm64",
+          "./internal/noestdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.468
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-stdlib-linux-arm64",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.442
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./internal/nativeio",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-nativeio-linux-arm64",
+          "./internal/nativeio"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.456
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-runtime-linux-arm64",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.493
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/tests-linux-arm64",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.614
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/noe-darwin-amd64",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 3.065
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./agent",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/agent-darwin-amd64",
+          "./agent"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.563
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./internal/agentbridge",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-agentbridge-darwin-amd64",
+          "./internal/agentbridge"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.242
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/stdlib-darwin-amd64",
+          "./stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.39
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./internal/noestdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-noestdlib-darwin-amd64",
+          "./internal/noestdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.646
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-stdlib-darwin-amd64",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.777
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./internal/nativeio",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-nativeio-darwin-amd64",
+          "./internal/nativeio"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.507
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-runtime-darwin-amd64",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.755
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/tests-darwin-amd64",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.32
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/noe-darwin-arm64",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.689
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./agent",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/agent-darwin-arm64",
+          "./agent"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.936
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./internal/agentbridge",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-agentbridge-darwin-arm64",
+          "./internal/agentbridge"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.975
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/stdlib-darwin-arm64",
+          "./stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.771
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./internal/noestdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-noestdlib-darwin-arm64",
+          "./internal/noestdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.818
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-stdlib-darwin-arm64",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.924
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./internal/nativeio",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-nativeio-darwin-arm64",
+          "./internal/nativeio"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.537
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-runtime-darwin-arm64",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.907
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/tests-darwin-arm64",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.136
+      },
+      {
+        "target": "windows-amd64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/noe-windows-amd64.exe",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.157
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./agent",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/agent-windows-amd64.exe",
+          "./agent"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.642
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./internal/agentbridge",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-agentbridge-windows-amd64.exe",
+          "./internal/agentbridge"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.846
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/stdlib-windows-amd64.exe",
+          "./stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.4
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./internal/noestdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-noestdlib-windows-amd64.exe",
+          "./internal/noestdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.549
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-stdlib-windows-amd64.exe",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.54
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./internal/nativeio",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-nativeio-windows-amd64.exe",
+          "./internal/nativeio"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.52
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-runtime-windows-amd64.exe",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.599
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/tests-windows-amd64.exe",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.669
+      },
+      {
+        "target": "windows-arm64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/noe-windows-arm64.exe",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.94
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./agent",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/agent-windows-arm64.exe",
+          "./agent"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.644
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./internal/agentbridge",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-agentbridge-windows-arm64.exe",
+          "./internal/agentbridge"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.48
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/stdlib-windows-arm64.exe",
+          "./stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.558
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./internal/noestdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-noestdlib-windows-arm64.exe",
+          "./internal/noestdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.819
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-stdlib-windows-arm64.exe",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.549
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./internal/nativeio",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-nativeio-windows-arm64.exe",
+          "./internal/nativeio"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.501
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/internal-runtime-windows-arm64.exe",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.413
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/home/agent/.cache/noe-stdlib-step72/cross/tests-windows-arm64.exe",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.96
+      }
+    ],
+    "executionEnvironment": "Linux amd64; other targets compile only"
+  },
+  "consumers": {
+    "agent": {
+      "checks": [
+        {
+          "name": "local-tidy",
+          "command": [
+            "go",
+            "mod",
+            "tidy"
+          ],
+          "exit_code": 0,
+          "seconds": 0.032
+        },
+        {
+          "name": "local-imports",
+          "command": [
+            "go",
+            "list",
+            "-f",
+            "{{join .Imports \"\\n\"}}",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 0.032
+        },
+        {
+          "name": "local-portable",
+          "command": [
+            "go",
+            "run",
+            ".",
+            "portable"
+          ],
+          "exit_code": 0,
+          "seconds": 0.817
+        },
+        {
+          "name": "local-reference-build",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/local-consumer/consumer",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 0.969
+        },
+        {
+          "name": "local-reference",
+          "command": [
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/local-consumer/consumer",
+            "reference",
+            "--noe",
+            "/home/agent/.cache/noe-stdlib-step72/noe"
+          ],
+          "exit_code": 0,
+          "seconds": 0.315
+        },
+        {
+          "name": "local-versions",
+          "command": [
+            "go",
+            "list",
+            "-m",
+            "forge.harakara.site/littleisland/noe/v2",
+            "github.com/go-quickjs/go-quickjs"
+          ],
+          "exit_code": 0,
+          "seconds": 0.004
+        },
+        {
+          "name": "package-deps",
+          "command": [
+            "go",
+            "list",
+            "-deps",
+            "forge.harakara.site/littleisland/noe/v2/agent"
+          ],
+          "exit_code": 0,
+          "seconds": 0.064
+        },
+        {
+          "name": "stdlib-deps",
+          "command": [
+            "go",
+            "list",
+            "-deps",
+            "forge.harakara.site/littleisland/noe/v2/stdlib"
+          ],
+          "exit_code": 0,
+          "seconds": 0.065
+        },
+        {
+          "name": "artifact-tidy",
+          "command": [
+            "go",
+            "mod",
+            "tidy"
+          ],
+          "exit_code": 0,
+          "seconds": 1.118
+        },
+        {
+          "name": "artifact-versions",
+          "command": [
+            "go",
+            "list",
+            "-m",
+            "-json",
+            "forge.harakara.site/littleisland/noe/v2",
+            "github.com/go-quickjs/go-quickjs"
+          ],
+          "exit_code": 0,
+          "seconds": 0.009
+        },
+        {
+          "name": "artifact-portable",
+          "command": [
+            "go",
+            "run",
+            ".",
+            "portable"
+          ],
+          "exit_code": 0,
+          "seconds": 16.837
+        },
+        {
+          "name": "artifact-reference-build",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/artifact-consumer/consumer",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 1.072
+        },
+        {
+          "name": "artifact-reference",
+          "command": [
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/artifact-consumer/consumer",
+            "reference",
+            "--noe",
+            "/home/agent/.cache/noe-stdlib-step72/noe"
+          ],
+          "exit_code": 0,
+          "seconds": 0.366
+        },
+        {
+          "name": "consumer-linux-amd64",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/consumer-linux-amd64",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 0.968
+        },
+        {
+          "name": "consumer-linux-arm64",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/consumer-linux-arm64",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 18.617
+        },
+        {
+          "name": "consumer-darwin-amd64",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/consumer-darwin-amd64",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 23.312
+        },
+        {
+          "name": "consumer-darwin-arm64",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/consumer-darwin-arm64",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 18.266
+        },
+        {
+          "name": "consumer-windows-amd64",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/consumer-windows-amd64",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 19.529
+        },
+        {
+          "name": "consumer-windows-arm64",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/agent-consumer/consumer-windows-arm64",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 18.116
+        }
+      ],
+      "sourceFiles": 681,
+      "noReplaceArtifact": true,
+      "isolatedModuleCache": true,
+      "crossCompiles": 6
+    },
+    "stdlib": {
+      "checks": [
+        {
+          "name": "local-tidy",
+          "command": [
+            "go",
+            "mod",
+            "tidy"
+          ],
+          "exit_code": 0,
+          "seconds": 0.033
+        },
+        {
+          "name": "local-imports",
+          "command": [
+            "go",
+            "list",
+            "-f",
+            "{{join .Imports \"\\n\"}}",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 0.117
+        },
+        {
+          "name": "local-portable",
+          "command": [
+            "go",
+            "run",
+            ".",
+            "portable"
+          ],
+          "exit_code": 0,
+          "seconds": 0.988
+        },
+        {
+          "name": "local-reference-build",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/stdlib-consumer/local-consumer/consumer",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 1.077
+        },
+        {
+          "name": "local-reference",
+          "command": [
+            "/home/agent/.cache/noe-stdlib-step72/stdlib-consumer/local-consumer/consumer",
+            "reference"
+          ],
+          "exit_code": 0,
+          "seconds": 0.171
+        },
+        {
+          "name": "local-versions",
+          "command": [
+            "go",
+            "list",
+            "-m",
+            "forge.harakara.site/littleisland/noe/v2",
+            "github.com/go-quickjs/go-quickjs"
+          ],
+          "exit_code": 0,
+          "seconds": 0.016
+        },
+        {
+          "name": "package-deps",
+          "command": [
+            "go",
+            "list",
+            "-deps",
+            "forge.harakara.site/littleisland/noe/v2/stdlib"
+          ],
+          "exit_code": 0,
+          "seconds": 0.069
+        },
+        {
+          "name": "artifact-tidy",
+          "command": [
+            "go",
+            "mod",
+            "tidy"
+          ],
+          "exit_code": 0,
+          "seconds": 2.738
+        },
+        {
+          "name": "artifact-versions",
+          "command": [
+            "go",
+            "list",
+            "-m",
+            "-json",
+            "forge.harakara.site/littleisland/noe/v2",
+            "github.com/go-quickjs/go-quickjs"
+          ],
+          "exit_code": 0,
+          "seconds": 0.017
+        },
+        {
+          "name": "artifact-portable",
+          "command": [
+            "go",
+            "run",
+            ".",
+            "portable"
+          ],
+          "exit_code": 0,
+          "seconds": 11.137
+        },
+        {
+          "name": "artifact-reference-build",
+          "command": [
+            "go",
+            "build",
+            "-o",
+            "/home/agent/.cache/noe-stdlib-step72/stdlib-consumer/artifact-consumer/consumer",
+            "."
+          ],
+          "exit_code": 0,
+          "seconds": 0.922
+        },
+        {
+          "name": "artifact-reference",
+          "command": [
+            "/home/agent/.cache/noe-stdlib-step72/stdlib-consumer/artifact-consumer/consumer",
+            "reference"
+          ],
+          "exit_code": 0,
+          "seconds": 0.114
+        }
+      ],
+      "sourceFiles": 681,
+      "noReplaceArtifact": true,
+      "isolatedModuleCache": true,
+      "dependencyPackages": 257,
+      "agentSDKDependencies": 0
+    },
+    "publication": false,
+    "artifactVersion": "v2.0.0-dev.0"
+  },
+  "native": {
+    "checks": [
+      {
+        "name": "smoke",
+        "exit_code": 0,
+        "seconds": 0.418
+      },
+      {
+        "name": "new-api-smoke",
+        "exit_code": 0,
+        "seconds": 0.535
+      },
+      {
+        "name": "removal-smoke",
+        "exit_code": 0,
+        "seconds": 0.529
+      },
+      {
+        "name": "inventory-smoke",
+        "exit_code": 0,
+        "seconds": 0.32
+      },
+      {
+        "name": "feature-smoke",
+        "exit_code": 0,
+        "seconds": 0.979
+      },
+      {
+        "name": "http-smoke",
+        "exit_code": 0,
+        "seconds": 0.273
+      },
+      {
+        "name": "receive-smoke",
+        "exit_code": 0,
+        "seconds": 0.267
+      }
+    ],
+    "cliSmokes": 29,
+    "inventoryIdentical": true,
+    "inventory": {
+      "main": {
+        "globals": 119,
+        "modules": 26,
+        "topics": 41,
+        "details": 100
+      },
+      "nodeWorker": {
+        "globals": 119,
+        "modules": 26,
+        "topics": 41,
+        "details": 100
+      },
+      "nestedWorker": {
+        "globals": 119,
+        "modules": 26,
+        "topics": 41,
+        "details": 100
+      },
+      "webWorker": {
+        "globals": 129,
+        "modules": 26,
+        "topics": 41,
+        "details": 100
+      }
+    },
+    "feature": {
+      "binary": "/home/agent/.cache/noe-stdlib-step72/noe",
+      "exitCode": 0,
+      "stdout": "release feature ready\n",
+      "stderr": "",
+      "requests": 2,
+      "phaseCounts": {
+        "beforeModelRequest": 2,
+        "afterModelResponse": 2,
+        "beforeTool": 1,
+        "afterTool": 1
+      },
+      "problems": []
+    },
+    "httpUpload": {
+      "binary": "/home/agent/.cache/noe-stdlib-step72/noe",
+      "result": "passed",
+      "upload": {
+        "status": 200,
+        "bytes": [
+          0,
+          255,
+          17,
+          34,
+          128,
+          0,
+          255
+        ],
+        "prefixBeforeEOF": true,
+        "sourceUsed": true
+      },
+      "observed": [
+        {
+          "bytes": [
+            0,
+            255,
+            17,
+            34,
+            128,
+            0,
+            255
+          ],
+          "contentLength": -1,
+          "eofAt": "2026-10-19T13:21:37.090081446Z",
+          "passed": true,
+          "prefixAt": "2026-10-19T13:21:37.089445696Z",
+          "prefixBeforeEOF": true,
+          "transferEncoding": [
+            "chunked"
+          ]
+        }
+      ],
+      "cli_js_docs_identical": true,
+      "finite_example_passed": true
+    },
+    "httpReceive": {
+      "result": "passed",
+      "binary": "/home/agent/.cache/noe-stdlib-step72/noe",
+      "prefixBeforeEOF": true,
+      "receive": {
+        "ackAt": "2026-10-19T13:21:37.373288762Z",
+        "byteCount": 7,
+        "bytes": [
+          0,
+          255,
+          17,
+          34,
+          128,
+          0,
+          255
+        ],
+        "eofSentAt": "2026-10-19T13:21:37.373292578Z",
+        "passed": true,
+        "prefixBeforeEOF": true,
+        "prefixSentAt": "2026-10-19T13:21:37.372560527Z",
+        "responseBody": "{\"bytes\":[0,255,17,34,128,0,255],\"byteCount\":7,\"sum\":689}",
+        "status": 200,
+        "sum": 689,
+        "url": "http://127.0.0.1:41323"
+      },
+      "observed": [
+        {
+          "ackAt": "2026-10-19T13:21:37.373288762Z",
+          "byteCount": 7,
+          "bytes": [
+            0,
+            255,
+            17,
+            34,
+            128,
+            0,
+            255
+          ],
+          "eofSentAt": "2026-10-19T13:21:37.373292578Z",
+          "passed": true,
+          "prefixBeforeEOF": true,
+          "prefixSentAt": "2026-10-19T13:21:37.372560527Z",
+          "responseBody": "{\"bytes\":[0,255,17,34,128,0,255],\"byteCount\":7,\"sum\":689}",
+          "status": 200,
+          "sum": 689,
+          "url": "http://127.0.0.1:41323"
+        }
+      ],
+      "cliJsDocsIdentical": true,
+      "listenerRebind": true,
+      "finiteExamplePassed": true
+    }
+  },
+  "live": {
+    "provider": "opencode-go",
+    "model": "deepseek-v4.1-flash",
+    "effort": "auto",
+    "max_provider_calls": 6,
+    "timeout_seconds": 115,
+    "external_consumer": true,
+    "docs_hint_in_task": false,
+    "exit_code": 0,
+    "seconds": 16.962,
+    "stdout": "live consumer passed: model_requests=3 run_js=2 count=3 total=31 report=/home/agent/.cache/noe-stdlib-step72/live/report.json\n",
+    "stderr": "",
+    "report": {
+      "count": 3,
+      "total": 31
+    },
+    "attempts": 1,
+    "modelRequests": 3,
+    "runJSCalls": 2,
+    "taskCompleted": true,
+    "nonemptyAnswer": true,
+    "credentialContentsLogged": false
+  },
+  "limits": {
+    "v2Published": false,
+    "dailyUseStabilityConfirmed": false,
+    "otherOSRuntimeTested": false
+  },
+  "rawArtifacts": "/home/agent/.cache/noe-stdlib-step72",
+  "excludedUserPaths": [
+    "noe",
+    "agent-server-build.jsonl",
+    ".zed/",
+    "_refs/"
+  ],
+  "sourceManifest": [
+    {
+      "path": "README.ja.md",
+      "sha256": "4dc0b39138bbe3c6ae83cfc96ff548f078dfed579f96564d54c0ddd6ace1f01b"
+    },
+    {
+      "path": "README.md",
+      "sha256": "88fdc01eb68c6cf8a3000de15851e36a2972cc6eba873f0428b1cf99d9ee90db"
+    },
+    {
+      "path": "agent/agent.go",
+      "sha256": "f329dfbcbf1f41660e574f3e5b5bcf65a83b053be5063fc50ac47166caf5b854"
+    },
+    {
+      "path": "agent/consumer_test.go",
+      "sha256": "3d7153f3a44630bdd5e64e0a86deb1385aff0ba1994d73c3df69444207a29f37"
+    },
+    {
+      "path": "agent/testdata/consumer/live.go",
+      "sha256": "bd0a412246b6b6c9a4f3d71ebf13b8e5a9583a141caf0a6302568ed3f5c5c587"
+    },
+    {
+      "path": "agent/testdata/consumer/main.go",
+      "sha256": "36ea102d6e4d506872b85eb754d501ec5a00fc8ba2139857d6a6cb264f71b86f"
+    },
+    {
+      "path": "agent/testdata/consumer/portable.go",
+      "sha256": "2a78937411d1173b82d37334cff1d1ea367b196b22c51fbf163cebf96b6604e7"
+    },
+    {
+      "path": "agent/testdata/consumer/reference.go",
+      "sha256": "7a14846d8cdfd2130afeeface349a433946783114d5682b346659c209d817f2a"
+    },
+    {
+      "path": "docs/README.md",
+      "sha256": "210559ebac9215dfa11f0186602883c1c28f3c2635a67d851eb3c45a7fb7e7b1"
+    },
+    {
+      "path": "docs/go-agent-embedding.md",
+      "sha256": "b7ec71cc7b9a43e323291188ac96029e2bbcfb16b08617c6add1b191d17c819a"
+    },
+    {
+      "path": "docs/go-embedding.md",
+      "sha256": "ee2cdd8cc4b56459f465a831c059141fafbcde7a147c9f3c612934c553d42ac0"
+    },
+    {
+      "path": "examples/agent-embedding/README.md",
+      "sha256": "fa1185f1017ce1d9407021333ab15aaf5aec6532d1e7d0030ac79d83ca42cd67"
+    },
+    {
+      "path": "examples/agent-embedding/go.mod.template",
+      "sha256": "ab234e465817b5e524a2ed6cab23f274fed4173744d1fcee0fd595cb99dd4105"
+    },
+    {
+      "path": "examples/agent-embedding/main.go",
+      "sha256": "a110acfd37b9df99b14d4d7630e63829363f55f176b4c53b229a836c56a88d8b"
+    },
+    {
+      "path": "examples/embedding/README.md",
+      "sha256": "997808b2c266a89ece3252936fbdb8b3ffce1f347f7c776883b89c8d9f6ca767"
+    },
+    {
+      "path": "internal/agentbridge/bridge.go",
+      "sha256": "071713cd75a49a3d9a0ff20d5e78f69baf843f429832077b5dd37788f37dcc60"
+    },
+    {
+      "path": "internal/agentbridge/bridge_test.go",
+      "sha256": "327fb4f2392d4324e078e471f4a78295badb1b722e5aded0aec9da646e9658a6"
+    },
+    {
+      "path": "internal/runtime/agent.go",
+      "sha256": "deleted"
+    },
+    {
+      "path": "internal/runtime/agent_observation_test.go",
+      "sha256": "b02f32a2f5a576caf9a166db89210b6202e6b82047f7f73e1b543da86c2e8b1c"
+    },
+    {
+      "path": "internal/runtime/auth.go",
+      "sha256": "deleted"
+    },
+    {
+      "path": "internal/runtime/diagnostic_test.go",
+      "sha256": "549854a013318c04f00b6251ccd399490f07ea8456ce092316c108c353413d1e"
+    },
+    {
+      "path": "internal/runtime/runtime.go",
+      "sha256": "3e6a25f9982879e270c21db26724e17ecc33c582dc5010b64901c15f2c20801e"
+    },
+    {
+      "path": "internal/runtime/runtime_test.go",
+      "sha256": "89af220c4d3d4f39b3d13ea4b7955286a4bacaa0b3f21e3d09587d596c618f74"
+    },
+    {
+      "path": "scripts/check-stdlib-consumer.py",
+      "sha256": "3d0a4ec7c3fa3e128a0c5a2f7d4f640c6301d2b417513ec3b6c093e1e26e1c0b"
+    }
+  ]
+}

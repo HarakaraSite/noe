@@ -1,0 +1,8 @@
+module example.com/noe-agent-embedding
+
+go 1.27.2
+
+require forge.harakara.site/littleisland/noe/v2 v2.0.0-dev.0
+
+// Development only: replace with your checkout path.
+replace forge.harakara.site/littleisland/noe/v2 => /absolute/path/to/noe

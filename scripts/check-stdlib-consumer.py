@@ -20,7 +20,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cross", action="store_true", help="compile consumer for six release targets")
+    parser.add_argument("--agent", action="store_true", help="check the public agent consumer instead of the generic stdlib consumer")
+    parser.add_argument("--noe", type=Path, help="explicit NOE executable for agent reference tests")
     args = parser.parse_args()
+    if args.agent and args.noe is None:
+        parser.error("--agent requires --noe")
+    package = "agent" if args.agent else "stdlib"
+    reference_args = ["reference"]
+    if args.agent:
+        reference_args += ["--noe", str(args.noe.resolve())]
     output = args.output.resolve()
     if output == ROOT or ROOT in output.parents:
         raise ValueError("--output must be outside the checkout")
@@ -45,9 +53,9 @@ def main():
     def consumer(name, replacement):
         folder = output / name
         folder.mkdir()
-        for source in (ROOT / "stdlib/testdata/consumer").glob("*.go"):
+        for source in (ROOT / package / "testdata/consumer").glob("*.go"):
             shutil.copyfile(source, folder / source.name)
-        text = f"module example.com/noe-stdlib-consumer\n\ngo 1.27.2\n\nrequire (\n {MODULE} {VERSION}\n github.com/go-quickjs/go-quickjs v0.27.0\n)\n"
+        text = f"module example.com/noe-{package}-consumer\n\ngo 1.27.2\n\nrequire (\n {MODULE} {VERSION}\n github.com/go-quickjs/go-quickjs v0.27.0\n)\n"
         if replacement:
             text += f"\nreplace {MODULE} => {json.dumps(str(ROOT))}\n"
         (folder / "go.mod").write_text(text)
@@ -57,10 +65,21 @@ def main():
     # Only explicit tracked source and known implementation additions enter the zip.
     tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0")
     names = {name for name in tracked if name}
-    names.update(str(p.relative_to(ROOT)) for p in (ROOT / "stdlib").rglob("*.go") if p.is_file())
+    for directory in ["stdlib", "agent", "internal/agentbridge", "examples/agent-embedding"]:
+        folder = ROOT / directory
+        if folder.exists():
+            # New Go sources and bridge-owned embedded JS are explicit additions.
+            names.update(str(p.relative_to(ROOT)) for p in folder.rglob("*")
+                         if p.is_file() and p.suffix in {".go", ".js", ".mjs", ".md"})
+    for name in ["docs/go-agent-embedding.md", "examples/agent-embedding/go.mod.template"]:
+        if (ROOT / name).is_file():
+            names.add(name)
     names.update(["scripts/check-stdlib-consumer.py", "docs/go-embedding.md", "examples/embedding/go.mod.template"])
     nested = [str(Path(name).parent) + "/" for name in tracked if name.endswith("/go.mod")]
-    names = sorted(name for name in names if not name.startswith(tuple(nested + ["_refs/", ".git/"])) and name not in {"noe", "agent-server-build.jsonl"})
+    names = sorted(name for name in names
+                   if not name.startswith(tuple(nested + ["_refs/", ".git/", ".zed/"]))
+                   and name not in {"noe", "agent-server-build.jsonl"}
+                   and (ROOT / name).is_file())
     manifest = []
     proxy = output / "proxy" / MODULE / "@v"
     proxy.mkdir(parents=True)
@@ -78,17 +97,23 @@ def main():
     command("local-tidy", ["go", "mod", "tidy"], local)
     command("local-imports", ["go", "list", "-f", "{{join .Imports \"\\n\"}}", "."], local)
     imports = (output / "local-imports.log").read_text().splitlines()
-    assert MODULE + "/stdlib" in imports
+    assert MODULE + "/" + package in imports
     assert all("/internal/" not in name and not name.startswith("noe/") for name in imports)
     command("local-portable", ["go", "run", ".", "portable"], local)
     command("local-reference-build", ["go", "build", "-o", str(local / "consumer"), "."], local)
-    command("local-reference", [str(local / "consumer"), "reference"], local)
+    command("local-reference", [str(local / "consumer"), *reference_args], local)
     command("local-versions", ["go", "list", "-m", MODULE, "github.com/go-quickjs/go-quickjs"], local)
-    command("package-deps", ["go", "list", "-deps", MODULE + "/stdlib"], local)
+    command("package-deps", ["go", "list", "-deps", MODULE + "/" + package], local)
     deps = (output / "package-deps.log").read_text().splitlines()
-    forbidden = [MODULE + "/internal/" + name for name in ["cli", "runtime", "agent", "credentials"]]
+    forbidden_names = ["cli", "runtime"] if args.agent else ["cli", "runtime", "agent", "agentbridge", "credentials"]
+    forbidden = [MODULE + "/internal/" + name for name in forbidden_names]
     assert not any(name == prefix or name.startswith(prefix + "/") for name in deps for prefix in forbidden)
-    assert not any(name.startswith(("github.com/openai/", "github.com/OpenRouterTeam/")) for name in deps)
+    if not args.agent:
+        assert not any(name.startswith(("github.com/openai/", "github.com/OpenRouterTeam/")) for name in deps)
+    else:
+        command("stdlib-deps", ["go", "list", "-deps", MODULE + "/stdlib"], local)
+        generic_deps = (output / "stdlib-deps.log").read_text().splitlines()
+        assert not any(name.startswith((MODULE + "/agent", MODULE + "/internal/agent", "github.com/openai/", "github.com/OpenRouterTeam/")) for name in generic_deps)
 
     artifact = consumer("artifact-consumer", False)
     cache = output / "modcache"
@@ -99,13 +124,13 @@ def main():
     command("artifact-versions", ["go", "list", "-m", "-json", MODULE, "github.com/go-quickjs/go-quickjs"], artifact, artifact_env)
     command("artifact-portable", ["go", "run", ".", "portable"], artifact, artifact_env)
     command("artifact-reference-build", ["go", "build", "-o", str(artifact / "consumer"), "."], artifact, artifact_env)
-    command("artifact-reference", [str(artifact / "consumer"), "reference"], artifact, artifact_env)
+    command("artifact-reference", [str(artifact / "consumer"), *reference_args], artifact, artifact_env)
     if args.cross:
         for target_os in ["linux", "darwin", "windows"]:
             for arch in ["amd64", "arm64"]:
                 settings = dict(artifact_env, GOOS=target_os, GOARCH=arch, CGO_ENABLED="0")
                 command(f"consumer-{target_os}-{arch}", ["go", "build", "-o", str(output / f"consumer-{target_os}-{arch}"), "."], artifact, settings)
-    print(json.dumps(dict(status="passed", publication=False, module=MODULE, version=VERSION, files=len(manifest))), flush=True)
+    print(json.dumps(dict(status="passed", publication=False, module=MODULE, package=package, version=VERSION, files=len(manifest))), flush=True)
 
 
 if __name__ == "__main__":

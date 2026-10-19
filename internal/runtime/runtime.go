@@ -9,12 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	publicagent "forge.harakara.site/littleisland/noe/v2/agent"
+	core "forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agentbridge"
 	"forge.harakara.site/littleisland/noe/v2/internal/credentials"
-	"forge.harakara.site/littleisland/noe/v2/internal/decision"
-	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
@@ -37,7 +36,7 @@ type Options struct {
 	Args   []string
 	Cwd    string
 	// Agent supplies provider/child execution settings. Nil uses lazy defaults.
-	Agent *agent.Options
+	Agent *core.Options
 	// Auth supplies HTTP/discovery settings for native sign-in verification.
 	Auth *credentials.Options
 
@@ -54,35 +53,30 @@ func Execute(ctx context.Context, source Source, opts Options) (int, error) {
 	if opts.Stdin == nil {
 		opts.Stdin = strings.NewReader("")
 	}
-	h, err := newHost(opts)
+	h, err := newHost(ctx, opts, source)
 	if err != nil {
 		return 1, err
 	}
 	defer h.rt.Close()
-	return h.run(ctx, source)
+	return h.run()
 }
 
 type host struct {
-	rt             *quickjs.Runtime
-	loop           *eventLoop
-	unhandled      []error
-	cwd            string
-	importMap      *modulemap.Snapshot
-	exitRequested  bool
-	exitCode       int
-	agents         *agent.Host
-	agentOperation *agent.Operation
-	hookMu         sync.Mutex
-	hookScopes     map[string]runtimeHookScope
+	rt            *quickjs.Runtime
+	loop          *eventLoop
+	ctx           context.Context
+	source        Source
+	unhandled     []error
+	cwd           string
+	importMap     *modulemap.Snapshot
+	exitRequested bool
+	exitCode      int
 }
 
-type runtimeHookScope struct {
-	owner  *agent.Operation
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-func newHost(opts Options) (*host, error) {
+func newHost(ctx context.Context, opts Options, source Source) (*host, error) {
+	if ctx == nil {
+		return nil, errors.New("runtime context is required")
+	}
 	cwd := opts.Cwd
 	var err error
 	if cwd == "" {
@@ -95,7 +89,12 @@ func newHost(opts Options) (*host, error) {
 	if err != nil {
 		return nil, err
 	}
-	h := &host{rt: quickjs.New(), cwd: cwd, importMap: opts.ImportMap}
+	entryName, err := filepath.Abs(source.Name)
+	if err != nil {
+		return nil, err
+	}
+	source.Name = entryName
+	h := &host{rt: quickjs.New(), ctx: ctx, source: source, cwd: cwd, importMap: opts.ImportMap}
 	h.loop, err = newEventLoop(h)
 	if err != nil {
 		h.rt.Close()
@@ -112,11 +111,8 @@ func newHost(opts Options) (*host, error) {
 	}
 	// Agent and auth borrow the same output boundary as generic APIs.
 	opts.Stdout, opts.Stderr = bindings.Stdout, bindings.Stderr
-	if err := h.installAgent(opts); err != nil {
-		h.rt.Close()
-		return nil, err
-	}
-	if err := h.installAuth(opts); err != nil {
+	loader := modulemap.NewLoader(h.importMap, source.Name, source.Code)
+	if err := h.installAgent(ctx, opts, loader.Load); err != nil {
 		h.rt.Close()
 		return nil, err
 	}
@@ -135,34 +131,27 @@ func (h *host) recordUnhandled(reason quickjs.Value) {
 	h.loop.interrupt()
 }
 
-func (h *host) run(ctx context.Context, source Source) (code int, err error) {
-	endOperation := h.beginAgentOperation(ctx)
-	defer endOperation()
-	stopStdlib := context.AfterFunc(ctx, h.loop.std.Close)
+func (h *host) run() (code int, err error) {
+	stopStdlib := context.AfterFunc(h.ctx, h.loop.std.Close)
 	defer stopStdlib()
 	defer func() {
 		if h.exitRequested {
 			code, err = h.exitCode, nil
 		}
 	}()
-	name, err := filepath.Abs(source.Name)
-	if err != nil {
-		return 1, err
-	}
-	h.installLoader(Source{Name: name, Code: source.Code})
-	specifier, err := json.Marshal("./" + filepath.Base(name))
+	specifier, err := json.Marshal("./" + filepath.Base(h.source.Name))
 	if err != nil {
 		return 1, err
 	}
 	bootstrap := `(() => { const p = import(` + string(specifier) + `); p.catch(() => {}); return p; })()`
-	p, err := h.rt.EvalFileContext(ctx, filepath.Join(filepath.Dir(name), "<noe-bootstrap>.js"), bootstrap)
+	p, err := h.rt.EvalFileContext(h.ctx, filepath.Join(filepath.Dir(h.source.Name), "<noe-bootstrap>.js"), bootstrap)
 	if err == nil {
-		_, err = h.loop.await(ctx, p)
+		_, err = h.loop.await(h.ctx, p)
 	}
 	if err != nil {
 		return 1, retainException(err)
 	}
-	if err := h.drain(ctx); err != nil {
+	if err := h.drain(h.ctx); err != nil {
 		return 1, err
 	}
 	if err := h.takeUnhandled(); err != nil {
@@ -174,29 +163,69 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 	return 0, nil
 }
 
-func (h *host) installLoader(entry Source) {
-	local := modulemap.NewLoader(h.importMap, entry.Name, entry.Code)
-	h.rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
-		switch specifier {
-		case "noe:agent":
-			return agent.ModuleSource, specifier, nil
-		case "noe:agent/api":
-			return agent.APIModuleSource, specifier, nil
-		case "noe:agent/hooks":
-			return agent.HooksModuleSource, specifier, nil
-		case "noe:image":
-			return imageapi.ModuleSource, specifier, nil
-		case "noe:decision":
-			return decision.ModuleSource, specifier, nil
-		case "noe:auth":
-			return credentials.ModuleSource, specifier, nil
-		case "noe:agent/task":
-			return agent.TaskModuleSource, specifier, nil
-		case "noe:agent/history":
-			return agent.HistoryModuleSource, specifier, nil
+func (h *host) installAgent(ctx context.Context, opts Options, load quickjs.ModuleLoader) error {
+	settings := core.Options{}
+	if opts.Agent != nil {
+		settings = *opts.Agent
+	}
+	settings.Cwd = h.cwd
+	settings.ImportMap = opts.ImportMap
+
+	// The CLI has historically kept noe:auth available even when no explicit
+	// HTTP/discovery overrides are configured. The public embedding facade uses
+	// nil Auth as an opt-out, so the private runtime path supplies its zero-value
+	// settings explicitly for compatibility.
+	auth := opts.Auth
+	if auth == nil {
+		auth = &credentials.Options{}
+	}
+
+	installPrivate := func() error {
+		_, err := agentbridge.Install(ctx, h.rt, agentbridge.Config{
+			Loop: h.loop.std, Agent: settings, Auth: auth, Load: load,
+		})
+		return err
+	}
+	if opts.Agent == nil || settings.Executable == "" || settings.Connection != nil || settings.ProviderOptions.Profile != nil {
+		return installPrivate()
+	}
+
+	var childMap json.RawMessage
+	if opts.ImportMap != nil {
+		var err error
+		childMap, err = json.Marshal(opts.ImportMap)
+		if err != nil {
+			return err
 		}
-		return local.Load(specifier, referrer)
+	}
+	controlDir := settings.ControlDir
+	if settings.EnableControl && controlDir == "" {
+		var err error
+		controlDir, err = core.DefaultControlDir()
+		if err != nil {
+			// Preserve the old lazy resolution: a host that never starts an
+			// agent did not fail just because the CLI default could not be
+			// resolved. The private host still resolves it on first broker use.
+			return installPrivate()
+		}
+	}
+	binding, err := publicagent.Install(ctx, h.rt, publicagent.Config{
+		Loop: h.loop.std, Cwd: h.cwd, Executable: settings.Executable,
+		Load: load, ChildImportMap: childMap,
+		Providers: publicagent.ProviderOptions{
+			ConfigFile: settings.ProviderOptions.ConfigFile, UserAgent: settings.ProviderOptions.UserAgent,
+			KeyFile: settings.ProviderOptions.KeyFile, BaseURL: settings.ProviderOptions.BaseURL,
+			HTTPClient: settings.ProviderOptions.HTTPClient, DecisionServerURL: settings.ProviderOptions.DecisionServerURL,
+		},
+		Provider: settings.Provider, DecisionProvider: settings.DecisionProvider, ImageProvider: settings.ImageProvider,
+		Auth:  &publicagent.AuthOptions{HTTPClient: auth.HTTPClient, DiscoveryURL: auth.DiscoveryURL},
+		Trace: settings.Trace, Observe: settings.Observe, ControlDir: controlDir,
 	})
+	if err != nil {
+		return err
+	}
+	_ = binding // The runtime close hook owns this binding's Go lifetime.
+	return nil
 }
 
 func (h *host) drain(ctx context.Context) error {

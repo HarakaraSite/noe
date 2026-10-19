@@ -80,7 +80,10 @@ func TestObserveAgentWaitYieldsToJSAndIsCancelledWithEvaluation(t *testing.T) {
 	// A native observer wait must yield to the owner's event loop; a timer can
 	// run while Go waits for file events, then evaluation cancellation drains it.
 	settings := Options{Cwd: dir}
-	h, err := newHost(settings)
+	source := Source{filepath.Join(dir, "main.js"), `import {observe_agent} from "noe:agent";
+setTimeout(()=>tick(),10);
+await observe_agent({logPath:"events.jsonl",runId:"child",wait:true});`}
+	h, err := newHost(ctx, settings, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,9 +96,7 @@ func TestObserveAgentWaitYieldsToJSAndIsCancelledWithEvaluation(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	code, err := h.run(ctx, Source{filepath.Join(dir, "main.js"), `import {observe_agent} from "noe:agent";
-setTimeout(()=>tick(),10);
-await observe_agent({logPath:"events.jsonl",runId:"child",wait:true});`})
+	code, err := h.run()
 	if code == 0 || err == nil || !errors.Is(ctx.Err(), context.Canceled) || !ticked.Load() {
 		t.Fatalf("code=%d err=%v ticked=%v", code, err, ticked.Load())
 	}

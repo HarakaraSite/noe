@@ -23,4 +23,5 @@ GOWORK=off CGO_ENABLED=0 go run .
 `v2.0.0-dev.0` is a development placeholder for this local replacement, not a
 published tag. The [Go embedding guide](../../docs/go-embedding.md) explains
 capabilities, ownership, cancellation, Workers, and publication-time commands.
-Agent embedding is a later step and is not exposed by this package.
+The separate [agent example](../agent-embedding/README.md) adds agent functionality
+without changing this generic package.

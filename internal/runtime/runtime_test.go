@@ -51,7 +51,10 @@ func TestModuleCompletion(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var stdout bytes.Buffer
-			h, err := newHost(Options{Stdout: &stdout})
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			source := Source{filepath.Join(t.TempDir(), "main.js"), tc.source}
+			h, err := newHost(ctx, Options{Stdout: &stdout}, source)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -73,9 +76,7 @@ func TestModuleCompletion(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			code, err := h.run(ctx, Source{filepath.Join(t.TempDir(), "main.js"), tc.source})
+			code, err := h.run()
 			if stdout.String() != tc.out {
 				t.Fatalf("out=%q want=%q", &stdout, tc.out)
 			}

@@ -48,7 +48,8 @@ throw error;`
 }
 
 func TestExceptionRetainsOriginalGoCause(t *testing.T) {
-	h, err := newHost(Options{})
+	source := Source{filepath.Join(t.TempDir(), "cause.js"), `fail()`}
+	h, err := newHost(context.Background(), Options{}, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +58,7 @@ func TestExceptionRetainsOriginalGoCause(t *testing.T) {
 	if err := h.rt.Set("fail", func() error { return want }); err != nil {
 		t.Fatal(err)
 	}
-	_, err = h.run(context.Background(), Source{filepath.Join(t.TempDir(), "cause.js"), `fail()`})
+	_, err = h.run()
 	if !errors.Is(err, want) {
 		t.Fatalf("Go cause lost: %v", err)
 	}
