@@ -14,8 +14,25 @@ import (
 	"time"
 )
 
+// waitNetOperations joins native operation goroutines without closing the Host.
+// AsyncWork.Complete posts the Promise callback before marking its work done,
+// so an awaited Promise alone is not a barrier for the final Busy check.
+func waitNetOperations(t *testing.T, h *Host) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		h.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("native socket operations did not finish")
+	}
+}
+
 func TestNetListenTCPAddressAcceptAndIndependentClose(t *testing.T) {
-	rt, _ := netRuntime(t, t.TempDir(), nil)
+	rt, h := netRuntime(t, t.TempDir(), nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen,connect}=await import("noe:sockets");
   const listener=await listen({network:"tcp",host:"127.0.0.1",port:0});
@@ -41,6 +58,7 @@ func TestNetListenTCPAddressAcceptAndIndependentClose(t *testing.T) {
 	if got := result.String(); !strings.Contains(got, `"network":"tcp"`) || !strings.Contains(got, `"port":`) {
 		t.Fatalf("listener address = %q", got)
 	}
+	waitNetOperations(t, h)
 	if rt.Busy() {
 		t.Fatalf("closed listener and accepted sockets retained runtime work: busy=%v", rt.Busy())
 	}
@@ -221,7 +239,7 @@ func TestNetListenUnixPrePublishReplacementSurvives(t *testing.T) {
 					_ = replacementListener.Close()
 				}
 			})
-			rt, _ := netRuntimeWithListen(t, dir, nil, listen)
+			rt, h := netRuntimeWithListen(t, dir, nil, listen)
 			result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen}=await import("noe:sockets");
   try { await listen({network:"unix",path:"public.sock"}); return "resolved"; }
@@ -268,6 +286,7 @@ func TestNetListenUnixPrePublishReplacementSurvives(t *testing.T) {
 			if err != nil || !os.SameFile(before, after) {
 				t.Fatalf("replacement identity changed: before=%v after=%v err=%v", before, after, err)
 			}
+			waitNetOperations(t, h)
 			if rt.Busy() {
 				t.Fatalf("failed bind retained runtime work: busy=%v", rt.Busy())
 			}
