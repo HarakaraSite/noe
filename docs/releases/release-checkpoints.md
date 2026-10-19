@@ -767,3 +767,35 @@ The downloaded Linux amd64 binary passed all 29 retained native CLI checks and t
 Embedded build information confirms the tagged revision, vcs.modified=false, pinned go-quickjs v0.27.0, unchanged dependency versions, and no x/term. The versioned ChatGPT helper matches the tagged source byte-for-byte. Downloaded assets and verification records are under `/home/agent/.cache/noe-v1.12.0-published-7txm_pzw`; gates, clean source, local builds and publication scripts are under `/home/agent/.cache/noe-v1.12.0-release-kgnfqe53`. The repository-root `./noe` was updated to the verified published Linux amd64 binary and reports `noe v1.12.0` (49361056 bytes).
 
 This documentation-only verification commit follows publication without moving the release tag. Native execution on macOS, Windows and arm64 remains unverified.
+
+
+## v1.13.0 preparation — 2026-10-19
+
+Checked source revision: `def64e1f165a82858dfb03c634d3d35a92393bf0`. All five gates and profile builds used a clean detached worktree. The user's unrelated `agent-server-build.jsonl` was not copied, read, or staged. This preparation record is a documentation-only follow-up; the release tag includes it without changing checked application or test source.
+
+This release contains Step6's internal standard-library composition, shared output ownership, per-Worker DNS loop binding, installation-error cleanup, and an English internal Go embedding example. Step7 is planned and independently reviewed, but remains unimplemented. The module remains `noe`, the library packages remain internal, and public `/v2` imports are not provided. The user's policy is to use v1.13.0 daily, fix small bugs, and decide on v2.0.0 after confidence from use. See the [release notes](v1.13.0.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1 -timeout=180s` | Passed, 41.642 seconds |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1 -timeout=180s` | Passed, 41.449 seconds |
+| `CGO_ENABLED=0 go vet ./...` | Passed, 0.182 seconds |
+| `CGO_ENABLED=0 go vet -tags=e2e ./...` | Passed, 0.202 seconds |
+| `CGO_ENABLED=1 GORACE=atexit_sleep_ms=0 go test -race ./internal/... -count=1 -timeout=300s` | Passed, 61.247 seconds |
+| Six CGO-free profile builds, `-trimpath -s -w -X noe/internal/cli.Version=v1.13.0` | Passed; SHA256SUMS entries verified |
+| Native CLI checks | All 29 passed: base APIs, docs/owned IO, REPL removal, cancellation and legacy logs |
+| Fixture agent | Passed: instructions, context, hooks, run_js and counters; two local model responses and six hook invocations |
+| Four-mode inventory | Main, Node Worker, nested Worker and Web Worker match the Step6 baseline; 119/119/119/129 globals, 26 Node modules, 41 topics and 100 details |
+| HTTP upload/receive | Independent prefix/ACK barriers, binary bytes, source ownership, CLI/JS docs, finite examples and listener rebind passed |
+| Internal Go host example | Passed: docs lookup and borrowed IO pipe without CLI/agent imports |
+| Build/source/dependencies | Checked revision, vcs.modified=false, pinned go-quickjs v0.27.0, unchanged dependencies and no x/term |
+
+The initial gate run on `7497144de7659c76126cb8dcba73bd1a2a872cac` passed unit/E2E/vet but failed TestNetListenUnixPrePublishReplacementSurvives/file at its immediate Busy assertion, without a data-race report. The engine posts its Promise callback before ending the corresponding AsyncWork, so Promise completion alone did not join the native producer. A test-only correction adds a bounded Host.wg barrier before the unchanged Busy assertion in that test and the previously affected TCP close test. Independent limited review reported no P0–P3; twenty focused race repetitions passed. The final five gates use the corrected checked commit. Initial logs and checks-attempt1.json are retained; no production behavior or engine code was changed or test skipped.
+
+Environment: Linux amd64, Go 1.27.2, C toolchain for race. Short disk-backed temporary path: `/var/tmp/n13-xtnwdxg2`. E2E reused the prepared MCP SDK bundle. Native execution on other targets was not performed. Logs, clean source, six local binaries, checksums and scripts are under `/home/agent/.cache/noe-v1.13.0-release-5gy52pum`.
+
+The [Step6 verification record](../development/stdlib-step6-composition-implementation.md) already passed independent code review and limited re-review with no remaining P0/P1/P2, full unit/race/E2E/vet, six-target builds and test compilation. Its real OpenCode Go / deepseek-v4.1-flash basic task used ten model requests across an initial incomplete attempt and a successful retry that explicitly named noe:http. Both attempts are recorded; the successful retry spontaneously used docs, verified a loopback response, saved the result, closed its listener and answered. No additional real-provider request was made during release preparation.
+
+The socket-test correction was independently reviewed by `/root/stdlib_step6_code_review` with P0/P1/P2/P3 all zero; its bounded completion wait leaves Busy, replacement identity and communication assertions in place. The review and focused-repeat evidence are saved as socket-review.json and socket-completion-race.log.
+
+The tag-triggered workflow and downloaded release assets are verified separately after publication. This release does not claim that daily-use stabilization or Step7 implementation has finished.
