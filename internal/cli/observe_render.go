@@ -87,7 +87,7 @@ func (r *agentRenderer) render(event events.Event) error {
 	text := eventString(event, "text")
 	switch kind {
 	case "context.updated":
-		return r.line(label, "context", contextDetail(event["context"]))
+		return r.line(label, "context:"+contextDetail(event["context"]), "")
 	case "context.trimmed":
 		return r.line(label, "context trimmed", contextTrimDetail(event))
 	case "hook.started", "hook.failed", "hook.cancelled":
@@ -192,80 +192,22 @@ func contextDetail(value any) string {
 		return "unknown"
 	}
 	var snapshot struct {
-		Budget struct {
-			InputTokens *int64 `json:"inputTokens"`
-		} `json:"budget"`
-		ModelWindow struct {
-			Tokens *int64 `json:"tokens"`
-		} `json:"modelWindow"`
-		Previous *struct {
-			RequestID    string `json:"requestId"`
-			Status       string `json:"status"`
-			PromptTokens *int64 `json:"promptTokens"`
-			CachedTokens *int64 `json:"cachedTokens"`
-		} `json:"previous"`
-		Estimate *struct {
-			Tokens int64  `json:"tokens"`
-			Stage  string `json:"stage"`
-		} `json:"estimate"`
+		UsedPercent      *float64 `json:"usedPercent"`
 		ExecutionContext *struct {
-			BudgetSource           string   `json:"budgetSource"`
-			EstimatedTokens        int64    `json:"estimatedTokens"`
-			BudgetTokens           int64    `json:"budgetTokens"`
-			TotalInputBudgetTokens *int64   `json:"totalInputBudgetTokens"`
-			UsedPercent            *float64 `json:"usedPercent"`
+			UsedPercent *float64 `json:"usedPercent"`
 		} `json:"executionContext"`
-		RemainingTokens *int64 `json:"remainingTokens"`
 	}
-	if json.Unmarshal(encoded, &snapshot) != nil || string(encoded) == "null" {
+	if json.Unmarshal(encoded, &snapshot) != nil {
 		return "unknown"
 	}
-	number := func(n *int64) string {
-		if n == nil {
-			return "unknown"
-		}
-		return strconv.FormatInt(*n, 10)
+	percent := snapshot.UsedPercent
+	if snapshot.ExecutionContext != nil {
+		percent = snapshot.ExecutionContext.UsedPercent
 	}
-	budget, remaining := snapshot.Budget.InputTokens, snapshot.RemainingTokens
-	if execution := snapshot.ExecutionContext; execution != nil && execution.TotalInputBudgetTokens != nil {
-		budget = execution.TotalInputBudgetTokens
-		remaining = nil
-		if snapshot.Estimate != nil {
-			value := *budget - snapshot.Estimate.Tokens
-			remaining = &value
-		}
+	if percent == nil {
+		return "unknown"
 	}
-	parts := []string{"budget=" + number(budget), "window=" + number(snapshot.ModelWindow.Tokens)}
-	if snapshot.Estimate != nil {
-		parts = append(parts, fmt.Sprintf("estimated=%d (%s)", snapshot.Estimate.Tokens, snapshot.Estimate.Stage))
-	} else {
-		parts = append(parts, "estimated=unknown")
-	}
-	parts = append(parts, "remaining="+number(remaining))
-	if p := snapshot.Previous; p != nil {
-		measurement := "previous=" + number(p.PromptTokens)
-		if p.PromptTokens != nil {
-			measurement += " measured"
-		}
-		parts = append(parts, measurement+" ["+shortID(p.RequestID)+"]", "cached="+number(p.CachedTokens), p.Status)
-	} else {
-		parts = append(parts, "previous=unknown")
-	}
-	if execution := snapshot.ExecutionContext; execution != nil {
-		percent := "unknown"
-		if execution.UsedPercent != nil {
-			percent = fmt.Sprintf("%.1f%%", *execution.UsedPercent)
-		}
-		source := execution.BudgetSource
-		if source == "" {
-			source = "unknown"
-		}
-		parts = append(parts, fmt.Sprintf("execution=~%d/%d tokens (%s, source=%s)", execution.EstimatedTokens, execution.BudgetTokens, percent, source))
-	}
-	if snapshot.Budget.InputTokens != nil {
-		parts = append(parts, "explicitBudget="+number(snapshot.Budget.InputTokens))
-	}
-	return strings.Join(parts, " / ")
+	return fmt.Sprintf("%.1f%%", *percent)
 }
 
 func contextTrimDetail(event events.Event) string {

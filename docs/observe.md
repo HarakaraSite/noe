@@ -5,10 +5,13 @@
 protected user messageとして追加します。live contextのtrim回数もinstance内で継続し、
 新しいagent instanceは独立した会話とtrim状態を持ちます。
 
-`--observe`と保存ログの表示では、`context:`行に入力予算・モデルwindow・次要求の
-`estimated`値・残量・`previous`実測と、実行履歴の使用量／予算／sourceを表示する。`budget`と`remaining`には計算済みの総入力予算とその残量を使い、window不明時もfallback予算を表示する。明示した設定値は`explicitBudget`として別に表示する。古いログに計算済み予算がなければ明示予算を使い、それも不明なら`unknown`。
-実際に切り捨てた時だけ`context.trimmed`から前後概算と削除block数を表示する。
-概算はtokenizerによる実測ではなく、`preparing`/`sent`は算出した段階を示す。
+`--observe`と保存ログの人間向け表示では、`context:0.2%`のように実行履歴の
+予算使用率だけを小数1桁で表示します。割合が不明なら`context:unknown`です。
+古いログに`executionContext`がない場合は、記録されている`context.usedPercent`を使います。
+入力予算・モデルwindow・次要求の概算・残量・前回実測・cache・予算のsourceは、
+JSONLと構造化snapshotに引き続き保持します。
+実際に切り捨てた時だけ`context.trimmed`から前後概算と削除block数を表示します。
+概算はtokenizerによる実測ではなく、JSONLの`preparing`/`sent`は算出した段階を示します。
 画像を含む要求では`context.estimate.imageTokens`に画像分の概算を分けて記録し、`method`に`image_32px_patches_x1.2_fallback`を含めます。これはtokenizerや請求額の実測ではありません。式と`low` detailの寸法扱いは[画像ガイド](agent-images.md)を参照してください。
 `hook started`は実行中のphase/moduleを表示し、失敗・取消しも確認できる。
 JSONLと観察snapshotには`groupId`、group累計の`execution`、要求単位の`context`を残す。
@@ -71,7 +74,7 @@ started: provider/model
 model: waiting for response
 
 [parent-A run=12345678]
-context: budget=1000000 / window=unknown / estimated=... / execution=~.../... tokens (..., source=fallback)
+context:0.2%
 
 [parent-A run=12345678 tool=abcdef12]
 run_js started: Read README.md
