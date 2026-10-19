@@ -661,3 +661,20 @@ All five final gates ran sequentially before the six builds. Environment: Linux 
 Before the version update, the maintained-stdlib source also passed independent code review, per-mode API comparison, unit/race/E2E/vet and six-target compilation. An authorized real OpenCode Go / `deepseek-v4.1-flash` agent completed the basic file-read/aggregate/write/verify/final-answer flow in 10.368 seconds, with three provider requests and two successful `run_js` calls. That separate observation is retained in the [implementation record](../development/stdlib-step2-runtime-implementation.md). Release preparation did not repeat real-provider calls.
 
 Native execution was performed on Linux amd64; other targets have cross-build evidence. The tag-triggered workflow and downloaded release assets are checked separately after publication.
+
+
+## v1.10.0 Release validation — 2026-10-19
+
+- Annotated tag: `v1.10.0`, pointing to `a28b0537a9024cc0fb5da7f16753fa7e21ea0a1b`. The peeled remote tag matches the successful workflow commit and includes the checked source plus its preparation record.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/17): succeeded (API run ID 198, job ID 219).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.10.0): published, neither draft nor prerelease (Release ID 131). Its description matches the committed [release notes](v1.10.0.md).
+
+The tag-triggered workflow passed the CGO-free unit/vet gates, built all six profile targets and uploaded the binaries plus `SHA256SUMS`. All seven assets were downloaded, and all six binary hashes matched the published manifest.
+
+The downloaded Linux amd64 binary passed all 29 native CLI checks and the fixture-agent smoke (two local model requests, six hook invocations). Its main, Node-style Worker, nested Worker and Web Worker inventories exactly match the maintained-stdlib feature baseline. Checks cover version, arithmetic, imports, Intl, streams and process ownership, offline docs and aliases, positional I/O over TCP/Unix, signal delivery, timeout/cancellation, removed REPL behavior and legacy log rendering. No further real-provider calls were made during publication checks.
+
+Embedded build information confirms the release-tag revision, `vcs.modified=false`, go-quickjs v0.27.0, all expected dependency versions and the absence of an embedded x/term dependency. The versioned ChatGPT helper matches the tagged source byte-for-byte.
+
+Downloaded assets and verification records are under `/tmp/noe-v1.10.0-published-kdm90dws/`; gate logs, clean source, local builds, initial failure evidence and smoke records are under `/tmp/noe-v1.10.0-release-npfmrpt0/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.10.0` (49,291,424 bytes).
+
+This documentation-only verification commit follows publication without moving the release tag. Native execution on macOS, Windows and arm64 remains unverified.
