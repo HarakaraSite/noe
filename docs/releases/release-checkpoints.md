@@ -799,3 +799,16 @@ The [Step6 verification record](../development/stdlib-step6-composition-implemen
 The socket-test correction was independently reviewed by `/root/stdlib_step6_code_review` with P0/P1/P2/P3 all zero; its bounded completion wait leaves Busy, replacement identity and communication assertions in place. The review and focused-repeat evidence are saved as socket-review.json and socket-completion-race.log.
 
 The tag-triggered workflow and downloaded release assets are verified separately after publication. This release does not claim that daily-use stabilization or Step7 implementation has finished.
+
+
+## v1.13.0 Release validation — 2026-10-19
+
+- Annotated tag: `v1.13.0`, pointing to `667b586b22b8dc5e42aa74f494e49625bf1bad5a`. The peeled remote tag matches the successful workflow commit and contains the checked source plus the preparation record.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/20): succeeded (API run ID 201).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.13.0): published, neither draft nor prerelease (Release ID 134). Its body matches the committed [English notes](v1.13.0.md).
+
+The actual runner passed unit tests and vet, built all six targets and uploaded the six binaries plus SHA256SUMS. All seven assets were downloaded and every binary hash matched the published checksums. The downloaded Linux amd64 binary passed the native CLI checks, fixture agent/run_js/hooks, four-mode API inventory, independent HTTP upload and receive barriers, docs equality, finite examples and listener cleanup. No model-provider request was made for publication verification.
+
+Build information confirms the tagged revision with vcs.modified=false, go-quickjs v0.27.0, unchanged dependency versions and no x/term. The versioned ChatGPT helper matches the tagged source. Published downloads and verification records are under `/home/agent/.cache/noe-v1.13.0-published-c5qpqpe8`; source, gates, local builds and publication scripts are under `/home/agent/.cache/noe-v1.13.0-release-5gy52pum`.
+
+The repository-root `./noe` was updated from the verified published Linux amd64 binary and reports `noe v1.13.0` (49373344 bytes). Native execution on other targets remains unverified. This documentation-only follow-up does not move or replace the release tag. Daily-use stabilization before v2.0.0 remains future work, and Step7 remains planned and unimplemented.
