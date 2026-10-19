@@ -552,3 +552,26 @@ Embedded build information confirms the release-tag revision, `vcs.modified=fals
 Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.1-published-o58ng4ux/`; orchestration, gate logs and fixture records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.7.1-release-mtd4niey/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.7.1` (49,180,832 bytes).
 
 This documentation-only follow-up records publication without moving the tag. Native execution on macOS, Windows and arm64 remains unverified.
+
+
+## v1.8.0 preparation — 2026-10-19
+
+Checked source revision: `ca34c5b89f4666a87d28a2d7baab68567a1326cc`. The preparation follow-up adds this record only. Gates and builds used a clean detached worktree, excluding the unrelated `agent-server-build.jsonl`.
+
+This release adds `noe:fs-handle`, `noe:sockets`, `noe:signals`, and bundled English API docs through the CLI and JavaScript, including main/Worker/run_js integration and agent discovery instructions. The catalog has 40 topics and 98 detailed sections. CLI defaults, version assertions, README release links and [release notes](v1.8.0.md) use v1.8.0. Dependencies and the release profile/workflow are unchanged. Feature checks and independent reviews are recorded in the [low-level I/O record](../development/low-level-group2-implementation.md) and [docs record](../development/builtin-docs-implementation.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1` | Passed |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1` | Passed, including Linux PTY, low-level I/O, docs and local provider fixtures |
+| `CGO_ENABLED=0 go vet ./...` and `go vet -tags=e2e ./...` | Passed |
+| `CGO_ENABLED=1 GORACE=atexit_sleep_ms=0 go test -race ./internal/... -count=1` | Passed |
+| Six CGO-free profile builds, `-trimpath -s -w -X noe/internal/cli.Version=v1.8.0` | Passed; all local SHA256SUMS entries verified |
+| Existing native CLI smoke checks | Eleven passed: version, arithmetic, lazy modules, Intl, helper help, import maps, streams, owned process, Exa import, image exports/catalog |
+| New API smoke checks | Nine passed: configuration-independent docs, aliases, private-topic rejection, CLI/JS/Worker content, positional I/O over TCP/Unix roundtrips, SIGTERM delivery and cleanup |
+| Embedded dependencies and VCS information | Retained versions, go-quickjs v0.27.0, checked revision and `vcs.modified=false` |
+| Changed-document local links and whitespace | All references resolve; staged diff whitespace checks passed |
+
+All five gates ran sequentially before the six builds. Environment: Linux amd64, Go 1.27.2, C toolchain for race and Linux PTY. The optional external MCP SDK bundle was not present and its opt-in check was not enabled. Its prior implementation evidence remains in the feature record. Local Linux amd64 size: 49,483,936 bytes. Gate logs, checksums, builds, smoke scripts and records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.8.0-release-xf677opo/`.
+
+The already-authorized real-provider docs checks used OpenCode Go / deepseek-v4.1-flash: both natural tasks consulted docs without task-level prompting and completed successfully in nine provider requests total. Those observations are recorded separately; no additional real-provider request was made during release preparation. Other platforms have cross-build evidence only. The tag-triggered workflow and downloaded assets are verified after publication.
