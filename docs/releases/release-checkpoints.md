@@ -860,3 +860,26 @@ The actual runner passed its CGO-free unit/vet gates and built all six profile t
 Build information confirms the tagged revision with vcs.modified=false, go-quickjs v0.27.0, unchanged dependency versions and no x/term. The versioned ChatGPT helper matches the tagged source. Published downloads are under `/home/agent/.cache/noe-v1.14.0-published-6oyku759`; raw checks, local builds and publication records are under `/home/agent/.cache/noe-v1.14.0-release-bcw68s4d`. The existing repository-root binary was preserved. Runtime behavior on non-Linux targets remains unverified.
 
 This documentation-only follow-up does not move the release tag. The CLI release stays on v1; there is no v2 tag or claim of a downloadable v2 Go module. Daily use and small bug fixes precede the decision to publish v2.0.0.
+
+
+## v1.14.1 preparation — 2026-10-20
+
+Checked source revision: `1a137150b2f298c415afa2ae3cb03bf5cede4ab6`. Gates and all six profile builds used a clean detached worktree. The unrelated `agent-server-build.jsonl` and ignored local files were excluded. This preparation entry and the release-note validation paragraph are documentation-only follow-ups and change no checked application or test source.
+
+This patch adds fixed built-in agent-provider retries (three attempts, 2-second and 4-second waits), preserves cancellation and committed history, avoids replaying hooks/tools, and keeps retry-specific events disabled. It also includes the typed two-line observer labels, consistent short control IDs with `agents --full`, concise context percentages, and one terminal context update per model request. Complete but invalid model responses are distinguished from stream transport failures so output-limit/refusal responses are not treated as retryable disconnections. See the [release notes](v1.14.1.md).
+
+| Check | Result |
+| --- | --- |
+| `go test ./... -count=1 -timeout=300s` | Passed, 46.228 seconds |
+| `go test -tags=e2e ./... -count=1 -timeout=300s` | Passed, 50.505 seconds |
+| `go vet ./...` | Passed, 0.93 seconds |
+| `go vet -tags=e2e ./...` | Passed, 0.928 seconds |
+| `go test -race ./internal/... ./stdlib/... ./agent/... -count=1 -timeout=300s` | Passed, 69.954 seconds |
+| Six CGO-free profile builds with `-trimpath`, stripped symbols and version `v1.14.1` | Passed; all local SHA256SUMS entries verified |
+| Linux amd64 binary | Reports `noe v1.14.1`; build info matches the checked revision with `vcs.modified=false` |
+| Built binary with local HTTP fixtures | Passed: one completed tool, HTTP 503 then truncated SSE then recovery, identical retry inputs, two logical requests/four HTTP attempts, six hook calls, no extra model/context/retry events |
+| Shared retry and adapter fixtures | Passed: attempts at 0/2/6 seconds, exhaustion, permanent errors, cancellation/deadline during wait, isolated response state across both SDKs and Chat/Responses APIs |
+
+The first E2E gate used `/var/tmp/n141-vkkqk2vc` as its temporary directory and failed only the Unix-socket observation case because its generated socket pathname exceeded the OS limit of 107 bytes. The same source and assertions passed with the shorter temporary directory `/tmp/n141`. The initial log and checks-attempt1.json are preserved; no application or test source was changed to bypass the failure.
+
+Environment: Linux amd64, Go 1.27.2 and a C toolchain. E2E used the prepared MCP SDK bundle. Logs, clean checkout, local binaries, checksums and verification scripts are under `/home/agent/.cache/noe-v1.14.1-release-uegu4t7l`. No real model-provider request was made. Cross-builds establish compilation only; runtime behavior on macOS, Windows and arm64 remains unverified. The tag-triggered workflow and downloaded Release assets are verified separately after publication.
