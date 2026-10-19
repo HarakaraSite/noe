@@ -1,4 +1,4 @@
-module noe
+module forge.harakara.site/littleisland/noe/v2
 
 go 1.27.2
 

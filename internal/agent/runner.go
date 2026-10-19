@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	processrunner "noe/internal/agent/runner"
-	"noe/internal/modulemap"
+	processrunner "forge.harakara.site/littleisland/noe/v2/internal/agent/runner"
+	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 )
 
 // Runner starts a fresh NOE process for each JavaScript execution.

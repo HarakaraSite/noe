@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/stdlib"
 )
 
 const signalWorkerHelperEnv = "NOE_NATIVEIO_SIGNAL_WORKER_HELPER"

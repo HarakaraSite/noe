@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/hostio"
-	"noe/internal/stdlib"
+	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
+	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )

@@ -5,8 +5,8 @@ import (
 	"io"
 	"testing"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/stdlib"
 )
 
 // The struct type is comparable, but its interface can contain a slice or map.

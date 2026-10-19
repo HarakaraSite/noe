@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func readEvents(t *testing.T, text string) []events.Event {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 type limitedInstanceResult struct {

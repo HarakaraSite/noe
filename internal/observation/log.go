@@ -10,7 +10,7 @@ import (
 	"io"
 	"os"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 type record struct {

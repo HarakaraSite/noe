@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func fieldsWith(base, additional events.Event) events.Event {

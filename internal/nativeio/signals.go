@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"noe/internal/signals"
+	"forge.harakara.site/littleisland/noe/v2/internal/signals"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )

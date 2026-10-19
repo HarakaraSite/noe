@@ -2,8 +2,8 @@ package agent
 
 import (
 	"encoding/json"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 	"math"
-	imageapi "noe/internal/image"
 )
 
 // An explicitly labelled approximation, not a provider tokenizer or billing

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"noe/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testing.T) {

@@ -7,10 +7,10 @@ import (
 	"io"
 	"reflect"
 
-	"noe/internal/apidocs"
-	"noe/internal/hostio"
-	"noe/internal/nativeio"
-	"noe/internal/stdlib"
+	"forge.harakara.site/littleisland/noe/v2/internal/apidocs"
+	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
+	"forge.harakara.site/littleisland/noe/v2/internal/nativeio"
+	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )

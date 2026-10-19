@@ -14,8 +14,8 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/processscope"
 	"golang.org/x/sys/unix"
-	"noe/internal/processscope"
 )
 
 const (

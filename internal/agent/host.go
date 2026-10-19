@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/decision"
-	"noe/internal/events"
-	imageapi "noe/internal/image"
-	"noe/internal/modulemap"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/decision"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
+	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 )
 
 // Options configures an agent host. Provider and ProviderOptions are used only

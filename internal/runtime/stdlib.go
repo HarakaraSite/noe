@@ -2,19 +2,19 @@ package runtime
 
 import (
 	"fmt"
+	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 	"net/url"
-	"noe/internal/modulemap"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"forge.harakara.site/littleisland/noe/v2/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/stdlib"
 )
 
 // stdlibConfig supplies NOE's local CLI authority and execution callbacks.
-// Generic module registration and Worker additions belong to noestdlib.
-func (h *host) stdlibConfig(opts Options) stdlib.Config {
+// Generic module registration and Worker additions use the public stdlib entry.
+func (h *host) stdlibConfig(opts Options) stdlib.CoreConfig {
 	env := currentEnvironment()
 	workers := &stdlib.Workers{
 		New:  h.newWorkerRuntime,
@@ -23,7 +23,7 @@ func (h *host) stdlibConfig(opts Options) stdlib.Config {
 		Max: -1,
 	}
 
-	return stdlib.Config{
+	return stdlib.CoreConfig{
 		Stdout: opts.Stdout,
 		Stderr: opts.Stderr,
 		Loop:   h.loop.std,

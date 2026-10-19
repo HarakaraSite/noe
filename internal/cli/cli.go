@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"noe/internal/apidocs"
-	"noe/internal/events"
-	"noe/internal/modulemap"
-	"noe/internal/runtime"
+	"forge.harakara.site/littleisland/noe/v2/internal/apidocs"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
+	"forge.harakara.site/littleisland/noe/v2/internal/runtime"
 )
 
-// Version can be set at build time using -ldflags '-X noe/internal/cli.Version=...'.
+// Version can be set at build time using -ldflags '-X forge.harakara.site/littleisland/noe/v2/internal/cli.Version=...'.
 var Version = "v1.13.0"
 
 const usage = `Usage:

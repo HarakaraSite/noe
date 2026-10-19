@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"noe/internal/decision"
-	"noe/internal/events"
-	imageapi "noe/internal/image"
+	"forge.harakara.site/littleisland/noe/v2/internal/decision"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
 func (b *broker) handleGenerateImage(w http.ResponseWriter, r *http.Request, op *Operation) {

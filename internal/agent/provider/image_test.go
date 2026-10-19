@@ -13,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	imageapi "noe/internal/image"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
 const fixtureImage = "fixture-image-bytes"

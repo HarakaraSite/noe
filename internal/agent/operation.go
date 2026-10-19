@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 // Operation is the cancellation and scope boundary for one runtime evaluation.

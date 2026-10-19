@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 	"net/http"
-	imageapi "noe/internal/image"
 	"path/filepath"
 	"sort"
 )

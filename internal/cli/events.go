@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"noe/internal/agent"
-	"noe/internal/events"
-	"noe/internal/hostio"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 )
 
 // observation owns its file and output adapters for exactly one CLI invocation.

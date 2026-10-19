@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent"
-	"noe/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 )
 
 func writeObservationLog(t *testing.T, path string, rows ...map[string]any) {

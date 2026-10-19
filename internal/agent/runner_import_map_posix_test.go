@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/modulemap"
+	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 )
 
 func TestRunnerPrivateImportMapLifetime(t *testing.T) {

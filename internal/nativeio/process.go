@@ -9,7 +9,7 @@ import (
 	"sort"
 	"sync"
 
-	"noe/internal/process"
+	"forge.harakara.site/littleisland/noe/v2/internal/process"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )

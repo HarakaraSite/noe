@@ -19,7 +19,7 @@ build:
   product: noe
   package: ./cmd/noe
   cgo_enabled: false
-  ldflags: '-s -w -X noe/internal/cli.Version=${{ forgejo.ref_name }}'
+  ldflags: '-s -w -X forge.harakara.site/littleisland/noe/v2/internal/cli.Version=${{ forgejo.ref_name }}'
   targets:
     - linux/amd64
     - linux/arm64

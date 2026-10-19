@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"testing"
 
-	"noe/internal/agent"
-	"noe/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 )
 
 var runtimeTestExecutable string

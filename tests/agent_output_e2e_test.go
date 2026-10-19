@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 const verboseToolSource = `// Emit more output than the retained stream budgets

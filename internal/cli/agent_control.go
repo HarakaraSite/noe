@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"noe/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 func runAgentControl(ctx context.Context, args []string, stdout, stderr io.Writer) int {

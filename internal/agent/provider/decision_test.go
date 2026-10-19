@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/decision"
+	"forge.harakara.site/littleisland/noe/v2/internal/decision"
 )
 
 func decisionRequest(model string) decision.Request {

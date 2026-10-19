@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/credentials"
 	openrouter "github.com/OpenRouterTeam/go-sdk"
 	"github.com/OpenRouterTeam/go-sdk/models/components"
 	"github.com/OpenRouterTeam/go-sdk/models/operations"
@@ -27,8 +29,6 @@ import (
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
-	"noe/internal/agent/provider"
-	"noe/internal/credentials"
 )
 
 type wire struct {

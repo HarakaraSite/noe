@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"noe/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 )
 
 func TestAgentRootRequiresProviderModelAndEffort(t *testing.T) {

@@ -12,13 +12,13 @@ import (
 	"strings"
 	"sync"
 
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 	openrouter "github.com/OpenRouterTeam/go-sdk"
 	"github.com/OpenRouterTeam/go-sdk/models/components"
 	"github.com/OpenRouterTeam/go-sdk/models/operations"
 	"github.com/OpenRouterTeam/go-sdk/retry"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-	imageapi "noe/internal/image"
 )
 
 type imageAdapter struct {

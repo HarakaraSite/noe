@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"noe/internal/events"
-	agentobservation "noe/internal/observation"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	agentobservation "forge.harakara.site/littleisland/noe/v2/internal/observation"
 )
 
 func runObserve(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {

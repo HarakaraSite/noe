@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/decision"
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/decision"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func (b *broker) handleDecide(w http.ResponseWriter, r *http.Request, op *Operation) {

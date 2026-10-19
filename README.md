@@ -75,9 +75,10 @@ Roots require explicit `provider`, `model`, and `effort`. `--observe` displays p
 | Inspect/generate images or request structured decisions | [Images](docs/agent-images.md) · [Decisions](docs/decision.md) |
 | Use live child-process I/O or HTTP | [Processes and streams](docs/process-io.md) · [HTTP examples](examples/http/README.md) |
 | Use positional file I/O, TCP/Unix sockets, or OS signals | [Files, sockets, and signals](docs/low-level-io.md) |
+| Embed generic JavaScript APIs in a Go application | [Go embedding guide](docs/go-embedding.md) (English) |
 | Explore examples or develop NOE | [Examples](examples/README.md) · [Documentation](docs/README.md) · [Development guide](docs/development/README.md) |
 
-The linked guides are currently in Japanese. For older scripts, see the [API migration guide](docs/api.md#旧apiからの移行).
+Most linked guides are currently in Japanese. For older scripts, see the [API migration guide](docs/api.md#旧apiからの移行).
 
 ## Capabilities and compatibility
 

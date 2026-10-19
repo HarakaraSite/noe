@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 func awaitControlAgent(t *testing.T, ctx context.Context, dir string, predicate func(agent.AgentSnapshot) bool) agent.AgentSnapshot {

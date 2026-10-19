@@ -1,6 +1,6 @@
 package agent
 
-import "noe/internal/observation"
+import "forge.harakara.site/littleisland/noe/v2/internal/observation"
 
 // ObserveLog joins the same operation lifetime as provider requests. Closing an
 // evaluation cancels a pending wait and joins its file work before returning.

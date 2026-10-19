@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"noe/internal/modulemap"
+	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 )
 
 // normalizeHookModules binds registered hook specifiers to absolute module

@@ -11,15 +11,14 @@ import (
 	"strings"
 	"sync"
 
-	"noe/internal/agent"
-	"noe/internal/credentials"
-	"noe/internal/decision"
-	imageapi "noe/internal/image"
-	"noe/internal/modulemap"
-	"noe/internal/noestdlib"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/credentials"
+	"forge.harakara.site/littleisland/noe/v2/internal/decision"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
+	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 
+	"forge.harakara.site/littleisland/noe/v2/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/stdlib"
 )
 
 // Source keeps loading separate from execution.
@@ -102,9 +101,9 @@ func newHost(opts Options) (*host, error) {
 		h.rt.Close()
 		return nil, err
 	}
-	bindings, err := noestdlib.Install(h.rt, noestdlib.Config{
+	bindings, err := stdlib.Install(h.rt, stdlib.Config{
 		Core: h.stdlibConfig(opts),
-		IO:   &noestdlib.IOConfig{Stdin: opts.Stdin, Cwd: cwd},
+		IO:   &stdlib.IOConfig{Stdin: opts.Stdin, Cwd: cwd},
 		Docs: true,
 	})
 	if err != nil {

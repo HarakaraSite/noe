@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/cli"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/cli"
 
 	openrouter "github.com/OpenRouterTeam/go-sdk"
 	"github.com/OpenRouterTeam/go-sdk/models/components"

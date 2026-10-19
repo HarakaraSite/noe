@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 type beginModelStepRequest struct {

@@ -12,7 +12,7 @@ The Forgejo workflow generated from this profile runs the following on the confi
 
 1. Set up the Go version specified in `go.mod` (currently 1.27.2).
 2. Run `CGO_ENABLED=0 go test ./...` and `CGO_ENABLED=0 go vet ./...`.
-3. Build `./cmd/noe` with CGO disabled, `-trimpath`, and the profile's ldflags. Embed the tag in `noe/internal/cli.Version`.
+3. Build `./cmd/noe` with CGO disabled, `-trimpath`, and the profile's ldflags. Embed the tag in `forge.harakara.site/littleisland/noe/v2/internal/cli.Version`.
 4. Produce `noe-linux-amd64`, `noe-linux-arm64`, `noe-darwin-amd64`, `noe-darwin-arm64`, `noe-windows-amd64.exe`, and `noe-windows-arm64.exe`, plus `SHA256SUMS`.
 5. Upload the binaries and checksums on success using `actions/forgejo-release@v2` and the automatic `forgejo.token`.
 
@@ -25,12 +25,20 @@ The `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`, `v1.3.1`, `v1.3.2`, `v1.3.3`, `v1.4.
 Run these commands from the repository root on VM201 (Linux amd64, Go 1.27.2, C toolchain), and record the code revision and results here before tagging:
 
 ```sh
-CGO_ENABLED=1 go test -race ./internal/... -count=1
+CGO_ENABLED=1 go test -race ./internal/... ./stdlib/... -count=1
 go test -tags=e2e ./... -count=1
 go vet -tags=e2e ./...
 ```
 
 These are reference-environment checks, not generated workflow steps. E2E includes the actual CLI, local HTTP and file operations, agents, and cancellation/cleanup. REPL and its PTY checks were removed after v1.8.0; the historical evidence below retains the checks performed for those releases. Race requires a C toolchain. No system-package installation is added to the release workflow to run these checks.
+
+Before the first authorized v2 publication, also run the external consumer checks
+in the [Go embedding guide](../go-embedding.md). After the actual v2 tag and
+module are published, create a clean module outside the checkout, run
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@<published-v2-tag>`, and
+build and run the example without a local replacement or synthetic proxy. Record
+the selected module and engine versions. Local artifact checks do not establish
+that the published module can be downloaded.
 
 ## v1.0.0 preparation — 2026-10-12
 

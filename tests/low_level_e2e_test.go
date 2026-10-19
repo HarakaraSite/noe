@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"noe/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 // No protocol helper is installed in Go: the same public modules implement

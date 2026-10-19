@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"noe/internal/mdcli/highlight"
+	"forge.harakara.site/littleisland/noe/v2/internal/mdcli/highlight"
 )
 
 func TestRenderDisabledReturnsRawText(t *testing.T) {

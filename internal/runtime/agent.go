@@ -6,8 +6,8 @@ import (
 	"errors"
 	"path/filepath"
 
-	"noe/internal/agent"
-	"noe/internal/observation"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/observation"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )

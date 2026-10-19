@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent"
-	"noe/internal/decision"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/decision"
 )
 
 type decisionProviderFunc func(context.Context, decision.Request) (decision.Response, error)

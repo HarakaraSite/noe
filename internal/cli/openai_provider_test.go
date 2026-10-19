@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/credentials"
+	"forge.harakara.site/littleisland/noe/v2/internal/credentials"
 )
 
 func TestCLIOpenAIChatGPTParentChildAndAPIKeyRoute(t *testing.T) {

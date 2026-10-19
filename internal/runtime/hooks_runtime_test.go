@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/events"
-	"noe/internal/modulemap"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 )
 
 func writeRuntimeHookFixture(t *testing.T, cwd string) string {

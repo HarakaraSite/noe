@@ -10,7 +10,7 @@ import (
 	"os"
 	"sync"
 
-	"noe/internal/hostio"
+	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )

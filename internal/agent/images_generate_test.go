@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/events"
-	imageapi "noe/internal/image"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
 type imageProviderFunc func(context.Context, imageapi.Request) (imageapi.Generated, error)

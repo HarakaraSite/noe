@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func TestLogicalStepKeepsSteerAndHookAccountingWithoutObservation(t *testing.T) {

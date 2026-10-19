@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/decision"
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/decision"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func limitPtr(value int64) *int64 { return &value }

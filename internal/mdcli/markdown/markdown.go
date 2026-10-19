@@ -9,7 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"noe/internal/mdcli/highlight"
+	"forge.harakara.site/littleisland/noe/v2/internal/mdcli/highlight"
 )
 
 // Styling stays inside the sixteen ANSI colors so it renders in the reader's

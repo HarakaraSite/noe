@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/signal"
 
-	"noe/internal/cli"
+	"forge.harakara.site/littleisland/noe/v2/internal/cli"
 )
 
 func main() {

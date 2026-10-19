@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"noe/internal/agent/provider"
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func TestHookWorkAndSteersUseInvocationAsTheirCause(t *testing.T) {

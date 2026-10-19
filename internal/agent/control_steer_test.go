@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func controlCall(t *testing.T, op *Operation, method string, payload any) string {

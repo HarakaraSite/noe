@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/decision"
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/decision"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func newManagedTestRun(t *testing.T, h *Host, instance *agentInstance, runID, activityID, commandID, parentRunID string) (*Operation, *agentRun) {

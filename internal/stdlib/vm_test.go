@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/stdlib"
 )
 
 // vmLines runs a script that imports node:vm as vm and logs a line a check,

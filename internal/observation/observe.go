@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 // Cursor identifies a position in one NOE execution's event stream. The

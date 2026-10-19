@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"noe/internal/events"
-	"noe/internal/mdcli/markdown"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/mdcli/markdown"
 )
 
 type agentRenderer struct {

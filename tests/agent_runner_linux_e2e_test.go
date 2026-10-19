@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 func agentPIDFile(t *testing.T, ctx context.Context, name string) int {

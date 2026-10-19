@@ -75,6 +75,7 @@ root agentには`provider`・`model`・`effort`の明示指定が必要です。
 | 画像を読取・生成する、構造化判断を依頼する | [画像](docs/agent-images.md) · [意思決定](docs/decision.md) |
 | 子プロセスの逐次I/OやHTTPを使う | [プロセスとストリーム](docs/process-io.md) · [HTTPの実行例](examples/http/README.md) |
 | ファイルの位置指定I/O・TCP/Unix通信・OSシグナルを使う | [ファイル・ソケット・シグナル](docs/low-level-io.md) |
+| 外部Goアプリへ汎用APIを組み込む | [Go embedding guide（英文）](docs/go-embedding.md) |
 | 実行例を探す、NOEを開発する | [実行例](examples/README.md) · [ドキュメント一覧](docs/README.md) · [開発ガイド](docs/development/README.md) |
 
 旧スクリプトの移行は[API移行ガイド](docs/api.md#旧apiからの移行)を参照してください。

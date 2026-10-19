@@ -15,8 +15,8 @@ import (
 	"strings"
 	"sync"
 
-	"noe/internal/decision"
-	imageapi "noe/internal/image"
+	"forge.harakara.site/littleisland/noe/v2/internal/decision"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
 //go:embed defaults.json

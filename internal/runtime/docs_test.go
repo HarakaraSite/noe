@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/apidocs"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/apidocs"
 )
 
 func TestDocsRuntimeContractAndCatalogExports(t *testing.T) {

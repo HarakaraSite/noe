@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"forge.harakara.site/littleisland/noe/v2/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/stdlib"
 )
 
 // eventLoop drives stdlib and engine jobs on the runtime owner.

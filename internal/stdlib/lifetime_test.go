@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/stdlib"
 )
 
 // TestHelperHeartbeat is not a test: it is the program TestCloseStopsHostWork

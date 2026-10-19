@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/stdlib"
 )
 
 // workerFiles is a Workers that loads code from a map, by the name a script

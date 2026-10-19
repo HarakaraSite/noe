@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"noe/internal/credentials"
+	"forge.harakara.site/littleisland/noe/v2/internal/credentials"
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"

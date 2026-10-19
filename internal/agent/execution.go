@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 // executionGroup is the bounded live summary for one root managed agent.

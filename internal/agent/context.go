@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 const maxSafeContextBudget = int64(1<<53 - 1)

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"noe/internal/agent/provider"
-	"noe/internal/events"
-	imageapi "noe/internal/image"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
 type agentRun struct {

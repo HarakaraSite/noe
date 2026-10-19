@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"noe/internal/processscope"
+	"forge.harakara.site/littleisland/noe/v2/internal/processscope"
 )
 
 // Result is the observable outcome of a child process. A non-zero exit,

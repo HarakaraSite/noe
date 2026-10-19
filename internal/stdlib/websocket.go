@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/stdlib/internal/wsproto"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/stdlib/internal/wsproto"
 )
 
 // WebSockets describes the sockets a runtime may open and accept.

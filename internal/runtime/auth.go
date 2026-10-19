@@ -5,7 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	"noe/internal/credentials"
+	"forge.harakara.site/littleisland/noe/v2/internal/credentials"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )

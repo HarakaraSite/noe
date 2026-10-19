@@ -1,4 +1,4 @@
-// This example lives inside NOE's module because its Go packages are internal.
+// This example embeds NOE through its public Go package.
 package main
 
 import (
@@ -8,9 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"noe/internal/noestdlib"
-	"noe/internal/stdlib"
 )
 
 func main() {
@@ -29,14 +28,14 @@ func run() error {
 	defer rt.Close()
 	loop := stdlib.NewLoop(rt)
 	defer loop.Close()
-	_, err = noestdlib.Install(rt, noestdlib.Config{
-		Core: stdlib.Config{
+	_, err = stdlib.Install(rt, stdlib.Config{
+		Core: stdlib.CoreConfig{
 			Loop: loop, Stdout: os.Stdout, Stderr: os.Stderr,
 			// The IO group requires process for spawn's environment and cwd.
 			// No host environment or process-exit callback is granted here.
 			Process: &stdlib.Process{Cwd: cwd},
 		},
-		IO:   &noestdlib.IOConfig{Stdin: strings.NewReader("Hello from the embedded runtime.\n"), Cwd: cwd},
+		IO:   &stdlib.IOConfig{Stdin: strings.NewReader("Hello from the embedded runtime.\n"), Cwd: cwd},
 		Docs: true,
 	})
 	if err != nil {

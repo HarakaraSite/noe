@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"noe/internal/agent"
-	"noe/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 )
 
 func TestModelCatalogSnapshotWithoutCredentials(t *testing.T) {

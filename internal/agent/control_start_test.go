@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func TestInstanceInterruptClosesBootstrapAdmissionBeforeContextCancellation(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"noe/internal/apidocs"
+	"forge.harakara.site/littleisland/noe/v2/internal/apidocs"
 )
 
 func TestDocsCoverPinnedStdlibModuleRegistry(t *testing.T) {

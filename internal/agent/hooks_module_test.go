@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"noe/internal/modulemap"
+	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 )
 
 func TestNormalizeHookModulesBindsHostPathsAndImportMap(t *testing.T) {

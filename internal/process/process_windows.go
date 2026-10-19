@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/exec"
 
-	"noe/internal/processscope"
+	"forge.harakara.site/littleisland/noe/v2/internal/processscope"
 )
 
 // Start starts config.Command directly and returns its live standard I/O pipes.

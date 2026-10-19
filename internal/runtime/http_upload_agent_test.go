@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"noe/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 )
 
 func TestNoeHTTPUploadAgentConsultsFetchDocsAndSavesRunJSResult(t *testing.T) {

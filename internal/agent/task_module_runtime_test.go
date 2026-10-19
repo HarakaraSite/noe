@@ -8,10 +8,10 @@ import (
 	"sync"
 	"testing"
 
-	"noe/internal/agent"
-	"noe/internal/agent/provider"
-	"noe/internal/events"
-	"noe/internal/runtime"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/runtime"
 )
 
 type taskModuleProvider func(context.Context, provider.Request) (provider.Response, error)
