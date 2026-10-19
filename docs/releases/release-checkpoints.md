@@ -820,3 +820,30 @@ The actual runner passed unit tests and vet, built all six targets and uploaded 
 Build information confirms the tagged revision with vcs.modified=false, go-quickjs v0.27.0, unchanged dependency versions and no x/term. The versioned ChatGPT helper matches the tagged source. Published downloads and verification records are under `/home/agent/.cache/noe-v1.13.0-published-c5qpqpe8`; source, gates, local builds and publication scripts are under `/home/agent/.cache/noe-v1.13.0-release-5gy52pum`.
 
 The repository-root `./noe` was updated from the verified published Linux amd64 binary and reports `noe v1.13.0` (49373344 bytes). Native execution on other targets remains unverified. This documentation-only follow-up does not move or replace the release tag. Daily-use stabilization before v2.0.0 remains future work, and Step7 remains planned and unimplemented.
+
+
+## v1.14.0 preparation — 2026-10-19
+
+Checked source revision: `932b474ba883a7e2947afc2a72a7df6f168b7329`. Gates and six profile builds used a clean detached worktree; unrelated `.gitignore`, `.zed/`, `agent-server-build.jsonl`, `_refs/`, and the repository-root distribution binary were excluded. This preparation entry is documentation-only and changes no checked application or test source.
+
+This release includes Steps 7.1 and 7.2: canonical `/v2` source module, public `stdlib` and `agent` Go packages, shared internal agent bridge, explicit separate NOE execution and context-bound lifetimes, external consumer tests and English guides/examples. The executable remains on the v1 line. A v1.14.0 tag is not a valid v2 Go module version; development embedding uses the documented source checkout/local replacement until an authorized v2 publication. Daily-use stabilization and the v2 release remain future work. See the [English release notes](v1.14.0.md).
+
+| Check | Result |
+| --- | --- |
+| `go test ./... -count=1 -timeout=300s` | Passed, 46.09 seconds |
+| `go test -tags=e2e ./... -count=1 -timeout=300s` | Passed, 42.664 seconds |
+| `go vet ./...` | Passed, 0.913 seconds |
+| `go vet -tags=e2e ./...` | Passed, 0.949 seconds |
+| `go test -race ./internal/... ./stdlib/... ./agent/... -count=1 -timeout=300s` | Passed, 70.249 seconds |
+| Six CGO-free profile builds | Passed, `-trimpath -s -w -X forge.harakara.site/littleisland/noe/v2/internal/cli.Version=v1.14.0`; SHA256SUMS verified |
+| Native Linux CLI checks | All 29 passed; fixture agent ran two local requests and six hooks |
+| Four-mode inventory | Identical baseline: globals 119/119/119/129, 26 Node modules, 41 topics and 100 details |
+| HTTP upload/receive | Prefix/ACK before EOF, binary bytes, CLI/JS docs equality, finite examples and listener rebind passed |
+| Go embedding and external agent | Generic example, agent example and outside consumer reference passed with the v1.14.0 executable |
+| Build/source/dependencies | Checked revision, vcs.modified=false, go-quickjs v0.27.0, unchanged dependency versions and no x/term |
+
+The first E2E attempt failed only because `TestEvalAndCLICommands/version` still expected `noe v1.13.0`. That expectation was corrected to v1.14.0 in a test-only commit, and the full E2E gate passed. The failed log/checks and exact one-line diff are retained as e2e-attempt1.log, checks-attempt1.json and version-test-correction.diff. The initial unit result and native/embedding smokes were retained from `ceab45505bf6977144199c3f16eea3a65573e199` because the sole subsequent change was that E2E expectation; application and default-unit source are identical. Builds were regenerated at the corrected checked revision and their clean build information and checksums reverified. No test was weakened or skipped.
+
+Before release preparation, [Step7.1](../development/stdlib-step7-library-implementation.md) and [Step7.2](../development/stdlib-step72-agent-implementation.md) passed independent review (final P0–P3 all zero), full unit/race/E2E/vet, outside local-replace and synthetic no-replace artifact consumers, and six-target compilation. The generic stdlib closure remains 257 packages with no agent/provider SDK dependency. Step7.2's actual external Go consumer used OpenCode Go / deepseek-v4.1-flash / effort auto, three model requests and two run_js calls to save and reread count3/total31, then verify task completion and a final answer. No additional real-provider requests were made for this release.
+
+Environment: Linux amd64, Go 1.27.2 and C toolchain for race. Go temporary directory: `/var/tmp/n14`. E2E reused the prepared MCP SDK bundle. Raw logs, clean source, six binaries, checksums and scripts: `/home/agent/.cache/noe-v1.14.0-release-bcw68s4d`. Native execution on other targets is unverified. The tag-triggered workflow and downloaded assets are verified separately after publication.
