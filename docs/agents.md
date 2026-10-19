@@ -39,7 +39,7 @@ cp scripts/auth-chatgpt.js "$noe_config_dir/auth-chatgpt.js"
 ./noe run "$noe_config_dir/auth-chatgpt.js"
 ```
 
-表示されたURLをブラウザで開いて登録します。バイナリだけを取得した場合は、`cp`の代わりに[v1.7.1のヘルパー](https://forge.harakara.site/littleisland/noe/raw/tag/v1.7.1/scripts/auth-chatgpt.js)を取得します。リモート端末での登録、認証更新、APIキーとの違いは[OpenAIガイド](openai.md)を参照してください。
+表示されたURLをブラウザで開いて登録します。バイナリだけを取得した場合は、`cp`の代わりに[v1.8.0のヘルパー](https://forge.harakara.site/littleisland/noe/raw/tag/v1.8.0/scripts/auth-chatgpt.js)を取得します。リモート端末での登録、認証更新、APIキーとの違いは[OpenAIガイド](openai.md)を参照してください。
 
 ## 2. 一つのタスクを実行する
 

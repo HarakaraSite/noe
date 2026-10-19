@@ -575,3 +575,20 @@ This release adds `noe:fs-handle`, `noe:sockets`, `noe:signals`, and bundled Eng
 All five gates ran sequentially before the six builds. Environment: Linux amd64, Go 1.27.2, C toolchain for race and Linux PTY. The optional external MCP SDK bundle was not present and its opt-in check was not enabled. Its prior implementation evidence remains in the feature record. Local Linux amd64 size: 49,483,936 bytes. Gate logs, checksums, builds, smoke scripts and records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.8.0-release-xf677opo/`.
 
 The already-authorized real-provider docs checks used OpenCode Go / deepseek-v4.1-flash: both natural tasks consulted docs without task-level prompting and completed successfully in nine provider requests total. Those observations are recorded separately; no additional real-provider request was made during release preparation. Other platforms have cross-build evidence only. The tag-triggered workflow and downloaded assets are verified after publication.
+
+
+## v1.8.0 Release validation — 2026-10-19
+
+- Annotated tag: `v1.8.0`, pointing to `5f09c6efac616fdf5a064f9217ce3d7fb4c654de`. The peeled remote tag matches the successful workflow commit and includes the checked application source plus the preparation record above.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/15): succeeded (API run ID 196, job ID 217).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.8.0): published, neither draft nor prerelease (Release ID 129). Its description matches the committed [release notes](v1.8.0.md).
+
+The tag-triggered workflow passed the CGO-free unit/vet gates, built all six profile targets, and uploaded the six binaries plus `SHA256SUMS`. All seven assets were downloaded; every binary checksum matched the published manifest.
+
+The downloaded Linux amd64 binary passed all eleven existing native CLI smokes and nine new API checks, including the expected private-topic error. The new checks exercised offline docs despite invalid agent configuration, stdlib aliases, matching CLI/JS/Worker reference content, positional file updates through TCP and Unix roundtrips, and actual SIGTERM delivery with subscription cleanup. These publication checks used local fixtures and loopback networking; no further real-provider request was made.
+
+Embedded build information confirms the release-tag revision, `vcs.modified=false`, go-quickjs v0.27.0 and all retained dependency versions. The versioned ChatGPT helper matches the tagged source byte-for-byte. The current agent setup guide links that v1.8.0 helper.
+
+Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.8.0-published-v2oof0uy/`; gate logs, local builds and new-API smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.8.0-release-xf677opo/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.8.0` (49,483,936 bytes).
+
+This documentation-only verification commit follows publication without moving the release tag. Native execution on macOS, Windows and arm64 remains unverified.
