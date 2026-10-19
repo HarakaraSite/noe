@@ -5,10 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +27,8 @@ type Serve struct {
 	// Allow is asked before a listener is opened, with the address it would
 	// listen on. Nil refuses everything, which is what a zero value means.
 	Allow func(address string) error
-	// MaxBodyBytes caps how much of a request body is read. Zero means 32 MB.
+	// MaxBodyBytes returns at most this request-body prefix, ending normally.
+	// Zero means 32 MiB; a negative value exposes an empty body.
 	MaxBodyBytes int64
 	// ReadTimeout and IdleTimeout bound a connection that says nothing. Zero
 	// means the defaults below, which are there because a server with none is
@@ -56,9 +55,8 @@ type Serve struct {
 //	console.log("listening on", server.port)
 //
 // The shape is the one the web has settled on -- a handler that takes a request
-// and answers with a response -- rather than node's streams, which a runtime
-// without streams cannot offer. A handler may be async, and what it returns is
-// awaited.
+// and answers with a response. Request bodies are demand-read byte streams;
+// a handler may be async, and what it returns is awaited.
 //
 // The server keeps the loop running until it is closed, so a program whose last
 // act is to start one does not exit.
@@ -99,7 +97,10 @@ type exchange struct {
 	method  string
 	url     string
 	headers [][2]string
-	body    []byte
+	input   *serveBody
+	hasBody bool
+	expect  bool
+	ready   chan struct{}
 	// answer carries the response back to the goroutine serving the
 	// connection, which is not the one the handler runs on.
 	answer chan *reply
@@ -184,7 +185,7 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 	// The server holds the loop open: a program whose last act is to listen is
 	// not a program that has finished.
 	loop.Begin()
-	var closeOnce sync.Once
+	lifetime := newServerLifetime(loop)
 
 	srv := &http.Server{
 		// A request waiting on a handler stops waiting when the runtime
@@ -193,121 +194,43 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 		ReadHeaderTimeout: readTimeout,
 		IdleTimeout:       idleTimeout,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			body, err := io.ReadAll(io.LimitReader(r.Body, limit))
-			if err != nil {
-				http.Error(w, "could not read the request", http.StatusBadRequest)
+			if !lifetime.enter() {
 				return
 			}
-			ex := &exchange{
-				method: r.Method,
-				url:    requestURL(r),
-				body:   body,
-				answer: make(chan *reply, 1),
-				chunks: make(chan []byte),
-				gone:   make(chan struct{}),
-			}
-			defer close(ex.gone)
-			names := make([]string, 0, len(r.Header))
-			for name := range r.Header {
-				names = append(names, name)
-			}
-			sort.Strings(names)
-			for _, name := range names {
-				for _, v := range r.Header[name] {
-					ex.headers = append(ex.headers, [2]string{name, v})
-				}
-			}
-
-			// The handler is script, so it runs on the loop; this goroutine
-			// waits for what it decides, or for the client to give up.
-			loop.Post(func() { s.handle(dispatch, ex) })
-			select {
-			case res := <-ex.answer:
-				if res.err != nil {
-					http.Error(w, "the handler failed", http.StatusInternalServerError)
-					return
-				}
-				if res.upgrade != "" {
-					// The handler wants the connection itself, not a reply.
-					s.takeOver(w, r, res)
-					return
-				}
-				header := w.Header()
-				for _, h := range res.headers {
-					header.Add(h[0], h[1])
-				}
-				status := res.status
-				if status == 0 {
-					status = http.StatusOK
-				}
-				w.WriteHeader(status)
-				if !res.streaming {
-					w.Write(res.body)
-					return
-				}
-				// The rest of the answer is still being made. Each piece is
-				// written and flushed as it comes, so a client reading a long
-				// answer sees it as it is produced.
-				flusher, _ := w.(http.Flusher)
-				for {
-					select {
-					case chunk, ok := <-ex.chunks:
-						if !ok {
-							if ex.failed {
-								// The answer stopped part way through. The
-								// connection is broken rather than finished
-								// tidily, so that the client can tell the
-								// difference between a short answer and a
-								// whole one.
-								panic(http.ErrAbortHandler)
-							}
-							return
-						}
-						if _, err := w.Write(chunk); err != nil {
-							return
-						}
-						if flusher != nil {
-							flusher.Flush()
-						}
-					case <-r.Context().Done():
-						return
-					}
-				}
-			case <-r.Context().Done():
-			}
+			defer lifetime.leave()
+			s.serveRequest(w, r, dispatch, limit)
 		}),
 	}
 
 	go func() {
-		// The error of a closed listener is the ordinary end of a server.
 		if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			loop.Post(func() {})
 		}
 	}()
 
-	closer := func() {
+	force := func() {
+		// Close our listener even if Serve has not registered it with the
+		// server yet. Runtime shutdown must release the port synchronously.
+		listener.Close()
+		lifetime.force(srv)
+	}
+	stopWatch := context.AfterFunc(loop.Context(), force)
+	unhook := s.rt.OnClose(force)
+	var closeOnce sync.Once
+	scriptClose := func() {
 		closeOnce.Do(func() {
+			lifetime.stopAdmission()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			srv.Shutdown(ctx)
-			loop.Done()
+			if err := srv.Shutdown(ctx); err != nil {
+				force()
+			} else {
+				listener.Close()
+				lifetime.wait()
+			}
+			stopWatch()
+			unhook()
 		})
-	}
-	// A server stops listening when its loop is closed, letting the requests
-	// it is answering finish; and when its runtime is, at once, before Close
-	// returns, so that the port is free for whatever the host does next.
-	context.AfterFunc(loop.Context(), closer)
-	unhook := s.rt.OnClose(func() {
-		closeOnce.Do(func() {
-			srv.Close()
-			loop.Done()
-		})
-	})
-	// What the script calls closes the server, which leaves the hook nothing
-	// to do.
-	scriptClose := func() {
-		closer()
-		unhook()
 	}
 
 	out := s.rt.NewObject()
@@ -345,7 +268,9 @@ func (s *servers) handle(dispatch quickjs.Value, ex *exchange) {
 		req.Set("method", ex.method),
 		req.Set("url", ex.url),
 		req.Set("headers", headers),
-		req.Set("body", s.rt.NewBytes(ex.body)),
+		req.Set("hasBody", ex.hasBody),
+		req.Set("read", ex.input.reader(s.rt, s.cfg.Loop)),
+		req.Set("cancel", ex.input.cancel),
 	); err != nil {
 		ex.answer <- &reply{err: err}
 		return
@@ -367,6 +292,25 @@ func (s *servers) handle(dispatch quickjs.Value, ex *exchange) {
 	finished := false
 	sink := s.rt.NewObject()
 	if err := errors.Join(
+		sink.Set("ready", func() *quickjs.Promise {
+			p := s.rt.NewPromise()
+			if !ex.expect {
+				p.Resolve(nil)
+				return p
+			}
+			loop := s.cfg.Loop
+			loop.Begin()
+			go func() {
+				defer loop.Done()
+				select {
+				case <-ex.ready:
+					loop.Post(func() { p.Resolve(nil) })
+				case <-ex.gone:
+					loop.Post(func() { p.RejectError(errors.New("the client stopped listening")) })
+				}
+			}()
+			return p
+		}),
 		sink.Set("push", func(chunk quickjs.Value) *quickjs.Promise {
 			p := s.rt.NewPromise()
 			b, ok := chunk.Bytes()
@@ -422,25 +366,25 @@ func (s *servers) handle(dispatch quickjs.Value, ex *exchange) {
 //
 // This runs on the connection's own goroutine, so nothing here may touch the
 // runtime; the handing over is posted to the loop like everything else.
-func (s *servers) takeOver(w http.ResponseWriter, r *http.Request, res *reply) {
+func (s *servers) takeOver(w http.ResponseWriter, r *http.Request, res *reply) bool {
 	if s.cfg.upgrade == nil {
 		http.Error(w, "this server does not accept sockets", http.StatusNotImplemented)
-		return
+		return false
 	}
 	key := r.Header.Get("Sec-WebSocket-Key")
 	if key == "" || !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 		http.Error(w, "that is not a websocket handshake", http.StatusBadRequest)
-		return
+		return false
 	}
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
 		http.Error(w, "this connection cannot be taken over", http.StatusInternalServerError)
-		return
+		return false
 	}
 	conn, buffered, err := hijacker.Hijack()
 	if err != nil {
 		http.Error(w, "this connection cannot be taken over", http.StatusInternalServerError)
-		return
+		return false
 	}
 
 	answer := "HTTP/1.1 101 Switching Protocols\r\n" +
@@ -452,14 +396,19 @@ func (s *servers) takeOver(w http.ResponseWriter, r *http.Request, res *reply) {
 	answer += "\r\n"
 	if _, err := conn.Write([]byte(answer)); err != nil {
 		conn.Close()
-		return
+		return false
 	}
 	// The connection has no deadlines from here on: a socket is meant to stay
 	// open, which is the opposite of what a request timeout is for.
 	conn.SetDeadline(time.Time{})
 
 	token, protocol, reader := res.upgrade, res.protocol, buffered.Reader
-	s.cfg.Loop.Post(func() { s.cfg.upgrade(token, conn, reader, protocol) })
+	stop := context.AfterFunc(s.cfg.Loop.Context(), func() { conn.Close() })
+	s.cfg.Loop.Post(func() {
+		stop()
+		s.cfg.upgrade(token, conn, reader, protocol)
+	})
+	return true
 }
 
 // readReply copies what the script answered out of the runtime.
@@ -550,8 +499,21 @@ const serveJS = `(function (host) {
       (async () => {
         try {
           const init = {method: raw.method, headers: raw.headers};
-          if (raw.method !== "GET" && raw.method !== "HEAD" && raw.body.length > 0) {
-            init.body = raw.body;
+          if (raw.hasBody) {
+            let stopped = false;
+            init.body = new ReadableStream({
+              async pull(controller) {
+                try {
+                  const chunk = await raw.read();
+                  if (stopped) return;
+                  if (chunk === null) { stopped = true; controller.close(); }
+                  else controller.enqueue(chunk);
+                } catch (error) {
+                  if (!stopped) { stopped = true; controller.error(error); }
+                }
+              },
+              cancel() { stopped = true; raw.cancel(); },
+            }, {highWaterMark: 0});
           }
           const request = new Request(raw.url, init);
           const response = await handler(request);
@@ -573,6 +535,7 @@ const serveJS = `(function (host) {
             // takes it.
             done({status: response.status, headers, streaming: true});
             try {
+              await sink.ready();
               for await (const chunk of body) await sink.push(chunk);
             } catch (e) {
               // The answer stopped part way through, and the client is told

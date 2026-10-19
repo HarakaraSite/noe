@@ -12,4 +12,4 @@ Scripts run with the operating-system permissions of the NOE process. NOE is not
 
 Use `noe docs` for the topic index, `noe docs <topic>` for a topic overview and its member IDs, and `noe docs <topic> <member>` for one member's reference. From JavaScript, import the synchronous `docs` function from `noe:docs`.
 
-For HTTP requests and servers, use `import { fetch, serve } from "noe:http"`. It shares the existing Web types and supports response streaming. Read `docs("noe:http")` for request-buffering and resource-lifetime details.
+For HTTP requests and servers, use `import { fetch, serve } from "noe:http"`. It shares the existing Web types and supports outgoing, incoming, and response-body streaming. Read `docs("noe:http")` for demand-driven request-body reads, body limits, `Expect: 100-continue`, and resource-lifetime details.

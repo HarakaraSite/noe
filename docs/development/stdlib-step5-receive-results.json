@@ -1,0 +1,811 @@
+{
+  "stage": 5,
+  "status": "complete",
+  "baseline": "41e40d46d304a2f996e58459cd861d7d6a376d38",
+  "environment": {
+    "go": "go version go1.27.2 linux/amd64",
+    "native": "linux/amd64",
+    "otherTargets": "compile only"
+  },
+  "artifactDir": "/tmp/noe-stdlib-step5-20261019-baecbtxg",
+  "largeArtifacts": "/home/agent/.cache/noe-stdlib-step5-baecbtxg",
+  "contracts": {
+    "headersBeforeBodyEOF": true,
+    "prefixBeforeEOF": true,
+    "bridgeHighWaterMark": 0,
+    "maxNativeReadBytes": 32768,
+    "maxConcurrentNativeReads": 1,
+    "requestCapDefaultBytes": 33554432,
+    "capEOF": "normal prefix, no extra-byte probe or413",
+    "negativeCap": "empty body, preserved",
+    "newExports": false,
+    "generalFullDuplexGuaranteed": false
+  },
+  "suites": {
+    "unit": {
+      "testCasesPassed": 1123,
+      "packagesPassed": [
+        "noe/internal/agent/runner",
+        "noe/internal/apidocs",
+        "noe/internal/credentials",
+        "noe/internal/decision",
+        "noe/internal/events",
+        "noe/internal/agent/provider",
+        "noe/internal/image",
+        "noe/internal/mdcli/highlight",
+        "noe/internal/mdcli/markdown",
+        "noe/internal/modulemap",
+        "noe/internal/observation",
+        "noe/internal/signals",
+        "noe/internal/stdlib/internal/wsproto",
+        "noe/spikes/agent-images",
+        "noe/spikes/openai",
+        "noe/spikes/opencode-go",
+        "noe/internal/hostio",
+        "noe/internal/process",
+        "noe/internal/nativeio",
+        "noe/internal/cli",
+        "noe/internal/agent",
+        "noe/internal/stdlib",
+        "noe/internal/runtime"
+      ],
+      "skippedTests": [
+        "TestImageProviderSpike",
+        "TestImageWireLiveDiagnostic",
+        "TestOpenAIProviderLive",
+        "TestLive",
+        "TestHelperHeartbeat"
+      ],
+      "packagesWithoutTests": [
+        "noe/cmd/noe",
+        "noe/internal/processscope"
+      ],
+      "failures": []
+    },
+    "race": {
+      "testCasesPassed": 1122,
+      "packagesPassed": [
+        "noe/internal/apidocs",
+        "noe/internal/decision",
+        "noe/internal/events",
+        "noe/internal/credentials",
+        "noe/internal/image",
+        "noe/internal/mdcli/highlight",
+        "noe/internal/mdcli/markdown",
+        "noe/internal/modulemap",
+        "noe/internal/hostio",
+        "noe/internal/observation",
+        "noe/internal/signals",
+        "noe/internal/agent/provider",
+        "noe/internal/stdlib/internal/wsproto",
+        "noe/internal/agent/runner",
+        "noe/internal/nativeio",
+        "noe/internal/cli",
+        "noe/internal/agent",
+        "noe/internal/stdlib",
+        "noe/internal/process",
+        "noe/internal/runtime"
+      ],
+      "skippedTests": [
+        "TestHelperHeartbeat"
+      ],
+      "packagesWithoutTests": [
+        "noe/internal/processscope"
+      ],
+      "failures": []
+    },
+    "e2e": {
+      "testCasesPassed": 203,
+      "packagesPassed": [
+        "noe/tests"
+      ],
+      "skippedTests": [],
+      "packagesWithoutTests": [],
+      "failures": []
+    }
+  },
+  "commands": [
+    {
+      "name": "unit",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "./...",
+        "-count=1",
+        "-timeout=180s"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOTMPDIR": "/var/tmp/n5-baec"
+      },
+      "returncode": 0,
+      "elapsed_seconds": 41.983
+    },
+    {
+      "name": "race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "./internal/...",
+        "-count=1",
+        "-timeout=300s"
+      ],
+      "env": {
+        "CGO_ENABLED": "1",
+        "GORACE": "atexit_sleep_ms=0",
+        "GOTMPDIR": "/var/tmp/n5-baec"
+      },
+      "returncode": 0,
+      "elapsed_seconds": 61.081
+    },
+    {
+      "name": "e2e",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-tags=e2e",
+        "./tests",
+        "-count=1",
+        "-timeout=10m"
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "NOE_MCP_SDK_BUNDLE": "/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs",
+        "GOTMPDIR": "/var/tmp/n5-baec"
+      },
+      "returncode": 0,
+      "elapsed_seconds": 36.237
+    },
+    {
+      "name": "vet",
+      "command": [
+        "go",
+        "vet",
+        "-tags=e2e",
+        "./..."
+      ],
+      "env": {
+        "CGO_ENABLED": "0",
+        "GOTMPDIR": "/var/tmp/n5-baec"
+      },
+      "returncode": 0,
+      "elapsed_seconds": 0.507
+    }
+  ],
+  "crossCompile": {
+    "cliCount": 6,
+    "testCompileCount": 24,
+    "records": [
+      {
+        "target": "linux-amd64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/noe-linux-amd64",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 3.363
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/stdlib-linux-amd64",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.722
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./internal/apidocs",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/apidocs-linux-amd64",
+          "./internal/apidocs"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.17
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/tests-linux-amd64",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.574
+      },
+      {
+        "target": "linux-arm64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/noe-linux-arm64",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.42
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/stdlib-linux-arm64",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.876
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./internal/apidocs",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/apidocs-linux-arm64",
+          "./internal/apidocs"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.174
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/tests-linux-arm64",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.856
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/noe-darwin-amd64",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.514
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/stdlib-darwin-amd64",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.93
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./internal/apidocs",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/apidocs-darwin-amd64",
+          "./internal/apidocs"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.174
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/tests-darwin-amd64",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.845
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/noe-darwin-arm64",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.565
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/stdlib-darwin-arm64",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.984
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./internal/apidocs",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/apidocs-darwin-arm64",
+          "./internal/apidocs"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.179
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/tests-darwin-arm64",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.874
+      },
+      {
+        "target": "windows-amd64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/noe-windows-amd64.exe",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.722
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/stdlib-windows-amd64.exe",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.365
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./internal/apidocs",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/apidocs-windows-amd64.exe",
+          "./internal/apidocs"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.196
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/tests-windows-amd64.exe",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.063
+      },
+      {
+        "target": "windows-arm64",
+        "name": "cli",
+        "command": [
+          "go",
+          "build",
+          "-trimpath",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/noe-windows-arm64.exe",
+          "./cmd/noe"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 2.308
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./internal/stdlib",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/stdlib-windows-arm64.exe",
+          "./internal/stdlib"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.988
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./internal/apidocs",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/apidocs-windows-arm64.exe",
+          "./internal/apidocs"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.186
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./tests",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/tests-windows-arm64.exe",
+          "-tags=e2e",
+          "./tests"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.886
+      },
+      {
+        "target": "linux-amd64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/runtime-linux-amd64",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 0.881
+      },
+      {
+        "target": "linux-arm64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/runtime-linux-arm64",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.198
+      },
+      {
+        "target": "darwin-amd64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/runtime-darwin-amd64",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.297
+      },
+      {
+        "target": "darwin-arm64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/runtime-darwin-arm64",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.397
+      },
+      {
+        "target": "windows-amd64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/runtime-windows-amd64.exe",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.232
+      },
+      {
+        "target": "windows-arm64",
+        "name": "./internal/runtime",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-o",
+          "/tmp/noe-stdlib-step5-20261019-baecbtxg/cross/runtime-windows-arm64.exe",
+          "./internal/runtime"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 1.21
+      }
+    ]
+  },
+  "inventory": {
+    "equal": true,
+    "modes": {
+      "main": {
+        "globals": 119,
+        "nodeModules": 26,
+        "topics": 41,
+        "details": 100
+      },
+      "nodeWorker": {
+        "globals": 119,
+        "nodeModules": 26,
+        "topics": 41,
+        "details": 100
+      },
+      "nestedWorker": {
+        "globals": 119,
+        "nodeModules": 26,
+        "topics": 41,
+        "details": 100
+      },
+      "webWorker": {
+        "globals": 129,
+        "nodeModules": 26,
+        "topics": 41,
+        "details": 100
+      }
+    }
+  },
+  "review": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "initialP2": 1,
+    "initialP3": 1,
+    "findingsResolved": [
+      "RC-C01 Expect token formats",
+      "RC-C02 demand count synchronization"
+    ],
+    "postIntegrationCorrection": "drain buffered replies and require deadline-bounded EOF/transport closure; helper independently reviewed",
+    "files": {
+      "internal/stdlib/serve.go": "710fb22522a7b1fec1d62d86e15417983d4a91bfeae0292c45beea5026b78eb4",
+      "internal/stdlib/serve_body.go": "a536ab527360283832856308b72b197ed31bda0cedd4af484b5e1cad5ce8ead9",
+      "internal/stdlib/serve_body_test.go": "717068af922874998431970f26552cfa9ba9baa54b110bbb3814972c80bcb3a0",
+      "internal/stdlib/UPSTREAM.md": "271501a3faef8be2247b081ea663794ffb146a4711991384f1cf7e484031a27d",
+      "internal/runtime/http_receive_test.go": "7bae647b2be6aa19bf5160527391f37707a2c0101d88c3452ed37e05864dcd33",
+      "internal/runtime/http_receive_agent_test.go": "371f5bf5b1e720f5224d5af81b7207d5a120916791ba0feddd8786469a46838a",
+      "tests/http_receive_e2e_test.go": "71940c0ca6afd38cbf1f43302cd7a4e1be02854bd3e9072b5f6a794c614d1807",
+      "internal/apidocs/content/noe-http.md": "0b9f39f38d32f87ae3b63bd3c8c8a8e2d9b158ec267e297e47eeb715e0916890",
+      "internal/apidocs/content/stdlib-globals.md": "cd99877743238842419dad6095f8bee0144c5a2bfea094036ae0ee0d6c9cd6e2",
+      "internal/apidocs/content/noe.md": "38f06d80a6369dedf316373470885362e190063ada95ae11fdabb15812ff8886",
+      "examples/http/receive-stream.js": "5ed66ceca49b38066d64a1aaf99bbd06ee103622a44a1c009f69f2035a7a6eec",
+      "examples/http/README.md": "04b06e445f4e191d4ba858b25ef7a7be1477ccec96c06483888c361c205b03d6",
+      "docs/api.md": "1b073693a845587c6cf9e9939d5300c7bac07d03040e5f9d1bf8dd76504b30bf",
+      "docs/reference.md": "296e84887b0dd8a0bdaebd977894365ab9f96e32e1aa4e650da8563428b9b5f1"
+    },
+    "manifestSHA256": "9e76911a840f90e8aaee200d90be7fc92f5abb8654aea024e4efd3f73b01ca1a"
+  },
+  "boundary": {
+    "goModUnchanged": true,
+    "goSumUnchanged": true,
+    "engineVersion": "v0.27.0",
+    "rootDistributionBinaryUnchanged": true,
+    "steps6and7Untouched": true,
+    "initialInstructionsUnchanged": true
+  },
+  "cliEdgeSmoke": {
+    "cases": [
+      {
+        "case": "GET wire body hidden",
+        "passed": true
+      },
+      {
+        "case": "HEAD wire body hidden",
+        "passed": true
+      },
+      {
+        "case": "known empty POST is null",
+        "passed": true
+      },
+      {
+        "case": "unknown empty POST is a stream",
+        "passed": true
+      },
+      {
+        "case": "default32MiB prefix ends before wire EOF without413",
+        "byteCount": 33554432,
+        "declaredLength": 33554433,
+        "passed": true,
+        "elapsed_seconds": 0.029
+      }
+    ],
+    "listenerRebind": true,
+    "exit_code": 1
+  },
+  "infrastructureRecovery": {
+    "cause": "/tmp tmpfs full while linking Linux amd64 E2E test binary",
+    "scope": "cross compile infrastructure, not product test failure",
+    "largeArtifacts": "/home/agent/.cache/noe-stdlib-step5-baecbtxg",
+    "goTmp": "/home/agent/.cache/noe-stdlib-step5-baecbtxg/go-tmp",
+    "preservedLogs": true,
+    "onlyTaskOwnedArtifactsMoved": true,
+    "additionalFailure": "race runtime test-binary link also used the old /tmp environment before recovery",
+    "resume": "unit already passed; repeat failed race then E2E/vet with disk GOTMPDIR",
+    "secondIssue": "Go1.27 testing.TempDir uses GOTMPDIR; long disk path exceeded Unix socket107-byte limit",
+    "shortGoTmp": "/var/tmp/n5-baec",
+    "testAssertionCorrection": "drain buffered response before requiring finite connection close, existing2sdeadline and port rebind retained",
+    "productCodeUnchanged": true
+  },
+  "liveProvider": {
+    "provider": "opencode-go",
+    "model": "deepseek-v4.1-flash",
+    "effort": "auto",
+    "instruction": "Use JavaScript and noe:http to receive a binary HTTP request in a temporary local server. Listen on hostname 127.0.0.1 and port 0, handling POST /receive. The client will send [0,255,17], wait for a separate acknowledgement, then send [34,128,0,255] and finish. In the handler read request.body incrementally, accumulate all received bytes and their sum, and once the first three bytes have been read, GET http://127.0.0.1:44337/ack?url= followed by encodeURIComponent(server.url) to acknowledge that prefix. Continue reading to EOF, then return HTTP 200 with JSON {bytes,byteCount,sum}. After the server starts, trigger the independent client by POSTing the server.url as a plain text body to http://127.0.0.1:44337/start (expect 202). GET http://127.0.0.1:44337/done?url= followed by encodeURIComponent(server.url) to await and inspect the client result; it returns status, bytes, byteCount, sum, prefixBeforeEOF, and passed. Verify status 200, bytes [0,255,17,34,128,0,255], byteCount 7, sum 689, prefixBeforeEOF true and passed true. Save that verified client result as report.json in the workspace. Close the server after the client finishes, and briefly report completion in English. Do not wait for request EOF before sending the prefix ACK. Use JavaScript only, no external commands or delegation, and contact only this fixture and your own loopback listener.",
+    "taskMentionsDocs": false,
+    "provider_calls": 4,
+    "tool_calls": 3,
+    "tool_exit_codes": [
+      0,
+      0,
+      0
+    ],
+    "exit_code": 0,
+    "error": null,
+    "elapsed_seconds": 21.598,
+    "report": {
+      "ackAt": "2026-10-19T10:43:09.885255757Z",
+      "byteCount": 7,
+      "bytes": [
+        0,
+        255,
+        17,
+        34,
+        128,
+        0,
+        255
+      ],
+      "eofSentAt": "2026-10-19T10:43:09.885260102Z",
+      "passed": true,
+      "prefixBeforeEOF": true,
+      "prefixSentAt": "2026-10-19T10:43:09.882763069Z",
+      "responseBody": "{\"bytes\":[0,255,17,34,128,0,255],\"byteCount\":7,\"sum\":689}",
+      "status": 200,
+      "sum": 689,
+      "url": "http://127.0.0.1:43223"
+    },
+    "observed": [
+      {
+        "ackAt": "2026-10-19T10:43:09.885255757Z",
+        "byteCount": 7,
+        "bytes": [
+          0,
+          255,
+          17,
+          34,
+          128,
+          0,
+          255
+        ],
+        "eofSentAt": "2026-10-19T10:43:09.885260102Z",
+        "passed": true,
+        "prefixBeforeEOF": true,
+        "prefixSentAt": "2026-10-19T10:43:09.882763069Z",
+        "responseBody": "{\"bytes\":[0,255,17,34,128,0,255],\"byteCount\":7,\"sum\":689}",
+        "status": 200,
+        "sum": 689,
+        "url": "http://127.0.0.1:43223"
+      }
+    ],
+    "fixture_listener_closed": true,
+    "receive_listeners_closed": true,
+    "task_state": "completed",
+    "answer": "Task complete and verified.\n\n**What ran**\n- Started a `noe:http` server on `127.0.0.1:0` (assigned `http://127.0.0.1:43223`) handling `POST /receive`.\n- Read `request.body` incrementally with a reader, accumulating bytes and a running sum. As soon as the first three bytes arrived (chunk `[0,255,17]`), the handler fired `GET http://127.0.0.1:44337/ack?url=<encodeURIComponent(server.url)>` **without waiting for EOF** (fixture replied 204), then kept reading the remaining chunk `[34,128,0,255]` to EOF and returned `200` with `{bytes, byteCount, sum}`.\n- Triggered the client with `POST /start` (body = `server.url`) → **202**, then awaited `GET /done?url=...`.\n\n**Verified client result**\n| check | value | ok |\n|---|---|---|\n| status | 200 | ✅ |\n| bytes | `[0,255,17,34,128,0,255]` | ✅ |\n| byteCount | 7 | ✅ |\n| sum | 689 | ✅ |\n| prefixBeforeEOF | true | ✅ |\n| passed | true | ✅ |\n\nThe fixture also confirms `ackAt` precedes `eofSentAt`, so the prefix ACK landed before the client finished. The verified result was saved to `report.json` in the workspace, and the listener was closed afterwards (synchronous `close()`, outside the handler).",
+    "binary_sha256": "73a012f60f421325133d4fff64df8cdc6e3db874d3313490096d70e3ecc5ae54",
+    "artifacts": "/tmp/noe-stdlib-step5-20261019-baecbtxg/live-smoke",
+    "tools": [
+      {
+        "code": "// Inspect noe:http docs and module overview\nconst {docs} = await import(\"noe:docs\");\nconsole.log(docs().split(\"\\n\").filter(l=>/http|fs|io/i.test(l)).join(\"\\n\"));\nconsole.log(\"-----\");\nconsole.log(docs(\"noe:http\"));",
+        "exit_code": 0,
+        "stdout": "- `node:assert` (module): Synchronous assertion helpers for checking values and thrown errors.\n- `node:async_hooks` (module): Tracks async execution context for values that must follow work across promises and timers.\n- `node:child_process` (module): Runs operating-system programs to completion and returns captured output.\n- `node:crypto` (module): Offers hashing, HMAC, random values, key derivation, and a limited Web Crypto surface.\n- `node:dns` (module): Resolves names using the host system resolver and exposes Node-style method names as promise-returning functions.\n- `node:events` (module): Provides a small EventEmitter implementation and a promise helper.\n- `node:fs` (module): Reads and writes files synchronously or as Web Streams.\n- `node:fs/promises` (module): Provides promise-returning whole-file and metadata operations.\n- `node:http` (module): Provides an HTTP server backed by the Web Request and Response APIs.\n- `node:os` (module): Reports selected host system information.\n- `node:timers` (module): Exports callback-style timer functions.\n- `node:util` (module): Provides selected formatting, inspection, type, inheritance, and callback/promise conversion helpers.\n- `node:worker_threads` (module): Runs JavaScript in additional QuickJS runtimes and exchanges structured-clone messages through ports.\n- `node:zlib` (module): Compresses and decompresses byte data with synchronous and promise forms, and provides Web CompressionStream/DecompressionStream globals.\n- `noe` (overview): NOE is a JavaScript runtime and managed agent execution environment.\n- `noe:decision` (module): Make one structured decision with an explicitly selected OpenRouter model.\n- `noe:fs-handle` (module): Open an existing file for positional byte reads and writes.\n- `noe:http` (module): Fetch HTTP resources and serve requests with shared Web types and response streams.\n- `noe:io` (module): Access host standard I/O streams and pipe Web Streams with active cancellation.\n-----\n# `noe:http`\n\nThe recommended HTTP entry point in NOE. It exports `fetch` and `serve` as named functions, with no default export. Both functions are the same values as their globals; `serve` is also the function exported by `node:http` and `http`. Existing entry points remain available.\n\nUse the existing global Headers, Request, Response, ReadableStream, AbortController, WebSocket, and upgradeWebSocket APIs with these functions. The module does not create new types or re-export these globals. It is available in main, Node-style Workers, nested Workers, Web Workers, and agent `run_js` processes.\n\nOutgoing `ReadableStream` request bodies, incoming request bodies, and response bodies can all be consumed as streams. A server invokes its handler after request headers arrive, before waiting for the incoming body to reach EOF. The receive stream reads from the HTTP body only when JavaScript asks for data.\n\n### Exports\n\n`fetch`, `serve`\n\n### Source basis\n\nNOE-maintained implementation: internal/stdlib/http.go registers existing values installed by fetch.go and serve.go. Its engine and standard-library origin are recorded in internal/stdlib/UPSTREAM.md. In hosts using stdlib.Install with partial configuration, only configured Fetch/Serve functions are exported; neither configured means no module. NOE enables both.\n\n## Detailed members\n\n- `fetch`\n- `serve`\n\nCLI: `noe docs noe:http MEMBER`\n\nJavaScript: `docs(\"noe:http\", \"MEMBER\")`\n\n"
+      },
+      {
+        "code": "// Inspect serve() and fetch() member details\nconst {docs} = await import(\"noe:docs\");\nconsole.log(docs(\"noe:http\",\"serve\"));\nconsole.log(\"=====\");\nconsole.log(docs(\"noe:http\",\"fetch\"));",
+        "exit_code": 0,
+        "stdout": "# `noe:http`\n\nThe recommended HTTP entry point in NOE. It exports `fetch` and `serve` as named functions, with no default export. Both functions are the same values as their globals; `serve` is also the function exported by `node:http` and `http`. Existing entry points remain available.\n\nUse the existing global Headers, Request, Response, ReadableStream, AbortController, WebSocket, and upgradeWebSocket APIs with these functions. The module does not create new types or re-export these globals. It is available in main, Node-style Workers, nested Workers, Web Workers, and agent `run_js` processes.\n\nOutgoing `ReadableStream` request bodies, incoming request bodies, and response bodies can all be consumed as streams. A server invokes its handler after request headers arrive, before waiting for the incoming body to reach EOF. The receive stream reads from the HTTP body only when JavaScript asks for data.\n\n### Exports\n\n`fetch`, `serve`\n\n### Source basis\n\nNOE-maintained implementation: internal/stdlib/http.go registers existing values installed by fetch.go and serve.go. Its engine and standard-library origin are recorded in internal/stdlib/UPSTREAM.md. In hosts using stdlib.Install with partial configuration, only configured Fetch/Serve functions are exported; neither configured means no module. NOE enables both.\n\n## serve\n\n```js\nimport { serve } from \"noe:http\";\n```\n\n`serve(options, handler) -> server`, `serve(handler) -> server`, or `serve({ ...options, fetch: handler }) -> server`. Options include hostname (default 127.0.0.1), port (default 0, an OS-assigned port), and onError. The handler receives a Web Request and must return a Response, synchronously or through a promise. The server handle has hostname, port, url, and close(). This is an HTTP listener; there is no TLS-listener option.\n\n```js\nimport { fetch, serve } from \"noe:http\";\n\nconst server = serve({ port: 0 }, async request => {\n  return Response.json(await request.json());\n});\ntry {\n  const response = await fetch(server.url, {\n    method: \"POST\",\n    headers: { \"content-type\": \"application/json\" },\n    body: JSON.stringify({ message: \"hello\" }),\n  });\n  console.log(await response.json());\n} finally {\n  server.close();\n}\n```\n\nThe listener keeps the run alive until close() or runtime shutdown. A handler starts after headers arrive, without waiting for request-body EOF. GET and HEAD requests have no JavaScript body. For other methods, `request.body` is `null` when the HTTP server can determine that no body is present; otherwise it is a `ReadableStream`, including when an unknown-length body later ends without bytes. The stream yields `Uint8Array` values. Its source has a high-water mark of zero and performs at most one bounded native read for each pull, so the NOE bridge does not read ahead while JavaScript has no read demand. HTTP transport, operating-system, and peer buffers are outside that bound, and stream cloning or teeing may queue data in the Web Streams layer.\n\nThe default receive cap is 32 MiB. In Go `Serve` configuration, `MaxBodyBytes: 0` selects that default, a positive value exposes only that prefix and then ends the stream normally, and a negative value exposes an empty body. Reaching the cap does not trigger an extra-byte check or a 413 response, and does not rewrite the received `Content-Length` header. The cap is a host setting, not a JavaScript option. `text()`, `json()`, `arrayBuffer()`, `bytes()`, and other body convenience methods retain the shared one-shot Request rules and collect the bytes they consume; use `request.body` with a reader for incremental processing.\n\nA body read failure, such as a truncated or malformed request body discovered after dispatch, rejects the pending read. A handler may catch that error and return a response while the connection remains usable. An uncaught handler error follows the existing `onError`/500 path; a broken connection cannot be guaranteed to deliver a response. GET and HEAD bodies are not exposed to JavaScript.\n\nThe incoming body remains available while a returned Response stream is being sent, so that stream may read `request.body`. After response sending succeeds or fails, remaining input is closed and later reads reject. Cancelling the request body closes its JavaScript stream and prevents new reads; a native read already blocked in the HTTP body may be released when response sending finishes. Body cancellation does not cancel response production. For an HTTP/1 response sent with unread input, connection reuse is not guaranteed. Normal EOF remains eligible for the usual keep-alive behavior.\n\nFor accepted `Expect: 100-continue` requests, the server sends the interim `100 Continue` before it reads body bytes. When the handler returns a streaming Response, NOE waits for the final response headers to flush before its response pump asks that stream for a chunk. This lets a zero-high-water-mark producer such as `new Response(request.body)` avoid starting a native read before the flush. The gate controls demand from NOE's response pump only: it cannot prevent a producer's `start()`, its own early pull (including the default high-water mark), or a separate body reader started by the handler. If one of those reads waits for input that the client itself delays, final-response progress is not guaranteed until that read settles. A pending body read cancelled by the handler is released before the final headers are flushed. This protocol does not promise general full-duplex HTTP; in particular, NOE `fetch()` still stops an unfinished upload when final response headers arrive.\n\nThe default read-header timeout is 30 seconds and idle timeout is 60 seconds. These host settings are not additional JavaScript options. `server.close()` is synchronous and idempotent: it stops accepting requests, waits up to five seconds for graceful shutdown, then force-closes remaining HTTP connections. Runtime shutdown also has a force-close path. Call `close()` outside a handler after consuming the response; calling it in the handler that must finish can block that handler's completion.\n\nHandler errors or invalid return values produce a 500 response. An optional `onError(error)` may supply a Response instead. Runtime shutdown, execution timeout, cancellation, and Worker termination close the listener and active HTTP connections.\n\nFor WebSocket upgrade, call the existing global upgradeWebSocket(request) in a handler, configure the returned socket, and return its response. This uses the same Serve configuration and upgrade-token path as the global serve function. Close WebSockets when finished; server.close() is not a substitute for closing upgraded connections. For raw TCP/Unix streams use `noe:sockets`.\n\n=====\n# `noe:http`\n\nThe recommended HTTP entry point in NOE. It exports `fetch` and `serve` as named functions, with no default export. Both functions are the same values as their globals; `serve` is also the function exported by `node:http` and `http`. Existing entry points remain available.\n\nUse the existing global Headers, Request, Response, ReadableStream, AbortController, WebSocket, and upgradeWebSocket APIs with these functions. The module does not create new types or re-export these globals. It is available in main, Node-style Workers, nested Workers, Web Workers, and agent `run_js` processes.\n\nOutgoing `ReadableStream` request bodies, incoming request bodies, and response bodies can all be consumed as streams. A server invokes its handler after request headers arrive, before waiting for the incoming body to reach EOF. The receive stream reads from the HTTP body only when JavaScript asks for data.\n\n### Exports\n\n`fetch`, `serve`\n\n### Source basis\n\nNOE-maintained implementation: internal/stdlib/http.go registers existing values installed by fetch.go and serve.go. Its engine and standard-library origin are recorded in internal/stdlib/UPSTREAM.md. In hosts using stdlib.Install with partial configuration, only configured Fetch/Serve functions are exported; neither configured means no module. NOE enables both.\n\n## fetch\n\n```js\nimport { fetch } from \"noe:http\";\n```\n\n`fetch(input, init = {}) -> Promise<Response>`. Input may be a URL/string or Request. Supported init fields include method, headers, body, and signal. A `ReadableStream` body is sent incrementally; each chunk must be a `Uint8Array`. NOE preserves each view's `byteOffset` and `byteLength`, skips empty chunks, and reads the next chunk only after the current chunk has been written to the HTTP request body. The upload bridge holds at most one chunk at a time. This does not bound the stream's own queue or buffering in the HTTP transport, operating system, or peer, and write completion does not mean the peer application consumed the bytes. Other supported Web body values retain their existing finite-body behavior.\n\nUpload bodies are one-shot. An already-used or locked stream is rejected before network activity begins. Passing a Request to `fetch`, with or without init overrides, consumes the selected body; constructing a new Request from an unused Request transfers its body. Use `request.clone()` explicitly before consumption when two branches are needed. A stream body is not replayed for a redirect: 307 and 308 responses are returned when following them would require resending the body. The host client may follow 301, 302, and 303 by continuing with a bodyless request. If final response headers arrive before the upload reaches EOF, NOE stops the unfinished upload and returns the still-readable Response without waiting for producer EOF. Producer failures abort the request; a race with response delivery may surface as a response-body read failure. Late errors from an intentionally stopped producer are ignored. An AbortSignal cancels an in-progress upload or response-body read. This early-response behavior does not provide general full-duplex HTTP.\n\nNetwork, permission, and abort failures reject. HTTP 4xx and 5xx status codes still resolve to a Response: inspect response.ok or response.status. Consume its body once with text(), json(), arrayBuffer(), or bytes(), or incrementally through response.body. The returned Response, Headers, and body stream use the same global constructors as the rest of NOE.\n\n```js\nconst response = await fetch(\"https://example.com/data\");\nif (!response.ok) throw new Error(\"HTTP \" + response.status);\nconsole.log(await response.json());\n```\n\nNOE's default HTTP client timeout is 30 seconds, including upload and response-body reading. The 32 MiB limit applies to response-body reads, not uploads: only that response prefix is returned, and reaching the cap ends the body normally rather than rejecting for excess bytes. Pass an AbortSignal to cancel an in-progress upload or response-body read. Consume or cancel a response body when finished. Redirect and cache behavior follows the host client subject to the one-shot stream rule above; broader browser/Node options are not implemented. The call uses the current runtime's loop and owned resources, which are cancelled when that runtime ends.\n\n"
+      },
+      {
+        "code": "// Run loopback receiver + fixture client flow, verify result, save report.json\nconst { serve } = await import(\"noe:http\");\nconst fs = await import(\"node:fs\");\nconst path = await import(\"node:path\");\n\nconst BASE = \"http://127.0.0.1:44337\";\nlet serverUrl = null;\n\nconst handlerLog = { chunks: [], ackStatus: null, ackError: null, eof: false };\n\nconst server = serve({ hostname: \"127.0.0.1\", port: 0 }, async (request) => {\n  const u = new URL(request.url);\n  if (request.method !== \"POST\" || u.pathname !== \"/receive\") {\n    return new Response(\"not found\", { status: 404 });\n  }\n  const bytes = [];\n  let sum = 0;\n  let ackPromise = null;\n\n  const body = request.body;\n  if (body) {\n    const reader = body.getReader();\n    while (true) {\n      const { value, done } = await reader.read();\n      if (done) break;\n      if (value && value.length) {\n        handlerLog.chunks.push(Array.from(value));\n        for (let i = 0; i < value.length; i++) {\n          bytes.push(value[i]);\n          sum += value[i];\n        }\n        // Fire the prefix ACK as soon as the first three bytes exist; do not wait for EOF.\n        if (ackPromise === null && bytes.length >= 3) {\n          const ackUrl = BASE + \"/ack?url=\" + encodeURIComponent(serverUrl);\n          ackPromise = fetch(ackUrl)\n            .then(async (r) => {\n              handlerLog.ackStatus = r.status;\n              try { await r.text(); } catch {}\n            })\n            .catch((e) => { handlerLog.ackError = String(e && e.message || e); });\n        }\n      }\n    }\n  }\n  handlerLog.eof = true;\n  if (ackPromise) await ackPromise;\n\n  return Response.json({ bytes, byteCount: bytes.length, sum });\n});\n\nlet timeout = setTimeout(() => {\n  try { server.close(); } catch {}\n}, 25000);\n\ntry {\n  serverUrl = server.url;\n  console.log(\"server:\", serverUrl);\n\n  const startRes = await fetch(BASE + \"/start\", {\n    method: \"POST\",\n    headers: { \"content-type\": \"text/plain\" },\n    body: serverUrl,\n  });\n  console.log(\"start status:\", startRes.status);\n  try { await startRes.text(); } catch {}\n  if (startRes.status !== 202) throw new Error(\"expected 202 from /start, got \" + startRes.status);\n\n  const doneRes = await fetch(BASE + \"/done?url=\" + encodeURIComponent(serverUrl));\n  const doneText = await doneRes.text();\n  console.log(\"done status:\", doneRes.status, \"body:\", doneText);\n\n  const result = JSON.parse(doneText);\n\n  const expectedBytes = [0, 255, 17, 34, 128, 0, 255];\n  const checks = {\n    status: result.status === 200,\n    bytes: JSON.stringify(result.bytes) === JSON.stringify(expectedBytes),\n    byteCount: result.byteCount === 7,\n    sum: result.sum === 689,\n    prefixBeforeEOF: result.prefixBeforeEOF === true,\n    passed: result.passed === true,\n  };\n  console.log(\"checks:\", JSON.stringify(checks));\n\n  const reportPath = path.join(process.cwd(), \"report.json\");\n  fs.writeFileSync(reportPath, JSON.stringify(result, null, 2) + \"\\n\");\n  console.log(\"report saved:\", reportPath);\n  console.log(\"handlerLog:\", JSON.stringify(handlerLog));\n\n  const allOk = Object.values(checks).every(Boolean);\n  console.log(\"ALL_VERIFIED:\", allOk);\n  if (!allOk) throw new Error(\"verification failed: \" + JSON.stringify(checks));\n} finally {\n  clearTimeout(timeout);\n  server.close();\n  console.log(\"server closed\");\n}",
+        "exit_code": 0,
+        "stdout": "server: http://127.0.0.1:43223\nstart status: 202\ndone status: 200 body: {\"ackAt\":\"2026-10-19T10:43:09.885255757Z\",\"byteCount\":7,\"bytes\":[0,255,17,34,128,0,255],\"eofSentAt\":\"2026-10-19T10:43:09.885260102Z\",\"passed\":true,\"prefixBeforeEOF\":true,\"prefixSentAt\":\"2026-10-19T10:43:09.882763069Z\",\"responseBody\":\"{\\\"bytes\\\":[0,255,17,34,128,0,255],\\\"byteCount\\\":7,\\\"sum\\\":689}\",\"status\":200,\"sum\":689,\"url\":\"http://127.0.0.1:43223\"}\n\nchecks: {\"status\":true,\"bytes\":true,\"byteCount\":true,\"sum\":true,\"prefixBeforeEOF\":true,\"passed\":true}\nreport saved: /tmp/noe-stdlib-step5-20261019-baecbtxg/live-smoke/workspace/report.json\nhandlerLog: {\"chunks\":[[0,255,17],[34,128,0,255]],\"ackStatus\":204,\"ackError\":null,\"eof\":true}\nALL_VERIFIED: true\nserver closed\n"
+      }
+    ],
+    "successful_docs_calls": 2,
+    "http_module_used": true,
+    "passed": true,
+    "docsToolCalls": 2,
+    "docsLookupInvocationsObserved": 4
+  },
+  "commitPushReleasePerformed": false
+}

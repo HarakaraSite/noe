@@ -108,6 +108,23 @@ testdata/pathcorpus_node.js
    a readable stream has been read or cancelled so that releasing a reader
    cannot make a consumed Request body reusable. fetch_upload_test.go and
    runtime/CLI integration tests cover these changes.
+7. The HTTP server's receive path is a NOE-local adaptation. It dispatches a
+   Web Request before the body reaches EOF and exposes the Go request body as
+   a demand-driven ReadableStream with a zero high-water mark and a bounded
+   native read buffer. `Serve.MaxBodyBytes` retains its existing behavior:
+   zero selects the 32 MiB default, a positive value exposes that prefix with
+   normal EOF, and a negative value exposes an empty body. The original
+   `Content-Length` is not rewritten. Body reads remain available while a
+   returned Response stream is being sent, then outstanding input is stopped
+   and cleaned up before the Go handler returns. For HTTP/1, the bridge uses
+   public HTTP response/connection controls to avoid waiting for an unread
+   body before sending a response and to release blocked reads during
+   cleanup; it does not depend on net/http private fields or unsafe access.
+   Accepted `Expect: 100-continue` requests receive an explicit interim
+   response before body reads, and NOE's response pump waits for final headers
+   to flush before requesting a response-stream chunk. Graceful server
+   shutdown retains its five-second bound and force-closes remaining
+   connections afterward. These are NOE-local changes, not upstream behavior.
 
 The initial snapshot import did not intentionally change HTTP behavior, body
 limits, timeouts, module names, exports, or protocols. Subsequent NOE-local

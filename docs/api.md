@@ -333,7 +333,9 @@ const response = await fetch("https://example.com/api/items", {
 console.log(response.status, await response.text());
 ```
 
-`ReadableStream`を要求bodyに渡すと、`Uint8Array`チャンクを全量収集せず逐次送信できます。bodyは一度だけ使え、途中で応答headersが届くと未完了の送信を止めてResponseを返します。`serve`は受信bodyを読取り上限までbufferingしてからhandlerを呼びます。受信streamingや全二重HTTPの保証はありません。既定値、redirect、abort、closeとresponse本文上限の詳細は`noe docs noe:http`で確認できます。
+`ReadableStream`を要求bodyに渡すと、`Uint8Array`チャンクを全量収集せず逐次送信できます。bodyは一度だけ使え、途中で応答headersが届くと未完了の送信を止めてResponseを返します。`serve`はheaders受信後、本文EOFを待たずにhandlerへRequestを渡します。GET・HEAD以外では、bodyが既知の空なら`request.body`はnull、本文ありまたは長さ不明ならReadableStreamです。body readerはJavaScriptのpullに応じてbounded readを行い、readがなければNOE bridgeは先読みしません。未知長の空bodyは空のstreamとしてEOFになります。
+
+受信streamはone-shotです。`text()`や`json()`などのbody methodは従来どおり内容を収集します。Go `Serve.MaxBodyBytes`の既定値は32 MiBで、正の設定値ではそのprefixの後に正常EOF、負の値では空bodyになります。超過しても413にはせず、受信した`Content-Length`は変更しません。この値はJavaScript optionではありません。read errorはbody readをrejectし、handlerで捕捉できます。cancelはbodyのreadを止めますが、returned Responseの生成・送信は継続できます。Response streamは送信完了までrequest.bodyを読めます。`Expect: 100-continue`では先に100応答を送り、Response streamのpumpは最終headersのflush後に需要を出します。これにより`new Response(request.body)`のようなHWM 0 sourceはflush後に読取りを開始できます。handlerがpending readをcancelした場合は最終headersのflush前にそのreadを中断します。利用者streamの`start()`や先行pull、別readerの読取りは制御しません。全二重HTTPは保証せず、`fetch`の途中応答によるupload停止も従来どおりです。既定値、redirect、abort、closeとresponse本文上限の詳細は`noe docs noe:http`で確認できます。
 
 ## HTTPサーバー
 
@@ -354,7 +356,7 @@ console.log(server.url);
 
 リクエスト本文はWeb Request APIで読み、応答は必ずResponseで返します。JSONの応答には`Response.json(value)`を使えます。従来のglobal fetch/serveと`node:http`・`http`のserveも維持しています。Request・Response・StreamsとWebSocketは既存globalを共有します。WebSocketはWebSocket APIと、サーバー側では`serve`を通じて利用できます。
 
-`server.close()`は同期的に受付を停止し、現在のNOE管理のstdlibでは処理中のHTTPリクエスト終了を最大5秒待ちます。停止を求めるリクエスト自身のハンドラーから同期的に呼ぶと、そのハンドラーの完了を待つことになります。応答が完了した後の別の処理から呼んでください。これは旧`noe.serve()`の非同期停止とは異なる動作です。
+`server.close()`は同期的に受付を停止し、処理中のHTTPリクエスト終了を最大5秒待った後、残る接続を強制終了します。停止を求めるリクエスト自身のハンドラーから同期的に呼ぶと、そのハンドラーの完了を待つことになります。応答が完了した後の別の処理から呼んでください。これは旧`noe.serve()`の非同期停止とは異なる動作です。
 
 ## 旧APIからの移行
 
