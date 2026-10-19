@@ -51,3 +51,11 @@ P0・P1・P2・P3の指摘はいずれも0件。初回で解消条件を満た�
 親agentは結果を採用し、総合検証へ進めると判断した。レビュー中のファイル変更・テスト再実行は行っていない。全体テスト・race・CLI E2E・6対象のビルド/cross-compileはレビュー後の検証として別に記録する。
 
 検証証跡は`/tmp/noe-stdlib-step2-20261019-vl4czy1h/`。レビュー対象40ファイル（`internal/`のGo差分・内蔵docs・instructions・UPSTREAM）のmanifestは`reviewed-code-files.json`、SHA256は`d6f7f55c316682702017261bb9d391011d0a9435911f095801a91c3a0bcf58c4`。現行README・API/参照/開発ガイドの差分もレビュー対象に含む。総合検証後の結果と最終境界確認は[実装・検証記録](stdlib-step2-runtime-implementation.md)へ保存する。
+
+## v1.10.0準備時の限定follow-up
+
+公開前の別のrace gateで`TestNetConnectTCPAndUnixHalfClose/unix`が`busy=true`で失敗したため、テスト側のproducer完了との同期を確認した。`AsyncWork.Complete`はPost→Doneの順で、Promiseの結果をownerが受け取った時点でproducerがDoneを終えているとは限らない。テストでHostを保持し、既存の`rt.Busy()`判定直前に`host.wg.Wait()`を追加した。製品コード・期待値・skip・close処理は変更していない。
+
+同じ独立レビュアーが、この差分と必要なnativeio/engine sourceに限定して15分以内のread-only follow-upを行った。P0・P1・P2・P3はすべて0件。WaitGroupのDoneはComplete完了後であり、Wait時点ではroot Promiseとcloseが完了し、新しいowner処理やowner待ちを生まないことを確認した。Waitはresource解放やAsyncWork.Doneを代行せず、残存workのassertionを維持するとの判定だった。修正後の単独race100回の成功証跡も確認した。
+
+初回failureがこの順序によるものだったことはログだけでは断定できないが、source上の競合窓を解消する同期修正として採用し、全体release gateの再実行へ進めると判断した。初回ログ・修正前後の反復ログは`/tmp/noe-v1.10.0-release-npfmrpt0/`、最終gateの結果は[リリース記録](../releases/release-checkpoints.md)へ保存する。上の40ファイルmanifestは実装検証時点の記録であり、この後続テスト修正を含まない。

@@ -122,7 +122,7 @@ func TestNetConnectTCPAndUnixHalfClose(t *testing.T) {
 				serverResult <- err
 			}()
 
-			rt, _ := netRuntime(t, filepath.Dir(fixture.path), nil)
+			rt, host := netRuntime(t, filepath.Dir(fixture.path), nil)
 			result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
   const c=await connect(`+fixture.options+`);
@@ -148,6 +148,9 @@ func TestNetConnectTCPAndUnixHalfClose(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("server did not observe client FIN and return its response")
 			}
+			// AsyncWork.Complete can deliver the result before its producer calls
+			// Done. Join the native producers before checking for retained work.
+			host.wg.Wait()
 			if rt.Busy() {
 				t.Fatalf("closed connection retained runtime work: busy=%v", rt.Busy())
 			}
