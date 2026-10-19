@@ -7,6 +7,24 @@
 
 ## 検討を続ける候補
 
+### <完了> x/term依存の整理 — 2026-10-19
+
+REPL削除後に残ったobserve表示の端末幅取得を、既存の`x/sys`を使う小さなOS別helperへ置換しました。Linux/macOSは`IoctlGetWinsize`、Windowsは`GetConsoleScreenBufferInfo`の可視window幅を使います。`COLUMNS`→端末幅→80桁の選択を維持し、NOEの`go.mod`・`go.sum`と6配布対象のCLIビルド依存から`x/term`を除去しました。go-quickjs自身の`go.mod`にある間接的なmodule graph上の記載（v0.40.0）は残ります。
+
+CLI単体テスト、観察とCLI入口の重点E2E、`go vet ./internal/cli`が成功しました。LinuxのPTYで実際の端末幅、環境変数の優先、0幅のfallbackを検証し、通常ファイル・bufferでもfallbackを確認しています。6配布対象のCGO不要ビルドとCLIテストのcross-compileも成功しました。他環境は実機確認ではありません。自己レビューではfdの非所有、Windowsの可視windowとbuffer幅の区別、失敗時のfallback、他依存versionの維持を確認しました。ビルド記録は`/tmp/noe-term-removal-20261019-mqhozkrm/checks.json`にあります。
+
+### <未完了> mdcli取り込みコードの整理（保留） — 2026-10-19
+
+当初は未使用の色付け・syntax highlight関連の整理を候補にしました。その後の相談で、既にソースを取り込み済みで上流追随は必須でなく、将来`ANSI:true`で利用できる機能を残す利益もあるため、現状維持・整理保留としました。Markdown整形、日本語の表示幅、折返し・表表示も維持します。
+
+`x/sys`とWebP用の`x/image`も維持する方針です。
+
+### <未完了> モデル要求のretry追加 — 2026-10-19
+
+利用者の方針メモ：一時的な通信障害から回復するため、モデル要求の再送としてretryを追加する。完了済みのtool・hookは再実行しない。試行回数・待機時間を設定でき、再試行の状況を観察できる形を検討する。
+
+現在は初版の方針を引き継ぎ、SDKの暗黙の自動retryを無効化している。対象エラー、stream途中で失敗した場合の扱い、設定・既定値は実装計画で決める。本項目は方針の記録であり、実装は未着手。
+
 ### <完了> 内蔵docsとagent初期説明の整備 — 2026-10-19
 
 実行バイナリと同じ版のAPI説明を内蔵し、`noe docs`とJSの`noe:docs`から必要な説明を参照できます。[計画](development/builtin-docs-plan.md)に沿って英文Markdown本文とGo catalogを共通の正本にし、stdlib全26対応moduleの一覧・概要、よく使うAPIの詳細とNode.jsとの差分を収録しました（[実装・検証記録](development/builtin-docs-implementation.md)）。実装テスト・コードレビュー後、実プロバイダへdocsへの誘導を含まない2課題を与え、両方で自発参照と課題完了を確認しました。

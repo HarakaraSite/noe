@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/term"
-
 	"noe/internal/events"
 	"noe/internal/mdcli/markdown"
 )
@@ -31,7 +29,7 @@ func observationWidth(out io.Writer) int {
 		return columns
 	}
 	if file, ok := out.(*os.File); ok {
-		if width, _, err := term.GetSize(int(file.Fd())); err == nil && width > 0 {
+		if width := terminalWidth(file.Fd()); width > 0 {
 			return width
 		}
 	}
