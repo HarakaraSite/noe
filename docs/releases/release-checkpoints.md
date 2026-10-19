@@ -752,3 +752,18 @@ Environment: Linux amd64, Go 1.27.2, C toolchain for race. The short disk-backed
 Before the version update, the [feature record](../development/stdlib-step5-receive-implementation.md) passed independent code review with no remaining P0–P3, full unit/race/E2E/vet and six-target compilation. Its real OpenCode Go / deepseek-v4.1-flash receive task succeeded in one basic task, spontaneously consulting docs, receiving before EOF, saving the result, closing the listener and answering. The feature's reviewed 14-file manifest is unchanged. No additional real-provider request was made for this release preparation.
 
 The tag-triggered workflow and downloaded release assets are verified separately after publication.
+
+
+## v1.12.0 Release validation — 2026-10-19
+
+- Annotated tag: `v1.12.0`, pointing to `61a3be28e2c250a4c88b5eef7960f73b0adf697d`. The peeled remote tag matches the successful workflow commit and includes the checked source plus the preparation record.
+- [Forgejo release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/19): succeeded (API run ID 200, job ID 221).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.12.0): published, neither draft nor prerelease (Release ID 133). Its description matches the committed [release notes](v1.12.0.md).
+
+The workflow passed its CGO-free unit/vet gates, built all six targets, and uploaded six binaries plus SHA256SUMS. All seven assets were downloaded; all six binary hashes matched the manifest.
+
+The downloaded Linux amd64 binary passed all 29 retained native CLI checks and the fixture-agent smoke (two local model requests, six hook invocations). Both HTTP smokes passed: outgoing transferred-Request streaming and incoming demand-driven receiving, with independent prefix acknowledgements before producer EOF, correct binary results, matching CLI/JavaScript docs, and finite upload/receive examples. The receive listener was released and rebound. Main, Node-style Worker, nested Worker, and Web Worker inventories exactly match the maintained feature baseline. No additional real-provider request was made during publication.
+
+Embedded build information confirms the tagged revision, vcs.modified=false, pinned go-quickjs v0.27.0, unchanged dependency versions, and no x/term. The versioned ChatGPT helper matches the tagged source byte-for-byte. Downloaded assets and verification records are under `/home/agent/.cache/noe-v1.12.0-published-7txm_pzw`; gates, clean source, local builds and publication scripts are under `/home/agent/.cache/noe-v1.12.0-release-kgnfqe53`. The repository-root `./noe` was updated to the verified published Linux amd64 binary and reports `noe v1.12.0` (49361056 bytes).
+
+This documentation-only verification commit follows publication without moving the release tag. Native execution on macOS, Windows and arm64 remains unverified.
