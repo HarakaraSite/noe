@@ -632,3 +632,32 @@ Embedded build information confirms the release-tag revision, `vcs.modified=fals
 Downloaded assets and verification records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.9.0-published-856ro7oq/`; gate logs, clean source, local builds and publication smoke records are under `/home/agent/.cache/noe-qjs-repl/noe-v1.9.0-release-_84uvtgf/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.9.0` (49,303,712 bytes).
 
 This documentation-only verification commit follows publication without moving the release tag. Native execution on macOS, Windows and arm64 remains unverified.
+
+
+## v1.10.0 preparation — 2026-10-19
+
+Checked source revision: `e1eac6c6a6bd54d5ff553e0b4d451e3e94f9c0be`. This preparation follow-up adds only this record. Gates and builds used a clean detached worktree, excluding the unrelated `agent-server-build.jsonl`.
+
+This release imports and adopts NOE's maintained stdlib snapshot, based on go-quickjs v0.27.0, across main, Workers, agent tasks and `run_js`. The engine dependency and JavaScript API contracts remain unchanged. Bundled English docs distinguish the maintained implementation from its origin. The release also includes replacement of the `x/term` terminal-width dependency. CLI defaults, version assertions, README release/helper links and [release notes](v1.10.0.md) use v1.10.0. The distribution profile and workflow are unchanged.
+
+The first preparation attempt at `659af38` passed unit/E2E/vet but failed `TestNetConnectTCPAndUnixHalfClose/unix` during race testing with `busy=true`; no data-race warning was emitted. Source inspection found that AsyncWork.Complete posts its result before marking the producer done, permitting an immediate idle assertion to run too early. The test now joins the native producers before retaining the same `rt.Busy()` assertion. Production code, close behavior, expected values and skips are unchanged. The exact first failure's interleaving is not established by the log alone. The narrow follow-up review found no P0/P1/P2/P3 issues; targeted race execution passed 100 repetitions. The final gates below were rerun after this test-only correction. See the [review record](../development/stdlib-step2-runtime-review.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1 -timeout=180s` | Passed, 39.849 seconds |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1 -timeout=180s` | Passed, 40.027 seconds |
+| `CGO_ENABLED=0 go vet ./...` | Passed, 0.17 seconds |
+| `CGO_ENABLED=0 go vet -tags=e2e ./...` | Passed, 0.19 seconds |
+| `CGO_ENABLED=1 GORACE=atexit_sleep_ms=0 go test -race ./internal/... -count=1 -timeout=300s` | Passed, 56.89 seconds |
+| Six CGO-free profile builds, `-trimpath -s -w -X noe/internal/cli.Version=v1.10.0` | Passed; all local SHA256SUMS entries verified |
+| Native CLI checks | All 29 passed: eleven base checks, nine docs/owned I/O checks, nine REPL-removal/cancellation/legacy-log checks |
+| Fixture-agent smoke | Passed: agent→run_js, instruction/context/hooks/counters; two local requests and six hook invocations |
+| Four-mode API inventory | Main, Node-style Worker, nested Worker and Web Worker exactly match the feature-validation inventory |
+| Embedded dependencies and source information | Retained dependency versions, go-quickjs v0.27.0, no embedded x/term, checked revision and `vcs.modified=false` |
+| Changed-document local links and whitespace | All checked local references resolve; staged whitespace checks passed |
+
+All five final gates ran sequentially before the six builds. Environment: Linux amd64, Go 1.27.2 and C toolchain for race. E2E reused the prepared MCP SDK 1.32.1 bundle at `/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs`. Local Linux amd64 size: 49,291,424 bytes. Initial failure logs are under `/tmp/noe-v1.10.0-release-npfmrpt0/attempt1/`; targeted before/after runs, final gate logs, clean source, builds, hashes and smoke records are under `/tmp/noe-v1.10.0-release-npfmrpt0/`.
+
+Before the version update, the maintained-stdlib source also passed independent code review, per-mode API comparison, unit/race/E2E/vet and six-target compilation. An authorized real OpenCode Go / `deepseek-v4.1-flash` agent completed the basic file-read/aggregate/write/verify/final-answer flow in 10.368 seconds, with three provider requests and two successful `run_js` calls. That separate observation is retained in the [implementation record](../development/stdlib-step2-runtime-implementation.md). Release preparation did not repeat real-provider calls.
+
+Native execution was performed on Linux amd64; other targets have cross-build evidence. The tag-triggered workflow and downloaded release assets are checked separately after publication.
