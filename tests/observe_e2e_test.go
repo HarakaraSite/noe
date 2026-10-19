@@ -119,7 +119,7 @@ func TestRunObserveDirectMatchesSavedLogRenderer(t *testing.T) {
 	env["COLUMNS"] = "80"
 	direct := runCLI(t, work, env, "run", "--observe", "--events=record.jsonl", "main.js")
 	requireExit(t, direct, 0)
-	if direct.stderr != "" || !strings.Contains(direct.stdout, "thinking: 計算します") || !strings.Contains(direct.stdout, "run_js succeeded") || !strings.Contains(direct.stdout, "final answer\n  結果は3です") {
+	if direct.stderr != "" || !strings.Contains(direct.stdout, "thinking: 計算します") || !strings.Contains(direct.stdout, "run_js succeeded") || !strings.Contains(direct.stdout, "final answer:\n結果は3です") {
 		t.Fatalf("direct output: %+v", direct)
 	}
 	replayed := runCLI(t, work, nil, "observe", "record.jsonl")
@@ -127,13 +127,13 @@ func TestRunObserveDirectMatchesSavedLogRenderer(t *testing.T) {
 	if direct.stdout != replayed.stdout {
 		t.Fatalf("format mismatch\ndirect:\n%s\nreplayed:\n%s", direct.stdout, replayed.stdout)
 	}
-	if strings.Count(direct.stdout, "] thinking:") != 1 || !strings.Contains(direct.stdout, "thinking: 計算します\n\n  次に確認します。\n") {
+	if strings.Count(direct.stdout, "\nthinking:") != 1 || !strings.Contains(direct.stdout, "thinking: 計算します\n\n  次に確認します。\n") {
 		t.Fatalf("thinking fragments were not grouped:\n%s", direct.stdout)
 	}
-	if strings.Contains(direct.stdout, "] stdout:") || strings.Contains(direct.stdout, "**成功**") {
+	if strings.Contains(direct.stdout, "\nstdout:") || strings.Contains(direct.stdout, "**成功**") {
 		t.Fatalf("raw stdout leaked into human output:\n%s", direct.stdout)
 	}
-	if !strings.Contains(direct.stdout, "\n  成功\n\n  | 項目   | 結果 |\n  | ------ | ---- |\n  | 日本語 | OK   |\n") || strings.Contains(direct.stdout, "\x1b") {
+	if !strings.Contains(direct.stdout, "\n成功\n\n| 項目   | 結果 |\n| ------ | ---- |\n| 日本語 | OK   |\n") || strings.Contains(direct.stdout, "\x1b") {
 		t.Fatalf("Markdown was not formatted as plain text:\n%s", direct.stdout)
 	}
 	runID := observationRunID(t, filepath.Join(work, "record.jsonl"))

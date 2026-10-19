@@ -13,6 +13,7 @@ func TestObserveDistinguishesTaskCompletionFromInstanceIdle(t *testing.T) {
 	renderer := newAgentRenderer(&out)
 	for _, event := range []events.Event{
 		{"type": "instance.started", "agentId": "abcdefgh-full", "name": "worker"},
+		{"type": "agent.started", "agentId": "abcdefgh-full", "runId": "12345678-full", "name": "worker", "model": "fixture/model"},
 		{"type": "agent.completed", "agentId": "abcdefgh-full", "runId": "12345678-full", "name": "worker"},
 		{"type": "instance.idle", "agentId": "abcdefgh-full", "name": "worker"},
 		{"type": "instance.stopped", "agentId": "abcdefgh-full", "name": "worker", "reason": "owner_cancelled"},
@@ -22,7 +23,7 @@ func TestObserveDistinguishesTaskCompletionFromInstanceIdle(t *testing.T) {
 		}
 	}
 	text := out.String()
-	for _, want := range []string{"[worker/abcdefgh] agent started", "[worker/12345678] completed", "[worker/abcdefgh] agent idle", "[worker/abcdefgh] agent stopped: owner_cancelled"} {
+	for _, want := range []string{"[worker agent=abcdefgh]\nagent started", "[worker agent=abcdefgh run=12345678]\nstarted: fixture/model", "[worker run=12345678]\ncompleted", "[worker agent=abcdefgh]\nagent idle", "[worker agent=abcdefgh]\nagent stopped: owner_cancelled"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in:\n%s", want, text)
 		}

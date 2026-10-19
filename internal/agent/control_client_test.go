@@ -47,7 +47,7 @@ func TestControlRegistrationUsesPrivateFileAndRemovesIt(t *testing.T) {
 
 func TestDiscoverControlHostsAndResolveUnambiguousIDs(t *testing.T) {
 	const secret = "human-control-capability"
-	listing := ControlListing{HostID: "host-a", PID: 123, Agents: []AgentSnapshot{{AgentID: "abcd-one", CurrentRunID: "run-one", State: "running"}, {AgentID: "abcd-two", State: "idle"}}}
+	listing := ControlListing{HostID: "host-a", PID: 123, Agents: []AgentSnapshot{{AgentID: "abcd-one", CurrentRunID: "run-one", Name: "first", State: "running"}, {AgentID: "abcd-two", Name: "second", State: "idle"}}}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/control/agents" || r.Header.Get("Authorization") != "Bearer "+secret {
 			t.Error("wrong control endpoint or capability")
@@ -83,7 +83,7 @@ func TestDiscoverControlHostsAndResolveUnambiguousIDs(t *testing.T) {
 	if err != nil || got.HostID != "host-a" || id != "run-one" {
 		t.Fatalf("resolve run: host=%q id=%q err=%v", got.HostID, id, err)
 	}
-	if _, _, err := ResolveControlTarget(context.Background(), dir, "abcd", false); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+	if _, _, err := ResolveControlTarget(context.Background(), dir, "abcd", false); err == nil || !strings.Contains(err.Error(), "ambiguous agent ID") || !strings.Contains(err.Error(), "abcd-one (first)") || !strings.Contains(err.Error(), "abcd-two (second)") {
 		t.Fatalf("ambiguous ID accepted: %v", err)
 	}
 	if _, _, err := ResolveControlTarget(context.Background(), dir, "absent", false); err == nil || !strings.Contains(err.Error(), "no active") {

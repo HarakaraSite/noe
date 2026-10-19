@@ -73,7 +73,7 @@ func TestObserveHumanStreamsReadableThinkingAndAcceptedMessages(t *testing.T) {
 	}
 	emit("thinking", "考え")
 	emit("thinking", "ています")
-	out.wait(t, "[parent-A/run-A] thinking: 考えています") // Producer is still open.
+	out.wait(t, "[parent-A run=run-A]\nthinking: 考えています") // Producer is still open.
 	emit("thinking", "\n\n次に")
 	emit("thinking", "確認します。\n")
 	out.wait(t, "thinking: 考えています\n\n  次に確認します。\n")
@@ -94,10 +94,10 @@ func TestObserveHumanStreamsReadableThinkingAndAcceptedMessages(t *testing.T) {
 		t.Fatal("observer did not finish at EOF")
 	}
 	text := out.text()
-	if strings.Count(text, "途中の発言") != 1 || !strings.Contains(text, "run_js started: READMEを読む") || !strings.Contains(text, "run_js succeeded: 28ms") || !strings.Contains(text, "final answer\n  最終報告です") {
+	if strings.Count(text, "途中の発言") != 1 || !strings.Contains(text, "run_js started: READMEを読む") || !strings.Contains(text, "run_js succeeded: 28ms") || !strings.Contains(text, "final answer:\n最終報告です") {
 		t.Fatalf("unreadable or duplicate output:\n%s", text)
 	}
-	if strings.Count(text, "] thinking:") != 1 {
+	if strings.Count(text, "\nthinking:") != 1 {
 		t.Fatalf("repeated thinking label:\n%s", text)
 	}
 	if strings.Contains(text, "privateCode") {
@@ -128,13 +128,13 @@ func TestObserveHumanGroupsThinkingAcrossLinesButKeepsStreamsSeparate(t *testing
 	if err := renderer.finish(); err != nil {
 		t.Fatal(err)
 	}
-	want := "[A/run-A] thinking: First\n\n  Second\n  Third\n" +
-		"[A/run-A] thinking summary: Summary\n  More\n" +
-		"[B/run-B] thinking: Other\n" +
-		"[A/run-A] thinking: Back\n" +
-		"[A/run-A] thinking: Next request\n" +
-		"[A/run-A] run_js started: Read file\n" +
-		"[A/run-A] thinking: After tool\n"
+	want := "[A run=run-A]\nthinking: First\n\n  Second\n  Third\n\n" +
+		"[A run=run-A]\nthinking summary: Summary\n  More\n\n" +
+		"[B run=run-B]\nthinking: Other\n\n" +
+		"[A run=run-A]\nthinking: Back\n\n" +
+		"[A run=run-A]\nthinking: Next request\n\n" +
+		"[A run=run-A]\nrun_js started: Read file\n\n" +
+		"[A run=run-A]\nthinking: After tool\n"
 	if got := out.String(); got != want {
 		t.Fatalf("thinking groups:\n%q\nwant:\n%q", got, want)
 	}
@@ -158,7 +158,7 @@ func TestObserveFollowHoldsIncompleteRowAndCancels(t *testing.T) {
 	go func() {
 		done <- Run(ctx, []string{"observe", "--follow", path}, strings.NewReader(""), out, &diagnostic)
 	}()
-	out.wait(t, "[parent-A/run-A] started")
+	out.wait(t, "[parent-A run=run-A]\nstarted")
 	if strings.Contains(out.text(), "run_js started") {
 		t.Fatal("partial row was consumed")
 	}
@@ -231,10 +231,10 @@ func TestObserveHumanKeepsParallelToolsIdentifiable(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, expected := range []string{
-		"[parent/run-A/11111111] run_js started: read A",
-		"[parent/run-A/22222222] run_js started: read B",
-		"[parent/run-A/22222222] run_js failed: exitCode=7",
-		"[parent/run-A/11111111] run_js succeeded",
+		"[parent run=run-A tool=11111111]\nrun_js started: read A",
+		"[parent run=run-A tool=22222222]\nrun_js started: read B",
+		"[parent run=run-A tool=22222222]\nrun_js failed: exitCode=7",
+		"[parent run=run-A tool=11111111]\nrun_js succeeded",
 	} {
 		if !strings.Contains(out.String(), expected) {
 			t.Fatalf("missing %q:\n%s", expected, &out)
@@ -266,10 +266,10 @@ func TestObserveHumanFormatsOnlyAcceptedAgentMarkdown(t *testing.T) {
 	}
 	for _, want := range []string{
 		"thinking: **thinking stays plain**\n",
-		"message\n  Working\n",
-		"final answer\n  Report\n",
-		"  | 項目   | 結果 |\n  | ------ | ---- |\n  | A      | 成功 |\n  | 日本語 | OK   |",
-		"    ```js\n      console.log(3);\n    ```\n",
+		"message:\nWorking\n",
+		"final answer:\nReport\n",
+		"| 項目   | 結果 |\n| ------ | ---- |\n| A      | 成功 |\n| 日本語 | OK   |",
+		"  ```js\n    console.log(3);\n  ```\n",
 		"stderr: **stderr stays plain**\n",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -291,7 +291,7 @@ func TestObserveHumanWrapsMarkdownToColumns(t *testing.T) {
 	if err := renderer.render(events.Event{"type": "agent.final", "runId": "run", "text": "alpha **beta gamma delta** epsilon"}); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := out.String(), "[agent/run] final answer\n  alpha beta gamma delta\n  epsilon\n"; got != want {
+	if got, want := out.String(), "[agent run=run]\nfinal answer:\nalpha beta gamma delta\nepsilon\n"; got != want {
 		t.Fatalf("wrapped response = %q, want %q", got, want)
 	}
 }
@@ -307,7 +307,7 @@ func TestObserveDisplaysSavedHistoricalREPLEvents(t *testing.T) {
 	if code := Run(context.Background(), []string{"observe", path}, strings.NewReader(""), &out, &diagnostic); code != 0 || diagnostic.Len() != 0 {
 		t.Fatalf("observe code=%d stdout=%q stderr=%q", code, out.String(), diagnostic.String())
 	}
-	want := "[script/old-exec] result: 42\n[script/old-exec] evaluation error: legacy failure\n"
+	want := "[script execution=old-exec]\nresult: 42\n\n[script execution=old-exec]\nevaluation error: legacy failure\n"
 	if got := out.String(); got != want {
 		t.Fatalf("historical event display = %q, want %q", got, want)
 	}

@@ -24,9 +24,12 @@ func runAgentControl(ctx context.Context, args []string, stdout, stderr io.Write
 	if len(args) == 0 {
 		return invalid()
 	}
+	full := false
 	switch args[0] {
 	case "agents":
-		if len(args) != 1 {
+		if len(args) == 2 && args[1] == "--full" {
+			full = true
+		} else if len(args) != 1 {
 			return invalid()
 		}
 	case "steer", "queue":
@@ -61,6 +64,10 @@ func runAgentControl(ctx context.Context, args []string, stdout, stderr io.Write
 			return 0
 		}
 		writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
+		formatID := shortID
+		if full {
+			formatID = func(id string) string { return id }
+		}
 		fmt.Fprintln(writer, "HOST\tAGENT ID\tRUN ID\tSTATE\tQUEUED\tNAME")
 		for _, host := range hosts {
 			for _, snapshot := range host.Listing.Agents {
@@ -68,7 +75,7 @@ func runAgentControl(ctx context.Context, args []string, stdout, stderr io.Write
 				if run == "" {
 					run = "-"
 				}
-				fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%d\t%s\n", shortID(host.Listing.HostID), snapshot.AgentID, run, snapshot.State, snapshot.QueueLength, snapshot.Name)
+				fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%d\t%s\n", formatID(host.Listing.HostID), formatID(snapshot.AgentID), formatID(run), snapshot.State, snapshot.QueueLength, snapshot.Name)
 			}
 		}
 		if err := writer.Flush(); err != nil {

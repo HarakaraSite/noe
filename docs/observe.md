@@ -64,20 +64,37 @@ tail -f agent.jsonl | ./noe observe
 出力例：
 
 ```text
-[parent-A/12345678] model: waiting for response
-[parent-A/12345678] context: budget=1000000 / window=unknown / estimated=... / execution=~.../... tokens (..., source=fallback)
-[parent-A/12345678] context trimmed: ~... -> ~... tokens / removed blocks=12 / reason=input_budget / source=fallback
-[parent-A/12345678/abcdef12] run_js started: Read README.md
-[parent-A/12345678/abcdef12] run_js succeeded: 28ms
-[parent-A/12345678] thinking: 次に結果をまとめます。
-[parent-A/12345678] final answer
-  READMEの要点は次の3つです。
-  ...
-[parent-A/12345678] completed
-[parent-A/89abcdef] agent idle
+[parent-A agent=89abcdef run=12345678]
+started: provider/model
+
+[parent-A run=12345678]
+model: waiting for response
+
+[parent-A run=12345678]
+context: budget=1000000 / window=unknown / estimated=... / execution=~.../... tokens (..., source=fallback)
+
+[parent-A run=12345678 tool=abcdef12]
+run_js started: Read README.md
+
+[parent-A run=12345678 tool=abcdef12]
+run_js succeeded: 28ms
+
+[parent-A run=12345678]
+thinking: 次に結果をまとめます。
+
+[parent-A run=12345678]
+final answer:
+READMEの要点は次の3つです。
+...
+
+[parent-A run=12345678]
+completed
+
+[parent-A agent=89abcdef]
+agent idle
 ```
 
-表示ラベルは英語を標準とし、モデルの本文は元の言語のまま表示します。`run_js`の先頭コメントも英語で書くようモデルへ指示します。taskの発言・tool・完了には名前と短縮run IDを付け、tool由来のイベントには短縮tool IDも付けます。instanceの開始・running・idle・stopping・停止・failedは`[name/<agentId8>] agent <state>`の英語行で表示します。thinking・summaryは受信時に同じrun・モデル要求・種類の断片をつなぎ、連続する間はラベルを最初の1回だけ表示します。改行・空行は保持し、続きの本文を2スペースで字下げします。別agent・別要求・別種類やtoolなどの表示が間に入ると、新しいラベルから表示します。完了まで溜めず、受信した本文を逐次表示します。途中の発言と最終回答は確定した本文を色なしのMarkdown整形で表示し、`message_delta`を重ねて表示しません。強調やリンクを読みやすいテキストにし、箇条書き・段落・表を整えます。コードブロックはハイライトせずインデント付きで表示します。stdoutの本文は表示せず、`run_js`の先頭コメントと成功・失敗を表示します。stderrは引き続き表示します。スクリプトが最終回答を`console.log`しても、人間向けには最終回答イベントだけを表示するため重複しません。
+表示ラベルは英語を標準とし、モデルの本文は元の言語のまま表示します。`run_js`の先頭コメントも英語で書くようモデルへ指示します。各イベントは1行目に`[名前 run=短縮ID]`、2行目に`イベント名: 内容`を表示し、イベント間に空行を入れます。IDは先頭8文字で、tool由来のイベントには`tool=短縮ID`も付けます。task開始時には`agent=短縮ID`と`run=短縮ID`の両方を示し、対応を確認できます。instanceの開始・running・idle・stopping・停止・failedは`[名前 agent=短縮ID]`の次行に`agent <state>`を表示します。通常スクリプトのイベントには`execution=短縮ID`を使います。thinking・summaryは受信時に同じrun・モデル要求・種類の断片をつなぎ、連続する間はラベルを最初の1回だけ表示します。改行・空行は保持し、続きの本文を2スペースで字下げします。別agent・別要求・別種類やtoolなどの表示が間に入ると、新しいラベルから表示します。完了まで溜めず、受信した本文を逐次表示します。途中の発言と最終回答は`message:`・`final answer:`の次行から確定した本文を色なしのMarkdown整形で表示し、`message_delta`を重ねて表示しません。強調やリンクを読みやすいテキストにし、箇条書き・段落・表を整えます。コードブロックはハイライトせずインデント付きで表示します。stdoutの本文は表示せず、`run_js`の先頭コメントと成功・失敗を表示します。stderrは引き続き表示します。スクリプトが最終回答を`console.log`しても、人間向けには最終回答イベントだけを表示するため重複しません。
 
 本文の幅は起動時の`COLUMNS`、出力先の端末幅、80桁の順で決めます。段落・箇条書きは単語の境界で折り返し、表は日本語の表示幅も数えてセルを折り返します。表が収まらない狭い幅では項目ごとの縦表示へ切り替えます。空白のない長い語やコードの行は幅を超える場合があります。CommonMark全体への準拠を目的としたレンダラーではなく、見出しの`#`やコードフェンスなど一部の記号は残ります。
 
@@ -197,4 +214,4 @@ noe interrupt --run <run-id>
 noe interrupt --agent <agent-id>
 ```
 
-`noe agents`はactive instanceだけを表示します。steerには実行中のrun ID、queueとinstance停止にはagent IDを使います。CLIは実行完了や回収を待たないため、その後のtask状態は従来の`noe observe`・`--observe`・JSONLで確認してください。ホスト接続はローカルの稼働中NOEに限られ、接続先の共有には実行側とCLI側で同じ`NOE_AGENT_RUNTIME_DIR`または`XDG_RUNTIME_DIR`が必要です。
+`noe agents`はactive instanceだけを表示し、IDはobserveと同じ先頭8文字に揃えます。完全IDは`noe agents --full`で確認できます。steerには実行中のrun ID、queueとinstance停止にはagent IDを使います。表示された短縮IDをそのまま指定でき、重複して曖昧な場合は完全IDと名前の候補がエラーに表示されるので、長いprefixか完全IDで指定し直します。CLIは実行完了や回収を待たないため、その後のtask状態は従来の`noe observe`・`--observe`・JSONLで確認してください。ホスト接続はローカルの稼働中NOEに限られ、接続先の共有には実行側とCLI側で同じ`NOE_AGENT_RUNTIME_DIR`または`XDG_RUNTIME_DIR`が必要です。

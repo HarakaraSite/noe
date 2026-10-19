@@ -113,10 +113,18 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 		return result
 	}
 	listed := command("agents")
-	if !strings.Contains(listed.stdout, snapshot.AgentID) || !strings.Contains(listed.stdout, snapshot.CurrentRunID) {
+	rows := strings.Split(strings.TrimSpace(listed.stdout), "\n")
+	if len(rows) != 2 {
 		t.Fatalf("listing: %+v", listed)
 	}
-	if result := command("steer", snapshot.CurrentRunID, "add a correction"); !strings.Contains(result.stdout, "steer accepted:") {
+	fields := strings.Fields(rows[1])
+	if len(fields) != 6 || fields[1] != snapshot.AgentID[:8] || fields[2] != snapshot.CurrentRunID[:8] {
+		t.Fatalf("listing: %+v", listed)
+	}
+	if full := command("agents", "--full"); !strings.Contains(full.stdout, snapshot.AgentID) || !strings.Contains(full.stdout, snapshot.CurrentRunID) {
+		t.Fatalf("full listing: %+v", full)
+	}
+	if result := command("steer", fields[2], "add a correction"); !strings.Contains(result.stdout, "steer accepted:") {
 		t.Fatalf("steer receipt: %+v", result)
 	}
 	close(release)
@@ -136,7 +144,7 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool {
 		return s.State == "idle" && s.LastResult != nil && s.LastResult.Answer == "corrected answer"
 	})
-	command("queue", snapshot.AgentID, "blocked task")
+	command("queue", fields[1], "blocked task")
 	select {
 	case <-blocked:
 	case <-ctx.Done():

@@ -17,7 +17,7 @@ func TestDecisionHumanObservation(t *testing.T) {
 		}
 	}
 	text := out.String()
-	for _, want := range []string{"decision started", "decision completed", "decision failed", "decision cancelled", "decision/model [abcdef01] -> decision/revision", "parent/parent-r/tool", "3ms"} {
+	for _, want := range []string{"decision started", "decision completed", "decision failed", "decision cancelled", "decision/model [abcdef01] -> decision/revision", "[parent run=parent-r tool=tool]\n", "3ms"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("missing %q in %s", want, text)
 		}

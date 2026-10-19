@@ -35,7 +35,7 @@ npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗
 | `noe run [options] <file> [args...]` | ファイルを実行。引数は`process.argv.slice(2)`で取得 |
 | `noe eval [options] <code>` | コードを実行。`process.argv.slice(2)`は空配列 |
 | `noe observe --follow <log>` | 保存中のagentイベントを人間向けに表示 |
-| `noe agents` | 実行中のagentとcurrent run IDを一覧表示 |
+| `noe agents [--full]` | 実行中のagentとcurrent run IDを一覧表示。`--full`で完全ID |
 | `noe steer <run-id> <instruction>` | 実行中taskへ追加指示 |
 | `noe queue <agent-id> <instruction>` | keepAlive instanceへ次のtaskを予約 |
 | `noe interrupt --run <id>` / `--agent <id>` | taskを取消し、またはinstanceを停止 |
@@ -204,7 +204,7 @@ noe interrupt --run <run-id>
 noe interrupt --agent <agent-id>
 ```
 
-`noe agents`は到達可能なhostのactive instanceとagent ID・current run ID・state・queue件数・nameを表示します。終了済みinstanceは一覧に含めません。各操作は受付結果を返し、task完了や回収を待ちません。`steer`には実行中のrun ID、`queue`とinstance停止にはagent IDを使います。IDは完全なIDか、候補が一つに絞れるprefixを使えます。要求後の進行確認には`noe observe`・`--observe`・JSONLを使ってください。
+`noe agents`は到達可能なhostのactive instanceとagent ID・current run ID・state・queue件数・nameを表示します。IDはobserveと同じ先頭8文字で、`noe agents --full`ではhost IDを含め完全IDを表示します。終了済みinstanceは一覧に含めません。各操作は受付結果を返し、task完了や回収を待ちません。`steer`には実行中のrun ID、`queue`とinstance停止にはagent IDを使います。IDは完全なIDか、候補が一つに絞れるprefixを使えます。一覧やobserveに表示された短縮IDもそのまま指定できます。曖昧な場合は完全IDと名前の候補を返すので、長いprefixか完全IDで指定し直します。要求後の進行確認には`noe observe`・`--observe`・JSONLを使ってください。
 
 Control接続はローカルで稼働中のNOEに限られ、daemonや再起動後のagent管理には使えません。接続先を共有する必要がある場合は、agentを実行するNOEとCLIで同じ`NOE_AGENT_RUNTIME_DIR`または`XDG_RUNTIME_DIR`を使ってください。新規作成するruntime directoryはmode `0700`、既存directoryのmodeは変更しません。接続情報fileとsecret fileは常にmode `0600`で保護します。`NOE_AGENT_RUNTIME_DIR`に既存directoryを指定してもchmodは行いません。接続探索はcontrol要求に限り2秒で打ち切り、モデル要求のtimeoutは変更しません。
 

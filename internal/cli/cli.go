@@ -24,7 +24,7 @@ const usage = `Usage:
   noe eval [--timeout duration] [--import-map path] [--observe] [--events[=path|-]] 'code'
   noe observe [--run id] [--follow] [events.jsonl|-]
   noe observe --json --run id [--wait] events.jsonl
-  noe agents
+  noe agents [--full]
   noe steer <run-id> <instruction>
   noe queue <agent-id> <instruction>
   noe interrupt --run <run-id>

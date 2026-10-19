@@ -210,6 +210,7 @@ func ResolveControlTarget(ctx context.Context, dir, id string, run bool) (Contro
 	type match struct {
 		connection ControlConnection
 		id         string
+		name       string
 	}
 	var matches []match
 	for _, host := range hosts {
@@ -219,7 +220,7 @@ func ResolveControlTarget(ctx context.Context, dir, id string, run bool) (Contro
 				candidate = agent.CurrentRunID
 			}
 			if candidate != "" && strings.HasPrefix(candidate, id) {
-				matches = append(matches, match{host.Connection, candidate})
+				matches = append(matches, match{host.Connection, candidate, agent.Name})
 			}
 		}
 	}
@@ -227,7 +228,15 @@ func ResolveControlTarget(ctx context.Context, dir, id string, run bool) (Contro
 		return ControlConnection{}, "", fmt.Errorf("no active agent matches ID %q", id)
 	}
 	if len(matches) > 1 {
-		return ControlConnection{}, "", fmt.Errorf("ambiguous agent ID %q; use a longer ID", id)
+		kind := "agent"
+		if run {
+			kind = "run"
+		}
+		var candidates []string
+		for _, match := range matches {
+			candidates = append(candidates, fmt.Sprintf("  %s (%s)", match.id, match.name))
+		}
+		return ControlConnection{}, "", fmt.Errorf("ambiguous %s ID %q; use a longer ID:\n%s", kind, id, strings.Join(candidates, "\n"))
 	}
 	return matches[0].connection, matches[0].id, nil
 }

@@ -18,6 +18,7 @@ type agentRenderer struct {
 	width int
 	open  bool
 	key   string
+	shown bool
 }
 
 func newAgentRenderer(out io.Writer) *agentRenderer {
@@ -50,20 +51,31 @@ func shortID(id string) string {
 func eventLabel(event events.Event) string {
 	name := eventString(event, "name")
 	id := eventString(event, "runId")
+	idKind := "run"
 	if id == "" {
 		id = eventString(event, "agentId")
+		idKind = "agent"
 	}
 	if id == "" {
 		name = "script"
 		id = eventString(event, "executionId")
+		idKind = "execution"
 	}
 	if name == "" {
 		name = "agent"
 	}
-	label := name + "/" + shortID(id)
+	label := name
+	if eventString(event, "type") == "agent.started" && idKind == "run" {
+		if agentID := eventString(event, "agentId"); agentID != "" {
+			label += " agent=" + shortID(agentID)
+		}
+	}
+	if id != "" {
+		label += " " + idKind + "=" + shortID(id)
+	}
 	if toolID := eventString(event, "toolCallId"); toolID != "" {
 		toolID = strings.TrimPrefix(strings.TrimPrefix(toolID, "call_"), "call-")
-		label += "/" + shortID(toolID)
+		label += " tool=" + shortID(toolID)
 	}
 	return label
 }
@@ -307,7 +319,10 @@ func (r *agentRenderer) fragment(key, label, kind, text string) error {
 		}
 		if !r.open {
 			if !grouped || r.key != key {
-				if _, err := fmt.Fprintf(r.out, "[%s] %s: ", label, kind); err != nil {
+				if err := r.header(label); err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintf(r.out, "%s: ", kind); err != nil {
 					return err
 				}
 			} else if part != "\n" {
@@ -336,7 +351,10 @@ func (r *agentRenderer) line(label, kind, text string) error {
 		return err
 	}
 	if text == "" {
-		_, err := fmt.Fprintf(r.out, "[%s] %s\n", label, kind)
+		if err := r.header(label); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(r.out, kind)
 		return err
 	}
 	if err := r.fragment("line", label, kind, text); err != nil {
@@ -345,16 +363,19 @@ func (r *agentRenderer) line(label, kind, text string) error {
 	return r.finish()
 }
 
-// An accepted message is one event, so it can be shown as an indented block without
+// An accepted message is one event, so it can be shown as a block without
 // repeating identifiers on every paragraph or interleaving another agent.
 func (r *agentRenderer) block(label, kind, text string) error {
 	if err := r.finish(); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(r.out, "[%s] %s\n", label, kind); err != nil {
+	if err := r.header(label); err != nil {
 		return err
 	}
-	text = markdown.Render(text, markdown.Options{Enabled: true, ANSI: false, Width: r.width, Prefix: "  "})
+	if _, err := fmt.Fprintf(r.out, "%s:\n", kind); err != nil {
+		return err
+	}
+	text = markdown.Render(text, markdown.Options{Enabled: true, ANSI: false, Width: r.width})
 	if _, err := io.WriteString(r.out, text); err != nil {
 		return err
 	}
@@ -363,6 +384,17 @@ func (r *agentRenderer) block(label, kind, text string) error {
 		return err
 	}
 	return nil
+}
+
+func (r *agentRenderer) header(label string) error {
+	if r.shown {
+		if _, err := io.WriteString(r.out, "\n"); err != nil {
+			return err
+		}
+	}
+	r.shown = true
+	_, err := fmt.Fprintf(r.out, "[%s]\n", label)
+	return err
 }
 
 func (r *agentRenderer) finish() error {

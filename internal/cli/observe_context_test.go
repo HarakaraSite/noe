@@ -20,7 +20,7 @@ func TestObserveContextAndHookProgress(t *testing.T) {
 	if code := Run(t.Context(), []string{"observe"}, strings.NewReader(input), &out, &stderr); code != 0 {
 		t.Fatalf("exit %d: %s", code, &stderr)
 	}
-	for _, want := range []string{"[parent/12345678] context: budget=1000 / window=unknown / estimated=125 (preparing) / remaining=875 / previous=unknown", "hook started: beforeModelRequest / /tmp/hook.mjs", "previous=850 measured [request-] / cached=800 / completed", "hook failed: afterTool / /tmp/hook.mjs / fixture error", "execution limit reached: providerCalls / used=5 / limit=5"} {
+	for _, want := range []string{"[parent run=12345678]\ncontext: budget=1000 / window=unknown / estimated=125 (preparing) / remaining=875 / previous=unknown", "hook started: beforeModelRequest / /tmp/hook.mjs", "previous=850 measured [request-] / cached=800 / completed", "hook failed: afterTool / /tmp/hook.mjs / fixture error", "execution limit reached: providerCalls / used=5 / limit=5"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("missing %q in %s", want, &out)
 		}
