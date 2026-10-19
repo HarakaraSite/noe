@@ -127,6 +127,31 @@ func TestRunObserveDirectMatchesSavedLogRenderer(t *testing.T) {
 	if direct.stdout != replayed.stdout {
 		t.Fatalf("format mismatch\ndirect:\n%s\nreplayed:\n%s", direct.stdout, replayed.stdout)
 	}
+	data, err := os.ReadFile(filepath.Join(work, "record.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, updated := map[string]bool{}, map[string]bool{}
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		var event struct {
+			Type, Status, RequestID string
+		}
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatal(err)
+		}
+		if event.Type == "model.started" {
+			started[event.RequestID] = true
+		}
+		if event.Type == "context.updated" {
+			if !started[event.RequestID] || updated[event.RequestID] || event.Status != "completed" {
+				t.Fatalf("context update must occur once after its model response: %s", line)
+			}
+			updated[event.RequestID] = true
+		}
+	}
+	if len(started) != 2 || len(updated) != 2 || strings.Count(direct.stdout, "\ncontext:") != 2 {
+		t.Fatalf("model requests=%d context updates=%d:\n%s", len(started), len(updated), direct.stdout)
+	}
 	if strings.Count(direct.stdout, "\nthinking:") != 1 || !strings.Contains(direct.stdout, "thinking: 計算します\n\n  次に確認します。\n") {
 		t.Fatalf("thinking fragments were not grouped:\n%s", direct.stdout)
 	}

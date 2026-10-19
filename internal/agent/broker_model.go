@@ -56,9 +56,6 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 	h := b.host
 	requestID, activityID := "", ""
 	causedBy := []string(nil)
-	var sentContext contextSnapshot
-	var sentContextActivityID string
-	var sentContextCauses []string
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	valid := run != nil && run.operation == op && run.ctx.Err() == nil && !run.interrupting && !op.closed && !h.closed && !run.finalClosed
@@ -146,7 +143,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		// Count only requests that cross the provider boundary. Returning a
 		// queued steer batch does not consume the task's model-call budget.
 		run.providerCalls++
-		sentContext, sentContextActivityID, sentContextCauses = h.markContextSentLocked(run, request, requestID, time.Now())
+		h.markContextSentLocked(run, request, requestID, time.Now())
 		run.context.pendingNotice = nil
 		run.context.pendingTrimActivityIDs = nil
 		// markContextSentLocked stores the request snapshot before the notice is
@@ -161,7 +158,6 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		writeJSON(w, modelResponse{Steers: steers})
 		return
 	}
-	h.emitContextUpdated(run, sentContext, "sent", sentContextActivityID, sentContextCauses)
 	origin := activityOrigin{Kind: "model", RunID: run.id, AgentID: run.agentID(), ModelStepID: request.ModelStepID}
 	if h.opts.Observe != nil {
 		fields := events.Event{"requestId": requestID, "status": "started"}

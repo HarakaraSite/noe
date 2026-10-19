@@ -67,7 +67,6 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 		writeRPCError(w, 400, "image", err.Error())
 		return
 	}
-	wasPrepared := run.context.prepared
 	run.context.imageEstimates = imageEstimatesLocked(run)
 	fixed, execution, _, partsErr := historyParts(request.Messages, request.Tools, request.History, run.context.imageEstimates)
 	if partsErr != nil {
@@ -139,9 +138,6 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 	h.mu.Unlock()
 	if trimmed != nil {
 		h.emitContextTrimmed(run, snapshot, *trimmed, request.ModelStepID, appendUniqueActivityIDs(causes, stepActivityID))
-	}
-	if !wasPrepared {
-		h.emitContextUpdated(run, snapshot, "preparing", stepActivityID, causes)
 	}
 	writeJSON(w, struct {
 		Prepared bool             `json:"prepared"`
@@ -250,7 +246,7 @@ func contextScopeError() error {
 	return &RPCError{Code: "scope", Message: "context is unavailable outside the active run scope"}
 }
 
-func (h *Host) markContextSentLocked(run *agentRun, request modelRequest, requestID string, now time.Time) (contextSnapshot, string, []string) {
+func (h *Host) markContextSentLocked(run *agentRun, request modelRequest, requestID string, now time.Time) {
 	messageData, _ := json.Marshal(request.Messages)
 	toolData, _ := json.Marshal(request.Tools)
 	imageTokens := historyImageTokens(request.Messages, run.context.imageEstimates)
@@ -261,14 +257,7 @@ func (h *Host) markContextSentLocked(run *agentRun, request modelRequest, reques
 		Tokens: tokens, ImageTokens: imageTokens, Method: imageEstimateMethod(imageTokens), Stage: "sent",
 		ModelStepID: request.ModelStepID, RequestID: &requestIDCopy, EstimatedAt: now,
 	}
-	snapshot := h.storeContextSnapshotLocked(run, now)
-	activityID := run.activityID
-	causes := append([]string(nil), run.causedBy...)
-	if request.ModelStepID != "" && run.modelStep != nil && run.modelStep.id == request.ModelStepID {
-		activityID = run.modelStep.requestActivityID
-		causes = append([]string(nil), run.modelStep.requestCauseActivityIDs...)
-	}
-	return snapshot, activityID, causes
+	h.storeContextSnapshotLocked(run, now)
 }
 
 func (h *Host) completeContextRequestLocked(run *agentRun, requestID, status string, usage *usageSummary, now time.Time) (contextSnapshot, string, []string) {

@@ -3,11 +3,13 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 func TestContextBudgetValidationAndExplicitNullRoundTrip(t *testing.T) {
@@ -178,6 +180,80 @@ func TestContextPrepareAndActualRequestMeasurementWithoutObservation(t *testing.
 	}
 	if h.opts.Observe != nil || sent.Observe != nil {
 		t.Fatal("context state unexpectedly depended on or enabled observation")
+	}
+}
+
+func TestContextUpdatesOnlyAfterProviderRequest(t *testing.T) {
+	for _, status := range []string{"completed", "failed", "cancelled", "invalid_response"} {
+		t.Run(status, func(t *testing.T) {
+			updates := make(chan events.Event, 8)
+			var h *Host
+			var runID string
+			p := &fixtureProvider{gen: func(_ context.Context, request provider.Request) (provider.Response, error) {
+				if len(updates) != 0 {
+					t.Error("context notification emitted before the provider responded")
+				}
+				h.mu.Lock()
+				sent := h.runs[runID].context.snapshot(runID, time.Now())
+				h.mu.Unlock()
+				if sent.Estimate == nil || sent.Estimate.Stage != "sent" || sent.Estimate.RequestID == nil || sent.Estimate.Tokens <= 0 {
+					t.Errorf("live context was not updated at send time: %+v", sent)
+				}
+				switch status {
+				case "failed":
+					return provider.Response{}, errors.New("fixture error")
+				case "cancelled":
+					return provider.Response{}, context.Canceled
+				case "invalid_response":
+					return provider.Response{Message: json.RawMessage(`invalid`)}, nil
+				}
+				return provider.Response{Message: json.RawMessage(`{"role":"assistant","content":"answer"}`), FinishReason: "stop", Usage: json.RawMessage(`{"prompt_tokens":40}`)}, nil
+			}}
+			h = NewHost(Options{Provider: p, Observe: func(event events.Event) {
+				if event["type"] == "context.updated" {
+					updates <- event
+				}
+			}})
+			t.Cleanup(h.Close)
+			op := h.NewOperation(t.Context())
+			t.Cleanup(op.Close)
+			runID = startFixtureRun(t, op)
+			messages := []json.RawMessage{json.RawMessage(`{"role":"user","content":"task"}`)}
+			var step beginModelStepResponse
+			if err := json.Unmarshal([]byte(controlCall(t, op, "begin_model_step", beginModelStepRequest{RunID: runID, Messages: messages})), &step); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				controlCall(t, op, "context_prepare", contextPrepareRequest{RunID: runID, ModelStepID: step.ModelStepID, Messages: messages})
+			}
+			var prepared contextGetResponse
+			if err := json.Unmarshal([]byte(controlCall(t, op, "context_get", contextAccessRequest{RunID: runID, ModelStepID: step.ModelStepID})), &prepared); err != nil {
+				t.Fatal(err)
+			}
+			if len(updates) != 0 || prepared.Context.Estimate == nil || prepared.Context.Estimate.Stage != "preparing" || !strings.HasPrefix(prepared.Notification, "NOE_CONTEXT_STATUS\n") {
+				t.Fatalf("preparation must update state and retain the model notice without emitting: %+v", prepared)
+			}
+			notice, _ := json.Marshal(map[string]string{"role": "system", "content": prepared.Notification})
+			_, err := op.Call("model", mustJSON(t, modelRequest{RunID: runID, ModelStepID: step.ModelStepID, Model: "fixture/model", MaxTokens: 128, Effort: "auto", Messages: append(messages, notice)}))
+			if (err != nil) != (status != "completed") {
+				t.Fatalf("model result for %s: %v", status, err)
+			}
+			if len(updates) != 1 {
+				t.Fatalf("context updates=%d, want one after the request", len(updates))
+			}
+			event := <-updates
+			wantStatus := status
+			if wantStatus == "invalid_response" {
+				wantStatus = "failed"
+			}
+			snapshot := event["context"].(contextSnapshot)
+			if event["status"] != wantStatus || snapshot.Previous == nil || snapshot.Previous.Status != wantStatus || snapshot.Estimate == nil || snapshot.Estimate.Stage != "sent" || snapshot.Previous.RequestID != event["requestId"] {
+				t.Fatalf("terminal context update: %+v", event)
+			}
+			if status == "completed" && (snapshot.Previous.PromptTokens == nil || *snapshot.Previous.PromptTokens != 40) {
+				t.Fatalf("terminal context lost measured usage: %+v", snapshot.Previous)
+			}
+		})
 	}
 }
 

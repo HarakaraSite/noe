@@ -774,8 +774,8 @@ await writeFile(` + string(snapshotPath) + `,JSON.stringify({state:result.lastRe
 	if json.Unmarshal(resultBytes, &calculation) != nil || calculation.Count != 4 || calculation.Total != 100 || calculation.Average != 25 {
 		t.Errorf("wrong fixture calculation %s", resultBytes)
 	}
-	if !strings.Contains(stdout, "context: budget=16000") || !strings.Contains(stdout, "previous=") {
-		t.Errorf("--observe did not render context/usage alongside the answer; inspect artifacts at %s", c.artifact)
+	if !strings.Contains(stdout, "\ncontext:") || strings.Contains(stdout, "context: budget=") {
+		t.Errorf("--observe did not render context percentage alongside the answer; inspect artifacts at %s", c.artifact)
 	}
 	rows, err := c.eventRows()
 	if err != nil {

@@ -281,6 +281,8 @@ func (h *Host) storeContextSnapshotLocked(run *agentRun, now time.Time) contextS
 	return snapshot
 }
 
+// Context recalculation and trimming update live state independently. Publish a
+// snapshot only when an admitted provider request completes, fails, or is cancelled.
 func (h *Host) emitContextUpdated(run *agentRun, snapshot contextSnapshot, status, activityID string, causes []string) {
 	fields := events.Event{
 		"context":     snapshot,

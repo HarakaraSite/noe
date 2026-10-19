@@ -4,6 +4,8 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,8 +35,34 @@ func TestContextObservationRunAndEval(t *testing.T) {
 			}
 			result := runCLI(t, dir, env, args...)
 			requireExit(t, result, 0)
-			if !strings.Contains(result.stdout, "context: budget=10000") || !strings.Contains(result.stdout, "estimated=") || !strings.Contains(result.stdout, "previous=100 measured") {
+			if strings.Count(result.stdout, "\ncontext:") != 1 || strings.Contains(result.stdout, "budget=") || strings.Contains(result.stdout, "previous=") {
 				t.Fatalf("context not observed: %s\n%s", result.stdout, result.stderr)
+			}
+			data, err := os.ReadFile(filepath.Join(dir, "events.jsonl"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			updates := 0
+			for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+				var event struct {
+					Type, Status string
+					Context      struct {
+						Budget   struct{ InputTokens int }
+						Previous struct{ PromptTokens int }
+					}
+				}
+				if err := json.Unmarshal([]byte(line), &event); err != nil {
+					t.Fatal(err)
+				}
+				if event.Type == "context.updated" {
+					updates++
+					if event.Status != "completed" || event.Context.Budget.InputTokens != 10000 || event.Context.Previous.PromptTokens != 100 {
+						t.Fatalf("context details missing from completed event: %s", line)
+					}
+				}
+			}
+			if updates != 1 {
+				t.Fatalf("context updates=%d, want one", updates)
 			}
 		})
 	}

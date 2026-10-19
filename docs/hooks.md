@@ -153,6 +153,10 @@ promptにはcached分も含む。概算はmessages/toolsのJSON UTF-8 byte量を
 providerのtokenizerやadapter変換後のwire量とは一致しない。
 `preparing`は判断準備時、`sent`は実要求の送信時を示す。
 応答後のsnapshotは最新の送信概算を`sent`として保持し、次の判断を準備すると置き換える。
+これらの内部更新ごとに観察イベントは発火しません。`context.updated`は実際のモデル要求の
+正常終了・失敗・取消し時に1回だけ発火します。hookの`api.context.get()`とlive snapshotは、
+通知の有無にかかわらず各時点の最新状態を返します。実際に適用した切り捨ては
+`context.trimmed`として別途通知します。
 
 画像を含む場合、`estimate.imageTokens`は画像分の概算を別に示し、`estimate.method`は
 `json_utf8_bytes/4+image_32px_patches_x1.2_fallback`になります。画像の推定はtokenizerや課金額の実測ではなく、`low` detailでは最大辺512pxに収めた寸法、それ以外では原寸を使います。式の詳細は[画像ガイド](agent-images.md)を参照してください。

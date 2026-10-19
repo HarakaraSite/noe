@@ -13,10 +13,18 @@ import (
 
 func TestContextTrimReceiptSteerOnlyAndActualAdmission(t *testing.T) {
 	calls := 0
+	updates, trims := make(chan events.Event, 8), make(chan events.Event, 8)
 	h := NewHost(Options{Provider: &fixtureProvider{gen: func(_ context.Context, r provider.Request) (provider.Response, error) {
 		calls++
 		return provider.Response{Message: json.RawMessage(`{"role":"assistant","content":"done"}`), FinishReason: "stop"}, nil
-	}}})
+	}}, Observe: func(event events.Event) {
+		switch event["type"] {
+		case "context.updated":
+			updates <- event
+		case "context.trimmed":
+			trims <- event
+		}
+	}})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(t.Context())
 	t.Cleanup(op.Close)
@@ -81,9 +89,15 @@ func TestContextTrimReceiptSteerOnlyAndActualAdmission(t *testing.T) {
 	prep.Messages, prep.History, prep.AppliedPlanID = kept, history, ""
 	controlCall(t, op, "context_prepare", prep)
 	notice := get().Notification
+	if len(updates) != 0 || len(trims) != 1 {
+		t.Fatalf("preparation/steering emitted %d context updates and %d trim notices", len(updates), len(trims))
+	}
 	tail, _ := json.Marshal(map[string]string{"role": "system", "content": notice})
 	model.Messages = append(kept, tail)
 	controlCall(t, op, "model", model)
+	if len(updates) != 1 || len(trims) != 1 {
+		t.Fatalf("request completion emitted %d context updates and %d trim notices", len(updates), len(trims))
+	}
 	if calls != 1 || strings.Contains(get().Notification, "Context trimmed:") {
 		t.Fatal("actual provider admission failed to consume pending notice")
 	}

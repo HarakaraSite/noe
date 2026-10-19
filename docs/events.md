@@ -17,7 +17,7 @@ trim回数は同instanceの後続queue taskにも引き継ぎます。新しいi
 | `model.step.started` | 論理判断の開始。steer再準備中は同じ`modelStepId` |
 | `hook.started` / `hook.finished` / `hook.failed` / `hook.cancelled` | module・phase・invocationの寿命 |
 | `tool.finished` | 元引数・実行引数、元結果・モデル向け結果を区別したtool結果 |
-| `context.updated` | run/判断/要求に対応する`context` snapshot |
+| `context.updated` | 実際のモデル要求の終了時に1回通知する`context` snapshot。`status`は`completed`・`failed`・`cancelled` |
 | `context.trimmed` | 実際に適用した切り捨ての前後概算、削除block数、理由、予算source、原因情報と更新snapshot |
 
 `context`は明示入力予算、catalogのwindow、直前要求の実測、次要求の概算を持ち、
@@ -27,6 +27,11 @@ catalog window不明かつ明示予算なしの場合に使う1,000,000-token fa
 cached入力は実測promptの一部で、group累積tokenや応答上限とは別。
 概算方式・snapshotの型・hook APIは[hookガイド](hooks.md)を参照。
 標準通知は観察無効時もモデルに届き、JSONL記録自体は従来どおり`--events`で選ぶ。
+
+再計算・切り捨て・通知の発火は独立しています。準備時と送信時にも内部状態とlive snapshotを
+更新しますが、`context.updated`は発火しません。応答または失敗・取消しの結果が出た時点で、
+その要求の概算と取得できた実測値を含むsnapshotを通知します。providerへ進まないsteer配送や
+受付前の拒否では発火しません。モデルへ渡す標準通知は、引き続き要求ごとの最新情報1つです。
 
 `context.trimmed`はJS履歴への削除適用を確認した後に一度だけ出し、削除したtool本文やreasoning本文は含めない。
 steer-onlyの再準備中は切り捨て通知とcauseを次の実provider要求まで保持する。

@@ -7,6 +7,8 @@ protected user messageとして追加します。live contextのtrim回数もins
 
 `--observe`と保存ログの人間向け表示では、`context:0.2%`のように実行履歴の
 予算使用率だけを小数1桁で表示します。割合が不明なら`context:unknown`です。
+通常のcontext通知はモデル要求の終了時（正常・失敗・取消し）に1回です。準備・送信時の
+再計算とlive snapshot更新は続けますが、観察イベントは発火しません。
 古いログに`executionContext`がない場合は、記録されている`context.usedPercent`を使います。
 入力予算・モデルwindow・次要求の概算・残量・前回実測・cache・予算のsourceは、
 JSONLと構造化snapshotに引き続き保持します。
