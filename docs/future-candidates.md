@@ -19,7 +19,9 @@
 
 公開名は実装の出自と分けて考える。Web標準の型・共通機能は標準名を維持し、NOEが設計するAPIは`noe:`を正式な入口にする。`node:fs`は当面維持し、NOEとして仕様を整える段階で`noe:fs`を正式名、`node:fs`を同じ実装を参照する互換エイリアスにする案を持つ。将来は`noe:fs-handle`を`noe:fs`へ統合することも検討し、ハンドルの表現・読み書き・closeの契約と旧入口の互換性を整理する。エイリアスなら振る舞いも共通になり、互換動作に差が必要な部分だけ別途扱う。一律の改名は行わず、具体的な範囲・時期は未決定。
 
-汎用stdlibとagent拡張は選択して利用できる境界を設ける。現在のagentは子NOEプロセスの起動・認証・観察・終了管理と接続しているため、外部アプリへ提供する際は実行方法や生存期間をどう接続するかも整理する。公開ライブラリ化を一度に完了することはHTTP整備の前提にせず、段階的に進める。現在は次のステップ1〜6が完了し、7は未着手。
+汎用stdlibとagent拡張は選択して利用できる境界を設ける。現在のagentは子NOEプロセスの起動・認証・観察・終了管理と接続しているため、外部アプリへ提供する際は実行方法や生存期間をどう接続するかも整理する。公開ライブラリ化を一度に完了することはHTTP整備の前提にせず、段階的に進める。現在は次のステップ1〜6が完了。7は7.1汎用公開の計画レビュー済みで実装未着手、7.2agent接続は後続。
+
+利用者の追加方針（2026-10-19）：まずv1.13.0を常用し、見つかった小さなバグを修正して問題なさそうと判断できてからv2.0.0にする。今回のリリースはステップ6までの実装とステップ7の計画を含み、公開Go package・moduleの/v2移行は未実装のまま残す。
 
 利用者と共有した長期的な節目は、他のGoアプリにも組み込めるNOEを目指すv2.0.0。途中は1.xで完成した単位ごとにリリースできる進め方とし、最終形を一度に実装しない。各段階の具体的なversion・時期は未決定。
 
@@ -33,7 +35,7 @@
 | 4：要求送信のストリーミング（完了） | `ReadableStream`を全量収集せず送信し、Request所有権・背圧・取消し・早期応答を整えた | EOF前到達、各Worker/agent、全体/race/E2E・6対象compile・実provider再試が成功。独立コードレビューと再レビュー完了 |
 | 5：要求受信のストリーミング（完了） | headers後にhandlerへ渡し、需要に応じて本文を逐次読取り。早期応答・Expect・終了回収を整えた | EOF前dispatch/受信、各Worker/agent、全体/race/E2E・6対象compile・実provider基本フローが成功。独立コードレビューと再レビュー完了 |
 | 6：NOE独自APIの導入方法の整理（完了） | 内部の組立packageでstdlib/nativeio/docs・設定複製・共有出力・Workerを接続し、NOE自身も切替 | CLI/agent非依存のGo例、API比較、全体/race/E2E・6対象compile・実provider限定再試が成功。独立コードレビューと再レビュー完了 |
-| 7：外部向けGoライブラリの提供 | 公開package・import path・設定・利用例を整える。汎用stdlibから始め、agent拡張を段階的に追加する | 小さな別Goアプリから組み込んで動かせる。agent拡張では実行方法と終了管理の接続も確認する |
+| 7：外部向けGoライブラリの提供（7.1計画レビュー済み・未実装） | 7.1で正規/v2 moduleと公開stdlib package・設定・外部consumerを整備。7.2でagent拡張の実行と終了管理の接続を別途計画する | 小さな別Go moduleから汎用APIを組み込める。7.1だけでagent公開・段階7全体完了とは扱わない |
 
 最初の作業単位は第1・第2段階までとし、「NOEが管理するstdlibで従来どおり動く」を一つの到達点にする。切替では既存テスト、HTTP・WebSocket・Worker・終了処理、配布対象のビルドとdocsの由来・版情報を確認する。その後、第3～第5段階をHTTP整備のまとまりとして進める。既存APIの契約とNOE側の拡張を整理し、Web型・loop・HTTP・WebSocketの共通実装を活用する。全二重通信や詳細なtimeout設定は、基本的な要求ストリーミングとは分けて仕様を決める。
 
@@ -48,6 +50,8 @@
 ステップ5は[要求受信streaming計画](development/stdlib-step5-receive-plan.md)の4スライスを実装し、[独立した通常の計画/コードレビューと再レビュー](development/stdlib-step5-receive-review.md)を完了。Expect tokenのP2と需要計数のP3を解消し、終了テストの総合確認後の修正も限定再確認済みで、最終未解消P0〜P3は0件。EOF前dispatch/受信、背圧・早期応答・取消し/終了、英文docs/例と各実行経路、全体/race/E2E・6対象compileが成功した。OpenCode Go実接続1課題でもdocsを自発参照し、受信・保存・close・最終回答を初回で確認した。[実装・検証記録](development/stdlib-step5-receive-implementation.md)と[構造化結果](development/stdlib-step5-receive-results.json)へ環境上の失敗と復旧も保存している。API登録・資源管理境界は次のステップ6で整理する。
 
 ステップ6は[API導入と所有関係の整理計画](development/stdlib-step6-composition-plan.md)の4スライスを実装し、[独立した通常の計画/コードレビューと限定再レビュー](development/stdlib-step6-composition-review.md)を完了。計画のProcess前提不足とコードのwriter動的比較のP2を解消し、最終未解消P0/P1/P2は0件。CLI/agent非依存の内部組立package・Worker/DNSと資源所有・NOE切替・英文Go例を整え、API/CLI比較、全体unit/race/E2E/vet・6対象build/compileが成功した。実プロバイダの同じ基本課題は初回のNode API仮定で未完了後、noe:http指定の限定再試でdocs自発参照・HTTP往復・保存・終了・最終回答を確認した。[実装・検証記録](development/stdlib-step6-composition-implementation.md)と[構造化結果](development/stdlib-step6-composition-results.json)に両試行を保存。公開Go package化はステップ7へ残す。
+
+ステップ7は[外部Goライブラリ提供計画](development/stdlib-step7-library-plan.md)を作成し、[独立した通常の計画レビュー](development/stdlib-step7-library-review.md)を完了。初回のP0〜P3は0件。7.1をmodule移行・公開facade・外部consumer/artifact・NOE切替/英文ガイド・総合確認の5スライスに分割し、7.2のagent接続は汎用公開の成立後に別計画とする。実装・テスト・公開は未着手。
 
 `noe:fs`への正式名変更や`noe:fs-handle`の統合は、HTTP整備・ライブラリ公開とは独立した後続作業とする。汎用stdlibの外部利用が成立してからagent拡張の接続を段階的に整え、全APIの改名や統合をv2.0.0の必須条件にはしない。
 
