@@ -722,3 +722,33 @@ Embedded build information confirms the release-tag revision, `vcs.modified=fals
 Downloaded assets and verification records are under `/tmp/noe-v1.11.0-published-0yndwi_x/`; gate logs, clean source, local builds and smoke records are under `/tmp/noe-v1.11.0-release-2_dsnb0k/`. The repository-root `./noe` is the verified published Linux amd64 binary and reports `noe v1.11.0` (49,332,384 bytes).
 
 This documentation-only verification commit follows publication without moving the release tag. Native execution on macOS, Windows and arm64 remains unverified.
+
+
+## v1.12.0 preparation — 2026-10-19
+
+Checked source revision: `65319265f65a4397771c37391204be829b5c606d`. The five gates and profile builds used a clean detached worktree; the unrelated `agent-server-build.jsonl` was excluded. This preparation entry is a documentation-only follow-up and changes no checked application or test source.
+
+This release streams incoming HTTP bodies through the shared serve implementation, dispatching after headers and reading on demand. It includes bounded reads, input/response lifetime separation, early responses, Expect ordering, graceful/forced shutdown, English docs and a finite receive example. Existing entry points, read-cap behavior, outgoing streaming and WebSocket integration remain. General full-duplex HTTP is not guaranteed. See the [release notes](v1.12.0.md).
+
+| Check | Result |
+| --- | --- |
+| `CGO_ENABLED=0 go test ./... -count=1 -timeout=180s` | Passed, 45.621 seconds |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1 -timeout=180s` | Passed, 41.499 seconds |
+| `CGO_ENABLED=0 go vet ./...` | Passed, 0.755 seconds |
+| `CGO_ENABLED=0 go vet -tags=e2e ./...` | Passed, 0.724 seconds |
+| `CGO_ENABLED=1 GORACE=atexit_sleep_ms=0 go test -race ./internal/... -count=1 -timeout=300s` | Passed, 61.002 seconds (second attempt; see below) |
+| Six CGO-free profile builds, `-trimpath -s -w -X noe/internal/cli.Version=v1.12.0` | Passed; all SHA256SUMS entries verified |
+| Existing native CLI checks | All 29 passed: base APIs, docs/owned IO, REPL removal, cancellation and legacy logs |
+| Fixture-agent smoke | Passed: agent/run_js, instructions, context, hooks and counters; two local model requests and six hook invocations |
+| Four-mode inventory | Main, Node-style Worker, nested Worker and Web Worker match the feature baseline; 26 Node modules, 41 topics and 100 details |
+| HTTP upload smoke | Transferred Request and prefix→ACK→remainder/EOF, binary bytes, matching CLI/JS docs and finite upload example passed |
+| HTTP receive smoke | Independent client withholds remainder/EOF until handler ACK; seven bytes/sum689/HTTP200, matching CLI/JS docs, finite receive example and listener rebind passed |
+| Build/source/dependencies | Checked revision, vcs.modified=false, pinned go-quickjs v0.27.0 and unchanged dependencies; no x/term |
+
+The first full race attempt failed an unchanged nativeio test's immediate `runtime.Busy()` assertion (`TestNetListenTCPAddressAcceptAndIndependentClose`); it did not report a data race. The nativeio code and its tested initialization path have no changes in this release. Twenty focused race repetitions passed, then the same full race command passed on the unchanged checked commit. The failed log and first-attempt checks are retained as race-attempt1.log and checks-attempt1.json alongside race-retry.json. No test was skipped or relaxed and no product source changed to obtain the pass.
+
+Environment: Linux amd64, Go 1.27.2, C toolchain for race. The short disk-backed Go temporary directory `/var/tmp/n12-xn9k3118` avoids the feature run's tmpfs capacity and Unix-socket path-length issues. E2E reused the prepared MCP SDK 1.32.1 bundle. Logs, clean source, local binaries, checksums and scripts are under `/home/agent/.cache/noe-v1.12.0-release-kgnfqe53`. Native execution on other targets was not performed.
+
+Before the version update, the [feature record](../development/stdlib-step5-receive-implementation.md) passed independent code review with no remaining P0–P3, full unit/race/E2E/vet and six-target compilation. Its real OpenCode Go / deepseek-v4.1-flash receive task succeeded in one basic task, spontaneously consulting docs, receiving before EOF, saving the result, closing the listener and answering. The feature's reviewed 14-file manifest is unchanged. No additional real-provider request was made for this release preparation.
+
+The tag-triggered workflow and downloaded release assets are verified separately after publication.
