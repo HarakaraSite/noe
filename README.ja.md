@@ -6,7 +6,7 @@ Just JavaScript. Until you need an agent.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v1.9.0リリースノート](docs/releases/v1.9.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.9.0)
+[v1.10.0リリースノート](docs/releases/v1.10.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.10.0)
 
 ## ビルドと実行
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.9.0
+# noe v1.10.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
@@ -83,7 +83,7 @@ root agentには`provider`・`model`・`effort`の明示指定が必要です。
 
 **NOEはsandboxではなく、スクリプトとagentは起動ユーザーのOS権限で動作します。** ファイル・環境変数・コマンド・ネットワークへアクセスできます。
 
-JavaScriptと、固定したgo-quickjs標準ライブラリのWeb API・Node形式APIに対応します。Node.js/Denoの完全互換、npm・パッケージ管理、HTTP import、QuickJS本来の`std`モジュールは対象外です。対応範囲は[APIリファレンス](docs/api.md#利用できる機能と権限)を参照してください。
+固定したgo-quickjsをJavaScriptエンジンに使い、go-quickjs v0.27.0を原型とするNOE管理の標準ライブラリでWeb API・Node形式APIを提供します。Node.js/Denoの完全互換、npm・パッケージ管理、HTTP import、QuickJS本来の`std`モジュールは対象外です。対応範囲は[APIリファレンス](docs/api.md#利用できる機能と権限)を参照してください。
 
 ## ライセンス
 

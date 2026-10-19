@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/stdlib"
+	"noe/internal/stdlib"
 )
 
 // eventLoop drives stdlib and engine jobs on the runtime owner.

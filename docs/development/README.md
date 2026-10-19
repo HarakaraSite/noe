@@ -48,6 +48,7 @@ go vet -tags=e2e ./...
 | 共通・workspace instructions | [利用ガイド](../instructions.md) | [実装記録](instructions-implementation.md) |
 | 内蔵docs・stdlib参照・agent初期説明 | [計画](builtin-docs-plan.md) | [実装・検証記録](builtin-docs-implementation.md) |
 | NOE版stdlib・ステップ1の取り込み | [計画](stdlib-step1-import-plan.md)・[計画/コードレビュー](stdlib-step1-import-review.md) | [実装・検証記録](stdlib-step1-import-implementation.md) |
+| NOE版stdlib・ステップ2のruntime切替 | [計画](stdlib-step2-runtime-plan.md)・[計画/コードレビュー](stdlib-step2-runtime-review.md) | [実装・検証記録](stdlib-step2-runtime-implementation.md) |
 | REPL削除 | [計画](repl-removal-plan.md) | [実装・検証記録](repl-removal-implementation.md) |
 | 自動コンテキスト切り捨て | [計画](context-trimming-plan.md) | [実装記録](context-trimming-implementation.md) |
 | queueの会話継続 | [計画](queue-continuation-plan.md) | [実装記録](queue-continuation-implementation.md) |
@@ -59,6 +60,8 @@ go vet -tags=e2e ./...
 元の計画・実装記録と一緒に保存します。実行時に参照する設定ファイルではありません。
 
 [NOE版stdlib・ステップ1の検証結果](stdlib-step1-import-results.json)には、取り込み範囲・原本比較・単独/race/総合テスト・cross-compile・production依存境界とレビュー対象の記録があります。
+
+[ステップ2の検証結果](stdlib-step2-runtime-results.json)には、runtime切替、4モードのAPI比較、全体/race/E2E、6対象のビルドと統合test cross-compile、実プロバイダでの基本フロー、依存境界とコードレビューの記録があります。
 
 | 対象 | 結果 |
 | --- | --- |
@@ -73,6 +76,6 @@ go vet -tags=e2e ./...
 
 利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補と完了区分は[次の機能候補](../future-candidates.md)を更新します。
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンと汎用JavaScript APIには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)とstdlibを使います。NOE固有のCLI、実行期限、agentなどをその上へ実装します。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)、汎用JavaScript APIには同版のstdlibを原型とするNOE管理の`internal/stdlib`を使います。NOE固有のCLI、実行期限、agentなどをその上へ実装します。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
 
 `_refs/`はローカル専用の未追跡の参考資料で、ビルド・テスト依存に含めません。リリースの配布対象・品質確認は[プロファイル](../../.forgejo/release-profile.yml)と[ワークフロー](../../.forgejo/workflows/release.yml)に定義されています。

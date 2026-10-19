@@ -10,11 +10,11 @@ import (
 	"strings"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/stdlib"
+	"noe/internal/stdlib"
 )
 
 // installStdlib gives scripts the full set of capabilities provided by the
-// pinned go-quickjs standard library. NOE is a local command-line runtime, so
+// NOE-maintained standard library. NOE is a local command-line runtime, so
 // these capabilities have the same authority as the user running it.
 func (h *host) installStdlib(opts Options) error {
 	return stdlib.Install(h.rt, h.stdlibConfig(opts))

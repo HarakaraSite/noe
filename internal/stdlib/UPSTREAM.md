@@ -1,9 +1,10 @@
 # NOE standard library snapshot
 
 This is a source snapshot of the go-quickjs standard library, maintained inside
-NOE. The JavaScript engine remains the upstream Go dependency. This package is
-currently tested independently; NOE's production runtime still installs the
-upstream standard library. Runtime migration is a later step.
+NOE. The JavaScript engine remains the upstream Go dependency. NOE's production
+runtime, Workers, and managed task/run_js processes now install this snapshot.
+Runtime adoption preserves the imported API surface and configuration; its
+wiring lives in internal/runtime and the integration test helpers.
 
 ## Origin and license
 

@@ -1,8 +1,8 @@
 package modulemap
 
-// standardLibraryBareModules is the pinned go-quickjs v0.27.0 stdlib module
-// registry used by NOE. Keep this table in one place and compare it against
-// that version's public registered modules when updating the dependency.
+// standardLibraryBareModules is the NOE-maintained stdlib module registry,
+// based on go-quickjs v0.27.0. Keep this table in one place and compare it
+// against internal/stdlib's public registered modules when changing the library.
 // node:* names are reserved separately, including names not registered here.
 var standardLibraryBareModules = map[string]struct{}{
 	"assert":          {},

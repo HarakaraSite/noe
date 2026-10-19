@@ -6,7 +6,7 @@ A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://gi
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
-[v1.9.0 release notes](docs/releases/v1.9.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.9.0)
+[v1.10.0 release notes](docs/releases/v1.10.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.10.0)
 
 ## Build and run
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.9.0
+# noe v1.10.0
 ```
 
 The examples below assume the repository root is your working directory.
@@ -83,7 +83,7 @@ The linked guides are currently in Japanese. For older scripts, see the [API mig
 
 **NOE is not a sandbox. Scripts and agents run with the OS privileges of the user who starts NOE**, including filesystem, environment, command, and network access.
 
-NOE supports JavaScript and the pinned go-quickjs standard library's Web and Node-style APIs. Full Node.js/Deno compatibility, npm/package management, HTTP imports, and the original QuickJS `std` module are outside its scope. See the [API reference](docs/api.md#利用できる機能と権限) for supported behavior.
+NOE uses the pinned go-quickjs engine and a NOE-maintained standard library, based on go-quickjs v0.27.0, for supported Web and Node-style APIs. Full Node.js/Deno compatibility, npm/package management, HTTP imports, and the original QuickJS `std` module are outside its scope. See the [API reference](docs/api.md#利用できる機能と権限) for supported behavior.
 
 ## License
 

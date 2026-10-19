@@ -1,17 +1,17 @@
 package apidocs
 
-// stdlibTopics documents the modules registered by the pinned go-quickjs
-// v0.27.0 standard library and the globals installed by NOE. Bare aliases are
+// stdlibTopics documents the modules registered by the NOE-maintained
+// standard library, based on go-quickjs v0.27.0, and the globals installed by NOE. Bare aliases are
 // limited to modulemap.standardLibraryBareModules; a reserved node: prefix
 // does not imply that an unregistered Node module exists.
 //
-// Source basis: go.mod, internal/modulemap/builtins.go, and
+// Source basis: internal/stdlib, its UPSTREAM.md, internal/modulemap/builtins.go, and
 // internal/runtime/stdlib.go. Export inventories were confirmed against the
-// pinned implementation and Object.keys(await import(...)) in NOE.
+// NOE-maintained implementation and Object.keys(await import(...)) in NOE.
 func stdlibTopics() []topicSpec {
 	return []topicSpec{
 		{ID: "stdlib", Kind: "index", Summary: "The 26 built-in Node-style modules installed by NOE, their scope, and important runtime differences.", File: "stdlib.md"},
-		{ID: "globals", Kind: "global", Summary: "Global APIs installed by the pinned QuickJS standard library and enabled by NOE, with streams, network, server, abort, and timer details.", File: "stdlib-globals.md"},
+		{ID: "globals", Kind: "global", Summary: "Global APIs supplied by the pinned go-quickjs engine and NOE-maintained standard library, with streams, network, server, abort, and timer details.", File: "stdlib-globals.md"},
 		{ID: "node:assert", Kind: "module", Summary: "Synchronous assertion helpers for checking values and thrown errors.", File: "stdlib-assert.md", Aliases: []string{"assert"}},
 		{ID: "node:async_hooks", Kind: "module", Summary: "Tracks async execution context for values that must follow work across promises and timers.", File: "stdlib-async-hooks.md", Aliases: []string{"async_hooks"}},
 		{ID: "node:buffer", Kind: "module", Summary: "Provides byte-oriented Buffer helpers and the Buffer global.", File: "stdlib-buffer.md", Aliases: []string{"buffer"}},

@@ -1,6 +1,6 @@
 # Global APIs
 
-This page lists globals installed by the pinned runtime and APIs enabled by NOE. Global names do not have a module default export. Core ECMAScript globals are listed for discovery only; this page does not attempt to document the full JavaScript language reference.
+This page lists globals provided by the pinned go-quickjs engine and the NOE-maintained standard library. Global names do not have a module default export. Core ECMAScript globals are listed for discovery only; this page does not attempt to document the full JavaScript language reference.
 
 ### NOE and Node-style globals
 
@@ -208,4 +208,4 @@ clearTimeout(timeout);
 
 ### Source basis
 
-NOE enables Process, FS, Fetch, Serve, WebSockets, Workers, and a Loop in internal/runtime/stdlib.go. Implementations are in github.com/go-quickjs/go-quickjs@v0.27.0/stdlib (webapis.go, streams.go, fetch.go, serve.go, websocket.go, timers.go, worker.go). The inventory above was confirmed with Object.getOwnPropertyNames(globalThis).
+NOE enables Process, FS, Fetch, Serve, WebSockets, Workers, and a Loop in internal/runtime/stdlib.go. Standard-library implementations are in internal/stdlib (webapis.go, streams.go, fetch.go, serve.go, websocket.go, timers.go, worker.go), based on github.com/go-quickjs/go-quickjs@v0.27.0/stdlib; see internal/stdlib/UPSTREAM.md for origin and local changes. The inventory above was confirmed with Object.getOwnPropertyNames(globalThis).

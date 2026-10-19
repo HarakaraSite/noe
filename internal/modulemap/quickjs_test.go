@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/stdlib"
+	"noe/internal/stdlib"
 )
 
 func TestQuickJSUnifiesAliasesAndRetainsLoadedNamespace(t *testing.T) {

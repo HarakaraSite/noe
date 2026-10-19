@@ -13,7 +13,7 @@ import (
 	"time"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/stdlib"
+	"noe/internal/stdlib"
 )
 
 func netRuntime(t *testing.T, cwd string, dial netDialFunc) (*quickjs.Runtime, *Host) {
