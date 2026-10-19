@@ -36,6 +36,8 @@ A managed agent owns its task runtime and descendants. A returned snapshot is a 
 
 The `contextBudget.inputTokens` scale includes fixed instructions. It is different from the execution-history allowance used by `contextPolicy`. If both model-window metadata and an explicit budget are unknown, NOE uses a 1,000,000-token input-budget fallback; this is not a model-capacity guarantee. A root's execution limits are shared by its descendants and owned decision calls.
 
+Built-in agent providers retry transient transport failures, HTTP 429/5xx, and incomplete streams up to three attempts, waiting 2 seconds before attempt two and 4 seconds before attempt three. Cancellation also stops retry waits. The same request is resent without replaying hooks or tools. Partial text already observed stays visible, but failed responses are not added to conversation history. Retry attempts do not add model-step/admission counts or retry-specific events. Decisions, image generation, and custom injected providers retain their existing behavior.
+
 ## run_agent
 
 `run_agent(config, instruction, options?) -> Promise<AgentSnapshot>` starts one task and waits until its instance stops and cleanup completes. `instruction` must be a nonempty string. `options` supports only `{keepAlive?: boolean}`; the default is `false`.

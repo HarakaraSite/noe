@@ -218,7 +218,7 @@ executionLimits: {providerCalls: 100, agentStarts: 8, queuedTasks: 16, hookCalls
 ```
 
 省略項目は無制限、明示した`0`は受付枠0。`maxSteps:0`が無制限である契約とは別。
-providerCallsはagentのGenerateと所有下のdecisionのDecideを共用し、SDK内部のHTTP retryは数えない。
+providerCallsはagentのGenerateと所有下のdecisionのDecideを共用し、同じGenerate内のHTTP retryは数えない。組込みagent生成は最大3試行・2秒／4秒待機で再送し、hookとtoolは再実行しない。詳細は[providerガイド](providers.md#モデル要求の再試行)を参照。
 開始後の失敗・取消しで枠を戻さない。queueの同commandId再送は二重計数しない。
 N件目は受け付け、その次の受付でgroupを閉じ、rootと所有workを取消す。
 上限に達した瞬間に成功したN件目を停止する方式ではない。

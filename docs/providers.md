@@ -69,6 +69,16 @@ Go側で`User-Agent: noe/<version>`を付与し、`x-opencode-session`には実�
 
 Chatの思考はprovider設定の`reasoningField`に従って連結・保持・再送します。OpenCode Goの既定は`reasoning_content`です。Responsesではtool callやreasoningを含むnative output itemsを履歴へ保持し、次の要求のinputへ再送します。providerが返したthinking・summary・回答の断片は既存の観察イベントへ流れます。
 
+## モデル要求の再試行
+
+組込みproviderのagentモデル要求は、通信障害・HTTP 429・5xx・不完全なstreamで自動再試行します。最大3試行で、1回目の失敗後に2秒、2回目の失敗後に4秒待機します。認証失敗・残高不足・入力不正・取消しは再試行しません。待機中もinterrupt・timeout・所有元の終了による取消しが有効です。回数・待機時間の設定項目はありません。
+
+各試行は同じ入力を送り、完了済みのtool・hookは再実行しません。失敗した試行の部分応答は会話履歴へ追加せず、成功した試行の完全な応答だけを返します。既に表示・JSONLへ出たthinking等の断片は残り、再試行による重複を許容します。途中まで受信したtool callは実行しません。
+
+retry専用のobserve表示・JSONLイベントは追加せず、`model.started`・`context.updated`・`model.finished` / `model.failed`は論理要求ごとです。`maxSteps`・`providerCalls`も論理要求単位で、内部のHTTP試行回数や課金量を示すものではありません。usageは最終的に取得できた成功応答の値を保持し、失敗した試行の不明なusageは推測しません。
+
+SDK側の暗黙のretryは無効のまま、NOE側で上記の再試行だけを行います。対象はOpenRouter・OpenCode Go・OpenAI等の組込みagent生成経路です。単発decision・画像生成・Goホストから注入した独自providerの再試行方針は変更しません。
+
 ## 設定項目
 
 | 項目 | 意味 |

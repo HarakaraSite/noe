@@ -183,8 +183,8 @@ func TestOpenRouterRequiresSSEDoneAfterFinish(t *testing.T) {
 	provider := NewOpenRouter(Options{KeyFile: keyFile, BaseURL: server.URL, HTTPClient: httpClient})
 	_, err := provider.Generate(context.Background(), testRequest())
 	assertProviderError(t, err, ErrorStream)
-	if got := httpClient.closes.Load(); got != 1 {
-		t.Errorf("response body close count = %d; want 1", got)
+	if got := httpClient.closes.Load(); got != 3 {
+		t.Errorf("response body close count = %d; want 3 attempts", got)
 	}
 }
 
@@ -256,8 +256,8 @@ func TestOpenRouterRejectsBodyReadErrorAfterFinish(t *testing.T) {
 	provider := NewOpenRouter(Options{KeyFile: keyFile, BaseURL: "http://fixture.invalid", HTTPClient: &scriptedHTTPClient{status: http.StatusOK, body: body}})
 	_, err := provider.Generate(context.Background(), testRequest())
 	assertProviderError(t, err, ErrorStream)
-	if got := body.closes.Load(); got != 1 {
-		t.Errorf("response body close count = %d; want 1", got)
+	if got := body.closes.Load(); got != 3 {
+		t.Errorf("response body close count = %d; want 3 attempts", got)
 	}
 }
 
@@ -363,8 +363,12 @@ func TestOpenRouterClassifiesCredentialAndProviderFailures(t *testing.T) {
 			provider := NewOpenRouter(Options{KeyFile: keyFile, BaseURL: server.URL, HTTPClient: httpClient})
 			_, err := provider.Generate(context.Background(), testRequest())
 			assertProviderError(t, err, test.kind)
-			if got := httpClient.closes.Load(); got != 1 {
-				t.Errorf("response body close count = %d; want 1", got)
+			want := int32(3)
+			if test.kind == ErrorQuota {
+				want = 1
+			}
+			if got := httpClient.closes.Load(); got != want {
+				t.Errorf("response body close count = %d; want %d", got, want)
 			}
 		})
 	}

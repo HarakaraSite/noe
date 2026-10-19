@@ -148,9 +148,14 @@ func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Re
 	defer result.EventStream.Close()
 	completed := false
 	for result.EventStream.Next() {
-		if event := result.EventStream.Value(); event != nil && event.GetDataResponseCompleted() != nil {
-			completed = true
-			break
+		if event := result.EventStream.Value(); event != nil {
+			if event.GetDataResponseFailed() != nil || event.GetDataResponseIncomplete() != nil {
+				return Response{}, nativeStreamFailure(state)
+			}
+			if event.GetDataResponseCompleted() != nil {
+				completed = true
+				break
+			}
 		}
 	}
 	if cancelErr := cancellationError(ctx); cancelErr != nil {

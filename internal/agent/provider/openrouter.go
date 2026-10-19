@@ -250,9 +250,10 @@ func isJSONObject(raw json.RawMessage) bool {
 // Generate sends a streaming Chat Completions request and returns an opaque
 // assistant message plus the finish reason and usage object.
 func (p *OpenRouter) Generate(ctx context.Context, request Request) (Response, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	return generateWithRetry(ctx, request, p.generateOnce)
+}
+
+func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (Response, error) {
 	if err := cancellationError(ctx); err != nil {
 		return Response{}, err
 	}

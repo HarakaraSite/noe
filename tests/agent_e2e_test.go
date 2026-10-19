@@ -417,7 +417,11 @@ func TestAgentCLILimitsAndProviderFailures(t *testing.T) {
 			if err := json.Unmarshal([]byte(result.stdout), &snapshot); err != nil {
 				t.Fatalf("failure snapshot: %q: %v", result.stdout, err)
 			}
-			if snapshot.State != "stopped" || snapshot.Reason != "task_failed" || snapshot.LastResult.State != "failed" || calls.Load() != 1 {
+			wantCalls := int32(1)
+			if name == "missing-done" {
+				wantCalls = 3
+			}
+			if snapshot.State != "stopped" || snapshot.Reason != "task_failed" || snapshot.LastResult.State != "failed" || calls.Load() != wantCalls {
 				t.Fatalf("failure snapshot=%+v calls=%d", snapshot, calls.Load())
 			}
 			if name == "steps" && !strings.Contains(snapshot.LastResult.Error, "maxSteps") {

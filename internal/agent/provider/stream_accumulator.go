@@ -254,19 +254,19 @@ func (a *streamAccumulator) consumeToolCalls(raw json.RawMessage) error {
 
 func (a *streamAccumulator) response() (Response, error) {
 	if a.finishReason == "" {
-		return Response{}, providerError(ErrorStream, 0, nil)
+		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
 	if a.finishReason != "stop" && a.finishReason != "tool_calls" {
-		return Response{}, providerError(ErrorStream, 0, nil)
+		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
 	if a.refusal.Len() > 0 {
-		return Response{}, providerError(ErrorStream, 0, nil)
+		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
 	if a.finishReason == "tool_calls" && len(a.toolCalls) == 0 {
-		return Response{}, providerError(ErrorStream, 0, nil)
+		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
 	if a.finishReason == "stop" && !a.contentSeen && len(a.toolCalls) == 0 {
-		return Response{}, providerError(ErrorStream, 0, nil)
+		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
 
 	message := make(map[string]json.RawMessage, len(a.other)+6)

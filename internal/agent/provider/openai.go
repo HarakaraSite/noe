@@ -43,9 +43,10 @@ func NewOpenAI(options Options) *OpenAI {
 }
 
 func (p *OpenAI) Generate(ctx context.Context, request Request) (Response, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	return generateWithRetry(ctx, request, p.generateOnce)
+}
+
+func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, error) {
 	if err := cancellationError(ctx); err != nil {
 		return Response{}, err
 	}
