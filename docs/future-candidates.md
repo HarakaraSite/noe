@@ -7,6 +7,40 @@
 
 ## 検討を続ける候補
 
+### <一部完了> NOE版stdlibの実装 — 2026-10-19
+
+利用者が進めたい方向として、「go-quickjsエンジン＋NOEのライブラリ群＋それらを組み立てるNOE実行コマンド」という構成を目指す。NOE版stdlibとagent拡張を、NOE自身も利用するライブラリ群として育てる。将来は他のGoプロジェクトがimportし、go-quickjsのruntimeに汎用APIとagent機能を選択して組み込める構成にする。提供時期や具体的な公開APIは未決定。
+
+現行はGoの`github.com/go-quickjs/go-quickjs/stdlib`をimportしてJSのAPIを登録し、NOE独自のAPIを追加している。NOE独自機能もGoとJSで実装され、`internal/nativeio`・`internal/agent`などの内部packageと`internal/runtime`の登録・実行制御に分かれている。現時点で外部向けの公開Goライブラリとしては分離していない。公開package化は同じrepository内でも可能で、別repository・別Go moduleへの分離は必須ではない。
+
+実装の土台は、固定版go-quickjsのstdlibを取り込み、NOE側で拡張・保守するforkとする。既存のWeb型、Streams、HTTP・WebSocket連携、loopとテストを活用し、上流への変更や新機能の全面追随を前提にしない。エンジンは引き続きgo-quickjsを利用する。ステップ1でstdlibと`internal/wsproto`を取り込み、非公開の`internal/hostaccess`への依存は公開評価APIへ適合させた。全機能の自前実装や既存機能の一括移動は決定していない。
+
+具体案として、通常のHTTP用途と要求・応答のストリーミングを`noe:http`へ集約し、NOEの推奨入口と今後の開発先にする。既存の`fetch`・`serve`・`node:http`は従来の利用向けに維持する。forkしたstdlibから既存APIを提供する構成も可能で、上流版とNOE版を別々に導入することを前提にしない。Web型・Streamsの共有、WebSocket連携、初版の対応範囲と終了動作を実装計画で決める。HTTP整備に合わせてAPI登録・通信・資源管理とCLI・agent固有の実行制御の境界を整理し、NOE版stdlibの一部として扱える構成にする。
+
+公開名は実装の出自と分けて考える。Web標準の型・共通機能は標準名を維持し、NOEが設計するAPIは`noe:`を正式な入口にする。`node:fs`は当面維持し、NOEとして仕様を整える段階で`noe:fs`を正式名、`node:fs`を同じ実装を参照する互換エイリアスにする案を持つ。将来は`noe:fs-handle`を`noe:fs`へ統合することも検討し、ハンドルの表現・読み書き・closeの契約と旧入口の互換性を整理する。エイリアスなら振る舞いも共通になり、互換動作に差が必要な部分だけ別途扱う。一律の改名は行わず、具体的な範囲・時期は未決定。
+
+汎用stdlibとagent拡張は選択して利用できる境界を設ける。現在のagentは子NOEプロセスの起動・認証・観察・終了管理と接続しているため、外部アプリへ提供する際は実行方法や生存期間をどう接続するかも整理する。公開ライブラリ化を一度に完了することはHTTP整備の前提にせず、段階的に進める。現在は次のステップ1が完了し、NOE本体の切替以降は未着手。
+
+利用者と共有した長期的な節目は、他のGoアプリにも組み込めるNOEを目指すv2.0.0。途中は1.xで完成した単位ごとにリリースできる進め方とし、最終形を一度に実装しない。各段階の具体的なversion・時期は未決定。
+
+段階案（2026-10-19）：
+
+| 段階 | 変更内容 | その段階の完了の目安 |
+| --- | --- | --- |
+| 1：stdlibの取り込み（完了） | 固定版のソース・テスト・ライセンスと由来を取り込み、非公開packageへの依存を整理した。NOE本体は従来版を使う | 単独/race/総合テスト・6対象cross-compileが成功、独立した通常コードレビュー完了 |
+| 2：NOEの利用先の切替 | stdlibの導入、loop、Workerを取り込んだ版へ揃える。機能追加・API名変更は混ぜない | 既存のJS・API名・設定で従来どおり動く |
+| 3：`noe:http`の入口 | まず既存の`fetch`・`serve`を公開し、英文の内蔵docsと利用例を用意する | 通常のHTTP用途を`noe:http`から使える |
+| 4：要求送信のストリーミング | `ReadableStream`を全量収集せず送信できるようにする | producerが閉じる前に送信先へ本文が届き、中断できる |
+| 5：要求受信のストリーミング | 本文を読み切る前にhandlerへ渡し、到着した本文を順次処理できるようにする | handlerが本文を順次読め、背圧が働き、切断・終了時に資源を解放できる |
+| 6：NOE独自APIの導入方法の整理 | stdlibと`nativeio`などのAPI登録・資源管理の境界を揃える | CLIやagentに依存せず汎用APIをruntimeへ組み込める |
+| 7：外部向けGoライブラリの提供 | 公開package・import path・設定・利用例を整える。汎用stdlibから始め、agent拡張を段階的に追加する | 小さな別Goアプリから組み込んで動かせる。agent拡張では実行方法と終了管理の接続も確認する |
+
+最初の作業単位は第1・第2段階までとし、「NOEが管理するstdlibで従来どおり動く」を一つの到達点にする。切替では既存テスト、HTTP・WebSocket・Worker・終了処理、配布対象のビルドとdocsの由来・版情報を確認する。その後、第3～第5段階をHTTP整備のまとまりとして進める。既存APIの契約とNOE側の拡張を整理し、Web型・loop・HTTP・WebSocketの共通実装を活用する。全二重通信や詳細なtimeout設定は、基本的な要求ストリーミングとは分けて仕様を決める。
+
+ステップ1は[固定版stdlibの取り込み計画](development/stdlib-step1-import-plan.md)に沿って3スライスを実装し、[独立した通常の計画/コードレビュー](development/stdlib-step1-import-review.md)を完了した。いずれもP2以上の指摘は0件。[実装・検証記録](development/stdlib-step1-import-implementation.md)と[構造化結果](development/stdlib-step1-import-results.json)を保存している。取り込んだ41ファイルのうち30件が原本と一致し、11件の適合変更とローカル追加2件に限定した。NOE本体の切替は含めず、上流stdlibを使うCLIの依存境界と既存runtime・配布バイナリの維持も確認した。
+
+`noe:fs`への正式名変更や`noe:fs-handle`の統合は、HTTP整備・ライブラリ公開とは独立した後続作業とする。汎用stdlibの外部利用が成立してからagent拡張の接続を段階的に整え、全APIの改名や統合をv2.0.0の必須条件にはしない。
+
 ### <完了> x/term依存の整理 — 2026-10-19
 
 REPL削除後に残ったobserve表示の端末幅取得を、既存の`x/sys`を使う小さなOS別helperへ置換しました。Linux/macOSは`IoctlGetWinsize`、Windowsは`GetConsoleScreenBufferInfo`の可視window幅を使います。`COLUMNS`→端末幅→80桁の選択を維持し、NOEの`go.mod`・`go.sum`と6配布対象のCLIビルド依存から`x/term`を除去しました。go-quickjs自身の`go.mod`にある間接的なmodule graph上の記載（v0.40.0）は残ります。

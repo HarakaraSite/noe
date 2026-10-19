@@ -1,0 +1,571 @@
+{
+  "stage": 1,
+  "status": "complete",
+  "date": "2026-10-19",
+  "environment": {
+    "go": "go1.27.2",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "upstream": {
+    "module": "github.com/go-quickjs/go-quickjs",
+    "version": "v0.27.0",
+    "commit": "bef3107cc7eeb5e392cdd9a3768f64fcbf0e609c",
+    "checksum": "h1:TVemuGmYmaR+4CCNIVIcHk3dhrqYRq+PGljCkT1EqAE="
+  },
+  "source": {
+    "upstream_files": 41,
+    "identical_files": [
+      "internal/stdlib/async_hooks.go",
+      "internal/stdlib/broadcast_internal_test.go",
+      "internal/stdlib/cleanup.go",
+      "internal/stdlib/compress.go",
+      "internal/stdlib/crypto.go",
+      "internal/stdlib/dns.go",
+      "internal/stdlib/exec.go",
+      "internal/stdlib/extras.go",
+      "internal/stdlib/fetch.go",
+      "internal/stdlib/fs.go",
+      "internal/stdlib/fsstream.go",
+      "internal/stdlib/loop.go",
+      "internal/stdlib/messaging.go",
+      "internal/stdlib/node.go",
+      "internal/stdlib/os.go",
+      "internal/stdlib/path.go",
+      "internal/stdlib/process.go",
+      "internal/stdlib/stdlib.go",
+      "internal/stdlib/streams.go",
+      "internal/stdlib/testdata/path_node.json",
+      "internal/stdlib/testdata/pathcorpus.js",
+      "internal/stdlib/testdata/pathcorpus_node.js",
+      "internal/stdlib/timers.go",
+      "internal/stdlib/vm.go",
+      "internal/stdlib/webapis.go",
+      "internal/stdlib/worker.go",
+      "internal/stdlib/workerscript.go",
+      "internal/stdlib/internal/wsproto/wsproto.go",
+      "internal/stdlib/internal/wsproto/wsproto_test.go",
+      "internal/stdlib/LICENSE"
+    ],
+    "adapted_files": [
+      "internal/stdlib/async_hooks_test.go",
+      "internal/stdlib/console.go",
+      "internal/stdlib/dns_test.go",
+      "internal/stdlib/lifetime_test.go",
+      "internal/stdlib/messaging_test.go",
+      "internal/stdlib/path_test.go",
+      "internal/stdlib/serve.go",
+      "internal/stdlib/stdlib_test.go",
+      "internal/stdlib/vm_test.go",
+      "internal/stdlib/websocket.go",
+      "internal/stdlib/worker_test.go"
+    ],
+    "local_additions": [
+      "internal/stdlib/UPSTREAM.md",
+      "internal/stdlib/eval_internal_test.go"
+    ]
+  },
+  "review": {
+    "type": "independent normal code review",
+    "agent": "/root/stdlib_step1_code_review",
+    "code_manifest_sha256": "e9a0c8545c66e02fe6877f9410683ff67d97618fdb36220d95b77258577f8326",
+    "findings": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 0,
+      "P3": 0
+    }
+  },
+  "tests": {
+    "unit": {
+      "packages": [
+        {
+          "Package": "noe/internal/stdlib/internal/wsproto",
+          "Action": "pass",
+          "Elapsed": 0.003
+        },
+        {
+          "Package": "noe/internal/stdlib",
+          "Action": "pass",
+          "Elapsed": 3.743
+        }
+      ],
+      "skipped_tests": [
+        {
+          "package": "noe/internal/stdlib",
+          "test": "TestHelperHeartbeat"
+        }
+      ],
+      "failures": []
+    },
+    "race": {
+      "packages": [
+        {
+          "Package": "noe/internal/stdlib/internal/wsproto",
+          "Action": "pass",
+          "Elapsed": 1.012
+        },
+        {
+          "Package": "noe/internal/stdlib",
+          "Action": "pass",
+          "Elapsed": 13.146
+        }
+      ],
+      "skipped_tests": [
+        {
+          "package": "noe/internal/stdlib",
+          "test": "TestHelperHeartbeat"
+        }
+      ],
+      "failures": []
+    },
+    "project-unit": {
+      "packages": [
+        {
+          "Package": "noe/cmd/noe",
+          "Action": "skip",
+          "Elapsed": 0
+        },
+        {
+          "Package": "noe/internal/agent/runner",
+          "Action": "pass",
+          "Elapsed": 0.046
+        },
+        {
+          "Package": "noe/internal/apidocs",
+          "Action": "pass",
+          "Elapsed": 0.008
+        },
+        {
+          "Package": "noe/internal/credentials",
+          "Action": "pass",
+          "Elapsed": 0.106
+        },
+        {
+          "Package": "noe/internal/decision",
+          "Action": "pass",
+          "Elapsed": 0.002
+        },
+        {
+          "Package": "noe/internal/events",
+          "Action": "pass",
+          "Elapsed": 0.003
+        },
+        {
+          "Package": "noe/internal/image",
+          "Action": "pass",
+          "Elapsed": 0.007
+        },
+        {
+          "Package": "noe/internal/mdcli/highlight",
+          "Action": "pass",
+          "Elapsed": 0.009
+        },
+        {
+          "Package": "noe/internal/mdcli/markdown",
+          "Action": "pass",
+          "Elapsed": 0.008
+        },
+        {
+          "Package": "noe/internal/modulemap",
+          "Action": "pass",
+          "Elapsed": 0.049
+        },
+        {
+          "Package": "noe/internal/agent/provider",
+          "Action": "pass",
+          "Elapsed": 0.335
+        },
+        {
+          "Package": "noe/internal/hostio",
+          "Action": "pass",
+          "Elapsed": 0.448
+        },
+        {
+          "Package": "noe/internal/processscope",
+          "Action": "skip",
+          "Elapsed": 0
+        },
+        {
+          "Package": "noe/internal/observation",
+          "Action": "pass",
+          "Elapsed": 0.333
+        },
+        {
+          "Package": "noe/internal/signals",
+          "Action": "pass",
+          "Elapsed": 0.037
+        },
+        {
+          "Package": "noe/internal/stdlib/internal/wsproto",
+          "Action": "pass",
+          "Elapsed": 0.007
+        },
+        {
+          "Package": "noe/spikes/agent-images",
+          "Action": "pass",
+          "Elapsed": 0.007
+        },
+        {
+          "Package": "noe/spikes/openai",
+          "Action": "pass",
+          "Elapsed": 0.005
+        },
+        {
+          "Package": "noe/internal/process",
+          "Action": "pass",
+          "Elapsed": 0.787
+        },
+        {
+          "Package": "noe/internal/nativeio",
+          "Action": "pass",
+          "Elapsed": 0.956
+        },
+        {
+          "Package": "noe/spikes/opencode-go",
+          "Action": "pass",
+          "Elapsed": 0.008
+        },
+        {
+          "Package": "noe/internal/cli",
+          "Action": "pass",
+          "Elapsed": 3.462
+        },
+        {
+          "Package": "noe/internal/agent",
+          "Action": "pass",
+          "Elapsed": 7.99
+        },
+        {
+          "Package": "noe/internal/stdlib",
+          "Action": "pass",
+          "Elapsed": 8.881
+        },
+        {
+          "Package": "noe/internal/runtime",
+          "Action": "pass",
+          "Elapsed": 39.206
+        }
+      ],
+      "skipped_tests": [
+        {
+          "package": "noe/spikes/agent-images",
+          "test": "TestImageProviderSpike"
+        },
+        {
+          "package": "noe/spikes/agent-images",
+          "test": "TestImageWireLiveDiagnostic"
+        },
+        {
+          "package": "noe/spikes/openai",
+          "test": "TestOpenAIProviderLive"
+        },
+        {
+          "package": "noe/internal/stdlib",
+          "test": "TestHelperHeartbeat"
+        },
+        {
+          "package": "noe/spikes/opencode-go",
+          "test": "TestLive"
+        }
+      ],
+      "failures": []
+    },
+    "e2e": {
+      "packages": [
+        {
+          "Package": "noe/tests",
+          "Action": "pass",
+          "Elapsed": 26.534
+        }
+      ],
+      "skipped_tests": [
+        {
+          "package": "noe/tests",
+          "test": "TestImportMapMCPProcessIO"
+        }
+      ],
+      "failures": []
+    }
+  },
+  "cross_compile": [
+    {
+      "target": "linux/amd64",
+      "package": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/stdlib-linux-amd64.test",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.798,
+      "output": "",
+      "bytes": 42120187,
+      "sha256": "72e1542f04c6c2a70f171564832b9b3b5178068ca1a14cd7c4b8d38e64aff443"
+    },
+    {
+      "target": "linux/amd64",
+      "package": "./internal/stdlib/internal/wsproto",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/wsproto-linux-amd64.test",
+        "./internal/stdlib/internal/wsproto"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.401,
+      "output": "",
+      "bytes": 4891323,
+      "sha256": "baf3570f4d9376db66c20d5a933cef8de16d949cdcf01538aaf4fc25ad19a4b1"
+    },
+    {
+      "target": "linux/arm64",
+      "package": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/stdlib-linux-arm64.test",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "elapsed": 1.552,
+      "output": "",
+      "bytes": 40351265,
+      "sha256": "597250ca7ea43c37a17b7ed9bdde2b37ca89d70efe06f055f4e21d4c02116aca"
+    },
+    {
+      "target": "linux/arm64",
+      "package": "./internal/stdlib/internal/wsproto",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/wsproto-linux-arm64.test",
+        "./internal/stdlib/internal/wsproto"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.261,
+      "output": "",
+      "bytes": 4646749,
+      "sha256": "0f897a66f6680a827529ac5ac35e8235b558258523b8ab09fe647985cd867eb0"
+    },
+    {
+      "target": "darwin/amd64",
+      "package": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/stdlib-darwin-amd64.test",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "elapsed": 1.104,
+      "output": "",
+      "bytes": 42678560,
+      "sha256": "49ca8dfd3076de6de6a1e365b601e03356b4e8171e3ddac2f165295d379c0f0b"
+    },
+    {
+      "target": "darwin/amd64",
+      "package": "./internal/stdlib/internal/wsproto",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/wsproto-darwin-amd64.test",
+        "./internal/stdlib/internal/wsproto"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.216,
+      "output": "",
+      "bytes": 4909808,
+      "sha256": "f0ae7e8a357dacd5117ef899d780269da34227e3a2ceff1a1d1dc2e2eee75436"
+    },
+    {
+      "target": "darwin/arm64",
+      "package": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/stdlib-darwin-arm64.test",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "elapsed": 1.052,
+      "output": "",
+      "bytes": 41281842,
+      "sha256": "637cabc2094bb6b6262f0853fa4b5cb592e7a0b043b53ad8ad859625396d1c0f"
+    },
+    {
+      "target": "darwin/arm64",
+      "package": "./internal/stdlib/internal/wsproto",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/wsproto-darwin-arm64.test",
+        "./internal/stdlib/internal/wsproto"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.209,
+      "output": "",
+      "bytes": 4642306,
+      "sha256": "e4dfc54c434d78c9102c0bef6fbbe633e66192df2c877d54403509e7f958d736"
+    },
+    {
+      "target": "windows/amd64",
+      "package": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/stdlib-windows-amd64.test.exe",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.892,
+      "output": "",
+      "bytes": 42410496,
+      "sha256": "2ab58bab304d4364d699b2cd8bc766b8ba317497a19d178c56de803b76343a55"
+    },
+    {
+      "target": "windows/amd64",
+      "package": "./internal/stdlib/internal/wsproto",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/wsproto-windows-amd64.test.exe",
+        "./internal/stdlib/internal/wsproto"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.201,
+      "output": "",
+      "bytes": 4937728,
+      "sha256": "715e13c2851532202c934279726434e8480d1fd20cfcc64ac09fd87abe90145a"
+    },
+    {
+      "target": "windows/arm64",
+      "package": "./internal/stdlib",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/stdlib-windows-arm64.test.exe",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.914,
+      "output": "",
+      "bytes": 40429056,
+      "sha256": "b3a521f7767ea8510d0d3e3a9af35643697a0a359cf9563a7634e38074eafe8e"
+    },
+    {
+      "target": "windows/arm64",
+      "package": "./internal/stdlib/internal/wsproto",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/wsproto-windows-arm64.test.exe",
+        "./internal/stdlib/internal/wsproto"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.21,
+      "output": "",
+      "bytes": 4570112,
+      "sha256": "b7b42def237a45037b32591df2edc4809f48e0e31ebc9301642ced98245b61b2"
+    }
+  ],
+  "integration_checks": [
+    {
+      "name": "vet-e2e",
+      "command": [
+        "go",
+        "vet",
+        "-tags=e2e",
+        "./..."
+      ],
+      "exit_code": 0,
+      "elapsed": 0.353
+    },
+    {
+      "name": "cli-dependencies",
+      "command": [
+        "go",
+        "list",
+        "-deps",
+        "./cmd/noe"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.05
+    },
+    {
+      "name": "local-package",
+      "command": [
+        "go",
+        "list",
+        "-json",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.062
+    },
+    {
+      "name": "cli-build",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "/tmp/noe-stdlib-step1-20261019-h7gkjmzy/noe",
+        "./cmd/noe"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.866
+    }
+  ],
+  "boundary": {
+    "upstream_in_cli": true,
+    "local_stdlib_absent_from_cli": true,
+    "no_private_upstream_direct_imports": true,
+    "unchanged_boundary_files": 41,
+    "reviewed_code_manifest_unchanged": true,
+    "temporary_cli_sha256": "a3e262d5afd12b82ea3a980431a5137fc8c399677cd82d0b02f415e75fca9ab6"
+  },
+  "artifacts": "/tmp/noe-stdlib-step1-20261019-h7gkjmzy",
+  "limitations": [
+    "Non-native targets were cross-compiled, not executed.",
+    "No live provider calls were made.",
+    "The optional prebuilt MCP SDK bundle test was skipped.",
+    "Production NOE still uses upstream stdlib; runtime migration belongs to step 2."
+  ]
+}
