@@ -6,6 +6,11 @@ runtime, Workers, and managed task/run_js processes now install this snapshot.
 Runtime adoption preserves the imported API surface and configuration; its
 wiring lives in internal/runtime and the integration test helpers.
 
+NOE also adds http.go: Install registers `noe:http` using the existing fetch and
+serve function values enabled by its configuration. It adds no transport,
+constructors, or permissions; the upstream globals and node:http remain available.
+The added http_test.go covers this module's registration and capability boundaries.
+
 ## Origin and license
 
 - Upstream module: `github.com/go-quickjs/go-quickjs`

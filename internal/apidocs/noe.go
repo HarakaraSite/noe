@@ -11,6 +11,7 @@ func noeTopics() []topicSpec {
 		{ID: "noe:auth", Kind: "module", Summary: "Validate and save a completed ChatGPT sign-in result.", File: "noe-auth.md"},
 		{ID: "noe:process", Kind: "module", Summary: "Start an owned child process with byte-stream standard I/O.", File: "noe-process.md"},
 		{ID: "noe:io", Kind: "module", Summary: "Access host standard I/O streams and pipe Web Streams with active cancellation.", File: "noe-io.md"},
+		{ID: "noe:http", Kind: "module", Summary: "Fetch HTTP resources and serve requests with shared Web types and response streams.", File: "noe-http.md"},
 		{ID: "noe:fs-handle", Kind: "module", Summary: "Open an existing file for positional byte reads and writes.", File: "noe-fs-handle.md"},
 		{ID: "noe:sockets", Kind: "module", Summary: "Open TCP or Unix stream sockets and listeners as byte streams.", File: "noe-sockets.md"},
 		{ID: "noe:signals", Kind: "module", Summary: "Subscribe to supported operating-system signals as an async iterator.", File: "noe-signals.md"},

@@ -151,11 +151,11 @@ func TestPinnedStdlibModuleReservationListMatchesRegisteredNames(t *testing.T) {
 		loaderRequests = append(loaderRequests, specifier)
 		return NewLoader(nil, "", "").Load(specifier, referrer)
 	})
-	if _, err := rt.EvalModule(filepath.Join(t.TempDir(), "main.js"), `import path from "node:path"; globalThis.nativeBasename = path.basename("/a/b.js");`); err != nil {
+	if _, err := rt.EvalModule(filepath.Join(t.TempDir(), "main.js"), `import path from "node:path"; import {fetch,serve} from "noe:http"; globalThis.nativeBasename = path.basename("/a/b.js"); if(fetch!==globalThis.fetch||serve!==globalThis.serve)throw Error("HTTP identity");`); err != nil {
 		t.Fatalf("native module import: %v", err)
 	}
 	for _, request := range loaderRequests {
-		if request == "node:path" || request == "path" {
+		if request == "node:path" || request == "path" || request == "noe:http" {
 			t.Fatalf("loader intercepted native module %q", request)
 		}
 	}
@@ -183,7 +183,7 @@ func TestBuiltinCollisionRejectedBeforeModuleLoading(t *testing.T) {
 			}
 		})
 	}
-	for _, name := range []string{"node:unknown-native", "noe:agent/internal", "noe:unknown"} {
+	for _, name := range []string{"node:unknown-native", "noe:agent/internal", "noe:http", "noe:unknown"} {
 		body, _ := json.Marshal(map[string]any{"imports": map[string]string{name: "./collision.js"}})
 		if _, err := Parse(body, t.TempDir()); err == nil {
 			t.Errorf("Parse(%q) unexpectedly succeeded", name)

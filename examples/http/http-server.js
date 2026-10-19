@@ -1,3 +1,5 @@
+import { serve } from "noe:http";
+
 // ./noe run examples/http/http-server.js [port]
 const args = process.argv.slice(2);
 if (args.length > 1 || (args.length === 1 && !/^\d+$/.test(args[0]))) {

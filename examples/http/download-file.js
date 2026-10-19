@@ -1,3 +1,4 @@
+import { fetch } from "noe:http";
 import { writeFile } from "fs/promises";
 
 // ./noe run --timeout 10s examples/http/download-file.js URL output-file

@@ -251,5 +251,5 @@ func Install(rt *quickjs.Runtime, cfg Config) error {
 			return err
 		}
 	}
-	return nil
+	return installHTTP(rt, cfg)
 }

@@ -6,7 +6,7 @@
 
 NOEは固定したgo-quickjs v0.27.0をJavaScriptエンジンに使い、同版のstdlibを原型とするNOE管理の標準ライブラリを有効にします。Web APIとNode形式APIを利用できます。各APIはNOEが管理する実装に従い、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`docs`・`--timeout`と、組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
+JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`docs`・`--timeout`と、組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:http`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
 
 ## 利用できる機能と権限
 
@@ -22,7 +22,7 @@ NOEは次のホスト機能をスクリプトに渡します。
 - HTTPサーバーの待受
 - Workersとメッセージング
 
-Workersにも同じNOE管理の標準ライブラリのホスト機能を渡します。NOE固有moduleでは`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:docs`をWorkerで利用でき、`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`は利用できません。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
+Workersにも同じNOE管理の標準ライブラリのホスト機能を渡します。NOE固有moduleでは`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:http`・`noe:docs`をWorkerで利用でき、`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`は利用できません。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
 
 原型であるgo-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
@@ -309,9 +309,11 @@ console.log("done");
 
 ## Fetch
 
-グローバルの`fetch()`はWeb Fetch APIです。`Request`・`Response`・`Headers`を使い、レスポンス本文は`text()`、`json()`、`arrayBuffer()`、`bytes()`、またはReadableStreamで読み取れます。レスポンス本文は一度だけ読み取れます。HTTP 4xx・5xxもResponseとして返るため、必要に応じて`response.ok`を確認してください。
+HTTP送受信の推奨入口は`noe:http`です。`import { fetch, serve } from "noe:http"`で、既存globalと同じ関数を利用できます。default exportはありません。`fetch()`はWeb Fetch APIです。`Request`・`Response`・`Headers`を使い、レスポンス本文は`text()`、`json()`、`arrayBuffer()`、`bytes()`、またはReadableStreamで読み取れます。レスポンス本文は一度だけ読み取れます。HTTP 4xx・5xxもResponseとして返るため、必要に応じて`response.ok`を確認してください。
 
 ```js
+import { fetch } from "noe:http";
+
 const response = await fetch("https://example.com/api/data");
 if (!response.ok) throw new Error(`HTTP ${response.status}`);
 const value = await response.json();
@@ -321,6 +323,8 @@ console.log(value);
 JSONを送信する例です。
 
 ```js
+import { fetch } from "noe:http";
+
 const response = await fetch("https://example.com/api/items", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -329,11 +333,15 @@ const response = await fetch("https://example.com/api/items", {
 console.log(response.status, await response.text());
 ```
 
+要求の送信・受信は現在bufferingします。応答本文はstreamingできます。既定値、abort、closeと本文上限の詳細は`noe docs noe:http`で確認できます。
+
 ## HTTPサーバー
 
-グローバルの`serve(options, handler)`はWeb Requestを受け取り、Web Responseを返すHTTPサーバーを起動します。`options`では`hostname`と`port`を指定できます。ポートの既定値は0で、OSが空きポートを選びます。返されるサーバーハンドルには`url`、`port`、`hostname`、`close()`があります。サーバーが稼働中は実行を継続します。
+`noe:http`の`serve(options, handler)`はWeb Requestを受け取り、Web Responseを返すHTTPサーバーを起動します。`options`では`hostname`と`port`を指定できます。ポートの既定値は0で、OSが空きポートを選びます。返されるサーバーハンドルには`url`、`port`、`hostname`、`close()`があります。サーバーが稼働中は実行を継続します。
 
 ```js
+import { serve } from "noe:http";
+
 const server = serve({ port: 8080 }, async request => {
   const pathname = new URL(request.url).pathname;
   if (pathname === "/echo" && request.method === "POST") {
@@ -344,7 +352,7 @@ const server = serve({ port: 8080 }, async request => {
 console.log(server.url);
 ```
 
-リクエスト本文はWeb Request APIで読み、応答は必ずResponseで返します。JSONの応答には`Response.json(value)`を使えます。HTTPモジュールから`serve`をimportすることもできます。WebSocketはWebSocket APIと、サーバー側では`serve`を通じて利用できます。
+リクエスト本文はWeb Request APIで読み、応答は必ずResponseで返します。JSONの応答には`Response.json(value)`を使えます。従来のglobal fetch/serveと`node:http`・`http`のserveも維持しています。Request・Response・StreamsとWebSocketは既存globalを共有します。WebSocketはWebSocket APIと、サーバー側では`serve`を通じて利用できます。
 
 `server.close()`は同期的に受付を停止し、現在のNOE管理のstdlibでは処理中のHTTPリクエスト終了を最大5秒待ちます。停止を求めるリクエスト自身のハンドラーから同期的に呼ぶと、そのハンドラーの完了を待つことになります。応答が完了した後の別の処理から呼んでください。これは旧`noe.serve()`の非同期停止とは異なる動作です。
 

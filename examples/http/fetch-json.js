@@ -1,3 +1,4 @@
+import { fetch } from "noe:http";
 import { writeFile } from "fs/promises";
 
 const args = process.argv.slice(2);

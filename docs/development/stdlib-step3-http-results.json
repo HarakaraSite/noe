@@ -1,0 +1,1178 @@
+{
+  "stage": 3,
+  "status": "complete",
+  "date": "2026-10-19",
+  "base_commit": "ec6391af316d2a7144964b01da4b848751b7ea14",
+  "environment": {
+    "go": "go1.27.2",
+    "os": "linux",
+    "arch": "amd64"
+  },
+  "implementation": {
+    "module": "noe:http",
+    "exports": [
+      "fetch",
+      "serve"
+    ],
+    "default_export": false,
+    "registration": "stdlib.Install, existing function values selected by Config.Fetch/Serve",
+    "legacy_http_implementation_changed": false,
+    "dependencies_changed": false,
+    "request_upload_streaming_added": false,
+    "request_receive_streaming_added": false
+  },
+  "api_inventory": {
+    "modes": {
+      "main": {
+        "legacy_globals_modules_identities_process_version_unchanged": true,
+        "global_count": 119,
+        "node_module_count": 26,
+        "docs_topic_count": 41,
+        "docs_detail_count": 100
+      },
+      "nodeWorker": {
+        "legacy_globals_modules_identities_process_version_unchanged": true,
+        "global_count": 119,
+        "node_module_count": 26,
+        "docs_topic_count": 41,
+        "docs_detail_count": 100
+      },
+      "nestedWorker": {
+        "legacy_globals_modules_identities_process_version_unchanged": true,
+        "global_count": 119,
+        "node_module_count": 26,
+        "docs_topic_count": 41,
+        "docs_detail_count": 100
+      },
+      "webWorker": {
+        "legacy_globals_modules_identities_process_version_unchanged": true,
+        "global_count": 129,
+        "node_module_count": 26,
+        "docs_topic_count": 41,
+        "docs_detail_count": 100
+      }
+    },
+    "added_topic": "noe:http",
+    "added_members": [
+      "fetch",
+      "serve"
+    ],
+    "legacy_topic_member_ids_unchanged": true,
+    "before_sha256": "1c73f6ac968464d87eea80572e17452ac472223e8ecddf05361bfbf57347d0ef",
+    "after_sha256": "f9c505aba41ba872edecb0e4f73c2c63e06d7407946d44c43e94164ee6a9bd09"
+  },
+  "review": {
+    "type": "independent normal code review and limited re-review",
+    "agent": "/root/stdlib_step3_code_review",
+    "initial_findings": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 1,
+      "P3": 0
+    },
+    "resolution": "Corrected fetch body cap documentation: excess bytes are truncated, not rejected. HTTP transport unchanged.",
+    "final_findings": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 0,
+      "P3": 0
+    },
+    "code_manifest_sha256": "43db74b32d733b7b93d46d6126f5812f8c197baed9be551c8f2c602e2c8dc561",
+    "code_files": {
+      "docs/api.md": "be9c4d8593f081a2aa8e901d007983832042ee9a39a92a24bc02d88148f66faa",
+      "docs/reference.md": "676811d5754c5ab261e2a542f7d212a25587caf7b2a3ed76a0ec6e992b8cb786",
+      "examples/README.md": "63bb9d88d20b26f0df471480785508aea9e10cf8277dee8eea8f74ce30cc1add",
+      "examples/http/README.md": "c1c7a218848a5385922a742fa193a2fcedf0397b598800b092eb925bf10c5996",
+      "examples/http/download-file.js": "69ba391522e64776eca9183b87842f34220708acb8e8cd6fe1cd19ed986de21a",
+      "examples/http/fetch-json.js": "32c59ca97f99eafd7ad7cca0e9f3c5bcbd91ccf5b1e90d78ea852ff3a1316b88",
+      "examples/http/http-json.js": "c8f5307361041e83aa2c60c85c38fc86eeaacfa868641b77566b81e4548bd862",
+      "examples/http/http-server.js": "b5979c7bb4abe179f09601def14ea4bb49fd2621a33786994e96698bc09f6d94",
+      "examples/http/roundtrip.js": "2377d132fdf58d599cbd1f5a12d0ee7b339d3f98a1b4de07eb80e4c1138c5ad7",
+      "internal/apidocs/content/noe-http.md": "c53cf2a9544e63a64e6184eb8834206bf00ec778aaf35e9a9d80ddfb742112c3",
+      "internal/apidocs/content/noe.md": "bc39972b1bafd35802de459793074eaf6fb6861be98be176a3e83258252dfa2a",
+      "internal/apidocs/content/stdlib-globals.md": "a06076dd86a59a547f0dbcef072305ed1e762bc014c971a4a3c1d44c3e8f44ce",
+      "internal/apidocs/content/stdlib-http.md": "b4d2bdce3ec6646c74eb2fb4f6b99de5d008aea825d2154ce73ef48a7d48fdaa",
+      "internal/apidocs/content/stdlib.md": "4b794f6b9c55f5b023bbdc70c8fcb44032959214f9544959dc42a08a1758c6e1",
+      "internal/apidocs/noe.go": "f32ab8d230a5b53cc9cea1cdc5f9c9e18558b625507172a4514ae308c1d62807",
+      "internal/modulemap/quickjs_test.go": "0595a4faf1591802ef9651bc04394caa055c66c86774992f3e8fa89e1063814e",
+      "internal/runtime/http_agent_test.go": "b493d2de54979e077ec2c0196fa1c01c6d117099963ca8d632fdc6d2b72afbe0",
+      "internal/runtime/http_test.go": "53b6043adb834f1f3a85a6f8be4b81444fe0264f9ef71b3bc567bb8fd3bc822f",
+      "internal/stdlib/UPSTREAM.md": "981ca8bb82b50b96c2b9a11268353e1d2c0ff6ac2401eff77f236f23308a1de9",
+      "internal/stdlib/http.go": "f7288f6f7969ab6c2dc2baf6c48efedcc2a590dc5de919ba075d5f78b67f43b9",
+      "internal/stdlib/http_test.go": "aec0f7f7eeba254577ba1b4a848df50cb1d090593c1d22c0a6880e8f4856396d",
+      "internal/stdlib/stdlib.go": "c2421b32ff51e27b53ca6a9b907d9a70e66659492eefd7c66f65a40f1a1a6d92",
+      "tests/docs_e2e_test.go": "9cf2fb71058b4d9cf00a721007cbc7bee2a0f1fb58949a914dfa09348cf42702",
+      "tests/http_e2e_test.go": "2b2ccacd5d87c231888d9e82a5ad0e7e9a80861048c2c5857c851190b86c49e2"
+    },
+    "final_code_manifest_matches": true
+  },
+  "tests": {
+    "focused": {
+      "packages": [
+        {
+          "Package": "noe/internal/stdlib/internal/wsproto",
+          "Action": "pass",
+          "Elapsed": 0.002
+        },
+        {
+          "Package": "noe/internal/apidocs",
+          "Action": "pass",
+          "Elapsed": 0.002
+        },
+        {
+          "Package": "noe/internal/modulemap",
+          "Action": "pass",
+          "Elapsed": 0.023
+        },
+        {
+          "Package": "noe/internal/stdlib",
+          "Action": "pass",
+          "Elapsed": 8.64
+        },
+        {
+          "Package": "noe/internal/runtime",
+          "Action": "fail",
+          "Elapsed": 38.29
+        }
+      ],
+      "passed_tests": 299,
+      "skipped_tests": [
+        {
+          "package": "noe/internal/stdlib",
+          "test": "TestHelperHeartbeat"
+        }
+      ],
+      "failures": [
+        {
+          "Package": "noe/internal/runtime",
+          "Test": "TestNoeHTTPFetchAbort",
+          "Action": "fail"
+        },
+        {
+          "Package": "noe/internal/runtime",
+          "Action": "fail"
+        }
+      ],
+      "skipped_test_output": [
+        {
+          "package": "noe/internal/stdlib",
+          "test": "TestHelperHeartbeat",
+          "output": [
+            "=== RUN   TestHelperHeartbeat",
+            "lifetime_test.go:24: run as a helper",
+            "--- SKIP: TestHelperHeartbeat (0.00s)"
+          ]
+        }
+      ]
+    },
+    "http-focused": {
+      "packages": [
+        {
+          "Package": "noe/internal/stdlib",
+          "Action": "pass",
+          "Elapsed": 0.06
+        },
+        {
+          "Package": "noe/internal/runtime",
+          "Action": "pass",
+          "Elapsed": 1.119
+        }
+      ],
+      "passed_tests": 10,
+      "skipped_tests": [],
+      "failures": [],
+      "skipped_test_output": []
+    },
+    "docs-agent-focused": {
+      "packages": [
+        {
+          "Package": "noe/internal/apidocs",
+          "Action": "pass",
+          "Elapsed": 0.003
+        },
+        {
+          "Package": "noe/internal/runtime",
+          "Action": "pass",
+          "Elapsed": 1.1360000000000001
+        }
+      ],
+      "passed_tests": 4,
+      "skipped_tests": [],
+      "failures": [],
+      "skipped_test_output": []
+    },
+    "focused-e2e": {
+      "packages": [
+        {
+          "Package": "noe/tests",
+          "Action": "pass",
+          "Elapsed": 8.621
+        }
+      ],
+      "passed_tests": 40,
+      "skipped_tests": [],
+      "failures": [],
+      "skipped_test_output": []
+    },
+    "review-fix-focused": {
+      "packages": [
+        {
+          "Package": "noe/internal/apidocs",
+          "Action": "pass",
+          "Elapsed": 0.003
+        },
+        {
+          "Package": "noe/internal/runtime",
+          "Action": "pass",
+          "Elapsed": 1.051
+        }
+      ],
+      "passed_tests": 4,
+      "skipped_tests": [],
+      "failures": [],
+      "skipped_test_output": []
+    },
+    "project-unit": {
+      "packages": [
+        {
+          "Package": "noe/cmd/noe",
+          "Action": "skip",
+          "Elapsed": 0
+        },
+        {
+          "Package": "noe/internal/agent/runner",
+          "Action": "pass",
+          "Elapsed": 0.02
+        },
+        {
+          "Package": "noe/internal/apidocs",
+          "Action": "pass",
+          "Elapsed": 0.018
+        },
+        {
+          "Package": "noe/internal/decision",
+          "Action": "pass",
+          "Elapsed": 0.006
+        },
+        {
+          "Package": "noe/internal/events",
+          "Action": "pass",
+          "Elapsed": 0.004
+        },
+        {
+          "Package": "noe/internal/credentials",
+          "Action": "pass",
+          "Elapsed": 0.105
+        },
+        {
+          "Package": "noe/internal/image",
+          "Action": "pass",
+          "Elapsed": 0.052
+        },
+        {
+          "Package": "noe/internal/mdcli/highlight",
+          "Action": "pass",
+          "Elapsed": 0.02
+        },
+        {
+          "Package": "noe/internal/mdcli/markdown",
+          "Action": "pass",
+          "Elapsed": 0.01
+        },
+        {
+          "Package": "noe/internal/agent/provider",
+          "Action": "pass",
+          "Elapsed": 0.293
+        },
+        {
+          "Package": "noe/internal/modulemap",
+          "Action": "pass",
+          "Elapsed": 0.063
+        },
+        {
+          "Package": "noe/internal/processscope",
+          "Action": "skip",
+          "Elapsed": 0
+        },
+        {
+          "Package": "noe/internal/observation",
+          "Action": "pass",
+          "Elapsed": 0.287
+        },
+        {
+          "Package": "noe/internal/signals",
+          "Action": "pass",
+          "Elapsed": 0.037
+        },
+        {
+          "Package": "noe/internal/hostio",
+          "Action": "pass",
+          "Elapsed": 0.481
+        },
+        {
+          "Package": "noe/internal/stdlib/internal/wsproto",
+          "Action": "pass",
+          "Elapsed": 0.005
+        },
+        {
+          "Package": "noe/internal/process",
+          "Action": "pass",
+          "Elapsed": 0.808
+        },
+        {
+          "Package": "noe/internal/nativeio",
+          "Action": "pass",
+          "Elapsed": 0.994
+        },
+        {
+          "Package": "noe/spikes/openai",
+          "Action": "pass",
+          "Elapsed": 0.003
+        },
+        {
+          "Package": "noe/spikes/agent-images",
+          "Action": "pass",
+          "Elapsed": 0.005
+        },
+        {
+          "Package": "noe/spikes/opencode-go",
+          "Action": "pass",
+          "Elapsed": 0.005
+        },
+        {
+          "Package": "noe/internal/cli",
+          "Action": "pass",
+          "Elapsed": 3.338
+        },
+        {
+          "Package": "noe/internal/agent",
+          "Action": "pass",
+          "Elapsed": 7.307
+        },
+        {
+          "Package": "noe/internal/stdlib",
+          "Action": "pass",
+          "Elapsed": 8.9
+        },
+        {
+          "Package": "noe/internal/runtime",
+          "Action": "pass",
+          "Elapsed": 38.827
+        }
+      ],
+      "passed_tests": 1056,
+      "skipped_tests": [
+        {
+          "package": "noe/internal/stdlib",
+          "test": "TestHelperHeartbeat"
+        },
+        {
+          "package": "noe/spikes/agent-images",
+          "test": "TestImageProviderSpike"
+        },
+        {
+          "package": "noe/spikes/agent-images",
+          "test": "TestImageWireLiveDiagnostic"
+        },
+        {
+          "package": "noe/spikes/openai",
+          "test": "TestOpenAIProviderLive"
+        },
+        {
+          "package": "noe/spikes/opencode-go",
+          "test": "TestLive"
+        }
+      ],
+      "failures": [],
+      "skipped_test_output": [
+        {
+          "package": "noe/internal/stdlib",
+          "test": "TestHelperHeartbeat",
+          "output": [
+            "=== RUN   TestHelperHeartbeat",
+            "lifetime_test.go:24: run as a helper",
+            "--- SKIP: TestHelperHeartbeat (0.00s)"
+          ]
+        },
+        {
+          "package": "noe/spikes/agent-images",
+          "test": "TestImageProviderSpike",
+          "output": [
+            "=== RUN   TestImageProviderSpike",
+            "spike_test.go:194: set NOE_IMAGE_SPIKE_LIVE=1 for real provider requests",
+            "--- SKIP: TestImageProviderSpike (0.00s)"
+          ]
+        },
+        {
+          "package": "noe/spikes/agent-images",
+          "test": "TestImageWireLiveDiagnostic",
+          "output": [
+            "=== RUN   TestImageWireLiveDiagnostic",
+            "wire_test.go:93: explicit live authorization and NOE_IMAGE_WIRE_LIVE=1 required",
+            "--- SKIP: TestImageWireLiveDiagnostic (0.00s)"
+          ]
+        },
+        {
+          "package": "noe/spikes/openai",
+          "test": "TestOpenAIProviderLive",
+          "output": [
+            "=== RUN   TestOpenAIProviderLive",
+            "provider_live_test.go:43: NOE_OPENAI_LIVE_DIR is required for real provider validation",
+            "--- SKIP: TestOpenAIProviderLive (0.00s)"
+          ]
+        },
+        {
+          "package": "noe/spikes/opencode-go",
+          "test": "TestLive",
+          "output": [
+            "=== RUN   TestLive",
+            "spike_test.go:132: set NOE_OPENCODE_SPIKE_KEY_FILE to enable paid requests",
+            "--- SKIP: TestLive (0.00s)"
+          ]
+        }
+      ]
+    },
+    "internal-race": {
+      "packages": [
+        {
+          "Package": "noe/internal/apidocs",
+          "Action": "pass",
+          "Elapsed": 1.011
+        },
+        {
+          "Package": "noe/internal/decision",
+          "Action": "pass",
+          "Elapsed": 1.008
+        },
+        {
+          "Package": "noe/internal/credentials",
+          "Action": "pass",
+          "Elapsed": 1.152
+        },
+        {
+          "Package": "noe/internal/events",
+          "Action": "pass",
+          "Elapsed": 1.021
+        },
+        {
+          "Package": "noe/internal/agent/provider",
+          "Action": "pass",
+          "Elapsed": 1.883
+        },
+        {
+          "Package": "noe/internal/image",
+          "Action": "pass",
+          "Elapsed": 1.016
+        },
+        {
+          "Package": "noe/internal/hostio",
+          "Action": "pass",
+          "Elapsed": 1.5070000000000001
+        },
+        {
+          "Package": "noe/internal/mdcli/highlight",
+          "Action": "pass",
+          "Elapsed": 1.035
+        },
+        {
+          "Package": "noe/internal/mdcli/markdown",
+          "Action": "pass",
+          "Elapsed": 1.033
+        },
+        {
+          "Package": "noe/internal/processscope",
+          "Action": "skip",
+          "Elapsed": 0
+        },
+        {
+          "Package": "noe/internal/modulemap",
+          "Action": "pass",
+          "Elapsed": 1.121
+        },
+        {
+          "Package": "noe/internal/agent/runner",
+          "Action": "pass",
+          "Elapsed": 3.104
+        },
+        {
+          "Package": "noe/internal/observation",
+          "Action": "pass",
+          "Elapsed": 1.505
+        },
+        {
+          "Package": "noe/internal/signals",
+          "Action": "pass",
+          "Elapsed": 1.027
+        },
+        {
+          "Package": "noe/internal/stdlib/internal/wsproto",
+          "Action": "pass",
+          "Elapsed": 1.011
+        },
+        {
+          "Package": "noe/internal/nativeio",
+          "Action": "pass",
+          "Elapsed": 5.385
+        },
+        {
+          "Package": "noe/internal/agent",
+          "Action": "pass",
+          "Elapsed": 10.615
+        },
+        {
+          "Package": "noe/internal/stdlib",
+          "Action": "pass",
+          "Elapsed": 13.495
+        },
+        {
+          "Package": "noe/internal/cli",
+          "Action": "pass",
+          "Elapsed": 20.26
+        },
+        {
+          "Package": "noe/internal/runtime",
+          "Action": "pass",
+          "Elapsed": 64.828
+        },
+        {
+          "Package": "noe/internal/process",
+          "Action": "pass",
+          "Elapsed": 93.096
+        }
+      ],
+      "passed_tests": 1055,
+      "skipped_tests": [
+        {
+          "package": "noe/internal/stdlib",
+          "test": "TestHelperHeartbeat"
+        }
+      ],
+      "failures": [],
+      "skipped_test_output": [
+        {
+          "package": "noe/internal/stdlib",
+          "test": "TestHelperHeartbeat",
+          "output": [
+            "=== RUN   TestHelperHeartbeat",
+            "lifetime_test.go:24: run as a helper",
+            "--- SKIP: TestHelperHeartbeat (0.00s)"
+          ]
+        }
+      ]
+    },
+    "e2e": {
+      "packages": [
+        {
+          "Package": "noe/tests",
+          "Action": "pass",
+          "Elapsed": 29.126
+        }
+      ],
+      "passed_tests": 196,
+      "skipped_tests": [],
+      "failures": [],
+      "skipped_test_output": []
+    }
+  },
+  "initial_related_test_correction": {
+    "resolved": true,
+    "reason": "The new body-abort test initially expected signal.reason; the retained API rejects a body read with TypeError: terminated. It now checks rejection and server-side cancellation, preserving existing behavior."
+  },
+  "comprehensive_commands": [
+    {
+      "name": "project-unit",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "./...",
+        "-count=1",
+        "-timeout=180s"
+      ],
+      "CGO_ENABLED": "0",
+      "exit_code": 0,
+      "wall_seconds": 40.703
+    },
+    {
+      "name": "internal-race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "./internal/...",
+        "-count=1",
+        "-timeout=300s"
+      ],
+      "CGO_ENABLED": "1",
+      "exit_code": 0,
+      "wall_seconds": 98.564
+    },
+    {
+      "name": "e2e",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-tags=e2e",
+        "./tests",
+        "-count=1",
+        "-timeout=10m"
+      ],
+      "CGO_ENABLED": "0",
+      "exit_code": 0,
+      "wall_seconds": 29.551
+    },
+    {
+      "name": "vet",
+      "command": [
+        "go",
+        "vet",
+        "-tags=e2e",
+        "./..."
+      ],
+      "CGO_ENABLED": "0",
+      "exit_code": 0,
+      "wall_seconds": 0.476
+    }
+  ],
+  "target_builds": [
+    {
+      "target": "linux/amd64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-amd64/noe",
+        "./cmd/noe"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.873,
+      "mode": "native build"
+    },
+    {
+      "target": "linux/amd64",
+      "name": "stdlib",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-amd64/stdlib.test",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.443,
+      "mode": "native build"
+    },
+    {
+      "target": "linux/amd64",
+      "name": "runtime",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-amd64/runtime.test",
+        "./internal/runtime"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.941,
+      "mode": "native build"
+    },
+    {
+      "target": "linux/amd64",
+      "name": "modulemap",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-amd64/modulemap.test",
+        "./internal/modulemap"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.44,
+      "mode": "native build"
+    },
+    {
+      "target": "linux/amd64",
+      "name": "apidocs",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-amd64/apidocs.test",
+        "./internal/apidocs"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.157,
+      "mode": "native build"
+    },
+    {
+      "target": "linux/arm64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-arm64/noe",
+        "./cmd/noe"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.376,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "linux/arm64",
+      "name": "stdlib",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-arm64/stdlib.test",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.927,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "linux/arm64",
+      "name": "runtime",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-arm64/runtime.test",
+        "./internal/runtime"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.287,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "linux/arm64",
+      "name": "modulemap",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-arm64/modulemap.test",
+        "./internal/modulemap"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.515,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "linux/arm64",
+      "name": "apidocs",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/linux-arm64/apidocs.test",
+        "./internal/apidocs"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.176,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/amd64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-amd64/noe",
+        "./cmd/noe"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.471,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/amd64",
+      "name": "stdlib",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-amd64/stdlib.test",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.008,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/amd64",
+      "name": "runtime",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-amd64/runtime.test",
+        "./internal/runtime"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.372,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/amd64",
+      "name": "modulemap",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-amd64/modulemap.test",
+        "./internal/modulemap"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.592,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/amd64",
+      "name": "apidocs",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-amd64/apidocs.test",
+        "./internal/apidocs"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.188,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/arm64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-arm64/noe",
+        "./cmd/noe"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.599,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/arm64",
+      "name": "stdlib",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-arm64/stdlib.test",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.99,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/arm64",
+      "name": "runtime",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-arm64/runtime.test",
+        "./internal/runtime"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.461,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/arm64",
+      "name": "modulemap",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-arm64/modulemap.test",
+        "./internal/modulemap"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.62,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "darwin/arm64",
+      "name": "apidocs",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/darwin-arm64/apidocs.test",
+        "./internal/apidocs"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.197,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/amd64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-amd64/noe.exe",
+        "./cmd/noe"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.433,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/amd64",
+      "name": "stdlib",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-amd64/stdlib.test.exe",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.839,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/amd64",
+      "name": "runtime",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-amd64/runtime.test.exe",
+        "./internal/runtime"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.296,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/amd64",
+      "name": "modulemap",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-amd64/modulemap.test.exe",
+        "./internal/modulemap"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.559,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/amd64",
+      "name": "apidocs",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-amd64/apidocs.test.exe",
+        "./internal/apidocs"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.176,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/arm64",
+      "name": "cli",
+      "command": [
+        "go",
+        "build",
+        "-p=2",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-arm64/noe.exe",
+        "./cmd/noe"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.435,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/arm64",
+      "name": "stdlib",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-arm64/stdlib.test.exe",
+        "./internal/stdlib"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.931,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/arm64",
+      "name": "runtime",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-arm64/runtime.test.exe",
+        "./internal/runtime"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.232,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/arm64",
+      "name": "modulemap",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-arm64/modulemap.test.exe",
+        "./internal/modulemap"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.493,
+      "mode": "cross-compile only"
+    },
+    {
+      "target": "windows/arm64",
+      "name": "apidocs",
+      "command": [
+        "go",
+        "test",
+        "-p=2",
+        "-c",
+        "-o",
+        "/tmp/noe-stdlib-step3-20261019-84fpyjw_/cross/windows-arm64/apidocs.test.exe",
+        "./internal/apidocs"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.17,
+      "mode": "cross-compile only"
+    }
+  ],
+  "live_provider_smoke": {
+    "provider": "opencode-go",
+    "model": "deepseek-v4.1-flash",
+    "effort": "auto",
+    "instruction": "Use noe:http to run a temporary HTTP server and client together on 127.0.0.1 with an OS-assigned port. POST JSON {value:21} to the server, have its handler return JSON {value:42}, and verify the client receives HTTP 200 and value 42. Save report.json with numeric fields status, value, and port, using the actual listening port. Release the listener after consuming the full response, including on failure. Use JavaScript only, without external commands or delegation, and contact no network destinations other than this loopback server. Briefly report the result in English.",
+    "provider_calls": 4,
+    "tool_calls": 3,
+    "tool_exit_codes": [
+      0,
+      0,
+      0
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 9.895,
+    "report": {
+      "status": 200,
+      "value": 42,
+      "port": 37069
+    },
+    "listener_closed": true,
+    "task_state": "completed",
+    "answer": "Done — the task succeeded on the first attempt.\n\n**What ran:** a single JavaScript run using `noe:http`'s `serve` and `fetch` on `127.0.0.1` with port 0 (OS-assigned), so it bound temporary port **37069**.\n\n- The handler read the POSTed JSON `{value: 21}` and returned `Response.json({value: 42})` (doubling the input).\n- The client POSTed `{value:21}` as JSON, consumed the full response body via `await response.text()`, then parsed it.\n- Verified `status === 200` and `value === 42` (both checks passed; a mismatch would have thrown).\n- The listener was released in a `finally` block, so it closes even on failure; `server.close()` ran after the response was fully consumed, outside the handler.\n- Only the loopback URL `server.url` was contacted — no other network destinations.\n\n**report.json** (written to the working directory, numeric fields):\n\n```json\n{\n  \"status\": 200,\n  \"value\": 42,\n  \"port\": 37069\n}\n```\n\n`port` is the actual listening port reported by the server handle after binding.",
+    "binary_sha256": "488a6f47bfac7967c80e18582534527a38940c24906c194a6a5c80743b24894f",
+    "artifacts": "/tmp/noe-stdlib-step3-20261019-84fpyjw_/live-smoke",
+    "tools": [
+      {
+        "code": "// Inspect noe:http documentation\nconst {docs} = await import(\"noe:docs\");\nconsole.log(docs(\"noe:http\"));",
+        "exit_code": 0,
+        "stdout": "# `noe:http`\n\nThe recommended HTTP entry point in NOE. It exports `fetch` and `serve` as named functions, with no default export. Both functions are the same values as their globals; `serve` is also the function exported by `node:http` and `http`. Existing entry points remain available.\n\nUse the existing global Headers, Request, Response, ReadableStream, AbortController, WebSocket, and upgradeWebSocket APIs with these functions. The module does not create new types or re-export these globals. It is available in main, Node-style Workers, nested Workers, Web Workers, and agent `run_js` processes.\n\nOnly responses stream over the network incrementally in this version. A stream supplied as an outgoing request body is collected before sending. The server reads the incoming request body before invoking its handler.\n\n### Exports\n\n`fetch`, `serve`\n\n### Source basis\n\nNOE-maintained implementation: internal/stdlib/http.go registers existing values installed by fetch.go and serve.go. Its engine and standard-library origin are recorded in internal/stdlib/UPSTREAM.md. In hosts using stdlib.Install with partial configuration, only configured Fetch/Serve functions are exported; neither configured means no module. NOE enables both.\n\n## Detailed members\n\n- `fetch`\n- `serve`\n\nCLI: `noe docs noe:http MEMBER`\n\nJavaScript: `docs(\"noe:http\", \"MEMBER\")`\n\n"
+      },
+      {
+        "code": "// Inspect serve() signature\nconst {docs} = await import(\"noe:docs\");\nconsole.log(docs(\"noe:http\", \"serve\"));",
+        "exit_code": 0,
+        "stdout": "# `noe:http`\n\nThe recommended HTTP entry point in NOE. It exports `fetch` and `serve` as named functions, with no default export. Both functions are the same values as their globals; `serve` is also the function exported by `node:http` and `http`. Existing entry points remain available.\n\nUse the existing global Headers, Request, Response, ReadableStream, AbortController, WebSocket, and upgradeWebSocket APIs with these functions. The module does not create new types or re-export these globals. It is available in main, Node-style Workers, nested Workers, Web Workers, and agent `run_js` processes.\n\nOnly responses stream over the network incrementally in this version. A stream supplied as an outgoing request body is collected before sending. The server reads the incoming request body before invoking its handler.\n\n### Exports\n\n`fetch`, `serve`\n\n### Source basis\n\nNOE-maintained implementation: internal/stdlib/http.go registers existing values installed by fetch.go and serve.go. Its engine and standard-library origin are recorded in internal/stdlib/UPSTREAM.md. In hosts using stdlib.Install with partial configuration, only configured Fetch/Serve functions are exported; neither configured means no module. NOE enables both.\n\n## serve\n\n```js\nimport { serve } from \"noe:http\";\n```\n\n`serve(options, handler) -> server`, `serve(handler) -> server`, or `serve({ ...options, fetch: handler }) -> server`. Options include hostname (default 127.0.0.1), port (default 0, an OS-assigned port), and onError. The handler receives a Web Request and must return a Response, synchronously or through a promise. The server handle has hostname, port, url, and close(). This is an HTTP listener; there is no TLS-listener option.\n\n```js\nimport { fetch, serve } from \"noe:http\";\n\nconst server = serve({ port: 0 }, async request => {\n  return Response.json(await request.json());\n});\ntry {\n  const response = await fetch(server.url, {\n    method: \"POST\",\n    headers: { \"content-type\": \"application/json\" },\n    body: JSON.stringify({ message: \"hello\" }),\n  });\n  console.log(await response.json());\n} finally {\n  server.close();\n}\n```\n\nThe listener keeps the run alive until close() or runtime shutdown. A Response backed by a ReadableStream sends chunks as they are produced, using the existing response-streaming path. Incoming request bodies are buffered before the handler runs. The default request-body read cap is 32 MiB: only that prefix is read; exceeding it does not automatically produce a 413 response. The default read-header timeout is 30 seconds and idle timeout is 60 seconds. These host settings are not additional JavaScript options.\n\nHandler errors or invalid return values produce a 500 response. An optional onError(error) may supply a Response instead. `server.close()` is synchronous and idempotent: it stops accepting requests and waits up to five seconds for in-flight HTTP requests. Call it outside a handler after consuming the response, as above; calling it in the handler that needs to finish can block that handler's completion. Runtime shutdown, execution timeout, cancellation, and Worker termination retain the existing listener cleanup behavior.\n\nFor WebSocket upgrade, call the existing global upgradeWebSocket(request) in a handler, configure the returned socket, and return its response. This uses the same Serve configuration and upgrade-token path as the global serve function. Close WebSockets when finished; server.close() is not a substitute for closing upgraded connections. For raw TCP/Unix streams use `noe:sockets`.\n\n"
+      },
+      {
+        "code": "// Loopback server+client roundtrip, verify status/value, write report.json, close listener\nconst { serve, fetch } = await import(\"noe:http\");\nconst fs = await import(\"node:fs\");\n\nconst server = serve({ hostname: \"127.0.0.1\", port: 0 }, async request => {\n  const body = await request.json();\n  return Response.json({ value: body.value * 2 });\n});\n\nconst port = server.port;\nlet status, value, closeResult;\ntry {\n  const response = await fetch(server.url, {\n    method: \"POST\",\n    headers: { \"content-type\": \"application/json\" },\n    body: JSON.stringify({ value: 21 }),\n  });\n  status = response.status;\n  const text = await response.text(); // consume full body\n  value = JSON.parse(text).value;\n  if (status !== 200) throw new Error(\"unexpected status \" + status);\n  if (value !== 42) throw new Error(\"unexpected value \" + value);\n} finally {\n  server.close();\n  closeResult = \"listener closed\";\n}\n\nconst report = { status, value, port };\nfs.writeFileSync(\"report.json\", JSON.stringify(report, null, 2) + \"\\n\");\nconsole.log(JSON.stringify({ report, hostname: server.hostname, closeResult }));\nconsole.log(\"file:\", fs.readFileSync(\"report.json\", \"utf8\"));",
+        "exit_code": 0,
+        "stdout": "{\"report\":{\"status\":200,\"value\":42,\"port\":37069},\"hostname\":\"127.0.0.1\",\"closeResult\":\"listener closed\"}\nfile: {\n  \"status\": 200,\n  \"value\": 42,\n  \"port\": 37069\n}\n\n"
+      }
+    ],
+    "successful_docs_calls": 2,
+    "http_module_used": true,
+    "passed": true
+  },
+  "boundary": {
+    "checked_existing_files": 46,
+    "changed_existing_snapshot_files": [
+      "internal/stdlib/UPSTREAM.md",
+      "internal/stdlib/stdlib.go"
+    ],
+    "go_mod_go_sum_unchanged": true,
+    "root_binary_unchanged": true,
+    "http_transport_loop_worker_streams_websocket_license_fixtures_unchanged": true
+  },
+  "limitations": [
+    "Native execution was verified on Linux amd64; other targets were compiled only.",
+    "Existing live-provider spike opt-in tests were skipped in ordinary suites. The separately authorized basic OpenCode Go smoke passed.",
+    "Request sending and receiving remain buffered. Response streams and current body truncation limits retain their existing behavior."
+  ],
+  "prepared_mcp_sdk_bundle": "/tmp/noe-repl-removal-20261019-yzglhqqf/mcp-client.bundle.mjs",
+  "artifacts": "/tmp/noe-stdlib-step3-20261019-84fpyjw_",
+  "commit_push_release_performed": false
+}

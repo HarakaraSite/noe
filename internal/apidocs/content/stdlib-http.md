@@ -1,6 +1,6 @@
 # node:http
 
-Provides an HTTP server backed by the Web Request and Response APIs. It does not implement Node's client request API or Node request/response streams. serve is also installed as a global.
+Provides an HTTP server backed by the Web Request and Response APIs. It does not implement Node's client request API or Node request/response streams. serve is also installed as a global. Prefer `noe:http` for named imports of both fetch and serve; its serve export is this same function.
 
 ### Exports
 

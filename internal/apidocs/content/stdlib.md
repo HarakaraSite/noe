@@ -1,6 +1,8 @@
 # NOE standard-library modules
 
-NOE exposes exactly the 26 built-in modules listed below from its NOE-maintained standard library, based on go-quickjs v0.27.0. Each module is registered under its canonical node: ID and bare alias; both names resolve to the same implementation. A reserved node: prefix does not make other Node modules available. Each module page lists the actual named exports, including default. Details are included only for documented members.
+NOE exposes the 26 built-in Node-style modules listed below from its NOE-maintained standard library, based on go-quickjs v0.27.0. Each module is registered under its canonical node: ID and bare alias; both names resolve to the same implementation. A reserved node: prefix does not make other Node modules available. Each module page lists the actual named exports, including default. Details are included only for documented members.
+
+For HTTP, prefer `import { fetch, serve } from "noe:http"`. That NOE module shares the existing global functions and Web types; the Node-style module list below is unchanged.
 
 | Module | Summary |
 | --- | --- |

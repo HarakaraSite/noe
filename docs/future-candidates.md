@@ -19,7 +19,7 @@
 
 公開名は実装の出自と分けて考える。Web標準の型・共通機能は標準名を維持し、NOEが設計するAPIは`noe:`を正式な入口にする。`node:fs`は当面維持し、NOEとして仕様を整える段階で`noe:fs`を正式名、`node:fs`を同じ実装を参照する互換エイリアスにする案を持つ。将来は`noe:fs-handle`を`noe:fs`へ統合することも検討し、ハンドルの表現・読み書き・closeの契約と旧入口の互換性を整理する。エイリアスなら振る舞いも共通になり、互換動作に差が必要な部分だけ別途扱う。一律の改名は行わず、具体的な範囲・時期は未決定。
 
-汎用stdlibとagent拡張は選択して利用できる境界を設ける。現在のagentは子NOEプロセスの起動・認証・観察・終了管理と接続しているため、外部アプリへ提供する際は実行方法や生存期間をどう接続するかも整理する。公開ライブラリ化を一度に完了することはHTTP整備の前提にせず、段階的に進める。現在は次のステップ1・2が完了し、`noe:http`整備以降は未着手。
+汎用stdlibとagent拡張は選択して利用できる境界を設ける。現在のagentは子NOEプロセスの起動・認証・観察・終了管理と接続しているため、外部アプリへ提供する際は実行方法や生存期間をどう接続するかも整理する。公開ライブラリ化を一度に完了することはHTTP整備の前提にせず、段階的に進める。現在は次のステップ1〜3が完了し、要求送信streaming以降は未着手。
 
 利用者と共有した長期的な節目は、他のGoアプリにも組み込めるNOEを目指すv2.0.0。途中は1.xで完成した単位ごとにリリースできる進め方とし、最終形を一度に実装しない。各段階の具体的なversion・時期は未決定。
 
@@ -29,7 +29,7 @@
 | --- | --- | --- |
 | 1：stdlibの取り込み（完了） | 固定版のソース・テスト・ライセンスと由来を取り込み、非公開packageへの依存を整理した。取り込み時点ではNOE本体は従来版を維持した | 単独/race/総合テスト・6対象cross-compileが成功、独立した通常コードレビュー完了 |
 | 2：NOEの利用先の切替（完了） | stdlibの導入、loop、Workerを取り込んだ版へ揃えた。機能追加・API名変更は含まない | 4モードのAPI比較、関連/全体/race/E2E、6対象のビルドと統合test compileが成功。独立した通常コードレビュー完了 |
-| 3：`noe:http`の入口 | まず既存の`fetch`・`serve`を公開し、英文の内蔵docsと利用例を用意する | 通常のHTTP用途を`noe:http`から使える |
+| 3：`noe:http`の入口（完了） | 既存と同一の`fetch`・`serve`を公開し、英文の内蔵docsと利用例を整備した | 各Worker/agent、旧API比較、総合テスト・6対象compile・実providerのHTTP往復が成功、独立コードレビューと再レビュー完了 |
 | 4：要求送信のストリーミング | `ReadableStream`を全量収集せず送信できるようにする | producerが閉じる前に送信先へ本文が届き、中断できる |
 | 5：要求受信のストリーミング | 本文を読み切る前にhandlerへ渡し、到着した本文を順次処理できるようにする | handlerが本文を順次読め、背圧が働き、切断・終了時に資源を解放できる |
 | 6：NOE独自APIの導入方法の整理 | stdlibと`nativeio`などのAPI登録・資源管理の境界を揃える | CLIやagentに依存せず汎用APIをruntimeへ組み込める |
@@ -40,6 +40,8 @@
 ステップ1は[固定版stdlibの取り込み計画](development/stdlib-step1-import-plan.md)に沿って3スライスを実装し、[独立した通常の計画/コードレビュー](development/stdlib-step1-import-review.md)を完了した。いずれもP2以上の指摘は0件。[実装・検証記録](development/stdlib-step1-import-implementation.md)と[構造化結果](development/stdlib-step1-import-results.json)を保存している。取り込んだ41ファイルのうち30件が原本と一致し、11件の適合変更とローカル追加2件に限定した。NOE本体の切替は含めず、上流stdlibを使うCLIの依存境界と既存runtime・配布バイナリの維持も確認した。
 
 ステップ2は[runtime切替計画](development/stdlib-step2-runtime-plan.md)の4スライスを実装し、[独立した通常の計画/コードレビュー](development/stdlib-step2-runtime-review.md)を完了した。いずれもP2以上の指摘は0件。productionと統合helperをローカル版へ揃え、内蔵英文docsと現行ガイドの出自説明を更新した。変更前後の4モードAPI inventoryは完全一致し、取り込み版を使うCLI・Worker・agent・`run_js`の総合検証も成功した。追加のOpenCode Go実接続でも、agent起動・`run_js`によるJSON集計と保存・最終回答の基本フローを確認した。[実装・検証記録](development/stdlib-step2-runtime-implementation.md)と[構造化結果](development/stdlib-step2-runtime-results.json)を保存している。
+
+ステップ3は[noe:http入口計画](development/stdlib-step3-http-plan.md)の3スライスを実装し、[独立した通常の計画/コードレビューと再レビュー](development/stdlib-step3-http-review.md)を完了した。コードレビューのdocsに関するP2を解消し、最終P0〜P3は0件。既存と同一のfetch/serveを公開し、Web型・WebSocket・loop・終了処理を共有する。設定・4モード・旧API比較、英文docsと例、関連/総合テスト、6対象のbuild/compileが成功した。OpenCode Go実接続の1課題でもdocsを自発参照し、新入口でのHTTP往復・保存・close・最終回答を確認した。[実装・検証記録](development/stdlib-step3-http-implementation.md)と[構造化結果](development/stdlib-step3-http-results.json)を保存している。要求送信・受信のstreamingはステップ4・5へ残す。
 
 `noe:fs`への正式名変更や`noe:fs-handle`の統合は、HTTP整備・ライブラリ公開とは独立した後続作業とする。汎用stdlibの外部利用が成立してからagent拡張の接続を段階的に整え、全APIの改名や統合をv2.0.0の必須条件にはしない。
 

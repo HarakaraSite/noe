@@ -90,6 +90,8 @@ The writer owns the stream until released. A rejected write propagates through t
 
 ## fetch
 
+For explicit imports, use `import { fetch } from "noe:http"`. It is the same function as this global.
+
 Syntax: fetch(input, init = {}) -> Promise<Response>. input may be a URL/string or Request; init supports method, headers, body, and signal. The promise rejects for network, permission, or abort errors. HTTP error status codes still resolve to a Response; inspect response.ok or response.status. Consume the body once with text(), json(), arrayBuffer(), or bytes(), or read response.body incrementally.
 
 ~~~js
@@ -126,6 +128,8 @@ console.log(response.status, await response.json());
 Body consumption is one-shot. For a stream body, closing or cancelling its consumer controls when upstream data finishes or is released.
 
 ## serve
+
+For explicit imports, use `import { serve } from "noe:http"`. It is the same function as this global.
 
 Syntax: serve(options, handler) -> server, or serve(handler) -> server. options supports hostname (default 127.0.0.1) and port (default 0, asking the OS for a free port); options.fetch may supply the handler. The handler receives a Web Request and must return a Response, synchronously or as a promise. The server has hostname, port, url, and close().
 

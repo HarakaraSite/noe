@@ -1,3 +1,4 @@
+import { fetch } from "noe:http";
 // Use a JSON API URL of your choice; PUT/PATCH/DELETE update remote data.
 // ./noe run --timeout 5s examples/http/http-json.js METHOD URL [JSON-body]
 const args = process.argv.slice(2);

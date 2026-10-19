@@ -30,3 +30,7 @@ console.log(docs("noe:fs-handle", "FileHandle.readAt"));
 stdlibは全対応moduleの概要とexport一覧を収録し、よく使うAPIから個別詳細を整備しています。個別詳細が未収録でも、そのAPIが未対応とは限りません。未登録のtopic/memberでは、CLIはstderrに説明を出して終了コード2、JSは`code: "ERR_DOC_NOT_FOUND"`のErrorをthrowします。JSで引数型が違う場合はTypeErrorです。
 
 `noe:run_js`はagent toolを説明するtopicです。同名のmoduleをimportすることはできません。NOEの起動方法や設定は[agent起動ガイド](agents.md)・[APIとCLIのガイド](api.md)、APIの使い分けは[プロセスとストリーム](process-io.md)・[ファイル・ソケット・シグナル](low-level-io.md)を参照してください。
+
+## HTTPの契約を調べる
+
+`noe docs noe:http fetch`と`noe docs noe:http serve`で、推奨入口の英文API契約を参照できます。既存globalと同じ関数を使い、要求buffering・応答streaming・abort・server.closeの寿命も説明しています。

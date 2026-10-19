@@ -4,6 +4,16 @@
 
 コマンドはリポジトリのルートで、ビルド済みの`./noe`を使って実行します。
 
+HTTPの入口は`import { fetch, serve } from "noe:http"`です。既存globalの同名関数と同じ実装を使います。API契約は`./noe docs noe:http`で確認できます。応答はstreamingできますが、要求の送受信は現在bufferingします。
+
+## ローカルでJSONを往復する
+
+```sh
+./noe run examples/http/roundtrip.js
+```
+
+外部サービスや認証なしで、port 0のloopback serverへJSONをPOSTし、`{"value":42}`を表示して終了します。応答の消費後にfinallyでserverをcloseします。
+
 ## HTTPダウンロード
 
 URLは利用するAPI・ファイルに置き換えてください。保存先の親ディレクトリは事前に用意します。
@@ -14,7 +24,7 @@ DEMO_DIR=$(mktemp -d)
 ./noe run --timeout 5s examples/http/download-file.js https://example.com/image.png "$DEMO_DIR/image.png"
 ```
 
-JSONは解析して整形保存し、バイナリは文字列に変換せず保存します。グローバル`fetch()`のレスポンスbodyは一度だけ読み取ります。どちらの例もHTTPエラーを実行失敗にします。
+JSONは解析して整形保存し、バイナリは文字列に変換せず保存します。`noe:http`の`fetch()`のレスポンスbodyは一度だけ読み取ります。どちらの例もHTTPエラーを実行失敗にします。
 
 ## JSON APIへのリクエスト
 

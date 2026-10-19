@@ -9,7 +9,7 @@
 | [basics](basics/README.md) | Hello、待機 | 不要 |
 | [json](json/README.md) | JSONの加工、標準入力・ディレクトリ集計、処理済みファイルの移動 | 不要 |
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |
-| [http](http/README.md) | JSON・バイナリ取得、JSON APIへのリクエスト、HTTPサーバー | クライアント例は接続先URLが必要 |
+| [http](http/README.md) | noe:httpでのローカル往復、JSON・バイナリ取得、HTTPサーバー | ローカル往復は不要、外部APIの例は接続先URLが必要 |
 | [process](process/README.md) | 常駐子プロセス、JSONL通信、パイプライン | 不要 |
 | [low-level](low-level/README.md) | 位置指定ファイルI/O、TCP/Unix通信、OSシグナル | 不要 |
 | [import-map](import-map/README.md) | ローカルESMへの名前付け | 不要 |
