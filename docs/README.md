@@ -9,6 +9,7 @@
 | 目的 | 文書 |
 | --- | --- |
 | 認証を登録し、agentを起動する | [agent起動ガイド](agents.md) |
+| バイナリと同じ版のAPI説明を調べる | [内蔵docs](reference.md) |
 | API引数・CLIオプション・実行制御・終了コードを調べる | [APIリファレンス](api.md) |
 | 対話的にJavaScriptを試す | [REPL](repl.md) |
 | 自作JS・検証済みESMを再利用する | [import map](import-map.md) |
@@ -22,6 +23,7 @@
 | 画像を読み、画像を生成する | [画像](agent-images.md) |
 | Jevなどで構造化された判断を得る | [意思決定](decision.md) |
 | 子プロセスの逐次I/O・ホスト標準I/Oを使う | [プロセスとストリーム](process-io.md) |
+| ファイルの位置指定I/O・TCP/Unix通信・OSシグナルを使う | [ファイル・ソケット・シグナル](low-level-io.md) |
 
 旧スクリプトは[API移行表](api.md#旧apiからの移行)を参照してください。廃止した`noe.*`や旧agent APIの例は、履歴文書に残っています。
 

@@ -1,5 +1,7 @@
 # プロセスと標準I/Oストリーム
 
+実行バイナリと同じ版のAPI契約は`noe docs noe:process`・`noe docs noe:io`で参照できます。概要に表示されるmember名を第2引数へ渡すと詳細を取得します（[内蔵docs](reference.md)）。
+
 `noe:process`と`noe:io`はNOEの拡張モジュールです。通常のrun/eval、agentのrun_js、Workerで使えます。go-quickjsの`node:child_process`・`process.std*`・Web Streamsの実装は変更しません。
 
 ## 子を起動して通信する

@@ -10,13 +10,14 @@ import (
 	"path/filepath"
 	"time"
 
+	"noe/internal/apidocs"
 	"noe/internal/events"
 	"noe/internal/modulemap"
 	"noe/internal/runtime"
 )
 
 // Version can be set at build time using -ldflags '-X noe/internal/cli.Version=...'.
-var Version = "v1.7.1"
+var Version = "v1.8.0"
 
 const usage = `Usage:
   noe run [--timeout duration] [--import-map path] [--observe] [--events[=path|-]] script.js [args...]
@@ -29,6 +30,7 @@ const usage = `Usage:
   noe queue <agent-id> <instruction>
   noe interrupt --run <run-id>
   noe interrupt --agent <agent-id>
+  noe docs [topic [member]]
   noe --help
   noe --version
 
@@ -62,6 +64,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "--version", "-v", "version":
 		fmt.Fprintln(stdout, "noe", Version)
 		return 0
+	case "docs":
+		return runDocs(args[1:], stdout, stderr)
 	case "observe":
 		return runObserve(ctx, args[1:], stdin, stdout, stderr)
 	case "agents", "steer", "queue", "interrupt":
@@ -182,6 +186,32 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return 1
 	}
 	return code
+}
+
+func runDocs(args []string, stdout, stderr io.Writer) int {
+	const help = "Usage: noe docs [topic [member]]\n\nRead the API reference bundled with this executable. No arguments lists topics.\nExamples: noe docs node:fs; noe docs noe:sockets connect\n"
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Fprint(stdout, help)
+		return 0
+	}
+	if len(args) > 2 {
+		fmt.Fprint(stderr, help)
+		return 2
+	}
+	var topic, member string
+	if len(args) > 0 {
+		topic = args[0]
+	}
+	if len(args) > 1 {
+		member = args[1]
+	}
+	text, err := apidocs.Lookup(topic, member)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	fmt.Fprint(stdout, text)
+	return 0
 }
 
 func loadImportMap(path string) (*modulemap.Snapshot, error) {

@@ -121,3 +121,5 @@ go-quickjsのstdlibも利用できます。グローバルの`fetch`、`serve`�
 ## 子プロセスと逐次I/O
 
 `noe:process`・`noe:io`をdynamic importできます。stdinはREPLのソース入力専用なので、新モジュールのstdinも空入力です。REPLは生存中の子を待つため、子との通信・closeまでを`await (async()=>{ ... })()`の同じ入力内で行います。バックグラウンドの子を後続promptで操作する機能は提供しません。[プロセス・標準I/Oガイド](process-io.md#workerとrepl)を参照してください。新しい子やI/Oを残して中断・失敗した場合も、所有リソースを回収してセッションを終了します。
+
+`noe:fs-handle`のhandleは開いているだけでは入力の完了を妨げず、後続入力にも保持できます。`noe:sockets`の待受・接続と`noe:signals`の購読は実行を維持するため、操作とcloseまで同一入力内で行います。所有resourceを残した失敗・中断はsession終了時に回収します。[APIと寿命](low-level-io.md)を参照してください。

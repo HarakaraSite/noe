@@ -1,8 +1,8 @@
 # 第2グループ低レベルAPIの実装計画
 
-状態：計画確定。2026-10-19。計画確定前の3本のスパイク、通常・批判的レビュー、P2指摘の修正と両者の再レビューを完了。未解決のP2以上はない。[スパイク結果](low-level-group2-spike.md)・[レビュー記録](low-level-group2-review.md)を参照。S0は完了、S1〜S6の本体実装は未着手。
+状態：S0〜S6完了。2026-10-19。計画確定前スパイク、本体実装、slice別テスト・レビュー、総合受入と通常/批判的レビュー・修正再確認を完了。未解決のP2以上はない。[本体実装・検証記録](low-level-group2-implementation.md)・[計画確定前スパイク](low-level-group2-spike.md)・[計画レビュー](low-level-group2-review.md)を参照。
 
-[候補と優先順位](../future-candidates.md#一部完了-汎用の低レベルapi拡張と優先順位--2026-10-18)の第2グループを扱う。第1グループの[プロセス・標準I/O](../process-io.md)は実装済み。今回の作業は実動作のスパイク、複数sliceの計画、レビューと修正、計画・証拠のcommit/push。各sliceの本体実装・テスト・コードレビュー、最後の総合テストは後続の実施内容として定義する。
+[候補と優先順位](../future-candidates.md#一部完了-汎用の低レベルapi拡張と優先順位--2026-10-18)の第2グループを扱う。第1グループの[プロセス・標準I/O](../process-io.md)は実装済み。計画確定時には実動作のスパイク、複数sliceの計画、レビューと修正、計画・証拠の保存を行った。その後、この計画の実行依頼に従って各sliceの本体実装・テスト・コードレビューと最後の総合テストを実施した。
 
 ## 目的と採否の方針
 
@@ -30,10 +30,10 @@ stdlibの変更・fork・export置換・prototype上書きは行わない。外�
 
 以下を実装時の契約とする。既存APIの意味は変えず、新しい`noe:` moduleとして公開する。スパイクの実験APIと以下の製品APIは同一ではない。
 
-### ファイルハンドル：`noe:fs`
+### ファイルハンドル：`noe:fs-handle`
 
 ```js
-import {open} from "noe:fs";
+import {open} from "noe:fs-handle";
 const file = await open("./index.bin", {mode: "r+"});
 try {
   const {data, bytesRead, eof} = await file.readAt(32, 16);
@@ -58,7 +58,7 @@ position/lengthは非負のsafe integerでGoのoffset/長さへ変換可能な�
 
 通常fileは開いているだけでは実行を維持しない。未完了I/Oは追跡し、runtime終了時に所有handleをcloseする。REPLでは同じruntimeに残したhandleを後続入力でも使えるが、待受socketや購読を別入力から動かすREPL再設計は行わない。
 
-### TCP・Unixドメインソケット：`noe:net`
+### TCP・Unixドメインソケット：`noe:sockets`
 
 `connect(options)`と`listen(options)`はPromise。optionsは`{network:"tcp",host,port,signal?}`または`{network:"unix",path,signal?}`とする。host/pathを明示し、TCP portはconnectで1〜65535、listenで0〜65535（0はOS割当て）。DNSとIPv4/IPv6はGo netの解決に従う。空/NUL入りpath・不正port・既にabortされたsignalは開始前にrejectする。Unix相対pathはruntimeのcwd基準。独自URL scheme、TLS、UDP、abstract namespace、アプリの接続retryは今回追加しない。
 
@@ -139,8 +139,8 @@ S0は今回実施する計画確定前スパイク。S1以降は本体実装時�
 | Slice | 実装範囲 | テストとコードレビューの焦点 |
 | --- | --- | --- |
 | S0 計画確定前の実証 | file/net/signalsの独立prototype、比較と結果記録 | 実動作と主張の一致、fixtureの補助待機で寿命管理を隠さないこと、未確認範囲 |
-| S1 ファイルハンドル | `noe:fs`の中核操作、所有・close、通常runtimeからの垂直接続 | 非対象bytes不変、EOF/部分I/O、open失敗、close競合、owner配送、既存range streamとの差 |
-| S2 TCP・Unix接続 | `noe:net.connect`、duplex Streams、送信終了と全体close | FIN後の応答、read/write並行、blocked I/O取消し、接続失敗、resource回収 |
+| S1 ファイルハンドル | `noe:fs-handle`の中核操作、所有・close、通常runtimeからの垂直接続 | 非対象bytes不変、EOF/部分I/O、open失敗、close競合、owner配送、既存range streamとの差 |
+| S2 TCP・Unix接続 | `noe:sockets.connect`、duplex Streams、送信終了と全体close | FIN後の応答、read/write並行、blocked I/O取消し、接続失敗、resource回収 |
 | S3 TCP・Unix待受 | listener/accept、接続所有、待受keepalive、Unix pathname | 複数接続、accept close、listenerと接続の独立close、通常/強制終了後のpath状態 |
 | S4 シグナル配送 | process-wide broker、runtime購読、解除とkeepalive | 複数runtime/Worker、部分解除と最後の解除、SIGINT既存取消し、SIGTERM既定動作、close競合 |
 | S5 全実行形態と資料 | main/Worker/REPL/run_jsへの統合、例、API資料・instructions更新 | 既存APIへの回帰、timeout/interrupt/終了、REPL同一入力、実NOEでの往復と回収 |
@@ -182,4 +182,4 @@ S1は短いread/非EOF部分エラー・部分writeのfake backendを使い、�
 
 再レビューは変更箇所と既存指摘の確認を基本とし、ユーザーの明示によりP2以上がなくなるまで必要な回数を行う。初回各30分以内・再レビュー各15分以内、10分間新しい証拠/中間結論がなければ確認済み範囲と暫定所見を受け取り、主担当が具体的な不足を判断する。
 
-計画確定前のスパイク・検証結果・未確認範囲と、両レビューの最終結果を記録済み。今回の保存対象は計画・レビュー・スパイクと再現コードで、本体sliceが実装済みであるとは表示しない。利用者の指定によりcommit/pushし、リリースは行わない。
+計画確定前のスパイク・検証結果・未確認範囲と、両レビューの最終結果を記録済み。計画確定時の保存対象は計画・レビュー・スパイクと再現コードで、本体sliceの実装完了とは区別した。計画の確定時には利用者の指定でcommit/pushした。本体実装の完了状態と検証範囲は[実装記録](low-level-group2-implementation.md)に記載し、今回の実装作業で公開・releaseは行わない。

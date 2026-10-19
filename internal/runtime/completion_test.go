@@ -200,6 +200,22 @@ func TestSessionCompleteStopsNewStdlibResources(t *testing.T) {
 			},
 		},
 		{
+			name:  "native signal subscription",
+			token: "completionSignalProxy.x",
+			setup: []string{
+				`const completionSignals = await import("noe:signals")`,
+				`let completionSignalProxy = new Proxy({}, { ownKeys() { completionSignals.subscribe("SIGINT"); return []; } })`,
+			},
+		},
+		{
+			name:  "native socket listener",
+			token: "completionListenerProxy.x",
+			setup: []string{
+				`const completionNet = await import("noe:sockets")`,
+				`let completionListenerProxy = new Proxy({}, { ownKeys() { completionNet.listen({network:"tcp",host:"127.0.0.1",port:0}); return []; } })`,
+			},
+		},
+		{
 			name:  "unreferenced worker",
 			token: "completionWorkerProxy.x",
 			setup: []string{

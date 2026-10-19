@@ -50,3 +50,15 @@ NOE_OPENCODE_GO_API_KEY_FILE=/path/to/key \
 It compares retain ratios 0.1/0.2 and disabled trimming with controlled tool-output padding, then runs a natural task without padding. Each task has a 12-request / 180-second experiment bound. See the [implementation and behavior record](../docs/development/context-trimming-implementation.md); optional memory-file creation is not a success condition.
 
 `process_io*_e2e_test.go`は新しい`noe:process`・`noe:io`を実CLIで確認します。開いたままの入力、40 MiBの転送、観察出力、Worker終了、fixture providerからの生成run_jsのinterrupt/timeout/SIGINTと子・孫回収を含みます。実providerへの接続は不要です。公式MCP SDKの任意の適合確認は[scripts/spikes/process-io-mcp](../scripts/spikes/process-io-mcp/README.md)へ分離しています。
+
+`low_level*_e2e_test.go`は`noe:fs-handle`・`noe:sockets`・`noe:signals`の公開APIを実CLIで確認します。位置指定I/OとTCP/Unixの並行往復、送信FIN後の応答、run/eval・REPL・Worker・run_js・JSONL/observe、fixture agent、待受とI/Oのtimeout/SIGINT、Worker終了、signal解除後の既定動作、通常closeと強制終了後のUnix pathnameを扱います。OSシグナルは専用の子プロセスへ送ります。
+
+`docs_e2e_test.go`は移動したバイナリ単体の内蔵docsと`run_js`の本文一致を確認します。自然な課題からの自発参照は、明示opt-inの実プロバイダ試験です。課題本文にdocsの指示は含めず、初期instructionsからの参照と成果物を確認します。
+
+```sh
+NOE_AGENT_DOCS_LIVE=1 NOE_AGENT_DOCS_LIVE_DIR=/path/to/fresh/results \
+NOE_OPENCODE_GO_API_KEY_FILE=/path/to/key \
+  go test -v -tags='e2e docs_live' ./tests -run '^TestDocsOpenCodeLive$' -count=1 -timeout=7m
+```
+
+OpenCode Go / `deepseek-v4.1-flash`を使い、1課題あたり最大10要求・175秒で確認します。[実装・検証記録](../docs/development/builtin-docs-implementation.md)を参照してください。

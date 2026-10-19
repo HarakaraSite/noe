@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"noe/internal/agent"
 	"noe/internal/agent/provider"
 	"noe/internal/events"
 )
@@ -40,6 +41,15 @@ type inheritedContextObservation struct {
 }
 
 func TestContextPolicyAndModelBudgetInheritAcrossRunJSProcesses(t *testing.T) {
+	// Keep the fixture's history allowances stable as built-in API guidance
+	// grows. The two recent blocks must fit before trimming, so 0.2 retains
+	// both while the default 0.1 retains only one.
+	encodedInstructions, err := json.Marshal(agent.Instructions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	instructionTokens := int64((len(encodedInstructions) + 3) / 4)
+	parentWindow, childWindow, grandchildWindow := instructionTokens+7900, instructionTokens+11900, instructionTokens+15300
 	for _, test := range []struct {
 		name             string
 		parentPolicy     string
@@ -63,11 +73,11 @@ func TestContextPolicyAndModelBudgetInheritAcrossRunJSProcesses(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			cwd := t.TempDir()
 			catalogPath := filepath.Join(cwd, "provider-catalog.json")
-			catalog := `{"providers":{"openrouter":{"models":{
-  "fixture/parent":{"catalog":{"kind":"agent","contextWindow":12000,"maxOutputTokens":1000}},
-  "fixture/child":{"catalog":{"kind":"agent","contextWindow":16000,"maxOutputTokens":1500}},
-  "fixture/grandchild":{"catalog":{"kind":"agent","contextWindow":20000,"maxOutputTokens":2000}}
-}}}}`
+			catalog := fmt.Sprintf(`{"providers":{"openrouter":{"models":{
+  "fixture/parent":{"catalog":{"kind":"agent","contextWindow":%d,"maxOutputTokens":1000}},
+  "fixture/child":{"catalog":{"kind":"agent","contextWindow":%d,"maxOutputTokens":1500}},
+  "fixture/grandchild":{"catalog":{"kind":"agent","contextWindow":%d,"maxOutputTokens":2000}}
+}}}}`, parentWindow, childWindow, grandchildWindow)
 			if err := os.WriteFile(catalogPath, []byte(catalog), 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -201,9 +211,9 @@ console.log("cross-process context policy verified");`
 				window  int64
 				reserve int64
 			}{
-				"fixture/parent":     {window: 12000, reserve: 1000},
-				"fixture/child":      {window: 16000, reserve: 1500},
-				"fixture/grandchild": {window: 20000, reserve: 2000},
+				"fixture/parent":     {window: parentWindow, reserve: 1000},
+				"fixture/child":      {window: childWindow, reserve: 1500},
+				"fixture/grandchild": {window: grandchildWindow, reserve: 2000},
 			} {
 				if len(byModel[model]) == 0 {
 					t.Fatalf("no context snapshots for %s", model)

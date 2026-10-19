@@ -6,7 +6,7 @@ A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://gi
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
-[v1.7.1 release notes](docs/releases/v1.7.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.1)
+[v1.8.0 release notes](docs/releases/v1.8.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.8.0)
 
 ## Build and run
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.7.1
+# noe v1.8.0
 ```
 
 The examples below assume the repository root is your working directory.
@@ -33,6 +33,8 @@ The examples below assume the repository root is your working directory.
 ```
 
 Scripts support ES modules, `async/await`, files, Fetch, HTTP serving, and child processes. See the [examples](examples/README.md) for JSON processing, reports, downloads, and more.
+
+Read the English API reference bundled with your executable using `./noe docs`, `./noe docs node:fs`, or `./noe docs noe:sockets connect`. Scripts and agents can read the same reference through `import { docs } from "noe:docs"`.
 
 ## Run an agent
 
@@ -74,6 +76,7 @@ Roots require explicit `provider`, `model`, and `effort`. `--observe` displays p
 | Inspect running work and process logs | [Observation](docs/observe.md) · [JSONL events](docs/events.md) |
 | Inspect/generate images or request structured decisions | [Images](docs/agent-images.md) · [Decisions](docs/decision.md) |
 | Use live child-process I/O or HTTP | [Processes and streams](docs/process-io.md) · [HTTP examples](examples/http/README.md) |
+| Use positional file I/O, TCP/Unix sockets, or OS signals | [Files, sockets, and signals](docs/low-level-io.md) |
 | Explore examples or develop NOE | [Examples](examples/README.md) · [Documentation](docs/README.md) · [Development guide](docs/development/README.md) |
 
 The linked guides are currently in Japanese. For older scripts, see the [API migration guide](docs/api.md#旧apiからの移行).

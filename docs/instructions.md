@@ -1,5 +1,7 @@
 # agentの不変インストラクション
 
+組込み説明は、NOE上で管理されていること、`run_js`が毎回新しいNOEプロセスで動くこと、必要なAPI契約を`noe:docs`で調べる方法を含みます。詳細な説明はバイナリに内蔵され、[CLIとJSの双方から参照](reference.md)できます。
+
 agent instanceの最初のtask開始時に、次の順でinstructionを一度構成します。
 
 1. NOE組込みの実行環境・toolの説明。

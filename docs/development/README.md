@@ -43,10 +43,11 @@ go vet -tags=e2e ./...
 | OpenAI SDK・ChatGPT認証 | [利用ガイド](../openai.md) | [実装記録](openai-implementation.md) |
 | 意思決定API | [計画](decision-plan.md) | [実装記録](decision-implementation.md)・[実接続](decision-openrouter-validation.md) |
 | プロセス・標準I/Oストリーム | [計画](process-io-plan.md) | [実装記録](process-io-implementation.md) |
-| 第2グループ：file・socket・signal | [実装計画](low-level-group2-plan.md)・[計画レビュー](low-level-group2-review.md) | [計画確定前スパイク](low-level-group2-spike.md)。本体は未実装 |
+| 第2グループ：file・socket・signal | [実装計画](low-level-group2-plan.md)・[計画レビュー](low-level-group2-review.md) | [実装・検証記録](low-level-group2-implementation.md)・[計画確定前スパイク](low-level-group2-spike.md) |
 | ローカルESM・import map | [計画](local-import-map-plan.md) | [実装記録](local-import-map-implementation.md)・[MCPクライアントのスパイク](../../scripts/spikes/process-io-mcp/README.md) |
 | hook・処理の連鎖・コンテキスト通知 | [計画](execution-hooks-plan.md) | [実装記録](execution-hooks-implementation.md)・[OpenCode Go検証](execution-hooks-opencode-validation.md) |
 | 共通・workspace instructions | [利用ガイド](../instructions.md) | [実装記録](instructions-implementation.md) |
+| 内蔵docs・stdlib参照・agent初期説明 | [計画](builtin-docs-plan.md) | [実装・検証記録](builtin-docs-implementation.md) |
 | 自動コンテキスト切り捨て | [計画](context-trimming-plan.md) | [実装記録](context-trimming-implementation.md) |
 | queueの会話継続 | [計画](queue-continuation-plan.md) | [実装記録](queue-continuation-implementation.md) |
 | Vision入力・画像生成 | [計画](agent-images-plan.md)・[スパイク](agent-images-spike.md) | [実装記録](agent-images-implementation.md)・[実接続](agent-images-integration.md) |
@@ -63,6 +64,7 @@ go vet -tags=e2e ./...
 | OpenAI | [ChatGPT](openai-chatgpt-results.json) |
 | 意思決定 | [OpenRouter](decision-openrouter-results.json) |
 | コンテキスト切り捨て | [実プロバイダの挙動](context-trimming-live-results.json) |
+| 内蔵docs | [実プロバイダの自発参照](builtin-docs-live-results.json) |
 
 ## 配置と製品方針
 

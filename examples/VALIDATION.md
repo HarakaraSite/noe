@@ -1,5 +1,7 @@
 # examplesの動作確認
 
+2026-10-19追記：第2グループAPIを含むソースからCLIを再ビルドし、[low-level](low-level/README.md)のindex-roundtrip（TCP/Unix）とwait-signal（SIGTERM）をLinux amd64で実行して成功しました。[実装・総合検証記録](../docs/development/low-level-group2-implementation.md)を参照してください。以下は既存例を整理した時点の記録です。
+
 2026-10-18、Linux amd64、NOE v1.6.1のソースとビルド済みCLIで確認しました。
 
 **現在のNOE APIとの非互換で利用不可と判断した例はありません。** スクリプトは削除せず、用途ごとのフォルダへ移動しています。実行パスは[一覧](README.md)と各フォルダのREADMEを参照してください。以前の`examples/try-agent.js`は`examples/agent/try-agent.js`です。

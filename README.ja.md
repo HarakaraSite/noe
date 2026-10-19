@@ -6,7 +6,7 @@ Just JavaScript. Until you need an agent.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v1.7.1リリースノート](docs/releases/v1.7.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.7.1)
+[v1.8.0リリースノート](docs/releases/v1.8.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.8.0)
 
 ## ビルドと実行
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.7.1
+# noe v1.8.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
@@ -33,6 +33,8 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 ```
 
 ES modules・`async/await`・ファイル操作・Fetch・HTTP待受・子プロセスを利用できます。JSON加工、レポート、ダウンロードなどは[実行例](examples/README.md)を参照してください。
+
+`./noe docs`、`./noe docs node:fs`、`./noe docs noe:sockets connect`で、実行バイナリと同じ版の英文API説明を参照できます。JSとagentからは`import { docs } from "noe:docs"`で同じ本文を取得します（[使い方](docs/reference.md)）。v1.8.0以降で利用できます。
 
 ## agentを実行する
 
@@ -74,6 +76,7 @@ root agentには`provider`・`model`・`effort`の明示指定が必要です。
 | 実行中の様子やログを読む | [観察の入口](docs/observe.md) · [JSONLイベント](docs/events.md) |
 | 画像を読取・生成する、構造化判断を依頼する | [画像](docs/agent-images.md) · [意思決定](docs/decision.md) |
 | 子プロセスの逐次I/OやHTTPを使う | [プロセスとストリーム](docs/process-io.md) · [HTTPの実行例](examples/http/README.md) |
+| ファイルの位置指定I/O・TCP/Unix通信・OSシグナルを使う | [ファイル・ソケット・シグナル](docs/low-level-io.md) |
 | 実行例を探す、NOEを開発する | [実行例](examples/README.md) · [ドキュメント一覧](docs/README.md) · [開発ガイド](docs/development/README.md) |
 
 旧スクリプトの移行は[API移行ガイド](docs/api.md#旧apiからの移行)を参照してください。

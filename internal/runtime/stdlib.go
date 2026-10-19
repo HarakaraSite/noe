@@ -36,6 +36,9 @@ func (h *host) stdlibConfig(opts Options) stdlib.Config {
 		// Preserve NOE's existing unlimited worker count; zero now means 64.
 		Max: -1,
 		Installed: func(rt *quickjs.Runtime) error {
+			if err := installDocs(rt); err != nil {
+				return err
+			}
 			_, err := nativeio.Install(rt, nativeio.Options{Stdout: opts.Stdout, Stderr: opts.Stderr, Cwd: h.cwd})
 			return err
 		},

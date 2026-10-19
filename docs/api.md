@@ -2,9 +2,11 @@
 
 [READMEへ戻る](../README.md) · [agent起動ガイド](agents.md) · [REPLガイド](repl.md) · [実行例](../examples/README.md)
 
+バイナリと同じ版の英文API契約は`noe docs [topic [member]]`で参照できます。JS・Worker・agentの`run_js`でも`noe:docs`から同じ本文を取得します（[内蔵docsの使い方](reference.md)）。このガイドはCLI・設定・APIの利用手順を説明します。
+
 NOEはJavaScriptの実行環境として、固定したgo-quickjs v0.27.0の標準ライブラリを有効にします。標準ライブラリが持つWeb APIとNode形式APIを利用できます。各APIはgo-quickjsによる実装で、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
+JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`docs`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
 
 ## 利用できる機能と権限
 
@@ -20,7 +22,7 @@ NOEは次のホスト機能をスクリプトに渡します。
 - HTTPサーバーの待受
 - Workersとメッセージング
 
-Workersにも同じgo-quickjs標準ライブラリのホスト機能を渡します。NOE固有moduleでは`noe:process`・`noe:io`をWorkerで利用でき、`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`は利用できません。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
+Workersにも同じgo-quickjs標準ライブラリのホスト機能を渡します。NOE固有moduleでは`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:docs`をWorkerで利用でき、`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`は利用できません。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
 
 go-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
@@ -243,6 +245,8 @@ WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソ
 ## 子プロセスと標準I/Oストリーム
 
 `noe:process`の`spawn`で子の入出力を実行中から扱い、終了・停止・回収を行えます。`noe:io`はホストのstdin/stdout/stderrのWeb Streamsと取消し対応`pipe`を公開します。通常JS・run_js・Workerで利用でき、REPLでは子の操作とcloseまでを同一入力で行います。公開契約と例は[プロセス・標準I/Oガイド](process-io.md)を参照してください。stdlibの`execFile`・`process.std*`・`pipeTo`は変更しません。
+
+`noe:fs-handle`の位置指定readAt/writeAt、`noe:sockets`のTCP/Unix connect/listen、`noe:signals`のAsyncIterator購読も使えます。API・方向別終了・OS差・所有と回収は[ファイル・ソケット・シグナル](low-level-io.md)を参照してください。
 
 ## 意思決定モデル：`noe:decision`
 

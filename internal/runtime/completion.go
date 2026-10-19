@@ -48,7 +48,7 @@ func (s *Session) Complete(ctx context.Context, token string) (candidates []stri
 	defer endOperation()
 	generation := h.loop.resourceGeneration
 	value, callErr := h.completion.CallContext(inputCtx, path, len(path) > 0 && hasString(s.lexicalNames, path[0]))
-	newStdlibWork := h.loop.std.Pending() || h.loop.hasResourcesSince(generation)
+	newStdlibWork := h.loop.std.Pending() || h.loop.hasResourcesSince(generation) || (h.ioHost != nil && h.ioHost.Active())
 	needsCleanup := callErr != nil || ctx.Err() != nil || h.rt.Busy() || newStdlibWork || len(h.loop.timers) != 0 || len(h.unhandled) != 0
 	cancel()
 

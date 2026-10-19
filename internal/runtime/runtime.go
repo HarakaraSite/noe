@@ -136,6 +136,10 @@ func newHost(opts Options) (*host, error) {
 		h.rt.Close()
 		return nil, err
 	}
+	if err := installDocs(h.rt); err != nil {
+		h.rt.Close()
+		return nil, err
+	}
 	h.ioHost, err = nativeio.Install(h.rt, nativeio.Options{Stdin: opts.Stdin, Stdout: opts.Stdout, Stderr: opts.Stderr, Cwd: cwd})
 	if err != nil {
 		h.rt.Close()

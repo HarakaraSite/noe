@@ -11,6 +11,7 @@
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |
 | [http](http/README.md) | JSON・バイナリ取得、JSON APIへのリクエスト、HTTPサーバー | クライアント例は接続先URLが必要 |
 | [process](process/README.md) | 常駐子プロセス、JSONL通信、パイプライン | 不要 |
+| [low-level](low-level/README.md) | 位置指定ファイルI/O、TCP/Unix通信、OSシグナル | 不要 |
 | [import-map](import-map/README.md) | ローカルESMへの名前付け | 不要 |
 | [agent](agent/README.md) | 任意タスク、要約、並列委譲、provider選択、hook、steer・queue・interrupt | 各providerの認証 |
 | [image](image/README.md) | agentによる画像読取り、JavaScriptからの画像生成 | 読取りはagent用provider認証、生成は対応provider認証と利用料 |

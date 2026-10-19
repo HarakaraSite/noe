@@ -1,11 +1,17 @@
 # NOE 次の機能候補
 
-2026-10-18、v1.7.1後のソース・テスト・利用ガイド・実装記録と照合して整理しました。
+2026-10-19、v1.7.1後のソース・テスト・利用ガイド・実装記録と照合して整理しました。
 `<完了>`は合意した範囲を実装済み、`<一部完了>`は実装済み部分と残る候補がある状態、`<未完了>`は検討・未着手を表します。未完了は実装の決定や優先順位を意味しません。
 
 現在の仕様は各利用ガイドを参照してください。実装前の案・旧API・当時の判断は[検討履歴](archive/future-candidates-history.md)へ保存しました。履歴にある未実装記述を現在の残件とは扱いません。
 
 ## 検討を続ける候補
+
+### <完了> 内蔵docsとagent初期説明の整備 — 2026-10-19
+
+実行バイナリと同じ版のAPI説明を内蔵し、`noe docs`とJSの`noe:docs`から必要な説明を参照できます。[計画](development/builtin-docs-plan.md)に沿って英文Markdown本文とGo catalogを共通の正本にし、stdlib全26対応moduleの一覧・概要、よく使うAPIの詳細とNode.jsとの差分を収録しました（[実装・検証記録](development/builtin-docs-implementation.md)）。実装テスト・コードレビュー後、実プロバイダへdocsへの誘導を含まない2課題を与え、両方で自発参照と課題完了を確認しました。
+
+初期instructionsへNOEとは何か、agentがNOEに管理され、`run_js`が毎回新しいNOEプロセスで実行されること、docsの調べ方を加えました。system I/Oの詳細は参照先の整備後に内蔵docsへ移しました。約4,700 tokensという変更前の概算だけを理由に削減目標は設けていません。
 
 ### <未完了> 辞書参照APIの必要性 — 2026-10-18
 
@@ -22,7 +28,7 @@
 | グループ | 現在の状態 | 残る検討 |
 | --- | --- | --- |
 | 1：プロセスと標準I/O | **完了**。`noe:process`の子プロセスハンドルとstdin/stdout/stderr、`noe:io`のホスト標準I/Oストリーム | [公開契約](process-io.md)・[実装記録](development/process-io-implementation.md)を参照 |
-| 2：具体的な用途に合わせて追加 | **本体は未完了、計画確定前スパイクは実施済み**。ファイルハンドル、OSシグナル受信、TCP・Unixドメインソケット | [スパイク結果](development/low-level-group2-spike.md)を反映した[複数sliceの計画](development/low-level-group2-plan.md)と[レビュー記録](development/low-level-group2-review.md)。各機能の追加価値を独立に判断 |
+| 2：具体的な用途に合わせて追加 | **完了**。`noe:fs-handle`の位置指定I/O、`noe:sockets`のTCP・Unix接続/待受、`noe:signals`のOSシグナル購読 | [公開契約](low-level-io.md)・[実装と総合検証](development/low-level-group2-implementation.md)。stat/truncate/sync等の追加操作は後続候補 |
 | 3：後続候補 | **未完了**。ファイル変更通知、端末操作 | ポーリングやCLIと比較。TTY判定・サイズ・raw mode・PTYは別々に評価 |
 
 `execFile`は既に非同期、ファイルの逐次I/Oも既存stdlibで利用可能です。第1グループの追加価値は実行中の入出力・終了観察・停止をハンドルで扱えることです。Ctrl+Cの取消しは既にあり、JSへのOSシグナル配送は別候補です。元QuickJSのfd番号・`dup`・readiness callbackの再現は要件にしません。
@@ -33,6 +39,13 @@
 
 Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動かします。専用のGo製MCP APIは追加していません。通常利用向けの配布・設定・接続先管理をどう整えるかは未決定です。スパイクがあることと、製品として組込みMCPクライアントを提供していることは区別します。
 
+### <未完了> MCPとデーモンのexample作成 — 2026-10-19
+
+利用者の作業メモとして、次の実行例を`examples/`へ追加する。
+
+- MCP：既存のMCPクライアントスパイクを参考に、利用例と起動手順を整える。クライアント/サーバーの役割・通信方式の詳細は作成時に決める。
+- デーモン：`noe:sockets`の待受・要求処理と`noe:signals`による終了を使う常駐処理の例を作る。独立したNOEプロセスとして外部から起動・停止する手順も示す。
+
 ### <未完了> NOEへのMCPサーバー機能の組込み — 2026-10-17
 
 **優先度は低い。** NOEで実行するJSがtoolを公開し、別アプリ・実行環境のagentから利用できるようにする候補です。同じVM内の別アプリでも別マシンでもよく、自作の集計・レポート、Exa検索ライブラリ、NOE agentへの仕事の委譲などを想定します。
@@ -40,6 +53,12 @@ Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動�
 NOE内の親子agentは既存の起動・観察・操作APIで連携でき、この用途にMCPサーバーは必須ではありません。外部へ公開したい具体的な処理が出てから必要性を再検討します。
 
 サーバーSDKの採用、通信方式、起動・公開方法は未決定です。スパイクの`server.js`はクライアント検証用fixtureであり、製品のMCPサーバー機能ではありません。クライアントSDKの検証済み範囲を、そのままサーバーSDKの互換性確認とは扱いません。可能ならJSで実装します。
+
+### <未完了> REPLの削除 — 2026-10-19
+
+利用者の作業メモ：REPLを削除し、日常利用は`noe run`とZedの編集・タスク実行を中心にする。利用頻度に対して、REPL固有の入力UI・履歴・補完・await変換・session回復の保守負担が大きい。
+
+削除時は`repl`コマンドと専用実装・テスト・資料を整理する。run/eval・agentでも使うイベントループと非同期I/Oの回収処理は、依存関係を確認してREPL固有部分から切り分ける。
 
 ### <未完了> ZedでのNOEスクリプト開発環境の整備 — 2026-10-17
 
@@ -56,9 +75,9 @@ noe queue AGENT_ID "$(cat next-task.md)"
 
 ### <一部完了> go-quickjs stdlibとNode.jsのAPI差異の説明整備 — 2026-10-17
 
-現在の組込み[モデル向けinstructions](../internal/agent/instructions.md)には、QuickJS-NGのGo実装であるgo-quickjsと参照URL、`execFile`がPromiseを返すことを記載済みです。Node.jsのcallback形式を前提に`promisify(execFile)`する必要はありません。
+現在の組込み[モデル向けinstructions](../internal/agent/instructions.md)は、NOEの実行環境と版が一致する内蔵docsの調べ方を説明します。stdlib全26 moduleの概要・export一覧と、優先APIの詳細を英文で収録しました。[参照方法](reference.md)と[実装・検証記録](development/builtin-docs-implementation.md)を参照してください。
 
-採用版v0.27.0でも`const {stdout, stderr} = await execFile(command, args)`という契約です。利用者向けの差異一覧や上流資料の補足は未整備ですが、全差異の列挙を前提にせず、実際に起きた誤用から説明の必要性を判断します。
+`execFile`のPromise、fsのWeb Streams、Node形式Workerのtype option、spawnSyncの起動失敗時statusなどの差異も該当topicに説明しました。全APIの個別詳細や全差異の列挙は完了条件にせず、実際の誤用や利用用途を基に残る説明を追加します。
 
 ### <未完了> go-quickjsへの上流PR案：同期コマンドの失敗情報保持 — 2026-10-17
 

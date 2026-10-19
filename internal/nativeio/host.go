@@ -1,4 +1,4 @@
-// Package nativeio installs NOE-owned process and byte-stream extensions.
+// Package nativeio installs NOE-owned I/O and signal extensions.
 // It uses the pinned standard library's public Streams and Worker hooks.
 package nativeio
 
@@ -77,6 +77,12 @@ func Install(rt *quickjs.Runtime, opts Options) (*Host, error) {
 	}
 	if err := rt.SetModuleValues("noe:process", map[string]quickjs.Value{"spawn": spawn}); err != nil {
 		return nil, err
+	}
+	for _, install := range []func() error{h.installFS, h.installNet, h.installSignals} {
+		if err := install(); err != nil {
+			h.Close()
+			return nil, err
+		}
 	}
 	return h, nil
 }

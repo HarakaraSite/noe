@@ -1,0 +1,146 @@
+{
+  "date": "2026-10-19",
+  "provider": "opencode-go",
+  "model": "deepseek-v4.1-flash",
+  "dependency": "github.com/go-quickjs/go-quickjs v0.27.0",
+  "instructions": {
+    "bytes": 16888,
+    "bytesDividedByFourEstimate": 4222,
+    "sha256": "d2aae88e62c4e9b3100f774fc9a39b37a6baa0ef86ed221bf56a81517c829660",
+    "optionalUserInstructionDirectories": "isolated"
+  },
+  "taskPromptsMentionDocs": false,
+  "rawArtifactsDirectory": "/tmp/noe-builtin-docs-live-20261019-f96cbyp3",
+  "cases": [
+    {
+      "commandSuccess": true,
+      "elapsedMs": 18001,
+      "model": "deepseek-v4.1-flash",
+      "provider": "opencode-go",
+      "providerCalls": 5,
+      "successfulReferenceCalls": 2,
+      "taskMentionsDocs": false,
+      "toolCalls": 4,
+      "validationPassed": true,
+      "name": "positional_file",
+      "instruction": "In this temporary workspace, update the existing data.bin in place: overwrite the four bytes starting at byte offset 5 with ASCII WXYZ. Use positional file I/O; do not read and rewrite the whole file. Read exactly 8 bytes starting at offset 3 before and after the patch. Create report.json with string fields before and after containing those two windows. Preserve the file length and every byte outside the patch. Release the handle. Perform the work in JavaScript without external commands, network, or delegation. Briefly report the result.",
+      "artifact": {
+        "before": "3456789a",
+        "after": "34WXYZ9a"
+      },
+      "eventsSha256": "7e623e6e88bdecccc2c87985cb13bc7efd8975135cd3dae6c5524a50b2a01994",
+      "referenceTools": [
+        {
+          "toolOrdinal": 2,
+          "code": "// Read noe:fs-handle docs for positional write/read and close\nconst {docs} = await import(\"noe:docs\");\nconsole.log(docs(\"noe:fs-handle\"));\n",
+          "exitCode": 0,
+          "reason": "completed",
+          "stdoutSha256": "99cd6563bc62b5373d3be6410214250e57e2839c5961ee6655ea5292877817a2"
+        },
+        {
+          "toolOrdinal": 3,
+          "code": "// Read member docs for readAt/writeAt signatures\nconst {docs} = await import(\"noe:docs\");\nfor (const m of [\"open\", \"FileHandle.readAt\", \"FileHandle.writeAt\", \"FileHandle.close\"]) {\n  console.log(\"=== \" + m + \" ===\");\n  console.log(docs(\"noe:fs-handle\", m));\n}\n",
+          "exitCode": 0,
+          "reason": "completed",
+          "stdoutSha256": "942f3f8bf32c4158b73484b852cd1b229232c7fc464ad5723364adc6bd41eb56"
+        }
+      ],
+      "providerUsage": [
+        {
+          "promptTokens": 4215,
+          "completionTokens": 156,
+          "totalTokens": 4371,
+          "cachedTokens": 0
+        },
+        {
+          "promptTokens": 4548,
+          "completionTokens": 100,
+          "totalTokens": 4648,
+          "cachedTokens": 0
+        },
+        {
+          "promptTokens": 4864,
+          "completionTokens": 118,
+          "totalTokens": 4982,
+          "cachedTokens": 4096
+        },
+        {
+          "promptTokens": 6140,
+          "completionTokens": 520,
+          "totalTokens": 6660,
+          "cachedTokens": 3968
+        },
+        {
+          "promptTokens": 6881,
+          "completionTokens": 402,
+          "totalTokens": 7283,
+          "cachedTokens": 5888
+        }
+      ],
+      "manualTraceVerification": "Read module overview and member contracts before positional readAt/writeAt/close."
+    },
+    {
+      "commandSuccess": true,
+      "elapsedMs": 19596,
+      "model": "deepseek-v4.1-flash",
+      "provider": "opencode-go",
+      "providerCalls": 4,
+      "successfulReferenceCalls": 2,
+      "taskMentionsDocs": false,
+      "toolCalls": 3,
+      "validationPassed": true,
+      "name": "tcp_half_close",
+      "instruction": "Write and execute a JavaScript program that runs a TCP server and client together on 127.0.0.1 with an OS-assigned port. The client sends UTF-8 ping, then ends only its sending direction. The server must read until that EOF, then reply with UTF-8 ACK:ping and end its sending direction. The client must read the complete reply. Save report.json as {request:\"ping\",response:\"ACK:ping\",port:NUMBER}, using the actual listening port. Close both connections and the listener, including on failure. Use raw TCP byte streams, no HTTP, external commands, or delegation. Briefly report the result.",
+      "artifact": {
+        "request": "ping",
+        "response": "ACK:ping",
+        "port": 46425
+      },
+      "eventsSha256": "73a11d57e935225061fb846a90341e55e000479e75b55a16d612fa96cb4ff713",
+      "referenceTools": [
+        {
+          "toolOrdinal": 1,
+          "code": "// Inspect noe:sockets docs for TCP API\nconst {docs} = await import(\"noe:docs\");\nconsole.log(docs(\"noe:sockets\"));\n",
+          "exitCode": 0,
+          "reason": "completed",
+          "stdoutSha256": "de561b998c2db938d44e4c58ac1814d1b83830389e9a8fd44a41e9faaebd038a"
+        },
+        {
+          "toolOrdinal": 2,
+          "code": "// Read detail docs for listen, connect, Connection readable/writable and close semantics\nconst {docs} = await import(\"noe:docs\");\nfor (const m of [\"listen\",\"connect\",\"Listener.address\",\"Listener.accept\",\"Listener.close\",\"Connection.readable\",\"Connection.writable\",\"Connection.close\"]) {\n  console.log(\"=== \" + m + \" ===\");\n  console.log(docs(\"noe:sockets\", m));\n}\n",
+          "exitCode": 0,
+          "reason": "completed",
+          "stdoutSha256": "e07eef047d8af0d79c6a04a75c3f3bcf62d55f71b7dc53fe4223216f9da2b3b4"
+        }
+      ],
+      "providerUsage": [
+        {
+          "promptTokens": 4238,
+          "completionTokens": 73,
+          "totalTokens": 4311,
+          "cachedTokens": 0
+        },
+        {
+          "promptTokens": 4734,
+          "completionTokens": 127,
+          "totalTokens": 4861,
+          "cachedTokens": 3840
+        },
+        {
+          "promptTokens": 7705,
+          "completionTokens": 2965,
+          "totalTokens": 10670,
+          "cachedTokens": 4352
+        },
+        {
+          "promptTokens": 10867,
+          "completionTokens": 371,
+          "totalTokens": 11238,
+          "cachedTokens": 7296
+        }
+      ],
+      "manualTraceVerification": "Read module overview and member contracts before listen/connect/accept, peer EOF, FIN, reply read, and close in finally."
+    }
+  ],
+  "scope": "One unmodified trial per task with one provider/model; this demonstrates observed spontaneous reference use, not its frequency across models."
+}
