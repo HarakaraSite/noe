@@ -109,42 +109,10 @@ func TestEventsFilesAppendAndAutomaticNameInStartingCwd(t *testing.T) {
 	}
 }
 
-func TestEventsREPLPreservesUIAndRecordsResults(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "repl.jsonl")
-	input := "let x=1\nx+2\nconsole.log('hello')\nthrow new Error('boom')\nx+3\n"
-	var out, diagnostic bytes.Buffer
-	if code := Run(context.Background(), []string{"repl", "--events=" + path}, strings.NewReader(input), &out, &diagnostic); code != 0 {
-		t.Fatalf("exit %d: %s", code, &diagnostic)
-	}
-	if !strings.Contains(out.String(), "> 3\n") || !strings.Contains(out.String(), "> 4\n") {
-		t.Fatalf("REPL output: %q", &out)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	records := readEvents(t, string(data))
-	if eventTexts(records, "repl.result") != "34" || eventTexts(records, "stdout") != "hello\n" || !strings.Contains(eventTexts(records, "repl.error"), "boom") {
-		t.Fatalf("REPL events: %+v", records)
-	}
-	if strings.Contains(string(data), "\u001b") || strings.Contains(string(data), `"text":"> "`) {
-		t.Fatalf("UI leaked into events: %s", data)
-	}
-	out.Reset()
-	diagnostic.Reset()
-	if code := Run(context.Background(), []string{"repl", "--events=-"}, strings.NewReader("1+2\n"), &out, &diagnostic); code != 0 {
-		t.Fatalf("exit %d", code)
-	}
-	if eventTexts(readEvents(t, out.String()), "repl.result") != "3" || diagnostic.String() != "> > " {
-		t.Fatalf("stdout %s stderr %q", &out, &diagnostic)
-	}
-}
-
 func TestEventsUsageAndOpenFailuresDoNotRunSource(t *testing.T) {
 	for _, args := range [][]string{
 		{"eval", "--events=", `throw new Error('ran')`},
 		{"eval", "--events", "--events=-", `throw new Error('ran')`},
-		{"repl", "--timeout=1s", "--events"},
 		{"eval", "--events=" + filepath.Join(t.TempDir(), "absent", "file.jsonl"), `throw new Error('ran')`},
 	} {
 		var out, diagnostic bytes.Buffer
@@ -312,17 +280,6 @@ func TestDirectObserveRunEvalAndFileRecording(t *testing.T) {
 	records := readEvents(t, string(data))
 	if eventTexts(records, "stdout") != "hello\ntail" || eventTexts(records, "stderr") != "warning\n" {
 		t.Fatalf("raw recording changed: %s", data)
-	}
-}
-
-func TestDirectObserveREPLKeepsPromptAndAvoidsDuplicateResult(t *testing.T) {
-	var out, diagnostic bytes.Buffer
-	code := Run(context.Background(), []string{"repl", "--observe"}, strings.NewReader("1+2\nconsole.log('hello')\n"), &out, &diagnostic)
-	if code != 0 || diagnostic.Len() != 0 {
-		t.Fatalf("exit %d stderr=%s", code, &diagnostic)
-	}
-	if strings.Count(out.String(), "result: 3") != 1 || strings.Contains(out.String(), "hello") || !strings.HasPrefix(out.String(), "> ") {
-		t.Fatalf("REPL stdout: %q", &out)
 	}
 }
 

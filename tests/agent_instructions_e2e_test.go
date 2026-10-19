@@ -13,7 +13,7 @@ import (
 	"noe/internal/agent"
 )
 
-func TestAgentInstructionFilesRunEvalAndREPL(t *testing.T) {
+func TestAgentInstructionFilesRunAndEval(t *testing.T) {
 	var calls atomic.Int32
 	server := agentAPIFixture(t, func(_ context.Context, request agentChatRequest) agentModelReply {
 		calls.Add(1)
@@ -44,7 +44,7 @@ func TestAgentInstructionFilesRunEvalAndREPL(t *testing.T) {
 	env := agentCLIEnv(t, server.URL)
 	env["XDG_CONFIG_HOME"] = config
 	source := `const am=await import("noe:agent"); const result=await am.run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",system:"EXPLICIT_SYSTEM"},"verify instruction loading"); if(result.lastResult?.state!=="completed") throw Error(JSON.stringify(result)); console.log(result.lastResult.answer);`
-	for _, mode := range []string{"run", "eval", "repl"} {
+	for _, mode := range []string{"run", "eval"} {
 		t.Run(mode, func(t *testing.T) {
 			cwd := t.TempDir()
 			writeFixture(t, filepath.Join(cwd, ".noe", "instructions", "20-shared.md"), "PROJECT_SECOND")
@@ -52,25 +52,21 @@ func TestAgentInstructionFilesRunEvalAndREPL(t *testing.T) {
 			writeFixture(t, filepath.Join(cwd, "scripts", ".noe", "instructions", "bad.md"), "WRONG_SCRIPT_WORKSPACE")
 			path := filepath.Join(cwd, "scripts", "entry.mjs")
 			writeFixture(t, path, source)
-			args, input := []string{mode}, ""
+			args := []string{mode}
 			switch mode {
 			case "run":
 				args = append(args, path)
 			case "eval":
 				args = append(args, source)
-			case "repl":
-				input = "const am=await import(\"noe:agent\");\n" +
-					"const result=await am.run_agent({provider:\"openrouter\",model:\"fixture/model\",effort:\"auto\",system:\"EXPLICIT_SYSTEM\"},\"verify instruction loading\");\n" +
-					"console.log(result.lastResult.answer);\n"
 			}
-			result := runCLICommand(t, cwd, env, strings.NewReader(input), args...)
+			result := runCLI(t, cwd, env, args...)
 			requireExit(t, result, 0)
 			if !strings.Contains(result.stdout, "instruction files verified") {
 				t.Fatalf("missing task result: stdout=%s stderr=%s", result.stdout, result.stderr)
 			}
 		})
 	}
-	if calls.Load() != 3 {
+	if calls.Load() != 2 {
 		t.Fatalf("provider calls=%d, want one per CLI mode", calls.Load())
 	}
 }

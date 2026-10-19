@@ -59,7 +59,7 @@ console.log("binary complete");`)
 	}
 }
 
-func TestBinaryHTTPDownloadExampleAndPipedREPL(t *testing.T) {
+func TestBinaryHTTPDownloadExampleAndEval(t *testing.T) {
 	payload := binaryPayload()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/empty" {
@@ -101,27 +101,6 @@ await writeFile("cached.bin", saved); console.log("cached bytes saved");`)
 	}
 	if data, err := os.ReadFile(filepath.Join(work, "cached.bin")); err != nil || !bytes.Equal(data, payload) {
 		t.Fatalf("saved response bytes modified: %v err=%v", data, err)
-	}
-	repl := runREPLInput(t, work, map[string]string{"NOE_REPL_HISTORY": ""}, strings.Join([]string{
-		`const fs = await import("node:fs/promises")`,
-		`const localBytes = await fs.readFile("download.bin")`,
-		`console.log("REPL_BINARY", localBytes.length)`,
-		`await fs.writeFile("repl.bin", localBytes.subarray(0,3))`,
-		`await fs.writeFile("missing-parent/rejected.bin", "text")`,
-		`const response = await fetch(` + url + `)`,
-		`const remoteBytes = await response.bytes()`,
-		`console.log("REPL_REMOTE", remoteBytes[255])`,
-		`console.log("REPL_CONTINUED")`,
-	}, "\n")+"\n")
-	requireExit(t, repl, 0)
-	if !strings.Contains(repl.stdout, "REPL_BINARY 256") || !strings.Contains(repl.stdout, "REPL_REMOTE 255") || !strings.Contains(repl.stdout, "REPL_CONTINUED") || !strings.Contains(repl.stderr, "missing-parent") {
-		t.Fatalf("binary REPL: %+v", repl)
-	}
-	if data, err := os.ReadFile(filepath.Join(work, "repl.bin")); err != nil || !bytes.Equal(data, []byte{0, 1, 2}) {
-		t.Fatalf("REPL saved bytes: %v err=%v", data, err)
-	}
-	if _, err := os.Stat(filepath.Join(work, "rejected.bin")); !os.IsNotExist(err) {
-		t.Fatalf("rejected write created file: %v", err)
 	}
 }
 

@@ -3,18 +3,13 @@
 package e2e_test
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestDecisionCLIEntrypoints(t *testing.T) {
@@ -67,21 +62,5 @@ func TestDecisionCLIEntrypoints(t *testing.T) {
 		if !start || !end || !strings.Contains(result.stdout, "yes true") {
 			t.Fatalf("missing results/events: %s", result.stdout)
 		}
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, cliPath, "repl")
-	cmd.Dir = work
-	cmd.Env = os.Environ()
-	for k, v := range env {
-		cmd.Env = envWith(cmd.Env, k, v)
-	}
-	cmd.Env = envWith(cmd.Env, "NOE_REPL_HISTORY", "")
-	cmd.Stdin = strings.NewReader("const dm=await import('noe:decision')\nawait dm.decide({provider:'openrouter',model:'decision/model',state:'x',questions:{q:{}}}).then(r=>r.answers.q.choice)\n")
-	var out, diagnostic bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &diagnostic
-	if err := cmd.Run(); err != nil || !strings.Contains(out.String(), "'yes'") {
-		t.Fatalf("REPL err=%v out=%s stderr=%s", err, &out, &diagnostic)
 	}
 }

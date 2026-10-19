@@ -60,7 +60,7 @@ VMやSSH接続先で実行し、ブラウザがVMのループバックへ到達�
 ./noe run ~/.config/noe/auth-chatgpt.js complete /path/to/another-account.json
 ```
 
-ヘルパーのGo側入口は`noe:auth`の`save_chatgpt_credentials({file,clientId,hostId,nonce,tokens})`です。外部JSで行ったOAuthコード交換の結果を検証・保存し、保存path・email・期限を返します。token値は返しません。このmoduleは通常JSとREPLで利用でき、Workersには渡しません。
+ヘルパーのGo側入口は`noe:auth`の`save_chatgpt_credentials({file,clientId,hostId,nonce,tokens})`です。外部JSで行ったOAuthコード交換の結果を検証・保存し、保存path・email・期限を返します。token値は返しません。このmoduleは通常JSで利用でき、Workersには渡しません。
 
 ## 既存credential recordのコピー
 

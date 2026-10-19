@@ -1,0 +1,239 @@
+{
+  "date": "2026-10-19",
+  "baselineCommit": "2d402c3426ed85ad0f488f56ff8d4c01945a301f",
+  "sourceState": "uncommitted working tree; REPL removal",
+  "environment": {
+    "os": "linux",
+    "arch": "amd64",
+    "go": "go version go1.27.2 linux/amd64"
+  },
+  "checks": [
+    {
+      "name": "unit",
+      "command": [
+        "go",
+        "test",
+        "./...",
+        "-count=1"
+      ],
+      "exit_code": 0,
+      "seconds": 39.432
+    },
+    {
+      "name": "e2e",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./...",
+        "-count=1"
+      ],
+      "exit_code": 0,
+      "seconds": 39.608
+    },
+    {
+      "name": "vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 0.608
+    },
+    {
+      "name": "vet-e2e",
+      "command": [
+        "go",
+        "vet",
+        "-tags=e2e",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 0.633
+    },
+    {
+      "name": "race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "./internal/...",
+        "-count=1"
+      ],
+      "exit_code": 0,
+      "seconds": 59.615
+    }
+  ],
+  "initialFailure": {
+    "check": "unit",
+    "test": "TestStartupCancellationCleansSpawnedTargetAndSupervisor",
+    "error": "read /proc/<pid>/stat: no such process",
+    "fix": "test helper accepts ESRCH as process gone; production process code unchanged",
+    "focusedRetest": "three owner/startup/supervisor tests, count=10, passed"
+  },
+  "mcp": [
+    {
+      "name": "mcp-e2e",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./tests",
+        "-run",
+        "^TestImportMapMCPProcessIO$",
+        "-count=1",
+        "-v"
+      ],
+      "exit_code": 0,
+      "seconds": 4.57
+    }
+  ],
+  "builds": [
+    {
+      "target": "linux/amd64",
+      "exit_code": 0,
+      "seconds": 1.06,
+      "file": "noe-linux-amd64",
+      "bytes": 49303712,
+      "sha256": "f9ddc8b89b3bd74c47ebbe720358eed2ace4622431d1f790befb44377b5ba73c"
+    },
+    {
+      "target": "linux/arm64",
+      "exit_code": 0,
+      "seconds": 1.035,
+      "file": "noe-linux-arm64",
+      "bytes": 47251616,
+      "sha256": "19449bf0ba6d56505cf14b29eff50fd66646ad08260ef546b5a010bc2a4b6d77"
+    },
+    {
+      "target": "darwin/amd64",
+      "exit_code": 0,
+      "seconds": 1.074,
+      "file": "noe-darwin-amd64",
+      "bytes": 50144000,
+      "sha256": "6e5f75ee856c4e8ad978dc33e3bebd5d7eba29c0f8920e5b6d8be68bf38cd9b1"
+    },
+    {
+      "target": "darwin/arm64",
+      "exit_code": 0,
+      "seconds": 1.171,
+      "file": "noe-darwin-arm64",
+      "bytes": 48463058,
+      "sha256": "f027d12cdf84d1f0c709ef5b6be4969c839d0d41759a93c59af584f4164f6d62"
+    },
+    {
+      "target": "windows/amd64",
+      "exit_code": 0,
+      "seconds": 1.064,
+      "file": "noe-windows-amd64.exe",
+      "bytes": 49988608,
+      "sha256": "d779eae8dc07d1717c8574f97c6d2fb2af0d627a1efde48b065c3cee47cfbae9"
+    },
+    {
+      "target": "windows/arm64",
+      "exit_code": 0,
+      "seconds": 1.037,
+      "file": "noe-windows-arm64.exe",
+      "bytes": 47605760,
+      "sha256": "6263d39b321e8eb3a624e36200a3382441fbcfa0fcafd02ff8bd483d5fc015b5"
+    }
+  ],
+  "smoke": {
+    "basicChecks": 11,
+    "docsAndLowLevelChecks": 9,
+    "removalAndCancellationChecks": [
+      {
+        "name": "no_arguments",
+        "result": "passed",
+        "exitCode": 0
+      },
+      {
+        "name": "help",
+        "result": "passed",
+        "exitCode": 0
+      },
+      {
+        "name": "removed_command",
+        "result": "passed",
+        "exitCode": 2
+      },
+      {
+        "name": "run_stdin_await",
+        "result": "passed",
+        "exitCode": 0
+      },
+      {
+        "name": "eval_stdin_await",
+        "result": "passed",
+        "exitCode": 0
+      },
+      {
+        "name": "timeout",
+        "result": "passed",
+        "exitCode": 124
+      },
+      {
+        "name": "sigint",
+        "result": "passed",
+        "exitCode": 1
+      },
+      {
+        "name": "legacy_observe",
+        "result": "passed",
+        "exitCode": 0
+      },
+      {
+        "name": "history_preserved",
+        "result": "passed",
+        "exitCode": null
+      }
+    ],
+    "localProviderFixture": {
+      "binary": "/tmp/noe-repl-removal-20261019-yzglhqqf/dist/noe-linux-amd64",
+      "exitCode": 0,
+      "stdout": "release feature ready\n",
+      "stderr": "",
+      "requests": 2,
+      "phaseCounts": {
+        "beforeModelRequest": 2,
+        "afterModelResponse": 2,
+        "beforeTool": 1,
+        "afterTool": 1
+      },
+      "problems": []
+    }
+  },
+  "review": {
+    "initial": "no P1/P2 or required code fixes",
+    "P3": "stale future-candidates plan-only status corrected",
+    "scopedRereview": "test-helper ESRCH fix accepted; no additional findings"
+  },
+  "links": {
+    "checkedFiles": 111,
+    "missing": [
+      {
+        "file": "docs/development/agent-images-integration.md",
+        "target": "/tmp/noe-image-integration-20261018T114848Z/openrouter-image.png"
+      },
+      {
+        "file": "docs/development/agent-images-integration.md",
+        "target": "/tmp/noe-image-integration-20261018T114848Z/openai-api-image.png"
+      },
+      {
+        "file": "docs/development/agent-images-integration.md",
+        "target": "/tmp/noe-image-integration-20261018T114848Z/input-followup.png"
+      },
+      {
+        "file": "docs/development/agent-images-integration.md",
+        "target": "/tmp/noe-image-integration-20261018T114848Z/opencodego-openrouter-generated-followup.png"
+      }
+    ]
+  },
+  "artifactDirectory": "/tmp/noe-repl-removal-20261019-yzglhqqf",
+  "realProviderRequests": 0,
+  "committed": false,
+  "released": false,
+  "versionChanged": false,
+  "executionLimit": "native Linux amd64 only; other targets cross-build only"
+}

@@ -6,12 +6,11 @@ These tests exercise a built NOE CLI. Package-level tests live beside their impl
 go test -tags=e2e ./tests -count=1
 ```
 
-The suite builds the CLI once with CGO disabled. Ordinary E2E tests use temporary files and local HTTP servers; they do not call real providers. Linux-only terminal tests use a PTY.
+The suite builds the CLI once with CGO disabled. Ordinary E2E tests use temporary files and local HTTP servers; they do not call real providers.
 
 - `main_test.go`: shared CLI build and cleanup.
 - `cli_helpers_test.go`: CLI execution, stream capture, environment, and file helpers.
 - `cli_e2e_test.go`, `io_*`, `filesystem_*`, `binary_io_*`, `http_*`, `serve_*`, `sleep_*`, and `stdlib_*`: CLI and standard-library behavior.
-- `repl_*`: piped REPL behavior and terminal editing, history, multiline input, completion, and interruption. Files containing `terminal` require Linux.
 - `agent_*`, `observe_*`, and `decision_*`: agents, observation, control, and decisions. Agent model responses are served by local fixtures in `agent_e2e_test.go`.
 - `fixtures/`: static inputs for live acceptance tests.
 
@@ -51,7 +50,7 @@ It compares retain ratios 0.1/0.2 and disabled trimming with controlled tool-out
 
 `process_io*_e2e_test.go`は新しい`noe:process`・`noe:io`を実CLIで確認します。開いたままの入力、40 MiBの転送、観察出力、Worker終了、fixture providerからの生成run_jsのinterrupt/timeout/SIGINTと子・孫回収を含みます。実providerへの接続は不要です。公式MCP SDKの任意の適合確認は[scripts/spikes/process-io-mcp](../scripts/spikes/process-io-mcp/README.md)へ分離しています。
 
-`low_level*_e2e_test.go`は`noe:fs-handle`・`noe:sockets`・`noe:signals`の公開APIを実CLIで確認します。位置指定I/OとTCP/Unixの並行往復、送信FIN後の応答、run/eval・REPL・Worker・run_js・JSONL/observe、fixture agent、待受とI/Oのtimeout/SIGINT、Worker終了、signal解除後の既定動作、通常closeと強制終了後のUnix pathnameを扱います。OSシグナルは専用の子プロセスへ送ります。
+`low_level*_e2e_test.go`は`noe:fs-handle`・`noe:sockets`・`noe:signals`の公開APIを実CLIで確認します。位置指定I/OとTCP/Unixの並行往復、送信FIN後の応答、run/eval・Worker・run_js・JSONL/observe、fixture agent、待受とI/Oのtimeout/SIGINT、Worker終了、signal解除後の既定動作、通常closeと強制終了後のUnix pathnameを扱います。OSシグナルは専用の子プロセスへ送ります。
 
 `docs_e2e_test.go`は移動したバイナリ単体の内蔵docsと`run_js`の本文一致を確認します。自然な課題からの自発参照は、明示opt-inの実プロバイダ試験です。課題本文にdocsの指示は含めず、初期instructionsからの参照と成果物を確認します。
 

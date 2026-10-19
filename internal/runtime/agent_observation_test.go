@@ -100,26 +100,3 @@ await observe_agent({logPath:"events.jsonl",runId:"child",wait:true});`})
 		t.Fatalf("code=%d err=%v ticked=%v", code, err, ticked.Load())
 	}
 }
-
-func TestObserveAgentSessionUsesCurrentEvaluation(t *testing.T) {
-	dir := t.TempDir()
-	writeObservationLog(t, filepath.Join(dir, "events.jsonl"),
-		map[string]any{"version": 1, "executionId": "exec", "seq": 1, "type": "agent.started", "runId": "child"},
-		map[string]any{"version": 1, "executionId": "exec", "seq": 2, "type": "agent.final", "runId": "child", "text": "done"},
-		map[string]any{"version": 1, "executionId": "exec", "seq": 3, "type": "agent.completed", "runId": "child"},
-	)
-	session, err := NewSession(Options{Cwd: dir})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer session.Close()
-	if result := session.Eval(context.Background(), `const am=await import("noe:agent")`); result.Err != nil {
-		t.Fatal(result.Err)
-	}
-	for i := 0; i < 2; i++ {
-		result := session.Eval(context.Background(), `await am.observe_agent({logPath:"events.jsonl",runId:"child",wait:true}).then(snapshot=>snapshot.finalText)`)
-		if result.Err != nil || result.Output != "'done'" {
-			t.Fatalf("observation %d: %+v", i, result)
-		}
-	}
-}

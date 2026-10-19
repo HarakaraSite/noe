@@ -6,7 +6,7 @@ A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://gi
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
-[v1.8.0 release notes](docs/releases/v1.8.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.8.0)
+[v1.9.0 release notes](docs/releases/v1.9.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.9.0)
 
 ## Build and run
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.8.0
+# noe v1.9.0
 ```
 
 The examples below assume the repository root is your working directory.
@@ -29,10 +29,9 @@ The examples below assume the repository root is your working directory.
 # 2
 ./noe run examples/basics/hello.js
 # Hello from NOE!
-./noe repl
 ```
 
-Scripts support ES modules, `async/await`, files, Fetch, HTTP serving, and child processes. See the [examples](examples/README.md) for JSON processing, reports, downloads, and more.
+Use `eval` for short checks and `run` for scripts. Scripts support ES modules, `async/await`, files, Fetch, HTTP serving, and child processes. See the [examples](examples/README.md) for JSON processing, reports, downloads, and more.
 
 Read the English API reference bundled with your executable using `./noe docs`, `./noe docs node:fs`, or `./noe docs noe:sockets connect`. Scripts and agents can read the same reference through `import { docs } from "noe:docs"`.
 
@@ -70,7 +69,6 @@ Roots require explicit `provider`, `model`, and `effort`. `--observe` displays p
 | Set up credentials, run an agent, and observe progress | [Agent guide](docs/agents.md) |
 | Find API arguments, CLI options, lifecycle controls, and exit codes | [API reference](docs/api.md) |
 | Reuse local JS and verified ESM libraries | [Import maps](docs/import-map.md) |
-| Work interactively | [REPL](docs/repl.md) |
 | Configure providers and choose models | [Provider configuration](docs/providers.md) · [Model catalog](docs/model-catalog.md) |
 | Add instructions, hooks, or context policies | [Instructions](docs/instructions.md) · [Hooks and context](docs/hooks.md) |
 | Inspect running work and process logs | [Observation](docs/observe.md) · [JSONL events](docs/events.md) |

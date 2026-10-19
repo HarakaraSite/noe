@@ -75,7 +75,7 @@ func TestLowLevelPublicModulesAcrossExecutionModes(t *testing.T) {
 		if network == "unix" && runtime.GOOS == "windows" {
 			continue // AF_UNIX availability depends on the Windows host version.
 		}
-		for _, mode := range []string{"run", "eval", "repl", "worker", "run_js", "events", "observe"} {
+		for _, mode := range []string{"run", "eval", "worker", "run_js", "events", "observe"} {
 			t.Run(network+"/"+mode, func(t *testing.T) {
 				work, source := lowLevelFixture(t), lowLevelRoundTrip(network)
 				var got cliResult
@@ -97,8 +97,6 @@ func TestLowLevelPublicModulesAcrossExecutionModes(t *testing.T) {
 					if err != nil || !strings.Contains(processIOEventText(t, string(data), "stdout"), "low-level roundtrip passed") {
 						t.Fatalf("missing observe output: %v %+v", err, got)
 					}
-				case "repl":
-					got = runREPLInput(t, work, nil, "await (async()=>{"+strings.ReplaceAll(source, "\n", " ")+"})()\n")
 				case "worker":
 					writeFixture(t, filepath.Join(work, "worker.js"), source)
 					got = runCLI(t, work, nil, "eval", `import {Worker} from "node:worker_threads";

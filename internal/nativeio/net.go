@@ -107,13 +107,11 @@ func (h *Host) startConnect(payload string, dial netDialFunc) quickjs.Value {
 		return reject(os.ErrClosed)
 	}
 	work := h.rt.StartAsyncWork()
-	h.active.Add(1)
 	if !attempt.start(func() {
 		defer h.wg.Done()
 		conn, dialErr := dial(attemptCtx, network, address)
 		attempt.finishDial(conn, dialErr)
 		work.Complete(func(closed error) {
-			defer h.active.Add(-1)
 			if closed != nil {
 				_ = attempt.Close()
 				return
@@ -143,7 +141,6 @@ func (h *Host) startConnect(payload string, dial netDialFunc) quickjs.Value {
 	}) {
 		h.wg.Done()
 		work.Complete(func(closed error) {
-			defer h.active.Add(-1)
 			attempt.finish()
 			if closed == nil {
 				promise.RejectError(os.ErrClosed)
@@ -379,7 +376,6 @@ func newNetConnection(h *Host, conn net.Conn) (*netConnection, error) {
 		work:      h.rt.StartAsyncWork(),
 		closeDone: make(chan struct{}),
 	}
-	h.active.Add(1)
 	if !h.own(socket) {
 		return nil, os.ErrClosed
 	}
@@ -545,7 +541,6 @@ func (c *netConnection) Close() error {
 		c.io.Wait()
 		c.h.release(c)
 		c.work.Done()
-		c.h.active.Add(-1)
 		close(c.closeDone)
 	})
 	<-c.closeDone

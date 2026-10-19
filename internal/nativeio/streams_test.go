@@ -53,10 +53,10 @@ func (i *observedInput) Read([]byte) (int, error) { i.reads.Add(1); return 0, io
 
 func TestImportDoesNotReadOrKeepAlive(t *testing.T) {
 	input := &observedInput{}
-	rt, h, loop := streamRuntime(t, Options{Stdin: input})
+	rt, _, loop := streamRuntime(t, Options{Stdin: input})
 	evalStreams(t, rt, loop, `import {stdin} from "noe:io"; if (!(stdin instanceof ReadableStream)) throw Error("stream");`)
-	if input.reads.Load() != 0 || h.Active() || rt.Busy() {
-		t.Fatalf("import activated input: reads=%d active=%v busy=%v", input.reads.Load(), h.Active(), rt.Busy())
+	if input.reads.Load() != 0 || rt.Busy() {
+		t.Fatalf("import activated input: reads=%d active=%v busy=%v", input.reads.Load(), rt.Busy(), rt.Busy())
 	}
 }
 
@@ -101,7 +101,7 @@ func (i *waitingOutput) WriteContext(ctx context.Context, _ []byte) (int, error)
 
 func TestPipeAbortCancelsPendingRead(t *testing.T) {
 	in := &waitingInput{make(chan struct{}), make(chan struct{})}
-	rt, h, loop := streamRuntime(t, Options{Stdin: in})
+	rt, _, loop := streamRuntime(t, Options{Stdin: in})
 	_ = rt.Set("started", func() bool {
 		select {
 		case <-in.started:
@@ -120,7 +120,7 @@ try { await p; throw Error("resolved"); } catch(e) { if(e!==reason) throw e; }`)
 	case <-time.After(time.Second):
 		t.Fatal("read did not stop")
 	}
-	if h.Active() {
+	if rt.Busy() {
 		t.Fatal("native work remains")
 	}
 }

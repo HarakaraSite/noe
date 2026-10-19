@@ -181,7 +181,7 @@ func (op *Operation) Close() {
 		})
 	}
 	// Results remain observable for the owning evaluation. After that scope
-	// closes no future evaluation is authorized to read them (notably in REPL).
+	// closes, no later operation is authorized to read them.
 	if op.task == nil && op.parentRunID == "" {
 		h.mu.Lock()
 		for id, instance := range h.instances {

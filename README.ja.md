@@ -6,7 +6,7 @@ Just JavaScript. Until you need an agent.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v1.8.0リリースノート](docs/releases/v1.8.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.8.0)
+[v1.9.0リリースノート](docs/releases/v1.9.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.9.0)
 
 ## ビルドと実行
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.8.0
+# noe v1.9.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
@@ -29,10 +29,9 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 # 2
 ./noe run examples/basics/hello.js
 # Hello from NOE!
-./noe repl
 ```
 
-ES modules・`async/await`・ファイル操作・Fetch・HTTP待受・子プロセスを利用できます。JSON加工、レポート、ダウンロードなどは[実行例](examples/README.md)を参照してください。
+短い確認には`eval`、スクリプトの実行には`run`を使います。ES modules・`async/await`・ファイル操作・Fetch・HTTP待受・子プロセスを利用できます。JSON加工、レポート、ダウンロードなどは[実行例](examples/README.md)を参照してください。
 
 `./noe docs`、`./noe docs node:fs`、`./noe docs noe:sockets connect`で、実行バイナリと同じ版の英文API説明を参照できます。JSとagentからは`import { docs } from "noe:docs"`で同じ本文を取得します（[使い方](docs/reference.md)）。v1.8.0以降で利用できます。
 
@@ -70,7 +69,6 @@ root agentには`provider`・`model`・`effort`の明示指定が必要です。
 | 認証を登録し、agentを起動・観察する | [agent起動ガイド](docs/agents.md) |
 | API引数・CLIオプション・実行制御・終了コードを調べる | [APIリファレンス](docs/api.md) |
 | 自作JSや検証済みESMを再利用する | [import map](docs/import-map.md) |
-| 対話的に実行する | [REPL](docs/repl.md) |
 | provider設定やモデルを選ぶ | [provider設定](docs/providers.md) · [モデルカタログ](docs/model-catalog.md) |
 | 指示・hook・コンテキスト方針を設定する | [インストラクション](docs/instructions.md) · [hookとcontext](docs/hooks.md) |
 | 実行中の様子やログを読む | [観察の入口](docs/observe.md) · [JSONLイベント](docs/events.md) |

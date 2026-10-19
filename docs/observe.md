@@ -33,7 +33,6 @@ groupの現在状態はliveの`observe_agent({agentId})`、回収完了はinstan
 ```sh
 ./noe run --observe examples/agent/try-agent.js '1から100までの合計を計算して'
 ./noe eval --observe 'console.log("hello")'
-./noe repl --observe
 
 # 画面はテキスト表示、ファイルには元のJSONLを保存
 ./noe run --observe --events=agent.jsonl examples/agent/try-agent.js '任意の指示'
@@ -41,7 +40,7 @@ groupの現在状態はliveの`observe_agent({agentId})`、回収完了はinstan
 ./noe run --observe --events examples/agent/try-agent.js '任意の指示'
 ```
 
-`--observe`だけではJSONLファイルを作りません。`--events=path`または`--events`を併用すると記録も残せます。stdoutには整形したイベントを出します。スクリプトと`run_js`のstdoutは人間向け表示から省き、JSの処理内容は先頭の1行コメントで確認します。NOE自体の実行診断はstderrへ出ます。REPLの入力画面はstdoutに保ちます。
+`--observe`だけではJSONLファイルを作りません。`--events=path`または`--events`を併用すると記録も残せます。stdoutには整形したイベントを出します。スクリプトと`run_js`のstdoutは人間向け表示から省き、JSの処理内容は先頭の1行コメントで確認します。NOE自体の実行診断はstderrへ出ます。
 
 JSONLを別の処理へ渡す場合は、従来どおり`--events=-`を使います。パイプ先の`noe observe`も同じ整形処理を利用します。
 
@@ -121,7 +120,7 @@ console.log(snapshot.lastResult);
 
 snapshotにはinstanceの`agentId`・`parentRunId`・`name`・`state`・`reason`・`keepAlive`・`currentRunId`・`queueLength`・`lastResult`が含まれます。`lastResult`は直近taskの`{runId, commandId, state, answer, error?}`で、taskがまだなければ`null`です。`state`は`starting`・`idle`・`running`・`stopping`・`stopped`・`failed`です。idleでは`currentRunId`は空で、次のtaskを待っています。
 
-上の例は結果表示後もrootのNOEをidleで維持します。本文の終了では待受は終わらず、現在はCtrl+C・timeout等で終了させます。REPLでも待受中は次のpromptへ進みません。親run_js内で起動した場合は、tool本文終了後も親runが子を所有します。
+上の例は結果表示後もrootのNOEをidleで維持します。本文の終了では待受は終わらず、現在はCtrl+C・timeout等で終了させます。親run_js内で起動した場合は、tool本文終了後も親runが子を所有します。
 
 live snapshotの取得はモデルを呼びません。live観察の引数は`agentId`のみです。ファイル観察で使う`logPath`・`runId`・`cursor`等を混ぜることはできません。live agentは所有するNOE runとともに終了・回収されます。
 

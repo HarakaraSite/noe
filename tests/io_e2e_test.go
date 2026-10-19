@@ -379,7 +379,7 @@ console.log(JSON.stringify({entries,nested,empty,file:shape(fileInfo),absolute:s
 	}
 }
 
-func TestFilesystemErrorsAndPipedREPLRecovery(t *testing.T) {
+func TestFilesystemErrorsThroughCLI(t *testing.T) {
 	work := t.TempDir()
 	for _, tc := range []struct {
 		name, source, marker string
@@ -396,22 +396,5 @@ func TestFilesystemErrorsAndPipedREPLRecovery(t *testing.T) {
 				t.Fatalf("%s error result: stdout=%q stderr=%q", tc.name, got.stdout, got.stderr)
 			}
 		})
-	}
-
-	lines := []string{
-		`const fs = await import("node:fs/promises")`,
-		`console.log("stdin reader", typeof process.stdin.read)`,
-		`const entries = await fs.readdir(".")`,
-		`console.log("entry count", entries.length)`,
-		`await fs.stat("missing-repl-file")`,
-		`console.log("REPL_CONTINUED")`,
-	}
-	repl := runREPLInput(t, work, map[string]string{"NOE_REPL_HISTORY": ""}, strings.Join(lines, "\n")+"\n")
-	requireExit(t, repl, 0)
-	if !strings.Contains(repl.stdout, "stdin reader function") || !strings.Contains(repl.stdout, "entry count") || !strings.Contains(repl.stdout, "REPL_CONTINUED") {
-		t.Fatalf("piped REPL did not retain JS input or recover: stdout=%q stderr=%q", repl.stdout, repl.stderr)
-	}
-	if !strings.Contains(repl.stderr, "missing-repl-file") {
-		t.Fatalf("piped REPL error was not diagnosed: stdout=%q stderr=%q", repl.stdout, repl.stderr)
 	}
 }

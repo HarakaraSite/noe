@@ -35,11 +35,6 @@ func TestSleepTimeoutAndExplicitExitThroughCLI(t *testing.T) {
 	if got.stdout != "" || got.stderr != "" {
 		t.Fatalf("explicit exit=%+v", got)
 	}
-	got = runREPLInput(t, t.TempDir(), map[string]string{"NOE_REPL_HISTORY": ""}, "const timers = await import(\"timers/promises\")\nawait timers.setTimeout(0)\nconsole.log(\"RECOVERED\")\n")
-	requireExit(t, got, 0)
-	if got.stderr != "" || !strings.Contains(got.stdout, "RECOVERED\n") {
-		t.Fatalf("timer promise recovery=%+v", got)
-	}
 }
 
 func TestSleepDoesNotBlockServeHandlersThroughCLI(t *testing.T) {

@@ -2,7 +2,7 @@
 
 > **初期開発の履歴です。** 旧APIや当時の対象範囲・検証結果を含みます。現在の使い方は[利用ガイド一覧](../README.md)、記録の一覧は[archive](README.md)を参照してください。
 
-> この文書と比較結果は行編集ライブラリ選定時の記録です。製品はその後stdlibへ移行し、入力UIも[qjs固定版からの取り込み](../development/qjs-repl-integration.md)へ置き換えました。当時の採用ライブラリ・ホストAPI・HTTP中断の期待値は現行仕様を示しません。stdlibについては[移行記録](increment-12.md)を参照してください。
+> この文書と比較結果は行編集ライブラリ選定時の記録です。製品はその後stdlibへ移行し、入力UIも[qjs固定版からの取り込み](qjs-repl-integration.md)へ置き換えました。当時の採用ライブラリ・ホストAPI・HTTP中断の期待値は現行仕様を示しません。stdlibについては[移行記録](increment-12.md)を参照してください。
 
 インクリメント3の選定基準に沿って、`chzyer/readline v1.5.1`と`peterh/liner v1.2.3`を既存のNOE Sessionに接続して比較した。**現在のLinux CLIには`peterh/liner v1.2.3`を採用する。** 両候補は公開APIを使うアダプターで必須条件を満たしたが、既存の割込み・入力エラーの契約を維持する接続処理はlinerの方が少ない。
 

@@ -38,7 +38,7 @@ console.log(team.choice, team.probabilities, team.confidence);
 
 質問の代表例は`noul`（yesの確率）、`choice`（選択肢と各確率）、`score`（順序付き尺度）です。質問形式・モデルごとの対応は[OpenRouterのAPI仕様](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request)を参照してください。正常応答のrefusalや低い確信度は返却JSONに残り、呼出し元が扱います。エラーや途中で切れた応答はPromiseをrejectします。自動再試行・fallback・再生成はしません。
 
-## 実行例とREPL
+## 実行例
 
 ```sh
 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
@@ -48,14 +48,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 
 認証ファイルは最初の要求時に読みます。importだけでは認証読込み・通信を行いません。`NOE_OPENROUTER_BASE_URL`を指定すると、末尾の`/api/v1`を除いたURLをDecisions操作のserverとして使い、`/api/alpha/decisions`を付けます。通常の生成要求と送信先のパスが異なります。
 
-```text
-> const dm = await import("noe:decision")
-> const options = {provider:"openrouter",model:"typesafe/jev-1.14",state:"Checkout failed.",questions:{team:{type:"choice",instructions:"Choose a team",criteria:{payments:"Payment issues",account:"Account issues"}}}}
-> const result = await dm.decide(options)
-> result.answers.team
-```
-
-複数の独立要求は`Promise.all`で並列化できます。実行中の要求はそのJS評価に所有され、未awaitでも終了前に追跡されます。timeout・Ctrl+C・親runのinterruptでHTTP要求を取消し、回収します。REPLの通信中断は既存のnative I/Oと同様にsessionを終了させます。
+複数の独立要求は`Promise.all`で並列化できます。実行中の要求はそのJS評価に所有され、未awaitでも終了前に追跡されます。timeout・Ctrl+C・親runのinterruptでHTTP要求を取消し、回収します。
 
 ## agentからの利用と画像
 

@@ -166,6 +166,7 @@ func (r *agentRenderer) render(event events.Event) error {
 		return r.line(label, "started", eventString(event, "model"))
 	case "agent.completed", "agent.failed", "agent.cancelled":
 		return r.line(label, map[string]string{"agent.completed": "completed", "agent.failed": "failed", "agent.cancelled": "cancelled"}[kind], eventString(event, "error"))
+	// Keep rendering historical REPL event types in saved JSONL recordings.
 	case "execution.error", "repl.error", "repl.result":
 		return r.line(label, map[string]string{"execution.error": "execution error", "repl.error": "evaluation error", "repl.result": "result"}[kind], text)
 	case "execution.finished":

@@ -1,12 +1,12 @@
 # NOE 実行例
 
-[READMEへ戻る](../README.md) · [APIリファレンス](../docs/api.md) · [REPLガイド](../docs/repl.md)
+[READMEへ戻る](../README.md) · [APIリファレンス](../docs/api.md)
 
 用途ごとのフォルダに、実行用JS・README・補助モジュール・サンプルデータをまとめています。各READMEのコマンドはリポジトリのルートで実行してください。通常のファイル操作の相対パスは作業ディレクトリ、相対importはimport元のファイルが基準です。
 
 | フォルダ | 内容 | 外部サービス |
 | --- | --- | --- |
-| [basics](basics/README.md) | Hello、待機、REPL | 不要 |
+| [basics](basics/README.md) | Hello、待機 | 不要 |
 | [json](json/README.md) | JSONの加工、標準入力・ディレクトリ集計、処理済みファイルの移動 | 不要 |
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |
 | [http](http/README.md) | JSON・バイナリ取得、JSON APIへのリクエスト、HTTPサーバー | クライアント例は接続先URLが必要 |

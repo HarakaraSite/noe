@@ -10,7 +10,7 @@ import { read_image } from "noe:image";
 
 `read_image(path, options?) -> Promise<ImageMetadata>` resolves `path` against the current working directory. `options` supports only `detail`, which is `"auto"` by default and may be `"low"` or `"high"`. Supported input formats are PNG, JPEG, and WebP.
 
-In an agent's `run_js` call, the image is attached to the next model request after the tool completes. The JavaScript result contains metadata such as `path`, `mimeType`, `bytes`, `width`, `height`, and `detail`; it does not contain image bytes or base64. A regular `noe run`/`eval`/`repl` or Worker has no model vision context to receive the attachment.
+In an agent's `run_js` call, the image is attached to the next model request after the tool completes. The JavaScript result contains metadata such as `path`, `mimeType`, `bytes`, `width`, `height`, and `detail`; it does not contain image bytes or base64. A regular `noe run`/`eval` or Worker has no model vision context to receive the attachment.
 
 ```js
 import { read_image } from "noe:image";

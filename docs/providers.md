@@ -6,7 +6,7 @@ NOEは組込みの[defaults.json](../internal/agent/provider/defaults.json)を�
 
 既定の外部ファイルは`$XDG_CONFIG_HOME/noe/config.json`、XDG未設定時は`~/.config/noe/config.json`です。`NOE_CONFIG_FILE=/path/to/config.json`で別のファイルを指定できます。既定ファイルがなければ組込みだけで動作します。明示指定したファイルが読めない場合や不正なJSONの場合は、agent利用時にエラーになります。
 
-設定はGoホストが最初にagent/decisionを利用するときに読み込み、そのホストでは固定します。moduleのimportや通常のJSだけでは読み込みません。認証ファイルは最初のモデル要求時に読みます。REPLの同じsessionでも設定を途中で再読込みしません。
+設定はGoホストが最初にagent/decisionを利用するときに読み込み、そのホストでは固定します。moduleのimportや通常のJSだけでは読み込みません。認証ファイルは最初のモデル要求時に読みます。
 
 objectは再帰的に上書きし、配列・文字列・数値・真偽値は置換、`null`はそのキーの削除です。変更しない値を外部ファイルへ複製する必要はありません。provider内の`models`では、model IDごとの部分上書きができます。
 

@@ -29,7 +29,7 @@ try {
 
 position/lengthは非負のsafe integerで、Goへ変換でき、加算がoverflowしない値を指定します。空/NUL入りpathは入力エラーです。OSエラーには取得できる`code`が付きます。EOF以外の部分read失敗はerrorの`data`・`bytesRead`、部分write失敗は`bytesWritten`を保持してrejectします。完了済みの書込みはrollbackしません。
 
-開いた通常fileだけでは実行を維持しません。未完了I/Oは実行を維持し、runtime終了時に所有handleを回収します。REPLでは開いたhandleを後続入力でも使えます。デバイス・FIFO・NFS等でblockするOS file I/Oの即時取消しは保証しません。新規作成・metadataはstdlibを使えます。共有seek位置、fd公開、lock、sync/durabilityの契約はありません。
+開いた通常fileだけでは実行を維持しません。未完了I/Oは実行を維持し、runtime終了時に所有handleを回収します。デバイス・FIFO・NFS等でblockするOS file I/Oの即時取消しは保証しません。新規作成・metadataはstdlibを使えます。共有seek位置、fd公開、lock、sync/durabilityの契約はありません。
 
 ## TCP・Unixソケットで通信する
 
@@ -109,15 +109,13 @@ OS/Go側で通知がまとめられたり落ちたりするため、送信回数
 
 OS受信はprocess-wide、購読はruntime単位です。mainとWorkerは同じsignalも異なるsignalも購読できます。一方のclose/terminateは他方の購読を解除しません。最後のNOE購読をcloseするとNOE自身のGo登録だけをStopします。他のGo登録がなければOS既定動作に戻ります。
 
-SIGINTは既存CLI/REPLのCtrl+C取消しと共存し、JS購読が取消しを消費することはありません。SIGINT後のasync cleanup完走は保証しません。SIGTERMは購読中のOS既定終了を抑止し、自動でprocess.exitしません。終了したいJSはresourceとsubscriptionをcloseしてloopを終えます。
+SIGINTはCLIのCtrl+C取消しと共存し、JS購読が取消しを消費することはありません。SIGINT後のasync cleanup完走は保証しません。SIGTERMは購読中のOS既定終了を抑止し、自動でprocess.exitしません。終了したいJSはresourceとsubscriptionをcloseしてloopを終えます。
 
 WorkerだけがSIGTERMを購読していてもNOEプロセス全体の既定終了が抑止されます。Worker内のprocess.exitはそのWorkerだけを終了します。プロセス全体を終える場合は通常のメッセージ等でmainへ伝え、mainも所有resourceをcloseします。
 
 購読単独で実行を維持します。明示close、runtime終了、Worker terminateで購読とGo参照を解除し、JSのhandler完了を待ちません。
 
-## REPLと観察出力
-
-REPLは現行の入力内drain方式です。socketとsignalは待受・通信・解除まで同じ入力のasync関数内で行います。所有resourceを残したエラー・中断ではsessionを終了して回収します。
+## 観察出力
 
 socketの生bytesはJSONLイベントへ自動転記しません。consoleや`noe:io`へ明示出力したときに既存の観察writerを通ります。
 

@@ -17,12 +17,11 @@ import (
 )
 
 // Version can be set at build time using -ldflags '-X noe/internal/cli.Version=...'.
-var Version = "v1.8.0"
+var Version = "v1.9.0"
 
 const usage = `Usage:
   noe run [--timeout duration] [--import-map path] [--observe] [--events[=path|-]] script.js [args...]
   noe eval [--timeout duration] [--import-map path] [--observe] [--events[=path|-]] 'code'
-  noe repl [--import-map path] [--observe] [--events[=path|-]]
   noe observe [--run id] [--follow] [events.jsonl|-]
   noe observe --json --run id [--wait] events.jsonl
   noe agents
@@ -33,11 +32,6 @@ const usage = `Usage:
   noe docs [topic [member]]
   noe --help
   noe --version
-
-REPL:
-  Ctrl+D or process.exit() exits. Ctrl+C cancels terminal input/evaluation.
-  Tab completes names. Unfinished input continues at ... .
-  NOE_REPL_HISTORY sets the history file; empty disables persistence.
 
 Events:
   --observe displays readable events on stdout without a pipe.
@@ -70,29 +64,6 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return runObserve(ctx, args[1:], stdin, stdout, stderr)
 	case "agents", "steer", "queue", "interrupt":
 		return runAgentControl(ctx, args, stdout, stderr)
-	case "repl":
-		options, operands, err := parseCommandOptions(args[1:])
-		if err != nil {
-			fmt.Fprintln(stderr, err)
-			return 2
-		}
-		if len(operands) != 0 || options.timeout != 0 {
-			fmt.Fprint(stderr, usage)
-			return 2
-		}
-		importMap, err := loadImportMap(options.importMap)
-		if err != nil {
-			fmt.Fprintln(stderr, err)
-			return 1
-		}
-		observationCtx, observed, err := openObservation(ctx, options.events, options.observe, stdout, stderr)
-		if err != nil {
-			fmt.Fprintln(stderr, err)
-			return 1
-		}
-		defer func() { exitCode = observed.finish(exitCode, stderr) }()
-		observed.emit(events.Event{"type": "execution.started", "command": "repl"})
-		return runObservedREPL(observationCtx, stdin, stdout, stderr, observed, importMap)
 	case "run":
 		options, operands, err := parseCommandOptions(args[1:])
 		if err != nil {

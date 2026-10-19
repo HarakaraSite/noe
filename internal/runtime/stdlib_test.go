@@ -11,8 +11,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 func runStdlib(t *testing.T, source string, opts Options) string {
@@ -184,59 +182,20 @@ func TestStdlibRootErrorsStopContinuousWork(t *testing.T) {
 	}
 }
 
-func TestStdlibSessionTimerRecoveryAndBinding(t *testing.T) {
-	var out bytes.Buffer
-	s, err := NewSession(Options{Stdout: &out})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	result := s.Eval(context.Background(), `var retained=42`)
-	if result.Err != nil {
-		t.Fatal(result.Err)
-	}
-	result = s.Eval(ctx, `await (setInterval(()=>console.log("stale"),1000), new Promise(()=>{}))`)
-	cancel()
-	if result.Exit || !errors.Is(result.Err, context.DeadlineExceeded) {
-		t.Fatalf("cancel=%+v", result)
-	}
-	result = s.Eval(context.Background(), `retained + 1`)
-	if result.Err != nil || result.Output != "43" {
-		t.Fatalf("recovery=%+v", result)
-	}
-	result = s.Eval(context.Background(), `const binding = await (await import("node:timers/promises")).setTimeout(1).then(()=>{setTimeout(()=>console.log(binding),0); return 42;})`)
-	if result.Err != nil || out.String() != "42\n" {
-		t.Fatalf("binding=%+v out=%q", result, &out)
-	}
-	result = s.Eval(context.Background(), `setInterval(()=>{},1); throw Error("ordinary failure")`)
-	if result.Exit || result.Err == nil {
-		t.Fatalf("error=%+v", result)
-	}
-	result = s.Eval(context.Background(), `await new Promise(resolve=>setTimeout(()=>resolve(44),1))`)
-	if result.Err != nil || result.Output != "44" {
-		t.Fatalf("fresh timers=%+v", result)
-	}
-}
-
-func TestStdlibSessionActiveIOAndUnrefWorkerCancellation(t *testing.T) {
-	for _, setup := range []string{
-		`serve({port:0},()=>new Response("x"));`,
-		`const {Worker}=await import("node:worker_threads"); const worker=new Worker("setInterval(()=>{},1000)",{eval:true}); worker.unref();`,
-		`const port=new MessageChannel(); port.port1.onmessage=()=>{}; port.port1.unref();`,
+func TestStdlibUnreferencedResourcesEndWithExecution(t *testing.T) {
+	for _, source := range []string{
+		`import {Worker} from "node:worker_threads";
+const worker=new Worker('import {parentPort} from "node:worker_threads";parentPort.postMessage("ready");setInterval(()=>{},1000);',{eval:true});
+await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});
+worker.unref();console.log("unreferenced ready");`,
+		`const channel=new MessageChannel();
+channel.port1.onmessage=()=>{};channel.port1.unref();channel.port2.unref();
+console.log("unreferenced ready");`,
 	} {
-		s, err := NewSession(Options{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
-		// A module permits multiple await statements within this single REPL expression.
-		input := `await (async()=>{` + setup + `await new Promise(()=>{});})()`
-		result := s.Eval(ctx, input)
-		cancel()
-		s.Close()
-		if !result.Exit || !errors.Is(result.Err, quickjs.ErrClosed) {
-			t.Fatalf("setup=%s result=%+v", setup, result)
+		// No explicit close/terminate: the owner must return despite unref'd
+		// resources, then reclaim them when Execute closes the runtime.
+		if out := runStdlib(t, source, Options{}); out != "unreferenced ready\n" {
+			t.Fatal(out)
 		}
 	}
 }
@@ -248,42 +207,5 @@ func TestStdlibProcessExit(t *testing.T) {
 			t.Fatalf("source=%s code=%d err=%v", source, code, err)
 		}
 	}
-	s, err := NewSession(Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	result := s.Eval(context.Background(), `setInterval(()=>{},1); process.exit(7)`)
-	if !result.Exit || result.Code != 7 || result.Err != nil {
-		t.Fatalf("result=%+v", result)
-	}
-}
 
-func TestStdlibSessionCompletedResourcesAllowRecovery(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "empty.mjs"), []byte(`// complete naturally`), 0600); err != nil {
-		t.Fatal(err)
-	}
-	for _, source := range []string{
-		`var worker = new Worker("empty.mjs",{type:"module"})`,
-		`var ports = new MessageChannel(); ports.port1.close()`,
-		`var bc = new BroadcastChannel("completed"); bc.close()`,
-	} {
-		s, err := NewSession(Options{Cwd: dir})
-		if err != nil {
-			t.Fatal(err)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		first := s.Eval(ctx, source)
-		if first.Err != nil {
-			t.Fatal(first.Err)
-		}
-		failed := s.Eval(ctx, `throw Error("recoverable")`)
-		recovered := s.Eval(ctx, `42`)
-		cancel()
-		s.Close()
-		if failed.Exit || failed.Err == nil || recovered.Err != nil || recovered.Output != "42" {
-			t.Fatalf("source=%s failed=%+v recovered=%+v", source, failed, recovered)
-		}
-	}
 }

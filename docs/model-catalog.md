@@ -40,7 +40,7 @@ console.log(JSON.stringify(agents, null, 2));
 console.log(JSON.stringify(imageModels, null, 2));
 ```
 
-返却値は`[{provider, model, kind, description?, tags?, capabilities?, contextWindow?, maxOutputTokens?, efforts?}, ...]`です。provider、model IDの順で並び、該当なしは`[]`、不明なprovider指定はエラーです。`provider`・`kind`はどちらも省略できます。通常JS・REPL・agentの`run_js`で利用でき、`run_js`では`await import("noe:agent")`から取得します。
+返却値は`[{provider, model, kind, description?, tags?, capabilities?, contextWindow?, maxOutputTokens?, efforts?}, ...]`です。provider、model IDの順で並び、該当なしは`[]`、不明なprovider指定はエラーです。`provider`・`kind`はどちらも省略できます。通常JSとagentの`run_js`で利用でき、`run_js`では`await import("noe:agent")`から取得します。
 
 取得にAPIキーや外部API要求は不要です。子プロセスからも親ホストの固定済みカタログを参照します。取得結果をJS側で変更してもホストのカタログは変わりません。
 
@@ -111,4 +111,4 @@ Jev用のOpenRouterキーと、選択先providerのキーが必要です。呼�
 
 ## 検証
 
-外部差分のマージ・削除・固定読込み・通信設定との分離、認証なしの通常JSとREPL、Jevでの候補選択から起動・`run_js`で同じカタログを参照する経路をローカルfixtureで確認しています。このカタログ選択例の有料実接続は未実施です。
+外部差分のマージ・削除・固定読込み・通信設定との分離、認証なしの通常JS、Jevでの候補選択から起動・`run_js`で同じカタログを参照する経路をローカルfixtureで確認しています。このカタログ選択例の有料実接続は未実施です。

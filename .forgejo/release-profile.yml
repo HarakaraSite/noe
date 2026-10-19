@@ -37,11 +37,11 @@ diagnostics:
   mode: native-actions-logs
 
 pre_release:
-  reference_environment: VM201, Linux amd64, Go 1.27.2, C toolchain, Linux PTY
+  reference_environment: VM201, Linux amd64, Go 1.27.2, C toolchain
   reference_checks:
     - name: race
       command: CGO_ENABLED=1 go test -race ./internal/... -count=1
-    - name: e2e-including-terminal
+    - name: e2e
       command: go test -tags=e2e ./... -count=1
     - name: vet-including-e2e
       command: go vet -tags=e2e ./...

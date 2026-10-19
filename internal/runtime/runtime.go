@@ -33,7 +33,7 @@ type Source struct {
 // Options describes the host environment for one execution.
 type Options struct {
 	// Stdin is borrowed and never closed by the runtime. Execute treats nil as
-	// empty input; REPL sessions reserve stdin for source.
+	// empty input.
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
@@ -73,14 +73,10 @@ type host struct {
 	importMap      *modulemap.Snapshot
 	exitRequested  bool
 	exitCode       int
-	inspect        quickjs.Value
-	cancelProbe    quickjs.Value
-	completion     quickjs.Value
 	agents         *agent.Host
 	agentOperation *agent.Operation
 	hookMu         sync.Mutex
 	hookScopes     map[string]runtimeHookScope
-	ioHost         *nativeio.Host
 }
 
 type runtimeHookScope struct {
@@ -120,18 +116,6 @@ func newHost(opts Options) (*host, error) {
 		h.rt.Close()
 		return nil, err
 	}
-	probe, err := h.rt.EvalFile("<noe-cancel-probe>", `() => { while (true) {} }`)
-	if err != nil {
-		h.rt.Close()
-		return nil, err
-	}
-	h.cancelProbe = probe
-	completion, err := h.rt.EvalFile("<noe-completion>", completionHelperSource)
-	if err != nil {
-		h.rt.Close()
-		return nil, err
-	}
-	h.completion = completion
 	if err := h.installStdlib(opts); err != nil {
 		h.rt.Close()
 		return nil, err
@@ -140,7 +124,7 @@ func newHost(opts Options) (*host, error) {
 		h.rt.Close()
 		return nil, err
 	}
-	h.ioHost, err = nativeio.Install(h.rt, nativeio.Options{Stdin: opts.Stdin, Stdout: opts.Stdout, Stderr: opts.Stderr, Cwd: cwd})
+	_, err = nativeio.Install(h.rt, nativeio.Options{Stdin: opts.Stdin, Stdout: opts.Stdout, Stderr: opts.Stderr, Cwd: cwd})
 	if err != nil {
 		h.rt.Close()
 		return nil, err
@@ -150,15 +134,6 @@ func newHost(opts Options) (*host, error) {
 		return nil, err
 	}
 	if err := h.installAuth(opts); err != nil {
-		h.rt.Close()
-		return nil, err
-	}
-	if err := h.loop.trackTimers(); err != nil {
-		h.rt.Close()
-		return nil, err
-	}
-
-	if err := h.loop.trackResources(); err != nil {
 		h.rt.Close()
 		return nil, err
 	}
@@ -191,7 +166,7 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 	if err != nil {
 		return 1, err
 	}
-	h.installLoader(&Source{Name: name, Code: source.Code})
+	h.installLoader(Source{Name: name, Code: source.Code})
 	specifier, err := json.Marshal("./" + filepath.Base(name))
 	if err != nil {
 		return 1, err
@@ -216,12 +191,8 @@ func (h *host) run(ctx context.Context, source Source) (code int, err error) {
 	return 0, nil
 }
 
-func (h *host) installLoader(entry *Source) {
-	var name, code string
-	if entry != nil {
-		name, code = entry.Name, entry.Code
-	}
-	local := modulemap.NewLoader(h.importMap, name, code)
+func (h *host) installLoader(entry Source) {
+	local := modulemap.NewLoader(h.importMap, entry.Name, entry.Code)
 	h.rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
 		switch specifier {
 		case "noe:agent":
@@ -247,30 +218,6 @@ func (h *host) installLoader(entry *Source) {
 
 func (h *host) drain(ctx context.Context) error {
 	return h.loop.drain(ctx)
-}
-
-// drainCancelled discards jobs from an interrupted REPL operation. Active
-// stdlib I/O is handled by terminating the session before reaching this path.
-func (h *host) drainCancelled(ctx context.Context) error {
-	return h.loop.drainCancelled(ctx)
-}
-
-// discardCancelledJobs makes the runtime observe an abort in a pre-created
-// function call. The function call begins before AbortOn's closed signal is
-// polled, and the interrupted turn drops its queued Promise reactions.
-func (h *host) discardCancelledJobs() error {
-	interrupted := make(chan struct{})
-	close(interrupted)
-	h.rt.AbortOn(interrupted)
-	_, err := h.cancelProbe.CallContext(context.Background())
-	h.rt.AbortOn(nil)
-	if errors.Is(err, context.Canceled) {
-		return nil
-	}
-	if err == nil {
-		return errors.New("cancellation cleanup probe returned without interruption")
-	}
-	return err
 }
 
 func (h *host) takeUnhandled() error {

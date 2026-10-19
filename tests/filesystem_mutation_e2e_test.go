@@ -40,7 +40,7 @@ console.log("finished");`
 	}
 }
 
-func TestFileMutationLinksErrorsAndREPLRecovery(t *testing.T) {
+func TestFileMutationLinksAndNonDestructiveErrors(t *testing.T) {
 	work := t.TempDir()
 	writeFixture(t, filepath.Join(work, "target.txt"), "kept")
 	writeFixture(t, filepath.Join(work, "not-empty", "child.txt"), "kept")
@@ -69,18 +69,6 @@ func TestFileMutationLinksErrorsAndREPLRecovery(t *testing.T) {
 		if failed.stdout != "" || failed.stderr == "" {
 			t.Fatalf("failure %q: %+v", source, failed)
 		}
-	}
-	repl := runREPLInput(t, work, map[string]string{"NOE_REPL_HISTORY": ""}, strings.Join([]string{
-		`const fs = await import("node:fs/promises")`,
-		`await fs.mkdir("repl/nested", {recursive:true})`,
-		`await fs.rename("repl/nested", "repl/moved")`,
-		`await fs.rmdir("repl/moved")`,
-		`await fs.rmdir("not-empty")`,
-		`console.log("RECOVERED", 40 + 2)`,
-	}, "\n")+"\n")
-	requireExit(t, repl, 0)
-	if !strings.Contains(repl.stdout, "RECOVERED 42") || !strings.Contains(repl.stderr, "not-empty") {
-		t.Fatalf("REPL failed to recover: %+v", repl)
 	}
 	if content, err := os.ReadFile(filepath.Join(work, "not-empty", "child.txt")); err != nil || string(content) != "kept" {
 		t.Fatalf("nonempty directory child was affected: content=%q err=%v", content, err)

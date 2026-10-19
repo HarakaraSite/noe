@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"sync"
-	"sync/atomic"
 
 	"noe/internal/hostio"
 
@@ -34,7 +33,6 @@ type Host struct {
 	closed    bool
 	resources map[io.Closer]struct{}
 	wg        sync.WaitGroup
-	active    atomic.Int64
 }
 
 // Install must run on the runtime owner, after stdlib.Install.
@@ -87,8 +85,6 @@ func Install(rt *quickjs.Runtime, opts Options) (*Host, error) {
 	return h, nil
 }
 
-func (h *Host) Active() bool { return h.active.Load() != 0 }
-
 // Close touches only Go resources. It never waits for JS promise delivery.
 func (h *Host) Close() {
 	h.mu.Lock()
@@ -132,12 +128,10 @@ func (h *Host) async(run func() (any, error), convert func(any) (any, error), dr
 	p := h.rt.NewPromise()
 	w := h.rt.StartAsyncWork()
 	h.wg.Add(1)
-	h.active.Add(1)
 	go func() {
 		defer h.wg.Done()
 		value, err := run()
 		w.Complete(func(closed error) {
-			defer h.active.Add(-1)
 			if closed != nil {
 				if drop != nil {
 					drop(value)

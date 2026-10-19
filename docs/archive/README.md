@@ -31,7 +31,9 @@
 - [インクリメント3・4の計画レビュー](increment-3-4-review.md)
 - インクリメント13：[計画レビュー](increment-13-review.md)・[実装と検証](increment-13-implementation.md)・[ローカル検証JSON](increment-13-validation.json)・[OpenRouter検証JSON](increment-13-openrouter-results.json)
 
-現在のREPLの入力UIは[qjs由来ソースの統合・保守手順](../development/qjs-repl-integration.md)を参照してください。
+## 後続の実装履歴
+
+- [qjs固定版のREPL入力をNOEへ統合](qjs-repl-integration.md)（v1.8.0までの記録）
 
 ## 検討メモ
 

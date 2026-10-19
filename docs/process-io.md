@@ -63,11 +63,9 @@ stdinはread要求から逐次読み、EOFを待たずにバイト列を返し�
 
 通常実行とeventsファイルのmirrorはバイト列を流します。`--events=-`や`--observe`ではstdoutが観察用に使われ、出力は文字列イベントとして扱います。任意バイナリの転送に観察stdoutを使わないでください。
 
-## WorkerとREPL
+## Worker
 
 Workerにも同じ拡張を登録します。stdinは空入力、出力はホストを継承し、そのWorkerで起動した子はterminateで回収します。envはそのWorkerのprocess.envから取得します。
-
-REPLのstdinはソース入力専用で、noe:ioのstdinも空です。子の通信には子のpipeを使います。現在のREPLは非同期処理をdrainしてから次のpromptへ戻るため、常駐子の操作とcloseまでを一つの入力で行います。
 
 ```js
 await (async () => {
@@ -77,7 +75,5 @@ await (async () => {
   finally { await c.close(); }
 })()
 ```
-
-生存する子やI/Oを残したエラー・中断では、既存のリソースと同様にREPLセッションを終了して回収します。
 
 [実行例](../examples/README.md) · [実装記録・OS別検証](development/process-io-implementation.md)

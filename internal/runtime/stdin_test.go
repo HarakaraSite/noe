@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"context"
 	"io"
 	"strings"
 	"testing"
@@ -28,19 +27,6 @@ console.log("stdin ready");`
 	}
 	if out := runStdlib(t, `console.log(process.stdin.read() === null)`, Options{}); out != "true\n" {
 		t.Fatalf("empty default stdin output=%q", out)
-	}
-}
-
-func TestSessionReservesStdinForREPLSource(t *testing.T) {
-	reader := &trackedStdin{Reader: strings.NewReader("script input")}
-	s, err := NewSession(Options{Stdin: reader})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	result := s.Eval(context.Background(), `process.stdin.read() === null`)
-	if result.Exit || result.Err != nil || result.Output != "true" || reader.reads != 0 {
-		t.Fatalf("evaluation=%+v stdin reads=%d", result, reader.reads)
 	}
 }
 

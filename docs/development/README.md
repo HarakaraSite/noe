@@ -14,7 +14,7 @@ CGO_ENABLED=1 go test -race ./internal/... -count=1
 go vet -tags=e2e ./...
 ```
 
-[E2Eの構成と実行方法](../../tests/README.md)を参照してください。通常のE2Eは一時ディレクトリとローカルサーバーを使い、外部サービスに接続しません。LinuxのPTYテストは編集、日本語、履歴、複数行、補完、Ctrl+Cと端末設定の復元を確認します。
+[E2Eの構成と実行方法](../../tests/README.md)を参照してください。通常のE2Eは一時ディレクトリとローカルサーバーを使い、外部サービスに接続しません。Linux固有のprocess groupやOSシグナルのテストは対象OSで実行します。
 
 実プロバイダの検証は別の明示的な設定・認証を必要とします。過去の[OpenRouterの検証](../archive/increment-13-implementation.md)や[OpenCode Goの検証](execution-hooks-opencode-validation.md)は実施時点の記録であり、新しい変更の確認はそのソースに対して行います。
 
@@ -25,7 +25,6 @@ go vet -tags=e2e ./...
 | agent内部の責務・JSとGoの分担・所有関係・同期 | [agentの構成](agent-architecture.md) |
 | agentへ渡す組込みの説明 | [instructions.md](../../internal/agent/instructions.md) |
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
-| qjsから取り込んだREPL入力UIの保守 | [統合と更新手順](qjs-repl-integration.md) |
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
 | 配布対象・品質確認・公開手順 | [リリースチェックポイント](../releases/release-checkpoints.md) |
 
@@ -48,6 +47,7 @@ go vet -tags=e2e ./...
 | hook・処理の連鎖・コンテキスト通知 | [計画](execution-hooks-plan.md) | [実装記録](execution-hooks-implementation.md)・[OpenCode Go検証](execution-hooks-opencode-validation.md) |
 | 共通・workspace instructions | [利用ガイド](../instructions.md) | [実装記録](instructions-implementation.md) |
 | 内蔵docs・stdlib参照・agent初期説明 | [計画](builtin-docs-plan.md) | [実装・検証記録](builtin-docs-implementation.md) |
+| REPL削除 | [計画](repl-removal-plan.md) | [実装・検証記録](repl-removal-implementation.md) |
 | 自動コンテキスト切り捨て | [計画](context-trimming-plan.md) | [実装記録](context-trimming-implementation.md) |
 | queueの会話継続 | [計画](queue-continuation-plan.md) | [実装記録](queue-continuation-implementation.md) |
 | Vision入力・画像生成 | [計画](agent-images-plan.md)・[スパイク](agent-images-spike.md) | [実装記録](agent-images-implementation.md)・[実接続](agent-images-integration.md) |
@@ -70,6 +70,6 @@ go vet -tags=e2e ./...
 
 利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補と完了区分は[次の機能候補](../future-candidates.md)を更新します。
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンと汎用JavaScript APIには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)とstdlibを使います。NOE固有のCLI、REPL、実行期限、agentなどをその上へ実装します。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンと汎用JavaScript APIには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)とstdlibを使います。NOE固有のCLI、実行期限、agentなどをその上へ実装します。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
 
 `_refs/`はローカル専用の未追跡の参考資料で、ビルド・テスト依存に含めません。リリースの配布対象・品質確認は[プロファイル](../../.forgejo/release-profile.yml)と[ワークフロー](../../.forgejo/workflows/release.yml)に定義されています。

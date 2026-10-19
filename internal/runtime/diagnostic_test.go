@@ -63,27 +63,6 @@ func TestExceptionRetainsOriginalGoCause(t *testing.T) {
 	}
 }
 
-func TestSessionExceptionDetailsAndRecovery(t *testing.T) {
-	s, err := NewSession(Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, input := range []string{
-		`throw Object.assign(new Error("sync failure"), {code:"E_CUSTOM",stderr:"sync detail"})`,
-		`await Promise.reject(Object.assign(new Error("async failure"), {code:128,stderr:"async detail"}))`,
-	} {
-		got := s.Eval(context.Background(), input)
-		if got.Exit || got.Err == nil || !strings.Contains(Diagnostic(got.Err), `"stderr":`) || !strings.Contains(Diagnostic(got.Err), `"code":`) {
-			t.Fatalf("input=%q result=%+v", input, got)
-		}
-	}
-	got := s.Eval(context.Background(), `42`)
-	s.Close()
-	if got.Err != nil || got.Output != "42" {
-		t.Fatalf("session did not recover: %+v", got)
-	}
-}
-
 func TestRunJSCommandFailureDetailsReachModelAndEvents(t *testing.T) {
 	executable, _ := json.Marshal(runtimeTestExecutable)
 	program, _ := json.Marshal(`console.log("partial output"); console.error("fatal: 日本語"); process.exit(128);`)

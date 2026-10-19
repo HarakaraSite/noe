@@ -17,15 +17,7 @@ import (
 // pinned go-quickjs standard library. NOE is a local command-line runtime, so
 // these capabilities have the same authority as the user running it.
 func (h *host) installStdlib(opts Options) error {
-	if err := stdlib.Install(h.rt, h.stdlibConfig(opts)); err != nil {
-		return err
-	}
-	inspect, err := h.rt.EvalFile("<noe-inspect>", `console[Symbol.for("quickjs.inspect")]`)
-	if err != nil {
-		return err
-	}
-	h.inspect = inspect
-	return nil
+	return stdlib.Install(h.rt, h.stdlibConfig(opts))
 }
 
 func (h *host) stdlibConfig(opts Options) stdlib.Config {

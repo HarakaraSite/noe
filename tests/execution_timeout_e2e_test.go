@@ -128,7 +128,6 @@ func TestExecutionTimeoutPreservesCLIBehavior(t *testing.T) {
 		{"explicit 124", []string{"eval", "--timeout=5s", `process.exit(124)`}, 124, "", ""},
 		{"negative expression", []string{"eval", `-1; console.log("negative expression")`}, 0, "negative expression\n", ""},
 		{"zero duration", []string{"eval", "--timeout=0", `console.log("AFTER")`}, 2, "", "timeout"},
-		{"REPL option", []string{"repl", "--timeout=1s"}, 2, "", "Usage:"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := runCLI(t, work, nil, tc.args...)

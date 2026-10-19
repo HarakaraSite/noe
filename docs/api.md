@@ -1,12 +1,12 @@
 # NOE APIリファレンス
 
-[READMEへ戻る](../README.md) · [agent起動ガイド](agents.md) · [REPLガイド](repl.md) · [実行例](../examples/README.md)
+[READMEへ戻る](../README.md) · [agent起動ガイド](agents.md) · [実行例](../examples/README.md)
 
 バイナリと同じ版の英文API契約は`noe docs [topic [member]]`で参照できます。JS・Worker・agentの`run_js`でも`noe:docs`から同じ本文を取得します（[内蔵docsの使い方](reference.md)）。このガイドはCLI・設定・APIの利用手順を説明します。
 
 NOEはJavaScriptの実行環境として、固定したgo-quickjs v0.27.0の標準ライブラリを有効にします。標準ライブラリが持つWeb APIとNode形式APIを利用できます。各APIはgo-quickjsによる実装で、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`repl`・`docs`・`--timeout`、REPLの履歴・補完・前回結果`_`、および組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
+JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`docs`・`--timeout`と、組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
 
 ## 利用できる機能と権限
 
@@ -26,7 +26,7 @@ Workersにも同じgo-quickjs標準ライブラリのホスト機能を渡しま
 
 go-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
-npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗黙のbare importによる外部パッケージ探索はありません。裸の組み込みモジュール名と対応する`node:`名で標準ライブラリをimportできます。`run/eval/repl --import-map path`で完全一致のbare名をローカルESMに対応付けられ、Worker・agent生成JSへ同じ対応表を継承します。ローカルモジュールは拡張子付きの相対/絶対`.js`・`.mjs`パスとlocal file URLを使えます。詳細は[import mapガイド](import-map.md)を参照してください。相対importはimport元のファイルを基準に解決し、`eval`内ではカレントディレクトリが基準です。QuickJS本来の`std`モジュールは提供しません。
+npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗黙のbare importによる外部パッケージ探索はありません。裸の組み込みモジュール名と対応する`node:`名で標準ライブラリをimportできます。`run/eval --import-map path`で完全一致のbare名をローカルESMに対応付けられ、Worker・agent生成JSへ同じ対応表を継承します。ローカルモジュールは拡張子付きの相対/絶対`.js`・`.mjs`パスとlocal file URLを使えます。詳細は[import mapガイド](import-map.md)を参照してください。相対importはimport元のファイルを基準に解決し、`eval`内ではカレントディレクトリが基準です。QuickJS本来の`std`モジュールは提供しません。
 
 ## CLI
 
@@ -34,7 +34,6 @@ npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗
 | --- | --- |
 | `noe run [options] <file> [args...]` | ファイルを実行。引数は`process.argv.slice(2)`で取得 |
 | `noe eval [options] <code>` | コードを実行。`process.argv.slice(2)`は空配列 |
-| `noe repl [options]` | 対話的に実行 |
 | `noe observe --follow <log>` | 保存中のagentイベントを人間向けに表示 |
 | `noe agents` | 実行中のagentとcurrent run IDを一覧表示 |
 | `noe steer <run-id> <instruction>` | 実行中taskへ追加指示 |
@@ -43,7 +42,7 @@ npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗
 | `noe --help` | usageを表示。引数なしでも同じ |
 | `noe --version` | versionを表示 |
 
-`run`・`eval`・`repl`の`--import-map path`、`--observe`、`--events[=path|-]`はソースより前に指定します。`--`でオプション解析を終えます。`.js`・`.mjs`はES modulesとして、Promise・`async/await`・top-level awaitを利用できます。import解決は[import map](import-map.md)、対話入力は[REPL](repl.md)、ログの出力先は[イベントガイド](events.md)を参照してください。
+`run`・`eval`の`--import-map path`、`--observe`、`--events[=path|-]`はソースより前に指定します。`--`でオプション解析を終えます。`.js`・`.mjs`はES modulesとして、Promise・`async/await`・top-level awaitを利用できます。import解決は[import map](import-map.md)、ログの出力先は[イベントガイド](events.md)を参照してください。
 
 ### 実行時間の上限
 
@@ -66,7 +65,7 @@ npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗
 | `2` | CLI引数の誤り |
 | `124` | 実行時間切れ |
 
-`process.exit(code)`で指定したコードでも終了できます。エラーはエンジンが提供する位置とstackを表示します。解決する処理が残っていない未完了のtop-level awaitも実行失敗として診断します。REPLは回復可能な入力エラーの後も続行し、EOFで0、回復できない読取り/エンジンエラー等では1で終了します。非端末入力や入力待ちでの外部SIGINTは130です。対話端末の中断・I/O回収は[REPLガイド](repl.md)を参照してください。
+`process.exit(code)`で指定したコードでも終了できます。エラーはエンジンが提供する位置とstackを表示します。解決する処理が残っていない未完了のtop-level awaitも実行失敗として診断します。
 
 ## 自律agent（OpenRouter）
 
@@ -154,7 +153,7 @@ run snapshotは`{agentId, parentRunId, name, state, reason, keepAlive, currentRu
 
 `keepAlive`の既定値は`false`です。`false`なら一つのtaskの後に停止し、instructionは必須です。`true`ならtask完了・失敗後も待受を続け、通常のtask失敗後も次のqueue taskを受け付けます。instructionを省略するとidleから開始します。idle中にモデルは呼び出しません。同じinstanceのqueue taskは確定済み会話とtrim状態を続けますが、各taskのrun ID・`maxSteps`・task単位interrupt scopeは独立し、実行runtimeとhook moduleの状態は新しくなります。`run_agent(config, instruction, {keepAlive:true})`はinstance停止まで戻りません。
 
-rootのrun/evalではJS本文が終わってもnative追跡によって待受が続き、現在の終了方法はCtrl+C・timeoutなどです。REPLでもkeepAlive instanceが残る入力は次のpromptへ進みません。親run_jsから起動した子はtool本文の終了後も親runに所有されます。
+rootのrun/evalではJS本文が終わってもnative追跡によって待受が続き、現在の終了方法はCtrl+C・timeoutなどです。親run_jsから起動した子はtool本文の終了後も親runに所有されます。
 
 待受instanceは、その所有者のNOE runに結び付いています。親runの終了・取消し、timeout、Ctrl+Cなどで回収され、NOE終了後も独立して続くdaemonにはなりません。
 
@@ -215,7 +214,7 @@ Control接続はローカルで稼働中のNOEに限られ、daemonや再起動�
 
 捕捉するstdout・stderrは、それぞれ元の出力の先頭32KiBと末尾32KiB、合計64KiBまでを保持します。上限以内の出力は変更しません。超過した場合は途中に`[NOE: output truncated; N bytes omitted]`を挿入し、結果に`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。UTF-8の切断位置は文字境界へ寄せるため、保持量が数バイト減る場合があります。超過分も読み捨て続けるため、上限到達で子プロセスを停止したり出力pipeを詰まらせたりしません。省略だけで`exitCode`や`reason`は変更しません。内部のmanaged taskプロセスの捕捉出力も同じ制限に従います。
 
-省略分は自動保存しません。完全なログが必要な処理は、実行するJSやコマンド側で既知のファイルへ書き出し、必要な部分だけを読み戻してください。afterToolが受け取る元の結果とJSONLも、この制限後の出力です。hookが独自に生成した置換結果、子プロセス内部のメモリ、通常のトップレベル`run`・`eval`・`repl`の出力を制限する機能ではありません。
+省略分は自動保存しません。完全なログが必要な処理は、実行するJSやコマンド側で既知のファイルへ書き出し、必要な部分だけを読み戻してください。afterToolが受け取る元の結果とJSONLも、この制限後の出力です。hookが独自に生成した置換結果、子プロセス内部のメモリ、通常のトップレベル`run`・`eval`の出力を制限する機能ではありません。
 
 `observe_agent`はlive状態と保存済みJSONLの二つのtargetを持ちます。live用は`observe_agent({agentId})`のみです。ファイル観察は既存の`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`を維持します。両方のtargetを同じ呼出しへ混在させられません。ファイル観察の戻り値・cursorは[観察ガイド](observe.md)を参照してください。
 
@@ -238,37 +237,37 @@ NOE_AGENT_TRACE=1 NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 
 traceにはrun ID、親run ID、agent名、model、status、duration（nanoseconds）、返された場合はprompt/completion/total/cached token数とcostを記録します。`js_result`にはtoolの終了コードと理由も含みます。prompt、生成code、toolのstdout/stderr、APIキーは記録しません。標準エラーには通常の診断も含まれる場合があります。
 
-通常の`run`・`eval`では`--timeout`が評価全体を制限できます。省略時はCLI独自の期限はありません。REPLでは通信中のCtrl+Cで要求を取り消し、稼働中のI/Oを残さないようREPL sessionを終了します。詳しくは[REPLガイド](repl.md)を参照してください。
+通常の`run`・`eval`では`--timeout`が評価全体を制限できます。省略時はCLI独自の期限はありません。
 
 WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソースをカレントディレクトリ上の一時場所へ書き込み、相対importの基準を保ちます。その場合はカレントディレクトリへ一時ファイルを書き込める必要があります。書込みできない場合は、カレントディレクトリと同じvolumeの書込み可能な場所を`TEMP`に指定してください。
 
 ## 子プロセスと標準I/Oストリーム
 
-`noe:process`の`spawn`で子の入出力を実行中から扱い、終了・停止・回収を行えます。`noe:io`はホストのstdin/stdout/stderrのWeb Streamsと取消し対応`pipe`を公開します。通常JS・run_js・Workerで利用でき、REPLでは子の操作とcloseまでを同一入力で行います。公開契約と例は[プロセス・標準I/Oガイド](process-io.md)を参照してください。stdlibの`execFile`・`process.std*`・`pipeTo`は変更しません。
+`noe:process`の`spawn`で子の入出力を実行中から扱い、終了・停止・回収を行えます。`noe:io`はホストのstdin/stdout/stderrのWeb Streamsと取消し対応`pipe`を公開します。通常のJavaScript・run_js・Workerで利用できます。公開契約と例は[プロセス・標準I/Oガイド](process-io.md)を参照してください。stdlibの`execFile`・`process.std*`・`pipeTo`は変更しません。
 
 `noe:fs-handle`の位置指定readAt/writeAt、`noe:sockets`のTCP/Unix connect/listen、`noe:signals`のAsyncIterator購読も使えます。API・方向別終了・OS差・所有と回収は[ファイル・ソケット・シグナル](low-level-io.md)を参照してください。
 
 ## 意思決定モデル：`noe:decision`
 
-`import { decide } from "noe:decision"`で、`await decide({provider:"openrouter",model,state,questions})`を呼べます。`state`は文字列・JSON object/array、`questions`は名前付き質問objectです。provider/modelは毎回明示し、結果はproviderの応答JSON全体です。通常JSとagentの`run_js`から利用でき、agent loopは作りません。認証は既存OpenRouter設定を共用し、要求は現在の評価・所有scopeの取消しに従います。使用例、検証・エラー、画像part、REPL、観察は[意思決定APIガイド](decision.md)を参照してください。
+`import { decide } from "noe:decision"`で、`await decide({provider:"openrouter",model,state,questions})`を呼べます。`state`は文字列・JSON object/array、`questions`は名前付き質問objectです。provider/modelは毎回明示し、結果はproviderの応答JSON全体です。通常JSとagentの`run_js`から利用でき、agent loopは作りません。認証は既存OpenRouter設定を共用し、要求は現在の評価・所有scopeの取消しに従います。使用例、検証・エラー、画像part、観察は[意思決定APIガイド](decision.md)を参照してください。
 
 ## 画像の読み込みと生成：`noe:image`
 
-`noe:image`は`read_image(path, {detail?})`と`generate_image({provider, model, prompt, output, parameters?})`を公開します。`read_image`はagentの`run_js` tool call内だけで画像を添付し、通常のトップレベル`run`・`eval`・`repl`やWorkerでは画像入力できません。`generate_image`は通常JSとagentの`run_js`で利用できます。JavaScriptへ返るのはmetadataで、画像bytesやBase64ではありません。provider/model、対応形式、hook、履歴、エラーの契約は[画像ガイド](agent-images.md)を参照してください。
+`noe:image`は`read_image(path, {detail?})`と`generate_image({provider, model, prompt, output, parameters?})`を公開します。`read_image`はagentの`run_js` tool call内だけで画像を添付し、通常のトップレベル`run`・`eval`やWorkerでは画像入力できません。`generate_image`は通常JSとagentの`run_js`で利用できます。JavaScriptへ返るのはmetadataで、画像bytesやBase64ではありません。provider/model、対応形式、hook、履歴、エラーの契約は[画像ガイド](agent-images.md)を参照してください。
 
 ## 構造化イベントの出力
 
-`run`・`eval`・`repl`で`--observe`を付けると、stdoutへ人間向けの整形表示を直接出せます。`--events=path`との併用でJSONL保存も行えます。`--events=-`は機械処理用のstdout JSONLとして維持し、同じstdoutを使う`--observe`とは同時指定しません。
+`run`・`eval`で`--observe`を付けると、stdoutへ人間向けの整形表示を直接出せます。`--events=path`との併用でJSONL保存も行えます。`--events=-`は機械処理用のstdout JSONLとして維持し、同じstdoutを使う`--observe`とは同時指定しません。
 
 観察には人間用CLIの`noe observe`と、親用JS APIの`observe_agent`を利用できます。`observe_agent({agentId})`はlive snapshotをすぐ返します。`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`は既存JSONLから状態・差分・確定済みの結果を返し、既定は非待機、`wait: true`ならrunの終端まで待ちます。使い方と戻り値は[観察の入口](observe.md)を参照してください。
 
-`run`・`eval`・`repl`共通の`--events`で通常出力とagentの詳細イベントをJSONLへ記録できます。`--events=-`はstdout、`--events=path`はファイルへの追記、`--events`単独は起動時のcwdに`noe-events-日時-ID.jsonl`を新規作成します。通常出力、thinking・summary、途中の発言、最終回答、`run_js`の先頭コメントと成功・失敗をrun ID付きで読めます。オプションはソースより前へ置きます。形式、REPLの扱い、逐次出力の範囲は[観察ガイド](events.md)を参照してください。
+`run`・`eval`の`--events`で通常出力とagentの詳細イベントをJSONLへ記録できます。`--events=-`はstdout、`--events=path`はファイルへの追記、`--events`単独は起動時のcwdに`noe-events-日時-ID.jsonl`を新規作成します。通常出力、thinking・summary、途中の発言、最終回答、`run_js`の先頭コメントと成功・失敗をrun ID付きで読めます。オプションはソースより前へ置きます。形式と逐次出力の範囲は[観察ガイド](events.md)を参照してください。
 
 ## 実行環境とファイル
 
 `process.argv`は実行ファイル名、スクリプト名、スクリプト引数の順です。スクリプト引数は`process.argv.slice(2)`で取得できます。`process.env`は起動時の環境変数、`process.cwd()`はカレントディレクトリです。`process.exit(code)`でプロセスを終了し、終了コードを指定できます。
 
-標準入力全体は`process.stdin.read()`で読み取れます。この読み取りは同期処理で、最初の呼出しでEOFまで読み込み、2回目以降は`null`を返します。空入力でも`null`です。REPLの標準入力はソース入力用なので、`process.stdin.read()`にはデータを渡さず`null`になります。この同期読取りを`--timeout`で強制停止する保証はありません。標準入力を待つスクリプトでは、パイプ入力や端末からのEOFを使って入力を終えてください。
+標準入力全体は`process.stdin.read()`で読み取れます。この読み取りは同期処理で、最初の呼出しでEOFまで読み込み、2回目以降は`null`を返します。空入力でも`null`です。この同期読取りを`--timeout`で強制停止する保証はありません。標準入力を待つスクリプトでは、パイプ入力や端末からのEOFを使って入力を終えてください。
 
 ファイルのPromise APIは`fs/promises`からimportできます。
 
@@ -348,10 +347,6 @@ console.log(server.url);
 リクエスト本文はWeb Request APIで読み、応答は必ずResponseで返します。JSONの応答には`Response.json(value)`を使えます。HTTPモジュールから`serve`をimportすることもできます。WebSocketはWebSocket APIと、サーバー側では`serve`を通じて利用できます。
 
 `server.close()`は同期的に受付を停止し、go-quickjs v0.25.3では処理中のHTTPリクエスト終了を最大5秒待ちます。停止を求めるリクエスト自身のハンドラーから同期的に呼ぶと、そのハンドラーの完了を待つことになります。応答が完了した後の別の処理から呼んでください。これは旧`noe.serve()`の非同期停止とは異なる動作です。
-
-## REPLでの非同期処理
-
-REPLでは変数や関数を入力間で保持します。タイマーだけが残った入力をCtrl+Cで中断した場合はタイマーを取り消して続行できます。Fetch、サーバー、Worker、メッセージポートなど、ランタイム全体に結び付いた標準ライブラリ処理が残った状態で中断または入力エラーが起きると、ランタイムを閉じてREPLセッションを終了します。入力単位の停止後に既存の関数やimportを安全に再利用できないためです。詳しくは[REPLガイド](repl.md)を参照してください。
 
 ## 旧APIからの移行
 

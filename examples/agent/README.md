@@ -45,7 +45,7 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
 
 並行例の既定入力は`examples/agent/data/left.json`と`examples/agent/data/right.json`です。必要なら二つのpathを引数で置き換えられます。モデル出力の文章や形式は変わる場合があります。`run_agent()`はinstance snapshotを返し、例は`snapshot.lastResult.answer`を表示します。並行例は`spawn_agent()`で子IDを受け取り、`observe_agent({agentId})`で終了までの状態を確認します。
 
-ルートagentには`provider`・`model`・`effort`を明示指定します。子agentはprovider・model・effort・`maxTokens`・`hooks`・`contextBudget`・`contextPolicy`を省略時に起動元runから継承します。その他のconfig項目は継承しません。共有上限はrootで設定します。`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、関数APIの設定・戻り値・エラー、keepAliveとqueue、REPL、任意の実行timeout、traceは[APIリファレンス](../../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
+ルートagentには`provider`・`model`・`effort`を明示指定します。子agentはprovider・model・effort・`maxTokens`・`hooks`・`contextBudget`・`contextPolicy`を省略時に起動元runから継承します。その他のconfig項目は継承しません。共有上限はrootで設定します。`NOE_OPENROUTER_API_KEY_FILE`を省略した場合の既定path、関数APIの設定・戻り値・エラー、keepAliveとqueue、任意の実行timeout、traceは[APIリファレンス](../../docs/api.md)を参照してください。agentと生成JavaScriptはNOEと同じOS権限で動きます。
 
 任意のタスクを試す場合は、`examples/agent/try-agent.js`へ指示を渡します。次の例はREADMEを読み、要約ファイルを作らせます。
 

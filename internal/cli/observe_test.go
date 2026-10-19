@@ -295,3 +295,20 @@ func TestObserveHumanWrapsMarkdownToColumns(t *testing.T) {
 		t.Fatalf("wrapped response = %q, want %q", got, want)
 	}
 }
+
+func TestObserveDisplaysSavedHistoricalREPLEvents(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "legacy.jsonl")
+	data := "{\"type\":\"repl.result\",\"executionId\":\"old-exec\",\"text\":\"42\"}\n" +
+		"{\"type\":\"repl.error\",\"executionId\":\"old-exec\",\"text\":\"legacy failure\"}\n"
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var out, diagnostic bytes.Buffer
+	if code := Run(context.Background(), []string{"observe", path}, strings.NewReader(""), &out, &diagnostic); code != 0 || diagnostic.Len() != 0 {
+		t.Fatalf("observe code=%d stdout=%q stderr=%q", code, out.String(), diagnostic.String())
+	}
+	want := "[script/old-exec] result: 42\n[script/old-exec] evaluation error: legacy failure\n"
+	if got := out.String(); got != want {
+		t.Fatalf("historical event display = %q, want %q", got, want)
+	}
+}

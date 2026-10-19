@@ -10,7 +10,7 @@
 
 | フォルダ | 確認内容 | 結果 |
 | --- | --- | --- |
-| basics | Hello・sleepは既存E2E、REPL用JSは実行して出力を確認 | 成功 |
+| basics | Hello・sleepは既存E2E。REPL用JSは当時実行して出力を確認 | 成功 |
 | json | 加工・標準入力・ディレクトリ集計・処理済みファイルの移動。正常系と既存の異常系E2E | 成功 |
 | sales-report | 同梱データからJSON・Markdownを一時ディレクトリへ出力し、集計結果を確認 | 成功 |
 | http | ローカルHTTP serverでJSON取得・バイナリ取得・更新要求・serveの既存E2E | 成功 |

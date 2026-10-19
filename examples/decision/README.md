@@ -13,4 +13,4 @@ NOE_OPENROUTER_API_KEY_FILE=/path/to/openrouter-api-key \
   ./noe run examples/decision/decision-classify.js 'Checkout failed.' typesafe/jev-1.14
 ```
 
-モデルへ渡すtoolを増やさず、agentの`run_js`からも`await import("noe:decision")`で利用できます。並列化、画像part、REPL、失敗・取消し、観察は[意思決定APIガイド](../../docs/decision.md)を参照してください。
+モデルへ渡すtoolを増やさず、agentの`run_js`からも`await import("noe:decision")`で利用できます。並列化、画像part、失敗・取消し、観察は[意思決定APIガイド](../../docs/decision.md)を参照してください。

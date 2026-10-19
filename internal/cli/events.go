@@ -18,7 +18,6 @@ import (
 )
 
 // observation owns its file and output adapters for exactly one CLI invocation.
-// REPL prompt/control bytes never go through these adapters.
 type observation struct {
 	writer         *events.Writer
 	file           *os.File

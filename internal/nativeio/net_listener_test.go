@@ -15,7 +15,7 @@ import (
 )
 
 func TestNetListenTCPAddressAcceptAndIndependentClose(t *testing.T) {
-	rt, h := netRuntime(t, t.TempDir(), nil)
+	rt, _ := netRuntime(t, t.TempDir(), nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen,connect}=await import("noe:sockets");
   const listener=await listen({network:"tcp",host:"127.0.0.1",port:0});
@@ -41,8 +41,8 @@ func TestNetListenTCPAddressAcceptAndIndependentClose(t *testing.T) {
 	if got := result.String(); !strings.Contains(got, `"network":"tcp"`) || !strings.Contains(got, `"port":`) {
 		t.Fatalf("listener address = %q", got)
 	}
-	if h.Active() || rt.Busy() {
-		t.Fatalf("closed listener and accepted sockets retained runtime work: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("closed listener and accepted sockets retained runtime work: busy=%v", rt.Busy())
 	}
 }
 
@@ -70,7 +70,7 @@ func TestNetListenMultiplePendingAcceptsEachGetOneConnection(t *testing.T) {
 }
 
 func TestNetListenCloseRejectsPendingAcceptAndReleasesKeepalive(t *testing.T) {
-	rt, h := netRuntime(t, t.TempDir(), nil)
+	rt, _ := netRuntime(t, t.TempDir(), nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen}=await import("noe:sockets");
   const listener=await listen({network:"tcp",host:"127.0.0.1",port:0});
@@ -83,8 +83,8 @@ func TestNetListenCloseRejectsPendingAcceptAndReleasesKeepalive(t *testing.T) {
 	if got := result.String(); got != "rejected,rejected" {
 		t.Fatalf("pending accept after close = %q", got)
 	}
-	if h.Active() || rt.Busy() {
-		t.Fatalf("closed listener retained runtime work: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("closed listener retained runtime work: busy=%v", rt.Busy())
 	}
 }
 
@@ -127,7 +127,7 @@ func TestNetListenUnixCleanupAndExistingPathPreservation(t *testing.T) {
 		t.Skip("Unix sockets are unavailable on Windows")
 	}
 	dir := t.TempDir()
-	rt, h := netRuntime(t, dir, nil)
+	rt, _ := netRuntime(t, dir, nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen}=await import("noe:sockets");
   const listener=await listen({network:"unix",path:"owned.sock"});
@@ -158,8 +158,8 @@ func TestNetListenUnixCleanupAndExistingPathPreservation(t *testing.T) {
 	if data, err := os.ReadFile(occupied); err != nil || string(data) != "keep existing file" {
 		t.Fatalf("existing pathname changed: data=%q err=%v", data, err)
 	}
-	if h.Active() || rt.Busy() {
-		t.Fatalf("Unix listener paths retained runtime work: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("Unix listener paths retained runtime work: busy=%v", rt.Busy())
 	}
 }
 
@@ -221,7 +221,7 @@ func TestNetListenUnixPrePublishReplacementSurvives(t *testing.T) {
 					_ = replacementListener.Close()
 				}
 			})
-			rt, h := netRuntimeWithListen(t, dir, nil, listen)
+			rt, _ := netRuntimeWithListen(t, dir, nil, listen)
 			result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen}=await import("noe:sockets");
   try { await listen({network:"unix",path:"public.sock"}); return "resolved"; }
@@ -268,8 +268,8 @@ func TestNetListenUnixPrePublishReplacementSurvives(t *testing.T) {
 			if err != nil || !os.SameFile(before, after) {
 				t.Fatalf("replacement identity changed: before=%v after=%v err=%v", before, after, err)
 			}
-			if h.Active() || rt.Busy() {
-				t.Fatalf("failed bind retained runtime work: active=%v busy=%v", h.Active(), rt.Busy())
+			if rt.Busy() {
+				t.Fatalf("failed bind retained runtime work: busy=%v", rt.Busy())
 			}
 		})
 	}
@@ -331,7 +331,7 @@ func TestNetListenUnixLongPathUsesShortPrivateAlias(t *testing.T) {
 	if len(path) != maxPath || len(stagePath) <= maxPath {
 		t.Skipf("host paths do not exercise Unix sun_path fallback: public=%d stage=%d max=%d", len(path), len(stagePath), maxPath)
 	}
-	rt, h := netRuntime(t, dir, nil)
+	rt, _ := netRuntime(t, dir, nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen,connect}=await import("noe:sockets");
   const listener=await listen({network:"unix",path:"s"});
@@ -348,8 +348,8 @@ func TestNetListenUnixLongPathUsesShortPrivateAlias(t *testing.T) {
 	if _, err := os.Lstat(path); !os.IsNotExist(err) {
 		t.Fatalf("long-path listener left public pathname: %v", err)
 	}
-	if h.Active() || rt.Busy() {
-		t.Fatalf("long-path listener retained work: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("long-path listener retained work: busy=%v", rt.Busy())
 	}
 }
 
@@ -371,7 +371,7 @@ func TestNetListenUnixRejectsPathLongerThanSockaddrCapacity(t *testing.T) {
 	if len(tooLongPath) != maxPath+1 {
 		t.Skipf("constructed path length %d, want %d", len(tooLongPath), maxPath+1)
 	}
-	rt, h := netRuntime(t, dir, nil)
+	rt, _ := netRuntime(t, dir, nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen}=await import("noe:sockets");
   try { await listen({network:"unix",path:"ss"}); return "resolved"; }
@@ -384,13 +384,13 @@ func TestNetListenUnixRejectsPathLongerThanSockaddrCapacity(t *testing.T) {
 	if err != nil || len(entries) != 0 {
 		t.Fatalf("overlong path left staging entries: entries=%v err=%v", entries, err)
 	}
-	if h.Active() || rt.Busy() {
-		t.Fatalf("overlong path retained work: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("overlong path retained work: busy=%v", rt.Busy())
 	}
 }
 
 func TestNetListenValidationAndPreAbortedSignal(t *testing.T) {
-	rt, h := netRuntime(t, t.TempDir(), nil)
+	rt, _ := netRuntime(t, t.TempDir(), nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen}=await import("noe:sockets");
   const invalid=[undefined,null,[],{network:"tcp",host:"",port:0},{network:"tcp",host:"127.0.0.1",port:-1},{network:"tcp",host:"127.0.0.1",port:65536},{network:"unix",path:""},{network:"other"}];
@@ -402,8 +402,8 @@ func TestNetListenValidationAndPreAbortedSignal(t *testing.T) {
 	if got := result.String(); got != "rejected" {
 		t.Fatalf("listen validation/pre-abort result = %q", got)
 	}
-	if h.Active() || rt.Busy() {
-		t.Fatalf("invalid listen started native work: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("invalid listen started native work: busy=%v", rt.Busy())
 	}
 }
 

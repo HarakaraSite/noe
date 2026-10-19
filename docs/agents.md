@@ -39,7 +39,7 @@ cp scripts/auth-chatgpt.js "$noe_config_dir/auth-chatgpt.js"
 ./noe run "$noe_config_dir/auth-chatgpt.js"
 ```
 
-表示されたURLをブラウザで開いて登録します。バイナリだけを取得した場合は、`cp`の代わりに[v1.8.0のヘルパー](https://forge.harakara.site/littleisland/noe/raw/tag/v1.8.0/scripts/auth-chatgpt.js)を取得します。リモート端末での登録、認証更新、APIキーとの違いは[OpenAIガイド](openai.md)を参照してください。
+表示されたURLをブラウザで開いて登録します。バイナリだけを取得した場合は、`cp`の代わりに[v1.9.0のヘルパー](https://forge.harakara.site/littleisland/noe/raw/tag/v1.9.0/scripts/auth-chatgpt.js)を取得します。リモート端末での登録、認証更新、APIキーとの違いは[OpenAIガイド](openai.md)を参照してください。
 
 ## 2. 一つのタスクを実行する
 
@@ -87,7 +87,7 @@ root agentには`provider`・`model`・`effort`が必須です。`effort: "auto"
 
 `--observe`はthinking・summary（providerが返す場合）、途中の発言、`run_js`の先頭コメント・成功失敗、stderr、最終回答を表示します。通常のスクリプト/toolのstdoutはこの表示から省きます。表を含むMarkdownは色なしで整形します。
 
-`--events`はrun・eval・replで共通です。パス指定は追記、単独指定は起動時のcwdに日時・ID付きのログを作り、`--events=-`はstdoutをJSONLにします。同じstdoutを使う`--observe`と`--events=-`は併用しません。従来の`NOE_AGENT_TRACE=1`はstderrへメタデータtraceを出します。
+`run`・`eval`は`--events`でagentイベントを記録できます。パス指定は追記、単独指定は起動時のcwdに日時・ID付きのログを作り、`--events=-`はstdoutをJSONLにします。同じstdoutを使う`--observe`と`--events=-`は併用しません。従来の`NOE_AGENT_TRACE=1`はstderrへメタデータtraceを出します。
 
 捕捉する`run_js`のstdout・stderrは各64KiB（先頭32KiB＋末尾32KiB）までです。超過分は省略マーカーとバイト数を残し、自動保存はしません。完全なログが必要ならJSやコマンドからファイルへ書き出します。イベント内容と親からの観察は[JSONLイベント](events.md)・[観察の入口](observe.md)を参照してください。
 
@@ -119,7 +119,6 @@ instanceに固定する追加指示は`~/.config/noe/instructions/*.md`（XDG指
 | hook・コンテキスト通知と切り捨て・共有実行上限 | [hookとcontext](hooks.md) |
 | `read_image`・`generate_image` | [画像ガイド](agent-images.md) · [画像の実行例](../examples/image/README.md) |
 | Jev等への構造化判断の依頼 | [意思決定ガイド](decision.md) |
-| REPLからの起動 | [REPLガイド](repl.md) |
 | モデル候補とルーティング | [モデルカタログ](model-catalog.md) · [Jevによる選択例](../examples/agent/agent-route-model.js) |
 
 子agentは親の指定を一部継承しますが、独立した会話を持ちます。queueは同じkeepAlive instanceの確定済み会話を継続します。待受instanceもNOEや所有する親runの終了・取消しで回収され、独立したdaemonにはなりません。具体的な引数・継承・寿命の規則は上のAPIリファレンスへ集約しています。

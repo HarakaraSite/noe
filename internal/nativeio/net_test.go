@@ -122,7 +122,7 @@ func TestNetConnectTCPAndUnixHalfClose(t *testing.T) {
 				serverResult <- err
 			}()
 
-			rt, h := netRuntime(t, filepath.Dir(fixture.path), nil)
+			rt, _ := netRuntime(t, filepath.Dir(fixture.path), nil)
 			result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
   const c=await connect(`+fixture.options+`);
@@ -148,8 +148,8 @@ func TestNetConnectTCPAndUnixHalfClose(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("server did not observe client FIN and return its response")
 			}
-			if h.Active() || rt.Busy() {
-				t.Fatalf("closed connection retained runtime work: active=%v busy=%v", h.Active(), rt.Busy())
+			if rt.Busy() {
+				t.Fatalf("closed connection retained runtime work: busy=%v", rt.Busy())
 			}
 		})
 	}
@@ -162,7 +162,7 @@ func TestNetConnectValidationAndAbort(t *testing.T) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
-	rt, h := netRuntime(t, t.TempDir(), dial)
+	rt, _ := netRuntime(t, t.TempDir(), dial)
 	awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
   const invalid=[undefined,null,[],{network:"tcp",host:"",port:1},{network:"tcp",host:"127.0.0.1",port:0},{network:"unix",path:""},{network:"other"}];
@@ -190,8 +190,8 @@ func TestNetConnectValidationAndAbort(t *testing.T) {
 	if got := awaitNet(t, mustGetNet(t, rt, "pendingConnect")).String(); got != "same abort reason" {
 		t.Fatalf("pending dial abort reason = %q", got)
 	}
-	if h.Active() {
-		t.Fatalf("aborted dial left active work: %v", h.Active())
+	if rt.Busy() {
+		t.Fatalf("aborted dial left active work: %v", rt.Busy())
 	}
 }
 
@@ -268,7 +268,7 @@ func TestNetReadCancelLeavesWriteUsable(t *testing.T) {
 	dial := observedDial(observed)
 	// Use a second runtime module install with the observer dialer.
 	dir := t.TempDir()
-	rt, h := netRuntime(t, dir, dial)
+	rt, _ := netRuntime(t, dir, dial)
 	startedConn := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
   globalThis.connection=await connect(`+fixture.options+`);
@@ -310,8 +310,8 @@ func TestNetReadCancelLeavesWriteUsable(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("server did not receive write after read cancel")
 	}
-	if h.Active() {
-		t.Fatalf("closed socket retained active reference: %v", h.Active())
+	if rt.Busy() {
+		t.Fatalf("closed socket retained active reference: %v", rt.Busy())
 	}
 }
 
@@ -411,7 +411,7 @@ func TestNetCloseSettlesPendingStreamsAndReleasesKeepalive(t *testing.T) {
 		}
 	}()
 	observed := make(chan *observedNetConn, 1)
-	rt, h := netRuntime(t, t.TempDir(), observedDial(observed))
+	rt, _ := netRuntime(t, t.TempDir(), observedDial(observed))
 	awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
   globalThis.connection=await connect(`+fixture.options+`);
@@ -425,7 +425,7 @@ func TestNetCloseSettlesPendingStreamsAndReleasesKeepalive(t *testing.T) {
 	client := <-observed
 	peer := <-accepted
 	defer peer.Close()
-	if !h.Active() || !rt.Busy() {
+	if !rt.Busy() {
 		t.Fatal("open connection did not keep the runtime alive")
 	}
 	for name, ch := range map[string]<-chan struct{}{"read": client.readStarted, "write": client.writeStarted} {
@@ -445,8 +445,8 @@ func TestNetCloseSettlesPendingStreamsAndReleasesKeepalive(t *testing.T) {
 	if got := awaitNet(t, flags).String(); got != "read-rejected,write-rejected" {
 		t.Fatalf("stream closed results = %q", got)
 	}
-	if h.Active() || rt.Busy() {
-		t.Fatalf("full close did not release runtime keepalive: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("full close did not release runtime keepalive: busy=%v", rt.Busy())
 	}
 }
 
@@ -468,7 +468,7 @@ func TestNetStartSignalStopsOnlyPendingDial(t *testing.T) {
 			peerCh <- peer
 		}
 	}()
-	rt, h := netRuntime(t, t.TempDir(), nil)
+	rt, _ := netRuntime(t, t.TempDir(), nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
   const controller=new AbortController();
@@ -489,13 +489,13 @@ func TestNetStartSignalStopsOnlyPendingDial(t *testing.T) {
 	if err != nil || string(got) != string([]byte{42}) {
 		t.Fatalf("peer data after late abort = %v, err=%v", got, err)
 	}
-	if h.Active() {
-		t.Fatalf("closed connection retained active work: %v", h.Active())
+	if rt.Busy() {
+		t.Fatalf("closed connection retained active work: %v", rt.Busy())
 	}
 }
 
 func TestNetModuleInputRejectsNUL(t *testing.T) {
-	rt, h := netRuntime(t, t.TempDir(), nil)
+	rt, _ := netRuntime(t, t.TempDir(), nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
 	try { await connect({network:"unix",path:"bad\u0000path"}); return "resolved"; }
@@ -504,8 +504,8 @@ func TestNetModuleInputRejectsNUL(t *testing.T) {
 	if got := result.String(); got != "rejected" {
 		t.Fatalf("NUL path result = %q", got)
 	}
-	if h.Active() {
-		t.Fatalf("invalid input started native work: %v", h.Active())
+	if rt.Busy() {
+		t.Fatalf("invalid input started native work: %v", rt.Busy())
 	}
 }
 
@@ -519,7 +519,7 @@ func TestNetRuntimeCloseReclaimsPendingRead(t *testing.T) {
 		}
 	}()
 	observed := make(chan *observedNetConn, 1)
-	rt, h := netRuntime(t, t.TempDir(), observedDial(observed))
+	rt, _ := netRuntime(t, t.TempDir(), observedDial(observed))
 	awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
   globalThis.connection=await connect(`+fixture.options+`);
@@ -543,8 +543,8 @@ func TestNetRuntimeCloseReclaimsPendingRead(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("runtime close did not finish native read")
 	}
-	if h.Active() {
-		t.Fatalf("runtime close retained native reference: %v", h.Active())
+	if rt.Busy() {
+		t.Fatalf("runtime close retained native reference: %v", rt.Busy())
 	}
 }
 

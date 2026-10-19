@@ -80,7 +80,7 @@ type contextTrimSavedRun struct {
 }
 
 func TestContextTrimmingCLISurfacesAndSavedObservation(t *testing.T) {
-	for _, mode := range []string{"run", "eval", "repl"} {
+	for _, mode := range []string{"run", "eval"} {
 		t.Run(mode, func(t *testing.T) {
 			work := t.TempDir()
 			var mu sync.Mutex
@@ -115,22 +115,12 @@ func TestContextTrimmingCLISurfacesAndSavedObservation(t *testing.T) {
 			args := []string{mode, "--observe", "--events=" + eventPath}
 			if mode == "run" {
 				args = append(args, "main.js")
-			} else if mode == "eval" {
+			} else {
 				args = append(args, source)
 			}
 			env := agentCLIEnv(t, server.URL)
 			env["NOE_AGENT_TRACE"] = ""
-			var result cliResult
-			if mode == "repl" {
-				replSource := strings.TrimPrefix(source, `import {run_agent,observe_agent} from "noe:agent";import {writeFileSync} from "node:fs";`)
-				replSource = strings.Replace(replSource, "await run_agent(", "await am.run_agent(", 1)
-				replSource = strings.Replace(replSource, "await observe_agent(", "await am.observe_agent(", 1)
-				replSource = strings.Replace(replSource, "writeFileSync(", "fs.writeFileSync(", 1)
-				input := "await (async()=>{const am=await import(\"noe:agent\");const fs=await import(\"node:fs\");" + replSource + "})();\n"
-				result = runCLICommand(t, work, env, strings.NewReader(input), args...)
-			} else {
-				result = runCLI(t, work, env, args...)
-			}
+			result := runCLI(t, work, env, args...)
 			requireExit(t, result, 0)
 			if strings.Count(result.stdout, "context trimmed:") == 0 {
 				t.Fatalf("human --observe output omitted trimming for %s:\n%s", mode, result.stdout)

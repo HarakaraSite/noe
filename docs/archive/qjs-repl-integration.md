@@ -1,10 +1,14 @@
 # qjs固定版のREPL入力をNOEへ統合
 
+> **アーカイブ（2026-10-19）：** この記録はv1.8.0時点までの実装を示します。`repl`コマンドとREPL専用実装はタグ作成後に削除しました。以下の更新・テスト手順は当時の保守作業の記録で、現在の手順ではありません。
+>
+> 不変のv1.8.0参照先：[入力UIのprovenance](https://forge.harakara.site/littleisland/noe/src/tag/v1.8.0/internal/replui/README.md) · [当時のREPLガイド](https://forge.harakara.site/littleisland/noe/src/tag/v1.8.0/docs/repl.md)。
+
 ## 採用した構成
 
 go-quickjs v0.25.3の`cmd/qjs`から、入力・行編集・端末制御のソースを`internal/replui`へ取り込む。上流のREPLは`package main`の非公開実装であり、公開パッケージとしてimportできない。今回は上流の改修・採用を前提にせず、必要部分のスナップショットを保守する方針を選んだ。
 
-NOEの`repl`コマンドからこの入力UIを使う。別のqjsプロセスは起動せず、エンジン全体もforkしない。取り込み元、ローカル差分、MITライセンスは[`internal/replui`](../../internal/replui/README.md)に記録している。
+NOEの`repl`コマンドからこの入力UIを使う。別のqjsプロセスは起動せず、エンジン全体もforkしない。取り込み元、ローカル差分、MITライセンスは[v1.8.0の`internal/replui` provenance](https://forge.harakara.site/littleisland/noe/src/tag/v1.8.0/internal/replui/README.md)に記録している。
 
 | 責務 | 実装 |
 | --- | --- |
@@ -18,14 +22,14 @@ NOEの`repl`コマンドからこの入力UIを使う。別のqjsプロセスは
 
 `liner`と、そのためだけに使っていた`go-runewidth`・`uax29`へのルートmoduleの依存を削除した。過去の比較スパイクは当時の記録として残す。
 
-## 更新手順
+## 当時のエンジン更新手順
 
 エンジンのバージョンアップ時にもNOE側の改修が必要になる可能性はある。公開パッケージの利用なら不要になる、とは扱わない。
 
 1. go-quickjsの更新内容とNOEが使うruntime/stdlib APIの互換性を確認し、依存バージョンを更新する。
 2. 新しい版の`cmd/qjs/lineedit.go`、`terminal*.go`、`lineedit_test.go`を、現在の取り込み元v0.25.3と比較する。
 3. 不具合修正や必要な改善を選んで取り込む。NOE側の履歴・検索・Unicode・中断・端末復元の変更を保つ。モジュールキャッシュ内のソースは変更しない。
-4. 新しいソースから取り込んだ場合は`internal/replui/README.md`とprovenanceコメントを更新し、ライセンスも照合する。エンジンだけを更新した場合、スナップショットの取り込み元表記は元の版のまま残す。
+4. 新しいソースから取り込んだ場合は[v1.8.0の入力UI provenance](https://forge.harakara.site/littleisland/noe/src/tag/v1.8.0/internal/replui/README.md)とprovenanceコメントを更新し、ライセンスも照合する。エンジンだけを更新した場合、スナップショットの取り込み元表記は元の版のまま残す。
 5. 入力UIのunit/race、PTYの編集・履歴・検索・複数行・補完・中断と端末復元、`noe:agent`のREPL利用、全体E2Eと配布対象ビルドを確認する。
 
 `go.mod`の更新だけでは、取り込んだ入力UIは更新されない。上流のすべてのREPL変更を移す必要もない。NOEが使う部分と修正の必要性に沿って判断する。

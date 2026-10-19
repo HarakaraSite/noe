@@ -14,7 +14,7 @@ await read_image("./tmp/screenshot.png", { detail: "auto" });
 
 相対pathは`run_js`プロセスの呼び出し時点のworking directory基準です。`detail`は`auto`（既定値）、`low`、`high`です。対応する入力形式はPNG、JPEG、WebPです。実際のファイル内容から形式を判定し、SVGのラスタライズ、URL読込み、形式変換はしません。読み取ったbytesは固定snapshotとして保持されます。
 
-通常のトップレベル`noe run`・`eval`・`repl`スクリプトには画像を見るmodel stepがないため、そこから`read_image`を呼ぶことはできません。トップレベルJSでは`run_agent`を起動し、instructionにpathを渡してください。agentが`run_js`から読み取ります。モデルにvision能力があるだけではNOEの画像添付は有効になりません。
+通常のトップレベル`noe run`・`eval`スクリプトには画像を見るmodel stepがないため、そこから`read_image`を呼ぶことはできません。トップレベルJSでは`run_agent`を起動し、instructionにpathを渡してください。agentが`run_js`から読み取ります。モデルにvision能力があるだけではNOEの画像添付は有効になりません。
 
 ## 画像を生成する
 

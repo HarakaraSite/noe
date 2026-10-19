@@ -11,7 +11,6 @@
 | 認証を登録し、agentを起動する | [agent起動ガイド](agents.md) |
 | バイナリと同じ版のAPI説明を調べる | [内蔵docs](reference.md) |
 | API引数・CLIオプション・実行制御・終了コードを調べる | [APIリファレンス](api.md) |
-| 対話的にJavaScriptを試す | [REPL](repl.md) |
 | 自作JS・検証済みESMを再利用する | [import map](import-map.md) |
 | 接続先・認証・要求形式を設定する | [provider設定](providers.md) |
 | ChatGPTサインイン・OpenAI API・ローカル互換接続を使う | [OpenAI](openai.md) |

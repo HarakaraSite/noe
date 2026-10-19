@@ -33,7 +33,7 @@ steer-onlyの再準備中は切り捨て通知とcauseを次の実provider要求
 `observe_agent`はこのeventと同じ汎用`context` snapshotを返す。過去のJSONLも未変更で、
 そのevent以後に削除された会話本文を再構成するものではない。
 
-`run`・`eval`・`repl`は共通の`--events`オプションで、通常出力とagentの詳細イベントをJSON Linesとして記録できます。省略時の出力は変わりません。人間と親agentが同じイベントを読み、runや種類で絞り込むための形式です。
+`run`・`eval`の`--events`オプションで、通常出力とagentの詳細イベントをJSON Linesとして記録できます。省略時の出力は変わりません。人間と親agentが同じイベントを読み、runや種類で絞り込むための形式です。
 
 ## 出力先
 
@@ -46,10 +46,9 @@ steer-onlyの再準備中は切り捨て通知とcauseを次の実provider要求
 
 # 通常の画面表示を保ち、ファイルにも記録する
 ./noe run --events=agent.jsonl examples/agent/try-agent.js
-./noe repl --events=agent.jsonl
 
 # 名前を自動生成する
-./noe repl --events
+./noe run --events examples/agent/try-agent.js
 ```
 
 agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等による認証設定が必要です。`--events`自体はproviderを呼びません。オプションはスクリプト名またはevalコードより前へ置きます。`--events`単独は次の引数を消費しません。ファイル名を指定するときは`--events=path`の形を使います。
@@ -81,7 +80,7 @@ agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等�
 | `execution.started` / `execution.finished` | CLI開始・終了。`command`または`exitCode` |
 | `execution.error` | 実行エラー・タイムアウトの`text` |
 | `stdout` / `stderr` | JSが出力した文字列断片の`text`。改行を含め元の文字列を保持 |
-| `repl.result` / `repl.error` | REPL評価結果・エラーの`text` |
+| Legacy `repl.result` / `repl.error` | 旧バージョンで保存されたREPL評価結果・エラーの`text`。現行CLIは生成しません |
 | `instance.started` / `instance.idle` / `instance.running` / `instance.stopping` / `instance.stopped` / `instance.failed` | AgentInstance状態の変化。`agentId`・状態・停止理由など。taskの成功・失敗イベントとは別に記録 |
 | `command.accepted` / `command.applied` / `command.completed` / `command.failed` / `command.cancelled` | queueまたはsteer commandの受領・適用・結果。`operation`は`queue`または`steer`、`commandId`とstatusも付く。queueの結果にはtaskの`runId`も付く |
 | `interrupt.accepted` | taskまたはinstanceへの停止要求の受付。`target`は`run`または`agent`、`status`は`accepted`。run対象には`runId`、agent対象には`agentId`が付き、taskが実行中なら`runId`も付く。いずれも`parentRunId`・`name`・`model`を含む |
@@ -117,9 +116,9 @@ thinking・summary・messageの断片はストリーム受信時に出ます。p
 
 詳細保持は固定した項目の文字列・有限の数値・booleanを対象とし、読取りに失敗する項目やオブジェクトは省略します。任意のプロパティ、循環参照、独自の`toJSON`、バイナリ出力等を完全に保存する仕組みではありません。JS内で捕捉して処理した例外は自動記録しません。採用版go-quickjs v0.27.0の`execFile`は失敗時のErrorにコマンドの`code`・`stdout`・`stderr`を持つため取得できますが、`execFileSync`は失敗時に出力を保持しないため、この改善だけではその出力を復元できません。
 
-## REPLと閲覧
+## 過去のREPLイベントログ
 
-REPLのプロンプト・補完・カーソル制御はイベントへ入れません。ファイル指定なら対話画面を保ち、評価結果・JS出力・agentイベントを記録します。`repl --events=-`ではJSONL専用のstdoutを確保するため、入力プロンプトと端末制御をstderr側へ出します。
+旧バージョンの保存済みJSONLには、REPL評価結果の`repl.result`とエラーの`repl.error`が含まれることがあります。`noe observe`はこれらの既存ログも読み取り、人間向けに表示します。現行CLIはこの2種類のイベントを生成しません。プロンプト・補完・カーソル制御は当時もイベントへ入りませんでした。
 
 ```sh
 tail -f agent.jsonl | jq --unbuffered -c .

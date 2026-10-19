@@ -54,11 +54,13 @@ NOE内の親子agentは既存の起動・観察・操作APIで連携でき、こ
 
 サーバーSDKの採用、通信方式、起動・公開方法は未決定です。スパイクの`server.js`はクライアント検証用fixtureであり、製品のMCPサーバー機能ではありません。クライアントSDKの検証済み範囲を、そのままサーバーSDKの互換性確認とは扱いません。可能ならJSで実装します。
 
-### <未完了> REPLの削除 — 2026-10-19
+### <完了> REPLの削除 — 2026-10-19
 
-利用者の作業メモ：REPLを削除し、日常利用は`noe run`とZedの編集・タスク実行を中心にする。利用頻度に対して、REPL固有の入力UI・履歴・補完・await変換・session回復の保守負担が大きい。
+日常利用をファイル編集と`noe run`、短い確認を`noe eval`へ揃え、REPLを削除しました。CLI、入力UI、履歴、補完、await変換、Sessionと入力間の回復専用処理・テスト・現行資料を撤去しました。
 
-削除時は`repl`コマンドと専用実装・テスト・資料を整理する。run/eval・agentでも使うイベントループと非同期I/Oの回収処理は、依存関係を確認してREPL固有部分から切り分ける。
+共有の実行・取消し・I/O回収、Worker・agent/run_js、docsと旧JSONLの閲覧は維持しています。[計画](development/repl-removal-plan.md)に基づき、実装・テスト・独立コードレビュー、その後の全E2E・race・vet・6対象ビルド・実CLI総合テストを完了しました。[実装・検証記録](development/repl-removal-implementation.md)を参照してください。
+
+`noe repl`は未対応コマンドとして終了コード2を返します。既存履歴ファイルは削除しません。v1.8.0のタグ・配布物は変更せず、Zedの開発環境整備は次の別候補です。
 
 ### <未完了> ZedでのNOEスクリプト開発環境の整備 — 2026-10-17
 
@@ -175,7 +177,7 @@ windowと応答予約が既知なら、固定入力と応答予約を差し引�
 
 #### <完了> 外部JS案から親用・人間用の観察口へ — 2026-10-17
 
-外部の観察JSそのものは同梱していません。目的だった逐次表示と親の観察はGo実装で提供済みです。`run/eval/repl`で共通の入口を使えます。
+外部の観察JSそのものは同梱していません。目的だった逐次表示と親の観察はGo実装で提供済みです。`run`・`eval`で入口を使えます。
 
 ```sh
 ./noe run --observe --events=agent.jsonl examples/agent/try-agent.js '任意の指示'
@@ -220,9 +222,9 @@ windowと応答予約が既知なら、固定入力と応答予約を差し引�
 
 ローカルの完全一致bare名をESMへ対応付け、main・Worker・agent生成JSで同じmapを利用できます。ライブラリやmapの配置場所は任意で、自動探索はしません。`~/.config/noe/lib/`も利用者側の配置例であり、予約パスではありません。[利用ガイド](import-map.md)・[検証記録](development/local-import-map-implementation.md)。
 
-### <完了> 自作REPLの必要性とqjsの再利用
+### <履歴・完了> 自作REPLの必要性とqjsの再利用
 
-固定版go-quickjsのqjs由来の入力・行編集ソースを取り込み、評価先はNOEのruntimeを使います。`noe repl`でstdlibとNOE moduleを対話的に試せます。依存更新だけでは取り込み済みUIソースは変わらないため、上流差分を確認して追随します。[REPLガイド](repl.md)・[統合記録](development/qjs-repl-integration.md)。
+v1.8.0時点では固定版go-quickjsのqjs由来の入力・行編集ソースを取り込み、評価先にNOEのruntimeを使っていました。当時の利用説明は[タグ付きv1.8.0のREPLガイド](https://forge.harakara.site/littleisland/noe/src/tag/v1.8.0/docs/repl.md)、統合経緯は[archive記録](archive/qjs-repl-integration.md)に残しています。2026-10-19の削除計画でこの決定は置き換えられ、現行のREPL利用・保守対象ではありません。[削除計画](development/repl-removal-plan.md)。
 
 ### <完了> 実行JS・未処理例外の記録、run_jsの捕捉出力上限
 

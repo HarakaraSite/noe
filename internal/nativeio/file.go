@@ -365,12 +365,10 @@ func (h *Host) asyncFile(run func() (any, error), convert func(any) (any, error)
 	p := h.rt.NewPromise()
 	w := h.rt.StartAsyncWork()
 	h.wg.Add(1)
-	h.active.Add(1)
 	go func() {
 		defer h.wg.Done()
 		value, err := run()
 		w.Complete(func(closed error) {
-			defer h.active.Add(-1)
 			if closed != nil {
 				if drop != nil {
 					drop(value)

@@ -181,7 +181,6 @@ func (h *Host) childObject(child *process.Child, request spawnRequest) (quickjs.
 		return quickjs.Value{}, err
 	}
 	w := h.rt.StartAsyncWork()
-	h.active.Add(1)
 	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
@@ -208,7 +207,7 @@ func (h *Host) childObject(child *process.Child, request spawnRequest) (quickjs.
 			_ = exited.Resolve(map[string]any{"code": code, "signal": signal})
 		})
 		s.pumps.Wait()
-		w.Complete(func(error) { h.active.Add(-1) })
+		w.Done()
 	}()
 	return o, nil
 }

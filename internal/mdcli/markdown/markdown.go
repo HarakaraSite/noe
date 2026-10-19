@@ -1201,7 +1201,7 @@ func visibleLen(s string) int {
 	return n
 }
 
-// Match NOE's qjs-derived REPL width rules for Japanese and combining marks.
+// Retain the qjs-derived width rules for Japanese and combining marks.
 func runeColumns(r rune) int {
 	if unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Me, r) || r == 0x200B || r == 0x200D {
 		return 0

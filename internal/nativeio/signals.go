@@ -51,10 +51,6 @@ func (h *Host) subscribeSignal(name string) (quickjs.Value, error) {
 	if !h.own(s) {
 		return quickjs.Value{}, h.rt.ThrowError("runtime is closing")
 	}
-	h.active.Add(1)
-	s.mu.Lock()
-	s.active = true
-	s.mu.Unlock()
 	remove, err := signals.Subscribe(name, s.enqueue)
 	if err != nil {
 		_ = s.Close()
@@ -80,7 +76,6 @@ type signalSubscription struct {
 
 	mu      sync.Mutex
 	closed  bool
-	active  bool
 	remove  func()
 	pending bool
 	posted  bool
@@ -190,8 +185,6 @@ func (s *signalSubscription) close(resolvePending bool) []*quickjs.Promise {
 	s.posted = false
 	remove := s.remove
 	s.remove = nil
-	active := s.active
-	s.active = false
 	var waiters []*quickjs.Promise
 	if resolvePending {
 		waiters = s.waiters
@@ -205,9 +198,6 @@ func (s *signalSubscription) close(resolvePending bool) []*quickjs.Promise {
 		remove()
 	}
 	s.work.Done()
-	if active {
-		s.h.active.Add(-1)
-	}
 	s.h.release(s)
 	return waiters
 }

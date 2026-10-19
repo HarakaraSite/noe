@@ -22,7 +22,7 @@ The `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`, `v1.3.1`, `v1.3.2`, `v1.3.3`, `v1.4.
 
 ## Reference checks before tagging
 
-Run these commands from the repository root on VM201 (Linux amd64, Go 1.27.2, C toolchain, Linux PTY), and record the code revision and results here before tagging:
+Run these commands from the repository root on VM201 (Linux amd64, Go 1.27.2, C toolchain), and record the code revision and results here before tagging:
 
 ```sh
 CGO_ENABLED=1 go test -race ./internal/... -count=1
@@ -30,7 +30,7 @@ go test -tags=e2e ./... -count=1
 go vet -tags=e2e ./...
 ```
 
-These are reference-environment checks, not generated workflow steps. E2E includes the actual CLI, local HTTP and file operations, and PTY REPL interaction. Race requires a C toolchain. No system-package installation is added to the release workflow to run these checks.
+These are reference-environment checks, not generated workflow steps. E2E includes the actual CLI, local HTTP and file operations, agents, and cancellation/cleanup. REPL and its PTY checks were removed after v1.8.0; the historical evidence below retains the checks performed for those releases. Race requires a C toolchain. No system-package installation is added to the release workflow to run these checks.
 
 ## v1.0.0 preparation — 2026-10-12
 

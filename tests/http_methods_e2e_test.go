@@ -79,7 +79,7 @@ console.log(JSON.stringify({created:createdValue, updated:updatedValue, removed:
 	}
 }
 
-func TestHTTPMethodsPipedREPLAndUnawaitedCompletion(t *testing.T) {
+func TestHTTPMethodsAndInvalidGETBodyThroughEval(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
 			w.WriteHeader(204)
@@ -94,21 +94,21 @@ func TestHTTPMethodsPipedREPLAndUnawaitedCompletion(t *testing.T) {
 	}))
 	defer server.Close()
 	url := strconv.Quote(server.URL)
-	repl := runREPLInput(t, t.TempDir(), map[string]string{"NOE_REPL_HISTORY": ""}, strings.Join([]string{
-		`const response = await fetch(` + url + `,{method:"patch",body:"雪"})`,
-		`const text = await response.text()`,
-		`console.log("REPL_PATCH", text)`,
-		`await fetch(` + url + `,{method:"GET",body:""})`,
-		`const removed = await fetch(` + url + `,{method:"DELETE"})`,
-		`console.log("REPL_DELETE", removed.status)`,
-		`console.log("REPL_CONTINUED")`,
-	}, "\n")+"\n")
-	requireExit(t, repl, 0)
-	if !strings.Contains(repl.stdout, "REPL_PATCH PATCH:雪") || !strings.Contains(repl.stdout, "REPL_DELETE 204") || !strings.Contains(repl.stdout, "REPL_CONTINUED") || !strings.Contains(repl.stderr, "GET request cannot have a body") {
-		t.Fatalf("REPL fetch recovery: %+v", repl)
-	}
-	source := `fetch(` + url + `,{method:"PUT",body:"unawaited"}).then(r => r.text()).then(text => console.log(text)); console.log("returned");`
+	source := `const response = await fetch(` + url + `,{method:"patch",body:"雪"});
+const text = await response.text();
+const removed = await fetch(` + url + `,{method:"DELETE"});
+let getBodyError = "";
+try { await fetch(` + url + `,{method:"GET",body:""}); } catch (error) { getBodyError = String(error); }
+if(text!=="PATCH:雪"||removed.status!==204||!getBodyError.includes("GET request cannot have a body"))throw Error("HTTP method behavior");
+console.log("HTTP methods verified");`
 	got := runCLI(t, t.TempDir(), nil, "eval", source)
+	requireExit(t, got, 0)
+	if got.stdout != "HTTP methods verified\n" || got.stderr != "" {
+		t.Fatalf("HTTP method behavior: %+v", got)
+	}
+
+	source = `fetch(` + url + `,{method:"PUT",body:"unawaited"}).then(r => r.text()).then(text => console.log(text)); console.log("returned");`
+	got = runCLI(t, t.TempDir(), nil, "eval", source)
 	requireExit(t, got, 0)
 	if got.stdout != "returned\nPUT:unawaited\n" || got.stderr != "" {
 		t.Fatalf("unawaited update did not finish: %+v", got)

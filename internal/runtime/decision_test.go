@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -48,29 +47,6 @@ console.log("decisions ready");`
 	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "decision.js"), source}, Options{Stdout: &out, Agent: &agent.Options{DecisionProvider: p}})
 	if code != 0 || err != nil || out.String() != "decisions ready\n" || calls.Load() != 2 {
 		t.Fatalf("code=%d err=%v out=%q calls=%d", code, err, out.String(), calls.Load())
-	}
-}
-
-func TestDecisionSessionReusesCurrentOperation(t *testing.T) {
-	s, err := NewSession(Options{Agent: &agent.Options{DecisionProvider: decisionProviderFunc(echoDecision)}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	for _, input := range []string{
-		`const dm=await import("noe:decision")`,
-		`const decide=dm.decide`,
-		`const config={provider:"openrouter",model:"m",state:"first",questions:{q:{}}}`,
-		`await decide(config).then(r=>r.answers.q.state)`,
-		`await decide({...config,state:"second"}).then(r=>r.answers.q.state)`,
-	} {
-		got := s.Eval(context.Background(), input)
-		if got.Err != nil || got.Exit {
-			t.Fatalf("input=%q result=%+v", input, got)
-		}
-		if strings.Contains(input, "second") && got.Output != "'second'" {
-			t.Fatalf("result=%+v", got)
-		}
 	}
 }
 

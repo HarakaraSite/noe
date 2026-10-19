@@ -1,18 +1,10 @@
 # ローカルESMとimport map
 
-自作JSや動作確認済みのESMを名前でimportできます。`run`・`eval`・`repl`で同じJSONを指定します。
+自作JSや動作確認済みのESMを名前でimportできます。`run`・`eval`で同じJSONを指定します。
 
 ```sh
 ./noe run --import-map examples/import-map/import-map.json examples/import-map/main.js
 ./noe eval --import-map examples/import-map/import-map.json 'import {sum} from "app/math"; console.log(sum([1,2,3]))'
-./noe repl --import-map examples/import-map/import-map.json
-```
-
-REPLではdynamic importを使います。
-
-```js
-const math = await import("app/math")
-math.sum([1, 2, 3])
 ```
 
 `--import-map path`と`--import-map=path`に対応します。optionはscriptやevalのコードより前に置きます。script名以後と`--`以後は従来どおり引数として渡します。自動探索や環境変数によるmap指定はありません。共通mapを使う場合も`--import-map ~/.config/noe/import-map.json`で明示します。
@@ -84,4 +76,4 @@ module IDは字句上の絶対pathで統一します。symlink・hardlink・file
 
 ESM形式でも、必要なホストAPIがNOEにあるかは別途確認が必要です。npm/package.json/node_modules探索、CommonJS loader、TypeScript変換、HTTP/HTTPS importは提供しません。外部ツールで準備したbundleと、NOE向けに適合させたJSを利用できます。[MCP SDKの分割例](../scripts/spikes/process-io-mcp/README.md)を参照してください。
 
-[API](api.md) · [REPL](repl.md) · [実装・検証記録](development/local-import-map-implementation.md)
+[API](api.md) · [実装・検証記録](development/local-import-map-implementation.md)

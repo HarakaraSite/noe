@@ -197,24 +197,12 @@ throw Error("ordinary tool failure");`}, "a", "b"), nil
 		})
 	}
 }
-func TestImageModuleLazyRootReadErrorAndREPLGeneration(t *testing.T) {
-	s, err := NewSession(Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	result := s.Eval(context.Background(), `const im=await import("noe:image")`)
-	if result.Err != nil {
-		t.Fatalf("import %+v", result)
-	}
-	result = s.Eval(context.Background(), `await im.read_image("missing.png").catch(e=>[e.name,e.code].join(":"))`)
-	if result.Err != nil || result.Output != "'ImageError:input'" {
-		t.Fatalf("read %+v", result)
-	}
-	result = s.Eval(context.Background(), `await im.generate_image({provider:"openai-chatgpt",model:"gpt-image-2.5-flare",prompt:"circle",output:"image.png"}).catch(e=>[e.name,e.code].join(":"))`)
-	if result.Err != nil || result.Output != "'ImageError:unsupported'" {
-		t.Fatalf("generation %+v", result)
-	}
+func TestImageModuleLazyRootReadErrorAndUnsupportedGeneration(t *testing.T) {
+	runStdlib(t, `import * as im from "noe:image";
+const read=await im.read_image("missing.png").catch(e=>[e.name,e.code].join(":"));
+if(read!=="ImageError:input")throw Error(read);
+const generation=await im.generate_image({provider:"openai-chatgpt",model:"gpt-image-2.5-flare",prompt:"circle",output:"image.png"}).catch(e=>[e.name,e.code].join(":"));
+if(generation!=="ImageError:unsupported")throw Error(generation);`, Options{})
 }
 
 type runtimeImageProvider func(context.Context, imageapi.Request) (imageapi.Generated, error)

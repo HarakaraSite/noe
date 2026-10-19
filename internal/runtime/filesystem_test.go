@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -34,23 +33,6 @@ if (fs.existsSync(before) || fs.existsSync(after) || fs.existsSync(` + jsString(
 console.log("filesystem ready");`
 	if out := runStdlib(t, source, Options{Cwd: dir}); out != "filesystem ready\n" {
 		t.Fatalf("output=%q", out)
-	}
-}
-
-func TestStdlibFilesystemErrorsRecoverInSession(t *testing.T) {
-	s, err := NewSession(Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	missingPath := jsString(t, filepath.Join(t.TempDir(), "missing.txt"))
-	result := s.Eval(context.Background(), `await (await import("node:fs/promises")).readFile(`+missingPath+`, "utf8")`)
-	if result.Exit || result.Err == nil {
-		t.Fatalf("missing file result=%+v", result)
-	}
-	result = s.Eval(context.Background(), `40 + 2`)
-	if result.Exit || result.Err != nil || result.Output != "42" {
-		t.Fatalf("session did not recover after filesystem rejection: %+v", result)
 	}
 }
 

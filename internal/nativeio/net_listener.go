@@ -38,7 +38,6 @@ func (h *Host) startListen(payload string, listen netListenFunc) quickjs.Value {
 		return reject(os.ErrClosed)
 	}
 	work := h.rt.StartAsyncWork()
-	h.active.Add(1)
 	if !attempt.start(func() {
 		defer h.wg.Done()
 		var bound *boundNetListener
@@ -54,7 +53,6 @@ func (h *Host) startListen(payload string, listen netListenFunc) quickjs.Value {
 		}
 		attempt.finishListen(bound, listenErr)
 		work.Complete(func(closed error) {
-			defer h.active.Add(-1)
 			if closed != nil {
 				_ = attempt.Close()
 				return
@@ -85,7 +83,6 @@ func (h *Host) startListen(payload string, listen netListenFunc) quickjs.Value {
 	}) {
 		h.wg.Done()
 		work.Complete(func(closed error) {
-			defer h.active.Add(-1)
 			attempt.finish()
 			if closed == nil {
 				promise.RejectError(os.ErrClosed)
@@ -505,7 +502,6 @@ type netListener struct {
 
 func newNetListener(h *Host, bound *boundNetListener) (*netListener, error) {
 	listener := &netListener{h: h, bound: bound, work: h.rt.StartAsyncWork(), closeDone: make(chan struct{})}
-	h.active.Add(1)
 	if !h.own(listener) {
 		return nil, os.ErrClosed
 	}
@@ -569,7 +565,6 @@ func (l *netListener) accept() *quickjs.Promise {
 		return promise
 	}
 	l.h.wg.Add(1)
-	l.h.active.Add(1)
 	l.h.mu.Unlock()
 	l.mu.Unlock()
 	go func() {
@@ -577,7 +572,6 @@ func (l *netListener) accept() *quickjs.Promise {
 		defer l.accepts.Done()
 		conn, err := l.bound.Accept()
 		work.Complete(func(closed error) {
-			defer l.h.active.Add(-1)
 			if closed != nil {
 				if conn != nil {
 					_ = conn.Close()
@@ -643,13 +637,11 @@ func (l *netListener) closePromise() *quickjs.Promise {
 		return promise
 	}
 	l.h.wg.Add(1)
-	l.h.active.Add(1)
 	l.h.mu.Unlock()
 	go func() {
 		defer l.h.wg.Done()
 		err := l.Close()
 		work.Complete(func(closed error) {
-			defer l.h.active.Add(-1)
 			if closed != nil {
 				return
 			}
@@ -672,7 +664,6 @@ func (l *netListener) Close() error {
 		l.accepts.Wait()
 		l.h.release(l)
 		l.work.Done()
-		l.h.active.Add(-1)
 		close(l.closeDone)
 	})
 	<-l.closeDone

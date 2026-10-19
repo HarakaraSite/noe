@@ -15,7 +15,7 @@ func signalRuntime(t *testing.T) (*quickjs.Runtime, *Host) {
 }
 
 func TestSignalsImportIsInactiveAndUnsupportedNameThrowsCode(t *testing.T) {
-	rt, h := signalRuntime(t)
+	rt, _ := signalRuntime(t)
 	if _, err := rt.EvalModule("signals-import.mjs", `
 		import {subscribe} from "noe:signals";
 		let code;
@@ -28,8 +28,8 @@ func TestSignalsImportIsInactiveAndUnsupportedNameThrowsCode(t *testing.T) {
 	if err != nil || code.String() != "ERR_UNSUPPORTED_SIGNAL" {
 		t.Fatalf("unsupported signal code = %v, err=%v", code, err)
 	}
-	if h.Active() || rt.Busy() {
-		t.Fatalf("module import or rejected subscription activated runtime: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("module import or rejected subscription activated runtime: busy=%v", rt.Busy())
 	}
 }
 
@@ -44,8 +44,8 @@ func TestSignalQueuedNotificationClosesAndResolvesPendingNextFIFO(t *testing.T) 
 		t.Fatal(err)
 	}
 	s := findSignalSubscription(t, h)
-	if !h.Active() || !rt.Busy() {
-		t.Fatalf("subscription did not keep owner alive: active=%v busy=%v", h.Active(), rt.Busy())
+	if !rt.Busy() {
+		t.Fatalf("subscription did not keep owner alive: busy=%v", rt.Busy())
 	}
 
 	// The subscription has two pending next requests. A signal resolves the
@@ -72,8 +72,8 @@ func TestSignalQueuedNotificationClosesAndResolvesPendingNextFIFO(t *testing.T) 
 	if _, err := closeResult.Await(ctx); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	if h.Active() || rt.Busy() {
-		t.Fatalf("close retained runtime: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("close retained runtime: busy=%v", rt.Busy())
 	}
 	if got := len(h.resources); got != 3 {
 		t.Fatalf("owned resources after close = %d, want only stdio endpoints", got)
@@ -112,7 +112,7 @@ func TestSignalsWithoutPendingNextCoalesceOneNotification(t *testing.T) {
 }
 
 func TestSignalCloseResolvesAllPendingNextAndReturnIsIdempotent(t *testing.T) {
-	rt, h := signalRuntime(t)
+	rt, _ := signalRuntime(t)
 	if _, err := rt.EvalModule("signals-close.mjs", `
 		import {subscribe} from "noe:signals";
 		globalThis.signalIterator = subscribe("SIGINT");
@@ -142,8 +142,8 @@ func TestSignalCloseResolvesAllPendingNextAndReturnIsIdempotent(t *testing.T) {
 		t.Fatalf("second pending next after return: %v", err)
 	}
 	assertSignalResult(t, second, "", true)
-	if h.Active() || rt.Busy() {
-		t.Fatalf("return retained runtime: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("return retained runtime: busy=%v", rt.Busy())
 	}
 	if _, err := rt.Eval(`signalIterator.close()`); err != nil {
 		t.Fatalf("second close: %v", err)
@@ -163,8 +163,8 @@ func TestSignalRuntimeCloseDoesNotNeedJSDelivery(t *testing.T) {
 	if err := rt.Close(); err != nil {
 		t.Fatalf("runtime close: %v", err)
 	}
-	if !s.closed || h.Active() {
-		t.Fatalf("runtime close left subscription active: closed=%v active=%v", s.closed, h.Active())
+	if !s.closed || rt.Busy() {
+		t.Fatalf("runtime close left subscription active: closed=%v active=%v", s.closed, rt.Busy())
 	}
 }
 

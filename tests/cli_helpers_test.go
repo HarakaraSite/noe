@@ -31,11 +31,6 @@ func runCLIWithInput(t *testing.T, dir string, stdin string, args ...string) cli
 	return runCLICommand(t, dir, nil, strings.NewReader(stdin), args...)
 }
 
-func runREPLInput(t *testing.T, dir string, env map[string]string, input string) cliResult {
-	t.Helper()
-	return runCLICommand(t, dir, env, strings.NewReader(input), "repl")
-}
-
 func runCLICommand(t *testing.T, dir string, extraEnv map[string]string, stdin io.Reader, args ...string) cliResult {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

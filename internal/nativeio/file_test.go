@@ -149,8 +149,8 @@ func TestOpenFileAloneDoesNotKeepRuntimeAliveAndCloseReclaimsIt(t *testing.T) {
 	}
 	rt, h, loop := streamRuntime(t, Options{Cwd: cwd})
 	evalStreams(t, rt, loop, `import {open} from "noe:fs-handle"; export const file=await open("idle.bin");`)
-	if h.Active() || rt.Busy() {
-		t.Fatalf("open file kept runtime active: active=%v busy=%v", h.Active(), rt.Busy())
+	if rt.Busy() {
+		t.Fatalf("open file kept runtime active: busy=%v", rt.Busy())
 	}
 	file := onlyOwnedFile(t, h)
 	if _, err := file.file.(*os.File).Stat(); err != nil {

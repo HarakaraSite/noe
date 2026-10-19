@@ -112,25 +112,6 @@ await pipe(stdin,stdout); console.log("legacy still works");`, Options{Stdin: in
 	}
 }
 
-func TestProcessREPLWithinOneInputAndCancelledLifetime(t *testing.T) {
-	s, err := NewSession(Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	input := `await (async()=>{ const {spawn}=await import("noe:process"); const c=await ` + processHelperJS(t, "bytes") + `; const bytes=new Uint8Array(await new Response(c.stdout).arrayBuffer()); await c.exited;await c.close();return Array.from(bytes).join(",") })()`
-	result := s.Eval(context.Background(), input)
-	if result.Err != nil || result.Exit || result.Output != "'0,255,128,10'" {
-		t.Fatalf("result=%+v", result)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	result = s.Eval(ctx, `await (async()=>{const {spawn}=await import("noe:process");await `+processHelperJS(t, "wait")+`;await new Promise(()=>{})})()`)
-	if result.Err == nil || !result.Exit {
-		t.Fatalf("cancelled process left session alive: %+v", result)
-	}
-}
-
 func TestProcessModuleInWorkerUsesOwnEnvironment(t *testing.T) {
 	dir := t.TempDir()
 	worker := `import {parentPort} from "node:worker_threads"; import {spawn} from "noe:process";

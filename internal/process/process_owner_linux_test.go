@@ -326,7 +326,8 @@ func waitForProcessGone(t *testing.T, pid int) {
 
 func linuxProcessAlive(pid int) (bool, error) {
 	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
-	if errors.Is(err, os.ErrNotExist) {
+	// A process can disappear after procfs lookup but before the stat read.
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
 		return false, nil
 	}
 	if err != nil {

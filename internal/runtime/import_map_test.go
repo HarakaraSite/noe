@@ -63,33 +63,17 @@ func TestImportMapRuntimeAndInMemoryEntry(t *testing.T) {
 	}
 }
 
-func TestImportMapSessionRetainsSourceAcrossInputs(t *testing.T) {
+func TestImportMapCachesCanonicalSourceWithinExecution(t *testing.T) {
 	dir, snapshot := importMapFixture(t)
-	session, err := NewSession(Options{Cwd: dir, ImportMap: snapshot})
-	if err != nil {
-		t.Fatal(err)
+	source := `const first=await import("app/lib");
+const {unlinkSync}=await import("node:fs");
+unlinkSync(` + jsString(t, filepath.Join(dir, "vendor/lib.mjs")) + `);
+const second=await import("app/again"), third=await import("app/lib");
+if(first!==second || second!==third)throw Error("canonical module cache lost");`
+	code, err := Execute(context.Background(), Source{filepath.Join(dir, "cache.mjs"), source}, Options{Cwd: dir, ImportMap: snapshot})
+	if code != 0 || err != nil {
+		t.Fatalf("code=%d err=%v", code, err)
 	}
-	defer session.Close()
-	for _, input := range []string{`const first=await import("app/lib")`, `first.value`} {
-		result := session.Eval(context.Background(), input)
-		if result.Err != nil {
-			t.Fatal(result.Err)
-		}
-	}
-	if err := os.Remove(filepath.Join(dir, "vendor/lib.mjs")); err != nil {
-		t.Fatal(err)
-	}
-	for _, input := range []string{`const second=await import("app/again")`, `const third=await import("app/lib")`} {
-		result := session.Eval(context.Background(), input)
-		if result.Err != nil {
-			t.Fatal(result.Err)
-		}
-	}
-	result := session.Eval(context.Background(), `first === second && second === third`)
-	if result.Err != nil || result.Output != "true" {
-		t.Fatalf("result=%+v", result)
-	}
-
 }
 
 func TestImportMapWorkersAndBuiltinRestrictions(t *testing.T) {

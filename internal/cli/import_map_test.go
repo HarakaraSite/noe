@@ -27,15 +27,14 @@ func TestImportMapCLI(t *testing.T) {
 	}
 	t.Chdir(dir)
 	for _, tc := range []struct {
-		args        []string
-		input, want string
+		args []string
+		want string
 	}{
-		{[]string{"run", "--import-map", "maps/map.json", "scripts/main.js", "--import-map=unchanged"}, "", "42 [\"--import-map=unchanged\"]\n"},
-		{[]string{"eval", "--import-map=maps/map.json", `import {value} from "app/value";console.log(value)`}, "", "42\n"},
-		{[]string{"repl", "--import-map=maps/map.json"}, "const lib=await import(\"app/value\")\nlib.value\n", "> > 42\n> "},
+		{[]string{"run", "--import-map", "maps/map.json", "scripts/main.js", "--import-map=unchanged"}, "42 [\"--import-map=unchanged\"]\n"},
+		{[]string{"eval", "--import-map=maps/map.json", `import {value} from "app/value";console.log(value)`}, "42\n"},
 	} {
 		var out, errOut bytes.Buffer
-		code := Run(context.Background(), tc.args, strings.NewReader(tc.input), &out, &errOut)
+		code := Run(context.Background(), tc.args, strings.NewReader(""), &out, &errOut)
 		if code != 0 || out.String() != tc.want || errOut.Len() != 0 {
 			t.Fatalf("args=%v code=%d out=%q err=%q", tc.args, code, out.String(), errOut.String())
 		}
@@ -63,15 +62,10 @@ func TestImportMapCLIValidationAndOptionBoundaries(t *testing.T) {
 	if err := os.WriteFile(bad, []byte(`{"imports":{"fs":"./never-read.js"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	for _, command := range []string{"eval", "repl"} {
-		args := []string{command, "--import-map", bad}
-		if command == "eval" {
-			args = append(args, `console.log("must not execute")`)
-		}
-		var out, errOut bytes.Buffer
-		code := Run(context.Background(), args, strings.NewReader(""), &out, &errOut)
-		if code != 1 || out.Len() != 0 || !strings.Contains(errOut.String(), "reserved") {
-			t.Fatalf("code=%d out=%q err=%q", code, out.String(), errOut.String())
-		}
+	args := []string{"eval", "--import-map", bad, `console.log("must not execute")`}
+	var out, errOut bytes.Buffer
+	code := Run(context.Background(), args, strings.NewReader(""), &out, &errOut)
+	if code != 1 || out.Len() != 0 || !strings.Contains(errOut.String(), "reserved") {
+		t.Fatalf("code=%d out=%q err=%q", code, out.String(), errOut.String())
 	}
 }

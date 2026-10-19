@@ -454,7 +454,7 @@ module登録だけでなく、入力ごとの評価context・agent Operationの�
 
 当初の選択肢は、(1) 現在のREPLを最小限で維持、(2) qjsの共通部分を再利用、(3) REPLを外して汎用の対話実行はqjsを使う、の三つ。その後の合意では、**固定版qjsの入力・行編集ソースをNOEへ取り込む**方針を選んだ。上流への公開パッケージ化の提案・採用は前提にしない。評価、await、履歴ファイル、補完候補の取得、agent operationと取消しは既存NOEの責務として残す。
 
-実装・検証と更新時の扱いは[qjs REPL入力の統合記録](../development/qjs-repl-integration.md)を参照。エンジンの依存更新だけでは取り込んだソースは更新されないため、上流の入力UI差分を見て必要な変更を移す。将来、実用的な公開REPL部品が上流に提供された場合は再評価できる。参照：[go-quickjsのqjsコマンド](https://pkg.go.dev/github.com/go-quickjs/go-quickjs/cmd/qjs)、固定版のローカルmodule source。
+実装・検証と当時の更新方針は[qjs REPL入力の統合記録](qjs-repl-integration.md)を参照。エンジンの依存更新だけでは取り込んだソースは更新されないため、上流の入力UI差分を見て必要な変更を移す方針を採った。これはv1.8.0までの記録で、現在の製品はREPL入力UIを保守していない。参照：[go-quickjsのqjsコマンド](https://pkg.go.dev/github.com/go-quickjs/go-quickjs/cmd/qjs)、[v1.8.0の入力UI provenance](https://forge.harakara.site/littleisland/noe/src/tag/v1.8.0/internal/replui/README.md)。
 
 ## v1.0.0時点の優先順案
 
