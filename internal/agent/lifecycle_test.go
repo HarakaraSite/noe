@@ -265,7 +265,7 @@ func TestLifecycleFatalFailureClosesQueueAdmissionBeforeCancellingReservations(t
 	for _, text := range []string{"initial", "reserved"} {
 		accepted := make(chan struct{})
 		close(accepted)
-		cmd := &command{id: text, instruction: text, status: "accepted", accepted: accepted}
+		cmd := &command{id: text, instruction: text, status: "accepted", accepted: accepted, done: make(chan struct{})}
 		instance.queue = append(instance.queue, cmd)
 		instance.commands[text] = cmd
 	}
@@ -283,6 +283,12 @@ func TestLifecycleFatalFailureClosesQueueAdmissionBeforeCancellingReservations(t
 	snapshot := lifecycleSnapshot(t, op, id, true)
 	if snapshot.State != "failed" || snapshot.Reason != "supervision_failed" || snapshot.QueueLength != 0 {
 		t.Fatalf("fatal snapshot: %+v", snapshot)
+	}
+	if got := taskWaitResult(t, op, id, "initial"); got.State != "failed" {
+		t.Fatalf("fatal task wait result: %+v", got)
+	}
+	if got := taskWaitResult(t, op, id, "reserved"); got.State != "cancelled" || got.RunID != "" {
+		t.Fatalf("fatal shutdown reservation wait result: %+v", got)
 	}
 	op.Close()
 }
@@ -322,7 +328,7 @@ func TestLifecycleCancellationWaitsForCommandAcceptancePublication(t *testing.T)
 	defer func() { publishOnce.Do(func() { close(published) }); h.Close() }()
 	// This is the interval in queue_agent between insertion and publication.
 	// No wake has been sent yet, so cancellation must drain this reservation.
-	cmd := &command{id: "pending", instruction: "pending", status: "accepted", accepted: published}
+	cmd := &command{id: "pending", instruction: "pending", status: "accepted", accepted: published, done: make(chan struct{})}
 	h.mu.Lock()
 	instance := h.instances[id]
 	instance.queue = append(instance.queue, cmd)

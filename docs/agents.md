@@ -87,7 +87,7 @@ root agentには`provider`・`model`・`effort`が必須です。`effort: "auto"
 
 `--observe`はthinking・summary（providerが返す場合）、途中の発言、`run_js`の先頭コメント・成功失敗、stderr、最終回答を表示します。通常のスクリプト/toolのstdoutはこの表示から省きます。表を含むMarkdownは色なしで整形します。
 
-`run`・`eval`は`--events`でagentイベントを記録できます。パス指定は追記、単独指定は起動時のcwdに日時・ID付きのログを作り、`--events=-`はstdoutをJSONLにします。同じstdoutを使う`--observe`と`--events=-`は併用しません。従来の`NOE_AGENT_TRACE=1`はstderrへメタデータtraceを出します。
+`run`・`eval`は`--events`でagentイベントを記録できます。パス指定は追記、単独指定は起動時のcwdの`.noe/events/`に日時・ID付きのログを作り、`--events=-`はstdoutをJSONLにします。自動保存先のディレクトリはなければ作成します。同じstdoutを使う`--observe`と`--events=-`は併用しません。従来の`NOE_AGENT_TRACE=1`はstderrへメタデータtraceを出します。
 
 捕捉する`run_js`のstdout・stderrは各64KiB（先頭32KiB＋末尾32KiB）までです。超過分は省略マーカーとバイト数を残し、自動保存はしません。完全なログが必要ならJSやコマンドからファイルへ書き出します。イベント内容と親からの観察は[JSONLイベント](events.md)・[観察の入口](observe.md)を参照してください。
 

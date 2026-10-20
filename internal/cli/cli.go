@@ -35,7 +35,7 @@ const usage = `Usage:
 
 Events:
   --observe displays readable events on stdout without a pipe.
-  --events creates noe-events-<date>-<time>-<id>.jsonl in the starting cwd.
+  --events creates .noe/events/noe-events-<date>-<time>-<id>.jsonl under the starting cwd.
   --events=path appends JSONL to a file; --events=- writes JSONL to stdout.
 `
 

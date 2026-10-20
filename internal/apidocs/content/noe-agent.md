@@ -1,6 +1,6 @@
 # `noe:agent`
 
-`noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `steer_agent`, `interrupt_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
+`noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `steer_agent`, `interrupt_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
 
 A managed agent owns its task runtime and descendants. A returned snapshot is a point-in-time plain object, not a live handle. Use `observe_agent` to refresh it. Accepted task failures are represented in the result or snapshot; ordinary task failure does not make `run_agent` reject. Input, configuration, or acceptance failures reject. Cancellation follows ownership and recovers work owned by the current evaluation.
 
@@ -12,6 +12,7 @@ A managed agent owns its task runtime and descendants. A returned snapshot is a 
 | `spawn_agent` | Start an instance and return its ID after launch and initial-task acceptance. |
 | `observe_agent` | Read a live snapshot or inspect an existing event log. |
 | `queue_agent` | Submit a future task to a keep-alive instance. |
+| `wait_task` | Wait for the retained outcome of one accepted task. |
 | `steer_agent` | Add guidance to an active task. |
 | `interrupt_agent` | Cancel one task or stop an instance and its queue. |
 | `list_models` | List configured catalog entries without contacting a provider. |
@@ -60,7 +61,7 @@ if (snapshot.lastResult?.state === "completed") {
 
 ## spawn_agent
 
-`spawn_agent(config?, instruction?, options?) -> Promise<{agentId}>` returns after the instance is created and an initial task, if supplied, is accepted. It does not wait for the first model response or task completion. If `keepAlive` is false (the default), `instruction` is required. With `keepAlive: true`, omit `instruction` to start an idle instance, or provide an initial task.
+`spawn_agent(config?, instruction?, options?) -> Promise<{agentId, commandId?}>` returns after the instance is created and an initial task, if supplied, is accepted. `commandId` identifies the initial task and is absent for an idle launch. It does not wait for the first model response or task completion. If `keepAlive` is false (the default), `instruction` is required. With `keepAlive: true`, omit `instruction` to start an idle instance, or provide an initial task.
 
 The new instance belongs to the current owner. A fresh instance has its own conversation and system instructions. A new child inherits provider, model, effort, maxTokens, hooks, contextBudget, and contextPolicy when those fields are omitted; it does not inherit name, system, maxSteps, or cacheKey. Root execution limits remain shared and cannot be overridden by a child.
 
@@ -75,6 +76,25 @@ For an existing event log, pass `{logPath, runId, cursor?, wait?, includeThinkin
 `queue_agent({agentId, instruction, commandId?}) -> Promise<{commandId, status}>` submits a nonempty instruction to a `keepAlive` instance in `starting`, `running`, or `idle` state. A queued task receives a new run ID and starts after earlier queued work. It continues the instance's confirmed conversation after context trimming; trimmed history is not restored. Its runtime, hook-module state, cancellation scope, and `maxSteps` counter are new.
 
 If omitted, `commandId` is generated. Repeating the same ID with the same instruction returns its current status without submitting a duplicate; reusing that ID with different text is an error. Finished instances and instances started without `keepAlive` reject queue requests.
+
+## wait_task
+
+`wait_task({agentId, commandId}) -> Promise<TaskOutcome>` waits for one accepted initial or queued task. Obtain `commandId` from `spawn_agent` with an instruction or from `queue_agent`. It does not wait for the instance to become idle or stop; a later task may already be running when the Promise resolves.
+
+The result is `{runId, commandId, state, answer, error?, errorDetails?}`, with `state` equal to `completed`, `failed`, or `cancelled`. Task failures and cancellations resolve as data. A task cancelled before it starts has an empty `runId` and `answer`. Invalid, unknown, or unowned IDs reject. Steer command IDs are not task IDs.
+
+Completed outcomes remain available within the owning evaluation for its NOE host lifetime, including after the instance stops. Repeated or concurrent waits receive the same outcome without consuming it, and later tasks cannot overwrite it. The usual ownership scope still applies after the owner ends; there is no persistence across host shutdown. Waiting uses completion notifications without polling, additional model requests, or wait-specific observe/JSONL events. Cancelling a wait does not itself cancel the target; owner cancellation retains the usual cleanup of owned agents.
+
+```js
+import { spawn_agent, queue_agent, wait_task } from "noe:agent";
+
+const worker = await spawn_agent({
+  provider: "openrouter", model: "provider/model-id", effort: "auto",
+}, undefined, {keepAlive: true});
+const task = await queue_agent({agentId: worker.agentId, instruction: "Review the plan."});
+const result = await wait_task({agentId: worker.agentId, commandId: task.commandId});
+if (result.state === "completed") console.log(result.answer);
+```
 
 ## steer_agent
 
@@ -120,7 +140,7 @@ export async function beforeTool(event) {
 
 ## HookAPI.agents
 
-The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `steer_agent`, `interrupt_agent`, and `list_models` with the same argument and return contracts as this module. It is bound to that hook invocation, preserving its ownership and cause information. Requests made through the callback API are cancelled when the callback returns; an agent started by a hook remains owned by the run and is recovered with it. Prefer `api.agents` when the action should be attributed to that hook invocation.
+The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `steer_agent`, `interrupt_agent`, and `list_models` with the same argument and return contracts as this module. It is bound to that hook invocation, preserving its ownership and cause information. Requests made through the callback API are cancelled when the callback returns; an agent started by a hook remains owned by the run and is recovered with it. Prefer `api.agents` when the action should be attributed to that hook invocation.
 
 ## HookAPI.context.get
 

@@ -70,7 +70,7 @@ snapshotは取得時点の情報であり、hook実行中に新しいsteerが届
 
 ## hook用API
 
-`api.agents`は`run_agent`、`spawn_agent`、`observe_agent`、`queue_agent`、
+`api.agents`は`run_agent`、`spawn_agent`、`observe_agent`、`queue_agent`、`wait_task`、
 `steer_agent`、`interrupt_agent`、`list_models`を持つ。
 引数・戻り値・受付と完了の区別は[通常のagent API](api.md)と同じ。
 各hookの呼出元へ束縛され、同時実行中の別hookの原因情報と混ざらない。

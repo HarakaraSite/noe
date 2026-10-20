@@ -477,7 +477,7 @@ func (b *Binding) agentRequestHook(scopeID, method, payload string) *quickjs.Pro
 
 func hookAPIMethod(method string) bool {
 	switch method {
-	case "list_models", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "steer_agent", "interrupt_agent", "execution_get", "context_get", "context_set_runtime_info":
+	case "list_models", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "wait_task", "steer_agent", "interrupt_agent", "execution_get", "context_get", "context_set_runtime_info":
 		return true
 	}
 	return false

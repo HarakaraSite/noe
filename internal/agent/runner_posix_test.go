@@ -126,7 +126,7 @@ printf 'fixture stderr\n' >&2
 	if !strings.Contains(result.Stdout, "marker=fixture-environment\n") {
 		t.Errorf("ordinary environment was not preserved: %q", result.Stdout)
 	}
-	if !strings.Contains(result.Stdout, "source-begin\nimport { run_agent, spawn_agent, observe_agent, queue_agent, steer_agent, interrupt_agent } from \"noe:agent\";\nglobalThis.fixtureValue = 42;\nsource-end\n") {
+	if !strings.Contains(result.Stdout, "source-begin\nimport { run_agent, spawn_agent, observe_agent, queue_agent, wait_task, steer_agent, interrupt_agent } from \"noe:agent\";\nglobalThis.fixtureValue = 42;\nsource-end\n") {
 		t.Errorf("temporary source did not include the agent prelude and input: %q", result.Stdout)
 	}
 	if result.Stderr != "fixture stderr\n" {

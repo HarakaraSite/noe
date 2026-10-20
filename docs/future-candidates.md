@@ -7,6 +7,12 @@
 
 ## 検討を続ける候補
 
+### <一部完了> タスクループの完了待ちと観察 — 2026-10-20
+
+利用者の当面の運用方針として、親NOEを`--events`付きで起動する。親・子・孫・同じinstanceのqueue taskは共通のJSONLへ記録し、必要なrunを`runId`で選んで読む。通常の状態確認には`observe_agent({agentId})`、thinking等の詳細確認には`observe_agent({logPath, runId, includeThinking: true, cursor?})`を併用する。保存先の自動生成は、起動時のcwdの`.noe/events/*.jsonl`に集約する方針。保存は引き続き`--events`で選択し、常時保存へ変更する方針ではない。[イベント記録](events.md)・[観察API](observe.md)。
+
+JSONL保存なしで詳細を読めるメモリ保持・live観察の拡張は、当面保留する。まず上記の運用で具体的な不足を確認する。`wait_task({agentId, commandId})`は実装済み。queueの受付・FIFO・人間向けCLIを維持し、特定タスクの保持済み結果を完了通知で待つ。初期タスクのIDも`spawn_agent`から返し、通常のJS・run_js・hookから利用できる。待機専用イベントは追加しない。[API](api.md)。
+
 ### <未完了> JSでのhook登録と、実行前評価・親agentへの問い合わせ — 2026-10-20
 
 利用者の検討メモ。今は記録のみとし、実装・API名・優先順位は決定しない。ユーザーのJSで`hook("after_toolcall", handler)`のように処理を登録したり、`run_js`実行前にコードを評価したり、親agentが子の実行へ介入できる使い方を検討する。評価・承認を全実行に必須化する依頼ではない。
@@ -206,12 +212,13 @@ JSONLを検索しやすくする外部保存先の候補です。採用は未決
 | 操作 | 現行の契約 |
 | --- | --- |
 | `run_agent(config, instruction, options?)` | instance停止まで待ち、最終snapshotを返す |
-| `spawn_agent(config, instruction?, options?)` | 開始後に`{agentId}`を返す。`options.keepAlive:true`ならtask後も待受 |
+| `spawn_agent(config, instruction?, options?)` | 開始後に`{agentId, commandId?}`を返す。`options.keepAlive:true`ならtask後も待受 |
 | `observe_agent({agentId})` | live snapshotを即時取得。完了結果も含む。liveに`wait`・cursorは指定しない |
 | `observe_agent({logPath, runId, cursor?, ...})` | 保存JSONLから状態・差分・結果を取得。こちらは`wait`も指定可能 |
 | `steer_agent({runId, instruction, ...})` | 実行中taskへ追加指示を受領。次のモデル判断前に反映 |
 | `interrupt_agent({runId})` / `interrupt_agent({agentId})` | task単位の取消し、またはinstanceと予約の停止 |
 | `queue_agent({agentId, instruction, ...})` | 待受instanceへ次taskを予約 |
+| `wait_task({agentId, commandId})` | 初期・queue taskの個別結果を待つ。完了済み結果の再取得も可能 |
 
 人間用の`noe agents`・`steer`・`interrupt`・`queue`も実装済みです。子は一回の`run_js`終了後も親runに所有され、後続toolから観察・操作できます。親の完了・取消しで回収されます。[API](api.md)・[起動ガイド](agents.md)・[control実装記録](development/agent-control-implementation.md)。
 

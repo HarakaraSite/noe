@@ -111,7 +111,7 @@ const child=await spawn_agent({provider:"openrouter",model:"fixture/model",effor
 await fetch(` + string(url) + `).then(r=>r.text());
 await interrupt_agent({agentId:child.agentId});
 let snapshot;
-do {snapshot=await observe_agent(child);if(snapshot.state!=="stopped")await new Promise(r=>setTimeout(r,1));}while(snapshot.state!=="stopped");
+do {snapshot=await observe_agent({agentId:child.agentId});if(snapshot.state!=="stopped")await new Promise(r=>setTimeout(r,1));}while(snapshot.state!=="stopped");
 if(snapshot.reason!=="interrupted")throw Error(JSON.stringify(snapshot));`
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

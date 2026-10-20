@@ -73,7 +73,7 @@ OpenAIのSol・LunaはResponsesを使います。[OpenAIガイド](openai.md)に
 
 `list_models({provider?, kind?})`は、認証や外部API要求なしで内蔵デフォルトと外部上書きを統合した候補一覧を返します。詳細とJevでの選択例は[モデルカタログ](model-catalog.md)を参照してください。
 
-`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`steer_agent`・`interrupt_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
+`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`steer_agent`・`interrupt_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
 
 ```js
 import { run_agent } from "noe:agent";
@@ -96,10 +96,10 @@ if (snapshot.lastResult?.state === "completed") {
 
 `run_agent(config, instruction?, options?)`はagent instanceが停止し、後始末を終えてからsnapshotを返します。起動APIに`wait` optionはありません。既定の`keepAlive:false`では1タスクで停止します。通常のタスク失敗はrejectではなく、`state:"stopped"`・`reason:"task_failed"`と`lastResult.state:"failed"`で返ります。入力や起動受付に失敗した場合はPromiseがrejectします。監督基盤の致命的な失敗は`state:"failed"`と理由をsnapshotへ記録します。
 
-`spawn_agent(config, instruction?, options?)`は起動と初期タスクの受領後に`{agentId}`を返します。最初のモデル応答やタスク完了は待ちません。`observe_agent({agentId})`はlive snapshotを直ちに返します。待受instanceへ追加の仕事を渡す場合は、`keepAlive:true`で起動して`queue_agent`を呼びます。
+`spawn_agent(config, instruction?, options?)`は起動と初期タスクの受領後に`{agentId, commandId?}`を返します。`commandId`は初期タスクを指定した場合に付き、idle起動では省略されます。最初のモデル応答やタスク完了は待ちません。`observe_agent({agentId})`はlive snapshotを直ちに返します。待受instanceへ追加の仕事を渡す場合は、`keepAlive:true`で起動して`queue_agent`を呼びます。
 
 ```js
-import { spawn_agent, observe_agent, queue_agent } from "noe:agent";
+import { spawn_agent, queue_agent, wait_task } from "noe:agent";
 
 const worker = await spawn_agent({
   provider: "openrouter",
@@ -113,18 +113,18 @@ const queued = await queue_agent({
   instruction: "README.ja.mdも読み、違いを簡潔にまとめてください。",
 });
 
-let snapshot;
-while (true) {
-  snapshot = await observe_agent({ agentId: worker.agentId });
-  if (snapshot.lastResult?.commandId === queued.commandId && snapshot.state === "idle") break;
-  if (snapshot.state === "stopped" || snapshot.state === "failed") break;
-  await new Promise(resolve => setTimeout(resolve, 100));
-}
-
-console.log(snapshot.lastResult);
+const result = await wait_task({
+  agentId: worker.agentId,
+  commandId: queued.commandId,
+});
+console.log(result);
 ```
 
 `queue_agent({agentId, instruction, commandId?})`は受領後に`{commandId, status}`を返します。タスクはFIFOで処理され、新しいrun IDを持ちますが、同じkeepAlive instanceに確定済みの会話を引き継ぎます。過去のuser・assistant・tool往復と最終回答のうち、context trimming後も残っている内容が続きます。実行開始時に新しい指示を時系列どおりuser messageとして追加し、元のtask指示・適用済みsteerと同様に以後の切り捨てから保護します。既に切り捨てた履歴は戻りません。trim回数と直近のtrim情報もinstance内で続きます。`starting`・`running`・`idle`の`keepAlive` instanceで受け付けます。終了済みinstanceや`keepAlive:false`のinstanceは受け付けません。同じ`commandId`と同じ指示の再送は再実行せず現在statusを返し、異なる指示での再利用はエラーになります。既定では`commandId`が自動発行されます。
+
+`wait_task({agentId, commandId})`は初期タスクまたはqueueで受領された特定のタスクが終わるまで待ち、`{runId, commandId, state, answer, error?, errorDetails?}`を返します。`state`は`completed`・`failed`・`cancelled`です。失敗・取消しも結果としてresolveし、不正・不明・所有範囲外のIDはrejectします。開始前に取り消されたタスクでは`runId`と`answer`が空です。steerの`commandId`は指定できません。
+
+instanceがidle・停止になるまで待つ必要はなく、後続タスクの実行中でも指定した結果が返ります。結果は所有元の実行scope内でNOEホストの生存中、instance停止後も保持され、複数箇所・後からの待機で同じ結果を受け取れます。所有者の終了後も通常の所有権の規則に従い、NOE終了後の永続化はしません。ポーリング・追加モデル呼出し・待機専用のobserve/JSONLイベントは発生しません。待機だけの取消しは対象タスクを取り消しません。所有者の終了・取消しによる通常の回収は継続します。
 
 ### 設定
 
@@ -261,7 +261,7 @@ WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソ
 
 観察には人間用CLIの`noe observe`と、親用JS APIの`observe_agent`を利用できます。`observe_agent({agentId})`はlive snapshotをすぐ返します。`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`は既存JSONLから状態・差分・確定済みの結果を返し、既定は非待機、`wait: true`ならrunの終端まで待ちます。使い方と戻り値は[観察の入口](observe.md)を参照してください。
 
-`run`・`eval`の`--events`で通常出力とagentの詳細イベントをJSONLへ記録できます。`--events=-`はstdout、`--events=path`はファイルへの追記、`--events`単独は起動時のcwdに`noe-events-日時-ID.jsonl`を新規作成します。通常出力、thinking・summary、途中の発言、最終回答、`run_js`の先頭コメントと成功・失敗をrun ID付きで読めます。オプションはソースより前へ置きます。形式と逐次出力の範囲は[観察ガイド](events.md)を参照してください。
+`run`・`eval`の`--events`で通常出力とagentの詳細イベントをJSONLへ記録できます。`--events=-`はstdout、`--events=path`はファイルへの追記、`--events`単独は起動時のcwdの`.noe/events/`に`noe-events-日時-ID.jsonl`を新規作成します。自動保存先のディレクトリはなければ作成します。通常出力、thinking・summary、途中の発言、最終回答、`run_js`の先頭コメントと成功・失敗をrun ID付きで読めます。オプションはソースより前へ置きます。形式と逐次出力の範囲は[観察ガイド](events.md)を参照してください。
 
 ## 実行環境とファイル
 

@@ -10,60 +10,60 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
-func (h *Host) spawn(op *Operation, req spawnRequest) (string, error) {
+func (h *Host) spawn(op *Operation, req spawnRequest) (spawnResponse, error) {
 	effort, valid := provider.NormalizeEffort(req.Config.Effort)
 	if strings.TrimSpace(req.Config.Provider) == "" || strings.TrimSpace(req.Config.Model) == "" || strings.TrimSpace(req.Config.Name) == "" || req.Config.Effort == "" || !valid || req.Config.MaxTokens < 0 || req.Config.MaxSteps < 0 || (!req.KeepAlive && req.Instruction == nil) || (req.Instruction != nil && strings.TrimSpace(*req.Instruction) == "") {
-		return "", newOperationError(400, "request", "invalid agent configuration or instruction")
+		return spawnResponse{}, newOperationError(400, "request", "invalid agent configuration or instruction")
 	}
 	if err := h.checkProvider(req.Config.Provider); err != nil {
-		return "", newOperationError(400, "provider", err.Error())
+		return spawnResponse{}, newOperationError(400, "provider", err.Error())
 	}
 	req.Config.Effort = effort
 	resolvedHooks, hookErr := normalizeHookModules(req.Config.hookModules(), h.opts.Cwd, h.opts.ImportMap)
 	if hookErr != nil {
-		return "", newOperationError(400, "request", hookErr.Error())
+		return spawnResponse{}, newOperationError(400, "request", hookErr.Error())
 	}
 	req.Config.Hooks = cloneHookModules(resolvedHooks)
 	encoded, err := json.Marshal(req.Config)
 	if err != nil {
-		return "", newOperationError(500, "broker", "could not encode agent configuration")
+		return spawnResponse{}, newOperationError(500, "broker", "could not encode agent configuration")
 	}
 	id, err := randomID()
 	if err != nil {
-		return "", newOperationError(500, "broker", "could not allocate agent ID")
+		return spawnResponse{}, newOperationError(500, "broker", "could not allocate agent ID")
 	}
 	activityID, err := randomID()
 	if err != nil {
-		return "", newOperationError(500, "broker", "could not allocate agent activity")
+		return spawnResponse{}, newOperationError(500, "broker", "could not allocate agent activity")
 	}
 	var initial *command
 	if req.Instruction != nil {
 		commandID, err := randomID()
 		if err != nil {
-			return "", newOperationError(500, "broker", "could not allocate task ID")
+			return spawnResponse{}, newOperationError(500, "broker", "could not allocate task ID")
 		}
 		commandActivityID, err := randomID()
 		if err != nil {
-			return "", newOperationError(500, "broker", "could not allocate task activity")
+			return spawnResponse{}, newOperationError(500, "broker", "could not allocate task activity")
 		}
-		initial = &command{id: commandID, activityID: commandActivityID, instruction: *req.Instruction, operation: "queue", status: "accepted", initial: true, accepted: make(chan struct{})}
+		initial = &command{id: commandID, activityID: commandActivityID, instruction: *req.Instruction, operation: "queue", status: "accepted", initial: true, accepted: make(chan struct{}), done: make(chan struct{})}
 	}
 	modelWindow, modelMaxOutput := h.contextModelLimits(req.Config.Provider, req.Config.Model)
 	h.mu.Lock()
 	if op.closed || op.ctx.Err() != nil || h.closed {
 		h.mu.Unlock()
-		return "", newOperationError(409, "scope", "agent operation has ended")
+		return spawnResponse{}, newOperationError(409, "scope", "agent operation has ended")
 	}
 	ownerCtx := op.ctx
 	parent := h.currentOwnerRunLocked(op)
 	if parent == nil && op.parentRunID != "" {
 		h.mu.Unlock()
-		return "", newOperationError(409, "scope", "parent agent run has ended")
+		return spawnResponse{}, newOperationError(409, "scope", "parent agent run has ended")
 	}
 	if parent != nil {
 		if parent.ctx.Err() != nil {
 			h.mu.Unlock()
-			return "", newOperationError(409, "scope", "parent agent run has ended")
+			return spawnResponse{}, newOperationError(409, "scope", "parent agent run has ended")
 		}
 		ownerCtx = parent.ctx
 	}
@@ -71,7 +71,7 @@ func (h *Host) spawn(op *Operation, req spawnRequest) (string, error) {
 	rootGroup := group == nil
 	if !rootGroup && (req.Config.executionLimitsPresent || req.Config.ExecutionLimits != nil) {
 		h.mu.Unlock()
-		return "", newOperationError(400, "request", "executionLimits may only be set on a root agent")
+		return spawnResponse{}, newOperationError(400, "request", "executionLimits may only be set on a root agent")
 	}
 	if group == nil {
 		group = &executionGroup{id: id, limits: cloneExecutionLimits(req.Config.ExecutionLimits), startedAt: time.Now()}
@@ -92,7 +92,7 @@ func (h *Host) spawn(op *Operation, req spawnRequest) (string, error) {
 		h.mu.Unlock()
 		h.finishExecutionLimit(limitAction)
 		code, message := executionLimitError(group)
-		return "", newOperationError(409, code, message)
+		return spawnResponse{}, newOperationError(409, code, message)
 	}
 	if rootGroup {
 		h.groups[id] = group
@@ -119,7 +119,11 @@ func (h *Host) spawn(op *Operation, req spawnRequest) (string, error) {
 		close(initial.accepted)
 	}
 	go instance.serve()
-	return id, nil
+	response := spawnResponse{AgentID: id}
+	if initial != nil {
+		response.CommandID = initial.id
+	}
+	return response, nil
 }
 
 func (h *Host) observeInstance(op *Operation, req instanceRequest, wait bool, requestContext context.Context) (instanceSnapshot, error) {
@@ -209,7 +213,7 @@ func (h *Host) queue(op *Operation, req queueRequest) (commandReceipt, error) {
 		code, message := executionLimitError(instance.group)
 		return commandReceipt{}, newOperationError(409, code, message)
 	}
-	cmd := &command{id: req.CommandID, activityID: activityID, causedBy: causedBy, origin: origin, instruction: req.Instruction, operation: "queue", status: "accepted", accepted: make(chan struct{})}
+	cmd := &command{id: req.CommandID, activityID: activityID, causedBy: causedBy, origin: origin, instruction: req.Instruction, operation: "queue", status: "accepted", accepted: make(chan struct{}), done: make(chan struct{})}
 	instance.commands[cmd.id] = cmd
 	instance.queue = append(instance.queue, cmd)
 	h.mu.Unlock()

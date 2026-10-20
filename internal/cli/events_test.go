@@ -99,11 +99,11 @@ func TestEventsFilesAppendAndAutomaticNameInStartingCwd(t *testing.T) {
 		if code := Run(context.Background(), []string{"eval", "--events", `console.log('auto');`}, strings.NewReader(""), &out, &diagnostic); code != 0 {
 			t.Fatalf("exit %d: %s", code, &diagnostic)
 		}
-		if !strings.Contains(diagnostic.String(), filepath.Join(dir, "noe-events-")) {
+		if !strings.Contains(diagnostic.String(), filepath.Join(dir, ".noe", "events", "noe-events-")) {
 			t.Fatalf("missing path: %s", &diagnostic)
 		}
 	}
-	files, err := filepath.Glob(filepath.Join(dir, "noe-events-*.jsonl"))
+	files, err := filepath.Glob(filepath.Join(dir, ".noe", "events", "noe-events-*.jsonl"))
 	if err != nil || len(files) != 2 {
 		t.Fatalf("files %v err %v", files, err)
 	}

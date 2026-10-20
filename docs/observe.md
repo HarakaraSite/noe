@@ -41,7 +41,7 @@ groupの現在状態はliveの`observe_agent({agentId})`、回収完了はinstan
 
 # 画面はテキスト表示、ファイルには元のJSONLを保存
 ./noe run --observe --events=agent.jsonl examples/agent/try-agent.js '任意の指示'
-# --events単独なら保存先をcwdに自動命名
+# --events単独ならcwdの.noe/events/へ自動命名して保存
 ./noe run --observe --events examples/agent/try-agent.js '任意の指示'
 ```
 

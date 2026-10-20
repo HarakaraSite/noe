@@ -106,7 +106,7 @@ func TestAgentLazyImportAndConfigurationErrors(t *testing.T) {
 	})
 	for _, source := range []string{
 		`const api=await import("noe:agent");
-if (Object.keys(api).sort().join(",")!=="interrupt_agent,list_models,observe_agent,queue_agent,run_agent,spawn_agent,steer_agent") throw Error("unexpected public exports: "+Object.keys(api));
+if (Object.keys(api).sort().join(",")!=="interrupt_agent,list_models,observe_agent,queue_agent,run_agent,spawn_agent,steer_agent,wait_task") throw Error("unexpected public exports: "+Object.keys(api));
 if ("createAgent" in api) throw Error("legacy createAgent is still exported");`,
 		`import {run_agent} from "noe:agent"; let failures=0;
 for (const config of [{model:""},{model:42},{provider:"unknown"},{maxTokens:-1},{maxSteps:-1},{cacheKey:42}]) {
@@ -118,6 +118,13 @@ for (const [config,instruction] of [[{provider:"openrouter",model:"fixture/model
   try { await run_agent(config,instruction); } catch { failures++; }
 }
 if(failures!==10) throw Error("async validation missed "+failures);`,
+		`import {wait_task} from "noe:agent"; let failures=0;
+for(const options of [null,[],{}, {agentId:"a"}, {commandId:"c"}, {agentId:"a",commandId:0}, {agentId:"a",commandId:"c",wait:true}]) {
+ const pending=wait_task(options);
+ if(!(pending instanceof Promise)) throw Error("wait_task did not return a promise");
+ try {await pending;} catch(e) {if(!(e instanceof TypeError))throw e; failures++;}
+}
+if(failures!==7)throw Error("wait validation missed "+failures);`,
 	} {
 		code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: agentTestOptions(p)})
 		if code != 0 || err != nil {

@@ -157,6 +157,20 @@ export function createAgentAPI({ request, defaults, observe }) {
     return rpc("queue_agent", query);
   }
 
+  // Wait for one accepted task, independently of later queue work or idle state.
+  async function wait_task(options = {}) {
+    if (!isRecord(options)) throw new TypeError("task wait options must be an object");
+    for (const key of Object.keys(options)) {
+      if (key !== "agentId" && key !== "commandId") {
+        throw new TypeError("unknown task wait option: " + key);
+      }
+    }
+    return rpc("wait_task", {
+      agentId: requireString(options.agentId, "agentId"),
+      commandId: requireString(options.commandId, "commandId"),
+    });
+  }
+
   // Add an instruction to one active task without interrupting its current work.
   async function steer_agent(options = {}) {
     if (!isRecord(options)) throw new TypeError("steer options must be an object");
@@ -217,5 +231,5 @@ export function createAgentAPI({ request, defaults, observe }) {
     return JSON.parse(await observe(JSON.stringify(query)));
   }
 
-  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, steer_agent, interrupt_agent, list_models });
+  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, steer_agent, interrupt_agent, list_models });
 }

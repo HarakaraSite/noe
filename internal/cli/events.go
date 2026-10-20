@@ -42,7 +42,12 @@ func openObservation(ctx context.Context, option *string, human bool, stdout, st
 		path := *option
 		flags := os.O_CREATE | os.O_WRONLY | os.O_APPEND
 		if path == "" {
-			path = "noe-events-" + time.Now().Format("20060102-150405") + "-" + id + ".jsonl"
+			dir := filepath.Join(".noe", "events")
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				cancel()
+				return ctx, nil, fmt.Errorf("noe: create events directory: %w", err)
+			}
+			path = filepath.Join(dir, "noe-events-"+time.Now().Format("20060102-150405")+"-"+id+".jsonl")
 			flags |= os.O_EXCL
 		}
 		path, err = filepath.Abs(path)

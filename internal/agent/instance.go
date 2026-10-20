@@ -20,6 +20,8 @@ type command struct {
 	initial     bool
 	active      bool
 	accepted    chan struct{}
+	done        chan struct{}
+	outcome     *taskOutcome // immutable after completion; protected by Host.mu
 }
 
 type taskOutcome struct {
@@ -137,6 +139,19 @@ func (i *agentInstance) commandEvent(cmd *command, status, runID string) {
 	i.event("command."+status, fields)
 }
 
+func (i *agentInstance) settleCommandLocked(cmd *command, outcome taskOutcome) {
+	cmd.status = outcome.State
+	cmd.outcome = &outcome
+}
+
+// Publish the existing terminal event before waking result waiters. A command's
+// result remains available after later tasks overwrite the instance snapshot.
+func (i *agentInstance) publishCommandOutcome(cmd *command) {
+	<-cmd.accepted
+	i.commandEvent(cmd, cmd.outcome.State, cmd.outcome.RunID)
+	close(cmd.done)
+}
+
 func (i *agentInstance) serve() {
 	defer close(i.done)
 	defer i.cancel()
@@ -158,7 +173,7 @@ func (i *agentInstance) serve() {
 			queued := i.queue
 			i.queue = nil
 			for _, cmd := range queued {
-				cmd.status = "cancelled"
+				i.settleCommandLocked(cmd, taskOutcome{CommandID: cmd.id, State: "cancelled", Error: reason})
 			}
 			accepted, settled := i.interruptAccepted, i.interruptSettled
 			limitEventDone := i.executionLimitEventDone
@@ -179,15 +194,13 @@ func (i *agentInstance) serve() {
 					<-settled
 				}
 				for _, cmd := range queued {
-					<-cmd.accepted
-					i.commandEvent(cmd, "cancelled", "")
+					i.publishCommandOutcome(cmd)
 				}
 				i.event("instance.stopping", events.Event{"reason": reason})
 			} else {
 				i.event("instance.stopping", events.Event{"reason": reason})
 				for _, cmd := range queued {
-					<-cmd.accepted
-					i.commandEvent(cmd, "cancelled", "")
+					i.publishCommandOutcome(cmd)
 				}
 				if settled != nil {
 					<-settled
@@ -260,9 +273,9 @@ func (i *agentInstance) serve() {
 			}
 			h.maybeCloseGroupLocked(i.group)
 		}
-		i.lastResult = &outcome
+		i.settleCommandLocked(cmd, outcome)
+		i.lastResult = cmd.outcome
 		i.currentRunID = ""
-		cmd.status = outcome.State
 		if fatal {
 			if i.state == "stopping" || i.ctx.Err() != nil {
 				// An accepted stop takes precedence over supervision cleanup.
@@ -287,19 +300,18 @@ func (i *agentInstance) serve() {
 			h.traceEvent(traceEvent{RunID: run.id, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model, Status: outcome.State, Duration: time.Since(run.started)})
 			h.observeRun("agent."+outcome.State, run.id, run, fields)
 		}
-		i.commandEvent(cmd, outcome.State, outcome.RunID)
+		i.publishCommandOutcome(cmd)
 		if fatal {
 			h.mu.Lock()
 			i.state = "stopping"
 			queued := i.queue
 			i.queue = nil
 			for _, cmd := range queued {
-				cmd.status = "cancelled"
+				i.settleCommandLocked(cmd, taskOutcome{CommandID: cmd.id, State: "cancelled", Error: "supervision_failed"})
 			}
 			h.mu.Unlock()
 			for _, cmd := range queued {
-				<-cmd.accepted
-				i.commandEvent(cmd, "cancelled", "")
+				i.publishCommandOutcome(cmd)
 			}
 			i.finish("failed", "supervision_failed")
 			return

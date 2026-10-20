@@ -126,7 +126,7 @@ func (h *Host) interruptInstance(op *Operation, agentID string) (interruptRespon
 	queued := instance.queue
 	instance.queue = nil
 	for _, command := range queued {
-		command.status = "cancelled"
+		instance.settleCommandLocked(command, taskOutcome{CommandID: command.id, State: "cancelled", Error: "interrupted"})
 	}
 	currentRunID := instance.currentRunID
 	if run := h.runs[currentRunID]; run != nil {
@@ -148,8 +148,7 @@ func (h *Host) interruptInstance(op *Operation, agentID string) (interruptRespon
 		instance.event("interrupt.accepted", fields)
 		close(accepted)
 		for _, command := range queued {
-			<-command.accepted
-			instance.commandEvent(command, "cancelled", "")
+			instance.publishCommandOutcome(command)
 		}
 		close(settled)
 	}()
