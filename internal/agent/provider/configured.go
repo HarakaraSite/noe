@@ -20,10 +20,10 @@ func (c *configuredHTTPClient) Do(request *http.Request) (*http.Response, error)
 	}
 	if state, _ := request.Context().Value(callContextKey{}).(*callState); state != nil {
 		if c.profile.SessionHeader != "" {
-			if state.runID == "" {
-				return nil, errors.New("provider request requires a run ID")
+			if state.sessionID == "" {
+				return nil, errors.New("provider request requires a session ID")
 			}
-			request.Header.Set(c.profile.SessionHeader, state.runID)
+			request.Header.Set(c.profile.SessionHeader, state.sessionID)
 		}
 		endpoint, err := url.JoinPath(c.profile.BaseURL, c.profile.Path)
 		if err != nil {

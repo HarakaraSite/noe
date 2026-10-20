@@ -13,6 +13,7 @@ import (
 type Request struct {
 	Provider  string            `json:"provider,omitempty"`
 	RunID     string            `json:"runId,omitempty"`
+	SessionID string            `json:"sessionId,omitempty"` // Stable for a managed agent instance.
 	Model     string            `json:"model"`
 	Messages  []json.RawMessage `json:"messages"`
 	Tools     []json.RawMessage `json:"tools,omitempty"`
@@ -20,6 +21,14 @@ type Request struct {
 	MaxTokens int               `json:"maxTokens,omitempty"`
 	Effort    string            `json:"effort,omitempty"`
 	Observe   func(StreamEvent) `json:"-"`
+}
+
+func (r Request) sessionID() string {
+	if r.SessionID != "" {
+		return r.SessionID
+	}
+	// Direct provider callers without a managed instance use a standalone run.
+	return r.RunID
 }
 
 // StreamEvent is a text fragment observed while a provider response is

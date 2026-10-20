@@ -49,7 +49,7 @@ export async function afterTool(event) {
 
 `imageIds`は現在の`event.images`から選ぶID配列です。`[]`は全候補を除外し、部分選択後も候補の元順序を保ちます。重複、未知・他toolのID、前のhookが除外したIDの再追加はエラーになります。通常のtool `result`の選択とは独立しています。
 
-モデル前後handlerの戻り値は使わず、要求限定の情報は`setRuntimeInfo`で設定する。
+モデル前後handlerの戻り値は使わず、今回の状態情報は`setRuntimeInfo`で設定する。
 tool handlerは`undefined`で変更なし、上記objectで置換する。
 tool名・call IDは変更できない。tool完了後の置換は実際の終了状態を書き換えない。
 例外はtaskの失敗とし、完了済みtoolやhookを再実行しない。
@@ -70,7 +70,7 @@ snapshotは取得時点の情報であり、hook実行中に新しいsteerが届
 
 ## hook用API
 
-`api.agents`は`run_agent`、`spawn_agent`、`observe_agent`、`queue_agent`、`wait_task`、
+`api.agents`は`run_agent`、`spawn_agent`、`observe_agent`、`queue_agent`、`wait_task`、`read_task_result`、
 `steer_agent`、`interrupt_agent`、`list_models`を持つ。
 引数・戻り値・受付と完了の区別は[通常のagent API](api.md)と同じ。
 各hookの呼出元へ束縛され、同時実行中の別hookの原因情報と混ざらない。
@@ -161,15 +161,15 @@ providerのtokenizerやadapter変換後のwire量とは一致しない。
 画像を含む場合、`estimate.imageTokens`は画像分の概算を別に示し、`estimate.method`は
 `json_utf8_bytes/4+image_32px_patches_x1.2_fallback`になります。画像の推定はtokenizerや課金額の実測ではなく、`low` detailでは最大辺512pxに収めた寸法、それ以外では原寸を使います。式の詳細は[画像ガイド](agent-images.md)を参照してください。
 
-標準通知は外部hookなしでもモデル要求へ一つだけ添える。
+標準通知は外部hookなしでもモデル要求へ新しいuser messageとして一つ添える。
 `Execution context: ~使用量 / 予算 tokens`の分母が、実行履歴の計算済み予算と自動切り捨て有効時の閾値。
 `Input budget`は計算済みの総入力予算、`Explicit input budget`は手動指定した予算、`Model context window`はcatalogの値を表す。window不明でも計算済み予算を通知する。
 `source=fallback`はNOEの既定予算を示し、モデルの実際のwindowを示さない。この区別を組込みinstructionと毎回の通知にも記載する。
-不変instructionや保持する会話履歴へ通知をappendしないため、往復しても蓄積しない。
+通知は対応するassistant応答・tool結果と同じ完了blockに保持し、過去の通知を書き換えない。自動trim時もそのblock単位で削除する。固定instructionには追加しない。
 各runのprovider使用量は独立して計測し、同じinstanceの次queue taskも新しいrun IDを持つ。会話のcontext trim countはinstance内で続く。
 
 `await api.context.setRuntimeInfo({key, text})`は`beforeModelRequest`で利用できる。
-同じkeyは置換し、今回の論理判断の要求だけに添える。元の会話履歴は変更しない。
+同じkeyは置換し、今回の論理判断の新しい通知に添える。その通知は応答後に履歴へ保持され、過去の通知にある同じkeyの内容は書き換えない。
 hook後に新しいsteerが届いて要求を再準備しても、外部handlerは再実行せず、
 設定済み情報を保持して組込みの予算情報だけを再計算する。
 

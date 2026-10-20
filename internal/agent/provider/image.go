@@ -219,7 +219,7 @@ func (p *imageAdapter) GenerateImage(ctx context.Context, request imageapi.Reque
 		return imageapi.Generated{}, imageFailure("input", 0, "", "", "", "")
 	}
 	state := &imageCallState{payload: payload}
-	ctx = context.WithValue(ctx, callContextKey{}, &callState{requestBody: payload, runID: request.RunID})
+	ctx = context.WithValue(ctx, callContextKey{}, &callState{requestBody: payload, sessionID: request.RunID})
 	ctx = context.WithValue(ctx, imageCallContextKey{}, state)
 
 	var sdkErr error

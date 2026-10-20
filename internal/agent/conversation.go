@@ -88,7 +88,7 @@ func validateCompletedToolBlock(entry conversationEntry, step *modelStepState) e
 			ID string `json:"id"`
 		} `json:"tool_calls"`
 	}
-	if json.Unmarshal(entry.Messages[0], &assistant) != nil || len(assistant.ToolCalls) != len(step.toolCallOrder) {
+	if json.Unmarshal(conversationResponseMessages(entry.Messages)[0], &assistant) != nil || len(assistant.ToolCalls) != len(step.toolCallOrder) {
 		return errors.New("tool checkpoint does not match the completed model response")
 	}
 	for index, call := range assistant.ToolCalls {
@@ -116,13 +116,13 @@ func validateFinalConversationCandidate(current, next *conversationSnapshot, ans
 		return errors.New("final conversation candidate is missing")
 	}
 	entry := next.Entries[len(next.Entries)-1]
-	if entry.Kind != "block" || len(entry.Messages) != 1 {
+	if entry.Kind != "block" || len(conversationResponseMessages(entry.Messages)) != 1 {
 		return errors.New("final conversation candidate must contain one assistant message")
 	}
 	if err := validateConversationBlock(entry.Messages); err != nil {
 		return err
 	}
-	text, err := assistantFinalText(entry.Messages[0])
+	text, err := assistantFinalText(conversationResponseMessages(entry.Messages)[0])
 	if err != nil || strings.TrimSpace(text) == "" || text != answer {
 		return errors.New("final answer does not match the assistant message")
 	}
@@ -294,7 +294,27 @@ func validateConversationSnapshot(snapshot *conversationSnapshot) error {
 	return nil
 }
 
+// A status describes this turn's runtime state. Retain it with the response so
+// replay preserves the sent prefix and trimming removes both together. Older
+// snapshots without a status remain valid.
+func conversationResponseMessages(messages []json.RawMessage) []json.RawMessage {
+	if len(messages) > 0 {
+		var first struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		}
+		if json.Unmarshal(messages[0], &first) == nil && first.Role == "user" && strings.HasPrefix(first.Content, "NOE_CONTEXT_STATUS\n") {
+			return messages[1:]
+		}
+	}
+	return messages
+}
+
 func validateConversationBlock(messages []json.RawMessage) error {
+	messages = conversationResponseMessages(messages)
+	if len(messages) == 0 {
+		return errors.New("conversation block is missing its assistant message")
+	}
 	var assistant struct {
 		Role      string `json:"role"`
 		ToolCalls []struct {

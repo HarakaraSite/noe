@@ -1,6 +1,6 @@
 # `noe:agent`
 
-`noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `steer_agent`, `interrupt_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
+`noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `read_task_result`, `steer_agent`, `interrupt_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
 
 A managed agent owns its task runtime and descendants. A returned snapshot is a point-in-time plain object, not a live handle. Use `observe_agent` to refresh it. Accepted task failures are represented in the result or snapshot; ordinary task failure does not make `run_agent` reject. Input, configuration, or acceptance failures reject. Cancellation follows ownership and recovers work owned by the current evaluation.
 
@@ -12,7 +12,8 @@ A managed agent owns its task runtime and descendants. A returned snapshot is a 
 | `spawn_agent` | Start an instance and return its ID after launch and initial-task acceptance. |
 | `observe_agent` | Read a live snapshot or inspect an existing event log. |
 | `queue_agent` | Submit a future task to a keep-alive instance. |
-| `wait_task` | Wait for the retained outcome of one accepted task. |
+| `wait_task` | Wait for the retained outcome of one accepted task; optionally omit its answer. |
+| `read_task_result` | Read a UTF-8 byte range from a retained answer. |
 | `steer_agent` | Add guidance to an active task. |
 | `interrupt_agent` | Cancel one task or stop an instance and its queue. |
 | `list_models` | List configured catalog entries without contacting a provider. |
@@ -29,7 +30,7 @@ A managed agent owns its task runtime and descendants. A returned snapshot is a 
 | `system` | Additional system instructions; defaults to empty and is not inherited by a child. |
 | `maxTokens` | Nonnegative output-token limit; `0` leaves the provider default. Inherited by a child when omitted. |
 | `maxSteps` | Nonnegative model-call limit for one task; `0` is unlimited. Not inherited by a child; each queued task gets a fresh counter and uses the instance's configured value. |
-| `cacheKey` | Optional provider session/cache identifier. Omitted uses the run ID; an explicit value is reused for each queued task, while `""` omits the provider session ID. It does not save or restore conversation history. |
+| `cacheKey` | Optional provider session/cache identifier. Omitted uses the instance agentId, stable across queued tasks and distinct from each task runId. Separate instances, including children, have separate IDs. An explicit value is reused for each queued task, while `""` omits the provider session/cache field. It does not save or restore conversation history. |
 | `hooks` | Ordered ESM module paths or import-map aliases. Children inherit when omitted; `[]` clears inherited hooks. See [Hooks](#hooks). |
 | `contextBudget` | `{inputTokens}` sets a positive safe-integer total-input allowance; `null` clears the inherited value. |
 | `contextPolicy` | `{retainRatio?, responseReserveTokens?}` controls automatic trimming. Omitted or `{}` enables it; `null` disables trimming. `retainRatio` is between 0 and 1, default `0.1`; reserve tokens must be positive. A reserve affects window-derived budgeting, not provider output limits. |
@@ -41,7 +42,9 @@ Built-in agent providers retry transient transport failures, HTTP 429/5xx, and i
 
 ## run_agent
 
-`run_agent(config, instruction, options?) -> Promise<AgentSnapshot>` starts one task and waits until its instance stops and cleanup completes. `instruction` must be a nonempty string. `options` supports only `{keepAlive?: boolean}`; the default is `false`.
+`run_agent(config, instruction, options?) -> Promise<AgentSnapshot>` starts one task and waits until its instance stops and cleanup completes. `instruction` must be a nonempty string. `options` supports `{keepAlive?: boolean, allowDelegation?: boolean}`. `keepAlive` defaults to `false`.
+
+`allowDelegation` controls whether the launched instance may start children. It defaults to `true` for a root and `false` for a child. The owner must explicitly pass `{allowDelegation:true}` in the third argument to grant a child permission to delegate. The permission is frozen at launch and is not inherited by the next generation. The Go broker checks the caller before admitting any launch, including hook calls. An unauthorized caller cannot grant itself permission by setting this option on its attempted child. Rejection affects that request without starting an instance, consuming an agent-start allowance, or stopping its group.
 
 With `keepAlive: true`, `run_agent` remains pending until that instance is stopped. Use `spawn_agent` when you need to manage or queue work while it is running. Task outcomes with `state: "failed"` or `"cancelled"` are returned in `snapshot.lastResult`; the Promise is for task acceptance/lifecycle, not task success alone.
 
@@ -67,7 +70,7 @@ The new instance belongs to the current owner. A fresh instance has its own conv
 
 ## observe_agent
 
-`observe_agent({agentId}) -> Promise<AgentSnapshot>` returns the current live snapshot immediately. Live observation accepts only `agentId`.
+`observe_agent({agentId, includeAnswer?}) -> Promise<AgentSnapshot>` returns the current live snapshot immediately. `includeAnswer` defaults to `true`; `false` omits `lastResult.answer` and adds `lastResult.answerBytes`, retaining the original result.
 
 For an existing event log, pass `{logPath, runId, cursor?, wait?, includeThinking?, includeOutput?}`. Relative `logPath` is resolved from the runtime working directory. `wait` defaults to `false`; when true, observation waits for a terminal run state. The result contains the observed state, event differences, any settled final text or error, and a cursor for the next read. Pass that cursor on later reads to request only new events. Reading a log does not make a model request.
 
@@ -79,9 +82,11 @@ If omitted, `commandId` is generated. Repeating the same ID with the same instru
 
 ## wait_task
 
-`wait_task({agentId, commandId}) -> Promise<TaskOutcome>` waits for one accepted initial or queued task. Obtain `commandId` from `spawn_agent` with an instruction or from `queue_agent`. It does not wait for the instance to become idle or stop; a later task may already be running when the Promise resolves.
+`wait_task({agentId, commandId, includeAnswer?}) -> Promise<TaskOutcome>` waits for one accepted initial or queued task. Obtain `commandId` from `spawn_agent` with an instruction or from `queue_agent`. It does not wait for the instance to become idle or stop; a later task may already be running when the Promise resolves.
 
 The result is `{runId, commandId, state, answer, error?, errorDetails?}`, with `state` equal to `completed`, `failed`, or `cancelled`. Task failures and cancellations resolve as data. A task cancelled before it starts has an empty `runId` and `answer`. Invalid, unknown, or unowned IDs reject. Steer command IDs are not task IDs.
+
+`includeAnswer` defaults to `true`. With `false`, the result omits `answer` and adds `answerBytes` (UTF-8 byte length); errors and other metadata remain available. This does not alter the retained answer.
 
 Completed outcomes remain available within the owning evaluation for its NOE host lifetime, including after the instance stops. Repeated or concurrent waits receive the same outcome without consuming it, and later tasks cannot overwrite it. The usual ownership scope still applies after the owner ends; there is no persistence across host shutdown. Waiting uses completion notifications without polling, additional model requests, or wait-specific observe/JSONL events. Cancelling a wait does not itself cancel the target; owner cancellation retains the usual cleanup of owned agents.
 
@@ -94,6 +99,18 @@ const worker = await spawn_agent({
 const task = await queue_agent({agentId: worker.agentId, instruction: "Review the plan."});
 const result = await wait_task({agentId: worker.agentId, commandId: task.commandId});
 if (result.state === "completed") console.log(result.answer);
+```
+
+## read_task_result
+
+`read_task_result({agentId, commandId, offset?, maxBytes?})` reads a completed task's retained answer without consuming it. The result is `{runId, commandId, state, text, offset, nextOffset, totalBytes, eof}`. Pass `nextOffset` to continue. `offset` defaults to `0` and must be a nonnegative safe integer at a UTF-8 character boundary within the answer, including its end. `maxBytes` defaults to `4096` and must be a positive safe integer. The slice ends at a character boundary; when one character alone exceeds the requested limit, that character is returned (up to three extra bytes) so reading makes progress.
+
+Use `wait_task` first: unfinished tasks reject rather than wait. Ownership and result lifetime match `wait_task`, including results of failed or cancelled tasks and results retained after later queue work. Reads make no provider calls and do not truncate or summarize the stored answer. For an empty answer or an offset at its end, `text` is empty and `eof` is true.
+
+```js
+const meta = await wait_task({agentId, commandId, includeAnswer: false});
+const part = await read_task_result({agentId, commandId, maxBytes: 4096});
+console.log(meta, part.text);
 ```
 
 ## steer_agent
@@ -140,7 +157,7 @@ export async function beforeTool(event) {
 
 ## HookAPI.agents
 
-The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `steer_agent`, `interrupt_agent`, and `list_models` with the same argument and return contracts as this module. It is bound to that hook invocation, preserving its ownership and cause information. Requests made through the callback API are cancelled when the callback returns; an agent started by a hook remains owned by the run and is recovered with it. Prefer `api.agents` when the action should be attributed to that hook invocation.
+The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `read_task_result`, `steer_agent`, `interrupt_agent`, and `list_models` with the same argument and return contracts as this module. It is bound to that hook invocation, preserving its ownership and cause information. Requests made through the callback API are cancelled when the callback returns; an agent started by a hook remains owned by the run and is recovered with it. Prefer `api.agents` when the action should be attributed to that hook invocation.
 
 ## HookAPI.context.get
 

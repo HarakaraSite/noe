@@ -436,7 +436,7 @@ func recalculatePreparedContext(state *contextRunState, runID string, now time.T
 		state.estimate = estimate
 		snapshot := state.snapshot(runID, now)
 		note = contextMessage(snapshot, state.runtimeInfo)
-		noteMessage, _ := json.Marshal(map[string]string{"role": "system", "content": note})
+		noteMessage, _ := json.Marshal(map[string]string{"role": "user", "content": note})
 		messagesBytes := state.baseMessagesBytes
 		if state.baseMessageCount > 0 {
 			messagesBytes += 1 // comma before the ephemeral tail message

@@ -7,11 +7,19 @@
 
 ## 検討を続ける候補
 
+### <完了> Go側での再委譲の制限 — 2026-10-21
+
+利用者の追加依頼で、モデルへの指示に加えてGo側の起動受付で再委譲を制限した。起動時の第三引数`options.allowDelegation`はrootでは省略時true、子では省略時false。親が明示的にtrueを指定して起動した子だけが次の階層を起動でき、許可は次の子へ自動継承しない。`spawn_agent`・`run_agent`・hookに共通の`Host.spawn`で起動元を検査する。拒否は当該要求だけをrejectし、group停止や起動枠の消費はしない。[API](api.md#設定)。local実装・関連テスト済み。リリース・配置は未実施。
+
+現在の`executionLimits.agentStarts`による累計起動数制限とは別の制御とする。任意の最大階層・同時起動数の設定は追加していない。子を親タスクに所有させる寿命も維持し、親のqueue task間での長期再利用へは拡張しない。
+
+発端は`noe-events-20261020-224654-b7d639559fb5e94d.jsonl`の確認。親が直接16体、子が孫を1体起動していた。孫`modulemap-review`は、子`inspect-cli-docs`の担当範囲の一部である`internal/modulemap`の仕様照合・不具合候補調査を行ったが、子への依頼文には再委譲の明示許可がなかった。
+
 ### <一部完了> タスクループの完了待ちと観察 — 2026-10-20
 
 利用者の当面の運用方針として、親NOEを`--events`付きで起動する。親・子・孫・同じinstanceのqueue taskは共通のJSONLへ記録し、必要なrunを`runId`で選んで読む。通常の状態確認には`observe_agent({agentId})`、thinking等の詳細確認には`observe_agent({logPath, runId, includeThinking: true, cursor?})`を併用する。保存先の自動生成は、起動時のcwdの`.noe/events/*.jsonl`に集約する方針。保存は引き続き`--events`で選択し、常時保存へ変更する方針ではない。[イベント記録](events.md)・[観察API](observe.md)。
 
-JSONL保存なしで詳細を読めるメモリ保持・live観察の拡張は、当面保留する。まず上記の運用で具体的な不足を確認する。`wait_task({agentId, commandId})`は実装済み。queueの受付・FIFO・人間向けCLIを維持し、特定タスクの保持済み結果を完了通知で待つ。初期タスクのIDも`spawn_agent`から返し、通常のJS・run_js・hookから利用できる。待機専用イベントは追加しない。[API](api.md)。
+実行途中の詳細ログをJSONL保存なしで読めるメモリ保持・live観察の拡張は、当面保留する。完了結果については2026-10-21の追加合意で、`wait_task`・live `observe_agent`の`includeAnswer:false`と、保持済み原文の範囲取得`read_task_result`をlocal実装した。原文の保持・寿命は維持し、追加モデルによる要約は行わない。`wait_task({agentId, commandId})`は実装済み。queueの受付・FIFO・人間向けCLIを維持し、特定タスクの保持済み結果を完了通知で待つ。初期タスクのIDも`spawn_agent`から返し、通常のJS・run_js・hookから利用できる。待機専用イベントは追加しない。[API](api.md)。
 
 ### <未完了> JSでのhook登録と、実行前評価・親agentへの問い合わせ — 2026-10-20
 
@@ -295,7 +303,7 @@ windowと応答予約が既知なら、固定入力と応答予約を差し引�
 
 ### <完了> OpenCode Go APIの組込み — 2026-10-17
 
-合意したChat Completions・Responsesの範囲を実装済みです。モデルごとの経路、reasoningとtool履歴、認証、取消し、組込みデフォルト＋外部JSON上書きに対応します。`User-Agent: noe/<version>`と、同じrunの間は固定した`x-opencode-session`を送り、親子・次queue taskは別run IDを使います。[provider設定](providers.md)・[実装記録](development/provider-config-validation.md)。
+合意したChat Completions・Responsesの範囲を実装済みです。モデルごとの経路、reasoningとtool履歴、認証、取消し、組込みデフォルト＋外部JSON上書きに対応します。`User-Agent: noe/<version>`と、同じinstanceのqueue task間でも固定した`x-opencode-session`にagentIdを送り、親子は別のセッションIDを使います。taskごとのrunIdは別途発行します。[provider設定](providers.md)・[実装記録](development/provider-config-validation.md)。
 
 通常起動の実接続と親子・tool往復・取消しのfixture検証を記録しています。利用枠超過時の実応答は未確認です。Messagesは別の将来候補です。
 

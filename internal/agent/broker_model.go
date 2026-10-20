@@ -186,7 +186,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		}
 	}
 	providerRequest := provider.Request{
-		Provider: run.config.Provider, RunID: request.RunID,
+		Provider: run.config.Provider, RunID: request.RunID, SessionID: run.sessionID(),
 		Model: run.config.Model, Messages: expandedMessages, Tools: request.Tools,
 		CacheKey: request.CacheKey, MaxTokens: run.config.MaxTokens, Effort: run.config.Effort,
 		Observe: observeStream,

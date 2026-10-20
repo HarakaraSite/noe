@@ -78,6 +78,15 @@ func (r *agentRun) agentID() string {
 	return ""
 }
 
+// A managed instance keeps one provider session across all of its queued runs.
+// Unmanaged internal runs have no instance and retain their own run boundary.
+func (r *agentRun) sessionID() string {
+	if r.instance != nil {
+		return r.instance.id
+	}
+	return r.id
+}
+
 type runConfig struct {
 	Provider             string
 	Model                string
@@ -282,7 +291,7 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		Status: "started",
 	})
 	h.observeRun("agent.started", id, run, events.Event{"status": "started"})
-	startResponse := map[string]any{"runId": id}
+	startResponse := map[string]any{"runId": id, "sessionId": run.sessionID()}
 	if instructionErr != nil {
 		startResponse["instructionError"] = instructionErr.Error()
 	}

@@ -123,12 +123,12 @@ func TestContextOpenCodeLive(t *testing.T) {
 					}
 					var text string
 					_ = json.Unmarshal(m.Content, &text)
-					if m.Role == "system" && strings.HasPrefix(text, "NOE_CONTEXT_STATUS\n") {
+					if m.Role == "user" && strings.HasPrefix(text, "NOE_CONTEXT_STATUS\n") {
 						receipt.Notice = text
 						notices++
 					}
 				}
-				if len(pending) > 0 || notices != 1 {
+				if len(pending) > 0 || notices < 1 {
 					receipt.CompleteBlocks = false
 				}
 				mu.Lock()

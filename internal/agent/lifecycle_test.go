@@ -41,9 +41,13 @@ func lifecycleCall(t *testing.T, op *Operation, method string, payload any) stri
 	}
 	return result
 }
-func spawnLifecycle(t *testing.T, op *Operation, instruction *string, keepAlive bool) string {
+func spawnLifecycle(t *testing.T, op *Operation, instruction *string, keepAlive bool, allowDelegation ...bool) string {
 	t.Helper()
-	result := lifecycleCall(t, op, "spawn_agent", spawnRequest{Config: taskConfig{Config: Config{Provider: "openrouter", Model: "fixture/model", Name: "managed", Effort: "auto"}, MaxSteps: 1}, Instruction: instruction, KeepAlive: keepAlive})
+	req := spawnRequest{Config: taskConfig{Config: Config{Provider: "openrouter", Model: "fixture/model", Name: "managed", Effort: "auto"}, MaxSteps: 1}, Instruction: instruction, KeepAlive: keepAlive}
+	if len(allowDelegation) > 0 {
+		req.AllowDelegation = &allowDelegation[0]
+	}
+	result := lifecycleCall(t, op, "spawn_agent", req)
 	var spawned instanceRequest
 	if err := json.Unmarshal([]byte(result), &spawned); err != nil || spawned.AgentID == "" {
 		t.Fatalf("spawn result %s: %v", result, err)
@@ -93,7 +97,7 @@ func TestLifecycleIdleFIFOAndFailureRecovery(t *testing.T) {
 		}
 		for index := len(req.Messages) - 1; index >= 0; index-- {
 			var m struct{ Role, Content string }
-			if json.Unmarshal(req.Messages[index], &m) == nil && m.Role == "user" {
+			if json.Unmarshal(req.Messages[index], &m) == nil && m.Role == "user" && !strings.HasPrefix(m.Content, "NOE_CONTEXT_STATUS\n") {
 				user.Content = m.Content
 				break
 			}
@@ -146,10 +150,51 @@ func TestLifecycleIdleFIFOAndFailureRecovery(t *testing.T) {
 	seen := map[string]bool{}
 	for index, req := range requests {
 		messages := transcriptWithoutContextStatus(t, req.Messages)
-		if len(messages) != []int{2, 4, 5}[index] || req.CacheKey == "" || seen[req.CacheKey] {
+		if len(messages) != []int{2, 4, 5}[index] || req.CacheKey != id || req.SessionID != id || req.RunID == id || req.RunID == "" || seen[req.RunID] {
 			t.Fatalf("task continuation/cache boundary incorrect: %+v", req)
 		}
-		seen[req.CacheKey] = true
+		seen[req.RunID] = true
+	}
+}
+
+func TestLifecycleExplicitCacheKeyAcrossQueue(t *testing.T) {
+	binary := lifecycleBinary(t)
+	for _, key := range []string{"explicit-cache", ""} {
+		t.Run(fmt.Sprintf("key=%q", key), func(t *testing.T) {
+			requests := make(chan provider.Request, 2)
+			p := &fixtureProvider{gen: func(_ context.Context, req provider.Request) (provider.Response, error) {
+				requests <- req
+				return provider.Response{Message: json.RawMessage(`{"role":"assistant","content":"done"}`), FinishReason: "stop"}, nil
+			}}
+			h := NewHost(Options{Provider: p, Executable: binary, Cwd: t.TempDir()})
+			defer h.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			op := h.NewOperation(ctx)
+			defer op.Close()
+			var spawned spawnResponse
+			result := lifecycleCall(t, op, "spawn_agent", spawnRequest{
+				Config:    taskConfig{Config: Config{Provider: "openrouter", Model: "fixture/model", Name: "managed", Effort: "auto"}, MaxSteps: 1, CacheKey: &key},
+				KeepAlive: true,
+			})
+			if err := json.Unmarshal([]byte(result), &spawned); err != nil {
+				t.Fatal(err)
+			}
+			var previousRun string
+			for _, instruction := range []string{"first", "second"} {
+				var receipt commandReceipt
+				queued := lifecycleCall(t, op, "queue_agent", queueRequest{AgentID: spawned.AgentID, Instruction: instruction})
+				if err := json.Unmarshal([]byte(queued), &receipt); err != nil {
+					t.Fatal(err)
+				}
+				lifecycleCall(t, op, "wait_task", taskRequest{AgentID: spawned.AgentID, CommandID: receipt.CommandID})
+				req := <-requests
+				if req.SessionID != spawned.AgentID || req.CacheKey != key || req.RunID == "" || req.RunID == previousRun || req.RunID == req.SessionID {
+					t.Fatalf("queued session/cache settings: %+v", req)
+				}
+				previousRun = req.RunID
+			}
+		})
 	}
 }
 

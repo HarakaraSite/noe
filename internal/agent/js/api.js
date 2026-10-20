@@ -133,12 +133,15 @@ export function createAgentAPI({ request, defaults, observe }) {
     const resolved = configFor(config);
     if (!isRecord(options)) throw new TypeError("agent options must be an object");
     for (const key of Object.keys(options)) {
-      if (key !== "keepAlive") throw new TypeError("unknown agent option: " + key);
+      if (key !== "keepAlive" && key !== "allowDelegation") throw new TypeError("unknown agent option: " + key);
     }
     const keepAlive = options.keepAlive === undefined ? false : options.keepAlive;
     if (typeof keepAlive !== "boolean") throw new TypeError("keepAlive must be a boolean");
+    if (options.allowDelegation !== undefined && typeof options.allowDelegation !== "boolean") {
+      throw new TypeError("allowDelegation must be a boolean");
+    }
     if (instruction !== undefined || !keepAlive) requireString(instruction, "instruction");
-    return rpc("spawn_agent", { config: resolved, instruction, keepAlive });
+    return rpc("spawn_agent", { config: resolved, instruction, keepAlive, allowDelegation: options.allowDelegation });
   }
 
   // Waiting changes neither the launch contract nor the managed lifetime.
@@ -161,14 +164,40 @@ export function createAgentAPI({ request, defaults, observe }) {
   async function wait_task(options = {}) {
     if (!isRecord(options)) throw new TypeError("task wait options must be an object");
     for (const key of Object.keys(options)) {
-      if (key !== "agentId" && key !== "commandId") {
+      if (key !== "agentId" && key !== "commandId" && key !== "includeAnswer") {
         throw new TypeError("unknown task wait option: " + key);
       }
+    }
+    if (options.includeAnswer !== undefined && typeof options.includeAnswer !== "boolean") {
+      throw new TypeError("includeAnswer must be a boolean");
     }
     return rpc("wait_task", {
       agentId: requireString(options.agentId, "agentId"),
       commandId: requireString(options.commandId, "commandId"),
+      includeAnswer: options.includeAnswer,
     });
+  }
+
+  // Read the retained answer without consuming it or requesting another model.
+  async function read_task_result(options = {}) {
+    if (!isRecord(options)) throw new TypeError("task result options must be an object");
+    for (const key of Object.keys(options)) {
+      if (!["agentId", "commandId", "offset", "maxBytes"].includes(key)) {
+        throw new TypeError("unknown task result option: " + key);
+      }
+    }
+    const query = {
+      agentId: requireString(options.agentId, "agentId"),
+      commandId: requireString(options.commandId, "commandId"),
+    };
+    for (const key of ["offset", "maxBytes"]) {
+      if (options[key] === undefined) continue;
+      if (!Number.isSafeInteger(options[key]) || options[key] < (key === "offset" ? 0 : 1)) {
+        throw new TypeError(key + " must be a " + (key === "offset" ? "nonnegative" : "positive") + " safe integer");
+      }
+      query[key] = options[key];
+    }
+    return rpc("read_task_result", query);
   }
 
   // Add an instruction to one active task without interrupting its current work.
@@ -207,9 +236,12 @@ export function createAgentAPI({ request, defaults, observe }) {
     if (!isRecord(options)) throw new TypeError("observation options must be an object");
     if (options.agentId !== undefined) {
       for (const key of Object.keys(options)) {
-        if (key !== "agentId") throw new TypeError("live observation only accepts agentId");
+        if (key !== "agentId" && key !== "includeAnswer") throw new TypeError("live observation only accepts agentId and includeAnswer");
       }
-      return rpc("observe_agent", { agentId: requireString(options.agentId, "agentId") });
+      if (options.includeAnswer !== undefined && typeof options.includeAnswer !== "boolean") {
+        throw new TypeError("includeAnswer must be a boolean");
+      }
+      return rpc("observe_agent", { agentId: requireString(options.agentId, "agentId"), includeAnswer: options.includeAnswer });
     }
     const query = {
       logPath: requireString(options.logPath, "logPath"),
@@ -231,5 +263,5 @@ export function createAgentAPI({ request, defaults, observe }) {
     return JSON.parse(await observe(JSON.stringify(query)));
   }
 
-  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, steer_agent, interrupt_agent, list_models });
+  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, read_task_result, steer_agent, interrupt_agent, list_models });
 }

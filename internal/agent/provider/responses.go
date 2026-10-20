@@ -127,7 +127,7 @@ func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Re
 	if err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
-	state := &callState{requestBody: payload, observe: request.Observe, runID: request.RunID, responseAPI: "responses"}
+	state := &callState{requestBody: payload, observe: request.Observe, sessionID: request.sessionID(), responseAPI: "responses"}
 	ctx = context.WithValue(ctx, callContextKey{}, state)
 	defer state.closeBody()
 	model := request.Model

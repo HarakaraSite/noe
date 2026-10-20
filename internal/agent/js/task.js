@@ -300,7 +300,8 @@ export async function executeTask(config, instruction) {
   const runId = start.runId;
   if (typeof runId !== "string" || !runId) throw new Error("agent broker returned an invalid run ID");
   const managedConversation = start.snapshot !== undefined;
-  const cacheKey = normalized.cacheKey === undefined ? runId : normalized.cacheKey;
+  const cacheKey = normalized.cacheKey === undefined
+    ? requireString(start.sessionId, "agent session ID") : normalized.cacheKey;
   let status = "failed";
   let acceptedAnswer = "";
   let failureMessage = "";
@@ -346,9 +347,9 @@ export async function executeTask(config, instruction) {
       if (!isRecord(context) || typeof context.notification !== "string") {
         throw new Error("agent broker returned an invalid context notification");
       }
-      // The status is request-scoped: provider history retains only the source
-      // transcript, never this diagnostic tail message.
-      const modelMessages = [...history.messages(), {role: "system", content: context.notification}];
+      // Preserve each sent status with its response as ordinary, trimmable history.
+      const contextMessage = {role: "user", content: context.notification};
+      const modelMessages = [...history.messages(), contextMessage];
       const response = await rpc("model", {
         runId, modelStepId, model, messages: modelMessages, tools: [runJSTool], cacheKey, maxTokens, effort,
       });
@@ -392,7 +393,7 @@ export async function executeTask(config, instruction) {
         }
         const images = imagesByCall.flatMap(images => images || []);
         try {
-          history.completeBlock(response.message, results, images);
+          history.completeBlock(response.message, results, images, contextMessage);
         } catch (error) {
           try { await rpc("discard_images", {runId, modelStepId}); } catch (_) {}
           throw error;
@@ -418,7 +419,7 @@ export async function executeTask(config, instruction) {
 
       // Append before the finalization gate. The broker commits this complete
       // assistant object on both accepted and steer-rejected candidates.
-      history.completeBlock(response.message);
+      history.completeBlock(response.message, [], undefined, contextMessage);
       const committed = await rpc("commit_final", { runId, answer, snapshot: history.snapshot() });
       if (!isRecord(committed) || typeof committed.committed !== "boolean") {
         throw new Error("agent broker returned an invalid final-answer result");

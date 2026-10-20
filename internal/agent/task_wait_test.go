@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func TestWaitTaskKeepsResultsAcrossLaterTasksAndMultipleWaiters(t *testing.T) {
 		var instruction string
 		for index := len(req.Messages) - 1; index >= 0; index-- {
 			var message struct{ Role, Content string }
-			if json.Unmarshal(req.Messages[index], &message) == nil && message.Role == "user" {
+			if json.Unmarshal(req.Messages[index], &message) == nil && message.Role == "user" && !strings.HasPrefix(message.Content, "NOE_CONTEXT_STATUS\n") {
 				instruction = message.Content
 				break
 			}

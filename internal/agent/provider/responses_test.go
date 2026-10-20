@@ -57,7 +57,7 @@ func TestConfiguredResponsesToolCycleKeepsNativeReasoning(t *testing.T) {
 	firstOutput := `[{"id":"rs-1","type":"reasoning","summary":[{"type":"summary_text","text":"check"}],"encrypted_content":"opaque-reasoning"},{"id":"fc-1","type":"function_call","status":"completed","call_id":"call-1","name":"run_js","arguments":"{\"code\":\"console.log(42)\"}"}]`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		index := calls.Add(1)
-		if r.URL.Path != "/custom/responses" || r.Header.Get("x-opencode-session") != "run-1" || r.Header.Get("User-Agent") != "noe/test" || r.Header.Get("Authorization") != "Bearer fixture" {
+		if r.URL.Path != "/custom/responses" || r.Header.Get("x-opencode-session") != "session-1" || r.Header.Get("User-Agent") != "noe/test" || r.Header.Get("Authorization") != "Bearer fixture" {
 			t.Error("incorrect endpoint/identity")
 		}
 		var body map[string]json.RawMessage
@@ -90,7 +90,7 @@ func TestConfiguredResponsesToolCycleKeepsNativeReasoning(t *testing.T) {
 	os.WriteFile(key, []byte("fixture"), 0600)
 	p := NewOpenRouter(Options{KeyFile: key, BaseURL: server.URL, Profile: &Definition{API: "responses", Path: "/custom/responses", SessionHeader: "x-opencode-session", EffortField: "reasoning.effort", Headers: map[string]string{"User-Agent": "noe/test"}}})
 	var observations []StreamEvent
-	request := Request{RunID: "run-1", Model: "fixture/model", Effort: "high", Messages: []json.RawMessage{json.RawMessage(`{"role":"user","content":"calculate"}`)}, Tools: []json.RawMessage{json.RawMessage(`{"type":"function","function":{"name":"run_js","parameters":{"type":"object"}}}`)}, Observe: func(e StreamEvent) { observations = append(observations, e) }}
+	request := Request{RunID: "run-1", SessionID: "session-1", Model: "fixture/model", Effort: "high", Messages: []json.RawMessage{json.RawMessage(`{"role":"user","content":"calculate"}`)}, Tools: []json.RawMessage{json.RawMessage(`{"type":"function","function":{"name":"run_js","parameters":{"type":"object"}}}`)}, Observe: func(e StreamEvent) { observations = append(observations, e) }}
 	first, err := p.Generate(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -99,6 +99,7 @@ func TestConfiguredResponsesToolCycleKeepsNativeReasoning(t *testing.T) {
 		t.Fatalf("first result: %s", first.Message)
 	}
 	request.Messages = append(request.Messages, first.Message, json.RawMessage(`{"role":"tool","tool_call_id":"call-1","content":"42"}`))
+	request.RunID = "run-2"
 	last, err := p.Generate(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)

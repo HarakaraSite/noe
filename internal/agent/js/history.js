@@ -52,10 +52,10 @@ export class TaskHistory {
     this.steers.add(command.commandId);
   }
 
-  completeBlock(assistant, results = [], images = undefined) {
+  completeBlock(assistant, results = [], images = undefined, contextMessage = undefined) {
     const calls = assistant.tool_calls || [];
     if (calls.length !== results.length) throw Error("incomplete history block");
-    const messages = [assistant];
+    const messages = contextMessage === undefined ? [assistant] : [contextMessage, assistant];
     for (let i = 0; i < calls.length; i++) {
       messages.push({role: "tool", tool_call_id: calls[i].id, content: JSON.stringify(results[i])});
     }
@@ -123,8 +123,10 @@ export class TaskHistory {
 }
 
 function validateCompleteBlock(messages) {
+  if (messages[0]?.role === "user" && typeof messages[0].content === "string" &&
+      messages[0].content.startsWith("NOE_CONTEXT_STATUS\n")) messages = messages.slice(1);
   const assistant = messages[0];
-  if (assistant.role !== "assistant") throw new Error("agent broker returned an incomplete conversation block");
+  if (!assistant || assistant.role !== "assistant") throw new Error("agent broker returned an incomplete conversation block");
   const calls = assistant.tool_calls === undefined || assistant.tool_calls === null ? [] : assistant.tool_calls;
   if (!Array.isArray(calls) || (messages.length !== calls.length + 1 && messages.length !== calls.length + 2)) {
     throw new Error("agent broker returned an incomplete conversation block");

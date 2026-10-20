@@ -173,8 +173,8 @@ run_agent({name:"right",model:"fixture/override",maxTokens:321,effort:"low",syst
 		t.Fatal("root missing in trace")
 	}
 	for id, record := range starts {
-		if record.Name != "right" && sessions[record.Name] != id {
-			t.Errorf("automatic session_id does not match trace runId: %+v", record)
+		if sessions[record.Name] == id {
+			t.Errorf("instance session_id must be distinct from task runId: %+v", record)
 		}
 		if id != parent && record.ParentRunID != parent {
 			t.Fatalf("broken parent trace: %+v", record)

@@ -65,7 +65,15 @@ func (h *Host) spawn(op *Operation, req spawnRequest) (spawnResponse, error) {
 			h.mu.Unlock()
 			return spawnResponse{}, newOperationError(409, "scope", "parent agent run has ended")
 		}
+		if parent.instance != nil && !parent.instance.allowDelegation {
+			h.mu.Unlock()
+			return spawnResponse{}, newOperationError(403, "delegation", "this agent is not allowed to delegate; its owner must launch it with allowDelegation: true")
+		}
 		ownerCtx = parent.ctx
+	}
+	allowDelegation := parent == nil
+	if req.AllowDelegation != nil {
+		allowDelegation = *req.AllowDelegation
 	}
 	group := h.executionForOperationLocked(op)
 	rootGroup := group == nil
@@ -99,6 +107,7 @@ func (h *Host) spawn(op *Operation, req spawnRequest) (spawnResponse, error) {
 	}
 	ctx, cancel := context.WithCancel(ownerCtx)
 	instance := &agentInstance{host: h, id: id, config: req.Config, configJSON: encoded, keepAlive: req.KeepAlive, owner: op, parent: parent, group: group, modelWindow: modelWindow, modelMaxOutputTokens: modelMaxOutput, activityID: activityID, causedBy: causedBy, origin: origin, activeCounted: true, ctx: ctx, cancel: cancel, done: make(chan struct{}), wake: make(chan struct{}, 1), state: "starting", commands: make(map[string]*command), runInterruptAccepted: make(map[string]chan struct{})}
+	instance.allowDelegation = allowDelegation
 	group.counters.ActiveAgents++
 	if initial != nil {
 		initial.causedBy = []string{activityID}
@@ -149,6 +158,11 @@ func (h *Host) observeInstance(op *Operation, req instanceRequest, wait bool, re
 	h.mu.Lock()
 	snapshot := instance.snapshotLocked()
 	h.mu.Unlock()
+	if req.IncludeAnswer != nil && !*req.IncludeAnswer && snapshot.LastResult != nil {
+		outcome := *snapshot.LastResult
+		outcome.omitAnswer = true
+		snapshot.LastResult = &outcome
+	}
 	return snapshot, nil
 }
 

@@ -232,7 +232,7 @@ func inspectHooksLiveRequest(request *http.Request, parsed hooksLiveWireRequest)
 	}
 	for index, message := range parsed.Messages {
 		receipt.RoleCounts[message.Role]++
-		if message.Role == "system" && hasContextNotice(message.Content) {
+		if message.Role == "user" && hasContextNotice(message.Content) {
 			receipt.ContextNoticeCount++
 			if index == len(parsed.Messages)-1 {
 				receipt.ContextNoticeAtTail = true
@@ -811,14 +811,14 @@ func readHooksLiveJSONL(path string) ([]map[string]json.RawMessage, error) {
 func assertHooksLiveL1(t *testing.T, c *hooksLiveCase, events, hooks []map[string]json.RawMessage) {
 	t.Helper()
 	modelStarted, modelFinished := 0, 0
-	runs, requests := make(map[string]bool), make(map[string]bool)
+	agents, requests := make(map[string]bool), make(map[string]bool)
 	usageFound := false
 	toolEvents := make(map[string]map[string]json.RawMessage)
 	for _, event := range events {
 		switch eventString(event, "type") {
 		case "model.started":
 			modelStarted++
-			runs[eventString(event, "runId")] = true
+			agents[eventString(event, "agentId")] = true
 			requests[eventString(event, "requestId")] = true
 		case "model.finished":
 			modelFinished++
@@ -883,10 +883,10 @@ func assertHooksLiveL1(t *testing.T, c *hooksLiveCase, events, hooks []map[strin
 		if wire.Rejected != "" || wire.Status < 200 || wire.Status >= 300 || wire.Model != hooksLiveModel {
 			t.Errorf("unexpected or rejected provider wire request sequence %d: status=%d rejected=%s model=%s", wire.Sequence, wire.Status, wire.Rejected, wire.Model)
 		}
-		if !strings.HasPrefix(wire.UserAgent, "noe/") || wire.SessionID == "" || !runs[wire.SessionID] {
+		if !strings.HasPrefix(wire.UserAgent, "noe/") || wire.SessionID == "" || !agents[wire.SessionID] {
 			t.Errorf("OpenCode User-Agent/session correlation missing on request %d", wire.Sequence)
 		}
-		if wire.ContextNoticeCount != 1 || !wire.ContextNoticeAtTail {
+		if wire.ContextNoticeCount < 1 || !wire.ContextNoticeAtTail {
 			t.Errorf("wire request %d has context notice count=%d tail=%v", wire.Sequence, wire.ContextNoticeCount, wire.ContextNoticeAtTail)
 		}
 	}
@@ -945,7 +945,7 @@ export async function beforeModelRequest(event,api){
   await receipt("beforeModelRequest",event);
   if(event.agentDepth===0&&!fileExists(`+string(rootMarker)+`)){
     writeFileSync(`+string(rootMarker)+`,"started");
-    const child=await api.agents.run_agent({},"Finish the child task briefly. Do not use tools or decision APIs.");
+    const child=await api.agents.run_agent({},"Finish the child task briefly. Do not use tools or decision APIs.",{allowDelegation:true});
     await receipt("rootChildCompleted",event,{childState:child.lastResult?.state});
   }
   if(event.agentDepth===1&&!fileExists(`+string(childMarker)+`)){
@@ -1040,7 +1040,7 @@ console.log(JSON.stringify({agentId,first,queue1,queueReplay,second,accepted,ter
 	if counters.AgentStarts != 3 || counters.QueuedTasks != 1 || counters.ActiveAgents != 0 || counters.ActiveTasks != 0 || report.Terminal.QueueLength != 0 {
 		t.Errorf("shared execution counters/cleanup mismatch: %+v queue=%d", counters, report.Terminal.QueueLength)
 	}
-	assertHooksLiveGroupWire(t, c, rows, report.AgentID, 4)
+	assertHooksLiveGroupWire(t, c, rows, report.AgentID, 3) // Two root queue tasks share one session.
 	assertHooksLiveAgentTree(t, rows, hooks, report.AgentID, report.First.LastResult.RunID, report.Second.LastResult.RunID)
 	if entries, err := os.ReadDir(c.control); err == nil && len(entries) != 0 {
 		t.Errorf("control registration remained after root CLI exit: %d files", len(entries))
@@ -1060,10 +1060,10 @@ func hooksLiveLastJSONLine(t *testing.T, output, artifact string) string {
 
 func assertHooksLiveGroupWire(t *testing.T, c *hooksLiveCase, events []map[string]json.RawMessage, groupID string, minimumSessions int) {
 	t.Helper()
-	runIDs := make(map[string]bool)
+	agentIDs := make(map[string]bool)
 	for _, row := range events {
 		if eventString(row, "type") == "model.started" && eventString(row, "groupId") == groupID {
-			runIDs[eventString(row, "runId")] = true
+			agentIDs[eventString(row, "agentId")] = true
 		}
 	}
 	wires := c.recorder.snapshot()
@@ -1072,16 +1072,16 @@ func assertHooksLiveGroupWire(t *testing.T, c *hooksLiveCase, events []map[strin
 		if wire.Rejected != "" || wire.Status < 200 || wire.Status >= 300 || wire.Model != hooksLiveModel {
 			t.Errorf("invalid authorized live request sequence %d", wire.Sequence)
 		}
-		if !strings.HasPrefix(wire.UserAgent, "noe/") || !runIDs[wire.SessionID] {
-			t.Errorf("wire session %q did not match a task run or User-Agent was missing", wire.SessionID)
+		if !strings.HasPrefix(wire.UserAgent, "noe/") || !agentIDs[wire.SessionID] {
+			t.Errorf("wire session %q did not match an agent instance or User-Agent was missing", wire.SessionID)
 		}
-		if wire.ContextNoticeCount != 1 || !wire.ContextNoticeAtTail {
-			t.Errorf("request %d did not have exactly one tail context notice", wire.Sequence)
+		if wire.ContextNoticeCount < 1 || !wire.ContextNoticeAtTail {
+			t.Errorf("request %d did not have a context notice at the tail", wire.Sequence)
 		}
 		sessions[wire.SessionID] = true
 	}
 	if len(sessions) < minimumSessions {
-		t.Errorf("only %d distinct real task sessions; want at least %d", len(sessions), minimumSessions)
+		t.Errorf("only %d distinct real instance sessions; want at least %d", len(sessions), minimumSessions)
 	}
 }
 
@@ -1568,18 +1568,19 @@ console.log(JSON.stringify({aAgentId:a.agentId,aTerminal,bGroupId:b.groupId,bSta
 	wires := c.recorder.snapshot()
 	aWireCount, bWireCount := 0, 0
 	for _, wire := range wires {
-		if wire.Rejected != "" || wire.Status < 200 || wire.Status >= 300 || wire.Model != hooksLiveModel || wire.ContextNoticeCount != 1 || !wire.ContextNoticeAtTail {
+		if wire.Rejected != "" || wire.Status < 200 || wire.Status >= 300 || wire.Model != hooksLiveModel || wire.ContextNoticeCount < 1 || !wire.ContextNoticeAtTail {
 			t.Errorf("invalid authorized request/notice in sequence %d", wire.Sequence)
 		}
 		if wire.SessionID != "" {
 			for _, event := range rows {
-				if eventString(event, "type") == "model.started" && eventString(event, "runId") == wire.SessionID {
+				if eventString(event, "type") == "model.started" && eventString(event, "agentId") == wire.SessionID {
 					if eventString(event, "groupId") == report.AAgentID {
 						aWireCount++
 					}
 					if eventString(event, "groupId") == report.BGroupID {
 						bWireCount++
 					}
+					break
 				}
 			}
 		}

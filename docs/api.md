@@ -73,7 +73,7 @@ OpenAIのSol・LunaはResponsesを使います。[OpenAIガイド](openai.md)に
 
 `list_models({provider?, kind?})`は、認証や外部API要求なしで内蔵デフォルトと外部上書きを統合した候補一覧を返します。詳細とJevでの選択例は[モデルカタログ](model-catalog.md)を参照してください。
 
-`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`steer_agent`・`interrupt_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
+`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`read_task_result`・`steer_agent`・`interrupt_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
 
 ```js
 import { run_agent } from "noe:agent";
@@ -124,6 +124,18 @@ console.log(result);
 
 `wait_task({agentId, commandId})`は初期タスクまたはqueueで受領された特定のタスクが終わるまで待ち、`{runId, commandId, state, answer, error?, errorDetails?}`を返します。`state`は`completed`・`failed`・`cancelled`です。失敗・取消しも結果としてresolveし、不正・不明・所有範囲外のIDはrejectします。開始前に取り消されたタスクでは`runId`と`answer`が空です。steerの`commandId`は指定できません。
 
+`wait_task`とlive `observe_agent`は`includeAnswer`を指定でき、既定は`true`です。`false`なら`answer`（observeでは`lastResult.answer`）を省略し、代わりに`answerBytes`としてUTF-8のbyte数を返します。状態・ID・error等は受け取れ、保存された原文は変わりません。
+
+`read_task_result({agentId, commandId, offset?, maxBytes?})`は完了済みタスクの原文を範囲取得し、`{runId, commandId, state, text, offset, nextOffset, totalBytes, eof}`を返します。`offset`は既定0のUTF-8 byte位置で、文字境界かつ原文末尾までの非負safe integer、`maxBytes`は既定4096の正のsafe integerです。続きは`nextOffset`から取得します。文字の途中で切らず、指定byte数に一文字も収まらない場合だけ、その一文字を返すため最大3bytes超えます。末尾では空文字と`eof:true`です。未完了ならrejectするので先に`wait_task`で待ちます。所有範囲・結果保持期間は`wait_task`と同じで、追加モデル呼出しや自動要約・原文の切り捨ては行いません。
+
+```js
+const meta = await wait_task({agentId, commandId, includeAnswer: false});
+const part = await read_task_result({agentId, commandId, maxBytes: 4096});
+console.log(meta, part.text);
+```
+
+子への指示では結論・変更箇所・判断の根拠・未解決事項を短く返し、詳細ログは保存先を示す形にできます。自動要約のためのagentは起動しません。
+
 instanceがidle・停止になるまで待つ必要はなく、後続タスクの実行中でも指定した結果が返ります。結果は所有元の実行scope内でNOEホストの生存中、instance停止後も保持され、複数箇所・後からの待機で同じ結果を受け取れます。所有者の終了後も通常の所有権の規則に従い、NOE終了後の永続化はしません。ポーリング・追加モデル呼出し・待機専用のobserve/JSONLイベントは発生しません。待機だけの取消しは対象タスクを取り消しません。所有者の終了・取消しによる通常の回収は継続します。
 
 ### 設定
@@ -139,15 +151,17 @@ context snapshotは[hook・実行groupガイド](hooks.md)を参照してくだ�
 `executionLimits`はrootのみ指定でき、省略項目は無制限、0は受付枠0です。
 runのsnapshotに`groupId`・`execution`・`context`が加わります。
 
-`config`は`{provider, model, effort, name?, system?, maxTokens?, maxSteps?, cacheKey?, hooks?, contextBudget?, contextPolicy?, executionLimits?}`です。rootで`provider`・`model`・`effort`を省略すると入力エラーです。子agentではprovider・model・effort・maxTokens・hooks・contextBudget・contextPolicyを省略時に起動元から継承します。その他の項目は自動継承しません。executionLimitsはrootのみ指定でき、子は同じgroupの残量を共有します。`provider`には組込みまたは外部設定で定義したIDを指定します。`model`と`name`は空でない文字列、`system`と`cacheKey`は文字列、`maxTokens`と`maxSteps`は0以上の整数です。`name`の既定値は`agent`、`system`は空文字、`maxTokens`と`maxSteps`は0です。`system`と自動読込みinstructionはinstanceの最初のtaskで構成して固定し、同じinstanceのqueue taskではinstruction fileを再読込みしません。新しいinstanceは独自のsystemと会話を持ちます。`instruction`は空でない文字列で、`keepAlive:true`なら省略できます。`options`は独立した第三引数で、受け取る項目は`keepAlive`のみです。`keepAlive`を`config`へ入れないでください。instructionを省略してoptionsを渡す場合は、第二引数に`undefined`を置きます。たとえば`spawn_agent({name:"worker"}, undefined, {keepAlive:true})`はidleで起動し、queueにtaskが届くまでモデルを呼びません。
+`config`は`{provider, model, effort, name?, system?, maxTokens?, maxSteps?, cacheKey?, hooks?, contextBudget?, contextPolicy?, executionLimits?}`です。rootで`provider`・`model`・`effort`を省略すると入力エラーです。子agentではprovider・model・effort・maxTokens・hooks・contextBudget・contextPolicyを省略時に起動元から継承します。その他の項目は自動継承しません。executionLimitsはrootのみ指定でき、子は同じgroupの残量を共有します。`provider`には組込みまたは外部設定で定義したIDを指定します。`model`と`name`は空でない文字列、`system`と`cacheKey`は文字列、`maxTokens`と`maxSteps`は0以上の整数です。`name`の既定値は`agent`、`system`は空文字、`maxTokens`と`maxSteps`は0です。`system`と自動読込みinstructionはinstanceの最初のtaskで構成して固定し、同じinstanceのqueue taskではinstruction fileを再読込みしません。新しいinstanceは独自のsystemと会話を持ちます。`instruction`は空でない文字列で、`keepAlive:true`なら省略できます。`options`は独立した第三引数で、受け取る項目は`keepAlive`と`allowDelegation`です。`keepAlive`を`config`へ入れないでください。instructionを省略してoptionsを渡す場合は、第二引数に`undefined`を置きます。たとえば`spawn_agent({name:"worker"}, undefined, {keepAlive:true})`はidleで起動し、queueにtaskが届くまでモデルを呼びません。
 
 `effort`で指定できる値は`"auto"`・`"none"`・`"minimal"`・`"low"`・`"medium"`・`"high"`・`"xhigh"`・`"max"`です。明示的な`"auto"`は推論設定を送らず、provider/modelの既定動作に任せます。他の値はprovider設定の`effortField`（OpenRouterは`reasoning.effort`、OpenCode GoのChatは`reasoning_effort`）へ送り、各タスクで固定します。実際に利用できるエフォートと効果はmodel/providerに従います。NOEはモデル別の対応表による事前拒否や値の自動変更を行わず、APIからエラーが返ればprovider errorとして扱います。[OpenRouterのreasoning仕様](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)を参照してください。
 
 `maxSteps`はタスクごとのモデル要求回数を制限します。0はNOE側の上限なしです。`maxTokens`はモデル要求ごとの出力上限で、会話全体の累計ではありません。0の場合、NOEはOpenRouterへ`max_tokens`を送りません。どちらの上限も指定しない場合、NOEは独自の上限を追加しません。
 
-`cacheKey`はOpenRouterの`session_id`として送られ、routingやprompt cacheで使われる値です。未指定（`undefined`を含む）の場合は各task runの`runId`を使い、同じtask内の全モデル要求へ同じIDを送ります。明示した`cacheKey`は各taskで再利用されます。`cacheKey: ""`は`session_id`を送らない指定です。queue会話の保持はNOE instanceが行い、cacheKeyは会話を保存・再開せず、キャッシュヒットも保証しません。[OpenRouter session_id仕様](https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions)を参照してください。
+`cacheKey`はOpenRouterの`session_id`として送られ、routingやprompt cacheで使われる値です。未指定（`undefined`を含む）の場合はinstanceの`agentId`を使い、同じinstanceの起動中はqueue taskをまたいでも全モデル要求へ同じセッションIDを送ります。別instance・子・孫はそれぞれ別IDです。taskごとの`runId`は引き続き個別に発行します。明示した`cacheKey`は各taskで再利用されます。`cacheKey: ""`は`session_id`を送らない指定です。queue会話の保持はNOE instanceが行い、cacheKeyは会話を保存・再開せず、キャッシュヒットも保証しません。[OpenRouter session_id仕様](https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions)を参照してください。
 
 ### 戻り値・状態・寿命
+
+`options.allowDelegation`は、そのinstanceがさらに子を起動できるかを所有元が決めるbooleanです。省略時はrootで`true`、子で`false`です。子へ再委譲を許可する場合、親が起動時の第三引数へ`{allowDelegation:true}`を指定します。許可は子へ自動継承せず、次の階層でも個別の明示指定が必要です。Go側の起動受付で起動元の権限を検査するため、許可のない子が自分の起動要求へ`allowDelegation:true`を書いても起動できません。`spawn_agent`・`run_agent`とhookからの起動へ共通に適用し、拒否はその要求をrejectします。group全体は停止せず、拒否したinstanceの起動枠も消費しません。
 
 run snapshotは`{agentId, parentRunId, name, state, reason, keepAlive, currentRunId, queueLength, lastResult}`です。instance stateは`starting`・`idle`・`running`・`stopping`・`stopped`・`failed`です。起動直後やidleでは`currentRunId`が空です。`lastResult`は最後のtaskの`{runId, commandId, state, answer, error?}`で、まだtaskを実行していなければ`null`です。
 
@@ -210,13 +224,13 @@ Control接続はローカルで稼働中のNOEに限られ、daemonや再起動�
 
 ### run_jsからの利用
 
-モデル向けの`run_js`では6つのagent関数が事前に束縛されています。importや再宣言をせず、そのまま呼び出してください。`run_js`呼出しごとに新しいNOEプロセスが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
+モデル向けの`run_js`では8つのagent関数が事前に束縛されています。importや再宣言をせず、そのまま呼び出してください。`run_js`呼出しごとに新しいNOEプロセスが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
 
 捕捉するstdout・stderrは、それぞれ元の出力の先頭32KiBと末尾32KiB、合計64KiBまでを保持します。上限以内の出力は変更しません。超過した場合は途中に`[NOE: output truncated; N bytes omitted]`を挿入し、結果に`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。UTF-8の切断位置は文字境界へ寄せるため、保持量が数バイト減る場合があります。超過分も読み捨て続けるため、上限到達で子プロセスを停止したり出力pipeを詰まらせたりしません。省略だけで`exitCode`や`reason`は変更しません。内部のmanaged taskプロセスの捕捉出力も同じ制限に従います。
 
 省略分は自動保存しません。完全なログが必要な処理は、実行するJSやコマンド側で既知のファイルへ書き出し、必要な部分だけを読み戻してください。afterToolが受け取る元の結果とJSONLも、この制限後の出力です。hookが独自に生成した置換結果、子プロセス内部のメモリ、通常のトップレベル`run`・`eval`の出力を制限する機能ではありません。
 
-`observe_agent`はlive状態と保存済みJSONLの二つのtargetを持ちます。live用は`observe_agent({agentId})`のみです。ファイル観察は既存の`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`を維持します。両方のtargetを同じ呼出しへ混在させられません。ファイル観察の戻り値・cursorは[観察ガイド](observe.md)を参照してください。
+`observe_agent`はlive状態と保存済みJSONLの二つのtargetを持ちます。live用は`observe_agent({agentId, includeAnswer?})`です。ファイル観察は既存の`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`を維持します。両方のtargetを同じ呼出しへ混在させられません。ファイル観察の戻り値・cursorは[観察ガイド](observe.md)を参照してください。
 
 ### 認証と設定
 

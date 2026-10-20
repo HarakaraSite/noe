@@ -32,9 +32,14 @@ const worker=await spawn_agent({name:"worker"},undefined,{keepAlive:true});
 if("commandId" in worker)throw Error("idle spawn has an initial task");
 const first=await queue_agent({agentId:worker.agentId,instruction:"first"});
 const second=await queue_agent({agentId:worker.agentId,instruction:"second"});
-const [a,b]=await Promise.all([first,second].map(task=>wait_task({agentId:worker.agentId,commandId:task.commandId})));
+const [a,b]=await Promise.all([first,second].map(task=>wait_task({agentId:worker.agentId,commandId:task.commandId,includeAnswer:task===first})));
 const again=await wait_task({agentId:worker.agentId,commandId:first.commandId});
-if(a.state!=="completed" || a.answer!=="first done" || b.answer!=="second done" || again.runId!==a.runId)throw Error(JSON.stringify({a,b,again}));
+if(a.state!=="completed" || a.answer!=="first done" || "answer" in b || b.answerBytes!==11 || again.runId!==a.runId)throw Error(JSON.stringify({a,b,again}));
+const view=await observe_agent({agentId:worker.agentId,includeAnswer:false});
+if("answer" in view.lastResult || view.lastResult.answerBytes!==11)throw Error(JSON.stringify(view));
+const earlier=await read_task_result({agentId:worker.agentId,commandId:first.commandId,maxBytes:5});
+const later=await read_task_result({agentId:worker.agentId,commandId:second.commandId});
+if(earlier.text!=="first" || earlier.eof || earlier.nextOffset!==5 || later.text!=="second done" || !later.eof)throw Error(JSON.stringify({earlier,later}));
 await interrupt_agent({agentId:worker.agentId});
 console.log("workflow passed");`)}}}, FinishReason: "tool_calls"}
 		}
@@ -47,11 +52,11 @@ console.log("workflow passed");`)}}}, FinishReason: "tool_calls"}
 	})
 	defer server.Close()
 	work := t.TempDir()
-	writeFixture(t, filepath.Join(work, "main.js"), `import {spawn_agent,wait_task} from "noe:agent";
+	writeFixture(t, filepath.Join(work, "main.js"), `import {spawn_agent,wait_task,read_task_result} from "noe:agent";
 const task=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"parent");
-const result=await wait_task(task);
-if(result.state!=="completed")throw Error(JSON.stringify(result));
-console.log(result.answer);`)
+const result=await wait_task({...task,includeAnswer:false});
+if(result.state!=="completed" || "answer" in result)throw Error(JSON.stringify(result));
+console.log((await read_task_result(task)).text);`)
 	result := runCLI(t, work, agentCLIEnv(t, server.URL), "run", "main.js")
 	requireExit(t, result, 0)
 	if result.stdout != "parent done\n" || calls.Load() != 4 {

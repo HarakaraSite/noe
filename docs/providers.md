@@ -65,7 +65,7 @@ NOE_OPENCODE_GO_API_KEY_FILE=/path/to/opencode-go-api-key \
 
 OpenCode Goのmodel IDには`deepseek/`や`opencode-go/`のprefixを付けません。既定ではChat Completionsを使い、組込みモデル表の`gpt-6-luna`等はResponsesを使います。**Messages形式は未対応です。** 新しいモデルの対応形式は[OpenCode公式資料](https://opencode.ai/v2/docs/console/go/)で確認し、必要に応じて`models`へ設定を追加します。
 
-Go側で`User-Agent: noe/<version>`を付与し、`x-opencode-session`には実際の`runId`を送ります。同じrunのモデル往復では固定し、親・子・次のqueue taskでは別IDです。OpenRouter用の`cacheKey`/`session_id`とは別の設定で、`cacheKey`を空にしてもOpenCode Goの会話ヘッダは送り続けます。
+Go側で`User-Agent: noe/<version>`を付与し、`x-opencode-session`にはinstanceの`agentId`をセッションIDとして送ります。同じinstanceの起動中はqueue taskをまたいでも固定し、別instance・子・孫はそれぞれ別IDです。taskごとの`runId`は引き続き独立しています。OpenRouter用の`cacheKey`/`session_id`とは別の設定で、`cacheKey`を空にしてもOpenCode Goの会話ヘッダは送り続けます。
 
 Chatの思考はprovider設定の`reasoningField`に従って連結・保持・再送します。OpenCode Goの既定は`reasoning_content`です。Responsesではtool callやreasoningを含むnative output itemsを履歴へ保持し、次の要求のinputへ再送します。providerが返したthinking・summary・回答の断片は既存の観察イベントへ流れます。
 
@@ -94,7 +94,7 @@ SDK側の暗黙のretryは無効のまま、NOE側で上記の再試行だけを
 | `keyFileEnv` | キーファイルpathを上書きする環境変数の名前 |
 | `headers` | 静的なHTTPヘッダ |
 | `parameters` | 静的なJSONリクエストパラメータ |
-| `sessionHeader` | 値にrunIdを入れるヘッダ名 |
+| `sessionHeader` | 値にinstanceのagentIdをセッションIDとして入れるヘッダ名 |
 | `sessionField` | 値にcacheKeyを入れるJSONフィールド。dotで階層指定可 |
 | `reasoningField` | Chat応答の思考フィールド名 |
 | `effortField` | 明示effortの送信先。例：`reasoning.effort`、`reasoning_effort` |

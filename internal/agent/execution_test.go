@@ -68,7 +68,7 @@ func TestExecutionGroupPropagationAndQueueCountingWithoutObservation(t *testing.
 
 	rootTaskOp, rootRun := newManagedTestRun(t, h, rootA, "root-run", "root-run-activity", "root-command", "")
 	defer rootTaskOp.Close()
-	childID := spawnLifecycle(t, rootTaskOp, nil, true)
+	childID := spawnLifecycle(t, rootTaskOp, nil, true, true)
 	h.mu.Lock()
 	child := h.instances[childID]
 	h.mu.Unlock()

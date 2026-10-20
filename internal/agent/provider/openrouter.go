@@ -118,7 +118,7 @@ type callContextKey struct{}
 type callState struct {
 	requestBody    []byte
 	observe        func(StreamEvent)
-	runID          string
+	sessionID      string
 	responseAPI    string
 	reasoningField string
 
@@ -264,7 +264,7 @@ func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (Respons
 	if err != nil {
 		return Response{}, err
 	}
-	state := &callState{requestBody: payload, observe: request.Observe, runID: request.RunID, reasoningField: p.profile.ReasoningField}
+	state := &callState{requestBody: payload, observe: request.Observe, sessionID: request.sessionID(), reasoningField: p.profile.ReasoningField}
 	ctx = context.WithValue(ctx, callContextKey{}, state)
 	defer state.closeBody()
 

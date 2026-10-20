@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -147,6 +148,7 @@ func TestContextTrimmingCLISurfacesAndSavedObservation(t *testing.T) {
 			requestCopy := append([]agentChatRequest(nil), requests...)
 			mu.Unlock()
 			assertCompleteLatestBlockAfterTrim(t, requestCopy, contextTrimOriginalTask)
+			assertContextStatusHistory(t, requestCopy)
 
 			eventPath = filepath.Join(work, eventPath)
 			trimEvents := readContextTrimEvents(t, eventPath, run.RunID)
@@ -290,6 +292,7 @@ func TestContextTrimmingQueuedTaskContinuesConversationAndTrimState(t *testing.T
 		t.Fatalf("fixture requests first=%d queued=%d future=%d, want 5/4/1", gotLongCalls, gotQueuedCalls, gotFutureCalls)
 	}
 	assertQueueHistoryAndDroppedTools(t, requestCopy)
+	assertContextStatusHistory(t, requestCopy)
 
 	eventPath = filepath.Join(work, eventPath)
 	firstEvents := readContextTrimEvents(t, eventPath, first.RunID)
@@ -530,5 +533,48 @@ func assertCompleteLatestBlockAfterTrim(t *testing.T, requests []agentChatReques
 	}
 	if trimmedRequests == 0 {
 		t.Fatal("no provider request used the post-trim history and notice")
+	}
+}
+
+func assertContextStatusHistory(t *testing.T, requests []agentChatRequest) {
+	t.Helper()
+	sent := make(map[string]bool)
+	for requestIndex, request := range requests {
+		notices, assistants := 0, 0
+		for index, message := range request.RawMessages {
+			var text string
+			isStatus := json.Unmarshal(message.Content, &text) == nil && strings.HasPrefix(text, "NOE_CONTEXT_STATUS\n")
+			if isStatus {
+				notices++
+				if message.Role != "user" {
+					t.Fatalf("status instruction remained in request %d", requestIndex)
+				}
+				if index < len(request.RawMessages)-1 {
+					if !sent[text] || request.RawMessages[index+1].Role != "assistant" {
+						t.Fatalf("historical status changed or lost its response in request %d", requestIndex)
+					}
+				} else if text != request.RuntimeInfo {
+					t.Fatal("latest status does not match the request tail")
+				}
+			}
+			if message.Role == "assistant" {
+				assistants++
+			}
+		}
+		if notices != assistants+1 {
+			t.Fatalf("status and response blocks were not retained/trimmed together: request %d, notices=%d assistants=%d", requestIndex, notices, assistants)
+		}
+		if requestIndex > 0 && !strings.Contains(request.RuntimeInfo, "Context trimmed:") {
+			previous := requests[requestIndex-1].RawMessages
+			if len(previous) >= len(request.RawMessages) {
+				t.Fatal("untrimmed history did not append the next turn")
+			}
+			for index, message := range previous {
+				if !reflect.DeepEqual(message, request.RawMessages[index]) {
+					t.Fatalf("sent prefix changed at request %d message %d", requestIndex, index)
+				}
+			}
+		}
+		sent[request.RuntimeInfo] = true
 	}
 }

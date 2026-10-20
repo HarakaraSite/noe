@@ -26,7 +26,7 @@ type Runner struct {
 // setup and supervision failures.
 type Result = processrunner.Result
 
-const childSourcePrelude = "import { run_agent, spawn_agent, observe_agent, queue_agent, wait_task, steer_agent, interrupt_agent } from \"noe:agent\";\n"
+const childSourcePrelude = "import { run_agent, spawn_agent, observe_agent, queue_agent, wait_task, read_task_result, steer_agent, interrupt_agent } from \"noe:agent\";\n"
 
 // Run prepends the public agent helper import used by run_js code.
 func (r Runner) Run(ctx context.Context, code string) (Result, error) {

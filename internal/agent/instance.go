@@ -25,12 +25,26 @@ type command struct {
 }
 
 type taskOutcome struct {
+	omitAnswer   bool            // Per-response projection; never set on the retained result.
 	RunID        string          `json:"runId"`
 	CommandID    string          `json:"commandId"`
 	State        string          `json:"state"`
 	Answer       string          `json:"answer"`
 	Error        string          `json:"error,omitempty"`
 	ErrorDetails *imageapi.Error `json:"errorDetails,omitempty"`
+}
+
+// Keep the default wire shape, including an empty answer, for existing callers.
+func (o taskOutcome) MarshalJSON() ([]byte, error) {
+	type outcome taskOutcome
+	if !o.omitAnswer {
+		return json.Marshal(outcome(o))
+	}
+	return json.Marshal(struct {
+		outcome
+		Answer      *string `json:"answer,omitempty"`
+		AnswerBytes int     `json:"answerBytes"`
+	}{outcome: outcome(o), AnswerBytes: len(o.Answer)})
 }
 
 type instanceSnapshot struct {
@@ -57,6 +71,7 @@ type agentInstance struct {
 	config               taskConfig
 	configJSON           json.RawMessage
 	keepAlive            bool
+	allowDelegation      bool // Frozen at launch by the owning caller; never inherited.
 	owner                *Operation
 	parent               *agentRun
 	group                *executionGroup

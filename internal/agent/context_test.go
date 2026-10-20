@@ -152,7 +152,7 @@ func TestContextPrepareAndActualRequestMeasurementWithoutObservation(t *testing.
 	if prepared.Context.Estimate == nil || prepared.Context.Estimate.Tokens <= 0 || !strings.HasPrefix(prepared.Notification, "NOE_CONTEXT_STATUS\n") {
 		t.Fatalf("prepared context missing estimate/notice: %+v", prepared)
 	}
-	notice, _ := json.Marshal(map[string]string{"role": "system", "content": prepared.Notification})
+	notice, _ := json.Marshal(map[string]string{"role": "user", "content": prepared.Notification})
 	messages = append(messages, notice)
 	payload := modelRequest{RunID: runID, ModelStepID: step.ModelStepID, Model: "fixture/model", Messages: messages, MaxTokens: 128, Effort: "auto"}
 	responseRaw, err := op.Call("model", mustJSON(t, payload))
@@ -233,7 +233,7 @@ func TestContextUpdatesOnlyAfterProviderRequest(t *testing.T) {
 			if len(updates) != 0 || prepared.Context.Estimate == nil || prepared.Context.Estimate.Stage != "preparing" || !strings.HasPrefix(prepared.Notification, "NOE_CONTEXT_STATUS\n") {
 				t.Fatalf("preparation must update state and retain the model notice without emitting: %+v", prepared)
 			}
-			notice, _ := json.Marshal(map[string]string{"role": "system", "content": prepared.Notification})
+			notice, _ := json.Marshal(map[string]string{"role": "user", "content": prepared.Notification})
 			_, err := op.Call("model", mustJSON(t, modelRequest{RunID: runID, ModelStepID: step.ModelStepID, Model: "fixture/model", MaxTokens: 128, Effort: "auto", Messages: append(messages, notice)}))
 			if (err != nil) != (status != "completed") {
 				t.Fatalf("model result for %s: %v", status, err)
@@ -266,8 +266,19 @@ func transcriptWithoutContextStatus(t testing.TB, messages []json.RawMessage) []
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	}
-	if err := json.Unmarshal(messages[len(messages)-1], &tail); err != nil || tail.Role != "system" || !strings.HasPrefix(tail.Content, "NOE_CONTEXT_STATUS\n") {
+	if err := json.Unmarshal(messages[len(messages)-1], &tail); err != nil || tail.Role != "user" || !strings.HasPrefix(tail.Content, "NOE_CONTEXT_STATUS\n") {
 		t.Fatalf("provider request has no tagged context status tail: %s (%v)", messages[len(messages)-1], err)
 	}
-	return append([]json.RawMessage(nil), messages[:len(messages)-1]...)
+	var transcript []json.RawMessage
+	for _, raw := range messages {
+		var message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		}
+		if json.Unmarshal(raw, &message) == nil && message.Role == "user" && strings.HasPrefix(message.Content, "NOE_CONTEXT_STATUS\n") {
+			continue
+		}
+		transcript = append(transcript, raw)
+	}
+	return transcript
 }

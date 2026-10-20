@@ -19,7 +19,7 @@ func TestOpenAIResponsesToolCycleRetainsNativeReasoning(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		call := calls.Add(1)
-		if r.URL.Path != "/custom/responses" || r.Header.Get("Authorization") != "Bearer fixture-key" || r.Header.Get("User-Agent") != "noe/test" {
+		if r.URL.Path != "/custom/responses" || r.Header.Get("x-test-session") != "instance-session" || r.Header.Get("Authorization") != "Bearer fixture-key" || r.Header.Get("User-Agent") != "noe/test" {
 			t.Error("wrong OpenAI transport configuration")
 		}
 		var body map[string]json.RawMessage
@@ -47,14 +47,15 @@ func TestOpenAIResponsesToolCycleRetainsNativeReasoning(t *testing.T) {
 	defer server.Close()
 	key := filepath.Join(t.TempDir(), "key")
 	os.WriteFile(key, []byte("fixture-key"), 0600)
-	p := NewOpenAI(Options{Profile: &Definition{SDK: "openai", Auth: "api-key", API: "responses", BaseURL: server.URL, Path: "/custom/responses", KeyFile: key, SessionField: "prompt_cache_key", EffortField: "reasoning.effort", Headers: map[string]string{"User-Agent": "noe/test"}}})
+	p := NewOpenAI(Options{Profile: &Definition{SDK: "openai", Auth: "api-key", API: "responses", BaseURL: server.URL, Path: "/custom/responses", KeyFile: key, SessionHeader: "x-test-session", SessionField: "prompt_cache_key", EffortField: "reasoning.effort", Headers: map[string]string{"User-Agent": "noe/test"}}})
 	var observations []StreamEvent
-	request := Request{Model: "gpt-6-luna", Effort: "high", CacheKey: "stable-cache", Messages: []json.RawMessage{json.RawMessage(`{"role":"user","content":"compute"}`)}, Tools: []json.RawMessage{json.RawMessage(`{"type":"function","function":{"name":"run_js","parameters":{"type":"object"}}}`)}, Observe: func(event StreamEvent) { observations = append(observations, event) }}
+	request := Request{RunID: "first-run", SessionID: "instance-session", Model: "gpt-6-luna", Effort: "high", CacheKey: "stable-cache", Messages: []json.RawMessage{json.RawMessage(`{"role":"user","content":"compute"}`)}, Tools: []json.RawMessage{json.RawMessage(`{"type":"function","function":{"name":"run_js","parameters":{"type":"object"}}}`)}, Observe: func(event StreamEvent) { observations = append(observations, event) }}
 	first, err := p.Generate(context.Background(), request)
 	if err != nil || first.FinishReason != "tool_calls" {
 		t.Fatalf("first response: %v", err)
 	}
 	request.Messages = append(request.Messages, first.Message, json.RawMessage(`{"role":"tool","tool_call_id":"call","content":"42"}`))
+	request.RunID = "second-run"
 	last, err := p.Generate(context.Background(), request)
 	if err != nil || last.FinishReason != "stop" || !strings.Contains(string(last.Message), "42") || len(observations) != 2 {
 		t.Fatalf("last response: %v observations=%v", err, observations)

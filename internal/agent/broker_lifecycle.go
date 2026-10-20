@@ -66,3 +66,17 @@ func (b *broker) handleQueue(w http.ResponseWriter, r *http.Request, op *Operati
 	}
 	writeJSON(w, response)
 }
+
+func (b *broker) handleReadTaskResult(w http.ResponseWriter, r *http.Request, op *Operation) {
+	var req taskResultRequest
+	if err := decodeRequest(r, &req); err != nil {
+		writeRPCError(w, http.StatusBadRequest, "request", "invalid task result query")
+		return
+	}
+	result, err := b.host.readTaskResult(op, req)
+	if err != nil {
+		writeOperationError(w, err)
+		return
+	}
+	writeJSON(w, result)
+}

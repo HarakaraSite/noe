@@ -120,7 +120,7 @@ Go側のrunごとの予算・直前実測・次要求概算、要求限定のrun
 人間表示と保存JSONLのsnapshotも同じ`context.updated`を参照する。
 
 実装：`contextBudget`の継承/解除、runごとのsnapshot、hookのcontext API、
-`NOE_CONTEXT_STATUS`で識別する要求限定の末尾system通知を接続した。
+`NOE_CONTEXT_STATUS`で識別する末尾通知を接続した。当初は要求限定のsystem通知だったが、現在はuser messageとして応答と同じ履歴blockへ保持する（[現行仕様](../instructions.md)）。
 JSON UTF-8 bytes/4の概算とproviderの直前実測は別項目にし、未知はnullとする。
 元systemと会話履歴は保持し、runtime情報は同keyで置換・次判断でリセットする。
 人間表示は短い英語context行、保存ログの復元とlive snapshotも同じ値を返す。

@@ -55,7 +55,7 @@ func TestExecutionTaskScopeOwnsSpawnedAgent(t *testing.T) {
 	generated.parentRunID = ancestorID
 	h.runs[ancestorID].childScopes[generated] = struct{}{}
 	h.mu.Unlock()
-	childID := spawnLifecycle(t, generated, nil, true)
+	childID := spawnLifecycle(t, generated, nil, true, true)
 	h.mu.Lock()
 	child := h.instances[childID]
 	h.mu.Unlock()

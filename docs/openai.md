@@ -31,7 +31,7 @@ APIキーを利用するときは`provider: "openai-api"`を指定します。�
 
 XDG_CONFIG_HOME指定時は`~/.config`を置き換えます。接続先は両方とも`https://api.openai.com/v1/responses`です。ChatGPT経路は公式のChatGPTプラン用OAuthで、`store:false`・`stream:true`とし、トークン更新はGoホストが担当します。[公式の推論手順](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
 
-`effort:"auto"`はeffortを送らず、モデル既定値を使います。明示effortは`reasoning.effort`へ送信します。組込み設定では`reasoning.summary:"auto"`を要求し、返されたsummaryを既存の観察イベントへ流します。`cacheKey`は`prompt_cache_key`へ渡し、未指定ならrunIdを使います。
+`effort:"auto"`はeffortを送らず、モデル既定値を使います。明示effortは`reasoning.effort`へ送信します。組込み設定では`reasoning.summary:"auto"`を要求し、返されたsummaryを既存の観察イベントへ流します。`cacheKey`は`prompt_cache_key`へ渡し、未指定ならinstanceのagentIdを使い、同じinstanceのqueue task間でも固定します。taskごとのrunIdとは別の識別子です。
 
 ## 認証ヘルパー
 

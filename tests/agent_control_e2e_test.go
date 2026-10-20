@@ -98,12 +98,16 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	defer func() { cancel(); <-ctx.Done() }()
+	var first agentChatRequest
 	select {
-	case <-firstStarted:
+	case first = <-firstStarted:
 	case <-ctx.Done():
 		t.Fatal("first provider request did not start")
 	}
 	snapshot := awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool { return s.CurrentRunID != "" })
+	if first.SessionID != snapshot.AgentID || first.SessionID == snapshot.CurrentRunID {
+		t.Fatalf("session must identify the instance, not its task: %q %+v", first.SessionID, snapshot)
+	}
 	command := func(args ...string) cliResult {
 		t.Helper()
 		result := runCLI(t, dir, env, args...)
@@ -138,7 +142,7 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	if len(second.Messages) != 4 || json.Unmarshal(second.Messages[3].Content, &finalInput) != nil || finalInput != "add a correction" || len(second.Messages[2].ReasoningDetails) == 0 {
 		t.Fatalf("steer history: %+v", second)
 	}
-	if second.SessionID != snapshot.CurrentRunID {
+	if second.SessionID != snapshot.AgentID {
 		t.Fatalf("steer changed cache session: %q", second.SessionID)
 	}
 	awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool {
@@ -151,6 +155,9 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 		t.Fatal("queued provider did not start")
 	}
 	busy := awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool { return s.CurrentRunID != "" })
+	if busy.AgentID != snapshot.AgentID || busy.CurrentRunID == snapshot.CurrentRunID {
+		t.Fatalf("queued task must keep its instance and have a new run: %+v", busy)
+	}
 	command("queue", snapshot.AgentID, "reserved task")
 	command("interrupt", "--run", busy.CurrentRunID)
 	select {
@@ -163,6 +170,9 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	})
 	select {
 	case request := <-resumed:
+		if request.SessionID != snapshot.AgentID {
+			t.Fatalf("queue/interrupt changed the instance session: %q", request.SessionID)
+		}
 		var history []string
 		for _, message := range request.Messages {
 			var text string

@@ -211,6 +211,8 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		b.handleQueue(w, r, operation)
 	case "wait_task":
 		b.handleWaitTask(w, r, operation)
+	case "read_task_result":
+		b.handleReadTaskResult(w, r, operation)
 	case "interrupt_agent":
 		b.handleInterrupt(w, r, operation)
 	case "steer_agent":
@@ -224,7 +226,7 @@ func (b *broker) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 func validRPCMethod(method string) bool {
 	switch method {
-	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "wait_task", "steer_agent", "apply_steers", "commit_final", "interrupt_agent", "decide", "list_models", "begin_hook_scope", "end_hook_scope", "execution_get", "begin_model_step", "context_prepare", "context_get", "context_set_runtime_info", "tool_result", "conversation_checkpoint", "read_image", "generate_image", "discard_images":
+	case "start", "model", "finish", "run_js", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "wait_task", "read_task_result", "steer_agent", "apply_steers", "commit_final", "interrupt_agent", "decide", "list_models", "begin_hook_scope", "end_hook_scope", "execution_get", "begin_model_step", "context_prepare", "context_get", "context_set_runtime_info", "tool_result", "conversation_checkpoint", "read_image", "generate_image", "discard_images":
 		return true
 	}
 	return false

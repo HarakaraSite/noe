@@ -1,4 +1,4 @@
-# agentの不変インストラクション
+# agentのインストラクション
 
 組込み説明は、NOE上で管理されていること、`run_js`が毎回新しいNOEプロセスで動くこと、必要なAPI契約を`noe:docs`で調べる方法を含みます。APIリファレンスもバイナリに内蔵され、[CLIとJSの双方から参照](reference.md)できます。
 
@@ -15,6 +15,18 @@ agent instanceの最初のtask開始時に、次の順でinstructionを一度構
 検証範囲、モデル選択の案内は既定の方針であり、taskや追加のsystem指示に異なる明示指定があれば
 それに従うようagentへ指示しています。これは本文の削除や実行時の権限制御ではなく、モデルへの指示です。
 詳細な開発・検証手順や報告方針は、共通またはworkspaceのinstruction fileへ置けます。
+
+## 委譲方針の試行
+
+2026-10-21の利用者指示により、委譲の粒度、担当再利用、背景伝達、結果の受け渡しの方針は、まずworkspaceの外部instruction [delegation.md](../.noe/instructions/delegation.md)で試します。子の起動状況とキャッシュ利用量を実接続で観測し、結果が良好な場合に組込みinstructionへ移します。API契約・Go側の再委譲受付制御は組込みに残します。
+
+## 送信ごとに追加される実行状態
+
+上記の固定instructionとは別に、モデル要求の末尾へ`NOE_CONTEXT_STATUS`で始まるuser messageを毎回追加します。直前のrequest ID・入力量・キャッシュ量、次の入力推定、残量・割合、trim通知、hookで設定したruntime information等を含むため、本文は要求ごとに変わります。`beforeModelRequest` hookの`api.context.setRuntimeInfo()`もこの通知へ反映されます。
+
+生成は[context.go](../internal/agent/context.go)の`contextMessage`、追加は[task.js](../internal/agent/js/task.js)のモデル要求直前です。この通知は、対応するassistant応答・tool結果と同じ完了blockとして会話履歴へ保存します。次の要求や同じinstanceのqueue taskでも過去の通知をそのまま送り、新しい通知だけを末尾へ追加します。自動trim時は対応する応答・tool結果とまとめて削除します。[Responses変換](../internal/agent/provider/responses.go)も入力順序を保って送信します。状態通知をinstructionとして送らず、過去の通知も書き換えません。
+
+2026-10-21の低キャッシュ率調査で、従来は要求限定のsystem通知だった経路を確認し、履歴へ保持する方式に変更しました。指定ログの親には自動trimも外部hook呼出しも記録されていませんでした。動的通知によるprovider側の実際のキャッシュ境界への影響は未確定で、原因と断定していません。
 
 ## 探索場所
 

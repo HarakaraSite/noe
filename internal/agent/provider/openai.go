@@ -74,7 +74,7 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 		}
 		return Response{}, providerError(ErrorAuthentication, 0, nil)
 	}
-	state := &callState{requestBody: payload, observe: request.Observe, runID: request.RunID, reasoningField: p.profile.ReasoningField}
+	state := &callState{requestBody: payload, observe: request.Observe, sessionID: request.sessionID(), reasoningField: p.profile.ReasoningField}
 	ctx = context.WithValue(ctx, callContextKey{}, state)
 	defer state.closeBody()
 	opts := []option.RequestOption{option.WithAPIKey(token), option.WithRequestBody("application/json", payload)}

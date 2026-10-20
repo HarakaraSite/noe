@@ -92,7 +92,7 @@ func TestContextTrimReceiptSteerOnlyAndActualAdmission(t *testing.T) {
 	if len(updates) != 0 || len(trims) != 1 {
 		t.Fatalf("preparation/steering emitted %d context updates and %d trim notices", len(updates), len(trims))
 	}
-	tail, _ := json.Marshal(map[string]string{"role": "system", "content": notice})
+	tail, _ := json.Marshal(map[string]string{"role": "user", "content": notice})
 	model.Messages = append(kept, tail)
 	controlCall(t, op, "model", model)
 	if len(updates) != 1 || len(trims) != 1 {

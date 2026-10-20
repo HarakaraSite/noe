@@ -55,37 +55,42 @@ console.log(await executeTask({provider:"openrouter",model:"fixture/model",name:
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(requests) != 2 || len(requests[1].Messages) != 5 {
-		t.Fatalf("model calls/history lengths = %d/%d, want 2/5 including the request-scoped context tail", len(requests), func() int {
+	if len(requests) != 2 || len(requests[1].Messages) != 6 {
+		t.Fatalf("model calls/history lengths = %d/%d, want 2/6 including the retained status and new context tail", len(requests), func() int {
 			if len(requests) < 2 {
 				return 0
 			}
 			return len(requests[1].Messages)
 		}())
 	}
+	for index, message := range requests[0].Messages {
+		if string(message) != string(requests[1].Messages[index]) {
+			t.Fatalf("sent prefix changed at message %d: %s -> %s", index, message, requests[1].Messages[index])
+		}
+	}
 	var contextTail struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	}
-	if err := json.Unmarshal(requests[1].Messages[4], &contextTail); err != nil || contextTail.Role != "system" || !strings.HasPrefix(contextTail.Content, "NOE_CONTEXT_STATUS\n") {
-		t.Fatalf("request-scoped context tail missing: %s (%v)", requests[1].Messages[4], err)
+	if err := json.Unmarshal(requests[1].Messages[5], &contextTail); err != nil || contextTail.Role != "user" || !strings.HasPrefix(contextTail.Content, "NOE_CONTEXT_STATUS\n") {
+		t.Fatalf("context tail missing: %s (%v)", requests[1].Messages[5], err)
 	}
 	var assistant struct {
 		Reasoning      string         `json:"reasoning"`
 		VendorMetadata map[string]any `json:"vendor_metadata"`
 	}
-	if err := json.Unmarshal(requests[1].Messages[2], &assistant); err != nil {
+	if err := json.Unmarshal(requests[1].Messages[3], &assistant); err != nil {
 		t.Fatal(err)
 	}
 	if assistant.Reasoning != "keep the full reasoning object" || assistant.VendorMetadata["mode"] != "fixture" {
-		t.Fatalf("assistant history was reduced: %s", requests[1].Messages[2])
+		t.Fatalf("assistant history was reduced: %s", requests[1].Messages[3])
 	}
 	var toolResult struct {
 		Role       string `json:"role"`
 		ToolCallID string `json:"tool_call_id"`
 		Content    string `json:"content"`
 	}
-	if err := json.Unmarshal(requests[1].Messages[3], &toolResult); err != nil {
+	if err := json.Unmarshal(requests[1].Messages[4], &toolResult); err != nil {
 		t.Fatal(err)
 	}
 	if toolResult.Role != "tool" || toolResult.ToolCallID != "call-1" || !strings.Contains(toolResult.Content, "run_js arguments must contain valid JSON") {
