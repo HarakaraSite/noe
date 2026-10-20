@@ -169,7 +169,7 @@ noe queue AGENT_ID "$(cat next-task.md)"
 
 原型のgo-quickjs v0.27.0の`stdlib/exec.go`では、`execFileSync`は失敗時に捕捉したstdout・stderrをErrorへ付けずに返します。非同期`execFile`は`code`・`stdout`・`stderr`をErrorへ付けます。NOE管理のstdlibでは、利用者の実装依頼に基づき`execFileSync`・`execSync`にも同じ項目を付ける変更とテスト・docsを追加しました。正常時の文字列戻り値と既存メッセージは維持します。[APIの説明](../internal/apidocs/content/stdlib-child_process.md)。
 
-上流PR候補としては、この同期経路の改善を提案する余地が残ります。上流側の修正・PR作成・提出は未実施で、このメモは提出許可ではありません。NOE側の変更は実装・検証済みで、常用バイナリへの配置は未実施です。
+上流PR候補としては、この同期経路の改善を提案する余地が残ります。上流側の修正・PR作成・提出は未実施で、このメモは提出許可ではありません。NOE側の変更はv1.15.1でリリースし、常用バイナリへの配置と配布物の検証も完了しました。
 
 ### <一部完了> Web検索と検索APIの認証ラッパー — 2026-10-17
 
