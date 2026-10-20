@@ -905,3 +905,26 @@ The workflow passed the CGO-free unit-test and vet gates, built all six targets 
 Build information matches the tagged revision with `vcs.modified=false` and go-quickjs v0.27.0. The verified published Linux amd64 binary was installed to both the repository-root `./noe` and `~/.local/bin/noe`; their bytes match the downloaded asset. Downloads and verification are under `/home/agent/.cache/noe-v1.14.1-published-9881qqfr`, with pre-release evidence and publication scripts under `/home/agent/.cache/noe-v1.14.1-release-uegu4t7l`. Other targets have compilation evidence, not native execution validation.
 
 This documentation-only follow-up does not move or replace the release tag. The release remains on the v1 executable line and does not publish a v2 Go module.
+
+## v1.15.0 preparation — 2026-10-20
+
+Application revision checked: `5680bd689aa0ed252b7234fe3fb563a3200007ac`. The corrected test-only revision is `e413cb67aff00111f9c39dfcdcb44d18c3635aac`; its sole source difference is the native socket-abort test synchronization described below. The release tag includes these changes plus this documentation-only preparation record.
+
+This release adds `wait_task({agentId, commandId})`, retained task outcomes, initial-task command IDs in spawn receipts, the `.noe/events/` automatic log directory, and the Jev task-loop example. Queue acceptance/FIFO, human control commands, and observation output are preserved. The executable remains on the v1 line; no v2 Go module is published. See the [release notes](v1.15.0.md).
+
+| Check | Result |
+| --- | --- |
+| `go test -p 2 -tags=e2e ./... -count=1` | Passed, 101.80 seconds; includes all default packages and the prepared local MCP SDK bundle |
+| `CGO_ENABLED=1 go test -race -p 2 ./internal/... ./stdlib/... -count=1` | All packages except nativeio passed on the initial run; the corrected nativeio package passed its full race rerun below |
+| `CGO_ENABLED=1 go test -race ./internal/nativeio -count=1` | Passed, 6.31 seconds, at the corrected test revision |
+| Corrected `TestNetConnectValidationAndAbort` with race, `-count=20` | Passed |
+| `go vet -tags=e2e ./...` | Passed |
+| Six targets with `CGO_ENABLED=0 go list -export ./...` | Passed; compile-only, no local distribution artifacts |
+| Native CGO-free binary | Reports `noe v1.15.0`; clean build information matches the application revision |
+| Native binary with a local HTTP fixture | Passed: initial and queued task waits, concurrent waits, repeated retained result, exactly two model requests, no wait-specific events, bundled API docs, arithmetic, and bare `--events` saving under `.noe/events/` |
+
+The initial race run caught an existing test synchronization error in `TestNetConnectValidationAndAbort`: Promise settlement can precede the producer returning from AsyncWork.Complete. The test checked Runtime.Busy before joining that producer. It now waits for the native host's producer wait group, following the existing adjacent test's pattern, before keeping the same retained-work assertion. Production code is unchanged. The initial failed log and all unaffected package passes are retained as `race-attempt1.log/json`; the corrected nativeio package and the targeted repeated race check passed. No assertion was removed or weakened.
+
+The earlier real-provider workflow experiments completed before this release preparation. No new model-provider requests were made for the release checks. The Jev example's initial failing implementation is intentional and documented; copied corrected output passed its five acceptance tests.
+
+Environment: Linux amd64, Go 1.27.2 and C toolchain. Clean checkout, checks, native binary, and publication scripts are under `/var/tmp/noe-v1.15.0-release-erkqfcd9`. Other targets have compilation evidence, not native runtime validation. The tag-triggered workflow and downloaded Release assets are verified separately after publication.
