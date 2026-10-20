@@ -23,13 +23,23 @@ execFile already returns a promise; do not wrap it with promisify or pass a Node
 
 ## execFileSync
 
-Syntax: execFileSync(file, args = [], options = {}) -> string. It waits for the program and returns stdout as text. Supported options are cwd, env, and input; a non-zero exit or start failure throws. Unlike spawnSync, this form does not return a status object.
+Syntax: execFileSync(file, args = [], options = {}) -> string. It waits for the program and returns stdout as text. Supported options are cwd, env, and input. A non-zero exit, start failure, or host-configured timeout throws an Error with code, stdout, and stderr, using the existing error message. Unlike spawnSync, this form does not return a status object.
+
+The error outputs are strings, including empty strings when nothing was captured. Both the success result and error outputs remain text even if encoding: "buffer" is supplied; synchronous execution does not support buffer encoding. Capture is limited to 32 MiB per output stream in NOE. code is the process exit code on a normal exit and -1 on a timeout or some abnormal terminations. As with execFile, a failure before the process starts currently has code: 0; this does not mean success. Runtime shutdown still interrupts execution.
 
 ~~~js
 import { execFileSync } from "node:child_process";
 
 const branch = execFileSync("git", ["branch", "--show-current"]).trim();
 console.log(branch);
+
+try {
+  execFileSync("git", ["show", "missing-ref"]);
+} catch (error) {
+  console.error("code:", error.code);
+  console.error("stdout:", error.stdout);
+  console.error("stderr:", error.stderr);
+}
 ~~~
 
 ## exec
@@ -44,6 +54,22 @@ console.log(stdout.trim());
 ~~~
 
 Use execFile with an argument array when shell syntax is unnecessary.
+
+## execSync
+
+Syntax: execSync(command, options = {}) -> string. The command string is passed to the same platform shell as exec. Success returns stdout as text; failures throw an Error with code, stdout, and stderr, with the same options, text-only output, capture limits, and failure-code conventions as execFileSync.
+
+~~~js
+import { execSync } from "node:child_process";
+
+try {
+  console.log(execSync("git status --short").trim());
+} catch (error) {
+  console.error(error.message, error.code, error.stdout, error.stderr);
+}
+~~~
+
+Use execFileSync with an argument array when shell syntax is unnecessary.
 
 ## spawnSync
 

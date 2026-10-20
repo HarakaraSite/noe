@@ -27,6 +27,8 @@ done
 
 [E2Eの構成と実行方法](../../tests/README.md)を参照してください。通常のE2Eは一時ディレクトリとローカルサーバーを使い、外部サービスに接続しません。Linux固有のprocess groupやOSシグナルのテストは対象OSで実行します。
 
+NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONNECTION`を手で外す必要はありません。CLI単体テストとE2Eの`TestMain`が、テストスイートを開始する際にこの変数だけを削除します（空文字への上書きではなくunset）。CLI単体テストのmanaged child再実行は削除より先にdispatchするため、テスト内のbrokerが発行した親子接続は保持されます。製品の環境継承・接続処理は変更しません。`TestCLITestMainIsolatesInheritedAgentConnection`は空値・不正値・ローカルのダミー接続を渡してスイートを再実行し、外側への要求がなく、ローカルproviderと子agentへの委譲が動くことを確認します。
+
 実プロバイダの検証は別の明示的な設定・認証を必要とします。過去の[OpenRouterの検証](../archive/increment-13-implementation.md)や[OpenCode Goの検証](execution-hooks-opencode-validation.md)は実施時点の記録であり、新しい変更の確認はそのソースに対して行います。
 
 ## エラー無視（`_ =`）の方針

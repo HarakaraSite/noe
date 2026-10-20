@@ -119,7 +119,7 @@ thinking・summary・messageの断片はストリーム受信時に出ます。p
 
 未処理例外の診断には、従来のメッセージ・利用可能なstackに加え、取得できる`code`・`stdout`・`stderr`を`exception details: {…}`というJSON付きの行で残します。この診断は`run_js`のstderrとしてモデルへ返り、同じ内容がJSONLの`stderr`イベントにも入ります。`run_js.finished.exitCode`はNOEのJSプロセスの終了コードであり、例外内の`code`は内部コマンドの終了コード等を示す別の値です。
 
-詳細保持は固定した項目の文字列・有限の数値・booleanを対象とし、読取りに失敗する項目やオブジェクトは省略します。任意のプロパティ、循環参照、独自の`toJSON`、バイナリ出力等を完全に保存する仕組みではありません。JS内で捕捉して処理した例外は自動記録しません。採用版go-quickjs v0.27.0の`execFile`は失敗時のErrorにコマンドの`code`・`stdout`・`stderr`を持つため取得できますが、`execFileSync`は失敗時に出力を保持しないため、この改善だけではその出力を復元できません。
+詳細保持は固定した項目の文字列・有限の数値・booleanを対象とし、読取りに失敗する項目やオブジェクトは省略します。任意のプロパティ、循環参照、独自の`toJSON`、バイナリ出力等を完全に保存する仕組みではありません。JS内で捕捉して処理した例外は自動記録しません。NOE管理の`child_process`では、非同期の`execFile`・`exec`に加え、同期の`execFileSync`・`execSync`も失敗時のErrorにコマンドの`code`・`stdout`・`stderr`を持つため、未処理ならこの診断で取得できます。同期版の出力は常に文字列です。これはNOE側の変更であり、原型のgo-quickjs v0.27.0の同期版にはありません。
 
 ## 過去のREPLイベントログ
 

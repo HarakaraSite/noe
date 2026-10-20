@@ -195,7 +195,19 @@ func (r *runner) execFileSync(name string, argv quickjs.Value, opts quickjs.Valu
 	args := append(stringsOf(argv), extra...)
 	res := r.start(name, args, optionString(opts, "cwd"), optionEnv(opts), optionInput(opts))
 	if res.err != nil {
-		return "", res.err
+		// Runtime shutdown must remain an interruption, not a catchable error.
+		if loopContext(r.cfg.Loop).Err() != nil {
+			return "", res.err
+		}
+		e := r.rt.NewError("Error", res.err.Error())
+		if err := errors.Join(
+			e.Set("code", res.code),
+			e.Set("stdout", string(res.stdout)),
+			e.Set("stderr", string(res.stderr)),
+		); err != nil {
+			return "", err
+		}
+		return "", r.rt.Throw(e)
 	}
 	return string(res.stdout), nil
 }

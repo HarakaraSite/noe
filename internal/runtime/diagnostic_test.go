@@ -65,9 +65,16 @@ func TestExceptionRetainsOriginalGoCause(t *testing.T) {
 }
 
 func TestRunJSCommandFailureDetailsReachModelAndEvents(t *testing.T) {
+	for _, call := range []string{"await execFile", "execFileSync"} {
+		t.Run(call, func(t *testing.T) { testRunJSCommandFailureDetailsReachModelAndEvents(t, call) })
+	}
+}
+
+func testRunJSCommandFailureDetailsReachModelAndEvents(t *testing.T, call string) {
+	t.Helper()
 	executable, _ := json.Marshal(runtimeTestExecutable)
 	program, _ := json.Marshal(`console.log("partial output"); console.error("fatal: 日本語"); process.exit(128);`)
-	js := "// Inspect a failing command\nconst {execFile} = await import(\"node:child_process\");\nawait execFile(" + string(executable) + ", [\"eval\", " + string(program) + "]);"
+	js := "// Inspect a failing command\nconst {execFile, execFileSync} = await import(\"node:child_process\");\n" + call + "(" + string(executable) + ", [\"eval\", " + string(program) + "]);"
 	args, _ := json.Marshal(map[string]string{"code": js})
 	message, _ := json.Marshal(map[string]any{
 		"role": "assistant", "content": nil,

@@ -131,6 +131,16 @@ testdata/pathcorpus_node.js
    the parent's Loop and keeps the parent's configuration unchanged. A local
    fake-resolver regression test covers ownership without external DNS.
 
+9. Synchronous child commands (`execFileSync` and the shell-based `execSync`)
+   now throw an Error carrying `code`, `stdout`, and `stderr`, like the
+   asynchronous path. Their success result and error output remain strings,
+   and existing error messages, capture limits, and start-failure code
+   conventions are unchanged. Runtime shutdown still interrupts execution.
+   `exec_test.go` covers success/options, nonzero exits, empty and capped
+   output, start refusals/failures, and host-configured timeouts. Runtime
+   diagnostic tests also verify that sync failure details reach agent
+   tool results and events. This is a NOE-local change, not upstream behavior.
+
 The initial snapshot import did not intentionally change HTTP behavior, body
 limits, timeouts, module names, exports, or protocols. Subsequent NOE-local
 changes should be recorded here with their rationale and validation. Upstream

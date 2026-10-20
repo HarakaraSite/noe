@@ -84,7 +84,7 @@ try {
 }
 ~~~
 
-execFile rejects on a nonzero exit with code, stdout, and stderr details. exec/execSync use a shell when shell syntax is needed. spawnSync returns a status object; inspect its error before status. For a live process with incremental Streams, read docs("noe:process", "spawn") instead. Owned processes cannot outlive the run_js runtime.
+execFile rejects on a nonzero exit with code, stdout, and stderr details. execFileSync and execSync throw an Error with the same details (their output is always text); success still returns stdout as a string. exec/execSync use a shell when shell syntax is needed. spawnSync returns a status object; inspect its error before status. For a live process with incremental Streams, read docs("noe:process", "spawn") instead. Owned processes cannot outlive the run_js runtime.
 
 ## imports
 

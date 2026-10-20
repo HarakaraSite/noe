@@ -15,6 +15,12 @@ var cliPath string
 var repoRootPath string
 
 func TestMain(m *testing.M) {
+	// Start CLI fixtures independently of the NOE instance running go test.
+	// Connections generated later by the fixture CLI remain untouched.
+	if err := os.Unsetenv("NOE_AGENT_CONNECTION"); err != nil {
+		fmt.Fprintln(os.Stderr, "clear inherited agent connection:", err)
+		os.Exit(1)
+	}
 	_, sourceFile, _, ok := runtime.Caller(0)
 	if !ok {
 		fmt.Fprintln(os.Stderr, "cannot locate E2E test source")
