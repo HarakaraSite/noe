@@ -28,16 +28,18 @@ Run these commands from the repository root on VM201 (Linux amd64, Go 1.27.2, C 
 CGO_ENABLED=1 go test -race ./internal/... ./stdlib/... -count=1
 go test -tags=e2e ./... -count=1
 go vet -tags=e2e ./...
+(
 for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-  GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go build ./...
+  GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go list -export ./... >/dev/null || exit
 done
+)
 ```
 
 These are reference-environment checks, not generated workflow steps. E2E includes the actual CLI, local HTTP and file operations, agents, and cancellation/cleanup. REPL and its PTY checks were removed after v1.8.0; the historical evidence below retains the checks performed for those releases. Race requires a C toolchain. No system-package installation is added to the release workflow to run these checks.
 
-The six-target check is compilation evidence only and writes no artifacts: `go build ./...` matches multiple packages, so the go command discards the results and never links. It exists to catch a platform-specific compile error before a tag has to be moved. The distributable binaries are produced only by the tag-triggered workflow (see Distribution gate). Do not build the six artifacts in the reference environment.
+The six-target check uses `go list -export ./...` to compile every package, including main packages, and their dependencies into Go's build cache without linking or producing distribution binaries. Unlike this check, `go build ./...` still links main packages in temporary storage even when it does not save the results. The loop stops on the first failure and returns its nonzero status; the subshell prevents a pasted command from exiting an interactive shell. This is compilation evidence only, intended to catch platform-specific compile errors before tagging. Linking and distribution binary generation happen in the tag-triggered workflow (see Distribution gate). Do not build the six distribution artifacts in the reference environment.
 
-If the reference environment's temporary directory is small or nearly full, point Go's own temporary directory elsewhere, for example `go env -w GOTMPDIR=/var/tmp/noe-gotmp`. Linking a binary tens of MiB in size needs more temporary space than the final size, and an ENOSPC during linking otherwise looks like a source failure.
+If the reference environment's temporary directory is small or nearly full, create a directory on a filesystem with space (`mkdir -p /var/tmp/noe-gotmp`) before setting `go env -w GOTMPDIR=/var/tmp/noe-gotmp`. The compile-only check still uses temporary compilation space and the build cache. Linking during normal builds or tests needs more temporary space than the final binary size, and an ENOSPC during linking otherwise looks like a source failure.
 
 Before the first authorized v2 publication, also run the external consumer checks
 in the [Go embedding guide](../go-embedding.md). After the actual v2 tag and

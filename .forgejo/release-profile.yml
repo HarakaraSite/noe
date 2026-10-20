@@ -46,5 +46,5 @@ pre_release:
     - name: vet-including-e2e
       command: go vet -tags=e2e ./...
     - name: cross-compile
-      command: for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go build ./...; done
+      command: (for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go list -export ./... >/dev/null || exit; done)
   evidence_location: docs/releases/release-checkpoints.md

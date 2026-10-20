@@ -13,15 +13,17 @@ go test -tags=e2e ./... -count=1 -v
 CGO_ENABLED=1 go test -race ./internal/... ./stdlib/... -count=1
 go vet -tags=e2e ./...
 
-# 6配布対象のcompile確認（成果物は作らない）
+# 6配布対象のcompile確認（リンク・配布物の生成は行わない）
+(
 for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-  GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go build ./...
+  GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go list -export ./... >/dev/null || exit
 done
+)
 ```
 
-配布対象6種の確認は、ローカルでは成果物を作らない`go build ./...`で行います。`./...`は複数packageに一致するためgoコマンドは結果を破棄し、リンクも行いません。これにより、タグを動かす必要が出る前にプラットフォーム固有のコンパイルエラーだけを検出できます。配布するバイナリはタグ起点の[ワークフロー](../../.forgejo/workflows/release.yml)だけが生成します。
+配布対象6種の確認は、ローカルでは`go list -export ./...`で行います。各packageと依存のコンパイル結果をGoのビルドキャッシュへ用意し、main packageもコンパイルしますが、リンクや配布バイナリの生成は行いません。`go build ./...`は結果を保存しなくてもmain packageを一時領域でリンクするため、この目的には使いません。ループは最初の失敗で停止して非ゼロの終了コードを返します。サブシェルで実行するため、端末へ貼り付けても対話シェル自体は終了しません。これはプラットフォーム固有のコンパイルエラーをタグ前に検出する確認であり、リンクと配布物生成はタグ起点の[ワークフロー](../../.forgejo/workflows/release.yml)で行います。
 
-一時ディレクトリが小さい環境では、Go自身の一時ディレクトリを空きのある場所へ向けます（例：`go env -w GOTMPDIR=/var/tmp/noe-gotmp`）。数十MiBのバイナリのリンクには最終サイズ以上の一時領域が必要で、リンク時のENOSPCはソースの失敗に見えます。
+一時ディレクトリが小さい環境では、Go自身の一時ディレクトリを空きのある場所へ向けます（例：`mkdir -p /var/tmp/noe-gotmp`を実行してから`go env -w GOTMPDIR=/var/tmp/noe-gotmp`）。上の確認もコンパイル用の一時領域とビルドキャッシュを使います。通常ビルドやテストで行うリンクには最終バイナリ以上の一時領域が必要で、リンク時のENOSPCはソースの失敗に見えます。
 
 [E2Eの構成と実行方法](../../tests/README.md)を参照してください。通常のE2Eは一時ディレクトリとローカルサーバーを使い、外部サービスに接続しません。Linux固有のprocess groupやOSシグナルのテストは対象OSで実行します。
 
@@ -31,7 +33,7 @@ done
 
 原則としてエラーは伝播させ、複数のエラーは`errors.Join`で集約します。無視してよいのは次の3つに限ります。
 
-- 冪等な後始末としての`Close()`（`os.ErrClosed`は正規化して無視する）
+- 処理結果に影響しない冪等な後始末としての`Close()`（`os.ErrClosed`は正規化して無視する）。書き込みの確定・flushなど、成功可否に影響する`Close()`のエラーは伝播させる
 - 失敗しても後続の結果に影響しないベストエフォートの処理
 - 直後に`os.Exit`する経路
 
