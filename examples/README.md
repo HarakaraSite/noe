@@ -22,6 +22,8 @@
 
 任意の指示を試す入口は`agent/try-agent.js`です。
 
+計画・レビュー・修正・実装・テストをJavaScriptで組み立てる例は、[Jevをゲートに使うタスクループ](agent/task-loop-jev/README.md)を参照してください。`queue_agent`と`wait_task`で作業担当を制御します。
+
 ```sh
 ./noe run --observe examples/agent/try-agent.js 'README.mdを3点に要約して'
 # ChatGPT経由のSolに、ファイルから指示を渡す場合

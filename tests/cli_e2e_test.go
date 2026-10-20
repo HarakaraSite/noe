@@ -67,7 +67,7 @@ func TestEvalAndCLICommands(t *testing.T) {
 		stderrPart string
 	}{
 		{name: "help", args: []string{"--help"}, code: 0, stdoutPart: "Usage:"},
-		{name: "version", args: []string{"--version"}, code: 0, stdoutPart: "noe v1.14.1\n"},
+		{name: "version", args: []string{"--version"}, code: 0, stdoutPart: "noe v1.15.0\n"},
 		{name: "no command prints help", args: nil, code: 0, stdoutPart: "Usage:"},
 		{name: "run needs a script", args: []string{"run"}, code: 2, stderrPart: "Usage:"},
 		{name: "eval needs source", args: []string{"eval"}, code: 2, stderrPart: "Usage:"},

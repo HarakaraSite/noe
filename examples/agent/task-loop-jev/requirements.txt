@@ -1,0 +1,3 @@
+sumPositiveIntegers(values)をexportするES module solution.jsを作る。
+入力は配列で、配列でなければTypeErrorを投げる。
+配列内のnumber型の正の整数だけを加算し、それ以外（負数、0、小数、文字列、null、NaN、Infinity）は無視する。空配列は0。

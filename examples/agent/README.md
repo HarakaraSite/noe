@@ -14,6 +14,7 @@
 | [agent-openai.js](agent-openai.js) | Sol/LunaのResponses呼び出し | OpenAI ChatGPT |
 | [agent-opencode-go.js](agent-opencode-go.js) | Chat / Responsesモデルを指定 | OpenCode Go |
 | [agent-route-model.js](agent-route-model.js) | Jevがcatalogから選んだモデルを起動 | OpenRouter＋選択先 |
+| [task-loop-jev/workflow.js](task-loop-jev/README.md) | Jevのゲートで計画・レビュー・修正・実装・テストを繰り返す。完了待ちはwait_task | OpenAI ChatGPT＋OpenRouter |
 
 ## 起動例とprovider
 
