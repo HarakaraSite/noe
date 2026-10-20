@@ -975,3 +975,30 @@ The workflow passed its CGO-free unit and vet gates, built all six profile targe
 The downloaded Linux amd64 binary reports `noe v1.15.1`. Both execFileSync and execSync retained exit code 7, stdout and stderr on failure, and successful execution still returned a string. All six run_js recipe lookups, initial and queued task waits, repeated retained outcomes, exactly two local fixture model requests, automatic event saving, arithmetic and the absence of wait-specific events passed. No external model-provider request was made.
 
 Build information matches the tagged revision with vcs.modified=false and go-quickjs v0.27.0. The verified published binary was installed to repository-root `./noe` and `~/.local/bin/noe`; both match the downloaded bytes. Evidence and backups: `/var/tmp/noe-v1.15.1-release-xrvhlgw6`. Other targets have compilation evidence only. This documentation-only follow-up does not move the release tag.
+
+
+## v1.15.2 preparation — 2026-10-21
+
+Application revision checked: `3d17b3b3aa59d36be22313fdc5dc5713b6cd8ab2`, in a clean detached worktree. The test-only follow-up `f7dec0078139faab8fc935b856779d240a9b4ab0` updates the E2E version expectation from v1.15.1 to v1.15.2. The release tag includes both revisions and this documentation-only preparation record. Unrelated untracked `.noe/` files and `agent-server-build.jsonl` are excluded.
+
+This patch fixes saved tool-output reuse, provider HTTP header merging, stream signal cleanup, and rooted-filesystem symbolic-link entry selection. It also clarifies agent guidance and current Go embedding documentation. See the [release notes](v1.15.2.md). Dependencies are unchanged; the executable remains on the v1 release line and does not publish a v2 Go module.
+
+| Check | Result |
+| --- | --- |
+| CGO-free full unit suite | Passed, 64.52 seconds |
+| Race: internal, stdlib and public agent packages | Passed, 188.96 seconds |
+| Corrected E2E package, including MCP integration; other packages passed in the full-suite attempt | Passed, 51.79 seconds |
+| Vet with E2E build tags | Passed, 2.69 seconds |
+| CGO-free vet | Passed, 0.93 seconds |
+| All six profile targets, CGO-free link-free compilation | Passed, 11.32 seconds |
+| Native CGO-free binary | Reports `noe v1.15.2`; build information matches the checked application revision with `vcs.modified=false` |
+| Native fixture checks | Passed: synchronous command errors and unchanged success return, all six run_js recipes, initial/queued task waits, retained outcomes, exactly two fixture model requests, automatic event saving, no wait-specific events, bundled docs and arithmetic |
+| Changed Go formatting, streams.js Biome lint and committed diff check | Passed |
+
+The first full E2E suite failed only because its version-display expectation still said v1.15.1 while the binary correctly reported v1.15.2. All other packages passed. The single expectation was corrected without changing application source or weakening the assertion; the full E2E package then passed from a separate clean worktree. The initial failed result and log are retained as `e2e.json` and `e2e.log`, with the corrected result in `e2e-corrected.json/log`. No full-suite rerun was needed for this test-only correction.
+
+The earlier small-improvement validation had intermittent native network-test Busy assertions, as recorded in the [implementation record](../development/small-improvements-20261020.md). This release race run passed once without changing those tests or networking code. It does not establish that the previously observed intermittency is fixed.
+
+The host shutdown interrupted preparation after the application commit and validation worktree creation, before push or tagging. The persistent worktree and scripts were recovered. The MCP SDK bundle formerly under /tmp was rebuilt offline from the local npm cache using the same pinned SDK 1.32.1 and esbuild 0.25.12; it is preserved under this release evidence directory. Test gates use an intentionally invalid inherited NOE_AGENT_CONNECTION, and short TMPDIR/GOTMPDIR paths avoid the known Unix-socket pathname limit.
+
+Environment: Linux amd64, Go 1.27.2 and C toolchain for race. Evidence, clean worktrees, native binary, MCP bundle and publication scripts: `/var/tmp/noe-v1.15.2-release-8j6osrl8`. No external model-provider request was made. Other targets have compilation evidence only. Workflow publication and downloaded assets are verified separately after tagging.
