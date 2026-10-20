@@ -1016,3 +1016,31 @@ The workflow passed its CGO-free unit and vet gates, built all six profile targe
 The downloaded Linux amd64 binary reports `noe v1.15.2`. Both execFileSync and execSync retained exit code 7, stdout and stderr on failure, and successful execution still returned a string. All six run_js recipe lookups, initial and queued task waits, repeated retained outcomes, exactly two local fixture model requests, automatic event saving, arithmetic and the absence of wait-specific events passed. No external model-provider request was made.
 
 Build information matches the tagged revision with vcs.modified=false and go-quickjs v0.27.0. The verified published binary was installed to repository-root `./noe` and `~/.local/bin/noe`; both match the downloaded bytes. Evidence and backup: `/var/tmp/noe-v1.15.2-release-8j6osrl8`. Other targets have compilation evidence only. This documentation-only follow-up does not move or replace the release tag.
+
+
+## v1.16.0 preparation — 2026-10-21
+
+Checked source revision: `5b820bbca869fb40663329789f1e9f06c3f3cd65`, in a clean detached worktree. The release tag includes this source plus this documentation-only preparation record. Unrelated untracked `.noe/` files and `agent-server-build.jsonl` are excluded.
+
+This release combines stable per-instance sessions, explicit redelegation admission, retained context-status history, ranged task results and ChatGPT cache affinity with repository-wide test cleanup. See the [release notes](v1.16.0.md). Provider dependencies and agent lifetimes are unchanged; delegation workflow guidance remains external and no v2 Go module is published.
+
+| Check | Result |
+| --- | --- |
+| CGO-free full unit suite | Passed, 33.62 seconds |
+| Race: internal, stdlib and public agent packages | Passed, 142.06 seconds |
+| Full E2E suite, including prepared MCP SDK bundle | Passed, 80.32 seconds |
+| Long RPC slow integration gate | Passed, 35.05 seconds |
+| Vet with E2E tags | Passed, 0.90 seconds |
+| CGO-free vet | Passed, 0.86 seconds |
+| All six profile targets, CGO-free link-free compilation | Passed, 21.78 seconds |
+| Opt-in live probe compilation, no provider requests | Passed, 0.31 seconds |
+| Provider-cache SDK probe build | Passed, 4.02 seconds |
+| Native CGO-free binary | Reports `noe v1.16.0`; build info matches the checked source with `vcs.modified=false` and go-quickjs v0.27.0 |
+| Native local HTTP fixture | Passed: two queued tasks keep one session ID and distinct run IDs, metadata-only waits, retained full and ranged results, exactly two model requests, automatic event saving, synchronous command errors, six run_js recipes and arithmetic |
+| Independent cleanup review and bounded re-review | Passed after restoring the second final assistant → third queued instruction assertion; targeted queue test also passed |
+
+The review covered all 43 changed files against the preceding cache-fix revision. It found one test-coverage regression in the ordered queue-history assertion; commit `5b820bb` restores that check, and the complete final suite above includes the correction. Earlier successful unit/vet/probe checks are retained separately as before-review evidence. No product behavior was changed to accommodate a failing test. Stale test fixtures now match retained status history, stable sessions and explicit delegation permission; the context-policy fixture still distinguishes inherited 0.2 from default 0.1 trimming.
+
+Retired low-level and OpenCode investigation implementations are removed from the active suite, with historical findings and source revision preserved. Repeated CLI builds are shared, single-attempt classification avoids duplicated backoff waits, startup/RSS measurements are benchmarks, and the long RPC test remains an explicit pre-release gate. Test/probe cleanup removes a net 1,919 lines.
+
+Environment: Linux amd64, Go 1.27.2 and C toolchain for race. Checks inherited an intentionally invalid `NOE_AGENT_CONNECTION`; both TMPDIR and GOTMPDIR use a short path to avoid the known Unix-socket pathname limit. MCP uses the same offline-prepared SDK 1.32.1 bundle from v1.15.2. Evidence, clean checkout, native binary and publication scripts: `/var/tmp/noe-v1.16.0-release-20261021`. No external model-provider request was made for these release gates. Other targets have compilation evidence only. Workflow publication and downloaded assets are verified separately after tagging.
