@@ -2,7 +2,7 @@
 
 Just JavaScript. Until you need an agent.
 
-[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使った、純Go製の小さなJavaScriptランタイムです。小さなスクリプト、ファイル加工、HTTPサーバー、自律agentのタスクを実行できます。agentはファイル操作・JSやコマンドの実行・修正・回答まで、人間の承認を待たずに進めます。
+[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使った、純Go製の小さなJavaScriptランタイムです。小さなスクリプト、ファイル加工、HTTPサーバー、自律agentのタスクを実行できます。agentはファイル操作・JSやコマンドの実行・修正・回答まで、人間の承認を待たずに進めます。NOEの標準ライブラリは他のアプリにも組み込めるため、自作のGoプログラムから同じJavaScript APIとagent APIを利用できます。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 

@@ -2,7 +2,7 @@
 
 Just JavaScript. Until you need an agent.
 
-A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://github.com/go-quickjs/go-quickjs). Use it for small scripts, file processing, HTTP servers, and autonomous agent tasks. An agent can read files, execute JavaScript and commands, revise its work, and return an answer without interactive approval.
+A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://github.com/go-quickjs/go-quickjs). Use it for small scripts, file processing, HTTP servers, and autonomous agent tasks. An agent can read files, execute JavaScript and commands, revise its work, and return an answer without interactive approval. The NOE standard library can also be embedded in other applications, letting your own Go programs build on the same JavaScript and agent APIs.
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
