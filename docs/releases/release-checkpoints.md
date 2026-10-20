@@ -940,3 +940,25 @@ The workflow passed its CGO-free unit-test and vet gates, built all six profile 
 The downloaded Linux amd64 binary reports `noe v1.15.0` and passed arithmetic, bundled `wait_task` docs, and the local provider fixture covering initial/queued task IDs, concurrent task waits, repeated retained outcomes, exactly two model requests, no wait-specific events, and automatic event saving under `.noe/events/`. No external model-provider request was made.
 
 Build information matches the tagged revision with `vcs.modified=false` and go-quickjs v0.27.0. The verified published Linux amd64 binary was installed to both repository-root `./noe` and `~/.local/bin/noe`; their bytes match the downloaded asset. Downloads, checksums, build information, fixture output, and publication records are under `/var/tmp/noe-v1.15.0-release-erkqfcd9`. Other targets have compilation evidence, not native execution validation. This record does not move or replace the release tag.
+
+
+## v1.15.1 preparation — 2026-10-20
+
+Checked source revision: `b997b082452b085013fdd649f1d670eae0fb0af8`, in a clean detached worktree. The release tag includes this source plus a documentation-only preparation record. The unrelated untracked `.noe/` and `agent-server-build.jsonl` were excluded.
+
+This patch retains synchronous command failure details, isolates test agents from inherited connections, and expands run_js instructions and bundled recipes. See the [release notes](v1.15.1.md). Dependencies are unchanged and the executable remains on the v1 release line.
+
+| Check | Result |
+| --- | --- |
+| CGO-free full unit suite | Passed, 70.4 seconds |
+| Race: internal, stdlib and public agent packages | Passed, 178.15 seconds |
+| E2E package with the prepared MCP SDK bundle; other packages passed in the preceding full-suite attempts | Passed, 48.31 seconds |
+| Vet with E2E build tags | Passed, 7.32 seconds |
+| CGO-free vet | Passed, 7.08 seconds |
+| All six profile targets, CGO-free link-free compilation | Passed, 17.74 seconds |
+| Native CGO-free binary | Reports `noe v1.15.1`; clean build information matches the checked revision |
+| Native fixture checks | Passed: execFileSync/execSync failure code, stdout and stderr; unchanged success return; all six run_js recipes; initial/queued task waits and retained results; exactly two fixture model requests; no wait events; automatic event path; arithmetic |
+
+The initial E2E attempt passed all packages except the Unix/observe socket case, whose generated pathname exceeded the OS limit of 107 bytes under `/var/tmp/n151-udm7sc87`. A second attempt changing only TMPDIR still used the original long pathname. The unchanged E2E package passed with both TMPDIR and GOTMPDIR set to `/var/tmp/n151`; all other packages passed in both full-suite attempts. Both failed logs and results are retained as `e2e-attempt1.log/json` and `e2e-attempt2.log/json`; no source or assertion was changed to bypass the failure. All test gates inherited an intentionally invalid `NOE_AGENT_CONNECTION`, verifying test-suite isolation while managed fixture children still worked.
+
+Environment: Linux amd64, Go 1.27.2 and C toolchain for race. Evidence, clean checkout, native binary and publication scripts: `/var/tmp/noe-v1.15.1-release-xrvhlgw6`. No external model-provider request was made. Other targets have compilation evidence only. Workflow publication and downloaded assets are verified separately after tagging.
