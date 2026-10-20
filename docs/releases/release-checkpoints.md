@@ -928,3 +928,15 @@ The initial race run caught an existing test synchronization error in `TestNetCo
 The earlier real-provider workflow experiments completed before this release preparation. No new model-provider requests were made for the release checks. The Jev example's initial failing implementation is intentional and documented; copied corrected output passed its five acceptance tests.
 
 Environment: Linux amd64, Go 1.27.2 and C toolchain. Clean checkout, checks, native binary, and publication scripts are under `/var/tmp/noe-v1.15.0-release-erkqfcd9`. Other targets have compilation evidence, not native runtime validation. The tag-triggered workflow and downloaded Release assets are verified separately after publication.
+
+## v1.15.0 Release validation — 2026-10-20
+
+- Annotated tag: `v1.15.0`, pointing to `f381b42299b7772597070f7067b54dd9f6eb7fe5`. The peeled remote tag matches the successful workflow commit.
+- [Release workflow run](https://forge.harakara.site/littleisland/noe/actions/runs/23): succeeded (API run ID 204, job ID 225).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.15.0): published, neither draft nor prerelease (Release ID 137). Its body matches the committed [English notes](v1.15.0.md).
+
+The workflow passed its CGO-free unit-test and vet gates, built all six profile targets, and uploaded six binaries plus SHA256SUMS. All seven assets were downloaded; all six binary hashes matched the published checksums.
+
+The downloaded Linux amd64 binary reports `noe v1.15.0` and passed arithmetic, bundled `wait_task` docs, and the local provider fixture covering initial/queued task IDs, concurrent task waits, repeated retained outcomes, exactly two model requests, no wait-specific events, and automatic event saving under `.noe/events/`. No external model-provider request was made.
+
+Build information matches the tagged revision with `vcs.modified=false` and go-quickjs v0.27.0. The verified published Linux amd64 binary was installed to both repository-root `./noe` and `~/.local/bin/noe`; their bytes match the downloaded asset. Downloads, checksums, build information, fixture output, and publication records are under `/var/tmp/noe-v1.15.0-release-erkqfcd9`. Other targets have compilation evidence, not native execution validation. This record does not move or replace the release tag.
