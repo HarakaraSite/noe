@@ -23,7 +23,7 @@ func interruptUserPrompt(request provider.Request) string {
 			Role    string `json:"role"`
 			Content string `json:"content"`
 		}
-		if json.Unmarshal(request.Messages[index], &message) == nil && message.Role == "user" {
+		if json.Unmarshal(request.Messages[index], &message) == nil && message.Role == "user" && !strings.HasPrefix(message.Content, "NOE_CONTEXT_STATUS\n") {
 			return message.Content
 		}
 	}

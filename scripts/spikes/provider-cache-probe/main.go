@@ -27,20 +27,17 @@ import (
 )
 
 type record struct {
-	Attempt              int             `json:"attempt"`
-	URL                  string          `json:"url"`
-	BodyHash             string          `json:"bodyHash"`
-	BodyWithoutToolsHash string          `json:"bodyWithoutToolsHash,omitempty"`
-	ToolsValue           json.RawMessage `json:"toolsValue,omitempty"`
-	ToolsPresent         bool            `json:"toolsPresent"`
-	SessionHeader        string          `json:"sessionHeader,omitempty"`
-	BodySession          string          `json:"bodySession,omitempty"`
-	UserAgent            string          `json:"userAgent"`
-	HTTPStatus           int             `json:"httpStatus"`
-	ResponseModel        string          `json:"responseModel,omitempty"`
-	ReturnedKey          string          `json:"returnedCacheKey,omitempty"`
-	RawUsage             json.RawMessage `json:"rawUsage,omitempty"`
-	APIError             *apiError       `json:"apiError,omitempty"`
+	Attempt       int             `json:"attempt"`
+	URL           string          `json:"url"`
+	BodyHash      string          `json:"bodyHash"`
+	SessionHeader string          `json:"sessionHeader,omitempty"`
+	BodySession   string          `json:"bodySession,omitempty"`
+	UserAgent     string          `json:"userAgent"`
+	HTTPStatus    int             `json:"httpStatus"`
+	ResponseModel string          `json:"responseModel,omitempty"`
+	ReturnedKey   string          `json:"returnedCacheKey,omitempty"`
+	RawUsage      json.RawMessage `json:"rawUsage,omitempty"`
+	APIError      *apiError       `json:"apiError,omitempty"`
 }
 
 type apiError struct {
@@ -63,12 +60,10 @@ type trial struct {
 	Error           string            `json:"error,omitempty"`
 }
 
-// Observe actual SDK HTTP requests. Only tools-null diagnosis changes the body,
-// and only its tools field; ordinary cache probes forward the original body.
+// Observe actual SDK HTTP requests and forward the original body unchanged.
 type recorder struct {
-	trial     *trial
-	header    string
-	toolsMode string // Probe-only single-field intervention, before observation.
+	trial  *trial
+	header string
 }
 
 func (c *recorder) Do(req *http.Request) (*http.Response, error) {
@@ -84,33 +79,9 @@ func (c *recorder) Do(req *http.Request) (*http.Response, error) {
 	if err := json.Unmarshal(body, &fields); err != nil {
 		return nil, err
 	}
-	switch c.toolsMode {
-	case "omit":
-		delete(fields, "tools")
-	case "empty":
-		fields["tools"] = json.RawMessage(`[]`)
-	case "function":
-		fields["tools"] = json.RawMessage(`[{"type":"function","name":"run_js","description":"Execute JavaScript","parameters":{"type":"object","properties":{"code":{"type":"string"}},"required":["code"],"additionalProperties":false}}]`)
-	}
-	if c.toolsMode != "" {
-		body, err = json.Marshal(fields)
-		if err != nil {
-			return nil, err
-		}
-		req.ContentLength = int64(len(body))
-		req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
-	}
 	req.Body = io.NopCloser(bytes.NewReader(body))
-	canonical, _ := json.Marshal(fields)
-	digest := sha256.Sum256(canonical)
+	digest := sha256.Sum256(body)
 	r := &record{Attempt: len(c.trial.Requests) + 1, URL: req.URL.String(), BodyHash: hex.EncodeToString(digest[:]), UserAgent: req.Header.Get("User-Agent")}
-	r.ToolsValue, r.ToolsPresent = fields["tools"]
-	if c.toolsMode != "" {
-		delete(fields, "tools")
-		rest, _ := json.Marshal(fields)
-		digest := sha256.Sum256(rest)
-		r.BodyWithoutToolsHash = hex.EncodeToString(digest[:])
-	}
 	if c.header != "" {
 		r.SessionHeader = req.Header.Get(c.header)
 	}
@@ -307,15 +278,7 @@ func run() error {
 	out := flag.String("out", "", "new artifact directory (required)")
 	credentialDir := flag.String("credential-dir", "", "NOE credential directory (required)")
 	selected := flag.String("cases", "chatgpt,opencode-chat,opencode-responses,openrouter", "comma-separated cases")
-	diagnoseTools := flag.Bool("diagnose-tools-null", false, "compare adapter bodies changing only tools (4 calls)")
 	flag.Parse()
-	if *diagnoseTools {
-		*selected = "openrouter-responses-tools-null,openrouter-responses-tools-omit,openrouter-responses-tools-empty,openrouter-responses-tools-function"
-	}
-	var sharedNonce [16]byte
-	if _, err := rand.Read(sharedNonce[:]); err != nil {
-		return err
-	}
 	if !filepath.IsAbs(*out) || !filepath.IsAbs(*credentialDir) {
 		return fmt.Errorf("out and credential-dir must be absolute paths")
 	}
@@ -344,9 +307,6 @@ func run() error {
 			return err
 		}
 		id := hex.EncodeToString(nonce[:])
-		if *diagnoseTools {
-			id = hex.EncodeToString(sharedNonce[:])
-		}
 		t := &trial{Name: name, SessionID: id, RequestEncoding: "noe-adapter"}
 		profile := provider.Definition{Auth: "api-key", Headers: map[string]string{"User-Agent": "noe/sdk-cache-probe"}}
 		effort := "high"
@@ -367,7 +327,7 @@ func run() error {
 			profile.BaseURL = "https://opencode.ai/inference/go/openai/v1"
 			profile.KeyFile = filepath.Join(*credentialDir, "opencode-go-api-key")
 			profile.SessionHeader = "x-opencode-session"
-		case "openrouter", "openrouter-responses", "openrouter-responses-tools-null", "openrouter-responses-tools-omit", "openrouter-responses-tools-empty", "openrouter-responses-tools-function":
+		case "openrouter", "openrouter-responses":
 			t.Provider, t.Model, t.API, t.SDK = "openrouter", "deepseek/deepseek-v4.1-flash", "chat-completions", "openrouter"
 			profile.BaseURL = "https://openrouter.ai/api/v1"
 			profile.KeyFile = filepath.Join(*credentialDir, "openrouter-api-key")
@@ -402,9 +362,6 @@ func run() error {
 		}
 		results = append(results, t)
 		transport := &recorder{trial: t, header: profile.SessionHeader}
-		if *diagnoseTools {
-			transport.toolsMode = strings.TrimPrefix(name, "openrouter-responses-tools-")
-		}
 		opts := provider.Options{Profile: &profile, BaseURL: profile.BaseURL, KeyFile: profile.KeyFile, HTTPClient: transport}
 		var sdk provider.Provider
 		if t.SDK == "openai" {
@@ -421,9 +378,6 @@ func run() error {
 		user, _ := json.Marshal(map[string]string{"role": "user", "content": input.String()})
 		request := provider.Request{Provider: t.Provider, SessionID: id, CacheKey: id, Model: t.Model, Effort: effort, MaxTokens: 2048, Messages: []json.RawMessage{system, user}}
 		count := 3
-		if *diagnoseTools {
-			count = 1
-		}
 		for i := 0; i < count; i++ {
 			request.RunID = fmt.Sprintf("%s-%d", id, i+1)
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)

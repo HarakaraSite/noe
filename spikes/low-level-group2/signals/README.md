@@ -1,5 +1,11 @@
 # OS signal spike
 
+> Retired after production integration (v1.16.0). The prototype test code was
+> removed; the findings and historical reproduction commands below are retained.
+> Source before retirement is available in Git at `7b43646`.
+> Current regression coverage is in `internal/nativeio`, `internal/signals`,
+> `internal/runtime`, and `tests/low_level*_e2e_test.go`.
+
 This opt-in spike tests a process-wide signal broker that fans OS signals out
 to QuickJS runtimes on their owner goroutines. It is Linux/POSIX-specific and
 adds no module dependency. The test's real SIGINT and SIGTERM are sent only to
@@ -31,7 +37,7 @@ and waits for the dispatch goroutine to stop.
 ## Evidence and limits
 
 See [RESULTS.md](RESULTS.md) for the observed test results and planning notes.
-The full reproduction and helper code is in [signals_test.go](signals_test.go).
+The full reproduction and helper code is in [the retired signals prototype](https://forge.harakara.site/littleisland/noe/src/commit/7b436464eb0407f5ce196efa9e288d4061f6e78e/spikes/low-level-group2/signals/signals_test.go).
 The test verifies delivery to a real go-quickjs Worker, not only to two
 independent runtimes. It does not run the NOE CLI or its REPL. In particular,
 the existing CLI's SIGINT cancellation remains active alongside a JS

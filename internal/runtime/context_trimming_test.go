@@ -77,16 +77,10 @@ if(r.lastResult.answer!=="continued successfully")throw Error(JSON.stringify(r))
 			}
 			for i, req := range requests {
 				body, _ := json.Marshal(req.Messages)
-				notices := 0
-				for _, raw := range req.Messages {
-					var m struct{ Role, Content string }
-					_ = json.Unmarshal(raw, &m)
-					if m.Role == "system" && strings.HasPrefix(m.Content, "NOE_CONTEXT_STATUS\n") {
-						notices++
-					}
-				}
-				if notices != 1 || !bytes.Contains(req.Messages[1], []byte("original immutable task")) {
-					t.Fatalf("lost initial instruction/notice on %d", i)
+				messages := decodeRuntimeProviderMessages(t, req.Messages)
+				statuses := runtimeContextStatusMessages(messages)
+				if len(statuses) == 0 || statuses[len(statuses)-1].Role != "user" || !strings.HasPrefix(messages[len(messages)-1].Content, "NOE_CONTEXT_STATUS\n") || !runtimeMessageContains(messages, "user", "original immutable task") {
+					t.Fatalf("lost initial instruction/current user status on %d: %+v", i, messages)
 				}
 				var tail struct{ Content string }
 				_ = json.Unmarshal(req.Messages[len(req.Messages)-1], &tail)

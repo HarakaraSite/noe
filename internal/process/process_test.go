@@ -301,36 +301,36 @@ func TestStartAcknowledgesFastExitsBeforeTargetIsReaped(t *testing.T) {
 	}
 }
 
-func TestSupervisorStartupCost(t *testing.T) {
-	executable := testExecutable(t)
-	durations := make([]time.Duration, 5)
-	for i := range durations {
+func BenchmarkSupervisorStartupCost(b *testing.B) {
+	executable := testExecutable(b)
+	var totalStartup time.Duration
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		start := time.Now()
 		child, err := Start(context.Background(), Config{
 			Command: executable,
 			Args:    []string{"-test.run=^TestProcessTargetHelper$"},
 			Env:     []string{targetModeEnv + "=exit"},
 		})
-		durations[i] = time.Since(start)
+		b.StopTimer()
+		totalStartup += time.Since(start)
 		if err != nil {
-			t.Fatal(err)
+			b.Fatal(err)
 		}
 		if _, err := child.Wait(); err != nil {
-			t.Fatal(err)
+			b.Fatal(err)
 		}
 		if err := child.Close(); err != nil {
-			t.Fatal(err)
+			b.Fatal(err)
 		}
+		b.StartTimer()
 	}
-	for i := 1; i < len(durations); i++ {
-		for j := i; j > 0 && durations[j] < durations[j-1]; j-- {
-			durations[j], durations[j-1] = durations[j-1], durations[j]
-		}
-	}
+	b.StopTimer()
+	b.ReportMetric(float64(totalStartup)/float64(b.N), "start/op")
 	if runtime.GOOS == "windows" {
-		t.Logf("Windows process startup median=%s samples=%v; each active spawn owns 1 target process plus a Job Object", durations[len(durations)/2], durations)
+		b.Log("Windows process startup; each active spawn owns 1 target process plus a Job Object")
 	} else {
-		t.Logf("POSIX supervisor startup median=%s samples=%v; each active spawn owns 2 extra processes (supervisor + target)", durations[len(durations)/2], durations)
+		b.Log("POSIX supervisor startup; each active spawn owns 2 extra processes (supervisor + target)")
 	}
 }
 
@@ -403,7 +403,7 @@ func TestCloseUnblocksBlockedStdinWrite(t *testing.T) {
 	}
 }
 
-func testExecutable(t *testing.T) string {
+func testExecutable(t testing.TB) string {
 	t.Helper()
 	executable, err := os.Executable()
 	if err != nil {

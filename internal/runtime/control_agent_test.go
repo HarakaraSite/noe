@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -94,21 +95,34 @@ console.log("public steer completed");`, providerStarted)
 	case <-ctx.Done():
 		t.Fatalf("steered provider request did not arrive: %v", ctx.Err())
 	}
-	if len(second.Messages) != 5 || second.CacheKey != "public-steer-cache" {
+	messages := decodeRuntimeProviderMessages(t, second.Messages)
+	if second.CacheKey != "public-steer-cache" {
 		t.Fatalf("public steer history/cache: %+v", second)
 	}
-	var candidate struct {
-		ReasoningDetails []map[string]string `json:"reasoning_details"`
+	candidateRetained := false
+	for _, raw := range second.Messages {
+		var candidate struct {
+			Role             string              `json:"role"`
+			Content          string              `json:"content"`
+			ReasoningDetails []map[string]string `json:"reasoning_details"`
+		}
+		if err := json.Unmarshal(raw, &candidate); err != nil {
+			continue
+		}
+		if candidate.Role == "assistant" && candidate.Content == "candidate" && len(candidate.ReasoningDetails) == 1 && candidate.ReasoningDetails[0]["text"] == "preserved" {
+			candidateRetained = true
+			break
+		}
 	}
-	if err := json.Unmarshal(second.Messages[2], &candidate); err != nil || len(candidate.ReasoningDetails) != 1 || candidate.ReasoningDetails[0]["text"] != "preserved" {
-		t.Fatalf("full final candidate was not retained: %s (%v)", second.Messages[2], err)
+	if !candidateRetained {
+		t.Fatalf("full final candidate was not retained: %s", second.Messages)
 	}
-	var steer struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
+	if !runtimeMessageContains(messages, "user", "initial instruction") || !runtimeMessageContains(messages, "user", "add a public correction") {
+		t.Fatalf("public steer or original task was not sent as user input: %+v", messages)
 	}
-	if err := json.Unmarshal(second.Messages[3], &steer); err != nil || steer.Role != "user" || steer.Content != "add a public correction" {
-		t.Fatalf("public steer was not sent as user input: %+v (%v)", steer, err)
+	statuses := runtimeContextStatusMessages(messages)
+	if len(statuses) != 2 || statuses[0].Role != "user" || statuses[1].Role != "user" || messages[len(messages)-1].Role != "user" || !strings.HasPrefix(messages[len(messages)-1].Content, "NOE_CONTEXT_STATUS\n") {
+		t.Fatalf("status messages were not retained as user history: %+v", messages)
 	}
 	select {
 	case result := <-done:

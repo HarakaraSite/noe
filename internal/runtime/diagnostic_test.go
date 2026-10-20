@@ -114,9 +114,24 @@ func testRunJSCommandFailureDetailsReachModelAndEvents(t *testing.T, call string
 		ToolCallID string `json:"tool_call_id"`
 		Content    string `json:"content"`
 	}
-	last := requests[1].Messages[len(requests[1].Messages)-2]
-	if err := json.Unmarshal(last, &tool); err != nil {
-		t.Fatal(err)
+	foundTool := false
+	for _, raw := range requests[1].Messages {
+		var candidate struct {
+			Role       string `json:"role"`
+			ToolCallID string `json:"tool_call_id"`
+			Content    string `json:"content"`
+		}
+		if err := json.Unmarshal(raw, &candidate); err != nil {
+			t.Fatal(err)
+		}
+		if candidate.Role == "tool" && candidate.ToolCallID == "call-failure" {
+			tool = candidate
+			foundTool = true
+			break
+		}
+	}
+	if !foundTool {
+		t.Fatalf("tool result missing from continued provider history: %+v", requests[1].Messages)
 	}
 	var result agent.Result
 	if err := json.Unmarshal([]byte(tool.Content), &result); err != nil {

@@ -161,7 +161,7 @@ func TestSupervisorFailureKillsTargetGroup(t *testing.T) {
 	}
 }
 
-func TestProcessDescriptorAndResidentCost(t *testing.T) {
+func TestProcessDescriptorAndCleanup(t *testing.T) {
 	executable := testExecutable(t)
 	baselineFDs := countOpenFDs(t)
 	child, err := Start(context.Background(), Config{
@@ -184,9 +184,6 @@ func TestProcessDescriptorAndResidentCost(t *testing.T) {
 			t.Fatalf("active process %d alive=%v, err=%v", pid, alive, err)
 		}
 	}
-	supervisorRSS := readRSS(t, child.supervisorPID)
-	targetRSS := readRSS(t, child.PID)
-	t.Logf("active POSIX spawn: 2 extra processes; supervisor RSS=%d KiB, target RSS=%d KiB", supervisorRSS, targetRSS)
 	if err := child.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -219,6 +216,32 @@ func TestProcessDescriptorAndResidentCost(t *testing.T) {
 		t.Fatalf("file descriptors grew from %d to %d after repeated Start/Close", baselineFDs, afterFDs)
 	}
 	t.Logf("process pipe/supervisor fd cleanup: baseline=%d open descriptors, after 9 Start/Close cycles=%d", baselineFDs, afterFDs)
+}
+
+func BenchmarkProcessResidentCost(b *testing.B) {
+	executable := testExecutable(b)
+	var supervisorRSS, targetRSS int64
+	for i := 0; i < b.N; i++ {
+		child, err := Start(context.Background(), Config{
+			Command: executable,
+			Args:    []string{"-test.run=^TestProcessTargetHelper$"},
+			Env:     []string{targetModeEnv + "=hold"},
+		})
+		if err != nil {
+			b.Fatal(err)
+		}
+		if ready, err := bufio.NewReader(child.Stdout).ReadString('\n'); err != nil || ready != "ready\n" {
+			b.Fatalf("active target ready = %q, %v", ready, err)
+		}
+		supervisorRSS += readRSS(b, child.supervisorPID)
+		targetRSS += readRSS(b, child.PID)
+		if err := child.Close(); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.ReportMetric(float64(supervisorRSS)/float64(b.N), "supervisor-KiB/op")
+	b.ReportMetric(float64(targetRSS)/float64(b.N), "target-KiB/op")
+	b.Log("RSS sampled while target and supervisor are active; each spawn owns 2 extra processes")
 }
 
 func TestSupervisorPipesAreNotInheritedByTarget(t *testing.T) {
@@ -255,7 +278,7 @@ func countOpenFDs(t *testing.T) int {
 	return len(entries)
 }
 
-func readRSS(t *testing.T, pid int) int64 {
+func readRSS(t testing.TB, pid int) int64 {
 	t.Helper()
 	file, err := os.Open(fmt.Sprintf("/proc/%d/status", pid))
 	if err != nil {

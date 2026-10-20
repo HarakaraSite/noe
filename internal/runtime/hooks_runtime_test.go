@@ -124,15 +124,15 @@ func TestHookModuleChildInheritanceAndExplicitClear(t *testing.T) {
 	var mu sync.Mutex
 	seen := make(map[string]int)
 	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
-		var input struct{ Content string }
-		if err := json.Unmarshal(req.Messages[1], &input); err != nil {
-			return provider.Response{}, err
+		input := interruptUserPrompt(req)
+		if input == "" {
+			return provider.Response{}, fmt.Errorf("provider request lost task instruction: %+v", req.Messages)
 		}
 		mu.Lock()
 		seen[req.RunID]++
 		call := seen[req.RunID]
 		mu.Unlock()
-		if input.Content == "parent" && call == 1 {
+		if input == "parent" && call == 1 {
 			arguments, _ := json.Marshal(map[string]string{"code": `// Check inherited and explicitly cleared hooks.
 const inherited=await run_agent({name:"inherited"},"inherited");
 const cleared=await run_agent({name:"cleared",hooks:[]},"cleared");
@@ -143,7 +143,7 @@ console.log("children completed");`})
 			}})
 			return provider.Response{Message: message, FinishReason: "tool_calls"}, nil
 		}
-		return agentAnswer(input.Content + " answer"), nil
+		return agentAnswer(input + " answer"), nil
 	})
 	source := `import {run_agent} from "noe:agent";
 const result=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",hooks:["./hooks/entry.mjs"]},"parent");

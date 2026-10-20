@@ -1,5 +1,11 @@
 # TCP / Unix socket spike
 
+> Retired after production integration (v1.16.0). The prototype test code was
+> removed; the findings and historical reproduction commands below are retained.
+> Source before retirement is available in Git at `7b43646`.
+> Current regression coverage is in `internal/nativeio`, `internal/signals`,
+> `internal/runtime`, and `tests/low_level*_e2e_test.go`.
+
 This opt-in test spike checks whether a small Go-to-QuickJS bridge can expose a duplex socket as Web Streams while preserving half-close behavior. It uses only loopback TCP, a temporary Unix domain socket, the pinned `go-quickjs` runtime, and Go's standard library. It does not import or change NOE's `nativeio` implementation.
 
 Run it from the repository root:

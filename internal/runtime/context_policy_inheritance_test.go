@@ -18,17 +18,20 @@ import (
 )
 
 type inheritedContextObservation struct {
-	Type    string `json:"type"`
-	RunID   string `json:"runId"`
-	Name    string `json:"name"`
-	Model   string `json:"model"`
-	Context struct {
+	Type        string `json:"type"`
+	RunID       string `json:"runId"`
+	Name        string `json:"name"`
+	Model       string `json:"model"`
+	RequestID   string `json:"requestId"`
+	ModelStepID string `json:"modelStepId"`
+	Context     struct {
 		ModelWindow struct {
 			Tokens *int64 `json:"tokens"`
 		} `json:"modelWindow"`
 		ExecutionContext struct {
 			Policy                string `json:"policy"`
 			BudgetSource          string `json:"budgetSource"`
+			EstimatedTokens       int64  `json:"estimatedTokens"`
 			BudgetTokens          int64  `json:"budgetTokens"`
 			TotalInputBudget      int64  `json:"totalInputBudgetTokens"`
 			ResponseReserveTokens *int64 `json:"responseReserveTokens"`
@@ -42,14 +45,15 @@ type inheritedContextObservation struct {
 
 func TestContextPolicyAndModelBudgetInheritAcrossRunJSProcesses(t *testing.T) {
 	// Keep the fixture's history allowances stable as built-in API guidance
-	// grows. The two recent blocks must fit before trimming, so 0.2 retains
+	// grows. The parent threshold distinguishes its one recent block from the
+	// 0.1 default; the child budget waits for two recent blocks so 0.2 retains
 	// both while the default 0.1 retains only one.
 	encodedInstructions, err := json.Marshal(agent.Instructions())
 	if err != nil {
 		t.Fatal(err)
 	}
 	instructionTokens := int64((len(encodedInstructions) + 3) / 4)
-	parentWindow, childWindow, grandchildWindow := instructionTokens+7900, instructionTokens+11900, instructionTokens+15300
+	parentWindow, childWindow, grandchildWindow := instructionTokens+7900, instructionTokens+12600, instructionTokens+15300
 	for _, test := range []struct {
 		name             string
 		parentPolicy     string
@@ -111,7 +115,7 @@ console.log("PARENT_RECENT_%s:"+"p".repeat(1900));`, id, id)
 						return hookToolReply(map[string]string{id: code}, id), nil
 					case 4:
 						code := `// Start a child only after the parent has prepared its trimmed context.
-const child=await run_agent({name:"child-run",model:"fixture/child",hooks:[],maxSteps:5` + contextPolicyField(test.childPolicy) + `},"child task");
+const child=await run_agent({name:"child-run",model:"fixture/child",hooks:[],maxSteps:5` + contextPolicyField(test.childPolicy) + `},"child task",{allowDelegation:true});
 if(child.lastResult?.answer!=="child completed")throw Error(JSON.stringify(child));
 console.log("PARENT_CHILD:child completed");`
 						return hookToolReply(map[string]string{"parent-child": code}, "parent-child"), nil
@@ -125,8 +129,8 @@ console.log("PARENT_CHILD:child completed");`
 console.log("CHILD_OLD_BLOCK:"+"c".repeat(32000));`}, "child-old"), nil
 					case 2, 3:
 						id := fmt.Sprintf("child-%d", n)
-						code := fmt.Sprintf(`// Emit a small recent completed block %s.
-console.log("CHILD_RECENT_%s:"+"c".repeat(1900));`, id, id)
+						code := fmt.Sprintf(`// Emit a recent completed block that distinguishes the inherited retain ratio.
+console.log("CHILD_RECENT_%s:"+"c".repeat(1900));`, id)
 						return hookToolReply(map[string]string{id: code}, id), nil
 					case 4:
 						code := `// Start a grandchild after the child has prepared its context.
@@ -159,7 +163,7 @@ console.log("CHILD_GRANDCHILD:grandchild completed");`
 					t.Errorf("decode event: %v", err)
 					return
 				}
-				if observation.Type == "context.updated" || observation.Type == "context.trimmed" {
+				if observation.Type == "context.updated" || observation.Type == "context.trimmed" || observation.Type == "model.started" {
 					eventMu.Lock()
 					observations = append(observations, observation)
 					eventMu.Unlock()
@@ -201,10 +205,16 @@ console.log("cross-process context policy verified");`
 			eventMu.Unlock()
 			byModel := map[string][]inheritedContextObservation{}
 			trimEvents := map[string][]inheritedContextObservation{}
+			modelStarts := map[string][]inheritedContextObservation{}
 			for _, observation := range observationCopy {
-				byModel[observation.Model] = append(byModel[observation.Model], observation)
-				if observation.Type == "context.trimmed" {
+				switch observation.Type {
+				case "context.updated":
+					byModel[observation.Model] = append(byModel[observation.Model], observation)
+				case "context.trimmed":
+					byModel[observation.Model] = append(byModel[observation.Model], observation)
 					trimEvents[observation.Model] = append(trimEvents[observation.Model], observation)
+				case "model.started":
+					modelStarts[observation.Model] = append(modelStarts[observation.Model], observation)
 				}
 			}
 			for model, want := range map[string]struct {
@@ -239,11 +249,24 @@ console.log("cross-process context policy verified");`
 			}
 
 			if test.parentMode == "auto" {
+				trimOrdinals := map[string]int{}
 				for _, model := range []string{"fixture/parent", "fixture/child"} {
 					if len(trimEvents[model]) != 1 || trimEvents[model][0].RemovedBlocks != 1 || trimEvents[model][0].Context.ExecutionContext.TrimCount != 1 {
 						t.Fatalf("%s should use inherited retainRatio 0.2 and trim only the oldest block: %+v", model, trimEvents[model])
 					}
 					trim := trimEvents[model][0]
+					trimOrdinal := 0
+					for index, started := range modelStarts[model] {
+						if started.ModelStepID == trim.ModelStepID {
+							trimOrdinal = index + 1
+							break
+						}
+					}
+					if trimOrdinal == 0 {
+						t.Fatalf("%s trim has no matching model.started request: %+v starts=%+v", model, trim, modelStarts[model])
+					}
+					trimOrdinals[model] = trimOrdinal
+					t.Logf("%s trim applied at provider request %d/%d, modelStepId=%s, budgetTokens=%d, estimatedTokens=%d, before=%d, after=%d", model, trimOrdinal, len(modelStarts[model]), trim.ModelStepID, trim.Context.ExecutionContext.BudgetTokens, trim.Context.ExecutionContext.EstimatedTokens, trim.BeforeTokens, trim.AfterTokens)
 					if trim.BeforeTokens <= 0 || trim.AfterTokens*5 > trim.BeforeTokens || trim.AfterTokens*10 <= trim.BeforeTokens {
 						t.Fatalf("%s retained history does not distinguish the inherited 0.2 ratio from the 0.1 default: before=%d after=%d", model, trim.BeforeTokens, trim.AfterTokens)
 					}
@@ -251,8 +274,8 @@ console.log("cross-process context policy verified");`
 				if len(trimEvents["fixture/grandchild"]) != 0 {
 					t.Fatalf("grandchild unexpectedly trimmed: %+v", trimEvents["fixture/grandchild"])
 				}
-				assertInheritedRetainedBlocks(t, requestCopy, "fixture/parent", true, "PARENT_RECENT_", "parent-2", "parent-3")
-				assertInheritedRetainedBlocks(t, requestCopy, "fixture/child", true, "CHILD_RECENT_", "child-2", "child-3")
+				assertInheritedRetainedBlocks(t, requestCopy, "fixture/parent", true, trimOrdinals["fixture/parent"], "PARENT_RECENT_", "parent-2")
+				assertInheritedRetainedBlocks(t, requestCopy, "fixture/child", true, trimOrdinals["fixture/child"], "CHILD_RECENT_", "child-2", "child-3")
 			} else {
 				if len(trimEvents) != 0 {
 					t.Fatalf("explicit null inheritance should disable parent/child/grandchild trimming: %+v", trimEvents)
@@ -262,8 +285,8 @@ console.log("cross-process context policy verified");`
 						t.Fatalf("disabled run has a nonzero trim count: %+v", observation)
 					}
 				}
-				assertInheritedRetainedBlocks(t, requestCopy, "fixture/parent", false, "PARENT_", "parent-old", "parent-2", "parent-3", "parent-child")
-				assertInheritedRetainedBlocks(t, requestCopy, "fixture/child", false, "CHILD_", "child-old", "child-2", "child-3", "child-grandchild")
+				assertInheritedRetainedBlocks(t, requestCopy, "fixture/parent", false, 0, "PARENT_", "parent-old", "parent-2", "parent-3", "parent-child")
+				assertInheritedRetainedBlocks(t, requestCopy, "fixture/child", false, 0, "CHILD_", "child-old", "child-2", "child-3", "child-grandchild")
 			}
 			assertFreshNestedRunCounters(t, observationCopy, test.parentMode == "auto")
 		})
@@ -317,16 +340,26 @@ func assertFreshNestedRunCounters(t *testing.T, observations []inheritedContextO
 	}
 }
 
-func assertInheritedRetainedBlocks(t *testing.T, requests []provider.Request, model string, trimmed bool, marker string, wantIDs ...string) {
+func assertInheritedRetainedBlocks(t *testing.T, requests []provider.Request, model string, trimmed bool, requestOrdinal int, marker string, wantIDs ...string) {
 	t.Helper()
 	var request *provider.Request
 	requestIndex := -1
+	modelOrdinal := 0
 	for i := range requests {
 		if requests[i].Model != model {
 			continue
 		}
+		modelOrdinal++
 		body, _ := json.Marshal(requests[i].Messages)
-		if !trimmed || bytes.Contains(body, []byte("Context trimmed:")) {
+		if requestOrdinal > 0 && modelOrdinal == requestOrdinal {
+			request = &requests[i]
+			requestIndex = i
+			if trimmed && !bytes.Contains(body, []byte("Context trimmed:")) {
+				t.Fatalf("%s request %d does not contain its trim notice", model, requestIndex)
+			}
+			break
+		}
+		if requestOrdinal == 0 && (!trimmed || bytes.Contains(body, []byte("Context trimmed:"))) {
 			request = &requests[i]
 			requestIndex = i
 		}

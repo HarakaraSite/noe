@@ -34,13 +34,7 @@ func TestAgentMinimalRunHasIndependentHistories(t *testing.T) {
 		mu.Lock()
 		requests = append(requests, req)
 		mu.Unlock()
-		var user struct {
-			Content string `json:"content"`
-		}
-		if err := json.Unmarshal(req.Messages[1], &user); err != nil {
-			return provider.Response{}, err
-		}
-		return agentAnswer(user.Content), nil
+		return agentAnswer(interruptUserPrompt(req)), nil
 	})
 	var out bytes.Buffer
 	source := `import {run_agent} from "noe:agent";
@@ -63,38 +57,33 @@ console.log(JSON.stringify([first.lastResult.answer,second.lastResult.answer,[le
 		t.Fatalf("requests=%d", len(requests))
 	}
 	byInstruction := make(map[string]provider.Request, len(requests))
+	seenSessions := make(map[string]bool, len(requests))
 	for _, req := range requests {
-		if req.Model != "fixture/model" || req.MaxTokens != 123 || req.Effort != "high" || len(req.Messages) != 3 || !strings.Contains(string(req.Messages[0]), "additional") {
+		if req.Model != "fixture/model" || req.MaxTokens != 123 || req.Effort != "high" || len(req.Messages) != 3 {
 			t.Fatalf("settings/history not isolated: %+v", req)
 		}
-		var system struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
+		messages := decodeRuntimeProviderMessages(t, req.Messages)
+		if !runtimeMessageContains(messages, "system", agent.Instructions()+"\nadditional") {
+			t.Fatalf("embedded Markdown and custom instructions were not composed: %+v", messages)
 		}
-		if err := json.Unmarshal(req.Messages[0], &system); err != nil {
-			t.Fatal(err)
+		instruction := interruptUserPrompt(req)
+		if instruction == "" || !runtimeMessageContains(messages, "user", instruction) {
+			t.Fatalf("business instruction missing from provider history: %+v", messages)
 		}
-		if system.Role != "system" || system.Content != agent.Instructions()+"\nadditional" {
-			t.Fatalf("embedded Markdown and custom instructions were not composed: %+v", system)
+		if req.SessionID == "" || seenSessions[req.SessionID] {
+			t.Fatalf("agent instances did not get independent session IDs: %+v", req)
 		}
-		var user struct {
-			Content string `json:"content"`
-		}
-		if err := json.Unmarshal(req.Messages[1], &user); err != nil {
-			t.Fatal(err)
-		}
-		byInstruction[user.Content] = req
+		seenSessions[req.SessionID] = true
+		byInstruction[instruction] = req
 	}
 	if byInstruction["first"].CacheKey != "cache-1" || byInstruction["empty"].CacheKey != "" {
 		t.Fatalf("explicit cacheKey changed: %+v", byInstruction)
 	}
-	seen := map[string]bool{"cache-1": true}
 	for _, instruction := range []string{"second", "left", "right"} {
 		req := byInstruction[instruction]
-		if req.CacheKey == "" || seen[req.CacheKey] {
-			t.Fatalf("automatic cacheKey missing or shared across runs: %+v", byInstruction)
+		if req.CacheKey == "" || req.CacheKey != req.SessionID {
+			t.Fatalf("default cacheKey must use the instance session ID: %+v", req)
 		}
-		seen[req.CacheKey] = true
 	}
 }
 
@@ -106,7 +95,7 @@ func TestAgentLazyImportAndConfigurationErrors(t *testing.T) {
 	})
 	for _, source := range []string{
 		`const api=await import("noe:agent");
-if (Object.keys(api).sort().join(",")!=="interrupt_agent,list_models,observe_agent,queue_agent,run_agent,spawn_agent,steer_agent,wait_task") throw Error("unexpected public exports: "+Object.keys(api));
+if (Object.keys(api).sort().join(",")!=="interrupt_agent,list_models,observe_agent,queue_agent,read_task_result,run_agent,spawn_agent,steer_agent,wait_task") throw Error("unexpected public exports: "+Object.keys(api));
 if ("createAgent" in api) throw Error("legacy createAgent is still exported");`,
 		`import {run_agent} from "noe:agent"; let failures=0;
 for (const config of [{model:""},{model:42},{provider:"unknown"},{maxTokens:-1},{maxSteps:-1},{cacheKey:42}]) {
@@ -194,25 +183,5 @@ func TestAgentCancellationStopsProvider(t *testing.T) {
 	case <-stopped:
 	case <-time.After(time.Second):
 		t.Fatal("provider survived runtime cancellation")
-	}
-}
-
-func TestAgentInternalRPCLongerThanFetchTimeout(t *testing.T) {
-	p := agentProviderFunc(func(ctx context.Context, _ provider.Request) (provider.Response, error) {
-		timer := time.NewTimer(30*time.Second + 250*time.Millisecond)
-		defer timer.Stop()
-		select {
-		case <-timer.C:
-			return agentAnswer("long request completed"), nil
-		case <-ctx.Done():
-			return provider.Response{}, ctx.Err()
-		}
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	var out bytes.Buffer
-	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), `import {run_agent} from "noe:agent";const result=await run_agent({provider:"openrouter",model:"x",effort:"auto"},"wait");console.log(result.lastResult.answer);`}, Options{Stdout: &out, Agent: agentTestOptions(p)})
-	if code != 0 || err != nil || out.String() != "long request completed\n" {
-		t.Fatalf("code=%d error=%v stdout=%q", code, err, &out)
 	}
 }

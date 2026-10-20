@@ -43,6 +43,8 @@ pre_release:
       command: CGO_ENABLED=1 go test -race ./internal/... -count=1
     - name: e2e
       command: go test -tags=e2e ./... -count=1
+    - name: long-rpc
+      command: go test -tags=slow_integration ./internal/runtime -run '^TestAgentInternalRPCLongerThanFetchTimeout$' -count=1
     - name: vet-including-e2e
       command: go vet -tags=e2e ./...
     - name: cross-compile

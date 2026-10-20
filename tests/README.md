@@ -14,6 +14,29 @@ The suite builds the CLI once with CGO disabled. Ordinary E2E tests use temporar
 - `agent_*`, `observe_*`, and `decision_*`: agents, observation, control, and decisions. Agent model responses are served by local fixtures in `agent_e2e_test.go`.
 - `fixtures/`: static inputs for live acceptance tests.
 
+The managed-agent package also builds its CLI fixture once per test process.
+Provider stream/error classification tests use one generation attempt; retry
+backoff and attempt isolation are covered separately with virtual time, with one
+CLI retry workflow retained as integration coverage.
+
+Long-running RPC behavior is separate from the normal suite and remains a
+pre-release reference check:
+
+```sh
+go test -tags=slow_integration ./internal/runtime \
+  -run '^TestAgentInternalRPCLongerThanFetchTimeout$' -count=1
+```
+
+Process startup and resident-memory measurements are benchmarks rather than
+ordinary test gates. Process/descriptor cleanup remains in the normal suite:
+
+```sh
+go test ./internal/process -run '^$' -bench . -benchtime=5x
+```
+
+The pre-production low-level/OpenCode spikes have been retired; their README
+files and result records retain the findings. They are not current test gates.
+
 Live OpenRouter tests require additional build tags and explicit credential-file configuration. Run them only when real provider requests are intended:
 
 ```sh

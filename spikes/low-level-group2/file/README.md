@@ -1,5 +1,11 @@
 # FileHandle spike
 
+> Retired after production integration (v1.16.0). The prototype test code was
+> removed; the findings and historical reproduction commands below are retained.
+> Source before retirement is available in Git at `7b43646`.
+> Current regression coverage is in `internal/nativeio`, `internal/signals`,
+> `internal/runtime`, and `tests/low_level*_e2e_test.go`.
+
 This opt-in Go test puts a small `spike:file` module beside the pinned
 go-quickjs `fs` module. It exercises one long-lived `os.File` through
 `readAt(offset, length)` and `writeAt(offset, Uint8Array)` while the existing

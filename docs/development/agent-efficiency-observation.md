@@ -53,7 +53,9 @@ go test -tags=agent_efficiency_live ./internal/agent \
   -run '^TestAgentCacheProbeLive$' -count=1 -timeout=4m -v
 ```
 
-同じ試験に`NOE_AGENT_CACHE_PROBE_DIAGNOSTICS=1`を指定し、公式APIの`prompt_cache_options`を付けた要求も確認した。このChatGPTプラン接続・モデルはHTTP 400、`param:prompt_cache_options`、`message:prompt_cache_options is not supported on this model`を返した。初回とエラー詳細を取得した再確認の2要求が拒否され、公式diagnosticsの比較は実行できなかった。今後の同試験では、この特定の未対応応答をartifactへ保存してskipする。通常のAPI全体や別モデルでの未対応を意味しない。
+同じ試験の当時の診断モードで`NOE_AGENT_CACHE_PROBE_DIAGNOSTICS=1`を指定し、公式APIの`prompt_cache_options`を付けた要求も確認した。このChatGPTプラン接続・モデルはHTTP 400、`param:prompt_cache_options`、`message:prompt_cache_options is not supported on this model`を返した。初回とエラー詳細を取得した再確認の2要求が拒否され、公式diagnosticsの比較は実行できなかった。この応答は当該接続での事実であり、通常のAPI全体や別モデルでの未対応を意味しない。
+
+この特別な診断モードは未対応が確認されたため退役した。現在の`TestAgentCacheProbeLive`は既定Registry経由で同一入力を2回送り、`prompt_cache_options`や`comparison_response_id`を追加せず、生usageとadapter usageの一致を記録する。
 
 成功した推論は合計27要求、diagnostics用の拒否応答は2要求。元ログでは親16.17%・子8.56%だったが、今回とは作業内容・入力の長さ・時点が違うため、改善率のA/B比較にはしない。現在の結果は、固定キー・履歴保持だけでは親のヒット率の疑念が解消しないことを示す。provider内のcache受付、ルーティング、利用枠での計上等のどれが原因かは未確定で、製品のcache設定を推測で変更していない。
 

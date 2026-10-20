@@ -6,7 +6,7 @@ Just JavaScript. Until you need an agent.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v1.15.2リリースノート](docs/releases/v1.15.2.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.15.2)
+[v1.16.0リリースノート](docs/releases/v1.16.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v1.16.0)
 
 ## ビルドと実行
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.15.2
+# noe v1.16.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。

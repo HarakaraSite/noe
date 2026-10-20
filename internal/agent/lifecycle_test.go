@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -17,16 +18,44 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
+var lifecycleBuild struct {
+	sync.Once
+	dir, binary string
+	err         error
+	output      []byte
+}
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if lifecycleBuild.dir != "" {
+		if err := os.RemoveAll(lifecycleBuild.dir); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			code = 1
+		}
+	}
+	os.Exit(code)
+}
+
 func lifecycleBinary(t *testing.T) string {
 	t.Helper()
-	_, file, _, _ := runtime.Caller(0)
-	binary := filepath.Join(t.TempDir(), "noe")
-	cmd := exec.Command("go", "build", "-o", binary, "./cmd/noe")
-	cmd.Dir = filepath.Dir(filepath.Dir(filepath.Dir(file)))
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("build managed-task executable: %v\n%s", err, output)
+	lifecycleBuild.Do(func() {
+		lifecycleBuild.dir, lifecycleBuild.err = os.MkdirTemp("", "noe-agent-tests-")
+		if lifecycleBuild.err != nil {
+			return
+		}
+		lifecycleBuild.binary = filepath.Join(lifecycleBuild.dir, "noe")
+		if runtime.GOOS == "windows" {
+			lifecycleBuild.binary += ".exe"
+		}
+		_, file, _, _ := runtime.Caller(0)
+		cmd := exec.Command("go", "build", "-o", lifecycleBuild.binary, "./cmd/noe")
+		cmd.Dir = filepath.Dir(filepath.Dir(filepath.Dir(file)))
+		lifecycleBuild.output, lifecycleBuild.err = cmd.CombinedOutput()
+	})
+	if lifecycleBuild.err != nil {
+		t.Fatalf("build managed-task executable: %v\n%s", lifecycleBuild.err, lifecycleBuild.output)
 	}
-	return binary
+	return lifecycleBuild.binary
 }
 
 func lifecycleCall(t *testing.T, op *Operation, method string, payload any) string {

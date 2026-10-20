@@ -15,7 +15,7 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 )
 
-func TestHooksContextNotificationIsEphemeralAndMeasuresPreviousRequest(t *testing.T) {
+func TestHooksContextNotificationHistoryMeasuresPreviousRequest(t *testing.T) {
 	cwd := t.TempDir()
 	path := filepath.Join(cwd, "snapshots.jsonl")
 	writePhaseHook(t, cwd, "context.mjs", fmt.Sprintf(`import {existsSync,readFileSync,writeFileSync} from "node:fs";
@@ -74,10 +74,16 @@ console.log(JSON.stringify(await run_agent({provider:"openrouter",model:"fixture
 	if len(requests) != 2 {
 		t.Fatalf("requests=%d", len(requests))
 	}
-	// The stored system/user/reasoning/tool messages remain intact. A single
-	// ephemeral tail message is generated independently for each wire request.
-	if len(requests[1].Messages) != len(requests[0].Messages)+2 {
+	// Each sent status notice remains in history beside provider and tool messages.
+	if len(requests[1].Messages) != len(requests[0].Messages)+3 {
 		t.Fatalf("notice accumulated: first=%s second=%s", requests[0].Messages, requests[1].Messages)
+	}
+	firstMessages := decodeRuntimeProviderMessages(t, requests[0].Messages)
+	secondMessages := decodeRuntimeProviderMessages(t, requests[1].Messages)
+	firstStatuses := runtimeContextStatusMessages(firstMessages)
+	secondStatuses := runtimeContextStatusMessages(secondMessages)
+	if len(firstStatuses) != 1 || len(secondStatuses) != 2 || firstStatuses[0].Role != "user" || secondStatuses[0].Role != "user" || secondStatuses[1].Role != "user" || !strings.HasPrefix(secondMessages[len(secondMessages)-1].Content, "NOE_CONTEXT_STATUS\n") {
+		t.Fatalf("status notices were not retained as user history with a current tail: first=%+v second=%+v", firstMessages, secondMessages)
 	}
 	for n, req := range requests {
 		body, _ := json.Marshal(req.Messages)
@@ -87,14 +93,16 @@ console.log(JSON.stringify(await run_agent({provider:"openrouter",model:"fixture
 		if n == 0 && bytes.Count(body, []byte("current runtime text")) != 1 {
 			t.Fatalf("replacement lost/duplicated: %s", body)
 		}
-		if n == 1 && bytes.Contains(body, []byte("current runtime text")) {
-			t.Fatalf("step info carried forward: %s", body)
+		if n == 1 && (bytes.Count(body, []byte("current runtime text")) != 1 || strings.Contains(secondStatuses[len(secondStatuses)-1].Content, "current runtime text")) {
+			t.Fatalf("prior status should retain step info without carrying it into the current notice: %s", body)
 		}
-		if bytes.Count(body, []byte("steer must remain once")) != 1 || !bytes.Contains(req.Messages[0], []byte("autonomous")) {
+		messages := decodeRuntimeProviderMessages(t, req.Messages)
+		if bytes.Count(body, []byte("steer must remain once")) != 1 || !runtimeMessageContains(messages, "system", "autonomous") {
 			t.Fatalf("history changed: %s", body)
 		}
 	}
-	if !bytes.Contains(requests[1].Messages[3], []byte("retain tool reasoning")) {
+	secondBody, _ := json.Marshal(requests[1].Messages)
+	if !bytes.Contains(secondBody, []byte("retain tool reasoning")) {
 		t.Fatalf("reasoning lost: %s", requests[1].Messages)
 	}
 	lines, err := os.ReadFile(path)
@@ -146,20 +154,23 @@ func TestHooksContextBudgetSurvivesRunJSChildDefaults(t *testing.T) {
 	var mu sync.Mutex
 	seen := map[string]string{}
 	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
-		var input, tail struct {
-			Content string `json:"content"`
+		input := interruptUserPrompt(req)
+		messages := make([]runtimeProviderMessage, 0, len(req.Messages))
+		for _, raw := range req.Messages {
+			var message runtimeProviderMessage
+			if err := json.Unmarshal(raw, &message); err != nil {
+				return provider.Response{}, err
+			}
+			messages = append(messages, message)
 		}
-		if err := json.Unmarshal(req.Messages[1], &input); err != nil {
-			return provider.Response{}, err
-		}
-		if err := json.Unmarshal(req.Messages[len(req.Messages)-1], &tail); err != nil {
-			return provider.Response{}, err
+		if input == "" || len(messages) == 0 || !strings.HasPrefix(messages[len(messages)-1].Content, "NOE_CONTEXT_STATUS\n") {
+			return provider.Response{}, fmt.Errorf("provider request lost business task or status tail: %+v", messages)
 		}
 		mu.Lock()
-		_, previous := seen[input.Content]
-		seen[input.Content] = tail.Content
+		_, previous := seen[input]
+		seen[input] = messages[len(messages)-1].Content
 		mu.Unlock()
-		if input.Content == "parent-budget" && !previous {
+		if input == "parent-budget" && !previous {
 			return hookToolReply(map[string]string{"children": `// Check inherited and cleared budgets through ordinary child helpers.
 const inherited=await run_agent({name:"inherited"},"inherited-budget");
 const cleared=await run_agent({name:"cleared",contextBudget:null},"cleared-budget");

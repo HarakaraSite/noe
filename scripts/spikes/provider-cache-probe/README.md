@@ -29,7 +29,7 @@ go build -o /tmp/noe-provider-cache-probe ./scripts/spikes/provider-cache-probe
 
 `-cases openrouter-responses`はhjhが使うAPI形式と、修正候補の`sessionHeader: x-session-id`を組み合わせた確認用。hjh本体や設定を変更せず、NOEのキーとSDKを使う。このケースはSDKの`ResponsesRequest`を直接構築し、`instructions`にsystem、文字列の`input`にuserを渡す。未使用の`tools`は省略する。SDKの既定値の生成時エラーを避けるため、NOEの既存adapterと同様に`service_tier: auto`を明示する。SDK自身のretryは無効。
 
-`results.json`にSDK version、要求の生成経路、認証ファイルのpath（値は含まない）、HTTP送信直前の本文hash・識別子・User-Agent、HTTP status、SSEの生usageとadapterまたはSDKが返したusageを保存する。モデル要求はSDKから直接upstreamへ送り、記録のための中継サーバーは使わない。本文・認証ヘッダーは記録しない。
+`results.json`にSDK version、要求の生成経路、認証ファイルのpath（値は含まない）、HTTP送信直前の本文SHA-256・識別子・User-Agent、HTTP status、SSEの生usageとadapterまたはSDKが返したusageを保存する。観測時に本文を再marshalせず、SDKが生成した内容をそのままupstreamへ送る。記録のための中継サーバーは使わず、本文・認証ヘッダーはartifactへ保存しない。
 
 cached tokensが未報告の場合は0と区別する。比較する率は`cached tokens / input tokens`で、初回と再送を分けて読む。長い固定入力の再送に対する小規模観測であり、実作業の会話全体で同じ率になるとは扱わない。
 
@@ -60,9 +60,9 @@ cached tokensが未報告の場合は0と区別する。比較する率は`cache
 
 前回の本文には`tools: null`が含まれ、今回は未使用toolsの省略に加えsystem/inputの形式も変えている。この再実行だけでは400の原因を単一フィールドに確定しない。製品のencoderやhjhの設定を変更する修正は行っていない。
 
-## `tools: null`の原因切り分け
+## `tools: null`の原因切り分け（退役済み診断モード）
 
-追加の確定調査では、NOE adapterの元の本文に戻し、HTTP送信直前に`tools`だけを変えた4要求を比較した。認証は引き続きNOEのOpenRouterキー。model・入力・effort・セッションヘッダーを固定し、system/inputの形式もNOEの元の形式を維持した。
+追加の確定調査では、NOE adapterの元の本文に戻し、HTTP送信直前に`tools`だけを変えた4要求を比較した。認証は引き続きNOEのOpenRouterキー。model・入力・effort・セッションヘッダーを固定し、system/inputの形式もNOEの元の形式を維持した。この専用診断モードは調査後に退役し、現行helpから`-diagnose-tools-null`を削除した。以下は実行時の記録で、現行版では再実行できない。
 
 ```sh
 /tmp/noe-provider-cache-probe \
@@ -80,6 +80,6 @@ cached tokensが未報告の場合は0と区別する。比較する率は`cache
 
 4要求の`tools`を除く本文のSHA-256はすべて`455f6789fec9ca6de8b892ff0bd2a110704d651a90c024937cdc86e91f9b198b`で一致し、セッションヘッダーも同一だった。したがって、観測したOpenRouter Responsesの400は`tools: null`が原因と確定する。省略だけでNOEの元のsystem/input形式のまま成功し、この要求ではsystem/input形式の変更は不要だった。
 
-現行NOEの標準agent loopは常に`tools: [runJSTool]`を渡すため、このnull条件に該当しない。一方、ツールなしの要求は現行Responses encoderで`tools: null`になり、このOpenRouter経路では失敗する。製品側の修正は行っていない。
+この切り分けでは、OpenRouter Responsesへ送った要求の400は`tools: null`が原因と実証できた。現行NOEの標準agent loopは常に`tools: [runJSTool]`を渡すため、この条件に該当しない。従って標準agent経路に対する製品修正は不要で、診断用4ケースも退役した。製品側のencoderは変更していない。
 
-証拠は`/var/tmp/noe-openrouter-tools-null-isolation-20261021/{results,summary}.json`。診断は失敗を再現する対照群を含むため、現行probeの終了コードは1になる。HTTPは計4要求で、400の対照群は再試行されていない。
+証拠は`/var/tmp/noe-openrouter-tools-null-isolation-20261021/{results,summary}.json`。当時の診断ではHTTP計4要求を送り、400の対照群は再試行されなかった。失敗する対照群を含んでいたため、その診断実行の終了コードは1だった。

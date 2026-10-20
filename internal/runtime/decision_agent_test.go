@@ -53,7 +53,7 @@ func TestDecisionAgentResultAndModelObservation(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(requests) != 2 || !strings.Contains(string(requests[1].Messages[len(requests[1].Messages)-2]), "route-a") {
+	if len(requests) != 2 || !runtimeMessageContains(decodeRuntimeProviderMessages(t, requests[1].Messages), "tool", "route-a") {
 		t.Fatalf("result did not reach agent: %+v", requests)
 	}
 	var runID, requestID string

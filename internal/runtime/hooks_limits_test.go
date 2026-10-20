@@ -63,7 +63,7 @@ func assertLimitSettled(t *testing.T, result limitedInstanceResult, dimension st
 func TestHooksSharedAgentStartsStopsGrandchildChainAndIsolatesRoot(t *testing.T) {
 	cwd := t.TempDir()
 	writePhaseHook(t, cwd, "chain.mjs", `export async function beforeModelRequest(event,api) {
- if(event.agentDepth<3) await api.agents.run_agent({name:"depth-"+(event.agentDepth+1)},"finite nested task");
+ if(event.agentDepth<3) await api.agents.run_agent({name:"depth-"+(event.agentDepth+1)},"finite nested task",{allowDelegation:true});
 }`)
 	var calls atomic.Int32
 	p := agentProviderFunc(func(context.Context, provider.Request) (provider.Response, error) {

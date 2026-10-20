@@ -181,10 +181,10 @@ func TestOpenRouterRequiresSSEDoneAfterFinish(t *testing.T) {
 	defer server.Close()
 	httpClient := &countingHTTPClient{base: &http.Client{}}
 	provider := NewOpenRouter(Options{KeyFile: keyFile, BaseURL: server.URL, HTTPClient: httpClient})
-	_, err := provider.Generate(context.Background(), testRequest())
+	_, err := provider.generateOnce(context.Background(), testRequest())
 	assertProviderError(t, err, ErrorStream)
-	if got := httpClient.closes.Load(); got != 3 {
-		t.Errorf("response body close count = %d; want 3 attempts", got)
+	if got := httpClient.closes.Load(); got != 1 {
+		t.Errorf("response body close count = %d; want one attempt", got)
 	}
 }
 
@@ -254,10 +254,10 @@ func TestOpenRouterRejectsBodyReadErrorAfterFinish(t *testing.T) {
 	payload := toolCallStreamBytes(false)
 	body := &errorAfterBody{data: payload, err: io.ErrUnexpectedEOF}
 	provider := NewOpenRouter(Options{KeyFile: keyFile, BaseURL: "http://fixture.invalid", HTTPClient: &scriptedHTTPClient{status: http.StatusOK, body: body}})
-	_, err := provider.Generate(context.Background(), testRequest())
+	_, err := provider.generateOnce(context.Background(), testRequest())
 	assertProviderError(t, err, ErrorStream)
-	if got := body.closes.Load(); got != 3 {
-		t.Errorf("response body close count = %d; want 3 attempts", got)
+	if got := body.closes.Load(); got != 1 {
+		t.Errorf("response body close count = %d; want one attempt", got)
 	}
 }
 
@@ -361,14 +361,10 @@ func TestOpenRouterClassifiesCredentialAndProviderFailures(t *testing.T) {
 			defer server.Close()
 			httpClient := &countingHTTPClient{base: &http.Client{}}
 			provider := NewOpenRouter(Options{KeyFile: keyFile, BaseURL: server.URL, HTTPClient: httpClient})
-			_, err := provider.Generate(context.Background(), testRequest())
+			_, err := provider.generateOnce(context.Background(), testRequest())
 			assertProviderError(t, err, test.kind)
-			want := int32(3)
-			if test.kind == ErrorQuota {
-				want = 1
-			}
-			if got := httpClient.closes.Load(); got != want {
-				t.Errorf("response body close count = %d; want %d", got, want)
+			if got := httpClient.closes.Load(); got != 1 {
+				t.Errorf("response body close count = %d; want one attempt", got)
 			}
 		})
 	}

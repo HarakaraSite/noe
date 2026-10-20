@@ -27,6 +27,7 @@ Run these commands from the repository root on VM201 (Linux amd64, Go 1.27.2, C 
 ```sh
 CGO_ENABLED=1 go test -race ./internal/... ./stdlib/... -count=1
 go test -tags=e2e ./... -count=1
+go test -tags=slow_integration ./internal/runtime -run '^TestAgentInternalRPCLongerThanFetchTimeout$' -count=1
 go vet -tags=e2e ./...
 (
 for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do

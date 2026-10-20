@@ -38,18 +38,26 @@ func TestAgentInstructionsFreezeParentAndReloadChild(t *testing.T) {
 	var mu sync.Mutex
 	seen := map[string][]string{}
 	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
-		var system, input struct{ Content string }
-		if err := json.Unmarshal(req.Messages[0], &system); err != nil {
-			return provider.Response{}, err
+		var system string
+		for _, raw := range req.Messages {
+			var message runtimeProviderMessage
+			if err := json.Unmarshal(raw, &message); err != nil {
+				return provider.Response{}, err
+			}
+			if message.Role == "system" {
+				system = message.Content
+				break
+			}
 		}
-		if err := json.Unmarshal(req.Messages[1], &input); err != nil {
-			return provider.Response{}, err
+		input := interruptUserPrompt(req)
+		if system == "" || input == "" {
+			return provider.Response{}, fmt.Errorf("provider request lost task/system message: %+v", req.Messages)
 		}
 		mu.Lock()
-		seen[input.Content] = append(seen[input.Content], system.Content)
-		n := len(seen[input.Content])
+		seen[input] = append(seen[input], system)
+		n := len(seen[input])
 		mu.Unlock()
-		if input.Content == "parent" && n == 1 {
+		if input == "parent" && n == 1 {
 			code := fmt.Sprintf(`// Change instruction files and start a child with its own snapshot.
 import {writeFileSync} from "node:fs";
 writeFileSync(%q,"GLOBAL_VERSION_ONE");
@@ -59,7 +67,7 @@ if(child.lastResult?.state!=="completed") throw Error(JSON.stringify(child));
 console.log(child.lastResult.answer);`, common, workspace)
 			return hookToolReply(map[string]string{"instruction-child": code}, "instruction-child"), nil
 		}
-		return agentAnswer(input.Content + " done"), nil
+		return agentAnswer(input + " done"), nil
 	})
 	source := fmt.Sprintf(`import {run_agent} from "noe:agent";
 import {readFile} from "node:fs/promises";
@@ -115,13 +123,23 @@ func TestAgentInstructionsLazyIdleFailureAndFrozenQueue(t *testing.T) {
 	var mu sync.Mutex
 	seen := map[string]string{}
 	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
-		var system, input struct{ Content string }
-		if err := json.Unmarshal(req.Messages[0], &system); err != nil {
-			return provider.Response{}, err
+		var system string
+		for _, raw := range req.Messages {
+			var message runtimeProviderMessage
+			if err := json.Unmarshal(raw, &message); err != nil {
+				return provider.Response{}, err
+			}
+			if message.Role == "system" {
+				system = message.Content
+				break
+			}
 		}
-		input.Content = interruptUserPrompt(req)
+		input := interruptUserPrompt(req)
+		if system == "" || input == "" {
+			return provider.Response{}, fmt.Errorf("provider request lost task/system message: %+v", req.Messages)
+		}
 		mu.Lock()
-		seen[input.Content] = system.Content
+		seen[input] = system
 		mu.Unlock()
 		return agentAnswer("done"), nil
 	})

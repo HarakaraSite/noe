@@ -19,7 +19,6 @@ import (
 )
 
 // A two-request control, independent of agent delegation and history growth.
-// Diagnostic options affect only this explicitly selected live test.
 func TestAgentCacheProbeLive(t *testing.T) {
 	if os.Getenv("NOE_AGENT_EFFICIENCY_LIVE") != "1" {
 		t.Skip("set NOE_AGENT_EFFICIENCY_LIVE=1 to use the ChatGPT plan")
@@ -35,7 +34,7 @@ func TestAgentCacheProbeLive(t *testing.T) {
 	if err := os.Mkdir(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	client := &cacheProbeClient{diagnostics: os.Getenv("NOE_AGENT_CACHE_PROBE_DIAGNOSTICS") == "1"}
+	client := &cacheProbeClient{}
 	defer func() {
 		data, _ := json.MarshalIndent(client.records, "", "  ")
 		if err := os.WriteFile(filepath.Join(dir, "responses.json"), append(data, '\n'), 0600); err != nil {
@@ -49,21 +48,18 @@ func TestAgentCacheProbeLive(t *testing.T) {
 	request := provider.Request{Provider: "openai-chatgpt", RunID: key, SessionID: key, CacheKey: key, Model: "gpt-6.1-sol", Effort: "high", MaxTokens: 1024, Messages: []json.RawMessage{system, user}}
 	for index := 0; index < 2; index++ {
 		request.RunID = fmt.Sprintf("%s-task-%d", key, index+1)
+		previousRecords := len(client.records)
 		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 		response, err := p.Generate(ctx, request)
 		cancel()
+		if len(client.records) > previousRecords {
+			client.records[len(client.records)-1].RunID = request.RunID
+		}
 		if err != nil {
-			if client.diagnostics && len(client.records) > 0 {
-				last := client.records[len(client.records)-1]
-				var failure struct {
-					Param string `json:"param"`
-				}
-				_ = json.Unmarshal(last.APIError, &failure)
-				if last.HTTPStatus == 400 && failure.Param == "prompt_cache_options" {
-					t.Skip("provider rejected prompt_cache_options; raw API error recorded")
-				}
-			}
 			t.Fatalf("probe %d: %v", index+1, err)
+		}
+		if len(client.records) == previousRecords {
+			t.Fatalf("probe %d completed without an HTTP request record", index+1)
 		}
 		record := client.records[len(client.records)-1]
 		if record.SessionHeader != key {
@@ -86,26 +82,24 @@ func TestAgentCacheProbeLive(t *testing.T) {
 	if len(client.records) != 2 || client.records[0].InputHash != client.records[1].InputHash {
 		t.Fatal("identical-input control was not preserved")
 	}
+	if client.records[0].RunID == client.records[1].RunID || client.records[0].SessionHeader != client.records[1].SessionHeader {
+		t.Fatal("run ID should change while the session ID stays fixed")
+	}
 }
 
 type cacheProbeRecord struct {
-	InputHash         string          `json:"inputHash"`
-	SessionHeader     string          `json:"sessionHeader"`
-	Model             string          `json:"model"`
-	CacheKey          string          `json:"cacheKey"`
-	DiagnosticOptions bool            `json:"diagnosticOptions"`
-	ComparisonID      string          `json:"comparisonResponseId,omitempty"`
-	ResponseID        string          `json:"responseId,omitempty"`
-	HTTPStatus        int             `json:"httpStatus"`
-	RawUsage          json.RawMessage `json:"rawUsage,omitempty"`
-	ParsedUsage       json.RawMessage `json:"parsedUsage,omitempty"`
-	Diagnostics       json.RawMessage `json:"diagnostics,omitempty"`
-	APIError          json.RawMessage `json:"apiError,omitempty"`
+	RunID         string          `json:"runId"`
+	InputHash     string          `json:"inputHash"`
+	SessionHeader string          `json:"sessionHeader"`
+	Model         string          `json:"model"`
+	CacheKey      string          `json:"cacheKey"`
+	HTTPStatus    int             `json:"httpStatus"`
+	RawUsage      json.RawMessage `json:"rawUsage,omitempty"`
+	ParsedUsage   json.RawMessage `json:"parsedUsage,omitempty"`
 }
 
 type cacheProbeClient struct {
-	records     []*cacheProbeRecord
-	diagnostics bool
+	records []*cacheProbeRecord
 }
 
 func (c *cacheProbeClient) Do(req *http.Request) (*http.Response, error) {
@@ -117,43 +111,23 @@ func (c *cacheProbeClient) Do(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	_ = req.Body.Close()
-	var request map[string]json.RawMessage
+	var request struct {
+		Input          json.RawMessage `json:"input"`
+		Model          string          `json:"model"`
+		PromptCacheKey string          `json:"prompt_cache_key"`
+	}
 	if err := json.Unmarshal(body, &request); err != nil {
 		return nil, err
 	}
-	record := &cacheProbeRecord{InputHash: efficiencyHash(request["input"]), SessionHeader: req.Header.Get("session_id"), DiagnosticOptions: c.diagnostics}
-	_ = json.Unmarshal(request["model"], &record.Model)
-	_ = json.Unmarshal(request["prompt_cache_key"], &record.CacheKey)
-	options := map[string]string{"mode": "implicit"}
-	if len(c.records) > 0 {
-		record.ComparisonID = c.records[len(c.records)-1].ResponseID
-		if record.ComparisonID != "" {
-			options["comparison_response_id"] = record.ComparisonID
-		}
+	record := &cacheProbeRecord{
+		InputHash: efficiencyHash(request.Input), SessionHeader: req.Header.Get("session_id"),
+		Model: request.Model, CacheKey: request.PromptCacheKey,
 	}
-	if c.diagnostics {
-		request["prompt_cache_options"], _ = json.Marshal(options)
-	}
-	body, _ = json.Marshal(request)
 	req.Body = io.NopCloser(bytes.NewReader(body))
-	req.ContentLength = int64(len(body))
 	c.records = append(c.records, record)
 	response, err := http.DefaultClient.Do(req)
 	if response != nil {
 		record.HTTPStatus = response.StatusCode
-		if response.StatusCode >= 400 {
-			data, readErr := io.ReadAll(response.Body)
-			_ = response.Body.Close()
-			if readErr != nil {
-				return nil, readErr
-			}
-			var failure struct {
-				Error json.RawMessage `json:"error"`
-			}
-			_ = json.Unmarshal(data, &failure)
-			record.APIError = failure.Error
-			response.Body = io.NopCloser(bytes.NewReader(data))
-		}
 		response.Body = &cacheProbeBody{ReadCloser: response.Body, record: record}
 	}
 	return response, err
@@ -181,15 +155,11 @@ func (b *cacheProbeBody) Read(out []byte) (int, error) {
 		var event struct {
 			Type     string `json:"type"`
 			Response struct {
-				ID          string          `json:"id"`
-				Usage       json.RawMessage `json:"usage"`
-				Diagnostics json.RawMessage `json:"prompt_cache_diagnostics"`
+				Usage json.RawMessage `json:"usage"`
 			} `json:"response"`
 		}
 		if json.Unmarshal(bytes.TrimSpace(line[5:]), &event) == nil && event.Type == "response.completed" {
-			b.record.ResponseID = event.Response.ID
 			b.record.RawUsage = event.Response.Usage
-			b.record.Diagnostics = event.Response.Diagnostics
 		}
 	}
 	return n, err

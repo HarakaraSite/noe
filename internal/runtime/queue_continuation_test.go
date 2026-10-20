@@ -76,12 +76,15 @@ await until("third");
 await interrupt_agent({agentId});
 const independent=await run_agent(config,"independent task");
 if(independent.lastResult?.answer!=="independent done")throw Error(JSON.stringify(independent));
-console.log("continuation verified");`
+console.log(JSON.stringify({agentId}));`
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 	var out, stderr bytes.Buffer
 	code, err := Execute(ctx, Source{Name: filepath.Join(cwd, "main.js"), Code: source}, Options{Cwd: cwd, Agent: agentTestOptions(p), Stdout: &out, Stderr: &stderr})
-	if code != 0 || err != nil || out.String() != "continuation verified\n" {
+	var instance struct {
+		AgentID string `json:"agentId"`
+	}
+	if code != 0 || err != nil || json.Unmarshal(out.Bytes(), &instance) != nil || instance.AgentID == "" {
 		t.Fatalf("code=%d err=%v out=%s stderr=%s", code, err, &out, &stderr)
 	}
 	mu.Lock()
@@ -90,16 +93,19 @@ console.log("continuation verified");`
 		t.Fatalf("requests=%d", len(requests))
 	}
 	for i, req := range requests {
-		var system struct{ Content string }
-		_ = json.Unmarshal(req.Messages[0], &system)
-		if !strings.Contains(system.Content, "EXPLICIT_QUEUE_RULE") {
+		messages := decodeRuntimeProviderMessages(t, req.Messages)
+		if !runtimeMessageContains(messages, "system", "EXPLICIT_QUEUE_RULE") {
 			t.Fatalf("explicit system lost on %d", i)
 		}
-		if i < 4 && (!strings.Contains(system.Content, "ORIGINAL_QUEUE_RULE") || strings.Contains(system.Content, "NEW_INSTANCE_QUEUE_RULE")) {
+		if i < 4 && (!runtimeMessageContains(messages, "system", "ORIGINAL_QUEUE_RULE") || runtimeMessageContains(messages, "system", "NEW_INSTANCE_QUEUE_RULE")) {
 			t.Fatalf("continued conversation system changed on %d", i)
 		}
-		if i == 4 && (!strings.Contains(system.Content, "NEW_INSTANCE_QUEUE_RULE") || queueContainsUser(req.Messages, "initial queue instruction")) {
+		if i == 4 && (!runtimeMessageContains(messages, "system", "NEW_INSTANCE_QUEUE_RULE") || queueContainsUser(req.Messages, "initial queue instruction")) {
 			t.Fatal("new instance inherited old conversation/system")
+		}
+		statuses := runtimeContextStatusMessages(messages)
+		if len(statuses) == 0 || messages[len(messages)-1].Role != "user" || !strings.HasPrefix(messages[len(messages)-1].Content, "NOE_CONTEXT_STATUS\n") {
+			t.Fatalf("request %d does not end with a user context status: %+v", i, messages)
 		}
 		if i < 2 && queueContainsUser(req.Messages, "second queued instruction") {
 			t.Fatal("pending queue instruction leaked into active task")
@@ -114,26 +120,62 @@ console.log("continuation verified");`
 			if bytes.Count(body, []byte("first final proof")) != 1 || bytes.Count(body, []byte("second queued instruction")) != 1 {
 				t.Fatalf("duplicate retained messages on %d", i)
 			}
-			var roles []string
-			for _, raw := range req.Messages {
-				var m struct{ Role string }
-				_ = json.Unmarshal(raw, &m)
-				roles = append(roles, m.Role)
-			}
-			expected := "system,user,assistant,tool,assistant,user,system"
+			wantStatuses := 3
 			if i == 3 {
-				expected = "system,user,assistant,tool,assistant,user,assistant,user,system"
+				wantStatuses = 4
 			}
-			if strings.Join(roles, ",") != expected {
-				t.Fatalf("chronology on %d: %v", i, roles)
+			if len(statuses) != wantStatuses {
+				t.Fatalf("request %d did not retain previous user status notices: %+v", i, statuses)
+			}
+			for _, status := range statuses {
+				if status.Role != "user" {
+					t.Fatalf("status notice role on %d: %+v", i, status)
+				}
+			}
+			ordered := []struct{ role, text, toolCallID string }{
+				{"user", "initial queue instruction", ""},
+				{"assistant", "", "first-tool"},
+				{"tool", "tool-result-proof", ""},
+				{"assistant", "first final proof", ""},
+				{"user", "second queued instruction", ""},
+			}
+			cursor := 0
+			for _, expected := range ordered {
+				found := -1
+				for index := cursor; index < len(messages); index++ {
+					matches := false
+					if expected.toolCallID != "" {
+						for _, call := range messages[index].ToolCalls {
+							if call.ID == expected.toolCallID {
+								matches = true
+								break
+							}
+						}
+					} else {
+						matches = strings.Contains(messages[index].Content, expected.text)
+					}
+					if messages[index].Role == expected.role && matches {
+						found = index
+						break
+					}
+				}
+				if found == -1 {
+					t.Fatalf("request %d lost or reordered %s message %q: %+v", i, expected.role, expected.text, messages)
+				}
+				cursor = found + 1
 			}
 		}
 	}
-	if requests[0].RunID != requests[1].RunID || requests[1].RunID == requests[2].RunID || requests[2].RunID == requests[3].RunID {
-		t.Fatal("queue changed run identity contract")
+	if requests[0].RunID != requests[1].RunID || requests[1].RunID == requests[2].RunID || requests[2].RunID == requests[3].RunID || requests[3].RunID == requests[4].RunID {
+		t.Fatalf("queue changed run identity contract: %q %q %q %q %q", requests[0].RunID, requests[1].RunID, requests[2].RunID, requests[3].RunID, requests[4].RunID)
 	}
-	if requests[0].CacheKey != requests[1].CacheKey || requests[1].CacheKey == requests[2].CacheKey {
-		t.Fatal("queue changed existing cache-key contract")
+	for i := 0; i < 4; i++ {
+		if requests[i].SessionID != instance.AgentID || requests[i].CacheKey != instance.AgentID {
+			t.Fatalf("queued task %d changed instance session/cache identity: session=%q cache=%q instance=%q", i, requests[i].SessionID, requests[i].CacheKey, instance.AgentID)
+		}
+	}
+	if requests[4].SessionID == instance.AgentID || requests[4].SessionID != requests[4].CacheKey {
+		t.Fatalf("independent run did not get its own session/cache identity: %+v", requests[4])
 	}
 }
 

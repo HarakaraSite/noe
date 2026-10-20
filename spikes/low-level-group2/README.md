@@ -1,5 +1,11 @@
 # Low-level API group 2: planning spikes
 
+> Retired after production integration (v1.16.0). The prototype test code was
+> removed; the findings and historical reproduction commands below are retained.
+> Source before retirement is available in Git at `7b43646`.
+> Current regression coverage is in `internal/nativeio`, `internal/signals`,
+> `internal/runtime`, and `tests/low_level*_e2e_test.go`.
+
 These opt-in prototypes check the design before NOE's file-handle, TCP/Unix
 socket, and OS-signal implementation plan is finalized. They do not register
 production modules or change NOE's CLI, pinned stdlib, or dependencies.

@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-func TestCLIConfiguredProviderParentChildRunIDs(t *testing.T) {
+func TestCLIConfiguredProviderParentChildSessions(t *testing.T) {
 	var mu sync.Mutex
 	sessions := map[string][]string{}
 	var providerErrors []string
@@ -30,6 +30,7 @@ func TestCLIConfiguredProviderParentChildRunIDs(t *testing.T) {
 		}
 		mu.Lock()
 		sessions[body.Model] = append(sessions[body.Model], r.Header.Get("x-opencode-session"))
+		step := len(sessions[body.Model])
 		mu.Unlock()
 		if r.Header.Get("User-Agent") != "noe/"+Version || r.Header.Get("X-Configured") != "yes" || r.Header.Get("Authorization") != "Bearer fixture-key" || r.URL.Path != "/api/chat/completions" || body.Temperature != 0.2 {
 			t.Error("configured request settings not applied")
@@ -40,13 +41,19 @@ func TestCLIConfiguredProviderParentChildRunIDs(t *testing.T) {
 			raw, _ := json.Marshal(chunk)
 			fmt.Fprintf(w, "data: %s\n\n", raw)
 		}
-		if body.Model == "parent" && len(body.Messages) == 3 {
+		if body.Model == "parent" && step == 1 {
 			write(map[string]any{"role": "assistant", "reasoning_content": "one "}, nil)
 			write(map[string]any{"reasoning_content": "two"}, nil)
 			arguments, _ := json.Marshal(map[string]any{"code": "// Run an inherited child task\nconst child=await run_agent({name:'child',model:'child'},'child task');console.log(child.lastResult.answer);"})
 			write(map[string]any{"tool_calls": []any{map[string]any{"index": 0, "id": "call-1", "type": "function", "function": map[string]any{"name": "run_js", "arguments": string(arguments)}}}}, "tool_calls")
 		} else {
-			if body.Model == "parent" && (len(body.Messages) < 3 || string(body.Messages[2]["reasoning_content"]) != `"one two"`) {
+			var reasoning json.RawMessage
+			for _, message := range body.Messages {
+				if string(message["role"]) == `"assistant"` {
+					reasoning = message["reasoning_content"]
+				}
+			}
+			if body.Model == "parent" && string(reasoning) != `"one two"` {
 				mu.Lock()
 				providerErrors = append(providerErrors, "reasoning replay lost")
 				mu.Unlock()
@@ -85,16 +92,17 @@ func TestCLIConfiguredProviderParentChildRunIDs(t *testing.T) {
 	var thinking strings.Builder
 	for _, line := range bytes.Split(log, []byte("\n")) {
 		var event struct {
-			Type  string `json:"type"`
-			RunID string `json:"runId"`
-			Model string `json:"model"`
-			Text  string `json:"text"`
+			Type    string `json:"type"`
+			RunID   string `json:"runId"`
+			AgentID string `json:"agentId"`
+			Model   string `json:"model"`
+			Text    string `json:"text"`
 		}
 		if json.Unmarshal(line, &event) != nil {
 			continue
 		}
-		if event.Type == "agent.started" && event.RunID != sessions[event.Model][0] {
-			t.Errorf("header is not the real run ID: %+v", event)
+		if event.Type == "agent.started" && (event.AgentID != sessions[event.Model][0] || event.RunID == event.AgentID) {
+			t.Errorf("header must identify the instance separately from its task: %+v", event)
 		}
 		if event.Type == "thinking" {
 			thinking.WriteString(event.Text)
