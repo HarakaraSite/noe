@@ -45,6 +45,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 | 対象 | 文書 |
 | --- | --- |
+| 採用した小規模改善5件の範囲・実装・検証 | [対応記録](small-improvements-20261020.md) |
 | agent内部の責務・JSとGoの分担・所有関係・同期 | [agentの構成](agent-architecture.md) |
 | agentへ渡す組込みの説明 | [instructions.md](../../internal/agent/instructions.md) |
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
@@ -117,6 +118,6 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補と完了区分は[次の機能候補](../future-candidates.md)を更新します。
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)、汎用JavaScript APIには同版のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)はrepository内で動く内部packageの例で、外部向け公開Go APIはまだ提供していません。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)、汎用JavaScript APIには同版のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleに実装済みですが、v2タグは未公開です。外部moduleで試す場合は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドに従ってローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
 
 `_refs/`はローカル専用の未追跡の参考資料で、ビルド・テスト依存に含めません。リリースの配布対象・品質確認は[プロファイル](../../.forgejo/release-profile.yml)と[ワークフロー](../../.forgejo/workflows/release.yml)に定義されています。

@@ -6,7 +6,7 @@ A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://gi
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
-[v1.15.1 release notes](docs/releases/v1.15.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.15.1)
+[v1.15.2 release notes](docs/releases/v1.15.2.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v1.15.2)
 
 ## Build and run
 
@@ -17,7 +17,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v1.15.1
+# noe v1.15.2
 ```
 
 The examples below assume the repository root is your working directory.

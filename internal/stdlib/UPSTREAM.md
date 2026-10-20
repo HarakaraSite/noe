@@ -141,6 +141,16 @@ testdata/pathcorpus_node.js
    diagnostic tests also verify that sync failure details reach agent
    tool results and events. This is a NOE-local change, not upstream behavior.
 
+10. Rooted filesystem operations that act on a directory entry now retain
+    the final symbolic link instead of operating on its target. This applies
+    to lstat, readlink, unlink/rmdir, rm, and both sides of rename. Existing
+    checks that reject resolved targets outside the configured root remain
+    in place; stat, reads, writes, and unrooted operation retain their prior
+    link-following behavior. fs_symlink_test.go covers synchronous and Promise
+    APIs, linked parents, target preservation, ReadOnly, and outward-link
+    rejection. This fixes entry selection, not the separate nonexistent-path
+    confinement issue or filesystem races. It is a NOE-local change.
+
 The initial snapshot import did not intentionally change HTTP behavior, body
 limits, timeouts, module names, exports, or protocols. Subsequent NOE-local
 changes should be recorded here with their rationale and validation. Upstream

@@ -27,6 +27,9 @@
   }
 
   async function pipe(source, destination, { signal, preventClose = false } = {}) {
+    // Keep falsy values as no signal and accept structurally compatible signals.
+    if (signal && (typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function"))
+      throw new TypeError("signal must provide addEventListener and removeEventListener");
     const reader = source.getReader();
     let writer;
     try { writer = destination.getWriter(); }
@@ -65,9 +68,12 @@
       await stop(aborted ? reason : error);
       throw aborted ? reason : error;
     } finally {
-      if (signal) signal.removeEventListener("abort", abort);
-      reader.releaseLock();
-      writer.releaseLock();
+      try {
+        if (signal) signal.removeEventListener("abort", abort);
+      } finally {
+        try { reader.releaseLock(); }
+        finally { writer.releaseLock(); }
+      }
     }
   }
 

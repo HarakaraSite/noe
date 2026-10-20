@@ -223,6 +223,17 @@ func (f *fsHost) rootPath() (string, error) {
 // itself. Symbolic links are resolved before the check, so a link pointing out
 // of the root does not lead out of it.
 func (f *fsHost) resolve(p string) (string, error) {
+	return f.resolvePath(p, true)
+}
+
+// resolveEntry validates the entire path, including the final link's target,
+// but returns a path to the entry itself for operations that must not follow
+// that link. Checking only the parent would newly allow outward-pointing links.
+func (f *fsHost) resolveEntry(p string) (string, error) {
+	return f.resolvePath(p, false)
+}
+
+func (f *fsHost) resolvePath(p string, followFinal bool) (string, error) {
 	if p == "" {
 		return "", errors.New("the path is empty")
 	}
@@ -247,7 +258,19 @@ func (f *fsHost) resolve(p string) (string, error) {
 		if !within(root, real) {
 			return "", fmt.Errorf("%s leads outside the permitted root", p)
 		}
-		return real, nil
+		if followFinal {
+			return real, nil
+		}
+	}
+	if !followFinal {
+		// Resolve linked parents while retaining the final directory entry.
+		if parent, err := filepath.EvalSymlinks(filepath.Dir(clean)); err == nil {
+			entry := filepath.Join(parent, filepath.Base(clean))
+			if !within(root, entry) {
+				return "", fmt.Errorf("%s leads outside the permitted root", p)
+			}
+			return entry, nil
+		}
 	}
 	return clean, nil
 }
@@ -337,7 +360,11 @@ func (f *fsHost) stat(p string, link bool) (quickjs.Value, error) {
 
 // statInfo is stat without the runtime.
 func (f *fsHost) statInfo(p string, link bool) (os.FileInfo, error) {
-	full, err := f.resolve(p)
+	resolve := f.resolve
+	if link {
+		resolve = f.resolveEntry
+	}
+	full, err := resolve(p)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +436,7 @@ func (f *fsHost) removeAt(p string, recursive, force bool) error {
 	if err := f.writable(); err != nil {
 		return err
 	}
-	full, err := f.resolve(p)
+	full, err := f.resolveEntry(p)
 	if err != nil {
 		return err
 	}
@@ -428,7 +455,7 @@ func (f *fsHost) rmdir(p string) error {
 	if err := f.writable(); err != nil {
 		return err
 	}
-	full, err := f.resolve(p)
+	full, err := f.resolveEntry(p)
 	if err != nil {
 		return err
 	}
@@ -441,11 +468,11 @@ func (f *fsHost) rename(from, to string) error {
 	if err := f.writable(); err != nil {
 		return err
 	}
-	src, err := f.resolve(from)
+	src, err := f.resolveEntry(from)
 	if err != nil {
 		return err
 	}
-	dst, err := f.resolve(to)
+	dst, err := f.resolveEntry(to)
 	if err != nil {
 		return err
 	}
@@ -484,7 +511,7 @@ func (f *fsHost) realpath(p string) (string, error) {
 }
 
 func (f *fsHost) readlink(p string) (string, error) {
-	full, err := f.resolve(p)
+	full, err := f.resolveEntry(p)
 	if err != nil {
 		return "", err
 	}

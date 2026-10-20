@@ -91,10 +91,21 @@ func decodeObject(data []byte) (map[string]any, error) {
 	return value, nil
 }
 
-func mergeObject(base, override map[string]any) {
+// providerDepth is the distance to a provider transport definition (2 at the
+// config root, 0 at a provider); negative depths are arbitrary nested objects.
+func mergeObject(base, override map[string]any, providerDepth int) {
 	for key, value := range override {
 		if key == "headers" {
 			if headers, ok := value.(map[string]any); ok {
+				// Normalize existing HTTP headers only at the transport level.
+				// Body parameters named headers keep their existing keys.
+				if old, ok := base[key].(map[string]any); ok && providerDepth == 0 {
+					normalized := make(map[string]any, len(old))
+					for name, value := range old {
+						normalized[http.CanonicalHeaderKey(name)] = value
+					}
+					base[key] = normalized
+				}
 				normalized := make(map[string]any)
 				for name, value := range headers {
 					normalized[http.CanonicalHeaderKey(name)] = value
@@ -108,7 +119,7 @@ func mergeObject(base, override map[string]any) {
 		}
 		if object, ok := value.(map[string]any); ok {
 			if old, ok := base[key].(map[string]any); ok {
-				mergeObject(old, object)
+				mergeObject(old, object, providerDepth-1)
 				continue
 			}
 		}
@@ -204,7 +215,7 @@ func (r *Registry) load() {
 				return
 			}
 		}
-		mergeObject(base, override)
+		mergeObject(base, override, 2)
 	}
 	data, err = json.Marshal(base)
 	if err != nil {
@@ -274,7 +285,7 @@ func (r *Registry) resolve(name, model string) (Provider, error) {
 		if err != nil {
 			return nil, err
 		}
-		mergeObject(base, override)
+		mergeObject(base, override, 0)
 	}
 	data, err := json.Marshal(base)
 	if err != nil {

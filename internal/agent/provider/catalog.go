@@ -134,7 +134,7 @@ func validateModels(d Definition) error {
 				return decodeErr
 			}
 			delete(base, "models")
-			mergeObject(base, override)
+			mergeObject(base, override, 0)
 			data, err = json.Marshal(base)
 			if err == nil {
 				_, err = decodeDefinition(data)

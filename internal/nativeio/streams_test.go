@@ -114,7 +114,8 @@ func TestPipeAbortCancelsPendingRead(t *testing.T) {
 const c=new AbortController(), reason=new Error("stop read");
 const p=pipe(stdin,stdout,{signal:c.signal});
 const check=()=>{if(started())c.abort(reason);else setTimeout(check,0)}; check();
-try { await p; throw Error("resolved"); } catch(e) { if(e!==reason) throw e; }`)
+try { await p; throw Error("resolved"); } catch(e) { if(e!==reason) throw e; }
+if(stdin.locked||stdout.locked) throw Error("pipe left streams locked");`)
 	select {
 	case <-in.done:
 	case <-time.After(time.Second):
@@ -140,7 +141,8 @@ func TestPipeAbortCancelsPendingWrite(t *testing.T) {
 const c=new AbortController(), reason=new Error("stop write");
 const p=pipe(stdin,stdout,{signal:c.signal});
 const check=()=>{if(started())c.abort(reason);else setTimeout(check,0)}; check();
-try { await p; throw Error("resolved"); } catch(e) { if(e!==reason) throw e; }`)
+try { await p; throw Error("resolved"); } catch(e) { if(e!==reason) throw e; }
+if(stdin.locked||stdout.locked) throw Error("pipe left streams locked");`)
 	select {
 	case <-out.done:
 	case <-time.After(time.Second):

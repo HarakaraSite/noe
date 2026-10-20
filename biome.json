@@ -1,0 +1,54 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+	"linter": {
+		"rules": {
+			"recommended": false,
+			"correctness": {
+				"noConstAssign": "error",
+				"noUndeclaredVariables": "error",
+				"noUnreachable": "error"
+			},
+			"suspicious": {
+				"noDuplicateObjectKeys": "error",
+				"noDuplicateParameters": "error",
+				"noRedeclare": "error"
+			}
+		}
+	},
+	"javascript": {
+		"globals": [
+			"serve",
+			"upgradeWebSocket",
+			"ShadowRealm",
+			"Temporal",
+			"AsyncDisposableStack",
+			"DisposableStack",
+			"Float16Array",
+			"SuppressedError"
+		]
+	},
+	"overrides": [
+		{
+			"includes": ["**/run-js-snippet.js"],
+			"javascript": {
+				"globals": [
+					"serve",
+					"upgradeWebSocket",
+					"ShadowRealm",
+					"Temporal",
+					"run_agent",
+					"spawn_agent",
+					"observe_agent",
+					"queue_agent",
+					"wait_task",
+					"steer_agent",
+					"interrupt_agent",
+					"AsyncDisposableStack",
+					"DisposableStack",
+					"Float16Array",
+					"SuppressedError"
+				]
+			}
+		}
+	]
+}

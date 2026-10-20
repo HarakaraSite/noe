@@ -144,6 +144,9 @@ func (s *runState) apply(rec record, includeOutput bool) {
 			}
 		}
 		s.snapshot.LastToolResult = result
+		// The broker emits stdout/stderr before run_js.finished. The result
+		// retains the text; discard the buffer before a later step reuses the ID.
+		delete(s.outputs, toolCallID)
 		s.phase = "between_steps"
 	case "thinking", "thinking_summary", "message_delta":
 		// Stream fragments do not change the run's phase.

@@ -7,7 +7,8 @@
 | フォルダ | 内容 | 外部サービス |
 | --- | --- | --- |
 | [basics](basics/README.md) | Hello、待機 | 不要 |
-| [embedding](embedding/README.md) | CLI・agentに依存しないGoホストへの汎用API導入（repository内の内部package利用例） | 不要 |
+| [embedding](embedding/README.md) | CLI・agentに依存しないGoホストへの公開stdlib API導入 | 不要 |
+| [agent-embedding](agent-embedding/README.md) | Goホストへ公開agent APIを追加（別NOE実行ファイルを明示） | 決定的なproviderを使う通常例は不要 |
 | [json](json/README.md) | JSONの加工、標準入力・ディレクトリ集計、処理済みファイルの移動 | 不要 |
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |
 | [http](http/README.md) | noe:httpでのローカル往復、stream upload、JSON・バイナリ取得、HTTPサーバー | ローカル例は不要、外部APIの例は接続先URLが必要 |

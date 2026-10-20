@@ -6,11 +6,11 @@ Agent機能を変更するときの入口。公開APIは[APIリファレンス](
 
 `noe:agent`の公開ESMは`internal/agent/js/agent.js`。公開APIの引数検証・設定継承とRPC呼出しは`js/api.js`、一つのtaskでモデル要求とtoolを繰り返すloopは`js/task.js`、会話の完全blockとtrim適用は`js/history.js`、hookの呼出しは`js/hooks.js`が担当する。
 
-Go側はモデル/プロバイダへの接続、所有関係、instance/taskの生存期間、共有状態、実行上限、会話snapshotの確定、画像bytesを管理する。QuickJSのPromiseを解決する処理は`internal/runtime/agent.go`にあり、runtime所有のevent loopへ戻す。agent packageのworker goroutineへQuickJS値を渡さない。
+Go側はモデル/プロバイダへの接続、所有関係、instance/taskの生存期間、共有状態、実行上限、会話snapshotの確定、画像bytesを管理する。公開Go入口は`agent/agent.go`、QuickJSとGo側の管理層を接続する共通bridgeは`internal/agentbridge/bridge.go`にある。CLI側の`internal/runtime/runtime.go`もこのbridgeを利用する。Promiseの解決はruntime所有のevent loopへ戻す。agent packageのworker goroutineへQuickJS値を渡さない。
 
 ```mermaid
 flowchart TD
-    Public[noe:agent / js/api.js] --> Bridge[internal/runtime/agent.go]
+    Public[noe:agent / js/api.js] --> Bridge[internal/agentbridge/bridge.go]
     Bridge --> RPC[Operation.Call / broker]
     RPC --> State[Host / instance / task / run]
     State --> Task[js/task.js: model/tool loop]
@@ -26,6 +26,7 @@ flowchart TD
 
 | 変更したい内容 | 主な場所 |
 | --- | --- |
+| 公開Go API・runtimeとの接続 | `agent/agent.go`、`internal/agentbridge/bridge.go`。CLI側の組立は`internal/runtime/runtime.go` |
 | 設定JSONの省略/null、子への接続情報 | `internal/agent/config.go`、`connection.go` |
 | ホスト全体の初期化・終了 | `internal/agent/host.go` |
 | 一つの評価/子scopeの取消しとrequestの回収 | `internal/agent/operation.go` |
