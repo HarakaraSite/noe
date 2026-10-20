@@ -132,12 +132,18 @@ console.log(JSON.stringify({agentId}));`
 					t.Fatalf("status notice role on %d: %+v", i, status)
 				}
 			}
-			ordered := []struct{ role, text, toolCallID string }{
+			type expectedMessage struct{ role, text, toolCallID string }
+			ordered := []expectedMessage{
 				{"user", "initial queue instruction", ""},
 				{"assistant", "", "first-tool"},
 				{"tool", "tool-result-proof", ""},
 				{"assistant", "first final proof", ""},
 				{"user", "second queued instruction", ""},
+			}
+			if i == 3 {
+				ordered = append(ordered,
+					expectedMessage{"assistant", "second done", ""},
+					expectedMessage{"user", "third queued instruction", ""})
 			}
 			cursor := 0
 			for _, expected := range ordered {
