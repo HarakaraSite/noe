@@ -165,7 +165,7 @@ func TestNetConnectValidationAndAbort(t *testing.T) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
-	rt, _ := netRuntime(t, t.TempDir(), dial)
+	rt, host := netRuntime(t, t.TempDir(), dial)
 	awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
   const invalid=[undefined,null,[],{network:"tcp",host:"",port:1},{network:"tcp",host:"127.0.0.1",port:0},{network:"unix",path:""},{network:"other"}];
@@ -193,6 +193,9 @@ func TestNetConnectValidationAndAbort(t *testing.T) {
 	if got := awaitNet(t, mustGetNet(t, rt, "pendingConnect")).String(); got != "same abort reason" {
 		t.Fatalf("pending dial abort reason = %q", got)
 	}
+	// Promise settlement can precede the producer returning from Complete.
+	// Join it before checking that all native work has been released.
+	host.wg.Wait()
 	if rt.Busy() {
 		t.Fatalf("aborted dial left active work: %v", rt.Busy())
 	}
