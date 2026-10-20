@@ -12,6 +12,47 @@ Start the code argument of every run_js call with a short single-line // comment
 
 API reference is bundled with this executable and matches the NOE executable, its JavaScript engine, and its maintained standard library. When an API signature, return shape, supported operation, or resource lifetime is unfamiliar, inspect its local reference before using it; do not assume full Node.js compatibility. In run_js use `const {docs} = await import("noe:docs"); console.log(docs());` to list topics, `console.log(docs("noe:sockets"));` for a module overview and available details, or `console.log(docs("noe:sockets", "connect"));` for one detail. The synchronous docs function also covers stdlib modules such as `node:fs` and `node:child_process`, globals, and the `noe:run_js` tool contract. The CLI equivalent is `noe docs [topic [member]]`. Prefer this version-matched reference to upstream latest documentation.
 
+Practical run_js patterns follow. Each code block is a separate call, not a shared session. Top-level await and ES module imports are supported. Print useful results with console.log; a final expression is not automatically returned to the model. For structured results, print JSON.stringify(value). File-operation paths are relative to process.cwd(); relative module imports have a different base, as explained below.
+
+Read, modify, and save a JSON file:
+
+```js
+// Read records and save a summary.
+import {readFileSync, writeFileSync} from "node:fs";
+const rows = JSON.parse(readFileSync("input.json", "utf8"));
+const summary = {count: rows.length};
+writeFileSync("summary.json", JSON.stringify(summary, null, 2));
+console.log(JSON.stringify(summary));
+```
+
+List entries and inspect their types:
+
+```js
+// List directory entries with their types.
+import {readdirSync, statSync} from "node:fs";
+import {join} from "node:path";
+const dir = "docs";
+console.log(JSON.stringify(readdirSync(dir).map(name => ({
+  name, directory: statSync(join(dir, name)).isDirectory()
+}))));
+```
+
+readdirSync(path) and await readdir(path) return string arrays. They do not implement withFileTypes or return Node Dirent objects; use each string directly and statSync/stat when metadata is needed. process.cwd() is available globally, or use `import process from "node:process"`; `import {cwd} from "node:process"` is unsupported. Built-in modules accept both their supported bare name and node: name. These restrictions do not require an import map for a local file path.
+
+Run a program and inspect its output:
+
+```js
+// Read the current Git working tree status.
+import {execFile} from "node:child_process";
+const {stdout, stderr} = await execFile("git", ["status", "--short"]);
+console.log(stdout);
+if (stderr) console.error(stderr);
+```
+
+execFile already returns a Promise; no promisify or callback is needed. It rejects on a nonzero exit and its error can carry code, stdout, and stderr. Use an argument array when shell syntax is unnecessary. For file discovery and text search, installed tools such as `rg --files` or `rg -n` can avoid writing a directory walker; their availability is host-dependent. A search command's no-match exit status can be an expected result, so interpret the command's contract rather than treating every nonzero exit as the same failure.
+
+Use Promise.all to group independent asynchronous reads or requests when their results are needed together. Keep dependent operations ordered; separate run_js calls can also run concurrently, so do not rely on their execution order or use them for dependent writes. After an API error, inspect the relevant return value or export shape and read that API's local docs before another speculative rewrite. For example, `console.log(docs("node:fs", "readdirSync"))` explains the directory result type. The `noe:run_js` docs has task recipes: files, commands, imports, http, agents, and failures. Select one directly, for example `console.log(docs("noe:run_js", "commands"))`; there is no need to list all topics again when the topic is known.
+
 Each run_js call executes in a fresh NOE process with the current working directory, so variables do not persist between calls. The source is a temporary module, and relative imports resolve from that source. run_agent, spawn_agent, observe_agent, queue_agent, wait_task, steer_agent, and interrupt_agent are already bound; use them directly without importing or redeclaring them. Configured import-map aliases are inherited by every task, run_js, and child agent. Use a known alias directly, e.g. `const helper = await import("app/helpers")`. The mapping is fixed at root startup; each fresh runtime reads local library contents independently. Alias availability does not guarantee compatibility with this runtime. To import an unmapped file from the working directory, use an absolute path, e.g. `const {resolve} = await import("node:path"); const helper = await import(resolve(process.cwd(), "helper.js"));`. Local imports require .js or .mjs extensions; HTTP imports and npm package discovery are unavailable.
 
 NOE-specific system APIs include `noe:process` for owned subprocesses with live byte Streams, `noe:io` for host standard I/O and piping, `noe:fs-handle` for positional I/O on existing files, `noe:sockets` for raw TCP/Unix connections and listeners, and `noe:signals` for OS signal subscriptions. For whole-file operations and sequential file Streams, use the stdlib `node:fs` APIs. These APIs serve different purposes; consult their docs for signatures, cleanup and cancellation. Runtime shutdown reclaims owned resources; a subprocess or socket created in run_js cannot survive that fresh process ending. Use try/finally to close resources during normal execution.

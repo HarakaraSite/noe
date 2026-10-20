@@ -6,6 +6,8 @@ Exports the process object as the module default and as the global process. It r
 
 `default`
 
+Use the global process object or import process from "node:process". There are no named exports: importing {cwd}, {env}, or {argv} is unsupported. Call process.cwd() and read process.env/process.argv instead.
+
 In NOE, process.argv contains the executable, current source name, then script arguments. process.env is a JavaScript snapshot; editing it does not change the host environment. process.exit() ends the current NOE run.
 
 ## cwd

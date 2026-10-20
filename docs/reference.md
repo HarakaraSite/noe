@@ -31,6 +31,18 @@ stdlibは全対応moduleの概要とexport一覧を収録し、よく使うAPI�
 
 `noe:run_js`はagent toolを説明するtopicです。同名のmoduleをimportすることはできません。NOEの起動方法や設定は[agent起動ガイド](agents.md)・[APIとCLIのガイド](api.md)、APIの使い分けは[プロセスとストリーム](process-io.md)・[ファイル・ソケット・シグナル](low-level-io.md)を参照してください。
 
+## run_jsの実用例を調べる
+
+`noe docs noe:run_js`で、入力・結果の契約と作業別の例を選べます。`files`はファイル読書きと一覧取得、`commands`はコマンド実行と検索、`imports`はローカルJSの読込み、`http`はHTTP取得、`agents`は子agentの実行・queue・完了待ち、`failures`は失敗時の確認手順です。
+
+```sh
+noe docs noe:run_js files
+noe docs noe:run_js agents
+noe docs node:fs readdirSync
+```
+
+agentの初期指示にも、よく使う操作の短い例とNode互換APIの注意点を含めています。`readdirSync`/`readdir`は文字列配列を返し、Nodeの`withFileTypes`には対応しません。型の判定には`statSync`/`stat`を使います。`process.cwd()`はglobalまたはdefault importした`process`から呼びます。`execFile`は既にPromiseを返すので、`promisify`やcallbackは不要です。
+
 ## HTTPの契約を調べる
 
 `noe docs noe:http fetch`と`noe docs noe:http serve`で、推奨入口の英文API契約を参照できます。既存globalと同じ関数を使い、要求bodyのstreamingと一回限りの所有権、需要駆動の受信stream、上限と読取りerror、応答streaming、`Expect: 100-continue`、cancelと`server.close()`の寿命も説明しています。
