@@ -1044,3 +1044,16 @@ The review covered all 43 changed files against the preceding cache-fix revision
 Retired low-level and OpenCode investigation implementations are removed from the active suite, with historical findings and source revision preserved. Repeated CLI builds are shared, single-attempt classification avoids duplicated backoff waits, startup/RSS measurements are benchmarks, and the long RPC test remains an explicit pre-release gate. Test/probe cleanup removes a net 1,919 lines.
 
 Environment: Linux amd64, Go 1.27.2 and C toolchain for race. Checks inherited an intentionally invalid `NOE_AGENT_CONNECTION`; both TMPDIR and GOTMPDIR use a short path to avoid the known Unix-socket pathname limit. MCP uses the same offline-prepared SDK 1.32.1 bundle from v1.15.2. Evidence, clean checkout, native binary and publication scripts: `/var/tmp/noe-v1.16.0-release-20261021`. No external model-provider request was made for these release gates. Other targets have compilation evidence only. Workflow publication and downloaded assets are verified separately after tagging.
+
+
+## v1.16.0 Release validation — 2026-10-21
+
+- Annotated tag: `v1.16.0`, pointing to `55e16eb73eafd227cdca9ffbe878e85bc97b7dab`. The peeled remote tag matches the successful workflow commit; its only change from the checked source is the documentation-only preparation record.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/26): succeeded (API run ID 207, job ID 228).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.16.0): published, neither draft nor prerelease (Release ID 140). Its body matches the committed [English notes](v1.16.0.md).
+
+The workflow passed its CGO-free unit and vet gates, built all six profile targets, and uploaded six binaries plus SHA256SUMS. All seven assets were downloaded; all six binary hashes matched the published checksums.
+
+The downloaded Linux amd64 binary reports `noe v1.16.0`. The local HTTP fixture confirmed that two queued tasks keep the same session ID and separate run IDs, metadata-only waits omit answers, retained answers can be fetched whole or in byte ranges, repeated waits preserve the initial result, and exactly two model requests occur. Automatic event saving, the absence of wait-specific events, synchronous command failure details, all six run_js recipes, bundled docs and arithmetic also passed. No external model-provider request was made.
+
+Build information matches the tagged revision with `vcs.modified=false` and go-quickjs v0.27.0. The verified published Linux amd64 binary was installed to repository-root `./noe` and `~/.local/bin/noe`; both match the downloaded bytes. Evidence and backup: `/var/tmp/noe-v1.16.0-release-20261021`. Other targets have compilation evidence only. This documentation-only follow-up does not move or replace the release tag.
