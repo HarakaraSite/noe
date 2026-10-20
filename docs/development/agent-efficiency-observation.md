@@ -25,3 +25,34 @@ go test -tags=agent_efficiency_live ./internal/agent \
 固定instruction・tool・session key・送信済みprefixが同一でも、providerのキャッシュ利用率を保証しない。公式の[Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching)と[diagnostics](https://developers.openai.com/api/docs/guides/prompt-caching/diagnostics)に沿って、送信条件と返却されたcached tokensを区別して記録する。元の長時間ログとの比較は条件が異なる観測であり、原因を切り分けたA/B比較とは扱わない。
 
 組込み移行後は`NOE_AGENT_EFFICIENCY_POLICY_MODE=builtin`で外部ファイルを複製せず、同じ試験を選択できる。キャッシュ率に固定の合否閾値は置かず、起動・再利用・成果物・送信履歴の確認結果と併せて移行を判断する。
+
+## 2026-10-21の観測結果
+
+実行対象は`b651d12`。外部instructionを使った2試験の機能検証は成功した。詳細な要求別数値・元artifactのpath/hashは[集計JSON](agent-efficiency-results.json)に保存した。
+
+| 試験・担当 | モデル要求 | 入力tokens | cached tokens | 入力中のcache比率 |
+| --- | ---: | ---: | ---: | ---: |
+| 小作業3タスク・親 | 6 | 42,486 | 0 | 0.00% |
+| 実装とreview・親 | 8 | 82,603 | 0 | 0.00% |
+| 実装とreview・子2体 | 11 | 107,478 | 16,128 | 15.01% |
+
+小作業は子0体。分担試験は子2体・孫0体で、実装担当1タスク、review担当2タスクだった。親の完了待ちで`includeAnswer:false`を4回、必要な本文の`read_task_result`を3回使用した。成果物は試験側でも独立に実行・検査し、成功した。これらは明示した分担・再確認の依頼に対する一試行の結果である。
+
+実際のHTTP送信直前の25要求すべてで、instanceごとのsession key、固定instruction/toolのhash、前回送った入力prefixを維持していた。状態通知はuser messageとして末尾にあり、過去の通知を含むprefixも同一だった。親のqueue移行後もセッションは維持された。観測した送信本文に、固定instructionを要求ごとに変更して親の低ヒット率を説明できる経路は見つからなかった。
+
+親のcache改善は確認できなかったため、「テストが良好なら内部へ移す」の条件を全体として満たしたとは扱わず、委譲方針は外部に維持した。機能テストの成功とcache改善の成否は分けて記録する。
+
+### 同一入力の対照試験
+
+追加の`TestAgentCacheProbeLive`では、組込みsystemと短いuser指示だけの同一入力を、同じsession/cache keyで2回連続送信した。モデル・provider・effortは上記と同じで、動的状態通知、tool、子の起動、queue、履歴の伸長は含めていない。2回とも入力4,791 tokens、cached tokens 0、cache write tokens 0だった。SSE `response.completed`内の生のusageとadapterが返すusageは一致しており、この対照で0を返したのはNOEの集計による欠落ではない。
+
+```sh
+NOE_AGENT_EFFICIENCY_LIVE=1 \
+NOE_AGENT_EFFICIENCY_LIVE_DIR=/absolute/path/to/fresh-probe-artifacts \
+go test -tags=agent_efficiency_live ./internal/agent \
+  -run '^TestAgentCacheProbeLive$' -count=1 -timeout=4m -v
+```
+
+同じ試験に`NOE_AGENT_CACHE_PROBE_DIAGNOSTICS=1`を指定し、公式APIの`prompt_cache_options`を付けた要求も確認した。このChatGPTプラン接続・モデルはHTTP 400、`param:prompt_cache_options`、`message:prompt_cache_options is not supported on this model`を返した。初回とエラー詳細を取得した再確認の2要求が拒否され、公式diagnosticsの比較は実行できなかった。今後の同試験では、この特定の未対応応答をartifactへ保存してskipする。通常のAPI全体や別モデルでの未対応を意味しない。
+
+成功した推論は合計27要求、diagnostics用の拒否応答は2要求。元ログでは親16.17%・子8.56%だったが、今回とは作業内容・入力の長さ・時点が違うため、改善率のA/B比較にはしない。現在の結果は、固定キー・履歴保持だけでは親のヒット率の疑念が解消しないことを示す。provider内のcache受付、ルーティング、利用枠での計上等のどれが原因かは未確定で、製品のcache設定を推測で変更していない。

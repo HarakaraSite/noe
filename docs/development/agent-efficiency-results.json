@@ -1,0 +1,527 @@
+{
+  "runtimeCommit": "b651d12",
+  "provider": "openai-chatgpt",
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "policyMode": "external",
+  "scenarios": [
+    {
+      "scenario": "small_queue",
+      "functionalPassed": true,
+      "artifacts": "/var/tmp/noe-efficiency-b651d12-external-20261021/small_queue",
+      "eventsSha256": "9819aaed75b24c06bfcbd9cade9037e91bb699941b59ce9aa66ef15ee787ca77",
+      "wireSha256": "21e090dfddbd8ccbc469ba25da2c16a22fbb140feb4b0358ad718f86a09a5b15",
+      "parent": {
+        "calls": 6,
+        "promptTokens": 42486,
+        "cachedTokens": 0,
+        "cachedTokensMissing": 0,
+        "cachedInputPercent": 0.0,
+        "completionTokens": 1361
+      },
+      "children": {
+        "calls": 0,
+        "promptTokens": 0,
+        "cachedTokens": 0,
+        "cachedTokensMissing": 0,
+        "cachedInputPercent": null,
+        "completionTokens": 0
+      },
+      "parentAfterInstanceFirst": {
+        "calls": 5,
+        "promptTokens": 36697,
+        "cachedTokens": 0,
+        "cachedTokensMissing": 0,
+        "cachedInputPercent": 0.0,
+        "completionTokens": 1079
+      },
+      "childrenAfterInstanceFirst": {
+        "calls": 0,
+        "promptTokens": 0,
+        "cachedTokens": 0,
+        "cachedTokensMissing": 0,
+        "cachedInputPercent": null,
+        "completionTokens": 0
+      },
+      "childStarts": 0,
+      "grandchildStarts": 0,
+      "instances": [
+        {
+          "agentId": "15f5ef73918913bc2fa696debf14dd41968a8caf51dc3205",
+          "name": "small_queue",
+          "parentAgentId": null,
+          "tasks": 3,
+          "role": "parent"
+        }
+      ],
+      "queueTransitions": [
+        {
+          "agentId": "15f5ef73918913bc2fa696debf14dd41968a8caf51dc3205",
+          "runId": "7b694f409a3a10e04a4781327d4a1d4ab8561783221c4778",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 537,
+            "promptTokens": 6667,
+            "totalTokens": 7204
+          }
+        },
+        {
+          "agentId": "15f5ef73918913bc2fa696debf14dd41968a8caf51dc3205",
+          "runId": "9cedd7ff105a20a3c0c0203454c7d7c8f5a367481fbd3a69",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 298,
+            "promptTokens": 7837,
+            "totalTokens": 8135
+          }
+        }
+      ],
+      "wire": {
+        "requests": 6,
+        "sessions": 1,
+        "sessionKeysMatchAgentIds": true,
+        "allSentPrefixesPreserved": true,
+        "fixedInstructionHashes": 1,
+        "toolHashes": 1,
+        "statusAlwaysUserAtTail": true
+      },
+      "rootIncludeAnswerFalseUses": 0,
+      "rootReadTaskResultUses": 0,
+      "perRequest": [
+        {
+          "agentId": "15f5ef73918913bc2fa696debf14dd41968a8caf51dc3205",
+          "runId": "af1719f43a6fe8789d6872fecf3333bba3818f170ab23f72",
+          "requestId": "8e3fc4ece8d36e26934def89be8c6be4fe81b9238920427d",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 282,
+            "promptTokens": 5789,
+            "totalTokens": 6071
+          }
+        },
+        {
+          "agentId": "15f5ef73918913bc2fa696debf14dd41968a8caf51dc3205",
+          "runId": "af1719f43a6fe8789d6872fecf3333bba3818f170ab23f72",
+          "requestId": "f2d4cadb9bcb576ce2944b1793b10afe694c726fbc0ce118",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 85,
+            "promptTokens": 6323,
+            "totalTokens": 6408
+          }
+        },
+        {
+          "agentId": "15f5ef73918913bc2fa696debf14dd41968a8caf51dc3205",
+          "runId": "7b694f409a3a10e04a4781327d4a1d4ab8561783221c4778",
+          "requestId": "125d9c9b715a1d2f1a4937f56e4b2c1b4e24b9b6393bd449",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 537,
+            "promptTokens": 6667,
+            "totalTokens": 7204
+          }
+        },
+        {
+          "agentId": "15f5ef73918913bc2fa696debf14dd41968a8caf51dc3205",
+          "runId": "7b694f409a3a10e04a4781327d4a1d4ab8561783221c4778",
+          "requestId": "fce969e78eb2a14e326f836a0127a66beefd3a1553b7a9d1",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 97,
+            "promptTokens": 7477,
+            "totalTokens": 7574
+          }
+        },
+        {
+          "agentId": "15f5ef73918913bc2fa696debf14dd41968a8caf51dc3205",
+          "runId": "9cedd7ff105a20a3c0c0203454c7d7c8f5a367481fbd3a69",
+          "requestId": "f77312c4642f49b929951194508593c3070469a4536c319d",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 298,
+            "promptTokens": 7837,
+            "totalTokens": 8135
+          }
+        },
+        {
+          "agentId": "15f5ef73918913bc2fa696debf14dd41968a8caf51dc3205",
+          "runId": "9cedd7ff105a20a3c0c0203454c7d7c8f5a367481fbd3a69",
+          "requestId": "d2b540952b41056e94a87c31313c5344529342c93afb57bd",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 62,
+            "promptTokens": 8393,
+            "totalTokens": 8455
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "implementation_and_review",
+      "functionalPassed": true,
+      "artifacts": "/var/tmp/noe-efficiency-b651d12-external-20261021/implementation_and_review",
+      "eventsSha256": "a490fdf96b511b723588a36dab29c9451205999fe58047ceb8dba2ecd1af34d7",
+      "wireSha256": "6fb1851225053f9791803bab263f7f340f7d37343e166ffa783891f0ebb4732a",
+      "parent": {
+        "calls": 8,
+        "promptTokens": 82603,
+        "cachedTokens": 0,
+        "cachedTokensMissing": 0,
+        "cachedInputPercent": 0.0,
+        "completionTokens": 3108
+      },
+      "children": {
+        "calls": 11,
+        "promptTokens": 107478,
+        "cachedTokens": 16128,
+        "cachedTokensMissing": 0,
+        "cachedInputPercent": 15.0059,
+        "completionTokens": 7059
+      },
+      "parentAfterInstanceFirst": {
+        "calls": 7,
+        "promptTokens": 76713,
+        "cachedTokens": 0,
+        "cachedTokensMissing": 0,
+        "cachedInputPercent": 0.0,
+        "completionTokens": 2942
+      },
+      "childrenAfterInstanceFirst": {
+        "calls": 9,
+        "promptTokens": 95531,
+        "cachedTokens": 16128,
+        "cachedTokensMissing": 0,
+        "cachedInputPercent": 16.8825,
+        "completionTokens": 6818
+      },
+      "childStarts": 2,
+      "grandchildStarts": 0,
+      "instances": [
+        {
+          "agentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "name": "implementation_and_review",
+          "parentAgentId": null,
+          "tasks": 1,
+          "role": "parent"
+        },
+        {
+          "agentId": "71e63cfe8c489528bd762f91c0d2e7d8e22901212fe619ff",
+          "name": "ledger-implementer",
+          "parentAgentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "tasks": 1,
+          "role": "child"
+        },
+        {
+          "agentId": "d7947d712b33ba07d67ded384c6bc237dee1513cab68f552",
+          "name": "ledger-independent-reviewer",
+          "parentAgentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "tasks": 2,
+          "role": "child"
+        }
+      ],
+      "queueTransitions": [
+        {
+          "agentId": "d7947d712b33ba07d67ded384c6bc237dee1513cab68f552",
+          "runId": "d77a9dc4bc4f3ad31a4ea84aad310ba81a00cc550a4aabb8",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 114,
+            "promptTokens": 11117,
+            "totalTokens": 11231
+          }
+        }
+      ],
+      "wire": {
+        "requests": 19,
+        "sessions": 3,
+        "sessionKeysMatchAgentIds": true,
+        "allSentPrefixesPreserved": true,
+        "fixedInstructionHashes": 1,
+        "toolHashes": 1,
+        "statusAlwaysUserAtTail": true
+      },
+      "rootIncludeAnswerFalseUses": 4,
+      "rootReadTaskResultUses": 3,
+      "perRequest": [
+        {
+          "agentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "runId": "8d3c878154f495c04e43e78e6d3e487a8ea5ecfdedb3ec37",
+          "requestId": "3142ac68915d08dd9a74efb96dd600c257ba58866bb8f587",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 166,
+            "promptTokens": 5890,
+            "totalTokens": 6056
+          }
+        },
+        {
+          "agentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "runId": "8d3c878154f495c04e43e78e6d3e487a8ea5ecfdedb3ec37",
+          "requestId": "7b1668dcc4dc3243c060a30a0c7a7296717a380ca9bc4e87",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 298,
+            "promptTokens": 6501,
+            "totalTokens": 6799
+          }
+        },
+        {
+          "agentId": "71e63cfe8c489528bd762f91c0d2e7d8e22901212fe619ff",
+          "runId": "5a44a0939303f1d08e8f0fcd6f6235c1af320689f6163e79",
+          "requestId": "0a595df34382e51457542ea7f9afd370d71754e8eb73dbb3",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 148,
+            "promptTokens": 5976,
+            "totalTokens": 6124
+          }
+        },
+        {
+          "agentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "runId": "8d3c878154f495c04e43e78e6d3e487a8ea5ecfdedb3ec37",
+          "requestId": "98f42b74f4372bd2ed1d56236fb5f360a79f30166b1c33df",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 232,
+            "promptTokens": 7097,
+            "totalTokens": 7329
+          }
+        },
+        {
+          "agentId": "71e63cfe8c489528bd762f91c0d2e7d8e22901212fe619ff",
+          "runId": "5a44a0939303f1d08e8f0fcd6f6235c1af320689f6163e79",
+          "requestId": "091755adf4be2b62a501f967035f1ffbf342b7c4cd075e0a",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 124,
+            "promptTokens": 6600,
+            "totalTokens": 6724
+          }
+        },
+        {
+          "agentId": "71e63cfe8c489528bd762f91c0d2e7d8e22901212fe619ff",
+          "runId": "5a44a0939303f1d08e8f0fcd6f6235c1af320689f6163e79",
+          "requestId": "7a1e618bf0d0a00ae77e5932c2d4da2611bab06e7ea8fd62",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 5376,
+            "completionTokens": 2428,
+            "promptTokens": 7866,
+            "totalTokens": 10294
+          }
+        },
+        {
+          "agentId": "71e63cfe8c489528bd762f91c0d2e7d8e22901212fe619ff",
+          "runId": "5a44a0939303f1d08e8f0fcd6f6235c1af320689f6163e79",
+          "requestId": "d22bd176406dfe4d8f32faf4c1c69fe487d6dc03efdc7ac5",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 79,
+            "promptTokens": 10537,
+            "totalTokens": 10616
+          }
+        },
+        {
+          "agentId": "71e63cfe8c489528bd762f91c0d2e7d8e22901212fe619ff",
+          "runId": "5a44a0939303f1d08e8f0fcd6f6235c1af320689f6163e79",
+          "requestId": "5bafecd440896150edc61e1d88a8d9b7e9ba9fe38a7367bc",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 204,
+            "promptTokens": 10855,
+            "totalTokens": 11059
+          }
+        },
+        {
+          "agentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "runId": "8d3c878154f495c04e43e78e6d3e487a8ea5ecfdedb3ec37",
+          "requestId": "a498bd1ffba6925486cfe2411fb5ff1464a61b2a26fe409a",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 441,
+            "promptTokens": 8345,
+            "totalTokens": 8786
+          }
+        },
+        {
+          "agentId": "d7947d712b33ba07d67ded384c6bc237dee1513cab68f552",
+          "runId": "68556a1943b243689936892fb4c262dd689d12f47302297a",
+          "requestId": "37df83b544dad134d4f790c1848c04abb5c096887abea8f0",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 93,
+            "promptTokens": 5971,
+            "totalTokens": 6064
+          }
+        },
+        {
+          "agentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "runId": "8d3c878154f495c04e43e78e6d3e487a8ea5ecfdedb3ec37",
+          "requestId": "3e01406436e7a48f60d32ce174e188e05bc7fcff40c404a6",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 214,
+            "promptTokens": 11373,
+            "totalTokens": 11587
+          }
+        },
+        {
+          "agentId": "d7947d712b33ba07d67ded384c6bc237dee1513cab68f552",
+          "runId": "68556a1943b243689936892fb4c262dd689d12f47302297a",
+          "requestId": "c616e885a7cd5c697e1a500553fc2839ddb37207c15702a9",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 1448,
+            "promptTokens": 8516,
+            "totalTokens": 9964
+          }
+        },
+        {
+          "agentId": "d7947d712b33ba07d67ded384c6bc237dee1513cab68f552",
+          "runId": "68556a1943b243689936892fb4c262dd689d12f47302297a",
+          "requestId": "6e3846b50d975a1f6f6c7de4fc24d6a82ca8df65a5947218",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 5376,
+            "completionTokens": 477,
+            "promptTokens": 10227,
+            "totalTokens": 10704
+          }
+        },
+        {
+          "agentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "runId": "8d3c878154f495c04e43e78e6d3e487a8ea5ecfdedb3ec37",
+          "requestId": "a4d8c32de45d5a3f44b842ab7fa1d7918490cf9959d40ffe",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 436,
+            "promptTokens": 12478,
+            "totalTokens": 12914
+          }
+        },
+        {
+          "agentId": "d7947d712b33ba07d67ded384c6bc237dee1513cab68f552",
+          "runId": "d77a9dc4bc4f3ad31a4ea84aad310ba81a00cc550a4aabb8",
+          "requestId": "3ddaf20773ea23bafb4bcb7b44031ed08fb1ffe458ef3061",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 114,
+            "promptTokens": 11117,
+            "totalTokens": 11231
+          }
+        },
+        {
+          "agentId": "d7947d712b33ba07d67ded384c6bc237dee1513cab68f552",
+          "runId": "d77a9dc4bc4f3ad31a4ea84aad310ba81a00cc550a4aabb8",
+          "requestId": "780246ba0afa4e7b8ff90ac13a4dd86f74c5e4368c380aee",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 1500,
+            "promptTokens": 14027,
+            "totalTokens": 15527
+          }
+        },
+        {
+          "agentId": "d7947d712b33ba07d67ded384c6bc237dee1513cab68f552",
+          "runId": "d77a9dc4bc4f3ad31a4ea84aad310ba81a00cc550a4aabb8",
+          "requestId": "b7631580798c5281611564d0e271c88e4bcfd3bab0bf43cc",
+          "role": "child",
+          "usage": {
+            "cachedTokens": 5376,
+            "completionTokens": 444,
+            "promptTokens": 15786,
+            "totalTokens": 16230
+          }
+        },
+        {
+          "agentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "runId": "8d3c878154f495c04e43e78e6d3e487a8ea5ecfdedb3ec37",
+          "requestId": "d4d9e03886a35dbaed2760843a0b2b2ffabf8a1991a1de1b",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 1063,
+            "promptTokens": 13833,
+            "totalTokens": 14896
+          }
+        },
+        {
+          "agentId": "b5749f75809947f2a8c9cd20b741abaa75e08ac89e81bc26",
+          "runId": "8d3c878154f495c04e43e78e6d3e487a8ea5ecfdedb3ec37",
+          "requestId": "c1fb4259704b773b0b721b49b944369110d524bf15f17009",
+          "role": "parent",
+          "usage": {
+            "cachedTokens": 0,
+            "completionTokens": 258,
+            "promptTokens": 17086,
+            "totalTokens": 17344
+          }
+        }
+      ]
+    }
+  ],
+  "identicalInputControl": {
+    "artifacts": "/var/tmp/noe-efficiency-cache-probe-plain-20261021/cache_probe/responses.json",
+    "sha256": "e378238c493ea55420c64fb2c01f05b407049669acf99cb13c76c9cc96e59abb",
+    "sameInput": true,
+    "rawUsageEqualsAdapterUsage": true,
+    "requests": [
+      {
+        "httpStatus": 200,
+        "responseId": "resp_051dc0e1341844b3016ad798f62de087d083402a1355eb6c62",
+        "inputTokens": 4791,
+        "cachedTokens": 0,
+        "cacheWriteTokens": 0
+      },
+      {
+        "httpStatus": 200,
+        "responseId": "resp_0aa7aabdcb6182bc016ad798f8db3487d0a47afcd22bef9c2b",
+        "inputTokens": 4791,
+        "cachedTokens": 0,
+        "cacheWriteTokens": 0
+      }
+    ]
+  },
+  "diagnostics": {
+    "artifacts": "/var/tmp/noe-efficiency-cache-probe-diagnostics-20261021/cache_probe/responses.json",
+    "sha256": "887ef5f9da28fcb642056937b23614447abc0e19b88505be37de3201d957b5ca",
+    "httpStatus": 400,
+    "error": {
+      "message": "prompt_cache_options is not supported on this model",
+      "type": "invalid_request_error",
+      "param": "prompt_cache_options",
+      "code": "invalid_parameter"
+    },
+    "initialRejectedProbeRequests": 2
+  },
+  "conclusion": {
+    "delegationBehaviorPassed": true,
+    "parentCacheImprovementObserved": false,
+    "policyPromotedToBuiltin": false,
+    "reason": "Parent cached tokens remained zero across all 14 agent requests and both identical-input controls; keep the external trial pending the overall success condition."
+  },
+  "completedInferenceRequests": 27
+}

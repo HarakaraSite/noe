@@ -20,6 +20,8 @@ agent instanceの最初のtask開始時に、次の順でinstructionを一度構
 
 2026-10-21の利用者指示により、委譲の粒度、担当再利用、背景伝達、結果の受け渡しの方針は、まずworkspaceの外部instruction [delegation.md](../.noe/instructions/delegation.md)で試します。子の起動状況とキャッシュ利用量を実接続で観測し、結果が良好な場合に組込みinstructionへ移します。API契約・Go側の再委譲受付制御は組込みに残します。
 
+[実接続の観測結果](development/agent-efficiency-observation.md#2026-10-21の観測結果)では、小作業の子0体・分担の子2体・review担当の再利用を確認しました。親のcached tokensは全14要求で0で、cache改善は確認できていないため、現在も外部instructionに維持しています。
+
 ## 送信ごとに追加される実行状態
 
 上記の固定instructionとは別に、モデル要求の末尾へ`NOE_CONTEXT_STATUS`で始まるuser messageを毎回追加します。直前のrequest ID・入力量・キャッシュ量、次の入力推定、残量・割合、trim通知、hookで設定したruntime information等を含むため、本文は要求ごとに変わります。`beforeModelRequest` hookの`api.context.setRuntimeInfo()`もこの通知へ反映されます。
