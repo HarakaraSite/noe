@@ -1002,3 +1002,16 @@ The earlier small-improvement validation had intermittent native network-test Bu
 The host shutdown interrupted preparation after the application commit and validation worktree creation, before push or tagging. The persistent worktree and scripts were recovered. The MCP SDK bundle formerly under /tmp was rebuilt offline from the local npm cache using the same pinned SDK 1.32.1 and esbuild 0.25.12; it is preserved under this release evidence directory. Test gates use an intentionally invalid inherited NOE_AGENT_CONNECTION, and short TMPDIR/GOTMPDIR paths avoid the known Unix-socket pathname limit.
 
 Environment: Linux amd64, Go 1.27.2 and C toolchain for race. Evidence, clean worktrees, native binary, MCP bundle and publication scripts: `/var/tmp/noe-v1.15.2-release-8j6osrl8`. No external model-provider request was made. Other targets have compilation evidence only. Workflow publication and downloaded assets are verified separately after tagging.
+
+
+## v1.15.2 Release validation — 2026-10-21
+
+- Annotated tag: `v1.15.2`, pointing to `f66a751ef3938a302d1bed28fcf5826d907b5518`. The peeled remote tag matches the successful workflow commit.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/25): succeeded (API run ID 206).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v1.15.2): published, neither draft nor prerelease (Release ID 139). Its body matches the committed [English notes](v1.15.2.md).
+
+The workflow passed its CGO-free unit and vet gates, built all six profile targets, and uploaded six binaries plus SHA256SUMS. All seven assets were downloaded; all six binary hashes matched the published checksums.
+
+The downloaded Linux amd64 binary reports `noe v1.15.2`. Both execFileSync and execSync retained exit code 7, stdout and stderr on failure, and successful execution still returned a string. All six run_js recipe lookups, initial and queued task waits, repeated retained outcomes, exactly two local fixture model requests, automatic event saving, arithmetic and the absence of wait-specific events passed. No external model-provider request was made.
+
+Build information matches the tagged revision with vcs.modified=false and go-quickjs v0.27.0. The verified published binary was installed to repository-root `./noe` and `~/.local/bin/noe`; both match the downloaded bytes. Evidence and backup: `/var/tmp/noe-v1.15.2-release-8j6osrl8`. Other targets have compilation evidence only. This documentation-only follow-up does not move or replace the release tag.
