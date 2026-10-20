@@ -48,6 +48,7 @@ func TestAgentCacheProbeLive(t *testing.T) {
 	key := fmt.Sprintf("noe-efficiency-probe-%d", time.Now().UnixNano())
 	request := provider.Request{Provider: "openai-chatgpt", RunID: key, SessionID: key, CacheKey: key, Model: "gpt-6.1-sol", Effort: "high", MaxTokens: 1024, Messages: []json.RawMessage{system, user}}
 	for index := 0; index < 2; index++ {
+		request.RunID = fmt.Sprintf("%s-task-%d", key, index+1)
 		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 		response, err := p.Generate(ctx, request)
 		cancel()
@@ -65,6 +66,9 @@ func TestAgentCacheProbeLive(t *testing.T) {
 			t.Fatalf("probe %d: %v", index+1, err)
 		}
 		record := client.records[len(client.records)-1]
+		if record.SessionHeader != key {
+			t.Fatalf("probe %d session_id header = %q, want %q", index+1, record.SessionHeader, key)
+		}
 		record.ParsedUsage = response.Usage
 		if efficiencyHash(record.RawUsage) != efficiencyHash(response.Usage) {
 			t.Fatal("adapter usage differs from the raw response usage")
@@ -86,6 +90,7 @@ func TestAgentCacheProbeLive(t *testing.T) {
 
 type cacheProbeRecord struct {
 	InputHash         string          `json:"inputHash"`
+	SessionHeader     string          `json:"sessionHeader"`
 	Model             string          `json:"model"`
 	CacheKey          string          `json:"cacheKey"`
 	DiagnosticOptions bool            `json:"diagnosticOptions"`
@@ -116,7 +121,7 @@ func (c *cacheProbeClient) Do(req *http.Request) (*http.Response, error) {
 	if err := json.Unmarshal(body, &request); err != nil {
 		return nil, err
 	}
-	record := &cacheProbeRecord{InputHash: efficiencyHash(request["input"]), DiagnosticOptions: c.diagnostics}
+	record := &cacheProbeRecord{InputHash: efficiencyHash(request["input"]), SessionHeader: req.Header.Get("session_id"), DiagnosticOptions: c.diagnostics}
 	_ = json.Unmarshal(request["model"], &record.Model)
 	_ = json.Unmarshal(request["prompt_cache_key"], &record.CacheKey)
 	options := map[string]string{"mode": "implicit"}

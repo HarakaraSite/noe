@@ -3,6 +3,9 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,6 +81,56 @@ func TestRegistryDefaultsAndLazyConfiguration(t *testing.T) {
 		if _, err := r.HasProvider("openrouter"); err == nil {
 			t.Fatalf("invalid config accepted: %s", configuration)
 		}
+	}
+}
+
+func TestChatGPTDefaultSessionHeaderAcrossTasks(t *testing.T) {
+	cases := []struct{ run, session, cache string }{
+		{"task-1", "parent-instance", "parent-instance"},
+		{"task-2", "parent-instance", "parent-instance"},
+		{"task-3", "parent-instance", "custom-cache"},
+		{"child-task", "child-instance", "child-instance"},
+	}
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls >= len(cases) {
+			t.Error("unexpected extra request")
+			w.WriteHeader(500)
+			return
+		}
+		want := cases[calls]
+		calls++
+		if got := r.Header.Get("session_id"); got != want.session {
+			t.Errorf("%s session_id = %q, want %q", want.run, got, want.session)
+		}
+		var body struct {
+			CacheKey string `json:"prompt_cache_key"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if body.CacheKey != want.cache {
+			t.Errorf("%s prompt_cache_key = %q, want %q", want.run, body.CacheKey, want.cache)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		writeSSE(w, `{"type":"response.completed","sequence_number":1,"response":`+nativeResponseFixture(`[{"type":"message","id":"msg","role":"assistant","status":"completed","content":[{"type":"output_text","text":"OK","annotations":[]}]}]`)+`}`)
+	}))
+	defer server.Close()
+	// Retain the built-in session settings; replace only auth and endpoint so
+	// the real SDK transport can be exercised without live credentials.
+	r, _ := registryFixture(t, fmt.Sprintf(`{"providers":{"openai-chatgpt":{"auth":"none","baseURL":%q}}}`, server.URL))
+	for _, c := range cases {
+		_, err := r.Generate(context.Background(), Request{
+			Provider: "openai-chatgpt", Model: "gpt-6.1-sol", RunID: c.run,
+			SessionID: c.session, CacheKey: c.cache,
+			Messages: []json.RawMessage{json.RawMessage(`{"role":"user","content":"Reply OK"}`)},
+		})
+		if err != nil {
+			t.Fatalf("%s: %v", c.run, err)
+		}
+	}
+	if calls != len(cases) {
+		t.Fatalf("requests = %d, want %d", calls, len(cases))
 	}
 }
 

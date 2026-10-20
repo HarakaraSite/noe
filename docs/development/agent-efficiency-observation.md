@@ -56,3 +56,20 @@ go test -tags=agent_efficiency_live ./internal/agent \
 同じ試験に`NOE_AGENT_CACHE_PROBE_DIAGNOSTICS=1`を指定し、公式APIの`prompt_cache_options`を付けた要求も確認した。このChatGPTプラン接続・モデルはHTTP 400、`param:prompt_cache_options`、`message:prompt_cache_options is not supported on this model`を返した。初回とエラー詳細を取得した再確認の2要求が拒否され、公式diagnosticsの比較は実行できなかった。今後の同試験では、この特定の未対応応答をartifactへ保存してskipする。通常のAPI全体や別モデルでの未対応を意味しない。
 
 成功した推論は合計27要求、diagnostics用の拒否応答は2要求。元ログでは親16.17%・子8.56%だったが、今回とは作業内容・入力の長さ・時点が違うため、改善率のA/B比較にはしない。現在の結果は、固定キー・履歴保持だけでは親のヒット率の疑念が解消しないことを示す。provider内のcache受付、ルーティング、利用枠での計上等のどれが原因かは未確定で、製品のcache設定を推測で変更していない。
+
+### 追加調査とChatGPTセッションヘッダーの修正
+
+上記の時点では未確定だったが、hjhとの比較でNOEのChatGPT設定に`sessionHeader: "session_id"`が欠けていることが分かった。同一本文のままヘッダーの有無を切り替えた5要求（on/off/on/off/on）では、入力は各4,791 tokens、cached tokensは順に0/0/4,608/0/4,608だった。ヘッダーありの再送で96.18%、なしで0%となった。証拠は`/var/tmp/noe-hjh-cache-header-ti_iaifj/comparison.json`。本文の`prompt_cache_key`だけを固定した最初の対照試験では、このヘッダーがなかった。
+
+利用者の修正依頼を受け、組込み`openai-chatgpt`設定に`sessionHeader: "session_id"`を追加した。既存のGo送信経路がinstanceのセッションIDをヘッダーへ設定するため、queue taskごとのrun ID変更では変わらず、子instanceには別IDが送られる。本文の`prompt_cache_key`と明示的な`cacheKey`指定は従来どおり。外部の委譲instructionやツールなしResponsesの扱いは今回の修正対象に含めていない。
+
+修正後の既定設定をそのまま使う`TestAgentCacheProbeLive`を、NOEのOAuth認証で再実行した。probe独自のprofileやヘッダー挿入は使わず、2要求のrun IDを変えてセッションIDは維持した。
+
+| 要求 | 入力tokens | cached tokens | cache比率 |
+| --- | ---: | ---: | ---: |
+| 初回 | 4,791 | 0 | 0.00% |
+| 同一入力の再送 | 4,791 | 4,608 | 96.18% |
+
+両要求のHTTP statusは200、入力hashとセッションヘッダーは一致し、生のSSE usageとadapterが返すusageも一致した。証拠は`/var/tmp/noe-chatgpt-default-header-fix-20261021/cache_probe/responses.json`。これは固定入力の再送での確認であり、実作業の履歴全体のヒット率が常にこの値になるという意味ではない。
+
+回帰テストは組込み設定からSDKのHTTP送信までを通し、queue相当のrun ID変更、明示的なcacheKey変更、子instanceへの切替でもヘッダーが正しいことを確認する。修正前は全4要求でヘッダー欠落を検出し、修正後はproviderテスト一式とvet、上記の実接続試験が成功した。

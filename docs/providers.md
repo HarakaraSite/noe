@@ -38,6 +38,8 @@ objectは再帰的に上書きし、配列・文字列・数値・真偽値は�
 
 ChatGPTのJSONはOAuth credential recordです。APIキーのテキストファイルとは形式が異なります。ヘルパーの配置・登録・既存hjh資格情報の扱いは[OpenAIガイド](openai.md)を参照してください。
 
+ChatGPTへの要求には`session_id`ヘッダーでinstanceの`agentId`を送ります。同じinstanceではqueue taskをまたいでも固定し、子agentには別IDを使います。本文の`prompt_cache_key`は従来どおり`cacheKey`から設定し、`cacheKey`を上書きしてもヘッダーのセッションIDは変わりません。
+
 上表の`~/.config`はXDG_CONFIG_HOME指定時にはその値に変わります。キーは改行付きでもよいテキストファイルへ保存します。キーの値をJSや設定JSONへ書く必要はありません。キーpath用環境変数は、設定の`keyFile`より優先します。
 
 既存の`NOE_OPENROUTER_BASE_URL`も維持します。OpenRouterの接続先を上書きし、Decisionsのserver URLも従来どおり末尾の`/api/v1`を除いて導きます。外部JSONで接続先を変える場合、通常生成の`baseURL`とDecisionsの`decisionServerURL`は別項目です。
