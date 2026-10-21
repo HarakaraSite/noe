@@ -159,6 +159,9 @@ func (h *Host) emitSteerEvents(pending []steerLifecycleEvent) {
 
 func steerEventFields(command *steerCommand, status string) events.Event {
 	fields := events.Event{"commandId": command.id, "status": status, "operation": "steer"}
+	if status == "accepted" {
+		fields["instruction"] = command.instruction
+	}
 	addActivityFields(fields, command.activityID, command.causedBy, command.origin)
 	return fields
 }

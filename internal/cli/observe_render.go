@@ -127,9 +127,29 @@ func (r *agentRenderer) render(event events.Event) error {
 		return r.line(label, "decision "+strings.TrimPrefix(kind, "decision."), detail)
 	case "instance.started", "instance.running", "instance.idle", "instance.stopping", "instance.stopped", "instance.failed":
 		return r.line(label, "agent "+strings.TrimPrefix(kind, "instance."), eventString(event, "reason"))
-	case "command.accepted", "command.applied", "command.cancelled":
-		if eventString(event, "operation") == "steer" {
-			return r.line(label, "steer "+eventString(event, "status"), eventString(event, "commandId"))
+	case "command.accepted", "command.applied", "command.completed", "command.failed", "command.cancelled":
+		operation := eventString(event, "operation")
+		origin, _ := event["origin"].(map[string]any)
+		human := origin["kind"] == "human"
+		if operation != "steer" && (operation != "queue" || !human) {
+			// Keep initial tasks and internal queues out of the human view.
+			return nil
+		}
+		if err := r.line(label, operation+" "+eventString(event, "status"), eventString(event, "commandId")); err != nil {
+			return err
+		}
+		instruction := eventString(event, "instruction")
+		if kind != "command.accepted" || !human || instruction == "" {
+			return nil
+		}
+		// Instructions are user input: preserve their text, including Markdown
+		// and newlines, rather than formatting them as an agent response.
+		if _, err := io.WriteString(r.out, instruction); err != nil {
+			return err
+		}
+		if !strings.HasSuffix(instruction, "\n") {
+			_, err := fmt.Fprintln(r.out)
+			return err
 		}
 		return nil
 	case "interrupt.accepted":

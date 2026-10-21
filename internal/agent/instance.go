@@ -176,6 +176,9 @@ func (i *agentInstance) commandEvent(cmd *command, status, runID string) {
 		operation = "queue"
 	}
 	fields["operation"] = operation
+	if status == "accepted" {
+		fields["instruction"] = cmd.instruction
+	}
 	i.event("command."+status, fields)
 }
 

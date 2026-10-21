@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -56,7 +57,28 @@ func awaitControlAgent(t *testing.T, ctx context.Context, work string, env map[s
 	}
 }
 
+// controlObserveOutput permits checking acceptance while the provider is blocked.
+type controlObserveOutput struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *controlObserveOutput) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *controlObserveOutput) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
+	const steerInstruction = "add a correction\n\n**keep this plain**\n  preserve indentation"
+	const queuedInstruction = "blocked task\n\n- **queue literally**"
+	const reservedInstruction = "reserved task\n\n`keep reserved text plain`"
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	firstStarted, corrected := make(chan agentChatRequest, 1), make(chan agentChatRequest, 1)
@@ -100,12 +122,13 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	dir := t.TempDir()
 	source := `import {run_agent} from "noe:agent";const result=await run_agent({provider:"openrouter",model:"fixture/model",name:"human-control",effort:"auto",maxSteps:2},"first task",{keepAlive:true});console.log(JSON.stringify(result));`
 	eventPath := filepath.Join(dir, "events.jsonl")
-	cmd := exec.CommandContext(ctx, cliPath, "eval", "--events="+eventPath, source)
+	cmd := exec.CommandContext(ctx, cliPath, "eval", "--observe", "--events="+eventPath, source)
 	cmd.Dir, cmd.Env = dir, os.Environ()
 	for key, value := range env {
 		cmd.Env = envWith(cmd.Env, key, value)
 	}
-	var stdout, stderr bytes.Buffer
+	var stdout controlObserveOutput
+	var stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -143,9 +166,31 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	if full := command("agents", "--full"); !strings.Contains(full.stdout, snapshot.AgentID) || !strings.Contains(full.stdout, snapshot.CurrentRunID) {
 		t.Fatalf("full listing: %+v", full)
 	}
-	if result := command("steer", fields[2], "add a correction"); !strings.Contains(result.stdout, "steer accepted:") {
-		t.Fatalf("steer receipt: %+v", result)
+	type humanCommand struct{ operation, instruction, terminalStatus string }
+	humanCommands := map[string]humanCommand{}
+	accept := func(operation, target, instruction, terminalStatus string) {
+		t.Helper()
+		receipt := command(operation, target, instruction)
+		prefix := operation + " accepted: "
+		id := strings.TrimSuffix(strings.TrimPrefix(receipt.stdout, prefix), "\n")
+		if !strings.HasPrefix(receipt.stdout, prefix) || id == "" || strings.ContainsAny(id, " \n") {
+			t.Fatalf("%s receipt: %+v", operation, receipt)
+		}
+		humanCommands[id] = humanCommand{operation, instruction, terminalStatus}
+		// Assert before releasing the provider: reserved input must be visible
+		// on acceptance, not just when it eventually reaches a model response.
+		want := prefix + id + "\n" + instruction + "\n"
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for !strings.Contains(stdout.String(), want) {
+			select {
+			case <-ctx.Done():
+				t.Fatalf("live observe missing %q:\n%s", want, stdout.String())
+			case <-ticker.C:
+			}
+		}
 	}
+	accept("steer", fields[2], steerInstruction, "applied")
 	close(release)
 	var second agentChatRequest
 	select {
@@ -154,14 +199,14 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 		t.Fatal("steer not applied")
 	}
 	var finalInput string
-	if len(second.Messages) != 4 || json.Unmarshal(second.Messages[3].Content, &finalInput) != nil || finalInput != "add a correction" || len(second.Messages[2].ReasoningDetails) == 0 {
+	if len(second.Messages) != 4 || json.Unmarshal(second.Messages[3].Content, &finalInput) != nil || finalInput != steerInstruction || len(second.Messages[2].ReasoningDetails) == 0 {
 		t.Fatalf("steer history: %+v", second)
 	}
 	if second.SessionID != snapshot.AgentID {
 		t.Fatalf("steer changed cache session: %q", second.SessionID)
 	}
 	awaitControlAgent(t, ctx, dir, env, func(s controlAgentSnapshot) bool { return s.State == "idle" && s.CurrentRunID == "" })
-	command("queue", fields[1], "blocked task")
+	accept("queue", fields[1], queuedInstruction, "cancelled")
 	select {
 	case <-blocked:
 	case <-ctx.Done():
@@ -171,7 +216,8 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	if busy.AgentID != snapshot.AgentID || busy.CurrentRunID == snapshot.CurrentRunID {
 		t.Fatalf("queued task must keep its instance and have a new run: %+v", busy)
 	}
-	command("queue", snapshot.AgentID, "reserved task")
+	accept("queue", snapshot.AgentID, reservedInstruction, "completed")
+	awaitControlAgent(t, ctx, dir, env, func(s controlAgentSnapshot) bool { return s.QueueLength == 1 && s.CurrentRunID == busy.CurrentRunID })
 	command("interrupt", "--run", busy.CurrentRunID)
 	select {
 	case <-cancelled:
@@ -192,7 +238,7 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 				history = append(history, message.Role+":"+text)
 			}
 		}
-		if strings.Join(history, "|") != "user:first task|assistant:candidate|user:add a correction|assistant:corrected answer|user:blocked task|user:reserved task" {
+		if strings.Join(history, "|") != "user:first task|assistant:candidate|user:"+steerInstruction+"|assistant:corrected answer|user:"+queuedInstruction+"|user:"+reservedInstruction {
 			t.Fatalf("human queue/interrupt lost the continuing conversation: %v", history)
 		}
 	case <-ctx.Done():
@@ -207,13 +253,6 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("owner did not finish after instance interrupt")
 	}
-	var result struct {
-		State, Reason string
-		LastResult    struct{ State, Answer string }
-	}
-	if json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &result) != nil || result.State != "stopped" || result.Reason != "interrupted" || result.LastResult.State != "completed" || result.LastResult.Answer != "reserved task answer" {
-		t.Fatalf("terminal snapshot: %s", &stdout)
-	}
 	if calls.Load() != 4 {
 		t.Fatalf("unexpected provider calls: %d", calls.Load())
 	}
@@ -221,22 +260,70 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	live := stdout.String()
+	if stderr.Len() != 0 {
+		t.Fatalf("observe stderr: %s", &stderr)
+	}
+	replayed := command("observe", eventPath)
+	if replayed.stdout != live || replayed.stderr != "" {
+		t.Fatalf("live/playback mismatch:\nlive:\n%s\nplayback: %+v", live, replayed)
+	}
+	var scriptStdout strings.Builder
+	accepted, settled := map[string]bool{}, map[string]bool{}
+	internalQueues := 0
 	creationIDs := map[string]bool{}
 	interruptIDs := map[string]bool{}
 	interruptTargets := map[string]bool{}
 	for _, line := range bytes.Split(data, []byte("\n")) {
 		var event struct {
-			Type       string   `json:"type"`
-			ActivityID string   `json:"activityId"`
-			Target     string   `json:"target"`
-			CommandID  string   `json:"commandId"`
-			CausedBy   []string `json:"causedBy"`
-			Origin     struct {
+			Type        string   `json:"type"`
+			Operation   string   `json:"operation"`
+			Status      string   `json:"status"`
+			Instruction *string  `json:"instruction"`
+			Text        string   `json:"text"`
+			ActivityID  string   `json:"activityId"`
+			Target      string   `json:"target"`
+			CommandID   string   `json:"commandId"`
+			CausedBy    []string `json:"causedBy"`
+			Origin      struct {
 				Kind string `json:"kind"`
 			} `json:"origin"`
 		}
 		if json.Unmarshal(line, &event) != nil {
 			continue
+		}
+		if event.Type == "stdout" {
+			scriptStdout.WriteString(event.Text)
+		}
+		if strings.HasPrefix(event.Type, "command.") && (event.Operation == "queue" || event.Operation == "steer") {
+			if event.Type == "command.accepted" {
+				if event.Instruction == nil {
+					t.Fatalf("accepted instruction missing: %s", line)
+				}
+				if event.Origin.Kind == "human" {
+					want, ok := humanCommands[event.CommandID]
+					if !ok || accepted[event.CommandID] || want.operation != event.Operation || want.instruction != *event.Instruction {
+						t.Fatalf("human acceptance lost original instruction: %s", line)
+					}
+					accepted[event.CommandID] = true
+				} else {
+					internalQueues++
+					if event.Operation != "queue" || *event.Instruction != "first task" || strings.Contains(live, event.CommandID) || strings.Contains(live, *event.Instruction) {
+						t.Fatalf("initial/internal queue leaked into human view: %s\n%s", line, live)
+					}
+				}
+			} else {
+				if event.Instruction != nil {
+					t.Fatalf("later command event repeated instruction: %s", line)
+				}
+				if want, ok := humanCommands[event.CommandID]; ok {
+					statusLine := want.operation + " " + want.terminalStatus + ": " + event.CommandID + "\n"
+					if event.Origin.Kind != "human" || event.Status != want.terminalStatus || !accepted[event.CommandID] || settled[event.CommandID] || strings.Count(live, statusLine) != 1 || !strings.Contains(live, statusLine+"\n[") {
+						t.Fatalf("human command status must show ID only: %s\n%s", line, live)
+					}
+					settled[event.CommandID] = true
+				}
+			}
 		}
 		if event.Type == "agent.started" || event.Type == "instance.started" {
 			creationIDs[event.ActivityID] = true
@@ -264,6 +351,26 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	}
 	if len(interruptIDs) != 2 || !interruptTargets["task"] || !interruptTargets["agent"] {
 		t.Fatalf("human task-cancel/instance-stop records=%v targets=%v", interruptIDs, interruptTargets)
+	}
+	if len(accepted) != len(humanCommands) || len(settled) != len(humanCommands) || internalQueues != 1 {
+		t.Fatalf("command lifecycle: accepted=%v settled=%v internalQueues=%d", accepted, settled, internalQueues)
+	}
+	for id, command := range humanCommands {
+		if strings.Count(live, command.instruction) != 1 {
+			t.Fatalf("instruction must appear once, unchanged, on acceptance (%s):\n%s", id, live)
+		}
+	}
+	// --observe suppresses script stdout, but its recorded terminal snapshot
+	// must retain the same lifecycle/result contract as the non-observe path.
+	var result struct {
+		State, Reason string
+		LastResult    struct{ State, Answer string }
+	}
+	if json.Unmarshal([]byte(strings.TrimSpace(scriptStdout.String())), &result) != nil || result.State != "stopped" || result.Reason != "interrupted" || result.LastResult.State != "completed" || result.LastResult.Answer != reservedInstruction+" answer" {
+		t.Fatalf("terminal snapshot: %s", scriptStdout.String())
+	}
+	if strings.Contains(live, `"lastResult"`) {
+		t.Fatalf("script stdout leaked into human view:\n%s", live)
 	}
 	entries, err := os.ReadDir(env["NOE_AGENT_RUNTIME_DIR"])
 	if err != nil || len(entries) != 0 {

@@ -47,6 +47,25 @@ groupの現在状態はliveの`observe_agent({agentId})`、回収完了はinstan
 
 `--observe`だけではJSONLファイルを作りません。`--events=path`または`--events`を併用すると記録も残せます。stdoutには整形したイベントを出します。スクリプトと`run_js`のstdoutは人間向け表示から省き、JSの処理内容は先頭の1行コメントで確認します。NOE自体の実行診断はstderrへ出ます。
 
+別terminalの `noe queue`・`noe steer` で送った指示は、実行側の `--observe` に受付時の本文を1回表示します。本文はMarkdownとして整形せず、元の改行とインデントを保持します。
+
+```text
+[worker agent=abcdefgh]
+queue accepted: <command ID>
+READMEを読んで改善点をまとめてください。
+
+[worker run=12345678]
+steer accepted: <command ID>
+互換性への影響も確認してください。
+
+[worker run=12345678]
+steer applied: <command ID>
+```
+
+`accepted` は受付であり、queueの実行開始やsteerの適用完了ではありません。人間由来のqueueの完了・失敗・取消しや、steerの適用・取消しでは状態とcommand IDだけを表示し、本文は繰り返しません。初回タスクやJS/API由来の内部queueの表示は増やしません。既存の内部steerの状態表示も維持します。
+
+保存ログの `noe observe` も同じ表示になります。ただし古いログに `instruction` がない場合は、本文を補完せず状態とIDを表示します（送信元情報のないqueueは従来どおり非表示）。新しいJSONLは初回タスクやAPI由来も含む受付イベントに指示本文を保存するため、機密情報の取扱いに注意してください。
+
 JSONLを別の処理へ渡す場合は、従来どおり`--events=-`を使います。パイプ先の`noe observe`も同じ整形処理を利用します。
 
 ```sh

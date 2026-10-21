@@ -142,8 +142,15 @@ func TestSteerIsOrderedIdempotentAndDoesNotConsumeModelBudget(t *testing.T) {
 		switch kind {
 		case "command.accepted":
 			accepted++
+			want := map[string]string{"steer-1": "first steer", "steer-2": "second steer"}[id]
+			if event["instruction"] != want {
+				t.Fatalf("accepted steer instruction: %#v", event)
+			}
 		case "command.applied":
 			applied++
+			if _, ok := event["instruction"]; ok {
+				t.Fatalf("applied steer repeated instruction: %#v", event)
+			}
 		case "agent.final":
 			finals++
 		}
