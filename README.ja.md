@@ -6,9 +6,11 @@ Just JavaScript. Until you need an agent.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.0.0リリースノート](docs/releases/v2.0.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.0.0)
+[v2.0.1リリースノート](docs/releases/v2.0.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.0.1)
 
-v2.0.0ではGoアプリ内でagentを直接実行できます。Go組み込みとJS APIの破壊的変更は[v2移行ガイド](docs/v2-migration.md)を参照してください。
+v2.0.1では観察画面にCLIからのqueue/steer指示を表示し、[Goホストの常駐例](examples/embedding-server/README.md)を追加しました。
+
+v2ではGoアプリ内でagentを直接実行できます。Go組み込みとJS APIの破壊的変更は[v2移行ガイド](docs/v2-migration.md)を参照してください。
 
 ## ビルドと実行
 
@@ -19,7 +21,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.0.0
+# noe v2.0.1
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
