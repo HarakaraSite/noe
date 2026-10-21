@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | [basics](basics/README.md) | Hello、待機 | 不要 |
 | [embedding](embedding/README.md) | CLI・agentに依存しないGoホストへの公開stdlib API導入 | 不要 |
+| [embedding-server](embedding-server/README.md) | Goホストを常駐させ、リクエストごとにJS実行・停止処理・systemdユーザーサービス化 | 不要 |
 | [agent-embedding](agent-embedding/README.md) | 同じGoプロセス内にHost/Clientとagent実行を組み込む | 決定的なproviderを使う通常例は不要 |
 | [json](json/README.md) | JSONの加工、標準入力・ディレクトリ集計、処理済みファイルの移動 | 不要 |
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |

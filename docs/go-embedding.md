@@ -154,6 +154,15 @@ source. `Bindings.Close` cancels and joins its own adapters and initializer,
 but does not close the caller's runtime or loop. The caller must evaluate and
 drive the loop on the runtime owner and close both objects.
 
+## Run a resident Go host
+
+The [resident HTTP example](../examples/embedding-server/README.md) keeps the Go
+host running and calls `Execute` with a fresh profile and output buffers for each
+request. It passes request cancellation and deadlines to JavaScript, cancels
+active executions on SIGINT/SIGTERM, and waits for handler cleanup during HTTP
+shutdown. Its README includes foreground execution and Linux systemd user-service
+setup. No agent Host or external service is required.
+
 ## Migrate from the previous embedding API
 
 Replace `stdlib.Install(rt, Config{Core, IO, Docs})` with a `Profile` passed to

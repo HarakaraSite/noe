@@ -19,6 +19,10 @@ set its replacement to the absolute checkout path. Then run
 After v2.0.0 is published, remove the replacement and require that stable tag
 instead; see the [v2 migration guide](../../docs/v2-migration.md).
 
+For a long-running Go HTTP host that creates a fresh runtime per request, see
+[the resident server example](../embedding-server/README.md). It includes
+signal-driven shutdown and a Linux systemd user-service setup.
+
 The [Go embedding guide](../../docs/go-embedding.md) covers capability
 selection, file loading, cancellation, ownership, and the advanced `Attach`
 path. The separate [agent example](../agent-embedding/README.md) demonstrates

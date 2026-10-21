@@ -1,5 +1,16 @@
 # examplesの動作確認
 
+## Go常駐組み込み例の追加確認
+
+[embedding-server](embedding-server/README.md)をLinux amd64 / Go 1.27.2で確認しました。
+
+- `go test ./examples/embedding-server -count=1`、同packageのrace検査と `go vet` が成功。並行リクエストの入出力分離、VMの分離、同期・非同期JSの期限切れ、キャンセル、停止時のVM cleanup完了待ちを確認。
+- CGO無効でビルドした実行ファイルに対し、`/health`、`/sum`、SIGTERM後の正常終了（コード0）を確認。
+- READMEのテンプレートを別moduleへコピーし、checkoutへのlocal replaceで `go mod tidy` とCGO無効のbuildが成功。
+- READMEのsystemd unitは配置先を検証用一時パスへ置換して `systemd-analyze verify` が成功。ユーザーサービスのインストール・起動やログアウト後の継続は実行していません。
+
+長期連続稼働や本番向けの資源制御を確認したものではありません。
+
 ## v2互換性確認 — 2026-10-21
 
 `fa43be492122e930e9299089f69f7513c3908031`からビルドしたv2候補で、JS/MJS全41ファイルを実行しました。library・hook・appは利用側から呼び出しています。入力移動やworkflowの書換えは一時コピー内で行い、ソースの互換性不具合は確認されませんでした。
