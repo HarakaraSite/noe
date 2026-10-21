@@ -2,8 +2,8 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The `/v2` module path is present in
-this checkout, but a v2 tag has not been published.
+select model providers or agent behavior. The release target is v2.0.0; see the
+[v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The supported engine version checked for this API is go-quickjs v0.27.0. Use
 Go 1.27.2 or later. From the repository root, run the example with:
@@ -17,8 +17,10 @@ For a separate module, copy [the example](../examples/embedding/main.go) and
 rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
-replacement. After an authorized v2 publication, remove the replacement and
-require the published tag.
+replacement. Once v2.0.0 is published, remove the replacement and use
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.0.0`. Downloading that
+tag without a replacement is a post-publication check, separate from local
+consumer validation.
 
 ## Execute a script
 

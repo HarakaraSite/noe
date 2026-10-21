@@ -474,7 +474,7 @@ func TestNetStartSignalStopsOnlyPendingDial(t *testing.T) {
 			peerCh <- peer
 		}
 	}()
-	rt, _ := netRuntime(t, t.TempDir(), nil)
+	rt, host := netRuntime(t, t.TempDir(), nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {connect}=await import("noe:sockets");
   const controller=new AbortController();
@@ -495,6 +495,8 @@ func TestNetStartSignalStopsOnlyPendingDial(t *testing.T) {
 	if err != nil || string(got) != string([]byte{42}) {
 		t.Fatalf("peer data after late abort = %v, err=%v", got, err)
 	}
+	// Promise settlement can precede the native producer's final Done call.
+	waitNetOperations(t, host)
 	if rt.Busy() {
 		t.Fatalf("closed connection retained active work: %v", rt.Busy())
 	}

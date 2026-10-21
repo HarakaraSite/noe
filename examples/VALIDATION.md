@@ -1,5 +1,19 @@
 # examplesの動作確認
 
+## v2互換性確認 — 2026-10-21
+
+`fa43be492122e930e9299089f69f7513c3908031`からビルドしたv2候補で、JS/MJS全41ファイルを実行しました。library・hook・appは利用側から呼び出しています。入力移動やworkflowの書換えは一時コピー内で行い、ソースの互換性不具合は確認されませんでした。
+
+- 実行確認40件、agent-serverのfixtureテスト9件、実Firefox確認1件が成功。
+- OpenRouter・OpenCode Go・OpenAI ChatGPTで実agentを実行。モデル選択、Jev判断、親子の並行実行、hook、steer/queue/停止を確認。
+- 画像生成・画像読み込み・Exa検索も実サービスで確認。64×64の4色画像を一度「赤一色」と誤認したため、生成したヨット画像で追加確認し、船と海を正しく回答。小画像の誤認原因は特定していません。
+- task-loop-jevは意図的に失敗するbaselineから開始し、計画レビュー、同じworkerへの修正キュー、実装、5項目のテスト、コードレビューを完了。
+- Goのstdlib/agent組み込みも、NOEに別moduleの小さなHTTP常駐アプリを作らせて実providerと終了処理まで確認しました。
+
+全ファイルの実行経路とログは`/var/tmp/noe-examples-v2-glpym7ir/REPORT.md`と`results.json`、常駐アプリ監視は`/var/tmp/noe-resident-otwho36_/MONITOR_REPORT.md`へ保存しています。[v2リリース準備記録](../docs/releases/release-checkpoints.md#v200-preparation--2026-10-21)に総合検証をまとめています。
+
+## 以前の確認記録
+
 2026-10-19追記：第2グループAPIを含むソースからCLIを再ビルドし、[low-level](low-level/README.md)のindex-roundtrip（TCP/Unix）とwait-signal（SIGTERM）をLinux amd64で実行して成功しました。[実装・総合検証記録](../docs/development/low-level-group2-implementation.md)を参照してください。以下は既存例を整理した時点の記録です。
 
 2026-10-18、Linux amd64、NOE v1.6.1のソースとビルド済みCLIで確認しました。

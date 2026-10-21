@@ -4,8 +4,11 @@ The `/v2` `agent` package provides a Go `Host` and scoped `Client`. Agents run
 inside fresh in-process JavaScript executions; the embedding application does
 not need a separate NOE executable or the CLI. Import
 `forge.harakara.site/littleisland/noe/v2/agent`, `agent/model`, and
-`stdlib`. A v2 module tag has not been published; see the local module setup in
-the [agent example](../examples/agent-embedding/README.md).
+`stdlib`. The release target is v2.0.0. For an unpublished checkout, use the
+local module setup in the [agent example](../examples/agent-embedding/README.md).
+After publication, use
+`go get forge.harakara.site/littleisland/noe/v2/agent@v2.0.0` without a local
+replacement. See the [v2 migration guide](v2-migration.md) for breaking changes.
 
 The package requires Go 1.27.2 or later and is checked with go-quickjs
 v0.27.0. From the checkout root, run the deterministic example with:

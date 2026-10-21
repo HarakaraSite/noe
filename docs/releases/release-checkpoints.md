@@ -25,9 +25,9 @@ The `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`, `v1.3.1`, `v1.3.2`, `v1.3.3`, `v1.4.
 Run these commands from the repository root on VM201 (Linux amd64, Go 1.27.2, C toolchain), and record the code revision and results here before tagging:
 
 ```sh
-CGO_ENABLED=1 go test -race ./internal/... ./stdlib/... -count=1
+CGO_ENABLED=1 go test -race ./internal/... ./stdlib/... ./agent/... -count=1
 go test -tags=e2e ./... -count=1
-go test -tags=slow_integration ./internal/runtime -run '^TestAgentInternalRPCLongerThanFetchTimeout$' -count=1
+go test -tags=slow_integration ./agent -run '^TestGoClientLongModelAndToolWait$' -count=1
 go vet -tags=e2e ./...
 (
 for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
@@ -1057,3 +1057,118 @@ The workflow passed its CGO-free unit and vet gates, built all six profile targe
 The downloaded Linux amd64 binary reports `noe v1.16.0`. The local HTTP fixture confirmed that two queued tasks keep the same session ID and separate run IDs, metadata-only waits omit answers, retained answers can be fetched whole or in byte ranges, repeated waits preserve the initial result, and exactly two model requests occur. Automatic event saving, the absence of wait-specific events, synchronous command failure details, all six run_js recipes, bundled docs and arithmetic also passed. No external model-provider request was made.
 
 Build information matches the tagged revision with `vcs.modified=false` and go-quickjs v0.27.0. The verified published Linux amd64 binary was installed to repository-root `./noe` and `~/.local/bin/noe`; both match the downloaded bytes. Evidence and backup: `/var/tmp/noe-v1.16.0-release-20261021`. Other targets have compilation evidence only. This documentation-only follow-up does not move or replace the release tag.
+
+
+## v2.0.0 preparation — 2026-10-21
+
+At completion of local preparation, publication was pending. No v2.0.0 tag,
+push, Release upload, or installed-binary replacement was performed in that stage. The release target is the
+CLI and the first stable `forge.harakara.site/littleisland/noe/v2` module tag.
+See the [release notes](v2.0.0.md) and [migration guide](../v2-migration.md).
+
+Checked base revision: `fa43be492122e930e9299089f69f7513c3908031`, plus the
+local v2.0.0 version/test updates, release definitions and documentation, and
+the test-only native producer join described below. The default CLI version,
+unit and E2E expectations are v2.0.0. Engine and provider dependencies are unchanged.
+`/var/tmp/noe-v2-release-prep-w7neo8yb/inputs.json` records the exact tested code/profile hashes; the final
+changed-file manifest and patch are kept in the same evidence directory.
+
+The release profile and active reference commands now include public
+`stdlib/...` and `agent/...` in race checking and replace the removed long-RPC
+test with `TestGoClientLongModelAndToolWait` in `./agent`. Before correction,
+the stale command returned success with `[no tests to run]`; the corrected
+verbose gate actually executed all four model/tool wait and cancellation cases.
+The tag-triggered workflow's unit/vet/build/upload behavior remains unchanged,
+including all six targets and the v2 ldflags path.
+
+| Preparation check | Result |
+| --- | --- |
+| CGO-free full unit suite | PASS, 17.504s |
+| Race: internal, stdlib and public agent packages | PASS, 82.917s after the test-only correction below |
+| Full E2E with prepared MCP SDK bundle | PASS, 49.901s |
+| Sustained Go Client waits and cancellation | PASS, 30.669s; model/tool normal cases each waited 30s, both cancellation cases passed |
+| CGO-free vet with E2E tags | PASS, 0.366s |
+| Six profile targets, CGO-free link-free compilation | All PASS, 7.030s total |
+| External stdlib consumer | local replace and isolated module artifact build/run PASS; six consumer cross-builds PASS |
+| External model/auth/log/Go Host consumer | both portable and Go Host modes PASS with local replace and isolated module artifact |
+| Native release-flags build | Reports `noe v2.0.0`; arithmetic and lazy agent/model/log bindings PASS without provider calls |
+| Profile/workflow/docs | YAML parsed, current check names/paths and shell syntax verified; actionlint PASS excluding its unsupported Forgejo context; equivalent temporary GitHub-context copy also PASS; local links and diff checks PASS |
+
+The first full race attempt failed `TestNetStartSignalStopsOnlyPendingDial`
+with `closed connection retained active work: true`, without a DATA RACE warning.
+The test awaited Promise settlement and then immediately checked Runtime.Busy.
+As in previously corrected adjacent socket tests, AsyncWork.Complete can post
+its Promise callback before the producer's final Done. The test now uses the
+existing bounded `waitNetOperations` barrier before the same Busy assertion.
+Communication, late-abort, and retained-work assertions remain intact; no
+production networking code, skips, or expected values changed. The exact
+first-attempt scheduling cannot be established from its log alone. Thirty
+focused race repetitions passed, followed by the complete final gates above.
+`attempt1-race.log`, `attempt1-results.json` and `nativeio-focused-race.log`
+retain the failure and follow-up. This does not claim to eliminate every
+previously recorded intermittent socket assertion.
+
+Earlier live validation on the checked base, whose functional implementation
+is unchanged by this preparation:
+
+- All 41 JS/MJS example files were exercised through 40 execution checks,
+  9 HTTP server fixture tests and one real Firefox check. OpenRouter,
+  OpenCode Go, ChatGPT, image generation/reading, Exa and task-loop reviews
+  used actual services. Full file mapping and results:
+  `/var/tmp/noe-examples-v2-glpym7ir/REPORT.md` and `results.json`.
+- A single NOE builder agent created a separate-module Go HTTP daemon using
+  stdlib, model.Service and Host/Client directly, without a NOE executable
+  dependency. Build, three Go tests, repeated real-agent calculations,
+  health under load, deadlines/disconnect recovery and live-tool shutdown
+  passed. SIGINT joined agent/tool plus eval in 0.032s; the observer's
+  SIGTERM check exited normally in 0.153s. Evidence:
+  `/var/tmp/noe-resident-otwho36_/MONITOR_REPORT.md` and app logs.
+- The supplemental daemon test initially assumed live stdout notification.
+  Its failed evidence was retained and its marker-based retry passed.
+  A separate local-provider comparison of old 1.16.0 and v2 showed both
+  deliver captured stdout after the tool ends; this was not a v2 regression.
+- A 64x64 quadrant image was once described incorrectly by the model; a
+  generated sailboat image was described correctly on follow-up. The small
+  image misrecognition cause is unconfirmed and no image transport regression
+  was established. Long-term continuous operation was not tested.
+
+Environment: Linux amd64, Go 1.27.2; C toolchain for race. Other platforms have
+compilation evidence only. New preparation gates use fixtures and make no real
+provider calls. The MCP bundle is the existing offline SDK 1.32.1/esbuild 0.25.12
+artifact. A short TMPDIR/GOTMPDIR avoids Unix pathname limits. Detailed logs,
+commands, results, native binary and independent consumer artifacts:
+`/var/tmp/noe-v2-release-prep-w7neo8yb`. The consumer's v2.0.0-dev.0 is a local artifact-test version;
+it is not a downloaded published release.
+
+Before tagging, commit the prepared changes and identify that commit in the
+publication record. At authorized publication, update the preparation labels
+in the READMEs/release index/notes, create and push the v2.0.0 tag, then verify
+the workflow, Release body and all downloaded assets/checksums. Also create a
+clean module outside this checkout and fetch/build/run the published
+`forge.harakara.site/littleisland/noe/v2/stdlib@v2.0.0` and agent example without
+local replace or the synthetic proxy. Record selected module/engine versions;
+only that post-publication check establishes real module availability.
+
+
+## v2.0.0 publication authorization and focused test review — 2026-10-21
+
+The user explicitly authorized release of v2.0.0 after reviewing preparation
+and requesting an independent critical examination of test integrity. The
+review found no mandatory finding or release blocker in its focused scope.
+It confirmed that the native producer wait does not close/cancel resources,
+that real OS process cleanup tests remain despite removal of obsolete
+per-VM PID checks, and that cancellation/queue/result/control assertions have
+replacement coverage through public Go or actual CLI execution.
+
+Two temporary overlays deliberately broke socket keepalive release and
+changed task cancellation into instance-wide cancellation. Existing tests
+failed on Busy=true and the incorrectly cancelled remaining queue,
+respectively. An independent focused race run passed 30 repetitions. This
+was a focused review of changed/deleted tests and major replacements, not an
+exhaustive one-to-one audit of every test. No source changed during review;
+524 source hashes were preserved. Report and copied negative-control logs:
+`/var/tmp/noe-v2-release-prep-w7neo8yb/test-integrity-review/`.
+
+The tag includes the already tested preparation and documentation finalization.
+Publication, workflow execution, actual module download and downloaded-binary
+verification are recorded separately below after they complete.

@@ -19,12 +19,12 @@ Provider stream/error classification tests use one generation attempt; retry
 backoff and attempt isolation are covered separately with virtual time, with one
 CLI retry workflow retained as integration coverage.
 
-Long-running RPC behavior is separate from the normal suite and remains a
-pre-release reference check:
+Sustained model/tool waits and cancellation through the public Go Client are
+separate from the normal suite and remain a pre-release reference check:
 
 ```sh
-go test -tags=slow_integration ./internal/runtime \
-  -run '^TestAgentInternalRPCLongerThanFetchTimeout$' -count=1
+go test -tags=slow_integration ./agent \
+  -run '^TestGoClientLongModelAndToolWait$' -count=1
 ```
 
 Process startup and resident-memory measurements are benchmarks rather than

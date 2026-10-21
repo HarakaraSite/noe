@@ -16,6 +16,8 @@ To use a separate module before publication, copy `main.go` and
 set its replacement to the absolute checkout path. Then run
 `GOWORK=off go mod tidy` and `GOWORK=off CGO_ENABLED=0 go run .`.
 `v2.0.0-dev.0` is a local-development placeholder, not a published tag.
+After v2.0.0 is published, remove the replacement and require that stable tag
+instead; see the [v2 migration guide](../../docs/v2-migration.md).
 
 The [Go embedding guide](../../docs/go-embedding.md) covers capability
 selection, file loading, cancellation, ownership, and the advanced `Attach`

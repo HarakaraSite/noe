@@ -370,6 +370,8 @@ console.log(server.url);
 
 ## 旧APIからの移行
 
+v1.16.0からv2.0.0へのGo組み込み・停止・ログ観察の変更は、[v2移行ガイド](v2-migration.md)を参照してください。以下は、さらに以前の`createAgent`や`noe.*`を使うスクリプト向けの移行です。
+
 以前のNOE固有APIは提供しません。`createAgent()`・`agent.run()`にも互換aliasはありません。旧agent APIでは`maxSteps`と`cacheKey`を`run()`側へ渡していましたが、新APIでは`config`へまとめます。`run_agent()`は文字列ではなくsnapshotを返すため、回答は`lastResult.answer`から取得してください。
 
 ```js
