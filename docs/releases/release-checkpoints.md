@@ -1220,3 +1220,42 @@ Evidence, downloaded assets, source/version checks, smoke logs and backups:
 native macOS/Windows/arm64 execution and long-term continuous operation were
 not tested. This documentation-only follow-up does not move or replace the
 v2.0.0 release tag.
+
+
+## v2.0.1 preparation — 2026-10-21
+
+Checked source revision: `37b55fd38ce2d89ab20116a4751c72db7c4d6510` in a clean detached
+worktree. The release tag adds this documentation-only evidence record without
+changing the tested application or test source. The unrelated active agent
+JSONL under `.noe/events/` is excluded.
+
+This patch displays human CLI queue/steer instructions in observation output
+and adds the resident Go stdlib HTTP host example. CLI/JS/Go call signatures
+and return values, the Go toolchain requirement, engine and provider dependencies
+are unchanged. Accepted command events now include instruction text; subsequent
+states omit it. See the [release notes](v2.0.1.md).
+
+| Pre-tag check | Result |
+| --- | --- |
+| Full race: internal, stdlib and public agent packages | PASS, 89.389s |
+| CGO-free full unit/E2E suite (`go test -tags=e2e ./... -count=1`) | PASS, 49.882s |
+| Sustained Go Client model/tool waits and cancellation | PASS, 30.758s; all four cases actually executed |
+| CGO-free vet including E2E tags | PASS, 1.090s |
+| All six profile targets, CGO-free link-free compilation | PASS, 13.864s; no local distribution builds |
+| Native release-flags binary | Reports `noe v2.0.1`; arithmetic succeeds, clean build metadata matches the checked commit |
+| Focused implementation checks | CLI queue/steer text appears while the provider is blocked; plain multiline text, ID-only later states, hidden initial queue and live/saved equivalence PASS |
+| Resident Go host | Request/VM isolation, deadlines, cancellation and shutdown cleanup tests PASS; built-binary HTTP/SIGTERM smoke, copy-out module build and systemd unit syntax checks PASS |
+| Independent implementation review | No concrete findings in the observe change; the embedding example's null-element input issue was corrected and re-reviewed before its commit |
+
+The full release gates above passed on their first attempt. Focused change
+checks also passed before release preparation, including targeted race and vet.
+The systemd example was syntax-checked, not installed as a user service.
+Long-term continuous operation and native execution on non-Linux-amd64 targets
+were not tested. No external model-provider calls were made for this patch's
+implementation or release checks.
+
+Environment: Linux amd64, Go 1.27.2, C toolchain for race. Short TMPDIR/GOTMPDIR
+paths avoid Unix-socket pathname limits. Commands, per-gate logs, timings,
+clean source worktree and the native binary are retained at
+`/var/tmp/noe-v2.0.1-release-0lJV8Q`. Publication, published-module retrieval and downloaded
+asset verification are recorded separately after tagging.
