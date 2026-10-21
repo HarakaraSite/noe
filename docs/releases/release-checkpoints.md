@@ -1259,3 +1259,44 @@ paths avoid Unix-socket pathname limits. Commands, per-gate logs, timings,
 clean source worktree and the native binary are retained at
 `/var/tmp/noe-v2.0.1-release-0lJV8Q`. Publication, published-module retrieval and downloaded
 asset verification are recorded separately after tagging.
+
+
+## v2.0.1 Release validation — 2026-10-21
+
+- Annotated tag: `v2.0.1`, pointing to `e18524cb10582191b19e410b3aea2fbfbc2a001e`. The peeled remote tag matches the successful workflow commit; its only change from the checked source is the preparation evidence record.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/28): succeeded (API run ID 209, job ID 230).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.0.1): published, neither draft nor prerelease (Release ID 142). Its body matches the committed [English notes](v2.0.1.md).
+
+The workflow passed its CGO-free unit-test and vet gates, built all six profile
+targets, and uploaded the binaries plus SHA256SUMS. All seven assets were
+downloaded; every binary hash matched the published checksum file.
+
+The downloaded Linux amd64 binary reports `noe v2.0.1`. Build information
+matches the tagged revision with `vcs.modified=false`, `CGO_ENABLED=0` and
+go-quickjs v0.27.0. The actual human-control CLI E2E test also passed against
+the downloaded binary: a TestMain-only temporary overlay selected that binary
+instead of rebuilding the CLI, while preserving the tagged test's assertions.
+It verified live queue/steer instruction visibility while the provider was
+blocked, literal multiline text, ID-only later states, hidden initial queue,
+live/saved-log equivalence, conversation continuity, interruption and cleanup.
+
+The native fixture smoke also passed stable queue sessions, separate run IDs,
+metadata-only waits, retained/ranged results, synchronous command failure
+details, bundled docs, six run_js recipes and arithmetic. No real model-provider
+requests were made.
+
+Two clean modules outside the checkout fetched the actual published
+`stdlib@v2.0.1` and `agent@v2.0.1`, without local replacement or a synthetic
+proxy. Both examples built and ran, and `go mod verify` passed. Selected versions
+are `forge.harakara.site/littleisland/noe/v2 v2.0.1` and
+`github.com/go-quickjs/go-quickjs v0.27.0`. The deterministic agent returned
+`The total is 31.`.
+
+The verified downloaded Linux amd64 binary was atomically installed to
+repository-root `./noe` and `~/.local/bin/noe` after backing up both previous
+executables. Both installations match the asset bytes and report v2.0.1.
+Evidence, all downloaded assets, build information, smoke/overlay logs,
+published-module consumers and backups: `/var/tmp/noe-v2.0.1-release-0lJV8Q`.
+Native execution on macOS, Windows and arm64, actual systemd user-service
+installation, and long-term continuous operation remain unverified. This
+documentation-only follow-up does not move or replace the release tag.
