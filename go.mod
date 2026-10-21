@@ -4,7 +4,7 @@ go 1.27.2
 
 require (
 	github.com/OpenRouterTeam/go-sdk v0.9.61
-	github.com/go-quickjs/go-quickjs v0.27.0
+	github.com/go-quickjs/go-quickjs v0.28.0
 	github.com/openai/openai-go/v3 v3.79.0
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0

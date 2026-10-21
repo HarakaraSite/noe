@@ -4,7 +4,7 @@
 
 バイナリと同じ版の英文API契約は`noe docs [topic [member]]`で参照できます。JS・Worker・agentの`run_js`でも`noe:docs`から同じ本文を取得します（[内蔵docsの使い方](reference.md)）。このガイドはCLI・設定・APIの利用手順を説明します。
 
-NOEは固定したgo-quickjs v0.27.0をJavaScriptエンジンに使い、同版のstdlibを原型とするNOE管理の標準ライブラリを有効にします。Web APIとNode形式APIを利用できます。各APIはNOEが管理する実装に従い、Node.js全体との互換性を保証するものではありません。
+NOEは固定したgo-quickjs v0.28.0をJavaScriptエンジンに使い、go-quickjs v0.27.0のstdlibを原型とするNOE管理の標準ライブラリを有効にします。通常ビルドでは実験的JITを有効にしません。Web APIとNode形式APIを利用できます。各APIはNOEが管理する実装に従い、Node.js全体との互換性を保証するものではありません。
 
 JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`docs`・`--timeout`と、組み込みES moduleの`noe:agent`・`noe:model`・`noe:agent-log`・`noe:decision`・`noe:image`・`noe:auth`があります。NOE既定Profileではagent・model・log・decision・image・authモジュールをWorkersへ導入しません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:http`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
 

@@ -70,3 +70,28 @@ raceと6対象ビルドは、同じ実装ソース・同じ依存構成で行っ
 ```text
 /home/agent/.cache/noe-qjs-repl/noe-dependency-update-cyv6hdvn/
 ```
+
+## go-quickjs v0.28.0への更新 — 2026-10-21
+
+engineをv0.27.0からv0.28.0へ更新する。Go 1.27.2、go-intl v0.6.1、provider
+SDKと他の依存は維持する。JITのビルドタグとruntimeオプションは追加しない。
+NOE管理stdlibはv0.27.0原型のままで、取り込み直しや原型の由来情報の変更は行わない。
+公開CLI/Go/JS APIの変更とNOE実装の互換性修正は不要だった。
+
+上流の公開production Go 14ファイル、go.mod、stdlib production Goは両版で同一。
+内部のBigInt/object最適化とprimitive deleteの仕様適合修正について、既存テストと
+NOE経由のsmokeで確認する。NOE用途の性能改善は測定・主張していない。
+consumerのv0.27.0要求は維持し、MVSがv0.28.0を選ぶことを確認する。
+
+計画の通常・批判的レビュー、コードレビューと検証結果は
+[取り込み計画・実施記録](go-quickjs-v0.28.0-plan.md)に記録する。
+関連テスト、BigInt/object/Worker smoke、stdlib/agent両方の外部consumerがPASS。
+通常・批判的コードレビュー後の全体unit/E2E・race・長時間Go Client・vet・6対象compile・
+最終CLI smokeもPASS。native実行確認はLinux amd64のみで、公開・配置は行っていない。
+
+初回の総合raceで、既存の外部コマンドowner-deathテストがプロセス消失時のESRCHを
+失敗扱いにしていた。旧engineでも自然再現することを確認し、停止後pollだけを
+同repositoryの既存判定に揃えた。修正後の反復・制御試験と通常/批判的再レビューで、
+生存・権限・停止前の異常を引き続き検出することを確認してから総合テストを再実行した。
+最終変更は依存・説明/記録と、この既存テストの最小修正のみ。
+初回の失敗も含む作業ログ・結果は`/var/tmp/noe-q280-XrXP1S`に保存している。

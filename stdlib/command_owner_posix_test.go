@@ -4,12 +4,14 @@ package stdlib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -66,7 +68,8 @@ func checkCommandOwnerDeath(t *testing.T, ctx context.Context, consumer, helper 
 	for _, pid := range pids {
 		for {
 			data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
-			if os.IsNotExist(err) {
+			// The process may be reaped after procfs lookup but before the read.
+			if os.IsNotExist(err) || errors.Is(err, syscall.ESRCH) {
 				break
 			}
 			if err != nil {

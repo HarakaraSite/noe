@@ -50,6 +50,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | agentへ渡す組込みの説明 | [instructions.md](../../internal/agent/instructions.md) |
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
+| go-quickjs v0.28.0の取り込み | [計画・レビュー・検証記録](go-quickjs-v0.28.0-plan.md) |
 | 配布対象・品質確認・公開手順 | [リリースチェックポイント](../releases/release-checkpoints.md) |
 
 組込みinstructionはGoのembedでバイナリへ含めるため、変更の反映には再ビルドします。公開`noe:agent`は起動・観察・操作を提供し、モデルのtask loopはprivate moduleで実行します。
@@ -120,6 +121,6 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補と完了区分は[次の機能候補](../future-candidates.md)を更新します。
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs)、汎用JavaScript APIには同版のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleに実装済みですが、v2タグは未公開です。外部moduleで試す場合は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドに従ってローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs) v0.28.0、汎用JavaScript APIにはv0.27.0のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleに実装済みですが、v2タグは未公開です。外部moduleで試す場合は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドに従ってローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
 
 `_refs/`はローカル専用の未追跡の参考資料で、ビルド・テスト依存に含めません。リリースの配布対象・品質確認は[プロファイル](../../.forgejo/release-profile.yml)と[ワークフロー](../../.forgejo/workflows/release.yml)に定義されています。

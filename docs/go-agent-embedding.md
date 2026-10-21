@@ -10,8 +10,9 @@ After publication, use
 `go get forge.harakara.site/littleisland/noe/v2/agent@v2.0.0` without a local
 replacement. See the [v2 migration guide](v2-migration.md) for breaking changes.
 
-The package requires Go 1.27.2 or later and is checked with go-quickjs
-v0.27.0. From the checkout root, run the deterministic example with:
+The package requires Go 1.27.2 or later. The current checkout is checked with
+go-quickjs v0.28.0; published NOE tags retain the engine dependency recorded in
+their own `go.mod`. From the checkout root, run the deterministic example with:
 
 ```sh
 CGO_ENABLED=0 go run ./examples/agent-embedding
