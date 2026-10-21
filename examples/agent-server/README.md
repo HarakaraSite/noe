@@ -100,10 +100,12 @@ curl -fsS "$BASE/tasks/$TASK_ID" | python3 -c \
 実行中の依頼を停止する場合は次のとおりです。
 
 ```sh
-# runId は診断・対応関係の確認用。HTTP のパスは引き続き task ID を使う
-RUN_ID=$(curl -fsS "$BASE/tasks/$TASK_ID" | python3 -c \
-  'import sys,json; print(json.load(sys.stdin).get("runId") or "")')
-printf 'runId=%s\n' "$RUN_ID"
+# task ID はこの例の依頼、agentId + commandId は NOE の取消し対象
+AGENT_ID=$(curl -fsS "$BASE/tasks" | python3 -c \
+  'import sys,json; print(json.load(sys.stdin)["agent"]["agentId"])')
+COMMAND_ID=$(curl -fsS "$BASE/tasks/$TASK_ID" | python3 -c \
+  'import sys,json; print(json.load(sys.stdin).get("commandId") or "")')
+printf 'agentId=%s commandId=%s\n' "$AGENT_ID" "$COMMAND_ID"
 curl -i -X POST "$BASE/tasks/$TASK_ID/interrupt"
 curl -sS "$BASE/tasks/$TASK_ID"
 
@@ -115,7 +117,7 @@ curl -i -H 'Content-Type: application/json' \
 curl -i -X POST "$BASE/shutdown"
 ```
 
-サーバーは取得した runId に対して `interrupt_agent({runId})` を呼び、agent instance 自体や他の予約は残します。CLI の対応操作は `./noe interrupt --run <run-id>` ですが、通常はこの例では実行せず HTTP を使ってください。**管理対象 agent を外部の CLI から queue / interrupt して同時操作しないでください**。サーバーの順序制御・結果保存と競合します。
+サーバーは実行中の依頼を `cancel_task({agentId, commandId})` で取り消します。agent instance と他の予約は残ります。キュー待ちの依頼はまだNOEへ渡していないため、サーバー内で取り消します。CLI の対応操作は `./noe interrupt --run <run-id>` ですが、通常はこの例では実行せず HTTP を使ってください。**管理対象 agent を外部の CLI から queue / interrupt して同時操作しないでください**。サーバーの順序制御・結果保存と競合します。
 
 起動した端末の Ctrl+C（SIGINT）でも NOE の通常の所有リソース回収で終了します。`/shutdown` は HTTP ハンドラ内で終了を待たず、応答後に別途停止処理をスケジュールする経路です。
 

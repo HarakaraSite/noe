@@ -11,7 +11,7 @@ import (
 )
 
 func TestRejectedFinalCandidateIsStoredBeforeRunInterrupt(t *testing.T) {
-	h := NewHost(Options{Provider: &fixtureProvider{}})
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{})})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
@@ -43,8 +43,8 @@ func TestRejectedFinalCandidateIsStoredBeforeRunInterrupt(t *testing.T) {
 	}
 
 	// Interrupt immediately after the rejected gate, before applying the steer.
-	var interrupted interruptResponse
-	if err := json.Unmarshal([]byte(controlCall(t, op, "interrupt_agent", interruptRequest{RunID: run.id})), &interrupted); err != nil {
+	var interrupted StopAgentResponse
+	if err := json.Unmarshal([]byte(controlCall(t, op, "stop_agent", StopAgentRequest{AgentID: instance.id})), &interrupted); err != nil {
 		t.Fatal(err)
 	}
 	if interrupted.Status != "accepted" {
@@ -65,9 +65,9 @@ func TestRejectedFinalCandidateIsStoredBeforeRunInterrupt(t *testing.T) {
 }
 
 func TestConsumedTrimNoticeDoesNotReplayAcrossQueueRuns(t *testing.T) {
-	h := NewHost(Options{Provider: &fixtureProvider{gen: func(context.Context, provider.Request) (provider.Response, error) {
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{gen: func(context.Context, provider.Request) (provider.Response, error) {
 		return provider.Response{Message: json.RawMessage(`{"role":"assistant","content":"ok"}`), FinishReason: "stop"}, nil
-	}}})
+	}})})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
@@ -123,10 +123,11 @@ func newConversationTestRun(t *testing.T, h *Host, op *Operation) (*agentInstanc
 	instanceContext, cancelInstance := context.WithCancel(context.Background())
 	t.Cleanup(cancelInstance)
 	instance := &agentInstance{
-		host: h, id: "conversation-agent", config: taskConfig{Config: Config{Provider: "openrouter", Model: "fixture/model", Name: "managed"}},
-		keepAlive: true, state: "running", ctx: instanceContext,
+		host: h, owner: op, id: "conversation-agent", config: taskConfig{Config: Config{Provider: "openrouter", Model: "fixture/model", Name: "managed"}},
+		keepAlive: true, state: "running", ctx: instanceContext, cancel: cancelInstance, done: make(chan struct{}),
 		runInterruptAccepted: make(map[string]chan struct{}), commands: make(map[string]*command),
 	}
+	close(instance.done)
 	initial, err := initialConversation("fixed system", "original instruction")
 	if err != nil {
 		t.Fatal(err)
@@ -143,6 +144,7 @@ func newConversationTestRun(t *testing.T, h *Host, op *Operation) (*agentInstanc
 	op.task = &managedTask{instance: instance, command: &command{id: "conversation-command", instruction: "original instruction"}, run: run}
 	h.mu.Lock()
 	h.runs[run.id] = run
+	h.instances[instance.id] = instance
 	h.mu.Unlock()
 	return instance, run, cancelRun
 }

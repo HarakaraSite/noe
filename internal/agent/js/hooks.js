@@ -1,4 +1,4 @@
-import { beginHookScope, endHookScope, requestHook, observeHook } from "noe:agent/internal";
+import { beginHookScope, endHookScope, requestHook, resolveHookModule } from "noe:agent/internal";
 import { createAgentAPI } from "noe:agent/api";
 
 function requireScope(value) {
@@ -25,11 +25,7 @@ export async function withHookAPI(callback, metadata = {}) {
     if (!active) return Promise.reject(new Error("hook API scope has ended"));
     return requestHook(scopeId, method, payload);
   };
-  const observe = (payload) => {
-    if (!active) return Promise.reject(new Error("hook API scope has ended"));
-    return observeHook(scopeId, payload);
-  };
-  const agents = createAgentAPI({ request, defaults: () => JSON.stringify(scope.defaults), observe });
+  const agents = createAgentAPI({ request, defaults: () => JSON.stringify(scope.defaults) });
   const event = scope.event || {};
   const api = Object.freeze({
     agents,
@@ -104,9 +100,10 @@ function copyJSON(value) {
 export async function loadHookModules(specifiers) {
   const loaded = [];
   for (let index = 0; index < specifiers.length; index++) {
-    const module = specifiers[index];
+    let module = specifiers[index];
     let handlers;
     try {
+      module = resolveHookModule(module, index);
       handlers = await import(module);
       for (const phase of phases) {
         if (handlers[phase] !== undefined && typeof handlers[phase] !== "function") {

@@ -92,21 +92,30 @@
     }
     if (options.cwd !== undefined && (typeof options.cwd !== "string" || options.cwd.includes("\0")))
       throw new TypeError("cwd must be a string without NUL");
-    const env = { ...process.env };
+    const legacyEnvironment = host.legacyProcessEnv && typeof process !== "undefined" && process.env;
+    // Legacy installs preserve Node's overlay semantics. An explicit Profile
+    // environment is supplied by Go and stays replacement-only.
+    let env = legacyEnvironment ? { ...process.env } : undefined;
     if (options.env !== undefined) {
       if (options.env === null || typeof options.env !== "object" || Array.isArray(options.env))
         throw new TypeError("env must be an object");
+      if (env === undefined) env = {};
       for (const [key, value] of Object.entries(options.env)) {
         if (!key || key.includes("=") || key.includes("\0") || (value !== null && (typeof value !== "string" || value.includes("\0"))))
           throw new TypeError("env entries must have valid names and string or null values");
-        // Windows environment names are case insensitive.
-        if (process.platform === "win32") {
+        // Preserve the legacy Windows case-insensitive overlay. Profile maps
+        // are normalized by the shared Go resolver instead.
+        if (legacyEnvironment && process.platform === "win32") {
           for (const existing of Object.keys(env)) if (existing.toLowerCase() === key.toLowerCase()) delete env[existing];
         }
         if (value === null) delete env[key]; else env[key] = value;
       }
     }
-    const child = await host.spawn(JSON.stringify({ command, args, cwd: options.cwd === undefined ? process.cwd() : options.cwd, env, ...modes }));
+    const payload = { command, args, ...modes };
+    if (options.cwd !== undefined) payload.cwd = options.cwd;
+    else if (host.legacyProcessEnv && typeof process !== "undefined" && typeof process.cwd === "function") payload.cwd = process.cwd();
+    if (env !== undefined) payload.env = env;
+    const child = await host.spawn(JSON.stringify(payload));
     child.exited.catch(noop);
     return {
       pid: child.pid,

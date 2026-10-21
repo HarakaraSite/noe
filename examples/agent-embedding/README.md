@@ -1,27 +1,31 @@
-# Embed an agent in Go
+# Embed a managed agent in Go
 
-This example installs the public `agent` package on a caller-owned runtime.
-A deterministic Go provider requests a real `run_js` tool execution in a
-separate NOE process, checks the result, and returns an English answer.
-It requires no provider credentials or remote services.
+This example constructs a model service, creates an `agent.Host` with a generic
+runtime profile, and runs one task through a Go `Client`. Its local provider
+returns a deterministic answer; no NOE executable, credentials, or remote
+service is required.
 
-From the checkout, using Go 1.27.2 or later:
+From the repository root, with Go 1.27.2 or later:
 
 ```sh
-CGO_ENABLED=0 go build -o /tmp/noe-agent-embedding ./cmd/noe
-CGO_ENABLED=0 go run ./examples/agent-embedding -noe /tmp/noe-agent-embedding
+CGO_ENABLED=0 go run ./examples/agent-embedding
 # The total is 31.
 ```
 
 For a separate module, copy `main.go` and `go.mod.template` outside the
-checkout. Rename the template to `go.mod`, set its replacement to your absolute
-NOE checkout path, and run `GOWORK=off go mod tidy`, followed by
-`GOWORK=off CGO_ENABLED=0 go run . -noe /absolute/path/to/noe`.
-The module's placeholder version is for local development, not a published tag.
+checkout. Rename the template to `go.mod`, set its replacement to the absolute
+checkout path, and run `GOWORK=off go mod tidy` followed by
+`GOWORK=off CGO_ENABLED=0 go run .`. The module version in the template is a
+local-development placeholder; a v2 tag has not been published.
 
-The example uses `Loop.RunUntil` to wait for the root result, then closes the
-agent binding. Task completion can leave a managed agent idle, so `Loop.Run`
-does not necessarily finish when `run_agent` returns.
+`Client.Run` waits for the managed instance to finish. For a keep-alive
+instance, use `Spawn`, retain both the returned `agentId` and `commandId`, then
+call `WaitTask`; `Client.Close` cancels and joins work owned by that client.
 
-See the [agent embedding guide](../../docs/go-agent-embedding.md) for real
-providers, credentials, module loading, callbacks, and lifecycle contracts.
+To expose the same host to JavaScript, create a profile initializer that calls
+`agent.Attach(ctx, bindings, host)` and returns `binding.Close` as its cleanup.
+The attached binding owns a new client, while the Host, runtime, and loop stay
+borrowed. The [agent embedding guide](../../docs/go-agent-embedding.md) covers
+model, auth, and log services, loader setup, Host administration, and
+cancellation. The [generic embedding guide](../../docs/go-embedding.md)
+describes the runtime profile and capability model.

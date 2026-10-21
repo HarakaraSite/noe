@@ -14,6 +14,7 @@ import (
 
 	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/noeprofile"
 )
 
 func writeAgentInstructionFixture(t *testing.T, path, text string) {
@@ -97,10 +98,10 @@ console.log(result.lastResult.answer);`, filepath.Join(cwd, "first.md"), filepat
 		"child":  {"GLOBAL_VERSION_ONE", "WORKSPACE_VERSION_ONE", "CHILD_EXPLICIT"},
 	} {
 		text := seen[task][0]
-		if !strings.HasPrefix(text, agent.Instructions()) {
+		if !strings.HasPrefix(text, (agent.Facts() + "\n\n" + noeprofile.Policy())) {
 			t.Fatalf("%s lost built-in instructions", task)
 		}
-		position := len(agent.Instructions())
+		position := len((agent.Facts() + "\n\n" + noeprofile.Policy()))
 		for _, marker := range markers {
 			next := strings.Index(text, marker)
 			if next < position || strings.Count(text, marker) != 1 {
@@ -143,10 +144,11 @@ func TestAgentInstructionsLazyIdleFailureAndFrozenQueue(t *testing.T) {
 		mu.Unlock()
 		return agentAnswer("done"), nil
 	})
-	source := fmt.Sprintf(`import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := fmt.Sprintf(`import {spawn_agent,queue_agent,observe_agent,stop_agent} from "noe:agent";
 import {unlink,mkdir,writeFile} from "node:fs/promises";
 const dir=%q;
-const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",system:"QUEUE_EXPLICIT"},undefined,{keepAlive:true});
+const config={provider:"openrouter",model:"fixture/model",effort:"auto",system:"QUEUE_EXPLICIT"};
+let {agentId}=await spawn_agent(config,undefined,{keepAlive:true});
 async function task(instruction) {
  await queue_agent({agentId,instruction,commandId:instruction});
  while(true) {
@@ -161,10 +163,13 @@ if(failed.state!=="failed" || !failed.runId || !failed.error.includes("instructi
 await unlink(dir);
 await mkdir(dir);
 await writeFile(dir+"/project.md","QUEUED_VERSION_ONE");
+if((await task("still-bad")).state!=="failed")throw Error("cached source error lost");
+await stop_agent({agentId});
+({agentId}=await spawn_agent(config,undefined,{keepAlive:true}));
 if((await task("first-good")).state!=="completed") throw Error("first repaired task failed");
 await writeFile(dir+"/project.md","QUEUED_VERSION_TWO");
 if((await task("second-good")).state!=="completed") throw Error("next task failed");
-await interrupt_agent({agentId});
+await stop_agent({agentId});
 console.log("queue snapshots verified");`, bad)
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()

@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 // No protocol helper is installed in Go: the same public modules implement
@@ -21,7 +19,7 @@ func lowLevelRoundTrip(network string) string {
 const {listen,connect}=await import("noe:sockets");
 const {readFileSync}=await import("node:fs");
 const network=` + strconv.Quote(network) + `;
-const options=network==="tcp"?{network,host:"127.0.0.1",port:0}:{network,path:"./roundtrip.sock"};
+const options=network==="tcp"?{network,host:"127.0.0.1",port:0}:{network,path:"./s.sock"};
 const file=await open("index.bin",{mode:"r+"});
 const listener=await listen(options);
 async function allBytes(readable){return new Uint8Array(await new Response(readable).arrayBuffer())}
@@ -75,7 +73,7 @@ func TestLowLevelPublicModulesAcrossExecutionModes(t *testing.T) {
 		if network == "unix" && runtime.GOOS == "windows" {
 			continue // AF_UNIX availability depends on the Windows host version.
 		}
-		for _, mode := range []string{"run", "eval", "worker", "run_js", "events", "observe"} {
+		for _, mode := range []string{"run", "eval", "worker", "events", "observe"} {
 			t.Run(network+"/"+mode, func(t *testing.T) {
 				work, source := lowLevelFixture(t), lowLevelRoundTrip(network)
 				var got cliResult
@@ -101,16 +99,13 @@ func TestLowLevelPublicModulesAcrossExecutionModes(t *testing.T) {
 					writeFixture(t, filepath.Join(work, "worker.js"), source)
 					got = runCLI(t, work, nil, "eval", `import {Worker} from "node:worker_threads";
 const w=new Worker("./worker.js");await new Promise((resolve,reject)=>{w.on("error",reject);w.on("exit",code=>code?reject(Error("worker exit "+code)):resolve())});`)
-				case "run_js":
-					result := runAgentJS(t, agent.Runner{Executable: cliPath, Cwd: work}, "// Exercise public low-level APIs.\n"+source)
-					got = cliResult{stdout: result.Stdout, stderr: result.Stderr, exitCode: result.ExitCode}
 				}
 				requireExit(t, got, 0)
 				if got.stderr != "" || (mode != "observe" && mode != "events" && !strings.Contains(got.stdout, "low-level roundtrip passed")) {
 					t.Fatalf("roundtrip: %+v", got)
 				}
 				if network == "unix" {
-					if _, err := os.Lstat(filepath.Join(work, "roundtrip.sock")); !os.IsNotExist(err) {
+					if _, err := os.Lstat(filepath.Join(work, "s.sock")); !os.IsNotExist(err) {
 						t.Fatalf("owned Unix pathname remains: %v", err)
 					}
 				}

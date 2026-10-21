@@ -5,6 +5,8 @@ package agent
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -41,8 +43,17 @@ func TestAgentCacheProbeLive(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	p := provider.NewRegistry(provider.Options{HTTPClient: client})
-	system, _ := json.Marshal(map[string]string{"role": "system", "content": Instructions()})
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := provider.NewExplicitRegistry(provider.Options{
+		BaseDir: root, ConfigDir: filepath.Join(configDir, "noe"), HTTPClient: client,
+		Env: map[string]string{
+			"NOE_OPENAI_CHATGPT_CREDENTIALS_FILE": os.Getenv("NOE_OPENAI_CHATGPT_CREDENTIALS_FILE"),
+		},
+	})
+	system, _ := json.Marshal(map[string]string{"role": "system", "content": Facts()})
 	user := json.RawMessage(`{"role":"user","content":"Reply with exactly OK. No tools or other work are needed."}`)
 	key := fmt.Sprintf("noe-efficiency-probe-%d", time.Now().UnixNano())
 	request := provider.Request{Provider: "openai-chatgpt", RunID: key, SessionID: key, CacheKey: key, Model: "gpt-6.1-sol", Effort: "high", MaxTokens: 1024, Messages: []json.RawMessage{system, user}}
@@ -66,7 +77,7 @@ func TestAgentCacheProbeLive(t *testing.T) {
 			t.Fatalf("probe %d session_id header = %q, want %q", index+1, record.SessionHeader, key)
 		}
 		record.ParsedUsage = response.Usage
-		if efficiencyHash(record.RawUsage) != efficiencyHash(response.Usage) {
+		if cacheProbeHash(record.RawUsage) != cacheProbeHash(response.Usage) {
 			t.Fatal("adapter usage differs from the raw response usage")
 		}
 		var usage struct {
@@ -120,7 +131,7 @@ func (c *cacheProbeClient) Do(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	record := &cacheProbeRecord{
-		InputHash: efficiencyHash(request.Input), SessionHeader: req.Header.Get("session_id"),
+		InputHash: cacheProbeHash(request.Input), SessionHeader: req.Header.Get("session_id"),
 		Model: request.Model, CacheKey: request.PromptCacheKey,
 	}
 	req.Body = io.NopCloser(bytes.NewReader(body))
@@ -163,4 +174,13 @@ func (b *cacheProbeBody) Read(out []byte) (int, error) {
 		}
 	}
 	return n, err
+}
+
+// Compare canonical JSON without retaining or logging prompt or credential data.
+func cacheProbeHash(value json.RawMessage) string {
+	var decoded any
+	_ = json.Unmarshal(value, &decoded)
+	canonical, _ := json.Marshal(decoded)
+	hash := sha256.Sum256(canonical)
+	return hex.EncodeToString(hash[:])
 }

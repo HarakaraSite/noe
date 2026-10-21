@@ -15,7 +15,7 @@ func TestImageObservationPreservesParentIdentityAndPhase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, kind := range []string{"image.read", "image.started", "image.completed", "image.failed", "image.cancelled"} {
+	for i, kind := range []string{"image.read", "image.started", "image.completed", "image.failed", "image.cancelled", "image.saved", "image.save_failed"} {
 		writeEvent(t, path, uint64(i+3), kind, map[string]any{"runId": "parent", "model": "chat/model", "imageModel": "image/model", "path": "/tmp/image.png", "toolCallId": "tool"})
 	}
 	q.Cursor = &initial.Cursor
@@ -23,7 +23,7 @@ func TestImageObservationPreservesParentIdentityAndPhase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Model != "chat/model" || got.Phase != "run_js" || got.Status != "running" || len(got.Events) != 5 {
+	if got.Model != "chat/model" || got.Phase != "run_js" || got.Status != "running" || len(got.Events) != 7 {
 		t.Fatalf("snapshot=%+v", got)
 	}
 }

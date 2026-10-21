@@ -64,8 +64,7 @@ func (w *controlWriter) close() error {
 
 // Start starts config.Command directly and returns its live standard I/O pipes.
 // The context owns the returned child: cancellation closes it and kills its
-// process group. Each POSIX child is supervised by a small re-executed copy of
-// the current Go binary so owner death remains observable after SIGKILL.
+// process group. An explicit Supervisor also observes owner death after SIGKILL.
 func Start(ctx context.Context, config Config) (*Child, error) {
 	if ctx == nil {
 		return nil, errors.New("process context is nil")
@@ -74,6 +73,13 @@ func Start(ctx context.Context, config Config) (*Child, error) {
 		return nil, err
 	}
 
+	if config.Supervisor == "" {
+		return startDirect(ctx, config)
+	}
+	return startSupervised(ctx, config)
+}
+
+func startSupervised(ctx context.Context, config Config) (*Child, error) {
 	stdinRead, stdinWrite, err := os.Pipe()
 	if err != nil {
 		return nil, err
@@ -100,13 +106,7 @@ func Start(ctx context.Context, config Config) (*Child, error) {
 	}
 	control := newControlWriter(controlWriteFile)
 
-	executable, err := os.Executable()
-	if err != nil {
-		closeFiles(stdinRead, stdinWrite, stdoutRead, stdoutWrite, stderrRead, stderrWrite, controlRead, statusRead, statusWrite)
-		_ = control.close()
-		return nil, fmt.Errorf("locate process supervisor executable: %w", err)
-	}
-	helperCmd := exec.Command(executable, supervisorArg)
+	helperCmd := exec.Command(config.Supervisor, supervisorArg)
 	helperCmd.Stdin = stdinRead
 	helperCmd.Stdout = stdoutWrite
 	helperCmd.Stderr = stderrWrite
@@ -125,16 +125,61 @@ func Start(ctx context.Context, config Config) (*Child, error) {
 	}
 	closeFiles(stdinRead, stdoutWrite, stderrWrite, controlRead, statusWrite)
 
-	stopStartupCancel := context.AfterFunc(ctx, func() { _ = control.close() })
+	// Until ready, the helper has not been permitted to start the target.
+	// A wrong executable or blocked application init cannot consume control
+	// EOF, so cancellation must stop that helper and release the status read.
+	var startupMu sync.Mutex
+	ready := false
+	cancelDone := make(chan struct{})
+	stopCancel := context.AfterFunc(ctx, func() {
+		defer close(cancelDone)
+		_ = control.close()
+		startupMu.Lock()
+		defer startupMu.Unlock()
+		if !ready {
+			_ = helperScope.Kill()
+			_ = statusRead.Close()
+		}
+	})
+	stopStartupCancel := func() {
+		if !stopCancel() {
+			<-cancelDone
+		}
+	}
+	decoder := json.NewDecoder(statusRead)
+	var hello helperMessage
+	readyErr := decoder.Decode(&hello)
+	if readyErr == nil && (hello.Type != "ready" || hello.Magic != supervisorMagic) {
+		readyErr = errors.New("invalid process supervisor readiness response")
+	}
+	startupMu.Lock()
+	if readyErr == nil && ctx.Err() == nil {
+		ready = true
+	}
+	mayStart := ready
+	startupMu.Unlock()
+	if !mayStart {
+		stopStartupCancel()
+		_ = control.close()
+		_ = helperScope.Kill()
+		closeFiles(stdinWrite, stdoutRead, stderrRead)
+		waitErr := waitSupervisor(helperCmd, helperScope, statusRead)
+		if ctx.Err() != nil {
+			return nil, errors.Join(ctx.Err(), waitErr)
+		}
+		return nil, errors.Join(fmt.Errorf("process supervisor is not ready: %w", readyErr), waitErr)
+	}
 	if err := control.send(helperMessage{Magic: supervisorMagic, Config: &config, TestStartGate: config.testStartGatePath}); err != nil {
 		stopStartupCancel()
 		_ = control.close()
 		closeFiles(stdinWrite, stdoutRead, stderrRead)
 		_, waitErr := readAndWaitForSupervisor(statusRead, helperCmd, helperScope)
+		if ctx.Err() != nil {
+			return nil, errors.Join(ctx.Err(), waitErr)
+		}
 		return nil, errors.Join(fmt.Errorf("send process start request: %w", err), waitErr)
 	}
 
-	decoder := json.NewDecoder(statusRead)
 	var started helperMessage
 	if err := decoder.Decode(&started); err != nil {
 		stopStartupCancel()
@@ -485,26 +530,34 @@ func closeFilesErr(files ...*os.File) error {
 	return err
 }
 
-func init() {
-	if len(os.Args) != 2 || os.Args[1] != supervisorArg {
-		return
+// DispatchHelper handles the reserved POSIX process-helper invocation.
+// Call it explicitly from main with os.Args[1:], before application work.
+func DispatchHelper(args []string) (code int, handled bool) {
+	if len(args) != 1 || args[0] != supervisorArg {
+		return 0, false
 	}
 	control := os.NewFile(uintptr(3), "noe-process-control")
 	status := os.NewFile(uintptr(4), "noe-process-status")
 	if control == nil || status == nil {
-		os.Exit(125)
+		return 125, true
 	}
 	syscall.CloseOnExec(3)
 	syscall.CloseOnExec(4)
+	// No command is accepted before main reaches this explicit dispatcher.
+	if err := json.NewEncoder(status).Encode(helperMessage{Magic: supervisorMagic, Type: "ready"}); err != nil {
+		_ = control.Close()
+		_ = status.Close()
+		return 125, true
+	}
 	decoder := json.NewDecoder(control)
 	var hello helperMessage
 	if err := decoder.Decode(&hello); err != nil || hello.Magic != supervisorMagic || hello.Config == nil {
 		_ = control.Close()
 		_ = status.Close()
-		os.Exit(125)
+		return 125, true
 	}
 	exitCode := runSupervisor(*hello.Config, hello.TestStartGate, decoder, status)
 	_ = control.Close()
 	_ = status.Close()
-	os.Exit(exitCode)
+	return exitCode, true
 }

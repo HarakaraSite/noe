@@ -51,13 +51,13 @@ const task=await spawn_agent({provider:"openrouter",model:"fixture/model",effort
 const pending=wait_task(task);
 setTimeout(()=>tick(),10);
 await pending;`}
-	h, err := newHost(ctx, Options{Cwd: cwd, Agent: agentTestOptions(p)}, source)
+	h, err := newManagedExecution(ctx, Options{Cwd: cwd, Agent: agentTestOptions(p)}, source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer h.rt.Close()
+	defer h.Close()
 	var ticked atomic.Bool
-	if err := h.rt.Set("tick", func() { ticked.Store(true); cancel() }); err != nil {
+	if err := h.runtime.Bindings().Runtime().Set("tick", func() { ticked.Store(true); cancel() }); err != nil {
 		t.Fatal(err)
 	}
 	code, err := h.run()

@@ -38,6 +38,7 @@ type agentRun struct {
 	interrupting            bool
 	modelStep               *modelStepState
 	context                 contextRunState
+	resolvedHooks           map[int]resolvedHook
 	images                  map[string]*imageapi.Data
 	refusal                 *imageapi.Error
 }
@@ -120,37 +121,26 @@ type finishRequest struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request startRequest
-	err := decodeRequest(r, &request)
+func (h *Host) start(requestContext context.Context, op *Operation, request startRequest) (any, error) {
 	requestedBudget, budgetPresent, budgetErr := parseContextBudget(request.ContextBudget)
 	requestedPolicy, policyPresent, policyErr := parseContextPolicy(request.ContextPolicy)
 	effort, validEffort := provider.NormalizeEffort(request.Effort)
-	if err != nil || budgetErr != nil || policyErr != nil || strings.TrimSpace(request.Provider) == "" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || request.MaxSteps < 0 || !validEffort {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid start request")
-		return
+	if budgetErr != nil || policyErr != nil || strings.TrimSpace(request.Provider) == "" || strings.TrimSpace(request.Model) == "" || strings.TrimSpace(request.Name) == "" || request.MaxTokens < 0 || request.MaxSteps < 0 || !validEffort {
+		return nil, newOperationError(http.StatusBadRequest, "request", "invalid start request")
 	}
-	if err := b.host.checkProvider(request.Provider); err != nil {
-		writeRPCError(w, http.StatusBadRequest, "provider", err.Error())
-		return
-	}
-	hookModules, err := normalizeHookModules(request.Hooks, b.host.opts.Cwd, b.host.opts.ImportMap)
-	if err != nil {
-		writeRPCError(w, http.StatusBadRequest, "request", err.Error())
-		return
-	}
+	requestCtx, cancelRequest := requestOperationContext(requestContext, op)
+	defer cancelRequest()
+	hookModules := append([]string(nil), request.Hooks...)
 	id, err := randomID()
 	if err != nil {
-		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate agent run")
-		return
+		return nil, newOperationError(http.StatusInternalServerError, "broker", "could not allocate agent run")
 	}
 	activityID, err := randomID()
 	if err != nil {
-		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate agent activity")
-		return
+		return nil, newOperationError(http.StatusInternalServerError, "broker", "could not allocate agent activity")
 	}
-	h := b.host
 	var task *managedTask
+	var managedInstance *agentInstance
 	var managedCommand bool
 	var managedBase, managedConversation *conversationSnapshot
 	var taskInstruction, explicitSystem string
@@ -159,6 +149,7 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	h.mu.Lock()
 	task = op.task
 	if task != nil && task.instance != nil {
+		managedInstance = task.instance
 		managedBase = cloneConversationSnapshot(task.instance.conversation)
 		explicitSystem = task.instance.config.System
 		managedCommand = task.command != nil
@@ -168,16 +159,21 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	}
 	h.mu.Unlock()
 	if !managedCommand {
-		userInstructions, instructionErr = loadUserInstructions(h.opts.Cwd)
+		userInstructions, instructionErr = h.loadInstructions(requestCtx)
 	} else if managedBase != nil {
 		managedConversation = cloneConversationSnapshot(managedBase)
 		if err := managedConversation.appendProtected(taskInstruction); err != nil {
 			instructionErr = err
 		}
 	} else {
-		userInstructions, instructionErr = loadUserInstructions(h.opts.Cwd)
+		userInstructions, instructionErr = h.loadInstanceInstructions(requestCtx, managedInstance)
 		if instructionErr == nil {
-			managedConversation, instructionErr = initialConversation(composeSystemMessage(userInstructions, explicitSystem), taskInstruction)
+			managedConversation, instructionErr = initialConversation(composeSystemMessage(h.instructionFacts(), userInstructions, explicitSystem), taskInstruction)
+		}
+	}
+	if instructionErr == nil {
+		if err := h.checkProvider(requestCtx, request.Provider); err != nil {
+			return nil, newOperationError(http.StatusBadRequest, "provider", err.Error())
 		}
 	}
 	ctx, cancel := context.WithCancel(op.ctx)
@@ -197,36 +193,38 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 		steerByID:   make(map[string]*steerCommand),
 		finalDone:   make(chan struct{}),
 	}
-	resolvedModelWindow, resolvedMaxOutput := h.contextModelLimits(request.Provider, request.Model)
+	var resolvedModelWindow, resolvedMaxOutput *int64
+	if instructionErr == nil {
+		resolvedModelWindow, resolvedMaxOutput = h.contextModelLimitsContext(requestCtx, request.Provider, request.Model)
+	}
+	if requestCtx.Err() != nil {
+		cancel()
+		return nil, newOperationError(http.StatusConflict, "cancelled", requestCtx.Err().Error())
+	}
 	h.mu.Lock()
 	if op.closed || op.ctx.Err() != nil || h.closed {
 		h.mu.Unlock()
 		cancel()
-		writeRPCError(w, http.StatusConflict, "scope", "agent operation has ended")
-		return
+		return nil, newOperationError(http.StatusConflict, "scope", "agent operation has ended")
 	}
 	if op.task != nil {
 		instance := op.task.instance
 		if instance == nil {
-			delete(h.runs, id)
 			h.mu.Unlock()
 			cancel()
-			writeRPCError(w, http.StatusConflict, "scope", "agent task has no instance")
-			return
+			return nil, newOperationError(http.StatusConflict, "scope", "agent task has no instance")
 		}
 		if !h.executionGroupOpenLocked(instance.group) {
 			group := instance.group
 			h.mu.Unlock()
 			cancel()
 			code, message := executionLimitError(group)
-			writeRPCError(w, http.StatusConflict, code, message)
-			return
+			return nil, newOperationError(http.StatusConflict, code, message)
 		}
 		if instance.state == "stopping" || instance.state == "stopped" || instance.state == "failed" || instance.ctx.Err() != nil {
 			h.mu.Unlock()
 			cancel()
-			writeRPCError(w, http.StatusConflict, "scope", "agent instance is stopping or finished")
-			return
+			return nil, newOperationError(http.StatusConflict, "scope", "agent instance is stopping or finished")
 		}
 		run.group = instance.group
 		run.config.Hooks = instance.config.hookModules()
@@ -266,18 +264,22 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 			delete(h.runs, id)
 			h.mu.Unlock()
 			cancel()
-			writeRPCError(w, http.StatusConflict, "run", "task scope already claimed a run")
-			return
+			return nil, newOperationError(http.StatusConflict, "run", "task scope already claimed a run")
 		}
 		if managedCommand && !conversationSnapshotEqual(op.task.instance.conversation, managedBase) {
 			delete(h.runs, id)
 			h.mu.Unlock()
 			cancel()
-			writeRPCError(w, http.StatusConflict, "conversation", "agent conversation changed while starting the task")
-			return
+			return nil, newOperationError(http.StatusConflict, "conversation", "agent conversation changed while starting the task")
 		}
 		if managedCommand && instructionErr == nil && managedConversation != nil {
 			op.task.instance.conversation = cloneConversationSnapshot(managedConversation)
+		}
+		if len(op.resolvedHooks) > 0 {
+			run.resolvedHooks = make(map[int]resolvedHook, len(op.resolvedHooks))
+			for index, resolved := range op.resolvedHooks {
+				run.resolvedHooks[index] = resolved
+			}
 		}
 		run.context.restoreConversation(op.task.instance.conversationContext)
 		run.instance = op.task.instance
@@ -293,6 +295,7 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	h.observeRun("agent.started", id, run, events.Event{"status": "started"})
 	startResponse := map[string]any{"runId": id, "sessionId": run.sessionID()}
 	if instructionErr != nil {
+		startResponse["instructionFailed"] = true
 		startResponse["instructionError"] = instructionErr.Error()
 	}
 	if managedCommand {
@@ -302,28 +305,26 @@ func (b *broker) handleStart(w http.ResponseWriter, r *http.Request, op *Operati
 	} else {
 		startResponse["instructions"] = userInstructions
 	}
-	writeJSON(w, startResponse)
+	return startResponse, nil
 }
 
-func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request finishRequest
-	if err := decodeRequest(r, &request); err != nil || request.RunID == "" {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid finish request")
-		return
+func (h *Host) finish(ctx context.Context, op *Operation, request finishRequest) (any, error) {
+	if ctx == nil {
+		return nil, newOperationError(http.StatusBadRequest, "request", "finish context is required")
+	}
+	if request.RunID == "" {
+		return nil, newOperationError(http.StatusBadRequest, "request", "invalid finish request")
 	}
 	status := sanitizeRunStatus(request.Status)
-	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	if run == nil || run.operation != op {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
-		return
+		return nil, newOperationError(http.StatusConflict, "run", "unknown agent run")
 	}
 	if run.finalClosed && status != "completed" {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "final", "a committed final answer cannot be replaced by a failed finish")
-		return
+		return nil, newOperationError(http.StatusConflict, "final", "a committed final answer cannot be replaced by a failed finish")
 	}
 	var emitFinal bool
 	var finalSettled []<-chan struct{}
@@ -332,23 +333,20 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 		if run.finalClosed {
 			if strings.TrimSpace(request.Answer) == "" || request.Answer != run.finalAnswer {
 				h.mu.Unlock()
-				writeRPCError(w, http.StatusConflict, "final", "finish answer does not match the committed final answer")
-				return
+				return nil, newOperationError(http.StatusConflict, "final", "finish answer does not match the committed final answer")
 			}
 			waitFinal = run.finalDone
 		} else if strings.TrimSpace(request.Answer) != "" {
 			// Preserve direct-run finish behavior for existing internal callers.
-			// Managed task runners must pass the final-answer gate first.
+			// Managed task execution must pass the final-answer gate first.
 			if run.instance != nil {
 				h.mu.Unlock()
-				writeRPCError(w, http.StatusConflict, "final", "managed task must commit its final answer first")
-				return
+				return nil, newOperationError(http.StatusConflict, "final", "managed task must commit its final answer first")
 			}
 			for _, command := range run.steerOrder {
 				if command.status == "accepted" || command.status == "delivered" {
 					h.mu.Unlock()
-					writeRPCError(w, http.StatusConflict, "final", "pending steer commands must be applied before finishing")
-					return
+					return nil, newOperationError(http.StatusConflict, "final", "pending steer commands must be applied before finishing")
 				}
 			}
 			run.finalClosed = true
@@ -361,8 +359,7 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 			}
 		} else if run.instance != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "final", "managed task completion requires a committed answer")
-			return
+			return nil, newOperationError(http.StatusConflict, "final", "managed task completion requires a committed answer")
 		}
 	}
 	pending := h.cancelPendingSteersLocked(run)
@@ -399,7 +396,13 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 		}
 		h.mu.Unlock()
 	} else if waitFinal != nil {
-		<-waitFinal
+		select {
+		case <-waitFinal:
+		case <-op.ctx.Done():
+			return nil, op.ctx.Err()
+		case <-ctx.Done():
+			return nil, errRequestCancelled
+		}
 	}
 	for _, childScope := range childScopes {
 		childScope.Close()
@@ -408,8 +411,7 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 		<-instance.done
 	}
 	if run.instance != nil {
-		writeJSON(w, map[string]bool{})
-		return
+		return map[string]bool{}, nil
 	}
 	h.traceEvent(traceEvent{
 		RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
@@ -425,7 +427,7 @@ func (b *broker) handleFinish(w http.ResponseWriter, r *http.Request, op *Operat
 		fields["errorDetails"] = run.refusal
 	}
 	h.observeRun("agent."+status, request.RunID, run, fields)
-	writeJSON(w, map[string]bool{})
+	return map[string]bool{}, nil
 }
 
 func sanitizeRunStatus(status string) string {

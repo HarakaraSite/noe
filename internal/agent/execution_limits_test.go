@@ -53,16 +53,18 @@ func TestExecutionAgentStartsZeroRejectsRootBeforeRegistration(t *testing.T) {
 	observed := make(chan events.Event, 8)
 	provider := &fixtureProvider{}
 	h := NewHost(Options{
-		Provider:   provider,
-		Executable: "/no/such/noe-executable",
-		Observe:    func(event events.Event) { observed <- event },
+		Models: modelsWithChat(provider),
+		Execute: func(context.Context, Execution) (Result, error) {
+			return Result{ExitCode: 0, Reason: "completed"}, nil
+		},
+		Observe: func(event events.Event) { observed <- event },
 	})
 	defer h.Close()
 	op := h.NewOperation(context.Background())
 	defer op.Close()
 
 	_, err := op.Call("spawn_agent", `{"config":{"provider":"openrouter","model":"fixture/model","name":"zero-starts","effort":"auto","executionLimits":{"agentStarts":0}},"instruction":"must not start"}`)
-	rpcErr, ok := err.(*RPCError)
+	rpcErr, ok := err.(*RequestError)
 	if !ok || rpcErr.Code != "execution_limit" {
 		t.Fatalf("spawn error = %#v, want execution_limit", err)
 	}
@@ -256,7 +258,7 @@ func TestAdmittedModelCallEntersProviderAfterStartedObserverCancellation(t *test
 		entered <- ctx.Err()
 		return provider.Response{}, ctx.Err()
 	}}
-	h := NewHost(Options{Provider: p, Observe: func(event events.Event) {
+	h := NewHost(Options{Models: modelsWithChat(p), Observe: func(event events.Event) {
 		switch event["type"] {
 		case "model.started":
 			close(started)
@@ -337,11 +339,11 @@ func TestAdmittedDecisionCallEntersProviderAfterStartedObserverCancellation(t *t
 	entered := make(chan error, 1)
 	terminal := make(chan events.Event, 4)
 	h := NewHost(Options{
-		DecisionProvider: decisionProviderFunc(func(ctx context.Context, _ decision.Request) (decision.Response, error) {
+		Models: modelsWithDecision(decisionProviderFunc(func(ctx context.Context, _ decision.Request) (decision.Response, error) {
 			entries.Add(1)
 			entered <- ctx.Err()
 			return decision.Response{}, ctx.Err()
-		}),
+		})),
 		Observe: func(event events.Event) {
 			switch event["type"] {
 			case "decision.started":

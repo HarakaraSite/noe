@@ -86,7 +86,34 @@ type Config struct {
 	// makes it for a runtime, and a worker's Config, a copy of its
 	// parent's, shares it, so that the workers a worker starts count too.
 	running *atomic.Int64
+	// workerInstaller replaces legacy worker installation for Profile-based
+	// callers and receives the worker's own runtime and loop on its owner.
+	workerInstaller WorkerInstaller
+	// processStdio is nil on the legacy path, which preserves its old behavior.
+	processStdio *bool
+	// environmentCwd/environmentArgs/environmentEnv keep Profile state tied to
+	// the execution even when process metadata is not installed.
+	environmentCwd  string
+	environmentArgs []string
+	environmentEnv  map[string]string
 }
+
+// WorkerPreparer resolves or produces a worker's entry after the runtime and
+// its Profile have been installed. eval distinguishes source text from a
+// module or file specifier; requestedType is a web worker's optional type.
+type WorkerPreparer func(specifier string, eval bool, requestedType string) (source, name string, module bool, err error)
+
+// WorkerInstallation is the Profile-owned worker entry preparation and
+// cleanup returned after its runtime has been installed.
+type WorkerInstallation struct {
+	Prepare WorkerPreparer
+	Close   func()
+}
+
+// WorkerInstaller installs a Profile into a worker runtime after its own loop
+// has been created. cfg contains worker-specific process args and env.
+// The returned preparer runs only after installation has completed.
+type WorkerInstaller func(rt *quickjs.Runtime, loop *Loop, cfg Config) (WorkerInstallation, error)
 
 // Install gives a runtime everything the configuration asks for.
 //
@@ -103,6 +130,45 @@ type Config struct {
 //	    Process: &stdlib.Process{Args: os.Args},
 //	})
 func Install(rt *quickjs.Runtime, cfg Config) error {
+	return install(rt, cfg)
+}
+
+// InstallProfile installs a normalized Profile configuration. processStdio
+// keeps process metadata and standard streams independently selectable.
+func InstallProfile(rt *quickjs.Runtime, cfg Config, processStdio bool, workerInstaller WorkerInstaller) error {
+	cfg.processStdio = &processStdio
+	cfg.workerInstaller = workerInstaller
+	return install(rt, cfg)
+}
+
+// SetExecutionEnvironment supplies path helpers with the same snapshot used
+// by the Profile's other capabilities. The fields stay private so the legacy
+// Config API does not acquire a second public environment source.
+func SetExecutionEnvironment(cfg *Config, cwd string, args []string, env map[string]string) {
+	if cfg == nil {
+		return
+	}
+	cfg.environmentCwd = cwd
+	cfg.environmentArgs = append([]string{}, args...)
+	cfg.environmentEnv = make(map[string]string, len(env))
+	for key, value := range env {
+		cfg.environmentEnv[key] = value
+	}
+}
+
+// ExecutionEnvironment returns the execution snapshot a Profile worker must
+// inherit independently from whether process metadata was selected.
+func ExecutionEnvironment(cfg Config) (string, []string, map[string]string) {
+	cwd := cfg.environmentCwd
+	args := append([]string{}, cfg.environmentArgs...)
+	env := make(map[string]string, len(cfg.environmentEnv))
+	for key, value := range cfg.environmentEnv {
+		env[key] = value
+	}
+	return cwd, args, env
+}
+
+func install(rt *quickjs.Runtime, cfg Config) error {
 	if cfg.Workers != nil {
 		if cfg.Loop == nil {
 			return errNoLoop
@@ -171,7 +237,7 @@ func Install(rt *quickjs.Runtime, cfg Config) error {
 			return err
 		}
 	}
-	if err := installPath(rt, cfg.WindowsPaths); err != nil {
+	if err := installPathEnvironment(rt, cfg.WindowsPaths, cfg.environmentCwd, cfg.environmentEnv); err != nil {
 		return err
 	}
 	if cfg.FS != nil {
@@ -191,7 +257,13 @@ func Install(rt *quickjs.Runtime, cfg Config) error {
 		if cfg.Process.Stderr == nil {
 			cfg.Process.Stderr = cfg.Stderr
 		}
-		if err := Processes(rt, cfg.Process); err != nil {
+		var err error
+		if cfg.processStdio == nil {
+			err = Processes(rt, cfg.Process)
+		} else {
+			err = processes(rt, cfg.Process, *cfg.processStdio)
+		}
+		if err != nil {
 			return err
 		}
 	}

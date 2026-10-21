@@ -14,10 +14,10 @@ import (
 func TestContextTrimReceiptSteerOnlyAndActualAdmission(t *testing.T) {
 	calls := 0
 	updates, trims := make(chan events.Event, 8), make(chan events.Event, 8)
-	h := NewHost(Options{Provider: &fixtureProvider{gen: func(_ context.Context, r provider.Request) (provider.Response, error) {
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{gen: func(_ context.Context, r provider.Request) (provider.Response, error) {
 		calls++
 		return provider.Response{Message: json.RawMessage(`{"role":"assistant","content":"done"}`), FinishReason: "stop"}, nil
-	}}, Observe: func(event events.Event) {
+	}}), Observe: func(event events.Event) {
 		switch event["type"] {
 		case "context.updated":
 			updates <- event
@@ -113,10 +113,10 @@ func TestContextTrimCancellationBeforeAndAfterCandidateCommit(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			trimmed, calls := 0, 0
-			h := NewHost(Options{Provider: &fixtureProvider{gen: func(context.Context, provider.Request) (provider.Response, error) {
+			h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{gen: func(context.Context, provider.Request) (provider.Response, error) {
 				calls++
 				return provider.Response{}, nil
-			}}, Observe: func(e events.Event) {
+			}}), Observe: func(e events.Event) {
 				if e["type"] == "context.trimmed" {
 					trimmed++
 				}

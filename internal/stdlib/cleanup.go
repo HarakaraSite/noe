@@ -13,8 +13,8 @@ import (
 // first, has by then told the work on other goroutines to stop; a hook
 // releases what is left, or waits for that work to finish.
 
-// closeWait bounds how long closing a runtime waits for work it has ended:
-// a program being killed, a worker being stopped.
+// closeWait bounds the legacy runtime-close wait for work it has ended. An
+// attached execution scope instead joins its owned work without a timeout.
 const closeWait = 5 * time.Second
 
 // waitOnClose has rt, as it closes, wait for done -- the end of work a

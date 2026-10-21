@@ -24,44 +24,37 @@ type toolResultRequest struct {
 	HookError            string              `json:"hookError,omitempty"`
 }
 
-func (b *broker) handleToolResult(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request toolResultRequest
-	if decodeRequest(r, &request) != nil || request.RunID == "" || request.ModelStepID == "" || request.ToolCallID == "" || strings.TrimSpace(request.ToolName) == "" ||
+func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[string]any, error) {
+	if request.RunID == "" || request.ModelStepID == "" || request.ToolCallID == "" || strings.TrimSpace(request.ToolName) == "" ||
 		len(request.RawArguments) == 0 || len(request.Arguments) == 0 || !json.Valid(request.RawArguments) || !json.Valid(request.Arguments) ||
 		len(request.RawResult) == 0 || !json.Valid(request.RawResult) || len(request.Result) == 0 || !json.Valid(request.Result) {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid tool result report")
-		return
+		return nil, newOperationError(http.StatusBadRequest, "request", "invalid tool result report")
 	}
 
-	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	if run == nil || run.operation != op || run.ctx.Err() != nil || run.interrupting || op.closed || h.closed ||
 		run.modelStep == nil || run.modelStep.id != request.ModelStepID || !run.modelStep.responseComplete || run.modelStep.finished {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "model_step", "tool result does not match an active model step")
-		return
+		return nil, newOperationError(http.StatusConflict, "model_step", "tool result does not match an active model step")
 	}
 	toolState := run.modelStep.toolCalls[request.ToolCallID]
 	if toolState == nil || toolState.name != request.ToolName || toolState.resultRecorded {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "tool_call", "unknown or completed tool call")
-		return
+		return nil, newOperationError(http.StatusConflict, "tool_call", "unknown or completed tool call")
 	}
 	if toolState.activityID == "" {
 		activityID, err := randomID()
 		if err != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate tool activity")
-			return
+			return nil, newOperationError(http.StatusInternalServerError, "broker", "could not allocate tool activity")
 		}
 		toolState.activityID = activityID
 	}
 	selected, imageErr := selectedToolImages(toolState, request.RawImages, request.Images)
 	if imageErr != nil {
 		h.mu.Unlock()
-		writeRPCError(w, 400, "image", imageErr.Error())
-		return
+		return nil, newOperationError(400, "image", imageErr.Error())
 	}
 	if request.HookError != "" || (request.ModelResultAvailable != nil && !*request.ModelResultAvailable) {
 		discardStepImages(run.modelStep)
@@ -123,7 +116,7 @@ func (b *broker) handleToolResult(w http.ResponseWriter, r *http.Request, op *Op
 		fields["toolExecution"] = facts
 	}
 	h.observeRun("tool.finished", run.id, run, fields)
-	writeJSON(w, map[string]bool{"recorded": true})
+	return map[string]any{"recorded": true}, nil
 }
 
 func cloneRawJSON(raw json.RawMessage) json.RawMessage {

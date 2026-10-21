@@ -10,21 +10,26 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
-func (h *Host) spawn(op *Operation, req spawnRequest) (spawnResponse, error) {
+func (h *Host) spawn(requestContext context.Context, op *Operation, req spawnRequest) (spawnResponse, error) {
 	effort, valid := provider.NormalizeEffort(req.Config.Effort)
 	if strings.TrimSpace(req.Config.Provider) == "" || strings.TrimSpace(req.Config.Model) == "" || strings.TrimSpace(req.Config.Name) == "" || req.Config.Effort == "" || !valid || req.Config.MaxTokens < 0 || req.Config.MaxSteps < 0 || (!req.KeepAlive && req.Instruction == nil) || (req.Instruction != nil && strings.TrimSpace(*req.Instruction) == "") {
 		return spawnResponse{}, newOperationError(400, "request", "invalid agent configuration or instruction")
 	}
-	if err := h.checkProvider(req.Config.Provider); err != nil {
+	if h.opts.Execute == nil {
+		return spawnResponse{}, newOperationError(409, "runtime", "agent task runtime is unavailable")
+	}
+	requestCtx, cancelRequest := requestOperationContext(requestContext, op)
+	defer cancelRequest()
+	if err := h.checkProvider(requestCtx, req.Config.Provider); err != nil {
 		return spawnResponse{}, newOperationError(400, "provider", err.Error())
 	}
 	req.Config.Effort = effort
-	resolvedHooks, hookErr := normalizeHookModules(req.Config.hookModules(), h.opts.Cwd, h.opts.ImportMap)
-	if hookErr != nil {
-		return spawnResponse{}, newOperationError(400, "request", hookErr.Error())
-	}
-	req.Config.Hooks = cloneHookModules(resolvedHooks)
-	encoded, err := json.Marshal(req.Config)
+	// Group limits belong to this registration, and must not become child
+	// defaults through the task's execution configuration.
+	executionConfig := req.Config
+	executionConfig.ExecutionLimits = nil
+	executionConfig.executionLimitsPresent = false
+	encoded, err := json.Marshal(executionConfig)
 	if err != nil {
 		return spawnResponse{}, newOperationError(500, "broker", "could not encode agent configuration")
 	}
@@ -48,7 +53,10 @@ func (h *Host) spawn(op *Operation, req spawnRequest) (spawnResponse, error) {
 		}
 		initial = &command{id: commandID, activityID: commandActivityID, instruction: *req.Instruction, operation: "queue", status: "accepted", initial: true, accepted: make(chan struct{}), done: make(chan struct{})}
 	}
-	modelWindow, modelMaxOutput := h.contextModelLimits(req.Config.Provider, req.Config.Model)
+	modelWindow, modelMaxOutput := h.contextModelLimitsContext(requestCtx, req.Config.Provider, req.Config.Model)
+	if requestCtx.Err() != nil {
+		return spawnResponse{}, newOperationError(409, "cancelled", requestCtx.Err().Error())
+	}
 	h.mu.Lock()
 	if op.closed || op.ctx.Err() != nil || h.closed {
 		h.mu.Unlock()
@@ -122,6 +130,7 @@ func (h *Host) spawn(op *Operation, req spawnRequest) (spawnResponse, error) {
 		op.instances[id] = instance
 	}
 	h.mu.Unlock()
+	instance.event("agent.accepted", events.Event{})
 	instance.event("instance.started", events.Event{})
 	if initial != nil {
 		instance.commandEvent(initial, "accepted", "")

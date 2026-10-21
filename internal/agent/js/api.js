@@ -71,7 +71,7 @@ function executionLimits(value) {
   return limits;
 }
 
-export function createAgentAPI({ request, defaults, observe }) {
+export function createAgentAPI({ request, defaults }) {
   const inherited = JSON.parse(defaults());
 
   async function rpc(method, payload) {
@@ -216,52 +216,40 @@ export function createAgentAPI({ request, defaults, observe }) {
     return rpc("steer_agent", query);
   }
 
-  // Cancel one managed task, or stop an entire managed instance and its queue.
-  async function interrupt_agent(options = {}) {
-    if (!isRecord(options)) throw new TypeError("interrupt options must be an object");
+  // Cancel one accepted command without stopping its instance or sibling queue.
+  async function cancel_task(options = {}) {
+    if (!isRecord(options)) throw new TypeError("cancel task options must be an object");
     for (const key of Object.keys(options)) {
-      if (key !== "runId" && key !== "agentId") {
-        throw new TypeError("unknown interrupt option: " + key);
+      if (key !== "agentId" && key !== "commandId") {
+        throw new TypeError("unknown cancel task option: " + key);
       }
     }
-    const hasRun = options.runId !== undefined;
-    const hasAgent = options.agentId !== undefined;
-    if (hasRun === hasAgent) throw new TypeError("specify exactly one of runId or agentId");
-    if (hasRun) return rpc("interrupt_agent", { runId: requireString(options.runId, "runId") });
-    return rpc("interrupt_agent", { agentId: requireString(options.agentId, "agentId") });
+    return rpc("cancel_task", {
+      agentId: requireString(options.agentId, "agentId"),
+      commandId: requireString(options.commandId, "commandId"),
+    });
   }
 
-  // Live management is scoped; saved-file observation needs no broker or model.
+  // Stop a managed instance, including its active task and remaining queue.
+  async function stop_agent(options = {}) {
+    if (!isRecord(options)) throw new TypeError("stop agent options must be an object");
+    for (const key of Object.keys(options)) {
+      if (key !== "agentId") throw new TypeError("unknown stop agent option: " + key);
+    }
+    return rpc("stop_agent", { agentId: requireString(options.agentId, "agentId") });
+  }
+
+  // Live management is scoped to one owned agent instance.
   async function observe_agent(options = {}) {
     if (!isRecord(options)) throw new TypeError("observation options must be an object");
-    if (options.agentId !== undefined) {
-      for (const key of Object.keys(options)) {
-        if (key !== "agentId" && key !== "includeAnswer") throw new TypeError("live observation only accepts agentId and includeAnswer");
-      }
-      if (options.includeAnswer !== undefined && typeof options.includeAnswer !== "boolean") {
-        throw new TypeError("includeAnswer must be a boolean");
-      }
-      return rpc("observe_agent", { agentId: requireString(options.agentId, "agentId"), includeAnswer: options.includeAnswer });
+    for (const key of Object.keys(options)) {
+      if (key !== "agentId" && key !== "includeAnswer") throw new TypeError("live observation only accepts agentId and includeAnswer");
     }
-    const query = {
-      logPath: requireString(options.logPath, "logPath"),
-      runId: requireString(options.runId, "runId"),
-    };
-    for (const key of ["wait", "includeThinking", "includeOutput"]) {
-      if (options[key] !== undefined) {
-        if (typeof options[key] !== "boolean") throw new TypeError(key + " must be a boolean");
-        query[key] = options[key];
-      }
+    if (options.includeAnswer !== undefined && typeof options.includeAnswer !== "boolean") {
+      throw new TypeError("includeAnswer must be a boolean");
     }
-    if (options.cursor !== undefined) {
-      if (!isRecord(options.cursor)) throw new TypeError("cursor must be an object");
-      query.cursor = {
-        executionId: requireString(options.cursor.executionId, "cursor.executionId", true),
-        seq: requireLimit(options.cursor.seq, "cursor.seq"),
-      };
-    }
-    return JSON.parse(await observe(JSON.stringify(query)));
+    return rpc("observe_agent", { agentId: requireString(options.agentId, "agentId"), includeAnswer: options.includeAnswer });
   }
 
-  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, read_task_result, steer_agent, interrupt_agent, list_models });
+  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, read_task_result, steer_agent, cancel_task, stop_agent, list_models });
 }

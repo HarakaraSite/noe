@@ -21,14 +21,9 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cross", action="store_true", help="compile consumer for six release targets")
     parser.add_argument("--agent", action="store_true", help="check the public agent consumer instead of the generic stdlib consumer")
-    parser.add_argument("--noe", type=Path, help="explicit NOE executable for agent reference tests")
     args = parser.parse_args()
-    if args.agent and args.noe is None:
-        parser.error("--agent requires --noe")
     package = "agent" if args.agent else "stdlib"
-    reference_args = ["reference"]
-    if args.agent:
-        reference_args += ["--noe", str(args.noe.resolve())]
+    modes = [["portable"], ["gohost"]] if args.agent else [[]]
     output = args.output.resolve()
     if output == ROOT or ROOT in output.parents:
         raise ValueError("--output must be outside the checkout")
@@ -65,7 +60,7 @@ def main():
     # Only explicit tracked source and known implementation additions enter the zip.
     tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0")
     names = {name for name in tracked if name}
-    for directory in ["stdlib", "agent", "internal/agentbridge", "examples/agent-embedding"]:
+    for directory in ["stdlib", "agent", "internal", "examples/agent-embedding"]:
         folder = ROOT / directory
         if folder.exists():
             # New Go sources and bridge-owned embedded JS are explicit additions.
@@ -99,9 +94,9 @@ def main():
     imports = (output / "local-imports.log").read_text().splitlines()
     assert MODULE + "/" + package in imports
     assert all("/internal/" not in name and not name.startswith("noe/") for name in imports)
-    command("local-portable", ["go", "run", ".", "portable"], local)
-    command("local-reference-build", ["go", "build", "-o", str(local / "consumer"), "."], local)
-    command("local-reference", [str(local / "consumer"), *reference_args], local)
+    command("local-build", ["go", "build", "-o", str(local / "consumer"), "."], local)
+    for index, mode in enumerate(modes):
+        command(f"local-run-{index}", [str(local / "consumer"), *mode], local)
     command("local-versions", ["go", "list", "-m", MODULE, "github.com/go-quickjs/go-quickjs"], local)
     command("package-deps", ["go", "list", "-deps", MODULE + "/" + package], local)
     deps = (output / "package-deps.log").read_text().splitlines()
@@ -122,9 +117,9 @@ def main():
     command("artifact-tidy", ["go", "mod", "tidy"], artifact, artifact_env)
     assert "replace" not in (artifact / "go.mod").read_text()
     command("artifact-versions", ["go", "list", "-m", "-json", MODULE, "github.com/go-quickjs/go-quickjs"], artifact, artifact_env)
-    command("artifact-portable", ["go", "run", ".", "portable"], artifact, artifact_env)
-    command("artifact-reference-build", ["go", "build", "-o", str(artifact / "consumer"), "."], artifact, artifact_env)
-    command("artifact-reference", [str(artifact / "consumer"), *reference_args], artifact, artifact_env)
+    command("artifact-build", ["go", "build", "-o", str(artifact / "consumer"), "."], artifact, artifact_env)
+    for index, mode in enumerate(modes):
+        command(f"artifact-run-{index}", [str(artifact / "consumer"), *mode], artifact, artifact_env)
     if args.cross:
         for target_os in ["linux", "darwin", "windows"]:
             for arch in ["amd64", "arm64"]:

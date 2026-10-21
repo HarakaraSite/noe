@@ -2,13 +2,15 @@ package stdlib
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"runtime"
+	"io"
+	"sync"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/commandenv"
+	"forge.harakara.site/littleisland/noe/v2/internal/process"
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
@@ -37,6 +39,12 @@ type Run struct {
 	// Dir is where a program runs when the caller does not say. Empty means
 	// the process's own directory.
 	Dir string
+	// ResolveDirectory maps a script-visible cwd override to its physical
+	// directory. Profile supplies the shared filesystem backend mapping.
+	ResolveDirectory func(string) (string, error)
+	// Supervisor selects an explicit POSIX process supervisor. Empty starts
+	// commands directly; Windows always uses its Job Object backend.
+	Supervisor string
 	// Env is the environment a program is given. Nil means none at all, which
 	// is what a script that was not given the environment should pass on.
 	Env map[string]string
@@ -64,30 +72,11 @@ func Commands(rt *quickjs.Runtime, cfg *Run) error {
 		"execFileSync": r.execFileSync,
 		"spawnSync":    r.spawnSync,
 		"execFile":     r.execFile,
-		"exec": func(command string, opts quickjs.Value) *quickjs.Promise {
-			name, args := shellFor(command)
-			return r.execFile(name, quickjs.Value{}, opts, args...)
-		},
-		"execSync": func(command string, opts quickjs.Value) (string, error) {
-			name, args := shellFor(command)
-			return r.execFileSync(name, quickjs.Value{}, opts, args...)
-		},
+		"exec":         r.execShell,
+		"execSync":     r.execShellSync,
 	}
 	exports["default"] = copyExports(exports)
 	return setNodeModule(rt, "child_process", exports)
-}
-
-// shellFor is how a command line is run: through the shell, which is what
-// makes pipes and redirection in the string work.
-func shellFor(command string) (string, []string) {
-	if runtime.GOOS == "windows" {
-		shell := os.Getenv("ComSpec")
-		if shell == "" {
-			shell = "cmd.exe"
-		}
-		return shell, []string{"/d", "/s", "/c", command}
-	}
-	return "/bin/sh", []string{"-c", command}
 }
 
 type runner struct {
@@ -100,92 +89,203 @@ type result struct {
 	stdout []byte
 	stderr []byte
 	code   int
+	signal string
 	err    error
 }
 
 // start runs a program to completion. It touches no JavaScript value, so it
 // may run on another goroutine.
 func (r *runner) start(name string, args []string, dir string, env map[string]string, input []byte) *result {
-	if r.cfg.Allow == nil {
-		return &result{err: errors.New("running programs is not allowed")}
-	}
-	if err := r.cfg.Allow(name, args); err != nil {
+	prepared, err := commandenv.Prepare(r.commandConfig(), name, args, dir, env)
+	if err != nil {
 		return &result{err: err}
 	}
+	return r.startPrepared(prepared, name, input)
+}
 
-	cmd := exec.Command(name, args...)
-	cmd.Dir = dir
-	if cmd.Dir == "" {
-		cmd.Dir = r.cfg.Dir
+func (r *runner) startShell(command string, dir string, env map[string]string, input []byte) *result {
+	prepared, err := commandenv.Shell(r.commandConfig(), command, dir, env)
+	if err != nil {
+		return &result{err: err}
 	}
-	// A program is given the environment the host chose, not the one this
-	// process happens to have: a script that was refused the environment must
-	// not reach it through a program it starts.
-	source := env
-	if source == nil {
-		source = r.cfg.Env
-	}
-	cmd.Env = []string{}
-	for k, v := range source {
-		cmd.Env = append(cmd.Env, k+"="+v)
-	}
-	if len(input) > 0 {
-		cmd.Stdin = bytes.NewReader(input)
-	}
+	return r.startPrepared(prepared, prepared.Command, input)
+}
 
+func (r *runner) commandConfig() commandenv.Config {
+	return commandenv.Config{
+		Cwd: r.cfg.Dir, Env: r.cfg.Env, Allow: r.cfg.Allow,
+		Timeout: r.cfg.Timeout, ResolveDirectory: r.cfg.ResolveDirectory,
+		Supervisor: r.cfg.Supervisor,
+	}
+}
+
+func (r *runner) startPrepared(prepared commandenv.Prepared, displayName string, input []byte) *result {
 	limit := r.cfg.MaxOutputBytes
 	if limit == 0 {
 		limit = 32 << 20
 	}
 	var out, errOut cappedBuffer
 	out.limit, errOut.limit = limit, limit
-	cmd.Stdout, cmd.Stderr = &out, &errOut
-
-	if err := cmd.Start(); err != nil {
-		return &result{err: err}
-	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-
-	// A program is killed when it runs too long, or when the runtime it was
-	// started for is closed.
-	var timeout <-chan time.Time
+	ownerCtx := loopContext(r.cfg.Loop)
+	ctx := ownerCtx
+	cancel := func() {}
 	if r.cfg.Timeout > 0 {
-		timer := time.NewTimer(r.cfg.Timeout)
-		defer timer.Stop()
-		timeout = timer.C
+		ctx, cancel = context.WithTimeout(ownerCtx, r.cfg.Timeout)
 	}
-	var waitErr error
+	defer cancel()
+
+	child, err := process.Start(ctx, process.Config{
+		Command:    prepared.Command,
+		Args:       prepared.Args,
+		Dir:        prepared.Dir,
+		Env:        commandenv.EnvList(prepared.Env),
+		Supervisor: r.cfg.Supervisor,
+	})
+	if err != nil {
+		return commandStartError(displayName, r.cfg.Timeout, ownerCtx.Err(), ctx.Err(), err)
+	}
+
+	var pumps sync.WaitGroup
+	outputErrors := make(chan error, 1)
+	var outputErrorOnce sync.Once
+	rememberOutputError := func(name string, err error) {
+		if err == nil || errors.Is(err, io.EOF) || ctx.Err() != nil {
+			return
+		}
+		outputErrorOnce.Do(func() {
+			outputErrors <- fmt.Errorf("capture command %s: %w", name, err)
+		})
+	}
+	pumps.Add(3)
+	go func() {
+		defer pumps.Done()
+		_, err := io.Copy(&out, child.Stdout)
+		rememberOutputError("stdout", err)
+		_ = child.Stdout.Close()
+	}()
+	go func() {
+		defer pumps.Done()
+		_, err := io.Copy(&errOut, child.Stderr)
+		rememberOutputError("stderr", err)
+		_ = child.Stderr.Close()
+	}()
+	go func() {
+		defer pumps.Done()
+		if len(input) != 0 {
+			_, _ = io.Copy(child.Stdin, bytes.NewReader(input))
+		}
+		_ = child.Stdin.Close()
+	}()
+
+	type waitResult struct {
+		result process.Result
+		err    error
+	}
+	waitDone := make(chan waitResult, 1)
+	go func() {
+		result, err := child.Wait()
+		waitDone <- waitResult{result: result, err: err}
+	}()
+	pumpsDone := make(chan struct{})
+	go func() {
+		pumps.Wait()
+		close(pumpsDone)
+	}()
+
+	var childResult process.Result
+	var waitErr, captureErr, closeErr error
+	var waited, joinedPumps, closing bool
+	ctxDone := ctx.Done()
+	pumpDone := (<-chan struct{})(pumpsDone)
+	for !waited || !joinedPumps {
+		select {
+		case waitedResult := <-waitDone:
+			childResult, waitErr, waited = waitedResult.result, waitedResult.err, true
+		case err := <-outputErrors:
+			captureErr = errors.Join(captureErr, err)
+			if !closing {
+				// A failed capture cannot leave a live child blocked on a full
+				// pipe. Close the owned scope without canceling the owner context.
+				closing = true
+				closeErr = errors.Join(closeErr, child.Close())
+			}
+		case <-ctxDone:
+			ctxDone = nil
+			if !closing {
+				// Owner cancellation and timeout close the child pipes to release
+				// both stream pumps before this operation joins them.
+				closing = true
+				closeErr = errors.Join(closeErr, child.Close())
+			}
+		case <-pumpDone:
+			pumpDone = nil
+			joinedPumps = true
+		}
+	}
+	// A capture error can become ready alongside the final pump notification.
+	// Observe it before deciding whether the normally completed child needs
+	// explicit cleanup.
 	select {
-	case waitErr = <-done:
-	case <-timeout:
-		cmd.Process.Kill()
-		<-done
-		return &result{
-			stdout: out.Bytes(), stderr: errOut.Bytes(), code: -1,
-			err: fmt.Errorf("%s took longer than %s", name, r.cfg.Timeout),
-		}
-	case <-loopContext(r.cfg.Loop).Done():
-		cmd.Process.Kill()
-		<-done
-		// The context's error goes with it: a worker that has been
-		// terminated stops, rather than catching it and running on.
-		return &result{
-			stdout: out.Bytes(), stderr: errOut.Bytes(), code: -1,
-			err: fmt.Errorf("%s was stopped: the runtime was closed: %w", name, loopContext(r.cfg.Loop).Err()),
-		}
+	case err := <-outputErrors:
+		captureErr = errors.Join(captureErr, err)
+	default:
 	}
+	if captureErr != nil && !closing {
+		closing = true
+		closeErr = errors.Join(closeErr, child.Close())
+	}
+	if !closing {
+		// Normal completion drains stdout/stderr before Close so buffered output
+		// remains available to the caller.
+		closeErr = child.Close()
+	}
+	ownerErr, commandErr := ownerCtx.Err(), ctx.Err()
 
 	res := &result{stdout: out.Bytes(), stderr: errOut.Bytes()}
-	if waitErr != nil {
-		var exitErr *exec.ExitError
-		if errors.As(waitErr, &exitErr) {
-			res.code = exitErr.ExitCode()
-			res.err = fmt.Errorf("%s exited with %d", name, res.code)
-		} else {
-			res.code = -1
-			res.err = waitErr
-		}
+	if childResult.Code != nil {
+		res.code = *childResult.Code
+	} else {
+		res.code = -1
+	}
+	res.signal = childResult.Signal
+
+	if captureErr != nil {
+		res.code = -1
+		res.err = errors.Join(captureErr, waitErr, closeErr)
+		return res
+	}
+	if ownerErr != nil {
+		// Preserve runtime cancellation as a context error; the sync path uses
+		// this to avoid turning owner shutdown into a catchable JS exception.
+		res.err = fmt.Errorf("%s was stopped: the runtime was closed: %w", displayName, ownerErr)
+		return res
+	}
+	if errors.Is(commandErr, context.DeadlineExceeded) {
+		res.code = -1
+		res.err = fmt.Errorf("%s took longer than %s", displayName, r.cfg.Timeout)
+		return res
+	}
+
+	if err := errors.Join(waitErr, closeErr); err != nil {
+		res.code = -1
+		res.err = err
+		return res
+	}
+	if res.code != 0 || res.signal != "" {
+		res.err = fmt.Errorf("%s exited with %d", displayName, res.code)
+	}
+	return res
+}
+
+func commandStartError(name string, timeout time.Duration, ownerErr, commandErr, startErr error) *result {
+	res := &result{code: -1}
+	if ownerErr != nil {
+		res.err = fmt.Errorf("%s was stopped: the runtime was closed: %w", name, ownerErr)
+	} else if errors.Is(commandErr, context.DeadlineExceeded) {
+		res.err = fmt.Errorf("%s took longer than %s", name, timeout)
+	} else {
+		res.code = 0
+		res.err = startErr
 	}
 	return res
 }
@@ -194,14 +294,28 @@ func (r *runner) start(name string, args []string, dir string, env map[string]st
 func (r *runner) execFileSync(name string, argv quickjs.Value, opts quickjs.Value, extra ...string) (string, error) {
 	args := append(stringsOf(argv), extra...)
 	res := r.start(name, args, optionString(opts, "cwd"), optionEnv(opts), optionInput(opts))
+	return r.execSyncResult(res)
+}
+
+func (r *runner) execShellSync(command string, opts quickjs.Value) (string, error) {
+	res := r.startShell(command, optionString(opts, "cwd"), optionEnv(opts), optionInput(opts))
+	return r.execSyncResult(res)
+}
+
+func (r *runner) execSyncResult(res *result) (string, error) {
 	if res.err != nil {
 		// Runtime shutdown must remain an interruption, not a catchable error.
 		if loopContext(r.cfg.Loop).Err() != nil {
 			return "", res.err
 		}
 		e := r.rt.NewError("Error", res.err.Error())
+		var signal any
+		if res.signal != "" {
+			signal = res.signal
+		}
 		if err := errors.Join(
 			e.Set("code", res.code),
+			e.Set("signal", signal),
 			e.Set("stdout", string(res.stdout)),
 			e.Set("stderr", string(res.stderr)),
 		); err != nil {
@@ -220,9 +334,18 @@ func (r *runner) spawnSync(name string, argv quickjs.Value, opts quickjs.Value) 
 
 // execFile runs a program and hands back a promise for its output.
 func (r *runner) execFile(name string, argv quickjs.Value, opts quickjs.Value, extra ...string) *quickjs.Promise {
-	p := r.rt.NewPromise()
 	args := append(stringsOf(argv), extra...)
 	dir, env, input := optionString(opts, "cwd"), optionEnv(opts), optionInput(opts)
+	return r.execWith(opts, func() *result { return r.start(name, args, dir, env, input) })
+}
+
+func (r *runner) execShell(command string, opts quickjs.Value) *quickjs.Promise {
+	dir, env, input := optionString(opts, "cwd"), optionEnv(opts), optionInput(opts)
+	return r.execWith(opts, func() *result { return r.startShell(command, dir, env, input) })
+}
+
+func (r *runner) execWith(opts quickjs.Value, start func() *result) *quickjs.Promise {
+	p := r.rt.NewPromise()
 	text := optionString(opts, "encoding") != "buffer"
 
 	finish := func(res *result) {
@@ -231,6 +354,9 @@ func (r *runner) execFile(name string, argv quickjs.Value, opts quickjs.Value, e
 			// usually where the reason is.
 			e := r.rt.NewError("Error", res.err.Error())
 			e.Set("code", res.code)
+			if res.signal != "" {
+				e.Set("signal", res.signal)
+			}
 			if text {
 				e.Set("stdout", string(res.stdout))
 				e.Set("stderr", string(res.stderr))
@@ -253,7 +379,7 @@ func (r *runner) execFile(name string, argv quickjs.Value, opts quickjs.Value, e
 	}
 
 	if r.cfg.Loop == nil {
-		finish(r.start(name, args, dir, env, input))
+		finish(start())
 		return p
 	}
 	loop := r.cfg.Loop
@@ -262,15 +388,39 @@ func (r *runner) execFile(name string, argv quickjs.Value, opts quickjs.Value, e
 	// exited by the time Close returns.
 	done := make(chan struct{})
 	unhook := waitOnClose(r.rt, done)
-	go func() {
+	var removeOnce sync.Once
+	var removeScopeCleanup func()
+	removeHook := func() {
+		removeOnce.Do(unhook)
+		if removeScopeCleanup != nil {
+			removeScopeCleanup()
+		}
+	}
+	if scope := loop.executionScope(); scope != nil {
+		var err error
+		removeScopeCleanup, err = scope.AddCleanupHandle(removeHook)
+		if err != nil {
+			loop.Done()
+			close(done)
+			removeHook()
+			finish(&result{code: -1, err: err})
+			return p
+		}
+	}
+	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
-		res := r.start(name, args, dir, env, input)
+		res := start()
 		close(done)
-		loop.Post(func() {
-			unhook()
+		loop.postExecution(func() {
+			removeHook()
 			finish(res)
 		})
-	}()
+	}); err != nil {
+		loop.Done()
+		close(done)
+		removeHook()
+		finish(&result{code: -1, err: err})
+	}
 	return p
 }
 
@@ -288,6 +438,13 @@ func (r *runner) resultValue(res *result, opts quickjs.Value) (quickjs.Value, er
 		o.Set("stderr", stderr),
 	)
 	if err != nil {
+		return quickjs.Value{}, err
+	}
+	var signal any
+	if res.signal != "" {
+		signal = res.signal
+	}
+	if err := o.Set("signal", signal); err != nil {
 		return quickjs.Value{}, err
 	}
 	if res.err != nil {

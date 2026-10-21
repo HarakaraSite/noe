@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"forge.harakara.site/littleisland/noe/v2/internal/processscope"
 	"io"
 	"os"
 	"os/exec"
@@ -83,6 +84,7 @@ func TestStartupCancellationCleansSpawnedTargetAndSupervisor(t *testing.T) {
 	started := make(chan startResult, 1)
 	go func() {
 		child, err := Start(ctx, Config{
+			Supervisor:        executable,
 			Command:           executable,
 			Args:              []string{"-test.run=^TestProcessTargetHelper$"},
 			Env:               []string{targetModeEnv + "=leak", "NOE_PROCESS_TEST_STATE=" + targetState},
@@ -131,9 +133,10 @@ func TestSupervisorFailureKillsTargetGroup(t *testing.T) {
 	executable := testExecutable(t)
 	targetState := t.TempDir() + "/target-state"
 	child, err := Start(context.Background(), Config{
-		Command: executable,
-		Args:    []string{"-test.run=^TestProcessTargetHelper$"},
-		Env:     []string{targetModeEnv + "=leak", "NOE_PROCESS_TEST_STATE=" + targetState},
+		Supervisor: executable,
+		Command:    executable,
+		Args:       []string{"-test.run=^TestProcessTargetHelper$"},
+		Env:        []string{targetModeEnv + "=leak", "NOE_PROCESS_TEST_STATE=" + targetState},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -165,9 +168,10 @@ func TestProcessDescriptorAndCleanup(t *testing.T) {
 	executable := testExecutable(t)
 	baselineFDs := countOpenFDs(t)
 	child, err := Start(context.Background(), Config{
-		Command: executable,
-		Args:    []string{"-test.run=^TestProcessTargetHelper$"},
-		Env:     []string{targetModeEnv + "=hold"},
+		Supervisor: executable,
+		Command:    executable,
+		Args:       []string{"-test.run=^TestProcessTargetHelper$"},
+		Env:        []string{targetModeEnv + "=hold"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -196,9 +200,10 @@ func TestProcessDescriptorAndCleanup(t *testing.T) {
 
 	for i := 0; i < 8; i++ {
 		short, err := Start(context.Background(), Config{
-			Command: executable,
-			Args:    []string{"-test.run=^TestProcessTargetHelper$"},
-			Env:     []string{targetModeEnv + "=exit"},
+			Supervisor: executable,
+			Command:    executable,
+			Args:       []string{"-test.run=^TestProcessTargetHelper$"},
+			Env:        []string{targetModeEnv + "=exit"},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -223,9 +228,10 @@ func BenchmarkProcessResidentCost(b *testing.B) {
 	var supervisorRSS, targetRSS int64
 	for i := 0; i < b.N; i++ {
 		child, err := Start(context.Background(), Config{
-			Command: executable,
-			Args:    []string{"-test.run=^TestProcessTargetHelper$"},
-			Env:     []string{targetModeEnv + "=hold"},
+			Supervisor: executable,
+			Command:    executable,
+			Args:       []string{"-test.run=^TestProcessTargetHelper$"},
+			Env:        []string{targetModeEnv + "=hold"},
 		})
 		if err != nil {
 			b.Fatal(err)
@@ -247,9 +253,10 @@ func BenchmarkProcessResidentCost(b *testing.B) {
 func TestSupervisorPipesAreNotInheritedByTarget(t *testing.T) {
 	executable := testExecutable(t)
 	child, err := Start(context.Background(), Config{
-		Command: executable,
-		Args:    []string{"-test.run=^TestProcessTargetHelper$"},
-		Env:     []string{targetModeEnv + "=fd-check"},
+		Supervisor: executable,
+		Command:    executable,
+		Args:       []string{"-test.run=^TestProcessTargetHelper$"},
+		Env:        []string{targetModeEnv + "=fd-check"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -367,4 +374,81 @@ func linuxProcessAlive(pid int) (bool, error) {
 		return false, fmt.Errorf("missing state in /proc/%d/stat", pid)
 	}
 	return fields[0] != "Z" && fields[0] != "X", nil
+}
+
+// Normal exit must release inherited output pipes as well as cancelled runs.
+func TestNormalExitCleansDescendantsHoldingOutput(t *testing.T) {
+	executable := testExecutable(t)
+	for _, helper := range []string{"", executable} {
+		name := "direct"
+		if helper != "" {
+			name = "supervised"
+		}
+		t.Run(name, func(t *testing.T) {
+			state := t.TempDir() + "/pids"
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			child, err := Start(ctx, Config{Supervisor: helper, Command: executable, Args: []string{"-test.run=^TestProcessTargetHelper$"}, Env: []string{targetModeEnv + "=pipe-leak", "NOE_PROCESS_TEST_STATE=" + state}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer child.Close()
+			output, err := io.ReadAll(child.Stdout)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := child.Wait()
+			if err != nil || result.Code == nil || *result.Code != 0 {
+				t.Fatalf("result=%#v err=%v output=%q", result, err, output)
+			}
+			if ctx.Err() != nil {
+				t.Fatalf("output pipe held until timeout: %v", ctx.Err())
+			}
+			pids := waitForPIDs(t, state, 2)
+			for _, pid := range pids {
+				waitForProcessGone(t, pid)
+			}
+		})
+	}
+}
+
+func TestCancellationBeforeHelperDispatcherReclaimsHelper(t *testing.T) {
+	executable := testExecutable(t)
+	helperState := t.TempDir() + "/helper"
+	targetState := t.TempDir() + "/target"
+	t.Setenv("NOE_PROCESS_TEST_BLOCK_DISPATCH", helperState)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type startResult struct {
+		child *Child
+		err   error
+	}
+	done := make(chan startResult, 1)
+	go func() {
+		child, err := Start(ctx, Config{Supervisor: executable, Command: executable, Args: []string{"-test.run=^TestProcessTargetHelper$"}, Env: []string{targetModeEnv + "=leak", "NOE_PROCESS_TEST_STATE=" + targetState}})
+		done <- startResult{child, err}
+	}()
+	helperPID := waitForPIDs(t, helperState, 1)[0]
+	identity, err := processscope.CaptureProcessIdentity(helperPID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cancel(); _ = identity.KillGroup("SIGKILL"); _ = identity.Close() })
+	cancel()
+	select {
+	case result := <-done:
+		if result.child != nil {
+			_ = result.child.Close()
+			t.Fatal("Start returned a target before helper readiness")
+		}
+		if !errors.Is(result.err, context.Canceled) {
+			t.Fatalf("Start error=%v, want cancellation", result.err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Start stayed blocked before the helper dispatcher")
+	}
+	waitForProcessGone(t, helperPID)
+	if _, err := os.Stat(targetState); !os.IsNotExist(err) {
+		t.Fatalf("target ran before helper readiness: %v", err)
+	}
 }

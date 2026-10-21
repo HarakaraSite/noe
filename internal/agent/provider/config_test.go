@@ -15,17 +15,14 @@ import (
 func registryFixture(t *testing.T, configuration string) (*Registry, string) {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", dir)
-	t.Setenv("NOE_OPENROUTER_API_KEY_FILE", "")
-	t.Setenv("NOE_OPENCODE_GO_API_KEY_FILE", "")
 	path := filepath.Join(dir, "config.json")
 	if err := os.WriteFile(path, []byte(configuration), 0600); err != nil {
 		t.Fatal(err)
 	}
-	return NewRegistry(Options{ConfigFile: path, UserAgent: "noe/test"}), path
+	return NewExplicitRegistry(Options{BaseDir: dir, ConfigDir: filepath.Join(dir, "noe"), ConfigFile: path, UserAgent: "noe/test"}), path
 }
 
-func TestRegistryPartialOverridesModelsAndFreeze(t *testing.T) {
+func TestExplicitRegistryPartialOverridesModelsAndFreeze(t *testing.T) {
 	r, path := registryFixture(t, `{"providers":{"opencode-go":{"baseURL":"http://localhost:2345","headers":{"X-Test":"present"},"parameters":{"temperature":0.25},"models":{"gpt-6-luna":{"parameters":{"top_p":0.8}}}},"custom":{"api":"responses","baseURL":"http://localhost:2346/v1","path":"/generate","keyFile":"${configDir}/credentials/custom"}}}`)
 	resolved, err := r.resolve("opencode-go", "gpt-6-luna")
 	if err != nil {
@@ -57,10 +54,9 @@ func TestRegistryPartialOverridesModelsAndFreeze(t *testing.T) {
 	}
 }
 
-func TestRegistryDefaultsAndLazyConfiguration(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("NOE_CONFIG_FILE", "")
-	r := NewRegistry(Options{})
+func TestExplicitRegistryDefaultsAndLazyConfiguration(t *testing.T) {
+	base := t.TempDir()
+	r := NewExplicitRegistry(Options{BaseDir: base, ConfigDir: filepath.Join(base, "noe")})
 	if ok, err := r.HasProvider("opencode-go"); !ok || err != nil {
 		t.Fatalf("built-in default: %v", err)
 	}
@@ -72,7 +68,7 @@ func TestRegistryDefaultsAndLazyConfiguration(t *testing.T) {
 	if err != nil || first != second {
 		t.Fatal("chat and decision did not share a client/credential cache")
 	}
-	r = NewRegistry(Options{ConfigFile: filepath.Join(t.TempDir(), "missing.json")})
+	r = NewExplicitRegistry(Options{BaseDir: base, ConfigDir: filepath.Join(base, "noe"), ConfigFile: filepath.Join(t.TempDir(), "missing.json")})
 	if _, err := r.HasProvider("openrouter"); err == nil {
 		t.Fatal("explicit missing file silently ignored")
 	}
@@ -142,13 +138,20 @@ func TestConfiguredCredentialDoesNotFallBackToAnotherProvider(t *testing.T) {
 	}
 }
 
-func TestRegistryCredentialsLazyAndOverridePrecedence(t *testing.T) {
-	r, _ := registryFixture(t, `{"providers":{"opencode-go":{"keyFile":"/missing-config-key"}}}`)
+func TestExplicitRegistryCredentialsLazyAndOverridePrecedence(t *testing.T) {
+	base := t.TempDir()
+	config := filepath.Join(base, "config.json")
+	if err := os.WriteFile(config, []byte(`{"providers":{"opencode-go":{"keyFile":"/missing-config-key"}}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	key := filepath.Join(t.TempDir(), "key")
 	if err := os.WriteFile(key, []byte("fixture-key"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("NOE_OPENCODE_GO_API_KEY_FILE", key)
+	r := NewExplicitRegistry(Options{
+		BaseDir: base, ConfigDir: filepath.Join(base, "noe"), ConfigFile: config,
+		Env: map[string]string{"NOE_OPENCODE_GO_API_KEY_FILE": key},
+	})
 	resolved, err := r.resolve("opencode-go", "model")
 	p := resolved.(*OpenRouter)
 	if err != nil || p.keyFile != key {
@@ -175,7 +178,7 @@ func TestConfiguredChatBodyKeepsRawHistoryAndMapsParameters(t *testing.T) {
 	if string(fields["reasoning_effort"]) != `"high"` || string(fields["max_tokens"]) != "50" || string(fields["temperature"]) != "0.4" || fields["session_id"] != nil || !strings.Contains(string(fields["messages"]), string(message)) {
 		t.Fatalf("request: %s", body)
 	}
-	_, err = NewRegistry(Options{ConfigFile: filepath.Join(t.TempDir(), "missing")}).Generate(context.Background(), Request{Provider: "openrouter", Model: "m"})
+	_, err = NewExplicitRegistry(Options{ConfigFile: filepath.Join(t.TempDir(), "missing")}).Generate(context.Background(), Request{Provider: "openrouter", Model: "m"})
 	if err == nil {
 		t.Fatal("invalid config not reported")
 	}

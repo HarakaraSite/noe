@@ -8,8 +8,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/agent/model"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/noeprofile"
 	"forge.harakara.site/littleisland/noe/v2/internal/runtime"
 	"image"
 	"io"
@@ -104,7 +105,7 @@ func TestImageWireLiveDiagnostic(t *testing.T) {
 	}
 	expected := sha256.Sum256(data)
 	client := &imageWireClient{}
-	registry := provider.NewRegistry(provider.Options{HTTPClient: client})
+	registry := provider.NewExplicitRegistry(explicitProviderOptions(t, client, ""))
 	var results []map[string]any
 	directModels := []string{"gpt-6-luna", "gpt-6.1-sol"}
 	if os.Getenv("NOE_IMAGE_WIRE_AGENT_ONLY") == "1" {
@@ -138,7 +139,7 @@ const r=await run_agent({provider:"openai-api",model:"gpt-6-luna",effort:"low",m
 	encodedModel, _ := json.Marshal(agentModel)
 	source = strings.Replace(source, `model:"gpt-6-luna"`, "model:"+string(encodedModel), 1)
 	var stdout bytes.Buffer
-	code, runErr := runtime.Execute(ctx, runtime.Source{Name: filepath.Join(directory, "wire-agent.js"), Code: source}, runtime.Options{Stdout: &stdout, Agent: &agent.Options{Provider: registry, Executable: executable}})
+	code, runErr := runtime.Execute(ctx, runtime.Source{Name: filepath.Join(directory, "wire-agent.js"), Code: source}, runtime.Options{Stdout: &stdout, Agent: &noeprofile.AgentOptions{Models: model.Options{Provider: registry}, Supervisor: executable}})
 	result := map[string]any{"mode": "agent", "exitCode": code, "stdout": stdout.String()}
 	if runErr != nil {
 		result["error"] = runErr.Error()

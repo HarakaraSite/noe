@@ -283,6 +283,10 @@ func TestDirectObserveRunEvalAndFileRecording(t *testing.T) {
 	}
 }
 
+func (failedEventWriter) WriteContext(ctx context.Context, p []byte) (int, error) {
+	return failedEventWriter{}.Write(p)
+}
+
 func TestDirectObserveConflictsAndOutputFailure(t *testing.T) {
 	for _, args := range [][]string{
 		{"eval", "--observe", "--events=-", `console.log("ran")`},

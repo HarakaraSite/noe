@@ -41,7 +41,7 @@ func TestDecisionAgentResultAndModelObservation(t *testing.T) {
 		return agentAnswer("route-a"), nil
 	})
 	opts := agentTestOptions(p)
-	opts.DecisionProvider = decisionProviderFunc(func(context.Context, decision.Request) (decision.Response, error) {
+	opts.Models.DecisionProvider = decisionProviderFunc(func(context.Context, decision.Request) (decision.Response, error) {
 		return decision.Response{JSON: json.RawMessage(`{"model":"decision/revision","answers":{"q":{"type":"choice","choice":"yes"}},"usage":{"input_tokens":3,"output_tokens":0,"cost":0.0001}}`), StatusCode: 200}, nil
 	})
 	opts.Observe = func(e events.Event) { mu.Lock(); defer mu.Unlock(); observed = append(observed, e) }
@@ -99,17 +99,17 @@ func TestDecisionAgentInterruptRecoversOwnedRequest(t *testing.T) {
 		return decisionTool(decisionToolCode), nil
 	})
 	opts := agentTestOptions(p)
-	opts.DecisionProvider = decisionProviderFunc(func(ctx context.Context, _ decision.Request) (decision.Response, error) {
+	opts.Models.DecisionProvider = decisionProviderFunc(func(ctx context.Context, _ decision.Request) (decision.Response, error) {
 		close(started)
 		<-ctx.Done()
 		close(stopped)
 		return decision.Response{}, ctx.Err()
 	})
 	url, _ := json.Marshal(gate.URL)
-	source := `import {spawn_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := `import {spawn_agent,observe_agent,stop_agent} from "noe:agent";
 const child=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"classify");
 await fetch(` + string(url) + `).then(r=>r.text());
-await interrupt_agent({agentId:child.agentId});
+await stop_agent({agentId:child.agentId});
 let snapshot;
 do {snapshot=await observe_agent({agentId:child.agentId});if(snapshot.state!=="stopped")await new Promise(r=>setTimeout(r,1));}while(snapshot.state!=="stopped");
 if(snapshot.reason!=="interrupted")throw Error(JSON.stringify(snapshot));`

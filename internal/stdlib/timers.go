@@ -33,11 +33,15 @@ func Timers(rt *quickjs.Runtime, loop *Loop) error {
 			// arm64 such a timer never fired.
 			delayMS = 0
 		}
+		scope := loop.executionScope()
+		if scope != nil && scope.isClosing() {
+			return 0, errExecutionScopeClosed
+		}
 		d := time.Duration(delayMS * float64(time.Millisecond))
 		loop.nextID++
 		// The callback runs in the async context that armed it, as node's
 		// does: an AsyncLocalStorage's store survives a setTimeout.
-		t := &timer{id: loop.nextID, at: time.Now().Add(d), fn: fn, args: args, actx: rt.AsyncContext()}
+		t := &timer{id: loop.nextID, at: time.Now().Add(d), fn: fn, args: args, actx: rt.AsyncContext(), scope: scope}
 		if repeat {
 			// An interval of nothing would spin; the web clamps it to a
 			// millisecond and so does this.
@@ -77,7 +81,14 @@ func Timers(rt *quickjs.Runtime, loop *Loop) error {
 		if !fn.IsFunction() {
 			return rt.Throw(rt.NewError("TypeError", "the argument must be a function"))
 		}
+		scope := loop.executionScope()
+		if scope != nil && scope.isClosing() {
+			return errExecutionScopeClosed
+		}
 		rt.EnqueueJob(func() {
+			if scope != nil && scope.isClosing() {
+				return
+			}
 			// What it throws is uncaught, as in Node, where it ends the
 			// program as a timer's does: Run returns it.
 			if _, err := fn.Call(); err != nil {

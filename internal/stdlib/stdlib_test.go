@@ -1051,6 +1051,7 @@ func TestCommands(t *testing.T) {
 		asyncCommand = `cp.execFile("cmd.exe", ["/d", "/s", "/c", "echo awaited"])`
 	}
 	out, _ := run(t, stdlib.Config{Run: &stdlib.Run{
+		Env: commandTestEnvironment(),
 		Allow: func(name string, args []string) error {
 			if name != "echo" && name != shell && name != fail && name != "cmd.exe" {
 				return errors.New(name + " is not allowed")
@@ -1107,7 +1108,7 @@ func TestCommandsEnvironment(t *testing.T) {
 		args = `["/d", "/s", "/c", "echo [%GIVEN%][%QJS_SECRET%]"]`
 	}
 	out, _ := run(t, stdlib.Config{Run: &stdlib.Run{
-		Env:   map[string]string{"GIVEN": "yes"},
+		Env:   map[string]string{"GIVEN": "yes", "PATH": os.Getenv("PATH"), "ComSpec": os.Getenv("ComSpec"), "SYSTEMROOT": os.Getenv("SYSTEMROOT")},
 		Allow: func(string, []string) error { return nil },
 	}}, fmt.Sprintf(`
 		import("child_process").then(({default: cp}) => {
@@ -1123,6 +1124,15 @@ func TestCommandsEnvironment(t *testing.T) {
 	if out != want {
 		t.Errorf("out = %q, want %q", out, want)
 	}
+}
+
+func commandTestEnvironment() map[string]string {
+	env := map[string]string{"PATH": os.Getenv("PATH")}
+	if runtime.GOOS == "windows" {
+		env["ComSpec"] = os.Getenv("ComSpec")
+		env["SYSTEMROOT"] = os.Getenv("SYSTEMROOT")
+	}
+	return env
 }
 
 func TestProcessEvents(t *testing.T) {

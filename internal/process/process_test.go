@@ -21,6 +21,23 @@ const (
 	ownerModeEnv  = "NOE_PROCESS_TEST_OWNER"
 )
 
+func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && os.Args[1] == "--noe-private-process-supervisor-v1" {
+		if path := os.Getenv("NOE_PROCESS_TEST_BLOCK_DISPATCH"); path != "" {
+			if err := os.WriteFile(path, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0600); err != nil {
+				os.Exit(13)
+			}
+			for {
+				time.Sleep(time.Hour)
+			}
+		}
+	}
+	if code, handled := DispatchHelper(os.Args[1:]); handled {
+		os.Exit(code)
+	}
+	os.Exit(m.Run())
+}
+
 func TestProcessTargetHelper(t *testing.T) {
 	mode := os.Getenv(targetModeEnv)
 	if mode == "" {
@@ -69,15 +86,21 @@ func TestProcessTargetHelper(t *testing.T) {
 			}
 		}
 		_, _ = io.WriteString(os.Stdout, "fds-clean\n")
-	case "leak":
+	case "leak", "pipe-leak":
 		grandchild := exec.Command(os.Args[0], "-test.run=^TestProcessGrandchildHelper$")
 		grandchild.Env = append(os.Environ(), "NOE_PROCESS_TEST_GRANDCHILD=1")
+		if mode == "pipe-leak" {
+			grandchild.Stdout, grandchild.Stderr = os.Stdout, os.Stderr
+		}
 		if err := grandchild.Start(); err != nil {
 			os.Exit(5)
 		}
 		state := fmt.Sprintf("%d %d\n", os.Getpid(), grandchild.Process.Pid)
 		if err := os.WriteFile(os.Getenv("NOE_PROCESS_TEST_STATE"), []byte(state), 0o600); err != nil {
 			os.Exit(6)
+		}
+		if mode == "pipe-leak" {
+			return
 		}
 		for {
 			time.Sleep(time.Hour)
@@ -105,9 +128,10 @@ func TestProcessOwnerHelper(t *testing.T) {
 	}
 	env := append(os.Environ(), targetModeEnv+"=leak", "NOE_PROCESS_TEST_STATE="+os.Getenv("NOE_PROCESS_TEST_STATE"))
 	child, err := Start(context.Background(), Config{
-		Command: executable,
-		Args:    []string{"-test.run=^TestProcessTargetHelper$"},
-		Env:     env,
+		Supervisor: executable,
+		Command:    executable,
+		Args:       []string{"-test.run=^TestProcessTargetHelper$"},
+		Env:        env,
 	})
 	if err != nil {
 		os.Exit(11)
@@ -277,13 +301,14 @@ func TestKillRejectsUnsupportedSignal(t *testing.T) {
 	}
 }
 
-func TestStartAcknowledgesFastExitsBeforeTargetIsReaped(t *testing.T) {
+func TestSupervisedStartAcknowledgesFastExitsBeforeTargetIsReaped(t *testing.T) {
 	executable := testExecutable(t)
 	for i := 0; i < 25; i++ {
 		child, err := Start(context.Background(), Config{
-			Command: executable,
-			Args:    []string{"-test.run=^TestProcessTargetHelper$"},
-			Env:     []string{targetModeEnv + "=exit", "NOE_PROCESS_TEST_EXIT=0"},
+			Supervisor: executable,
+			Command:    executable,
+			Args:       []string{"-test.run=^TestProcessTargetHelper$"},
+			Env:        []string{targetModeEnv + "=exit", "NOE_PROCESS_TEST_EXIT=0"},
 		})
 		if err != nil {
 			t.Fatalf("Start iteration %d: %v", i, err)
@@ -308,9 +333,10 @@ func BenchmarkSupervisorStartupCost(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		start := time.Now()
 		child, err := Start(context.Background(), Config{
-			Command: executable,
-			Args:    []string{"-test.run=^TestProcessTargetHelper$"},
-			Env:     []string{targetModeEnv + "=exit"},
+			Supervisor: executable,
+			Command:    executable,
+			Args:       []string{"-test.run=^TestProcessTargetHelper$"},
+			Env:        []string{targetModeEnv + "=exit"},
 		})
 		b.StopTimer()
 		totalStartup += time.Since(start)

@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -36,10 +35,9 @@ func newManagedTestRun(t *testing.T, h *Host, instance *agentInstance, runID, ac
 
 func TestExecutionGroupPropagationAndQueueCountingWithoutObservation(t *testing.T) {
 	h := NewHost(Options{
-		Provider:   &fixtureProvider{},
-		Executable: filepath.Join(t.TempDir(), "not-a-running-binary"),
-		Cwd:        t.TempDir(),
-		Observe:    nil,
+		Models: modelsWithChat(&fixtureProvider{}),
+
+		Observe: nil,
 	})
 	defer h.Close()
 	rootOp := h.NewOperation(context.Background())
@@ -132,7 +130,7 @@ func TestModelRequestIDAndUsageCountersWithoutObservation(t *testing.T) {
 			Usage:        json.RawMessage(`{"input_tokens":3,"output_tokens":2,"total_tokens":5,"input_tokens_details":{"cached_tokens":1},"cost":0.0004}`),
 		}, nil
 	}}
-	h := NewHost(Options{Provider: p})
+	h := NewHost(Options{Models: modelsWithChat(p)})
 	defer h.Close()
 	op := h.NewOperation(context.Background())
 	defer op.Close()
@@ -169,9 +167,9 @@ func TestModelRequestIDAndUsageCountersWithoutObservation(t *testing.T) {
 func TestDecisionActivityUsesCurrentOwnerAndGroup(t *testing.T) {
 	observed := make(chan events.Event, 4)
 	h := NewHost(Options{
-		DecisionProvider: decisionProviderFunc(func(context.Context, decision.Request) (decision.Response, error) {
+		Models: modelsWithDecision(decisionProviderFunc(func(context.Context, decision.Request) (decision.Response, error) {
 			return decision.Response{JSON: json.RawMessage(`{"model":"m","answers":{"q":{"choice":"yes"}},"usage":{"input_tokens":7,"output_tokens":1,"total_tokens":8,"cost":0.01}}`)}, nil
-		}),
+		})),
 		Observe: func(event events.Event) { observed <- event },
 	})
 	defer h.Close()
@@ -268,7 +266,7 @@ func TestIdleExitFinishesBeforeInterruptAdmission(t *testing.T) {
 	}
 	// Exercise the real idle-exit branch, with terminal event publication
 	// paused. Admission must already be closed with counters settled.
-	_, err := h.interrupt(op, interruptRequest{AgentID: instance.id})
+	_, err := h.stopAgent(op, StopAgentRequest{AgentID: instance.id})
 	operationErr, ok := err.(*operationError)
 	if !ok || operationErr.status != 409 {
 		t.Fatalf("interrupt during terminal publication returned error %v, want conflict", err)

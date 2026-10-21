@@ -1,10 +1,10 @@
 # `noe:run_js` agent tool
 
-`noe:run_js` is a tool available to managed agents. It is a tool name and documentation topic, not an importable module or an additional tool for ordinary JavaScript. It runs supplied code in a fresh NOE process; variables, module state, and open runtime resources do not persist to the next call. The process uses the current working directory and inherits the configured import map.
+`noe:run_js` is a tool available to managed agents. It is a tool name and documentation topic, not an importable module or an additional tool for ordinary JavaScript. It runs supplied code in a fresh, owned NOE runtime; variables, module state, and open runtime resources do not persist to the next call. The runtime uses the current working directory and the configured loader factory.
 
-Every call starts a new process. Relative imports in the temporary module resolve from that module's source location; use a configured import-map alias or a local `.js`/`.mjs` path. HTTP imports, npm discovery, and unmapped bare package imports are unavailable. Resources created during the call belong to its runtime; owned work is recovered when the task ends or is cancelled.
+Every call starts a new runtime. The supplied source is a virtual entry, so relative imports resolve from the execution's configured cwd; imports from ordinary files keep normal referrer-relative behavior. The selected loader factory handles imports. HTTP imports, npm discovery, and unmapped bare package imports are unavailable. Resources created during the call belong to its runtime; owned work is recovered when the task ends or is cancelled.
 
-Top-level await and ES module imports are supported. Print results with console.log; a final expression is not automatically returned to the model. Filesystem paths are relative to process.cwd(), whereas relative module imports use the temporary source location. Use an absolute path for an unmapped local module.
+Top-level await and ES module imports are supported. Print results with console.log; a final expression is not automatically returned to the model. Filesystem paths are relative to process.cwd(). Virtual-entry relative imports use the configured cwd; imports from loaded files resolve relative to their referrer. Use an absolute path for an unmapped local module.
 
 Task recipes are available as details: files, commands, imports, http, agents, and failures. For example, docs("noe:run_js", "files") reads file-operation recipes directly. Each code block below is a separate run_js call; adapt input files, program names, and URLs to the task.
 
@@ -16,7 +16,7 @@ The input is an object with one required property:
 {"code":"// Read the embedded API reference.\nimport { docs } from 'noe:docs';\nconsole.log(docs('noe:process', 'spawn'));"}
 ```
 
-`code` must be a string. Its first line must be a short English `//` comment describing the operation. Put the comment before imports and executable statements, with no leading blank line. Do not import or redeclare the managed-agent helpers already bound by the tool, such as `run_agent` and `observe_agent`.
+`code` must be a string. NOE's default Policy asks for a short English `//` comment describing the operation on the first line, before imports and executable statements, with no leading blank line. This is a NOE policy, not an API requirement; other hosts supply their own Policy. Do not import or redeclare the managed-agent helpers already bound by the tool, such as `run_agent` and `observe_agent`.
 
 The result reports `stdout`, `stderr`, `exitCode`, and `reason`. A nonzero exit code is still a result and can include useful output. `reason` distinguishes ordinary completion from process failure, timeout, or cancellation.
 
@@ -148,7 +148,7 @@ try {
   if (task.state !== "completed") throw Error(task.error || JSON.stringify(task));
   console.log(task.answer);
 } finally {
-  await interrupt_agent({agentId: worker.agentId});
+  await stop_agent({agentId: worker.agentId});
 }
 ~~~
 

@@ -2,12 +2,11 @@ package runtime
 
 import (
 	"context"
+	"forge.harakara.site/littleisland/noe/v2/agent/model"
+	"forge.harakara.site/littleisland/noe/v2/internal/noeprofile"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
-	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 )
 
 func TestModelCatalogSnapshotWithoutCredentials(t *testing.T) {
@@ -16,7 +15,7 @@ func TestModelCatalogSnapshotWithoutCredentials(t *testing.T) {
 	if err := os.WriteFile(config, []byte(`{"providers":{"openrouter":{"keyFile":"/missing-key","models":{"deepseek/deepseek-v4.1-flash":{"catalog":{"description":"local selection policy"}}}}}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	opts := Options{Agent: &agent.Options{ProviderOptions: provider.Options{ConfigFile: config}}}
+	opts := Options{Agent: &noeprofile.AgentOptions{Models: model.Options{ConfigFile: config}}}
 	source := `import {list_models} from "noe:agent";
 const all=await list_models();
 if(all.length!==13 || all.some(m=>"keyFile" in m || "baseURL" in m))throw Error("catalog shape");

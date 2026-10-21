@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"forge.harakara.site/littleisland/noe/v2/internal/process"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,17 +15,10 @@ import (
 	"testing"
 )
 
-// Managed tasks re-execute NOE. Dispatch those child invocations through the
-// same CLI entry point instead of accidentally running the test suite again.
+// Dispatch only the explicitly selected command supervisor helper.
 func TestMain(m *testing.M) {
-	if len(os.Args) >= 3 && os.Args[1] == "run" && os.Getenv("NOE_AGENT_CONNECTION") != "" {
-		os.Exit(Run(context.Background(), os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
-	}
-	// Only suite invocations must ignore the outer run_js capability. Managed
-	// children above still need the connection created by the fixture broker.
-	if err := os.Unsetenv("NOE_AGENT_CONNECTION"); err != nil {
-		fmt.Fprintln(os.Stderr, "clear inherited agent connection:", err)
-		os.Exit(1)
+	if code, handled := process.DispatchHelper(os.Args[1:]); handled {
+		os.Exit(code)
 	}
 	os.Exit(m.Run())
 }

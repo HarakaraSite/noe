@@ -48,16 +48,15 @@ func TestImportMapRuntimeAndInMemoryEntry(t *testing.T) {
 	}
 
 	entry := filepath.Join(dir, "entry.js")
-	if err := os.WriteFile(entry, []byte(`throw Error("disk entry");`), 0600); err != nil {
-		t.Fatal(err)
-	}
+	// The supplied entry has no file. Aliases and relative self-imports must
+	// reuse its canonical in-memory source.
 	data, _ := json.Marshal(map[string]any{"imports": map[string]string{"app/entry": entry}})
 	snapshot, err = modulemap.Parse(data, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	out.Reset()
-	code, err = Execute(context.Background(), Source{entry, `import * as self from "app/entry"; export const value=7; console.log(self.value);`}, Options{Stdout: &out, ImportMap: snapshot})
+	code, err = Execute(context.Background(), Source{entry, `import * as self from "app/entry"; import * as relative from "./entry.js"; export const value=7; if(self!==relative)throw Error("entry identity");console.log(self.value);`}, Options{Stdout: &out, ImportMap: snapshot})
 	if err != nil || code != 0 || out.String() != "7\n" {
 		t.Fatalf("entry: code=%d err=%v out=%q", code, err, out.String())
 	}
@@ -80,7 +79,7 @@ func TestImportMapWorkersAndBuiltinRestrictions(t *testing.T) {
 	dir, snapshot := importMapFixture(t)
 	worker := filepath.Join(dir, "worker.mjs")
 	if err := os.WriteFile(worker, []byte(`import {value} from "app/lib"; import {parentPort} from "node:worker_threads";
- let unsupported=false;try{await import("noe:agent")}catch(e){unsupported=String(e).includes("not supported in Workers")}
+ let unsupported=false;try{await import("noe:agent")}catch(e){unsupported=String(e).includes("noe:agent")}
  parentPort.postMessage({value,unsupported});`), 0600); err != nil {
 		t.Fatal(err)
 	}

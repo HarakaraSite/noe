@@ -17,7 +17,7 @@ func TestLogicalStepKeepsSteerAndHookAccountingWithoutObservation(t *testing.T) 
 		t.Fatal(err)
 	}
 	providerFixture := &fixtureProvider{}
-	h := NewHost(Options{Provider: providerFixture, Cwd: cwd, Observe: nil})
+	h := NewHost(Options{Models: modelsWithChat(providerFixture), Observe: nil})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
@@ -97,6 +97,16 @@ func startControlRunWithHooks(t *testing.T, op *Operation, hooks []string) strin
 	}
 	if err := json.Unmarshal([]byte(text), &response); err != nil || response.RunID == "" {
 		t.Fatalf("invalid start response %q: %v", text, err)
+	}
+	if len(hooks) != 0 {
+		h := op.host
+		h.mu.Lock()
+		run := h.runs[response.RunID]
+		run.resolvedHooks = make(map[int]resolvedHook, len(hooks))
+		for index, hook := range hooks {
+			run.resolvedHooks[index] = resolvedHook{Specifier: hook, Canonical: hook}
+		}
+		h.mu.Unlock()
 	}
 	return response.RunID
 }

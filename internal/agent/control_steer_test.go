@@ -63,7 +63,7 @@ func callControlModel(t *testing.T, op *Operation, runID string) (modelResponse,
 func TestSteerIsOrderedIdempotentAndDoesNotConsumeModelBudget(t *testing.T) {
 	var observed []events.Event
 	p := &fixtureProvider{}
-	h := NewHost(Options{Provider: p, Observe: func(event events.Event) { observed = append(observed, event) }})
+	h := NewHost(Options{Models: modelsWithChat(p), Observe: func(event events.Event) { observed = append(observed, event) }})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
@@ -160,7 +160,7 @@ func TestSteerIsOrderedIdempotentAndDoesNotConsumeModelBudget(t *testing.T) {
 
 func TestFailedFinishCancelsAcceptedSteersAfterAcceptanceEvent(t *testing.T) {
 	observed := make(chan events.Event, 32)
-	h := NewHost(Options{Provider: &fixtureProvider{}, Observe: func(event events.Event) { observed <- event }})
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{}), Observe: func(event events.Event) { observed <- event }})
 	t.Cleanup(h.Close)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -190,7 +190,7 @@ func TestFailedFinishCancelsAcceptedSteersAfterAcceptanceEvent(t *testing.T) {
 
 func TestOperationCloseCancelsAcceptedSteers(t *testing.T) {
 	observed := make(chan events.Event, 32)
-	h := NewHost(Options{Provider: &fixtureProvider{}, Observe: func(event events.Event) { observed <- event }})
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{}), Observe: func(event events.Event) { observed <- event }})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	runID := startControlRun(t, op, 0)

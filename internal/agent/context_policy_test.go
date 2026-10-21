@@ -6,24 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/agent/model"
 )
-
-type contextPolicyCatalog []provider.Model
-
-func (c contextPolicyCatalog) ListModels(query provider.ModelQuery) ([]provider.Model, error) {
-	var result []provider.Model
-	for _, model := range c {
-		if query.Provider != "" && model.Provider != query.Provider {
-			continue
-		}
-		if query.Kind != "" && model.Kind != query.Kind {
-			continue
-		}
-		result = append(result, model)
-	}
-	return result, nil
-}
 
 func TestContextPolicyStrictValidation(t *testing.T) {
 	valid := []string{
@@ -103,32 +87,6 @@ func TestContextPolicyConfigNullAndObjectRoundTrip(t *testing.T) {
 		t.Fatalf("task config round trip = %#v, error %v", decoded, err)
 	}
 
-	reserve := int64(8192)
-	window, output := int64(120_000), int64(12_000)
-	connection := Connection{
-		Defaults:    Config{Provider: "fixture", Model: "model-a", ContextPolicy: &ContextPolicy{ResponseReserveTokens: &reserve}},
-		ModelWindow: &window, ModelMaxOutputTokens: &output,
-	}
-	encoded, err = json.Marshal(connection)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var inherited Connection
-	if err := json.Unmarshal(encoded, &inherited); err != nil {
-		t.Fatal(err)
-	}
-	child := NewHost(Options{Connection: &inherited})
-	defer child.Close()
-	if inherited.Defaults.ContextPolicy == nil || inherited.Defaults.ContextPolicy.ResponseReserveTokens == nil || *inherited.Defaults.ContextPolicy.ResponseReserveTokens != reserve {
-		t.Fatalf("child policy inheritance = %#v", inherited.Defaults.ContextPolicy)
-	}
-	gotWindow, gotOutput := child.contextModelLimits("fixture", "model-a")
-	if gotWindow == nil || *gotWindow != window || gotOutput == nil || *gotOutput != output {
-		t.Fatalf("connection model metadata = %v/%v, want %d/%d", gotWindow, gotOutput, window, output)
-	}
-	if changedWindow, changedOutput := child.contextModelLimits("fixture", "model-b"); changedWindow != nil || changedOutput != nil {
-		t.Fatalf("metadata for model-a leaked to model-b: %v/%v", changedWindow, changedOutput)
-	}
 }
 
 func TestResolveExecutionBudgetSourcesAndWindowReserve(t *testing.T) {
@@ -203,11 +161,15 @@ func TestResolveExecutionBudgetReservePrecedenceAndUnreachableFixedInput(t *test
 }
 
 func TestContextCatalogOutputReserveIsResolvedPerProviderAndModel(t *testing.T) {
-	catalog := contextPolicyCatalog{
-		{Provider: "fixture-a", Model: "model-a", ModelInfo: provider.ModelInfo{Kind: "agent", MaxOutputTokens: 12_000}},
-		{Provider: "fixture-a", Model: "model-b", ModelInfo: provider.ModelInfo{Kind: "agent", MaxOutputTokens: 24_000}},
-		{Provider: "fixture-b", Model: "model-a", ModelInfo: provider.ModelInfo{Kind: "agent", MaxOutputTokens: 36_000}},
-	}
+	windowA := int64(128_000)
+	windowB := int64(256_000)
+	catalog := agentTestModelService{catalog: []model.Model{
+		{Provider: "fixture-a", Model: "model-a", Kind: "agent", ContextWindow: windowA, MaxOutputTokens: 12_000},
+		{Provider: "fixture-a", Model: "model-b", Kind: "agent", ContextWindow: windowA, MaxOutputTokens: 24_000},
+		{Provider: "fixture-b", Model: "model-a", Kind: "agent", ContextWindow: windowB, MaxOutputTokens: 36_000},
+	}}
+	h := NewHost(Options{Models: catalog})
+	defer h.Close()
 	for _, test := range []struct {
 		provider string
 		model    string
@@ -217,12 +179,19 @@ func TestContextCatalogOutputReserveIsResolvedPerProviderAndModel(t *testing.T) 
 		{provider: "fixture-a", model: "model-b", want: 24_000},
 		{provider: "fixture-b", model: "model-a", want: 36_000},
 	} {
-		got := contextMaxOutputTokensForModel(catalog, test.provider, test.model)
-		if got == nil || *got != test.want {
-			t.Errorf("catalog reserve %s/%s = %v, want %d", test.provider, test.model, got, test.want)
+		gotWindow, gotOutput := h.contextModelLimits(test.provider, test.model)
+		if gotOutput == nil || *gotOutput != test.want {
+			t.Errorf("catalog reserve %s/%s = %v, want %d", test.provider, test.model, gotOutput, test.want)
+		}
+		wantWindow := windowA
+		if test.provider == "fixture-b" {
+			wantWindow = windowB
+		}
+		if gotWindow == nil || *gotWindow != wantWindow {
+			t.Errorf("catalog window %s/%s = %v, want %d", test.provider, test.model, gotWindow, wantWindow)
 		}
 	}
-	if got := contextMaxOutputTokensForModel(catalog, "fixture-a", "unknown"); got != nil {
-		t.Errorf("unknown model reserve = %v, want unknown", *got)
+	if gotWindow, gotOutput := h.contextModelLimits("fixture-a", "unknown"); gotWindow != nil || gotOutput != nil {
+		t.Errorf("unknown model metadata = %v/%v, want unknown", gotWindow, gotOutput)
 	}
 }

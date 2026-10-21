@@ -1,6 +1,6 @@
 package agent
 
-// Access follows ownership, not the short-lived process which sent spawn.
+// Access follows ownership, not the short-lived operation which sent spawn.
 // An owning evaluation can also manage its nested descendants.
 func (h *Host) canManageLocked(op *Operation, instance *agentInstance) bool {
 	if op.control {
@@ -63,9 +63,8 @@ func (h *Host) canManageRunLocked(op *Operation, run *agentRun) bool {
 	return false
 }
 
-// OwnedLifetime lets a local runtime track a spawned instance as native work.
-// Remote run_js clients only track their launch request; the parent host owns
-// the instance and its process lifetime.
+// OwnedLifetime lets an execution scope track a spawned instance as native work.
+// The parent host remains responsible for the instance lifetime.
 func (op *Operation) OwnedLifetime(id string) <-chan struct{} {
 	h := op.host
 	h.mu.Lock()

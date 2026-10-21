@@ -207,3 +207,81 @@ func TestSyncCommandTimeoutDetails(t *testing.T) {
 		t.Fatalf("stdout=%q stderr=%q", out, errOut)
 	}
 }
+
+func TestCommandResultIncludesSignal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX signal result")
+	}
+	out, errOut := run(t, stdlib.Config{Run: &stdlib.Run{
+		Allow: func(string, []string) error { return nil },
+	}}, `
+  import("node:child_process").then(async cp => {
+   const result = cp.spawnSync("/bin/sh", ["-c", "kill -TERM $$"]);
+   if (result.status !== -1 || result.signal !== "SIGTERM")
+    throw Error("wrong sync signal result: " + JSON.stringify(result));
+   if (!(result.error instanceof Error)) throw Error("sync signal error missing");
+   try {
+    cp.execFileSync("/bin/sh", ["-c", "kill -TERM $$"]);
+    throw Error("sync command resolved");
+   } catch (error) {
+    if (error.signal !== "SIGTERM" || error.code !== -1)
+     throw Error("wrong sync exception signal: " + JSON.stringify(error));
+   }
+   try {
+    await cp.execFile("/bin/sh", ["-c", "kill -TERM $$"]);
+    throw Error("async command resolved");
+   } catch (error) {
+    if (error.signal !== "SIGTERM" || error.code !== -1)
+     throw Error("wrong async signal result: " + JSON.stringify(error));
+   }
+   console.log("checked");
+  });
+ `)
+	if out != "checked" {
+		t.Fatalf("stdout=%q stderr=%q", out, errOut)
+	}
+}
+
+func TestCommandsUseExplicitSupervisor(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows uses Job Objects instead of a helper executable")
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := filepath.Join(t.TempDir(), "missing-supervisor")
+	name, _ := json.Marshal(executable)
+	args := `["-test.run=^TestSyncCommandHelper$"]`
+	supervisorJSON, _ := json.Marshal(supervisor)
+	out, errOut := run(t, stdlib.Config{Run: &stdlib.Run{
+		Allow:      func(string, []string) error { return nil },
+		Supervisor: supervisor,
+	}}, fmt.Sprintf(`
+  import("node:child_process").then(async cp => {
+   const path = %s, args = %s;
+   const fail = error => !error || !error.message.includes("start process supervisor") ||
+    !error.message.includes(%s);
+   const sync = cp.spawnSync(path, args);
+   if (sync.status !== 0 || fail(sync.error)) throw Error("spawnSync ignored Supervisor: " + JSON.stringify(sync));
+   let syncThrew = false;
+   try { cp.execFileSync(path, args); } catch (error) {
+    syncThrew = true;
+    if (error.code !== 0 || !error.message.includes("start process supervisor") || !error.message.includes(%s))
+     throw Error("execFileSync ignored Supervisor: " + error.message);
+   }
+   if (!syncThrew) throw Error("execFileSync ignored Supervisor");
+   let asyncRejected = false;
+   try { await cp.execFile(path, args); } catch (error) {
+    asyncRejected = true;
+    if (error.code !== 0 || !error.message.includes("start process supervisor") || !error.message.includes(%s))
+     throw Error("execFile ignored Supervisor: " + error.message);
+   }
+   if (!asyncRejected) throw Error("execFile ignored Supervisor");
+   console.log("checked");
+  });
+ `, name, args, supervisorJSON, supervisorJSON, supervisorJSON))
+	if out != "checked" {
+		t.Fatalf("stdout=%q stderr=%q", out, errOut)
+	}
+}

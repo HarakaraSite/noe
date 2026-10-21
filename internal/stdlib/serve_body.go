@@ -1,6 +1,7 @@
 package stdlib
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -148,10 +149,10 @@ func (b *serveBody) reader(rt *quickjs.Runtime, loop *Loop) func() *quickjs.Prom
 	return func() *quickjs.Promise {
 		p := rt.NewPromise()
 		loop.Begin()
-		go func() {
+		if err := loop.Go(func(context.Context) {
 			defer loop.Done()
 			data, err := b.read()
-			loop.Post(func() {
+			loop.postExecution(func() {
 				switch {
 				case b.stopped():
 					p.RejectError(errors.New("the request body is closed"))
@@ -163,7 +164,10 @@ func (b *serveBody) reader(rt *quickjs.Runtime, loop *Loop) func() *quickjs.Prom
 					p.Resolve(rt.NewBytes(data))
 				}
 			})
-		}()
+		}); err != nil {
+			loop.Done()
+			p.RejectError(err)
+		}
 		return p
 	}
 }
@@ -205,7 +209,7 @@ func (s *servers) serveRequest(w http.ResponseWriter, r *http.Request, dispatch 
 			ex.headers = append(ex.headers, [2]string{name, value})
 		}
 	}
-	loop.Post(func() {
+	loop.postExecution(func() {
 		select {
 		case <-ex.gone:
 			return
@@ -218,7 +222,7 @@ func (s *servers) serveRequest(w http.ResponseWriter, r *http.Request, dispatch 
 	case res = <-ex.answer:
 	case <-r.Context().Done():
 		return
-	case <-loop.Context().Done():
+	case <-loopContext(loop).Done():
 		return
 	}
 	if res.upgrade != "" {
@@ -280,7 +284,7 @@ func (s *servers) serveRequest(w http.ResponseWriter, r *http.Request, dispatch 
 			// context. Keep sending; real write failures and runtime closure
 			// still terminate the output half.
 			requestDone = nil
-		case <-loop.Context().Done():
+		case <-loopContext(loop).Done():
 			return
 		}
 	}

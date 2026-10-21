@@ -6,7 +6,7 @@
 
 NOEは固定したgo-quickjs v0.27.0をJavaScriptエンジンに使い、同版のstdlibを原型とするNOE管理の標準ライブラリを有効にします。Web APIとNode形式APIを利用できます。各APIはNOEが管理する実装に従い、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`docs`・`--timeout`と、組み込みES moduleの`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`があります。これらのagent・decision・image・authモジュールはWorkersでは利用できません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:http`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
+JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`docs`・`--timeout`と、組み込みES moduleの`noe:agent`・`noe:model`・`noe:agent-log`・`noe:decision`・`noe:image`・`noe:auth`があります。NOE既定Profileではagent・model・log・decision・image・authモジュールをWorkersへ導入しません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:http`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
 
 ## 利用できる機能と権限
 
@@ -54,7 +54,7 @@ npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗
 # 終了コード124、stderrへ時間切れの診断
 ```
 
-`500ms`・`5s`・`1m`など正のGo durationを指定します。空・不正・0・負数・重複指定はusage errorです。時間の計測はentry source読込み後から始まり、runtime初期化、JS評価、非同期I/O、待機、サーバー待受と後続処理を含みます。同期host I/O（`process.stdin.read()`など）やlocal import中のOS読込みの強制停止は保証しません。中断前の出力やファイル変更は残ります。
+`500ms`・`5s`・`1m`など正のGo durationを指定します。空・不正・0・負数・重複指定はusage errorです。時間の計測はentry source読込み後から始まり、runtime初期化、JS評価、非同期I/O、待機、サーバー待受と後続処理を含みます。対応するstdioとcommandは実行contextに従って取消します。local import等の通常OS file操作を途中で強制停止する保証はありません。中断前の出力やファイル変更は残ります。
 
 ### 終了コードと診断
 
@@ -73,7 +73,7 @@ OpenAIのSol・LunaはResponsesを使います。[OpenAIガイド](openai.md)に
 
 `list_models({provider?, kind?})`は、認証や外部API要求なしで内蔵デフォルトと外部上書きを統合した候補一覧を返します。詳細とJevでの選択例は[モデルカタログ](model-catalog.md)を参照してください。
 
-`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`read_task_result`・`steer_agent`・`interrupt_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
+`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`read_task_result`・`steer_agent`・`cancel_task`・`stop_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
 
 ```js
 import { run_agent } from "noe:agent";
@@ -189,22 +189,18 @@ async function addInstructionToActiveTask(runId) {
 
 steerの受領は適用完了を意味しません。`commandId`を省略すると自動発行し、返されたIDでJSONLの`command.accepted`・`command.applied`・`command.cancelled`を追跡します。イベントの`operation`は`steer`です。同じrunで同じ`commandId`・指示を再送すると重複適用せず現在の状態を返し、異なる指示でIDを再利用するとエラーです。モデルが最終回答候補を確定する直前にも受領済みsteerを確認します。確定より先に受け付けた指示は最終回答の前に適用し、確定後の指示は終了済みとして拒否します。別runとして後の仕事を始める`queue_agent`とは使い分けてください。
 
-`interrupt_agent`は、指定した対象への停止要求を受領すると戻ります。後始末完了を待つAPIではありません。
+`cancel_task`と`stop_agent`は停止要求の受付後に戻ります。後始末の完了は`wait_task`やlive snapshotで確認します。
 
 ```js
-import { interrupt_agent } from "noe:agent";
+import { cancel_task, stop_agent } from "noe:agent";
 
-async function stopTask(runId) {
-  await interrupt_agent({ runId });
-}
-async function stopInstance(agentId) {
-  await interrupt_agent({ agentId });
-}
+await cancel_task({ agentId, commandId }); // spawn/queueで受け取ったtask ID
+await stop_agent({ agentId });
 ```
 
-`runId`と`agentId`のどちらか一方を指定します。`{runId}`はtask・生成JS・そのtaskが所有する子workを取消します。`keepAlive:true` instanceと他の予約は残り、次の予約またはidle状態へ進みます。`{agentId}`はidle中でも受け付け、instanceを停止して実行中task・未実行queue・子instanceを回収します。idle時は最後のtask結果を書き換えません。JSONLには`interrupt.accepted`が記録され、`target`は`run`または`agent`です。停止要求の受付後、`observe_agent({agentId})`でstateと最終結果を確認してください。単発instanceのtaskだけをinterruptした場合、snapshotの`reason`は`task_interrupted`になります。明示的なinstance interrupt後はsnapshotの`reason`が`interrupted`になり、`run_agent`は回収後に終端snapshotを返します。
+`cancel_task({agentId, commandId})`は実行中または未開始のtaskを取消します。実行中なら生成JSと所有する子workも回収します。`keepAlive:true`のinstanceと他の予約は残り、次の予約またはidleへ進みます。`stop_agent({agentId})`はidle中も受け付け、instance・実行中task・未実行queue・子instanceを停止します。idle時の最後のtask結果は保持します。JSONLの受付eventは`interrupt.accepted`、`target`は`task`または`agent`です。task取消し後の単発instanceの`reason`は`task_interrupted`、instance停止後は`interrupted`です。
 
-JavaScriptからのsteer・interruptは呼出元が所有するscope内で認可されます。所有していないrunやagentのIDを指定すると受付エラーになります。別terminalのCLIはローカルhost用のcontrol接続から操作し、JSへ渡す子scope用tokenを使いません。
+JavaScriptの操作は呼出元の所有scopeで認可されます。別terminalのCLIはNOEが所有する人間用control接続からHost管理APIを呼びます。JSのscopeはGo内に保持し、内部接続tokenは渡しません。
 
 ### 別ターミナルからの操作
 
@@ -224,13 +220,13 @@ Control接続はローカルで稼働中のNOEに限られ、daemonや再起動�
 
 ### run_jsからの利用
 
-モデル向けの`run_js`では8つのagent関数が事前に束縛されています。importや再宣言をせず、そのまま呼び出してください。`run_js`呼出しごとに新しいNOEプロセスが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
+モデル向けの`run_js`では`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`read_task_result`・`steer_agent`・`cancel_task`・`stop_agent`が事前に束縛されています。importや再宣言をせず、そのまま呼び出してください。`run_js`呼出しごとに同じGoプロセス内で新しいstdlib runtimeが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
 
-捕捉するstdout・stderrは、それぞれ元の出力の先頭32KiBと末尾32KiB、合計64KiBまでを保持します。上限以内の出力は変更しません。超過した場合は途中に`[NOE: output truncated; N bytes omitted]`を挿入し、結果に`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。UTF-8の切断位置は文字境界へ寄せるため、保持量が数バイト減る場合があります。超過分も読み捨て続けるため、上限到達で子プロセスを停止したり出力pipeを詰まらせたりしません。省略だけで`exitCode`や`reason`は変更しません。内部のmanaged taskプロセスの捕捉出力も同じ制限に従います。
+捕捉するstdout・stderrは、それぞれ元の出力の先頭32KiBと末尾32KiB、合計64KiBまでを保持します。上限以内の出力は変更しません。超過した場合は途中に`[NOE: output truncated; N bytes omitted]`を挿入し、結果に`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。UTF-8の切断位置は文字境界へ寄せるため、保持量が数バイト減る場合があります。超過分も読み捨て続けるため、上限到達で子プロセスを停止したり出力pipeを詰まらせたりしません。省略だけで`exitCode`や`reason`は変更しません。managed task runtimeの捕捉出力も同じ制限に従います。
 
 省略分は自動保存しません。完全なログが必要な処理は、実行するJSやコマンド側で既知のファイルへ書き出し、必要な部分だけを読み戻してください。afterToolが受け取る元の結果とJSONLも、この制限後の出力です。hookが独自に生成した置換結果、子プロセス内部のメモリ、通常のトップレベル`run`・`eval`の出力を制限する機能ではありません。
 
-`observe_agent`はlive状態と保存済みJSONLの二つのtargetを持ちます。live用は`observe_agent({agentId, includeAnswer?})`です。ファイル観察は既存の`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`を維持します。両方のtargetを同じ呼出しへ混在させられません。ファイル観察の戻り値・cursorは[観察ガイド](observe.md)を参照してください。
+`observe_agent({agentId, includeAnswer?})`はlive状態を返します。保存ログは呼出側が読み、`noe:agent-log.analyze_log`へstring/Uint8Arrayを渡します。戻り値・cursorは[観察ガイド](observe.md)を参照してください。
 
 ### 認証と設定
 
@@ -253,7 +249,7 @@ traceにはrun ID、親run ID、agent名、model、status、duration（nanosecon
 
 通常の`run`・`eval`では`--timeout`が評価全体を制限できます。省略時はCLI独自の期限はありません。
 
-WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソースをカレントディレクトリ上の一時場所へ書き込み、相対importの基準を保ちます。その場合はカレントディレクトリへ一時ファイルを書き込める必要があります。書込みできない場合は、カレントディレクトリと同じvolumeの書込み可能な場所を`TEMP`に指定してください。
+生成JSは仮想entryとしてメモリから実行します。相対importは実行cwdから解決し、生成ソースのための一時fileやcwdへの書込み権限は不要です。
 
 ## 子プロセスと標準I/Oストリーム
 
@@ -273,15 +269,15 @@ WindowsでTEMPとカレントディレクトリが別volumeの場合、生成ソ
 
 `run`・`eval`で`--observe`を付けると、stdoutへ人間向けの整形表示を直接出せます。`--events=path`との併用でJSONL保存も行えます。`--events=-`は機械処理用のstdout JSONLとして維持し、同じstdoutを使う`--observe`とは同時指定しません。
 
-観察には人間用CLIの`noe observe`と、親用JS APIの`observe_agent`を利用できます。`observe_agent({agentId})`はlive snapshotをすぐ返します。`observe_agent({logPath, runId, cursor?, wait?, includeThinking?, includeOutput?})`は既存JSONLから状態・差分・確定済みの結果を返し、既定は非待機、`wait: true`ならrunの終端まで待ちます。使い方と戻り値は[観察の入口](observe.md)を参照してください。
+人間用CLIの`noe observe`はfileの表示・follow・waitを行います。JSの`observe_agent({agentId})`はlive snapshot、独立した`noe:agent-log.analyze_log`は渡されたJSONLデータの解析を行います。使い方は[観察の入口](observe.md)を参照してください。
 
 `run`・`eval`の`--events`で通常出力とagentの詳細イベントをJSONLへ記録できます。`--events=-`はstdout、`--events=path`はファイルへの追記、`--events`単独は起動時のcwdの`.noe/events/`に`noe-events-日時-ID.jsonl`を新規作成します。自動保存先のディレクトリはなければ作成します。通常出力、thinking・summary、途中の発言、最終回答、`run_js`の先頭コメントと成功・失敗をrun ID付きで読めます。オプションはソースより前へ置きます。形式と逐次出力の範囲は[観察ガイド](events.md)を参照してください。
 
 ## 実行環境とファイル
 
-`process.argv`は実行ファイル名、スクリプト名、スクリプト引数の順です。スクリプト引数は`process.argv.slice(2)`で取得できます。`process.env`は起動時の環境変数、`process.cwd()`はカレントディレクトリです。`process.exit(code)`でプロセスを終了し、終了コードを指定できます。
+`process.argv`は実行ファイル名、スクリプト名、スクリプト引数の順です。スクリプト引数は`process.argv.slice(2)`で取得できます。`process.env`は起動時の環境変数、`process.cwd()`はカレントディレクトリです。`process.exit(code)`で現在のJavaScript実行を終了し、終了コードを指定できます。task/toolではそのVMを終了します。
 
-標準入力全体は`process.stdin.read()`で読み取れます。この読み取りは同期処理で、最初の呼出しでEOFまで読み込み、2回目以降は`null`を返します。空入力でも`null`です。この同期読取りを`--timeout`で強制停止する保証はありません。標準入力を待つスクリプトでは、パイプ入力や端末からのEOFを使って入力を終えてください。
+標準入力全体は`process.stdin.read()`で読み取れます。この読み取りは同期処理で、最初の呼出しでEOFまで読み込み、2回目以降は`null`を返します。空入力でも`null`です。NOEのmanaged実行ではこの読み取りも`--timeout`や取消しに従います。
 
 ファイルのPromise APIは`fs/promises`からimportできます。
 

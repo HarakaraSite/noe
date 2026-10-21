@@ -190,7 +190,7 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 	srv := &http.Server{
 		// A request waiting on a handler stops waiting when the runtime
 		// that would answer it is closed.
-		BaseContext:       func(net.Listener) context.Context { return loop.Context() },
+		BaseContext:       func(net.Listener) context.Context { return loopContext(loop) },
 		ReadHeaderTimeout: readTimeout,
 		IdleTimeout:       idleTimeout,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -202,20 +202,35 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 		}),
 	}
 
-	go func() {
-		if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			loop.Post(func() {})
-		}
-	}()
-
 	force := func() {
 		// Close our listener even if Serve has not registered it with the
 		// server yet. Runtime shutdown must release the port synchronously.
 		listener.Close()
 		lifetime.force(srv)
 	}
-	stopWatch := context.AfterFunc(loop.Context(), force)
+	stopWatch := context.AfterFunc(loopContext(loop), force)
 	unhook := s.rt.OnClose(force)
+	var removeScopeCleanup func()
+	if scope := loop.executionScope(); scope != nil {
+		var err error
+		removeScopeCleanup, err = scope.AddCleanupHandle(force)
+		if err != nil {
+			force()
+			stopWatch()
+			unhook()
+			return quickjs.Value{}, err
+		}
+	}
+	if err := loop.Go(func(context.Context) {
+		if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			loop.postExecution(func() {})
+		}
+	}); err != nil {
+		force()
+		stopWatch()
+		unhook()
+		return quickjs.Value{}, err
+	}
 	var closeOnce sync.Once
 	scriptClose := func() {
 		closeOnce.Do(func() {
@@ -230,6 +245,9 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 			}
 			stopWatch()
 			unhook()
+			if removeScopeCleanup != nil {
+				removeScopeCleanup()
+			}
 		})
 	}
 
@@ -300,15 +318,18 @@ func (s *servers) handle(dispatch quickjs.Value, ex *exchange) {
 			}
 			loop := s.cfg.Loop
 			loop.Begin()
-			go func() {
+			if err := loop.Go(func(context.Context) {
 				defer loop.Done()
 				select {
 				case <-ex.ready:
-					loop.Post(func() { p.Resolve(nil) })
+					loop.postExecution(func() { p.Resolve(nil) })
 				case <-ex.gone:
-					loop.Post(func() { p.RejectError(errors.New("the client stopped listening")) })
+					loop.postExecution(func() { p.RejectError(errors.New("the client stopped listening")) })
 				}
-			}()
+			}); err != nil {
+				loop.Done()
+				p.RejectError(err)
+			}
 			return p
 		}),
 		sink.Set("push", func(chunk quickjs.Value) *quickjs.Promise {
@@ -327,17 +348,20 @@ func (s *servers) handle(dispatch quickjs.Value, ex *exchange) {
 			data := append([]byte(nil), b...)
 			loop := s.cfg.Loop
 			loop.Begin()
-			go func() {
+			if err := loop.Go(func(context.Context) {
 				defer loop.Done()
 				select {
 				case ex.chunks <- data:
-					loop.Post(func() { p.Resolve(nil) })
+					loop.postExecution(func() { p.Resolve(nil) })
 				case <-ex.gone:
-					loop.Post(func() {
+					loop.postExecution(func() {
 						p.RejectError(errors.New("the client stopped listening"))
 					})
 				}
-			}()
+			}); err != nil {
+				loop.Done()
+				p.RejectError(err)
+			}
 			return p
 		}),
 		sink.Set("finish", func(failed quickjs.Value) {
@@ -403,8 +427,8 @@ func (s *servers) takeOver(w http.ResponseWriter, r *http.Request, res *reply) b
 	conn.SetDeadline(time.Time{})
 
 	token, protocol, reader := res.upgrade, res.protocol, buffered.Reader
-	stop := context.AfterFunc(s.cfg.Loop.Context(), func() { conn.Close() })
-	s.cfg.Loop.Post(func() {
+	stop := context.AfterFunc(loopContext(s.cfg.Loop), func() { conn.Close() })
+	s.cfg.Loop.postExecution(func() {
 		stop()
 		s.cfg.upgrade(token, conn, reader, protocol)
 	})

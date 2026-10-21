@@ -28,32 +28,35 @@ type hookScopeResponse struct {
 	Event    events.Event `json:"event,omitempty"`
 }
 
-func (b *broker) handleBeginHookScope(w http.ResponseWriter, r *http.Request, parent *Operation) {
-	var request hookScopeRequest
-	if decodeRequest(r, &request) != nil {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid hook scope request")
-		return
-	}
+func (h *Host) beginHookScope(parent *Operation, request hookScopeRequest) (hookScopeResponse, error) {
 	registered := hasHookMetadata(request)
 	canonicalModule := ""
 	if registered {
 		if request.RunID == "" || request.Phase == "" || request.HookIndex == nil || request.Module == "" || request.ModelStepID == "" {
-			writeRPCError(w, http.StatusBadRequest, "request", "incomplete registered hook metadata")
-			return
+			return hookScopeResponse{}, newOperationError(http.StatusBadRequest, "request", "incomplete registered hook metadata")
 		}
 		if !validHookPhase(request.Phase) {
-			writeRPCError(w, http.StatusBadRequest, "request", "unsupported hook phase")
-			return
+			return hookScopeResponse{}, newOperationError(http.StatusBadRequest, "request", "unsupported hook phase")
 		}
-		resolved, err := normalizeHookModules([]string{request.Module}, b.host.opts.Cwd, b.host.opts.ImportMap)
-		if err != nil || len(resolved) != 1 {
-			writeRPCError(w, http.StatusBadRequest, "request", "invalid hook module")
-			return
+		h.mu.Lock()
+		owner := h.currentOwnerRunLocked(parent)
+		if owner == nil && request.RunID != "" {
+			candidate := h.runs[request.RunID]
+			if candidate != nil && candidate.operation == parent {
+				owner = candidate
+			}
 		}
-		canonicalModule = resolved[0]
+		resolved, ok := resolvedHook{}, false
+		if owner != nil && request.HookIndex != nil {
+			resolved, ok = owner.resolvedHooks[*request.HookIndex]
+		}
+		h.mu.Unlock()
+		if !ok || resolved.Canonical != request.Module {
+			return hookScopeResponse{}, newOperationError(http.StatusBadRequest, "request", "hook module was not resolved by this task loader")
+		}
+		canonicalModule = resolved.Canonical
 	}
 
-	h := b.host
 	h.mu.Lock()
 	owner := h.currentOwnerRunLocked(parent)
 	if owner == nil && registered {
@@ -64,21 +67,18 @@ func (b *broker) handleBeginHookScope(w http.ResponseWriter, r *http.Request, pa
 	}
 	if owner == nil || h.runs[owner.id] != owner || owner.ctx.Err() != nil || parent.closed || h.closed {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "scope", "hook owner run has ended")
-		return
+		return hookScopeResponse{}, newOperationError(http.StatusConflict, "scope", "hook owner run has ended")
 	}
 	if !h.executionGroupOpenLocked(owner.group) {
 		group := owner.group
 		h.mu.Unlock()
 		code, message := executionLimitError(group)
-		writeRPCError(w, http.StatusConflict, code, message)
-		return
+		return hookScopeResponse{}, newOperationError(http.StatusConflict, code, message)
 	}
 	if registered {
 		if _, _, _, _, err := validateHookInvocationLocked(request, canonicalModule, owner); err != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "hook", err.Error())
-			return
+			return hookScopeResponse{}, newOperationError(http.StatusConflict, "hook", err.Error())
 		}
 	}
 	ownerCtx := owner.ctx
@@ -92,8 +92,7 @@ func (b *broker) handleBeginHookScope(w http.ResponseWriter, r *http.Request, pa
 		activityID, err = randomID()
 		if err != nil {
 			child.Close()
-			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate hook invocation")
-			return
+			return hookScopeResponse{}, newOperationError(http.StatusInternalServerError, "broker", "could not allocate hook invocation")
 		}
 	}
 
@@ -101,8 +100,7 @@ func (b *broker) handleBeginHookScope(w http.ResponseWriter, r *http.Request, pa
 	if child.closed || h.runs[owner.id] != owner || owner.ctx.Err() != nil || parent.closed || h.closed {
 		h.mu.Unlock()
 		child.Close()
-		writeRPCError(w, http.StatusConflict, "scope", "hook owner run has ended")
-		return
+		return hookScopeResponse{}, newOperationError(http.StatusConflict, "scope", "hook owner run has ended")
 	}
 	var hookEvent events.Event
 	var causeActivityIDs []string
@@ -112,8 +110,7 @@ func (b *broker) handleBeginHookScope(w http.ResponseWriter, r *http.Request, pa
 		if validateErr != nil {
 			h.mu.Unlock()
 			child.Close()
-			writeRPCError(w, http.StatusConflict, "hook", validateErr.Error())
-			return
+			return hookScopeResponse{}, newOperationError(http.StatusConflict, "hook", validateErr.Error())
 		}
 		causeActivityIDs = causes
 		origin = activityOrigin{
@@ -132,8 +129,7 @@ func (b *broker) handleBeginHookScope(w http.ResponseWriter, r *http.Request, pa
 			child.Close()
 			h.finishExecutionLimit(limitAction)
 			code, message := executionLimitError(group)
-			writeRPCError(w, http.StatusConflict, code, message)
-			return
+			return hookScopeResponse{}, newOperationError(http.StatusConflict, code, message)
 		}
 		hookEvent = hookEventLocked(owner, request, canonicalModule, activityID, causeActivityIDs, origin)
 		if request.Phase == "beforeModelRequest" {
@@ -176,7 +172,7 @@ func (b *broker) handleBeginHookScope(w http.ResponseWriter, r *http.Request, pa
 			h.observe(startEvent)
 		}()
 	}
-	writeJSON(w, hookScopeResponse{ScopeID: child.scope, Defaults: defaults, Event: hookEvent})
+	return hookScopeResponse{ScopeID: child.scope, Defaults: defaults, Event: hookEvent}, nil
 }
 
 func hasHookMetadata(request hookScopeRequest) bool {
@@ -213,7 +209,11 @@ func validateHookInvocationLocked(request hookScopeRequest, canonicalModule stri
 	if request.RunID != owner.id {
 		return "", nil, nil, nil, fmt.Errorf("hook run does not match the current run")
 	}
-	if *request.HookIndex < 0 || *request.HookIndex >= len(owner.config.Hooks) || owner.config.Hooks[*request.HookIndex] != canonicalModule {
+	if *request.HookIndex < 0 || *request.HookIndex >= len(owner.config.Hooks) {
+		return "", nil, nil, nil, fmt.Errorf("hook module is not registered for this run")
+	}
+	resolved, ok := owner.resolvedHooks[*request.HookIndex]
+	if !ok || resolved.Specifier != owner.config.Hooks[*request.HookIndex] || resolved.Canonical != canonicalModule {
 		return "", nil, nil, nil, fmt.Errorf("hook module is not registered for this run")
 	}
 	step := owner.modelStep
@@ -300,6 +300,9 @@ func hookEventLocked(owner *agentRun, request hookScopeRequest, module, activity
 	if agentID := owner.agentID(); agentID != "" {
 		event["agentId"] = agentID
 	}
+	if owner.origin.CommandID != "" {
+		event["commandId"] = owner.origin.CommandID
+	}
 	if owner.group != nil {
 		event["execution"] = owner.group.snapshotLocked()
 	}
@@ -316,13 +319,10 @@ func groupID(group *executionGroup) string {
 	return group.id
 }
 
-func (b *broker) handleEndHookScope(w http.ResponseWriter, r *http.Request, parent *Operation) {
-	var request hookScopeRequest
-	if decodeRequest(r, &request) != nil || request.ScopeID == "" || (request.Status != "completed" && request.Status != "failed" && request.Status != "cancelled") {
-		writeRPCError(w, http.StatusBadRequest, "request", "scopeId and a completed, failed, or cancelled status are required")
-		return
+func (h *Host) endHookScope(parent *Operation, request hookScopeRequest) (map[string]bool, error) {
+	if request.ScopeID == "" || (request.Status != "completed" && request.Status != "failed" && request.Status != "cancelled") {
+		return nil, newOperationError(http.StatusBadRequest, "request", "scopeId and a completed, failed, or cancelled status are required")
 	}
-	h := b.host
 	h.mu.Lock()
 	owner := h.currentOwnerRunLocked(parent)
 	var child *Operation
@@ -349,8 +349,7 @@ func (b *broker) handleEndHookScope(w http.ResponseWriter, r *http.Request, pare
 	}
 	h.mu.Unlock()
 	if child == nil {
-		writeRPCError(w, http.StatusConflict, "scope", "unknown or unowned hook scope")
-		return
+		return nil, newOperationError(http.StatusConflict, "scope", "unknown or unowned hook scope")
 	}
 	child.Close()
 	if terminalEvent != nil {
@@ -359,7 +358,7 @@ func (b *broker) handleEndHookScope(w http.ResponseWriter, r *http.Request, pare
 		}
 		h.observe(terminalEvent)
 	}
-	writeJSON(w, map[string]bool{"closed": true})
+	return map[string]bool{"closed": true}, nil
 }
 
 func terminalHookEventLocked(invocation *hookInvocation, status, errorText string, group *executionGroup) events.Event {
@@ -402,26 +401,21 @@ func hookObservationEvent(base events.Event, eventType, status string) events.Ev
 	return event
 }
 
-func (b *broker) handleExecutionGet(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request struct{}
-	if decodeRequest(r, &request) != nil {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid execution request")
-		return
-	}
-	h := b.host
+type executionView struct {
+	executionSnapshot
+	ActivityID string          `json:"activityId,omitempty"`
+	CausedBy   []string        `json:"causedBy,omitempty"`
+	Origin     *activityOrigin `json:"origin,omitempty"`
+}
+
+func (h *Host) executionGet(op *Operation) (executionView, error) {
 	h.mu.Lock()
+	defer h.mu.Unlock()
 	group := h.executionForOperationLocked(op)
 	if group == nil {
-		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "scope", "execution group is unavailable")
-		return
+		return executionView{}, newOperationError(http.StatusConflict, "scope", "execution group is unavailable")
 	}
-	view := struct {
-		executionSnapshot
-		ActivityID string          `json:"activityId,omitempty"`
-		CausedBy   []string        `json:"causedBy,omitempty"`
-		Origin     *activityOrigin `json:"origin,omitempty"`
-	}{executionSnapshot: group.snapshotLocked()}
+	view := executionView{executionSnapshot: group.snapshotLocked()}
 	if op != nil {
 		if invocation := op.hookInvocation; invocation != nil {
 			view.ActivityID = invocation.activityID
@@ -436,6 +430,5 @@ func (b *broker) handleExecutionGet(w http.ResponseWriter, r *http.Request, op *
 			view.Origin = &origin
 		}
 	}
-	h.mu.Unlock()
-	writeJSON(w, view)
+	return view, nil
 }

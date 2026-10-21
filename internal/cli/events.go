@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
+	"forge.harakara.site/littleisland/noe/v2/internal/noeprofile"
 )
 
 // observation owns its file and output adapters for exactly one CLI invocation.
@@ -79,7 +79,7 @@ func openObservation(ctx context.Context, option *string, human bool, stdout, st
 	return ctx, o, nil
 }
 
-func (o *observation) configureAgent(options *agent.Options) {
+func (o *observation) configureAgent(options *noeprofile.AgentOptions) {
 	if o != nil {
 		options.Observe = o.writer.Emit
 	}

@@ -31,9 +31,9 @@ var TaskModuleSource string
 //go:embed js/history.js
 var HistoryModuleSource string
 
-//go:embed instructions.md
-var instructionMarkdown string
+//go:embed facts.md
+var factsMarkdown string
 
-// Instructions returns the shared model instructions embedded in the binary.
-// Ignore the Markdown file's final newline when composing the system message.
-func Instructions() string { return strings.TrimSuffix(instructionMarkdown, "\n") }
+// Facts returns static runtime and API facts without application policy or
+// host-supplied instructions.
+func Facts() string { return strings.TrimSuffix(factsMarkdown, "\n") }

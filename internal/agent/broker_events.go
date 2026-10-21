@@ -18,15 +18,6 @@ func fieldsWith(base, additional events.Event) events.Event {
 	return fields
 }
 
-func (b *broker) traceJSResult(runID string, run *agentRun, started time.Time, result Result) {
-	exitCode := result.ExitCode
-	b.host.traceEvent(traceEvent{
-		RunID: runID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
-		Status: "js_result", Duration: time.Since(started),
-		ExitCode: &exitCode, Reason: result.Reason,
-	})
-}
-
 type traceEvent struct {
 	RunID    string        `json:"runId,omitempty"`
 	ParentID string        `json:"parentRunId,omitempty"`

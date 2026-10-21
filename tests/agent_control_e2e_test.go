@@ -9,25 +9,40 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
-func awaitControlAgent(t *testing.T, ctx context.Context, dir string, predicate func(agent.AgentSnapshot) bool) agent.AgentSnapshot {
+type controlAgentSnapshot struct {
+	AgentID, CurrentRunID, State, Name string
+	QueueLength                        int
+}
+
+func awaitControlAgent(t *testing.T, ctx context.Context, work string, env map[string]string, predicate func(controlAgentSnapshot) bool) controlAgentSnapshot {
 	t.Helper()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
+	var last cliResult
 	for {
-		hosts, err := agent.DiscoverControls(ctx, dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, host := range hosts {
-			for _, snapshot := range host.Listing.Agents {
+		last = runCLI(t, work, env, "agents", "--full")
+		if last.exitCode == 0 {
+			lines := strings.Split(strings.TrimSpace(last.stdout), "\n")
+			for _, line := range lines[1:] {
+				fields := strings.Fields(line)
+				if len(fields) < 6 {
+					continue
+				}
+				queueLength, err := strconv.Atoi(fields[4])
+				if err != nil {
+					continue
+				}
+				snapshot := controlAgentSnapshot{AgentID: fields[1], CurrentRunID: strings.TrimSuffix(fields[2], "-"), State: fields[3], QueueLength: queueLength, Name: strings.Join(fields[5:], " ")}
+				if fields[2] == "-" {
+					snapshot.CurrentRunID = ""
+				}
 				if predicate(snapshot) {
 					return snapshot
 				}
@@ -35,7 +50,7 @@ func awaitControlAgent(t *testing.T, ctx context.Context, dir string, predicate 
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("waiting for control snapshot: %v", ctx.Err())
+			t.Fatalf("waiting for CLI control row: %v; last output: %+v", ctx.Err(), last)
 		case <-ticker.C:
 		}
 	}
@@ -104,7 +119,7 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("first provider request did not start")
 	}
-	snapshot := awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool { return s.CurrentRunID != "" })
+	snapshot := awaitControlAgent(t, ctx, dir, env, func(s controlAgentSnapshot) bool { return s.CurrentRunID != "" })
 	if first.SessionID != snapshot.AgentID || first.SessionID == snapshot.CurrentRunID {
 		t.Fatalf("session must identify the instance, not its task: %q %+v", first.SessionID, snapshot)
 	}
@@ -145,16 +160,14 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	if second.SessionID != snapshot.AgentID {
 		t.Fatalf("steer changed cache session: %q", second.SessionID)
 	}
-	awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool {
-		return s.State == "idle" && s.LastResult != nil && s.LastResult.Answer == "corrected answer"
-	})
+	awaitControlAgent(t, ctx, dir, env, func(s controlAgentSnapshot) bool { return s.State == "idle" && s.CurrentRunID == "" })
 	command("queue", fields[1], "blocked task")
 	select {
 	case <-blocked:
 	case <-ctx.Done():
 		t.Fatal("queued provider did not start")
 	}
-	busy := awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool { return s.CurrentRunID != "" })
+	busy := awaitControlAgent(t, ctx, dir, env, func(s controlAgentSnapshot) bool { return s.CurrentRunID != "" })
 	if busy.AgentID != snapshot.AgentID || busy.CurrentRunID == snapshot.CurrentRunID {
 		t.Fatalf("queued task must keep its instance and have a new run: %+v", busy)
 	}
@@ -165,9 +178,7 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("run interrupt left model request active")
 	}
-	awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool {
-		return s.State == "idle" && s.LastResult != nil && s.LastResult.Answer == "reserved task answer"
-	})
+	awaitControlAgent(t, ctx, dir, env, func(s controlAgentSnapshot) bool { return s.State == "idle" && s.CurrentRunID == "" })
 	select {
 	case request := <-resumed:
 		if request.SessionID != snapshot.AgentID {
@@ -212,10 +223,13 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 	}
 	creationIDs := map[string]bool{}
 	interruptIDs := map[string]bool{}
+	interruptTargets := map[string]bool{}
 	for _, line := range bytes.Split(data, []byte("\n")) {
 		var event struct {
 			Type       string   `json:"type"`
 			ActivityID string   `json:"activityId"`
+			Target     string   `json:"target"`
+			CommandID  string   `json:"commandId"`
 			CausedBy   []string `json:"causedBy"`
 			Origin     struct {
 				Kind string `json:"kind"`
@@ -233,10 +247,23 @@ func TestAgentHumanControlCLIWhileEvalRuns(t *testing.T) {
 		if event.ActivityID == "" || interruptIDs[event.ActivityID] || creationIDs[event.ActivityID] || event.Origin.Kind != "human" || len(event.CausedBy) != 0 {
 			t.Fatalf("human interrupt sender lost: %s", line)
 		}
+		switch event.Target {
+		case "task":
+			if event.CommandID == "" {
+				t.Fatalf("task cancellation event lost commandId: %s", line)
+			}
+		case "agent":
+			if event.CommandID != "" {
+				t.Fatalf("agent stop event unexpectedly targets a command: %s", line)
+			}
+		default:
+			t.Fatalf("unexpected human control target: %s", line)
+		}
 		interruptIDs[event.ActivityID] = true
+		interruptTargets[event.Target] = true
 	}
-	if len(interruptIDs) != 2 {
-		t.Fatalf("human run/instance interrupt records=%v", interruptIDs)
+	if len(interruptIDs) != 2 || !interruptTargets["task"] || !interruptTargets["agent"] {
+		t.Fatalf("human task-cancel/instance-stop records=%v targets=%v", interruptIDs, interruptTargets)
 	}
 	entries, err := os.ReadDir(env["NOE_AGENT_RUNTIME_DIR"])
 	if err != nil || len(entries) != 0 {

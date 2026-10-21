@@ -35,65 +35,58 @@ type contextGetResponse struct {
 	Notification string          `json:"notification"`
 }
 
-func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request contextPrepareRequest
-	if decodeRequest(r, &request) != nil || request.RunID == "" || request.ModelStepID == "" || len(request.Messages) == 0 {
-		writeRPCError(w, http.StatusBadRequest, "request", "runId, modelStepId, and nonempty messages are required")
-		return
+type contextPrepareResponse struct {
+	Prepared bool             `json:"prepared"`
+	Plan     *contextTrimPlan `json:"plan,omitempty"`
+}
+
+func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (contextPrepareResponse, error) {
+	if request.RunID == "" || request.ModelStepID == "" || len(request.Messages) == 0 {
+		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "runId, modelStepId, and nonempty messages are required")
 	}
 	for _, message := range request.Messages {
 		if !isJSONObject(message) {
-			writeRPCError(w, http.StatusBadRequest, "request", "invalid model message")
-			return
+			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model message")
 		}
 	}
 	for _, tool := range request.Tools {
 		if !isJSONObject(tool) {
-			writeRPCError(w, http.StatusBadRequest, "request", "invalid model tool")
-			return
+			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model tool")
 		}
 	}
-	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	if run == nil || run.operation != op || run.ctx.Err() != nil || run.interrupting || run.finalClosed || op.closed || h.closed || !h.executionGroupOpenLocked(run.group) ||
 		run.modelStep == nil || run.modelStep.id != request.ModelStepID || run.modelStep.finished || run.context.modelStepID != request.ModelStepID {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "scope", "context preparation is outside the current model step")
-		return
+		return contextPrepareResponse{}, newOperationError(http.StatusConflict, "scope", "context preparation is outside the current model step")
 	}
 	if _, err := h.expandImagesLocked(run, request.Messages); err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, 400, "image", err.Error())
-		return
+		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "image", err.Error())
 	}
 	run.context.imageEstimates = imageEstimatesLocked(run)
 	fixed, execution, _, partsErr := historyParts(request.Messages, request.Tools, request.History, run.context.imageEstimates)
 	if partsErr != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusBadRequest, "request", partsErr.Error())
-		return
+		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", partsErr.Error())
 	}
 	if run.context.pendingPlan != nil && request.AppliedPlanID == "" {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "context_plan", "context trim plan must be acknowledged before preparing again")
-		return
+		return contextPrepareResponse{}, newOperationError(http.StatusConflict, "context_plan", "context trim plan must be acknowledged before preparing again")
 	}
 	if request.AppliedPlanID != "" && run.instance != nil {
 		if run.context.pendingPlan == nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "context_plan", "no context trim plan is pending")
-			return
+			return contextPrepareResponse{}, newOperationError(http.StatusConflict, "context_plan", "no context trim plan is pending")
 		}
 		if err := validateConversationSnapshotMatches(request.Snapshot, request.Messages, request.History); err != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusBadRequest, "conversation", err.Error())
-			return
+			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "conversation", err.Error())
 		}
 		if err := validateConversationTrim(run.instance.conversation, request.Snapshot, run.context.pendingPlan.plan.RemoveIDs); err != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "conversation", err.Error())
-			return
+			return contextPrepareResponse{}, newOperationError(http.StatusConflict, "conversation", err.Error())
 		}
 	}
 	run.context.fixedTokens, run.context.executionTokens = fixed, execution
@@ -103,8 +96,7 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 		trimmed, ackErr = run.context.acknowledgeTrim(request.AppliedPlanID, request.History, request.Messages, request.Tools)
 		if ackErr != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "context_plan", ackErr.Error())
-			return
+			return contextPrepareResponse{}, newOperationError(http.StatusConflict, "context_plan", ackErr.Error())
 		}
 		if run.instance != nil {
 			run.instance.conversation = cloneConversationSnapshot(request.Snapshot)
@@ -116,16 +108,14 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 	snapshot, _, err := prepareContextEstimate(&run.context, run.id, request.Messages, request.Tools)
 	if err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusBadRequest, "request", "could not estimate model context")
-		return
+		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "could not estimate model context")
 	}
 	var plan *contextTrimPlan
 	if request.Final && request.AppliedPlanID == "" {
 		plan, err = run.context.planTrim(request.Messages, request.Tools, request.History)
 		if err != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusBadRequest, "context_plan", err.Error())
-			return
+			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "context_plan", err.Error())
 		}
 	}
 	run.context.finalPrepared = request.Final && plan == nil
@@ -139,56 +129,37 @@ func (b *broker) handleContextPrepare(w http.ResponseWriter, r *http.Request, op
 	if trimmed != nil {
 		h.emitContextTrimmed(run, snapshot, *trimmed, request.ModelStepID, appendUniqueActivityIDs(causes, stepActivityID))
 	}
-	writeJSON(w, struct {
-		Prepared bool             `json:"prepared"`
-		Plan     *contextTrimPlan `json:"plan,omitempty"`
-	}{true, plan})
+	return contextPrepareResponse{Prepared: true, Plan: plan}, nil
 }
 
-func (b *broker) handleContextGet(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request contextAccessRequest
-	if decodeRequest(r, &request) != nil {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid context request")
-		return
-	}
-	h := b.host
+func (h *Host) contextGet(op *Operation, request contextAccessRequest) (contextGetResponse, error) {
 	h.mu.Lock()
 	run, err := h.contextRunForScopeLocked(op, request.RunID, request.ModelStepID)
 	if err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "scope", err.Error())
-		return
+		return contextGetResponse{}, err
 	}
 	snapshot := run.context.snapshot(run.id, time.Now())
 	notification := contextMessage(snapshot, run.context.runtimeInfo)
 	h.mu.Unlock()
-	writeJSON(w, contextGetResponse{Context: snapshot, Notification: notification})
+	return contextGetResponse{Context: snapshot, Notification: notification}, nil
 }
 
-func (b *broker) handleContextSetRuntimeInfo(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request contextSetRequest
-	if decodeRequest(r, &request) != nil {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid runtime information")
-		return
-	}
+func (h *Host) contextSetRuntimeInfo(op *Operation, request contextSetRequest) (map[string]any, error) {
 	var key, text string
 	if json.Unmarshal(request.Key, &key) != nil || strings.TrimSpace(key) == "" || json.Unmarshal(request.Text, &text) != nil {
-		writeRPCError(w, http.StatusBadRequest, "request", "runtime information requires a nonempty key and string text")
-		return
+		return nil, newOperationError(http.StatusBadRequest, "request", "runtime information requires a nonempty key and string text")
 	}
-	h := b.host
 	h.mu.Lock()
 	if op == nil || !op.hookScope || op.hookInvocation == nil || op.hookInvocation.state != "active" || op.ownerRun == nil ||
 		op.hookInvocation.event["phase"] != "beforeModelRequest" {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "scope", "runtime information is only available during beforeModelRequest")
-		return
+		return nil, newOperationError(http.StatusConflict, "scope", "runtime information is only available during beforeModelRequest")
 	}
 	run, err := h.contextRunForScopeLocked(op, request.RunID, request.ModelStepID)
 	if err != nil || run.modelStep == nil || run.modelStep.id != request.ModelStepID || run.context.modelStepID != request.ModelStepID || run.modelStep.requestID != "" {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "scope", "runtime information is outside the current beforeModelRequest")
-		return
+		return nil, newOperationError(http.StatusConflict, "scope", "runtime information is outside the current beforeModelRequest")
 	}
 	if run.context.runtimeInfo == nil {
 		run.context.runtimeInfo = make(map[string]string)
@@ -202,7 +173,7 @@ func (b *broker) handleContextSetRuntimeInfo(w http.ResponseWriter, r *http.Requ
 	}
 	snapshot = h.storeContextSnapshotLocked(run, time.Now())
 	h.mu.Unlock()
-	writeJSON(w, map[string]any{"context": snapshot})
+	return map[string]any{"context": snapshot}, nil
 }
 
 func (h *Host) contextRunForScopeLocked(op *Operation, runID, modelStepID string) (*agentRun, error) {
@@ -243,7 +214,7 @@ func (h *Host) contextRunForScopeLocked(op *Operation, runID, modelStepID string
 }
 
 func contextScopeError() error {
-	return &RPCError{Code: "scope", Message: "context is unavailable outside the active run scope"}
+	return &RequestError{Code: "scope", Message: "context is unavailable outside the active run scope"}
 }
 
 func (h *Host) markContextSentLocked(run *agentRun, request modelRequest, requestID string, now time.Time) {

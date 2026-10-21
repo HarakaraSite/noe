@@ -2,7 +2,7 @@
 
 The recommended HTTP entry point in NOE. It exports `fetch` and `serve` as named functions, with no default export. Both functions are the same values as their globals; `serve` is also the function exported by `node:http` and `http`. Existing entry points remain available.
 
-Use the existing global Headers, Request, Response, ReadableStream, AbortController, WebSocket, and upgradeWebSocket APIs with these functions. The module does not create new types or re-export these globals. It is available in main, Node-style Workers, nested Workers, Web Workers, and agent `run_js` processes.
+Use the existing global Headers, Request, Response, ReadableStream, AbortController, WebSocket, and upgradeWebSocket APIs with these functions. The module does not create new types or re-export these globals. It is available in main, Node-style Workers, nested Workers, Web Workers, and agent `run_js` runtimes when the host selects the required capabilities.
 
 Outgoing `ReadableStream` request bodies, incoming request bodies, and response bodies can all be consumed as streams. A server invokes its handler after request headers arrive, before waiting for the incoming body to reach EOF. The receive stream reads from the HTTP body only when JavaScript asks for data.
 
@@ -12,7 +12,7 @@ Outgoing `ReadableStream` request bodies, incoming request bodies, and response 
 
 ### Source basis
 
-NOE-maintained implementation: internal/stdlib/http.go registers existing values installed by fetch.go and serve.go. Its engine and standard-library origin are recorded in internal/stdlib/UPSTREAM.md. In hosts using stdlib.Install with partial configuration, only configured Fetch/Serve functions are exported; neither configured means no module. NOE enables both.
+NOE-maintained implementation: internal/stdlib/http.go registers values from the independently selected Fetch and Serve capabilities. Its engine and standard-library origin are recorded in internal/stdlib/UPSTREAM.md. A runtime receives `noe:http` when at least one of those capabilities is enabled; the exported functions reflect the selected capabilities. NOE's CLI profile enables both.
 
 ## fetch
 

@@ -17,12 +17,11 @@ import (
 	"time"
 )
 
-func TestLowLevelAgentInterruptAndParentTimeout(t *testing.T) {
-	for _, stop := range []string{"interrupt", "timeout", "SIGINT"} {
+func TestLowLevelAgentTaskCancelAndParentTimeout(t *testing.T) {
+	for _, stop := range []string{"cancel-task", "timeout", "SIGINT"} {
 		t.Run(stop, func(t *testing.T) {
 			work := lowLevelFixture(t)
-			pidFile := filepath.Join(work, "run-js.pid")
-			defer processIOKillPIDFiles(pidFile)
+			readyFile := filepath.Join(work, "run-js-ready")
 			var calls atomic.Int32
 			server := agentAPIFixture(t, func(_ context.Context, _ agentChatRequest) agentModelReply {
 				if calls.Add(1) != 1 {
@@ -33,22 +32,22 @@ func TestLowLevelAgentInterruptAndParentTimeout(t *testing.T) {
 import {open} from "noe:fs-handle";import {listen} from "noe:sockets";import {subscribe} from "noe:signals";
 import {writeFileSync} from "node:fs";
 await open("index.bin",{mode:"r+"});subscribe("SIGTERM");
-const listener=await listen({network:"unix",path:"./agent.sock"});
-writeFileSync("run-js.pid",String(process.pid));await listener.accept();`
+const listener=await listen({network:"unix",path:"./agent.sock"});`
+				code += `writeFileSync("run-js-ready","ready");await listener.accept();`
 				return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("owned-low-level", code)}}}, FinishReason: "tool_calls"}
 			})
 			defer server.Close()
-			source := `import {spawn_agent,observe_agent,interrupt_agent} from "noe:agent";
+			source := `import {spawn_agent,cancel_task,wait_task} from "noe:agent";
 import {readFile} from "node:fs/promises";
 const a=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"wait on low-level resources");
+const commandId=a.commandId;
 const pause=()=>new Promise(r=>setTimeout(r,2));
-let ready=false;for(let n=0;n<2000;n++){try{await readFile("run-js.pid");ready=true;break}catch{await pause()}}
+let ready=false;for(let n=0;n<2000;n++){try{await readFile("run-js-ready");ready=true;break}catch{await pause()}}
 if(!ready)throw Error("run_js did not become ready");`
-			if stop == "interrupt" {
-				source += `const current=await observe_agent({agentId:a.agentId});
-await interrupt_agent({runId:current.currentRunId});
-let result;for(let n=0;n<2000;n++){result=await observe_agent({agentId:a.agentId});if(result.lastResult?.state==="cancelled")break;await pause()}
-if(result.lastResult?.state!=="cancelled")throw Error(JSON.stringify(result));console.log("interrupted");`
+			if stop == "cancel-task" {
+				source += `const receipt=await cancel_task({agentId:a.agentId,commandId});
+const result=await wait_task({agentId:a.agentId,commandId});
+if(receipt.status!=="accepted"||receipt.commandId!==commandId||result.state!=="cancelled")throw Error(JSON.stringify({receipt,result}));console.log("cancelled");`
 			} else {
 				source += `await new Promise(()=>{});`
 			}
@@ -58,7 +57,7 @@ if(result.lastResult?.state!=="cancelled")throw Error(JSON.stringify(result));co
 			}
 			process := startProcessIOAgentCLI(t, work, agentCLIEnv(t, server.URL), args...)
 			readyCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-			pid := agentPIDFile(t, readyCtx, pidFile)
+			waitAgentFile(t, readyCtx, readyFile)
 			cancel()
 			if stop == "SIGINT" {
 				if err := process.cmd.Process.Signal(os.Interrupt); err != nil {
@@ -66,14 +65,11 @@ if(result.lastResult?.state!=="cancelled")throw Error(JSON.stringify(result));co
 				}
 			}
 			err := process.wait(t, 5*time.Second)
-			if stop == "interrupt" && err != nil {
-				t.Fatalf("interrupt: %v %s", err, process.stderr.String())
+			if stop == "cancel-task" && err != nil {
+				t.Fatalf("cancel_task: %v %s", err, process.stderr.String())
 			}
-			if stop != "interrupt" && err == nil {
+			if stop != "cancel-task" && err == nil {
 				t.Fatal("canceled parent succeeded")
-			}
-			if agentPIDRunning(pid) {
-				t.Fatalf("generated run_js remains alive: %d", pid)
 			}
 			if calls.Load() != 1 {
 				t.Fatalf("model calls=%d", calls.Load())

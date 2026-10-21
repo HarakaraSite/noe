@@ -69,6 +69,11 @@ func (h *Host) openFileUsing(path, mode string, open func(string, int, os.FileMo
 	default:
 		return h.rejectedFilePromise(`mode must be "r" or "r+"`, "ERR_INVALID_ARG")
 	}
+	if flags != os.O_RDONLY && h.opts.FileSystem != nil {
+		if err := h.opts.FileSystem.CheckWritable(); err != nil {
+			return h.rejectedFilePromise(err.Error(), "ERR_READ_ONLY")
+		}
+	}
 	resolved, err := h.resolveFilePath(path)
 	if err != nil {
 		return h.rejectedFileErrorPromise(err)
@@ -100,6 +105,13 @@ func (h *Host) openFileUsing(path, mode string, open func(string, int, os.FileMo
 }
 
 func (h *Host) resolveFilePath(path string) (string, error) {
+	if h.opts.FileSystem != nil {
+		resolved, err := h.opts.FileSystem.Resolve(path, true)
+		if err != nil {
+			return "", fileError(err, fileErrorCode(err))
+		}
+		return resolved, nil
+	}
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path), nil
 	}
@@ -363,13 +375,16 @@ func fileInteger(value quickjs.Value, name string) (int64, error) {
 
 func (h *Host) asyncFile(run func() (any, error), convert func(any) (any, error), drop func(any)) *quickjs.Promise {
 	p := h.rt.NewPromise()
+	if !h.admitWorker() {
+		p.RejectError(h.operationError())
+		return p
+	}
 	w := h.rt.StartAsyncWork()
-	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
 		value, err := run()
 		w.Complete(func(closed error) {
-			if closed != nil {
+			if closed != nil || h.ctx.Err() != nil {
 				if drop != nil {
 					drop(value)
 				}

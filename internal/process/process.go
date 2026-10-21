@@ -17,6 +17,11 @@ type Config struct {
 	Dir     string
 	Env     []string
 
+	// Supervisor explicitly selects a POSIX helper executable. Empty starts
+	// directly. A helper main must call DispatchHelper before application work.
+	// Windows uses a Job Object and does not need a helper.
+	Supervisor string `json:"-"`
+
 	// testStartGatePath is used only by package tests to hold a startup reply
 	// after the target has been spawned. It is passed out-of-band to the POSIX
 	// supervisor and is never part of the target command configuration.

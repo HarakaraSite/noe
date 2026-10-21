@@ -144,35 +144,33 @@ snapshotにはinstanceの`agentId`・`parentRunId`・`name`・`state`・`reason`
 
 上の例は結果表示後もrootのNOEをidleで維持します。本文の終了では待受は終わらず、現在はCtrl+C・timeout等で終了させます。親run_js内で起動した場合は、tool本文終了後も親runが子を所有します。
 
-live snapshotの取得はモデルを呼びません。live観察の引数は`agentId`のみです。ファイル観察で使う`logPath`・`runId`・`cursor`等を混ぜることはできません。live agentは所有するNOE runとともに終了・回収されます。
+live snapshotの取得はモデルを呼びません。live観察には`agentId`と任意の`includeAnswer`を渡します。ファイル観察で使う`logPath`・`runId`・`cursor`等を混ぜることはできません。live agentは所有するNOE runとともに終了・回収されます。
 
 ### 保存済みJSONL
 
-ファイル観察は従来どおり`logPath`とtaskの`runId`を指定します。相対パスは実行時のcwd基準です。
+保存ログは呼出側が読み、`noe:agent-log`へJSONLのstringまたはUint8Arrayを渡します。解析はHost・provider・file pathに依存しません。
 
 ```js
-import { observe_agent } from "noe:agent";
+import { readFile } from "node:fs/promises";
+import { analyze_log } from "noe:agent-log";
 
-const query = { logPath: "agent.jsonl", runId: "実際のrunId" };
-const first = await observe_agent(query);
+const query = { runId: "実際のrunId" };
+const first = await analyze_log(await readFile("agent.jsonl"), query);
 console.log(JSON.stringify(first));
 
-// 状態は維持したまま、前回以降のイベントだけ受け取る
-const next = await observe_agent({ ...query, cursor: first.cursor });
-
-// 結果が必要になったら、完了まで待つこともできる
-const settled = await observe_agent({ ...query, wait: true });
-console.log(settled.finalText ?? settled.error ?? settled.status);
+// 追記後も全snapshotを渡す。cursorは返すeventsだけを絞る。
+const next = await analyze_log(await readFile("agent.jsonl"), {
+  ...query, cursor: first.cursor,
+});
 ```
 
 | 引数 | 意味 |
 | --- | --- |
-| `logPath` | 必須。既存のJSONLファイル |
+| 第1引数 | 必須。JSONL全snapshotのstring/Uint8Array |
 | `runId` | 必須。観察するrunの完全なID |
 | `cursor` | 前回返された`{executionId, seq}`。省略時は最初から |
-| `wait` | 既定は`false`。`true`ならagentの完了・失敗・取消しまで待つ |
 | `includeThinking` | 既定は`false`。差分へthinking・summaryを含める |
-| `includeOutput` | 既定は`false`。差分へstdout/stderrを含め、直近toolの捕捉出力も返す |
+| `includeOutput` | 既定は`false`。差分へstdout/stderrと直近toolの捕捉出力を含める |
 
 戻り値には次の情報があります。
 
@@ -190,13 +188,13 @@ console.log(settled.finalText ?? settled.error ?? settled.status);
 予算超過状態、trim回数と最後のtrimを含みます。`context.trimmed`差分には実際に適用したtrimの前後概算、
 削除block数と原因情報を含みます。snapshotはliveと保存済みJSONLで同じcontext形を使います。
 
-`events`はcursor以降に限定しますが、現在の状態や最終回答はファイル全体から再構成します。同じcursorを繰り返し読んでも共有の既読状態は進めません。rawの`message_delta`は返さず、thinking・通常出力も既定では含めないため、親へ細かい断片を毎回すべて渡す必要はありません。thinkingを要求した場合は、連続する同じrun・要求・種類の断片を結合します。
+`events`はcursor以降に限定しますが、現在の状態や最終回答は渡されたsnapshot全体から再構成します。同じcursorを繰り返し読んでも共有の既読状態は進めません。rawの`message_delta`は返さず、thinking・通常出力も既定では含めないため、親へ細かい断片を毎回すべて渡す必要はありません。thinkingを要求した場合は、連続する同じrun・要求・種類の断片を結合します。
 
 同じNOE内で親A・親B・子を動かしても、各runを分離して読みます。並列のrun_jsがある場合、一つのtoolが終わっても別のtoolが実行中なら`phase`は`run_js`のままです。toolが失敗しても、修復を続けているagent自体は`running`です。
 
 cursorは取得対象の実行に属します。同じファイルへ別のNOE実行を追記してseqが戻っても混同しません。対象runと異なる実行のcursorはエラーになります。まだ対象runが記録されていない場合は`unknown`と空の差分を返し、返された初期cursorも後で再利用できます。
 
-`wait: true`は100ms間隔でファイルを確認し、最終回答イベントだけでなくrunの終端まで待ちます。呼出し側の実行期限や取消しに従い、待機のGo処理は評価終了時に回収します。ログの更新が止まっていることだけでは終了・失敗と判定しません。非待機の読取りは開始時のファイルサイズまでを対象にするため、追記が続いても一度で戻ります。
+`analyze_log`は渡されたsnapshotを一度解析します。不完全な末尾行は次回の完全snapshotまで無視します。更新待機・再読込みは呼出側が行い、人間向けfile follow/waitはCLIを使います。
 
 シェルから構造化した状態だけ取得することもできます。
 
@@ -207,7 +205,7 @@ cursorは取得対象の実行に属します。同じファイルへ別のNOE�
 
 `--json`はrun IDとファイルを指定する一回の状態取得です。`--wait`はこのモードで使い、`--follow`は人間向けの継続表示で使います。
 
-`steer_agent`で指示を受け取った直後は、対象taskがまだ同じ処理を実行している場合があります。受領と次の判断への適用は別のイベントです。`interrupt_agent`も受付後すぐ戻り、`stopping`中はtask・子workの回収が続いています。live snapshotやJSONLで進行を確認し、instance全体を止めた`run_agent`は回収後の終端snapshotを返します。操作APIの戻り値と競合時の扱いは[APIリファレンス](api.md#実行中taskへの指示と停止)を参照してください。
+`steer_agent`で指示を受け取った直後は、対象taskがまだ同じ処理を実行している場合があります。受領と次の判断への適用は別のイベントです。`cancel_task`・`stop_agent`も受付後すぐ戻り、`stopping`中はtask・子workの回収が続いています。live snapshotやJSONLで進行を確認し、instance全体を止めた`run_agent`は回収後の終端snapshotを返します。操作APIの戻り値と競合時の扱いは[APIリファレンス](api.md#実行中taskへの指示と停止)を参照してください。
 
 別terminalからは稼働中のNOEを列挙して、操作の受付を依頼できます。
 

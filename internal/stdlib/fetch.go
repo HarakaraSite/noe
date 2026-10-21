@@ -133,11 +133,30 @@ func Network(rt *quickjs.Runtime, cfg *Fetch) error {
 		}
 		loop := cfg.Loop
 		loop.Begin()
-		go func() {
+		if err := loop.Go(func(context.Context) {
 			defer loop.Done()
 			res, err := doFetch(client, cfg, spec, limit, loop)
-			loop.Post(func() { deliver(r, p, res, err) })
-		}()
+			var removeStreamCleanup func()
+			if res != nil && res.stream != nil {
+				if scope := loop.executionScope(); scope != nil {
+					removeStreamCleanup, err = scope.AddCleanupHandle(res.stream.finish)
+					if err != nil {
+						res.stream.finish()
+						return
+					}
+				}
+			}
+			loop.postExecution(func() {
+				if res != nil && res.stream != nil {
+					res.stream.scopeUnhook = removeStreamCleanup
+				}
+				deliver(r, p, res, err)
+			})
+		}); err != nil {
+			loop.Done()
+			spec.cancel()
+			p.RejectError(err)
+		}
 		return p
 	}); err != nil {
 		return err
@@ -349,10 +368,11 @@ func doFetch(client *http.Client, cfg *Fetch, spec *requestSpec, limit int64, lo
 // holds the loop open by itself, so a program that stops reading a body stops
 // waiting for it.
 type bodyReader struct {
-	rt      *quickjs.Runtime
-	loop    *Loop
-	body    io.ReadCloser
-	release func()
+	rt          *quickjs.Runtime
+	loop        *Loop
+	body        io.ReadCloser
+	release     func()
+	scopeUnhook func()
 	// left is how much more may be read, or negative for no limit.
 	left int64
 	// ended is what the connection said when it last had nothing more, kept
@@ -404,10 +424,10 @@ func (b *bodyReader) read() *quickjs.Promise {
 	buf := make([]byte, size)
 	loop, body := b.loop, b.body
 	loop.Begin()
-	go func() {
+	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
 		n, err := body.Read(buf)
-		loop.Post(func() {
+		loop.postExecution(func() {
 			b.busy = false
 			if n > 0 {
 				if b.left > 0 {
@@ -426,7 +446,11 @@ func (b *bodyReader) read() *quickjs.Promise {
 			}
 			p.Resolve(nil)
 		})
-	}()
+	}); err != nil {
+		loop.Done()
+		b.busy = false
+		p.RejectError(err)
+	}
 	return p
 }
 
@@ -447,6 +471,9 @@ func (b *bodyReader) finish() {
 		b.release = nil
 	}
 	b.body.Close()
+	if b.scopeUnhook != nil {
+		b.scopeUnhook()
+	}
 }
 
 // deliver settles the promise with what came back.

@@ -11,7 +11,7 @@ import (
 )
 
 // conversationSnapshot is the current pruned transcript owned by one agent
-// instance. It crosses only the authenticated private task RPC.
+// instance. It crosses only scope-validated task operations.
 type conversationSnapshot struct {
 	Revision int64               `json:"revision"`
 	Sequence int64               `json:"sequence"`
@@ -29,30 +29,24 @@ type conversationCheckpointRequest struct {
 	Snapshot *conversationSnapshot `json:"snapshot"`
 }
 
-func (b *broker) handleConversationCheckpoint(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request conversationCheckpointRequest
-	if decodeRequest(r, &request) != nil || request.RunID == "" || request.Snapshot == nil {
-		writeRPCError(w, http.StatusBadRequest, "request", "runId and snapshot are required")
-		return
+func (h *Host) conversationCheckpoint(op *Operation, request conversationCheckpointRequest) (map[string]any, error) {
+	if request.RunID == "" || request.Snapshot == nil {
+		return nil, newOperationError(http.StatusBadRequest, "request", "runId and snapshot are required")
 	}
 	if err := validateConversationSnapshot(request.Snapshot); err != nil {
-		writeRPCError(w, http.StatusBadRequest, "conversation", err.Error())
-		return
+		return nil, newOperationError(http.StatusBadRequest, "conversation", err.Error())
 	}
-	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	if op == nil || run == nil || run.operation != op || (run.instance != nil && (op.task == nil || run.instance != op.task.instance)) ||
 		run.ctx.Err() != nil || run.interrupting || op.closed || h.closed || !h.executionGroupOpenLocked(run.group) {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "scope", "conversation checkpoint is outside the active managed task")
-		return
+		return nil, newOperationError(http.StatusConflict, "scope", "conversation checkpoint is outside the active managed task")
 	}
 	step := run.modelStep
 	if step == nil || !step.responseComplete || !step.finished || len(step.toolCalls) == 0 || run.context.pendingPlan != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "conversation", "only a complete tool exchange can be checkpointed")
-		return
+		return nil, newOperationError(http.StatusConflict, "conversation", "only a complete tool exchange can be checkpointed")
 	}
 	instance := run.instance
 	var appendErr error
@@ -61,25 +55,22 @@ func (b *broker) handleConversationCheckpoint(w http.ResponseWriter, r *http.Req
 	}
 	if err := appendErr; err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "conversation", err.Error())
-		return
+		return nil, newOperationError(http.StatusConflict, "conversation", err.Error())
 	}
 	entry := request.Snapshot.Entries[len(request.Snapshot.Entries)-1]
 	if err := validateCompletedToolBlock(entry, step); err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "conversation", err.Error())
-		return
+		return nil, newOperationError(http.StatusConflict, "conversation", err.Error())
 	}
 	if err := commitStepImagesLocked(run, entry); err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, 409, "image", err.Error())
-		return
+		return nil, newOperationError(409, "image", err.Error())
 	}
 	if instance != nil {
 		instance.conversation = cloneConversationSnapshot(request.Snapshot)
 	}
 	h.mu.Unlock()
-	writeJSON(w, map[string]bool{"committed": true})
+	return map[string]any{"committed": true}, nil
 }
 
 func validateCompletedToolBlock(entry conversationEntry, step *modelStepState) error {
@@ -173,19 +164,14 @@ func initialConversation(system, instruction string) (*conversationSnapshot, err
 	return snapshot, nil
 }
 
-func composeSystemMessage(userInstructions, explicit string) string {
-	builtin := Instructions()
-	if userInstructions != "" {
-		parts := []string{builtin, userInstructions}
-		if explicit != "" {
-			parts = append(parts, explicit)
+func composeSystemMessage(facts, userInstructions, explicit string) string {
+	parts := make([]string, 0, 3)
+	for _, part := range []string{facts, userInstructions, explicit} {
+		if part != "" {
+			parts = append(parts, part)
 		}
-		return strings.Join(parts, "\n\n")
 	}
-	if explicit != "" {
-		return builtin + "\n" + explicit
-	}
-	return builtin
+	return strings.Join(parts, "\n\n")
 }
 
 func (s *conversationSnapshot) append(kind string, message any) error {

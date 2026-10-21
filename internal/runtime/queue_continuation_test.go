@@ -63,7 +63,7 @@ console.log("tool-result-proof");`}, "first-tool"), nil
 			return provider.Response{Message: firstFinal, FinishReason: "stop"}, nil
 		}
 	})
-	source := `import {spawn_agent,queue_agent,observe_agent,interrupt_agent,run_agent} from "noe:agent";
+	source := `import {spawn_agent,queue_agent,observe_agent,stop_agent,run_agent} from "noe:agent";
 const config={provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:2,system:"EXPLICIT_QUEUE_RULE"};
 const {agentId}=await spawn_agent(config,"initial queue instruction",{keepAlive:true});
 await queue_agent({agentId,instruction:"second queued instruction",commandId:"second"});
@@ -73,7 +73,7 @@ async function until(commandId) {
 await until("second");
 await queue_agent({agentId,instruction:"third queued instruction",commandId:"third"});
 await until("third");
-await interrupt_agent({agentId});
+await stop_agent({agentId});
 const independent=await run_agent(config,"independent task");
 if(independent.lastResult?.answer!=="independent done")throw Error(JSON.stringify(independent));
 console.log(JSON.stringify({agentId}));`
@@ -198,11 +198,11 @@ func TestQueueAppliedSteersStayProtectedAndCommandIDsAreRunLocal(t *testing.T) {
 		mu.Unlock()
 		return agentAnswer("finished " + req.RunID), nil
 	})
-	source := `import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := `import {spawn_agent,queue_agent,observe_agent,stop_agent,cancel_task} from "noe:agent";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:1,hooks:["./steer.mjs"]},"first steer task",{keepAlive:true});
 await queue_agent({agentId,instruction:"next steer task",commandId:"next"});
 while(true){const s=await observe_agent({agentId});if(s.state==="failed"||s.state==="stopped")throw Error(JSON.stringify(s));if(s.state==="idle"&&s.lastResult?.commandId==="next"){if(s.lastResult.state!=="completed")throw Error(JSON.stringify(s));break;}await new Promise(r=>setTimeout(r,5));}
-await interrupt_agent({agentId});`
+await stop_agent({agentId});`
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 	var out, stderr bytes.Buffer
@@ -253,16 +253,16 @@ await new Promise(resolve=>setTimeout(resolve,30000));`, started)}, "incomplete-
 			if mode == "tool interrupt" {
 				interrupt = fmt.Sprintf(`while(!existsSync(%q))await new Promise(r=>setTimeout(r,2));
 const active=await observe_agent({agentId});
-const ack=await interrupt_agent({runId:active.currentRunId});
+const ack=await cancel_task({agentId,commandId:active.currentCommandId});
 if(ack.status!=="accepted")throw Error(JSON.stringify(ack));`, started)
 			}
-			source := `import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";
+			source := `import {spawn_agent,queue_agent,observe_agent,stop_agent,cancel_task} from "noe:agent";
 import {existsSync} from "node:fs";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:2},"original unfinished task",{keepAlive:true});
 await queue_agent({agentId,instruction:"resume after interruption or failure",commandId:"resume"});
 ` + interrupt + `
 while(true){const s=await observe_agent({agentId});if(s.state==="failed"||s.state==="stopped")throw Error(JSON.stringify(s));if(s.state==="idle"&&s.lastResult?.commandId==="resume"){if(s.lastResult.answer!=="recovered")throw Error(JSON.stringify(s));break;}await new Promise(r=>setTimeout(r,2));}
-await interrupt_agent({agentId});`
+await stop_agent({agentId});`
 			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			var out, stderr bytes.Buffer

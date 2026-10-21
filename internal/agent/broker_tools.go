@@ -2,12 +2,15 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
 type runJSRequest struct {
@@ -17,27 +20,29 @@ type runJSRequest struct {
 	Code        *string `json:"code"`
 }
 
-func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request runJSRequest
-	if err := decodeRequest(r, &request); err != nil || request.RunID == "" || request.Code == nil {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid run_js request")
-		return
+type runJSResponse struct {
+	Result
+	Images []imageapi.Metadata `json:"images,omitempty"`
+}
+
+// runJS owns admission, activity accounting, and child-operation lifetime for
+// each caller-supplied in-process Executor invocation.
+func (h *Host) runJS(requestContext context.Context, op *Operation, request runJSRequest) (runJSResponse, error) {
+	if requestContext == nil || op == nil || request.RunID == "" || request.Code == nil {
+		return runJSResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid run_js request")
 	}
-	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	valid := run != nil && run.operation == op && run.ctx.Err() == nil && !run.interrupting && !run.finalClosed && !op.closed && !h.closed
 	if !valid {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
-		return
+		return runJSResponse{}, newOperationError(http.StatusConflict, "run", "unknown agent run")
 	}
 	if !h.executionGroupOpenLocked(run.group) {
 		group := run.group
 		h.mu.Unlock()
 		code, message := executionLimitError(group)
-		writeRPCError(w, http.StatusConflict, code, message)
-		return
+		return runJSResponse{}, newOperationError(http.StatusConflict, code, message)
 	}
 	var toolState *toolCallState
 	requestID := ""
@@ -45,14 +50,12 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	if request.ModelStepID != "" {
 		if run.modelStep == nil || run.modelStep.id != request.ModelStepID || !run.modelStep.responseComplete || run.modelStep.finished || request.ToolCallID == "" {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "model_step", "run_js does not match an active model tool call")
-			return
+			return runJSResponse{}, newOperationError(http.StatusConflict, "model_step", "run_js does not match an active model tool call")
 		}
 		toolState = run.modelStep.toolCalls[request.ToolCallID]
 		if toolState == nil || toolState.name != "run_js" || toolState.resultRecorded || toolState.started {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "tool_call", "unknown or completed run_js tool call")
-			return
+			return runJSResponse{}, newOperationError(http.StatusConflict, "tool_call", "unknown or completed run_js tool call")
 		}
 		requestID = run.modelStep.requestID
 		if run.modelStep.requestActivityID != "" {
@@ -60,21 +63,19 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		}
 	}
 	activityID := ""
-	var err error
 	if toolState != nil {
 		activityID = toolState.activityID
 	} else {
+		var err error
 		activityID, err = randomID()
 		if err != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate tool activity")
-			return
+			return runJSResponse{}, newOperationError(http.StatusInternalServerError, "broker", "could not allocate tool activity")
 		}
 	}
 	if activityID == "" {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusInternalServerError, "broker", "tool activity ID is unavailable")
-		return
+		return runJSResponse{}, newOperationError(http.StatusInternalServerError, "broker", "tool activity ID is unavailable")
 	}
 	if len(causedBy) == 0 && run.activityID != "" {
 		causedBy = []string{run.activityID}
@@ -83,6 +84,7 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		toolState.started = true
 	}
 	h.mu.Unlock()
+
 	origin := activityOrigin{Kind: "tool", RunID: run.id, AgentID: run.agentID(), ToolCallID: request.ToolCallID, ToolName: "run_js", ModelStepID: request.ModelStepID}
 	started := time.Now()
 	startFields := events.Event{"toolCallId": request.ToolCallID, "source": "run_js", "code": *request.Code}
@@ -97,21 +99,19 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	h.observeRun("run_js.started", request.RunID, run, startFields)
 
 	ctx, cancel := context.WithCancel(run.ctx)
-	stopRequest := context.AfterFunc(r.Context(), cancel)
+	stopRequest := context.AfterFunc(requestContext, cancel)
 	defer func() {
 		stopRequest()
 		cancel()
 	}()
 	if ctx.Err() != nil {
 		result := Result{ExitCode: -1, Reason: reasonForContext(ctx.Err())}
-		b.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		status, code, message := classifyProviderError(ctx.Err(), ctx)
-		writeRPCError(w, status, code, message)
-		return
+		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
+		return runJSResponse{}, ctx.Err()
 	}
 
-	// Give this generated NOE process an independent broker scope. Register it
-	// under the run before starting the process so finish can cancel descendants.
+	// The tool receives its own scope so completion can cancel and join all
+	// descendants before the result is committed to the model step.
 	childOperation := h.NewOperation(ctx)
 	h.mu.Lock()
 	groupOpen := h.executionGroupOpenLocked(run.group)
@@ -132,15 +132,15 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 		if result.Reason == "" {
 			result.Reason = "cancelled"
 		}
-		b.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
+		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
 		if !groupOpen {
 			code, message := executionLimitError(run.group)
-			writeRPCError(w, http.StatusConflict, code, message)
-			return
+			return runJSResponse{}, newOperationError(http.StatusConflict, code, message)
 		}
-		status, code, message := classifyProviderError(run.ctx.Err(), run.ctx)
-		writeRPCError(w, status, code, message)
-		return
+		if run.ctx.Err() != nil {
+			return runJSResponse{}, run.ctx.Err()
+		}
+		return runJSResponse{}, newOperationError(http.StatusConflict, "scope", "run_js scope has ended")
 	}
 	var releaseOnce sync.Once
 	release := func() {
@@ -154,45 +154,34 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 	defer release()
 	if opErr := childOperation.ctx.Err(); opErr != nil {
 		result := Result{ExitCode: -1, Reason: reasonForContext(opErr)}
-		b.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		status, code, message := classifyProviderError(opErr, childOperation.ctx)
-		writeRPCError(w, status, code, message)
-		return
+		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
+		return runJSResponse{}, opErr
 	}
 	if childOperation.initErr != nil {
 		result := Result{Stderr: childOperation.initErr.Error(), ExitCode: -1, Reason: "failed"}
-		b.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		writeJSON(w, result)
-		return
+		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
+		return runJSResponse{Result: result}, nil
 	}
-	connection := &Connection{
-		URL: b.url, Token: b.token, Scope: childOperation.scope,
-		ModelWindow: cloneInt64(run.context.modelWindow), ModelMaxOutputTokens: cloneInt64(run.context.catalogMaxOutput),
-		Defaults: Config{
-			Provider: run.config.Provider, Model: run.config.Model,
-			MaxTokens: run.config.MaxTokens, Effort: run.config.Effort,
-			Hooks:                cloneHookModules(run.config.Hooks),
-			ContextBudget:        cloneContextBudget(run.config.ContextBudget),
-			contextBudgetPresent: run.config.ContextBudgetPresent || run.config.ContextBudget != nil,
-			ContextPolicy:        cloneContextPolicy(run.config.ContextPolicy),
-			contextPolicyPresent: run.config.ContextPolicyPresent || run.config.ContextPolicy != nil,
-		},
+
+	var result Result
+	var err error
+	if h.opts.Execute == nil {
+		err = errors.New("agent execution runtime is unavailable")
+		result = failedResult()
+	} else {
+		config, _ := json.Marshal(hookDefaults(run))
+		result, err = h.opts.Execute(childOperation.ctx, Execution{
+			Operation: childOperation, Kind: ExecutionTool,
+			Config: config, Code: *request.Code,
+		})
 	}
-	result, err := (Runner{
-		Executable: h.opts.Executable,
-		Cwd:        h.opts.Cwd,
-		Connection: connection,
-		ImportMap:  h.opts.ImportMap,
-	}).Run(childOperation.ctx, *request.Code)
 	contextErr := ctx.Err()
 	release()
 	if contextErr != nil {
 		result.ExitCode = -1
 		result.Reason = reasonForContext(contextErr)
-		b.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		status, code, message := classifyProviderError(contextErr, ctx)
-		writeRPCError(w, status, code, message)
-		return
+		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
+		return runJSResponse{}, contextErr
 	}
 	if err != nil {
 		result.Reason = "failed"
@@ -211,16 +200,17 @@ func (b *broker) handleRunJS(w http.ResponseWriter, r *http.Request, op *Operati
 			result.Reason = "failed"
 		}
 	}
-	b.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
+	h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
 	images := h.finishToolImages(run, request.ModelStepID, request.ToolCallID, result.ExitCode == 0 && result.Reason == "completed")
-	writeJSON(w, struct {
-		Result
-		Images any `json:"images,omitempty"`
-	}{result, images})
+	return runJSResponse{Result: result, Images: images}, nil
 }
 
-func (b *broker) finishJSResult(runID string, run *agentRun, started time.Time, toolCallID, activityID string, causedBy []string, origin activityOrigin, result Result) {
-	b.traceJSResult(runID, run, started, result)
+func (h *Host) finishJSResult(runID string, run *agentRun, started time.Time, toolCallID, activityID string, causedBy []string, origin activityOrigin, result Result) {
+	exitCode := result.ExitCode
+	h.traceEvent(traceEvent{
+		RunID: runID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
+		Status: "js_result", Duration: time.Since(started), ExitCode: &exitCode, Reason: result.Reason,
+	})
 	fields := events.Event{"toolCallId": toolCallID, "source": "run_js"}
 	addActivityFields(fields, activityID, causedBy, origin)
 	if result.Stdout != "" {
@@ -228,14 +218,14 @@ func (b *broker) finishJSResult(runID string, run *agentRun, started time.Time, 
 		if result.StdoutOmittedBytes > 0 {
 			stdout["omittedBytes"] = result.StdoutOmittedBytes
 		}
-		b.host.observeRun("stdout", runID, run, stdout)
+		h.observeRun("stdout", runID, run, stdout)
 	}
 	if result.Stderr != "" {
 		stderr := fieldsWith(fields, events.Event{"text": result.Stderr})
 		if result.StderrOmittedBytes > 0 {
 			stderr["omittedBytes"] = result.StderrOmittedBytes
 		}
-		b.host.observeRun("stderr", runID, run, stderr)
+		h.observeRun("stderr", runID, run, stderr)
 	}
 	finishFields := events.Event{
 		"success":  result.Reason == "completed" && result.ExitCode == 0,
@@ -250,11 +240,11 @@ func (b *broker) finishJSResult(runID string, run *agentRun, started time.Time, 
 	}
 	if origin.ModelStepID != "" {
 		finishFields["modelStepId"] = origin.ModelStepID
-		if requestID := originRequestID(b.host, run, origin.ModelStepID); requestID != "" {
+		if requestID := originRequestID(h, run, origin.ModelStepID); requestID != "" {
 			finishFields["requestId"] = requestID
 		}
 	}
-	b.host.observeRun("run_js.finished", runID, run, fieldsWith(fields, finishFields))
+	h.observeRun("run_js.finished", runID, run, fieldsWith(fields, finishFields))
 }
 
 func originRequestID(h *Host, run *agentRun, modelStepID string) string {

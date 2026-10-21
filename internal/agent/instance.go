@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
@@ -10,29 +11,37 @@ import (
 )
 
 type command struct {
-	id          string
-	activityID  string
-	causedBy    []string
-	origin      activityOrigin
-	instruction string
-	operation   string
-	status      string
-	initial     bool
-	active      bool
-	accepted    chan struct{}
-	done        chan struct{}
-	outcome     *taskOutcome // immutable after completion; protected by Host.mu
+	id               string
+	activityID       string
+	causedBy         []string
+	origin           activityOrigin
+	instruction      string
+	operation        string
+	status           string
+	initial          bool
+	active           bool
+	selected         bool
+	cancelRequested  bool
+	cancelAccepted   chan struct{}
+	executionStarted bool
+	finalCommitted   bool // protected by Host.mu; survives removal of the run during finish cleanup
+	accepted         chan struct{}
+	done             chan struct{}
+	outcome          *taskOutcome // immutable after completion; protected by Host.mu
 }
 
-type taskOutcome struct {
+type TaskOutcome struct {
 	omitAnswer   bool            // Per-response projection; never set on the retained result.
 	RunID        string          `json:"runId"`
 	CommandID    string          `json:"commandId"`
 	State        string          `json:"state"`
 	Answer       string          `json:"answer"`
+	AnswerBytes  *int            `json:"answerBytes,omitempty"`
 	Error        string          `json:"error,omitempty"`
 	ErrorDetails *imageapi.Error `json:"errorDetails,omitempty"`
 }
+
+type taskOutcome = TaskOutcome
 
 // Keep the default wire shape, including an empty answer, for existing callers.
 func (o taskOutcome) MarshalJSON() ([]byte, error) {
@@ -47,23 +56,26 @@ func (o taskOutcome) MarshalJSON() ([]byte, error) {
 	}{outcome: outcome(o), AnswerBytes: len(o.Answer)})
 }
 
-type instanceSnapshot struct {
-	AgentID      string             `json:"agentId"`
-	GroupID      string             `json:"groupId,omitempty"`
-	ActivityID   string             `json:"activityId,omitempty"`
-	CausedBy     []string           `json:"causedBy,omitempty"`
-	Origin       *activityOrigin    `json:"origin,omitempty"`
-	Execution    *executionSnapshot `json:"execution,omitempty"`
-	ParentRunID  string             `json:"parentRunId"`
-	Name         string             `json:"name"`
-	State        string             `json:"state"`
-	Reason       string             `json:"reason"`
-	KeepAlive    bool               `json:"keepAlive"`
-	CurrentRunID string             `json:"currentRunId"`
-	QueueLength  int                `json:"queueLength"`
-	LastResult   *taskOutcome       `json:"lastResult"`
-	Context      *contextSnapshot   `json:"context,omitempty"`
+type InstanceSnapshot struct {
+	AgentID          string             `json:"agentId"`
+	GroupID          string             `json:"groupId,omitempty"`
+	ActivityID       string             `json:"activityId,omitempty"`
+	CausedBy         []string           `json:"causedBy,omitempty"`
+	Origin           *activityOrigin    `json:"origin,omitempty"`
+	Execution        *executionSnapshot `json:"execution,omitempty"`
+	ParentRunID      string             `json:"parentRunId"`
+	Name             string             `json:"name"`
+	State            string             `json:"state"`
+	Reason           string             `json:"reason"`
+	KeepAlive        bool               `json:"keepAlive"`
+	CurrentRunID     string             `json:"currentRunId"`
+	CurrentCommandID string             `json:"currentCommandId,omitempty"`
+	QueueLength      int                `json:"queueLength"`
+	LastResult       *taskOutcome       `json:"lastResult"`
+	Context          *contextSnapshot   `json:"context,omitempty"`
 }
+
+type instanceSnapshot = InstanceSnapshot
 
 type agentInstance struct {
 	host                 *Host
@@ -88,10 +100,16 @@ type agentInstance struct {
 	cancel               context.CancelFunc
 	done                 chan struct{}
 	wake                 chan struct{}
+	publishWG            sync.WaitGroup
 	// Mutable fields below are protected by Host.mu.
+	instructionLoaded       bool
+	instructionText         string
+	instructionErr          error
+	instructionLoading      chan struct{}
 	state                   string
 	reason                  string
 	queue                   []*command
+	selected                *command
 	commands                map[string]*command
 	currentRunID            string
 	lastResult              *taskOutcome
@@ -109,7 +127,14 @@ func (i *agentInstance) snapshotLocked() instanceSnapshot {
 	if i.parent != nil {
 		parentID = i.parent.id
 	}
-	snapshot := instanceSnapshot{AgentID: i.id, ActivityID: i.activityID, CausedBy: append([]string(nil), i.causedBy...), ParentRunID: parentID, Name: i.config.Name, State: i.state, Reason: i.reason, KeepAlive: i.keepAlive, CurrentRunID: i.currentRunID, QueueLength: len(i.queue), LastResult: i.lastResult}
+	currentCommandID := ""
+	for _, command := range i.commands {
+		if command.active {
+			currentCommandID = command.id
+			break
+		}
+	}
+	snapshot := instanceSnapshot{AgentID: i.id, ActivityID: i.activityID, CausedBy: append([]string(nil), i.causedBy...), ParentRunID: parentID, Name: i.config.Name, State: i.state, Reason: i.reason, KeepAlive: i.keepAlive, CurrentRunID: i.currentRunID, CurrentCommandID: currentCommandID, QueueLength: len(i.queue), LastResult: i.lastResult}
 	if i.context != nil {
 		contextCopy := *i.context
 		contextCopy.Previous = cloneContextPrevious(i.context.Previous)
@@ -163,8 +188,22 @@ func (i *agentInstance) settleCommandLocked(cmd *command, outcome taskOutcome) {
 // result remains available after later tasks overwrite the instance snapshot.
 func (i *agentInstance) publishCommandOutcome(cmd *command) {
 	<-cmd.accepted
+	if cmd.cancelAccepted != nil {
+		<-cmd.cancelAccepted
+	}
 	i.commandEvent(cmd, cmd.outcome.State, cmd.outcome.RunID)
 	close(cmd.done)
+}
+
+// publishCommandOutcomeAsync is for terminal events published outside serve.
+// Callers add while holding Host.mu so instance shutdown cannot race a zero
+// counter Wait with a new publisher.
+func (i *agentInstance) publishCommandOutcomeAsync(cmd *command) {
+	i.publishWG.Add(1)
+	go func() {
+		defer i.publishWG.Done()
+		i.publishCommandOutcome(cmd)
+	}()
 }
 
 func (i *agentInstance) serve() {
@@ -251,6 +290,8 @@ func (i *agentInstance) serve() {
 		}
 		cmd := i.queue[0]
 		i.queue = i.queue[1:]
+		cmd.selected = true
+		i.selected = cmd
 		h.mu.Unlock()
 		<-cmd.accepted // Publish command acceptance before any execution event.
 		h.mu.Lock()
@@ -260,17 +301,29 @@ func (i *agentInstance) serve() {
 				i.reason = i.group.stop.Reason
 			}
 		}
+		if cmd.cancelRequested {
+			cmd.selected = false
+			i.selected = nil
+			i.settleCommandLocked(cmd, taskOutcome{CommandID: cmd.id, State: "cancelled", Error: "agent task cancelled"})
+			h.mu.Unlock()
+			i.publishCommandOutcome(cmd)
+			continue
+		}
 		if i.state == "stopping" || i.ctx.Err() != nil {
 			// The command was already removed from queue when whole-instance
 			// interruption took its snapshot. Put it back so the stopping branch
 			// emits the accepted command's cancellation without starting a task.
 			cmd.status = "cancelled"
+			cmd.selected = false
+			i.selected = nil
 			i.queue = append([]*command{cmd}, i.queue...)
 			h.mu.Unlock()
 			continue
 		}
 		cmd.status = "running"
 		cmd.active = true
+		cmd.selected = false
+		i.selected = nil
 		i.state = "running"
 		if i.group != nil {
 			i.group.counters.ActiveTasks++
@@ -288,7 +341,15 @@ func (i *agentInstance) serve() {
 			}
 			h.maybeCloseGroupLocked(i.group)
 		}
-		i.settleCommandLocked(cmd, outcome)
+		if cmd.outcome == nil {
+			if cmd.cancelRequested {
+				outcome = taskOutcome{CommandID: cmd.id, State: "cancelled", Error: "agent task cancelled"}
+				fatal = false
+			}
+			i.settleCommandLocked(cmd, outcome)
+		} else {
+			outcome = *cmd.outcome
+		}
 		i.lastResult = cmd.outcome
 		i.currentRunID = ""
 		if fatal {
@@ -304,6 +365,11 @@ func (i *agentInstance) serve() {
 			}
 		}
 		h.mu.Unlock()
+		// Cancellation can be admitted after execute snapshots its run gate.
+		// The command gate is fixed by outcome commitment and covers both events.
+		if cmd.cancelAccepted != nil {
+			<-cmd.cancelAccepted
+		}
 		if run != nil {
 			fields := events.Event{"status": outcome.State, "duration": time.Since(run.started)}
 			if outcome.ErrorDetails != nil {

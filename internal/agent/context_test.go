@@ -116,7 +116,7 @@ func TestContextPrepareAndActualRequestMeasurementWithoutObservation(t *testing.
 			Usage:        json.RawMessage(`{"prompt_tokens":40,"prompt_tokens_details":{"cached_tokens":12},"completion_tokens":4,"total_tokens":44}`),
 		}, nil
 	}}
-	h := NewHost(Options{Provider: p, Observe: nil})
+	h := NewHost(Options{Models: modelsWithChat(p), Observe: nil})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
@@ -209,7 +209,7 @@ func TestContextUpdatesOnlyAfterProviderRequest(t *testing.T) {
 				}
 				return provider.Response{Message: json.RawMessage(`{"role":"assistant","content":"answer"}`), FinishReason: "stop", Usage: json.RawMessage(`{"prompt_tokens":40}`)}, nil
 			}}
-			h = NewHost(Options{Provider: p, Observe: func(event events.Event) {
+			h = NewHost(Options{Models: modelsWithChat(p), Observe: func(event events.Event) {
 				if event["type"] == "context.updated" {
 					updates <- event
 				}

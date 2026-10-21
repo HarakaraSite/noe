@@ -112,7 +112,7 @@ func (h *Host) startConnect(payload string, dial netDialFunc) quickjs.Value {
 		conn, dialErr := dial(attemptCtx, network, address)
 		attempt.finishDial(conn, dialErr)
 		work.Complete(func(closed error) {
-			if closed != nil {
+			if closed != nil || h.ctx.Err() != nil {
 				_ = attempt.Close()
 				return
 			}

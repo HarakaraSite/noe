@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync/atomic"
 	"testing"
 
@@ -11,16 +10,16 @@ import (
 )
 
 func TestHooksInterruptUsesRequestingInvocationCause(t *testing.T) {
-	for _, target := range []string{"run", "agent"} {
+	for _, target := range []string{"task", "agent"} {
 		t.Run(target, func(t *testing.T) {
 			cwd := t.TempDir()
-			field := "runId"
+			call := `api.agents.cancel_task({agentId:event.agentId,commandId:event.commandId})`
 			reason := "task_interrupted"
 			if target == "agent" {
-				field = "agentId"
+				call = `api.agents.stop_agent({agentId:event.agentId})`
 				reason = "interrupted"
 			}
-			writePhaseHook(t, cwd, "interrupt.mjs", fmt.Sprintf(`export async function beforeModelRequest(event,api) { await api.agents.interrupt_agent({%s:event.%s}); }`, field, field))
+			writePhaseHook(t, cwd, "interrupt.mjs", `export async function beforeModelRequest(event,api) { await `+call+`; }`)
 			var calls atomic.Int32
 			p := agentProviderFunc(func(context.Context, provider.Request) (provider.Response, error) {
 				calls.Add(1)

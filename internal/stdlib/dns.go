@@ -183,11 +183,15 @@ func (d *dnsHost) query(r *quickjs.Runtime, kind, name string, family, port int,
 	}
 	loop := d.cfg.Loop
 	loop.Begin()
-	go func() {
+	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
 		v, err := d.answer(ctx, kind, name, family, port, syscall)
-		loop.Post(func() { deliver(v, err) })
-	}()
+		loop.postExecution(func() { deliver(v, err) })
+	}); err != nil {
+		loop.Done()
+		cancel()
+		p.RejectError(err)
+	}
 	return p
 }
 

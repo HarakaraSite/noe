@@ -82,12 +82,20 @@ class Provider:
                     assert request.get("reasoning", {}).get("effort") in (None, "auto")
                     assert [t["function"]["name"] for t in request["tools"]] == ["run_js"]
                     messages = request["messages"]
-                    assert messages[-1]["role"] == "system"
-                    assert messages[-1]["content"].startswith("NOE_CONTEXT_STATUS")
-                    request["messages"] = messages[:-1]
+                    assert messages[-1]["role"] == "user"
+                    assert messages[-1]["content"].startswith("NOE_CONTEXT_STATUS\n")
+                    assert any(m["role"] == "user" and
+                               not str(m.get("content", "")).startswith("NOE_CONTEXT_STATUS\n")
+                               for m in messages[:-1])
                     assert not any(m["role"] == "system" and
                                    str(m.get("content", "")).startswith("NOE_CONTEXT_STATUS")
                                    for m in request["messages"])
+                    # The runtime status remains a user message in the model
+                    # history. Hide diagnostic messages from fixture behavior
+                    # so replies and transcript assertions track user tasks.
+                    request["messages"] = [m for m in messages[:-1]
+                                           if not (m["role"] == "user" and
+                                                   str(m.get("content", "")).startswith("NOE_CONTEXT_STATUS\n"))]
                     with owner.lock:
                         owner.requests.append(request)
                     reply = owner.reply(request)
@@ -298,8 +306,9 @@ class AgentServerTests(unittest.TestCase):
         return False
 
     def owned_pids_gone(self):
-        pids = [int(self.wait_file(name)) for name in
-                ("parent.pid", "child.pid", "spawned.pid")]
+        # run_js executions share this NOE process. Only the explicit OS
+        # subprocess has a PID that should disappear when its owner ends.
+        pids = [int(self.wait_file("spawned.pid"))]
         for pid in pids:
             eventually(lambda pid=pid: self.pid_gone(pid), "PID %d reaped" % pid)
 
@@ -532,18 +541,19 @@ class AgentServerTests(unittest.TestCase):
                                for e in self.event_records()), "command.applied steer event")
 
     def install_owned_work(self):
-        # Parent generated NOE -> child agent -> generated NOE -> spawned Python.
-        # PID markers prove these processes really started before interruption.
+        # Parent runtime -> child agent runtime -> spawned Python. Runtime
+        # markers prove each in-process execution reached the owned work; only
+        # the explicit subprocess has an independently reaped OS PID.
         parent_code = ('// Own a nested agent until this task is interrupted.\n'
                        'import {writeFileSync} from "node:fs";\n'
-                       'writeFileSync("parent.pid",String(process.pid));\n'
+                       'writeFileSync("parent.started","yes");\n'
                        'await run_agent({name:"owned-test-child"},"owned-child");')
         child_script = ('import os,time; '
                         'open("spawned.pid","w").write(str(os.getpid())); time.sleep(120)')
         child_code = ('// Spawn an owned subprocess and wait for interruption.\n'
                       'import {writeFileSync} from "node:fs";\n'
                       'import {spawn} from "noe:process";\n'
-                      'writeFileSync("child.pid",String(process.pid));\n'
+                      'writeFileSync("child.started","yes");\n'
                       'const child=await spawn(' + json.dumps(sys.executable) + ',' +
                       json.dumps(["-c", child_script]) +
                       ',{stdin:"ignore",stdout:"ignore",stderr:"ignore"});\n'
@@ -557,7 +567,7 @@ class AgentServerTests(unittest.TestCase):
         self.provider.reply = reply
         self.start()
         task = self.submit("owned-parent")
-        for name in ("parent.pid", "child.pid", "spawned.pid"):
+        for name in ("parent.started", "child.started", "spawned.pid"):
             self.wait_file(name)
         eventually(lambda: any(e.get("name") == "owned-test-child" and
                                e.get("type") == "agent.started" for e in self.event_records()),

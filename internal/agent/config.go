@@ -104,7 +104,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 }
 
 // HookModules keeps Config comparable for callers that use it as a settings
-// value while retaining an array in the JSON connection contract.
+// value while retaining an array in its JSON representation.
 type HookModules []string
 
 func cloneHookModules(modules []string) *HookModules {

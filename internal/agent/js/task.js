@@ -9,11 +9,11 @@ const runJSTool = Object.freeze({
   type: "function",
   function: {
     name: "run_js",
-    description: "Execute an ES module with top-level await in a fresh NOE process. Print results with console.log; variables do not persist between calls. Use noe:docs for supported APIs and task recipes. Returns stdout, stderr, exitCode, and reason. Each output stream retains its first and last 32 KiB; truncated results include a marker and stdoutOmittedBytes or stderrOmittedBytes.",
+    description: "Execute an ES module with top-level await in a fresh owned JavaScript runtime. Each call has a new global scope and module cache. Relative imports from the virtual entry resolve from the configured working directory; file-backed modules resolve relative imports from their referrer. The result contains stdout, stderr, exitCode, and reason. Each output stream retains its first and last 32 KiB; truncated results report omitted bytes.",
     parameters: {
       type: "object",
       properties: {
-        code: { type: "string", description: "An ES module containing the JavaScript to execute. The first line must be a short single-line // comment in English describing the action, before any imports or code, with no leading blank line." },
+        code: { type: "string", description: "An ES module containing the JavaScript to execute." },
       },
       required: ["code"],
       additionalProperties: false,
@@ -306,8 +306,10 @@ export async function executeTask(config, instruction) {
   let acceptedAnswer = "";
   let failureMessage = "";
   try {
-    if (typeof start.instructionError === "string" && start.instructionError) {
-      throw new Error(start.instructionError);
+    if (start.instructionFailed === true) {
+      failureMessage = typeof start.instructionError === "string" ? start.instructionError : "instruction source failed";
+      status = "failed";
+      return undefined;
     }
     const userInstructions = typeof start.instructions === "string" ? start.instructions : "";
     const loadedHooks = await loadHookModules(normalized.hooks);

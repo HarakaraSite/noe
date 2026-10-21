@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -18,9 +17,8 @@ import (
 )
 
 const (
-	DefaultBaseURL        = "https://openrouter.ai/api/v1"
-	DefaultKeyFileEnv     = "NOE_OPENROUTER_API_KEY_FILE"
-	defaultKeyFileSubpath = "noe/credentials/openrouter-api-key"
+	DefaultBaseURL    = "https://openrouter.ai/api/v1"
+	DefaultKeyFileEnv = "NOE_OPENROUTER_API_KEY_FILE"
 )
 
 // HTTPClient is the injectable HTTP transport used by the SDK.
@@ -28,18 +26,35 @@ type HTTPClient interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-// Options configures the OpenRouter adapter. An empty KeyFile uses
-// NOE_OPENROUTER_API_KEY_FILE, then the XDG/default config location. KeyFile is
-// read on the first Generate call, never during construction.
+// Options configures the OpenRouter adapter. Credentials are read from the
+// explicitly selected KeyFile on the first Generate call, never during
+// construction.
 type Options struct {
 	ConfigFile string
-	UserAgent  string
-	Profile    *Definition
-	KeyFile    string
-	BaseURL    string
-	HTTPClient HTTPClient
+	// BaseDir anchors relative paths in the explicit registry constructor.
+	BaseDir string
+	// ConfigDir expands ${configDir} in explicit provider definitions. It is
+	// deliberately independent of the process user's home/config directories.
+	ConfigDir string
+	// Env is a caller-owned environment snapshot used only by an explicit
+	// registry. Nil means an empty environment.
+	Env map[string]string
+	// Credentials overrides key/OAuth files by provider ID in an explicit
+	// registry. Nonempty fields override the definition and its Env setting.
+	Credentials map[string]CredentialFiles
+	UserAgent   string
+	Profile     *Definition
+	KeyFile     string
+	BaseURL     string
+	HTTPClient  HTTPClient
 	// DecisionServerURL is an origin (or gateway prefix), not the Chat base URL.
 	DecisionServerURL string
+}
+
+// CredentialFiles selects explicit credential files for a provider.
+type CredentialFiles struct {
+	KeyFile   string
+	OAuthFile string
 }
 
 // OpenRouter implements Provider using OpenRouter's official Go SDK.
@@ -58,12 +73,6 @@ func NewOpenRouter(options Options) *OpenRouter {
 		profile = *options.Profile
 	}
 	keyFile := options.KeyFile
-	if keyFile == "" && options.Profile == nil {
-		keyFile = os.Getenv(DefaultKeyFileEnv)
-	}
-	if keyFile == "" && options.Profile == nil {
-		keyFile = defaultKeyFile()
-	}
 	baseURL := options.BaseURL
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
@@ -88,18 +97,6 @@ func NewOpenRouter(options Options) *OpenRouter {
 		openrouter.WithRetryConfig(noRetries),
 	)
 	return p
-}
-
-func defaultKeyFile() string {
-	configHome := os.Getenv("XDG_CONFIG_HOME")
-	if configHome == "" {
-		home, err := os.UserHomeDir()
-		if err != nil || home == "" {
-			return ""
-		}
-		configHome = filepath.Join(home, ".config")
-	}
-	return filepath.Join(configHome, defaultKeyFileSubpath)
 }
 
 func (p *OpenRouter) securitySource(ctx context.Context) (components.Security, error) {

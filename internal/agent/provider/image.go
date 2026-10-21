@@ -202,7 +202,7 @@ func imageRequestBody(profile Definition, request imageapi.Request) ([]byte, err
 }
 
 func (p *imageAdapter) GenerateImage(ctx context.Context, request imageapi.Request) (imageapi.Generated, error) {
-	if err := request.Validate(); err != nil {
+	if err := request.ValidateGeneration(); err != nil {
 		return imageapi.Generated{}, imageapi.AsError(err)
 	}
 	if ctx == nil {
@@ -500,7 +500,7 @@ func truncateImageMessage(value string) string {
 }
 
 func (r *Registry) GenerateImage(ctx context.Context, request imageapi.Request) (imageapi.Generated, error) {
-	if err := request.Validate(); err != nil {
+	if err := request.ValidateGeneration(); err != nil {
 		return imageapi.Generated{}, imageapi.AsError(err)
 	}
 	resolved, err := r.resolve(request.Provider, request.Model)

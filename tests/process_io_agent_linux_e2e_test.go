@@ -3,6 +3,7 @@
 package e2e_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,24 +13,15 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 )
 
 func TestProcessIOAgentRunInterruptReapsGeneratedProcessTree(t *testing.T) {
 	work := t.TempDir()
-	rootPIDPath := filepath.Join(work, "agent-run-js.pid")
 	shellPIDPath := filepath.Join(work, "agent-shell.pid")
 	grandchildPIDPath := filepath.Join(work, "agent-grandchild.pid")
-	defer func() {
-		if data, err := os.ReadFile(rootPIDPath); err == nil {
-			if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
-				_ = syscall.Kill(-pid, syscall.SIGKILL)
-			}
-		}
-		processIOKillPIDFiles(shellPIDPath, grandchildPIDPath)
-	}()
+	defer processIOKillPIDFiles(shellPIDPath, grandchildPIDPath)
 
 	var modelCalls atomic.Int32
 	server := agentAPIFixture(t, func(_ context.Context, request agentChatRequest) agentModelReply {
@@ -42,7 +34,7 @@ func TestProcessIOAgentRunInterruptReapsGeneratedProcessTree(t *testing.T) {
 		}
 		code := `import {writeFileSync} from "node:fs";
 import {spawn} from "noe:process";
-writeFileSync("agent-run-js.pid",String(process.pid));
+writeFileSync("agent-run-js-ready","ready");
 await spawn("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"agent-process-io","agent-shell.pid","agent-grandchild.pid"],{stdin:"ignore",stdout:"ignore",stderr:"ignore"});
 await new Promise(()=>{});`
 		return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("process-tree", code)}}}, FinishReason: "tool_calls"}
@@ -50,60 +42,84 @@ await new Promise(()=>{});`
 	defer server.Close()
 	env := agentCLIEnv(t, server.URL)
 	env["NOE_AGENT_TRACE"] = ""
-	source := `import {spawn_agent,observe_agent,interrupt_agent} from "noe:agent";
+	eventPath := filepath.Join(work, "events.jsonl")
+	source := `import {spawn_agent,observe_agent,cancel_task,wait_task} from "noe:agent";
 import {readFile} from "node:fs/promises";
 const spawned=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",name:"process-io"},"start a process tree and leave it running");
+const commandId=spawned.commandId;
+if(!commandId)throw Error("spawn did not return its accepted commandId");
 const pause=()=>new Promise(resolve=>setTimeout(resolve,2));
-let snapshot;
-for(let i=0;i<2500;i++){snapshot=await observe_agent({agentId:spawned.agentId});if(snapshot.currentRunId)break;await pause();}
-if(!snapshot?.currentRunId)throw Error("managed task did not start a run");
-const runId=snapshot.currentRunId;
 let filesReady=false;
-for(let i=0;i<2500;i++){try{await readFile("agent-run-js.pid");await readFile("agent-shell.pid");await readFile("agent-grandchild.pid");filesReady=true;break}catch{await pause();}}
+for(let i=0;i<2500;i++){try{await readFile("agent-run-js-ready");await readFile("agent-shell.pid");await readFile("agent-grandchild.pid");filesReady=true;break}catch{await pause();}}
 if(!filesReady)throw Error("generated process tree did not publish all PIDs");
-const accepted=await interrupt_agent({runId});
-if(accepted.status!=="accepted"||accepted.target!=="run"||accepted.runId!==runId)throw Error("run interrupt was not accepted: "+JSON.stringify(accepted));
-let terminal;
-for(let i=0;i<2500;i++){terminal=await observe_agent({agentId:spawned.agentId});if(terminal.state==="stopped"&&terminal.lastResult?.state==="cancelled")break;await pause();}
-if(terminal?.state!=="stopped"||terminal.reason!=="task_interrupted"||terminal.lastResult?.state!=="cancelled"||terminal.lastResult?.runId!==runId)throw Error("interrupted task did not settle: "+JSON.stringify(terminal));
-console.log(JSON.stringify({runId,accepted,terminal}));`
-	result := runCLI(t, work, env, "eval", "--timeout=8s", source)
+const receipt=await cancel_task({agentId:spawned.agentId,commandId});
+const outcome=await wait_task({agentId:spawned.agentId,commandId});
+const terminal=await observe_agent({agentId:spawned.agentId});
+if(receipt.status!=="accepted"||receipt.commandId!==commandId)throw Error("task cancellation was not accepted: "+JSON.stringify(receipt));
+if(outcome.state!=="cancelled"||outcome.commandId!==commandId)throw Error("cancelled task did not settle: "+JSON.stringify(outcome));
+if(terminal?.state!=="stopped"||terminal.reason!=="task_interrupted"||terminal.lastResult?.state!=="cancelled"||terminal.lastResult?.commandId!==commandId)throw Error("interrupted task terminal state mismatch: "+JSON.stringify(terminal));
+console.log(JSON.stringify({commandId,receipt,outcome,terminal}));`
+	result := runCLI(t, work, env, "eval", "--timeout=8s", "--events="+eventPath, source)
 	requireExit(t, result, 0)
 	if result.stderr != "" || modelCalls.Load() != 1 {
 		t.Fatalf("agent process-tree run: %+v model calls=%d", result, modelCalls.Load())
 	}
 	var outcome struct {
-		RunID    string `json:"runId"`
-		Accepted struct {
-			Target string `json:"target"`
-			Status string `json:"status"`
-			RunID  string `json:"runId"`
-		} `json:"accepted"`
+		CommandID string `json:"commandId"`
+		Accepted  struct {
+			Status    string `json:"status"`
+			CommandID string `json:"commandId"`
+		} `json:"receipt"`
+		Outcome struct {
+			State     string `json:"state"`
+			CommandID string `json:"commandId"`
+		} `json:"outcome"`
 		Terminal struct {
 			State      string `json:"state"`
 			Reason     string `json:"reason"`
-			CurrentRun string `json:"currentRunId"`
 			LastResult struct {
-				RunID string `json:"runId"`
-				State string `json:"state"`
-				Error string `json:"error"`
+				CommandID string `json:"commandId"`
+				RunID     string `json:"runId"`
+				State     string `json:"state"`
 			} `json:"lastResult"`
 		} `json:"terminal"`
 	}
 	if err := json.Unmarshal([]byte(result.stdout), &outcome); err != nil {
 		t.Fatalf("agent interruption output is not JSON: %v\n%s", err, result.stdout)
 	}
-	if outcome.RunID == "" || outcome.Accepted.Status != "accepted" || outcome.Accepted.Target != "run" || outcome.Accepted.RunID != outcome.RunID || outcome.Terminal.State != "stopped" || outcome.Terminal.Reason != "task_interrupted" || outcome.Terminal.CurrentRun != "" || outcome.Terminal.LastResult.RunID != outcome.RunID || outcome.Terminal.LastResult.State != "cancelled" {
+	if outcome.CommandID == "" || outcome.Accepted.Status != "accepted" || outcome.Accepted.CommandID != outcome.CommandID || outcome.Outcome.State != "cancelled" || outcome.Outcome.CommandID != outcome.CommandID || outcome.Terminal.State != "stopped" || outcome.Terminal.Reason != "task_interrupted" || outcome.Terminal.LastResult.CommandID != outcome.CommandID || outcome.Terminal.LastResult.State != "cancelled" {
 		t.Fatalf("agent task terminal state: %+v", outcome)
+	}
+	events, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptedEvent, cancelledEvent := false, false
+	for _, line := range bytes.Split(events, []byte("\n")) {
+		var event struct {
+			Type      string `json:"type"`
+			Target    string `json:"target"`
+			CommandID string `json:"commandId"`
+			RunID     string `json:"runId"`
+			Status    string `json:"status"`
+		}
+		if json.Unmarshal(line, &event) != nil {
+			continue
+		}
+		if event.Type == "interrupt.accepted" && event.Target == "task" && event.CommandID == outcome.CommandID {
+			acceptedEvent = true
+		}
+		if event.Type == "agent.cancelled" && event.RunID == outcome.Terminal.LastResult.RunID && event.Status == "cancelled" {
+			cancelledEvent = true
+		}
+	}
+	if !acceptedEvent || !cancelledEvent {
+		t.Fatalf("task cancellation lifecycle events missing: accepted=%v cancelled=%v", acceptedEvent, cancelledEvent)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	rootPID := agentPIDFile(t, ctx, rootPIDPath)
 	shellPID := agentPIDFile(t, ctx, shellPIDPath)
 	grandchildPID := agentPIDFile(t, ctx, grandchildPIDPath)
-	if agentPIDRunning(rootPID) {
-		t.Errorf("generated run_js process remains alive: %d", rootPID)
-	}
 	requireAgentPIDsStopped(t, shellPID, grandchildPID)
 }
 
@@ -121,10 +137,10 @@ func TestProcessIOAgentParentCancellationReapsSpawnTreesWithInheritedAndIgnoredP
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			work := t.TempDir()
-			rootPIDPath := filepath.Join(work, "parent-run-js.pid")
+			runReadyPath := filepath.Join(work, "parent-run-js-ready")
 			shellPIDPath := filepath.Join(work, "parent-shell.pid")
 			grandchildPIDPath := filepath.Join(work, "parent-grandchild.pid")
-			defer processIOKillPIDFiles(rootPIDPath, shellPIDPath, grandchildPIDPath)
+			defer processIOKillPIDFiles(shellPIDPath, grandchildPIDPath)
 
 			var modelCalls atomic.Int32
 			server := agentAPIFixture(t, func(_ context.Context, request agentChatRequest) agentModelReply {
@@ -137,7 +153,7 @@ func TestProcessIOAgentParentCancellationReapsSpawnTreesWithInheritedAndIgnoredP
 				}
 				code := `import {writeFileSync} from "node:fs";
 import {spawn} from "noe:process";
-writeFileSync("parent-run-js.pid",String(process.pid));
+writeFileSync("parent-run-js-ready","ready");
 await spawn("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"parent-process-io","parent-shell.pid","parent-grandchild.pid"],{stdin:"ignore",stdout:` + strconv.Quote(tc.stdout) + `,stderr:` + strconv.Quote(tc.stderr) + `});
 await new Promise(()=>{});`
 				return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("process-tree", code)}}}, FinishReason: "tool_calls"}
@@ -154,7 +170,7 @@ console.log("task ended");`
 			}
 			command := startProcessIOAgentCLI(t, work, env, args...)
 			waitCtx, stopWait := context.WithTimeout(context.Background(), 1500*time.Millisecond)
-			rootPID := agentPIDFile(t, waitCtx, rootPIDPath)
+			waitAgentFile(t, waitCtx, runReadyPath)
 			shellPID := agentPIDFile(t, waitCtx, shellPIDPath)
 			grandchildPID := agentPIDFile(t, waitCtx, grandchildPIDPath)
 			stopWait()
@@ -179,9 +195,6 @@ console.log("task ended");`
 			}
 			if modelCalls.Load() != 1 {
 				t.Fatalf("model calls=%d, want the single tool-dispatch request", modelCalls.Load())
-			}
-			if agentPIDRunning(rootPID) {
-				t.Errorf("generated run_js process remains alive: %d", rootPID)
 			}
 			requireAgentPIDsStopped(t, shellPID, grandchildPID)
 		})

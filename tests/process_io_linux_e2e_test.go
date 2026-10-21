@@ -14,8 +14,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 func TestProcessIOBlockedStdoutWriteCancelsOnSIGINT(t *testing.T) {
@@ -134,44 +132,6 @@ while(true) await writer.write(chunk);`
 	if ctx.Err() != nil {
 		t.Fatalf("external safety timeout fired: %v", ctx.Err())
 	}
-}
-
-func TestProcessIOAgentRunnerCancellationReapsNoeProcessChildAndGrandchild(t *testing.T) {
-	work := t.TempDir()
-	ctx, cancel := context.WithCancel(context.Background())
-	type outcome struct {
-		result agent.Result
-		err    error
-	}
-	done := make(chan outcome, 1)
-	source := `import {writeFileSync} from "node:fs";
-import {spawn} from "noe:process";
-writeFileSync("root.pid",String(process.pid));
-await spawn("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"process-io-runner","shell.pid","grandchild.pid"],{stdin:"ignore",stdout:"ignore",stderr:"ignore"});`
-	runner := agent.Runner{Executable: cliPath, Cwd: work}
-	go func() {
-		result, err := runner.Run(ctx, source)
-		done <- outcome{result: result, err: err}
-	}()
-	waitCtx, stopWait := context.WithTimeout(context.Background(), 8*time.Second)
-	defer stopWait()
-	rootPID := agentPIDFile(t, waitCtx, filepath.Join(work, "root.pid"))
-	defer syscall.Kill(-rootPID, syscall.SIGKILL)
-	shellPID := agentPIDFile(t, waitCtx, filepath.Join(work, "shell.pid"))
-	grandchildPID := agentPIDFile(t, waitCtx, filepath.Join(work, "grandchild.pid"))
-	cancel()
-	select {
-	case got := <-done:
-		if got.err != nil || got.result.Reason != "cancelled" || got.result.ExitCode == 0 {
-			t.Fatalf("Runner cancellation result=%+v error=%v", got.result, got.err)
-		}
-	case <-time.After(4 * time.Second):
-		t.Fatal("Runner did not terminate and reap its NOE process")
-	}
-	if err := syscall.Kill(rootPID, 0); err != syscall.ESRCH {
-		t.Errorf("Runner did not reap NOE process %d: %v", rootPID, err)
-	}
-	requireAgentPIDsStopped(t, shellPID, grandchildPID)
 }
 
 func TestProcessIOWorkerTerminateStopsActiveSpawn(t *testing.T) {

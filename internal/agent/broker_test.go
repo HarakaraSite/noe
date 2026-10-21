@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +19,58 @@ type fixtureProvider struct {
 	mu    sync.Mutex
 	calls []provider.Request
 	gen   func(context.Context, provider.Request) (provider.Response, error)
+}
+
+func lifecycleCall(t *testing.T, op *Operation, method string, payload any) string {
+	t.Helper()
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := op.Call(method, string(encoded))
+	if err != nil {
+		t.Fatalf("%s: %v", method, err)
+	}
+	return result
+}
+
+// spawnLifecycle exercises Host registration without starting a subprocess.
+// The test executor supplies a completed process summary; tests that need
+// authenticated JavaScript reports use the managed runtime integration suite.
+func spawnLifecycle(t *testing.T, op *Operation, instruction *string, keepAlive bool, allowDelegation ...bool) string {
+	t.Helper()
+	if op == nil || op.host == nil {
+		t.Fatal("spawn helper requires a live operation")
+	}
+	h := op.host
+	h.mu.Lock()
+	if h.opts.Models == nil {
+		h.opts.Models = modelsWithChat(&fixtureProvider{})
+	}
+	if h.opts.Execute == nil {
+		h.opts.Execute = func(ctx context.Context, _ Execution) (Result, error) {
+			if err := ctx.Err(); err != nil {
+				return Result{ExitCode: -1, Reason: reasonForContext(err)}, err
+			}
+			return Result{ExitCode: 0, Reason: "completed"}, nil
+		}
+	}
+	h.mu.Unlock()
+	req := spawnRequest{
+		Config: taskConfig{Config: Config{
+			Provider: "openrouter", Model: "fixture/model", Name: "managed", Effort: "auto",
+		}, MaxSteps: 1},
+		Instruction: instruction, KeepAlive: keepAlive,
+	}
+	if len(allowDelegation) > 0 {
+		req.AllowDelegation = &allowDelegation[0]
+	}
+	text := lifecycleCall(t, op, "spawn_agent", req)
+	var response spawnResponse
+	if err := json.Unmarshal([]byte(text), &response); err != nil || response.AgentID == "" {
+		t.Fatalf("spawn response %q: %v", text, err)
+	}
+	return response.AgentID
 }
 
 func (p *fixtureProvider) Generate(ctx context.Context, request provider.Request) (provider.Response, error) {
@@ -42,29 +93,20 @@ func (p *fixtureProvider) callCount() int {
 	return len(p.calls)
 }
 
-func TestHostAndOperationAreLazyUntilRPC(t *testing.T) {
+func TestHostAndOperationAreLazyUntilModelRequest(t *testing.T) {
 	p := &fixtureProvider{}
-	h := NewHost(Options{Provider: p})
+	h := NewHost(Options{Models: modelsWithChat(p)})
 	t.Cleanup(h.Close)
-	if h.broker != nil {
-		t.Fatal("NewHost opened a listener")
-	}
-	if got := h.Defaults(); got != "{}" {
-		t.Fatalf("root defaults = %q, want {}", got)
-	}
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
-	if h.broker != nil {
-		t.Fatal("NewOperation opened a listener")
+	if got := op.Defaults(); got != "{}" {
+		t.Fatalf("root defaults = %q, want {}", got)
 	}
 	if p.callCount() != 0 {
 		t.Fatal("NewHost/NewOperation called the provider")
 	}
 	if _, err := op.Call("invalid", `{}`); err == nil {
 		t.Fatal("unknown method was accepted")
-	}
-	if h.broker != nil {
-		t.Fatal("invalid method started the broker")
 	}
 }
 
@@ -80,7 +122,7 @@ func TestProviderStreamingObservationIsDisabledWithoutHostObserver(t *testing.T)
 			FinishReason: "stop",
 		}, nil
 	}}
-	h := NewHost(Options{Provider: p})
+	h := NewHost(Options{Models: modelsWithChat(p)})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
@@ -93,79 +135,6 @@ func TestProviderStreamingObservationIsDisabledWithoutHostObserver(t *testing.T)
 	}
 	if err := finishFixtureRun(op, runID); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestIncompleteConnectionDoesNotFallBackToRootBroker(t *testing.T) {
-	p := &fixtureProvider{}
-	h := NewHost(Options{
-		Provider: p,
-		Connection: &Connection{
-			Token: "parent-capability",
-			Scope: "parent-scope",
-		},
-	})
-	t.Cleanup(h.Close)
-	op := h.NewOperation(context.Background())
-	t.Cleanup(op.Close)
-	_, err := op.Call("start", `{}`)
-	var rpcErr *RPCError
-	if !errors.As(err, &rpcErr) || rpcErr.Code != "connection" {
-		t.Fatalf("incomplete connection error = %v, want connection error", err)
-	}
-	if h.broker != nil {
-		t.Fatal("incomplete remote connection fell back to a root broker")
-	}
-	if p.callCount() != 0 {
-		t.Fatalf("incomplete remote connection reached the provider %d times", p.callCount())
-	}
-}
-
-func TestConnectionJSONUsesParentBrokerAndInheritedDefaults(t *testing.T) {
-	p := &fixtureProvider{}
-	parent := NewHost(Options{Provider: p})
-	t.Cleanup(parent.Close)
-	parentOp := parent.NewOperation(context.Background())
-	t.Cleanup(parentOp.Close)
-	setupRun := startFixtureRun(t, parentOp)
-	if err := finishFixtureRun(parentOp, setupRun); err != nil {
-		t.Fatal(err)
-	}
-	parent.mu.Lock()
-	b := parent.broker
-	parent.mu.Unlock()
-	if b == nil {
-		t.Fatal("parent broker was not started")
-	}
-	wantDefaults := Config{Provider: "openrouter", Model: "fixture/model", MaxTokens: 128}
-	encoded, err := json.Marshal(Connection{URL: b.url, Token: b.token, Scope: parentOp.scope, Defaults: wantDefaults})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var connection Connection
-	if err := json.Unmarshal(encoded, &connection); err != nil {
-		t.Fatal(err)
-	}
-	child := NewHost(Options{Connection: &connection})
-	t.Cleanup(child.Close)
-	if got, want := child.Defaults(), `{"provider":"openrouter","model":"fixture/model","maxTokens":128}`; got != want {
-		t.Fatalf("inherited defaults = %s, want %s", got, want)
-	}
-	childOp := child.NewOperation(context.Background())
-	t.Cleanup(childOp.Close)
-	runID := startFixtureRun(t, childOp)
-	result := callFixtureModel(childOp, runID, "remote request")
-	if result.err != nil || result.answer != "fixture answer" {
-		t.Fatalf("parent broker model call = %#v", result)
-	}
-	if err := finishFixtureRun(childOp, runID); err != nil {
-		t.Fatal(err)
-	}
-	if child.broker != nil {
-		t.Fatal("connected host opened a local broker")
-	}
-	if p.callCount() != 1 {
-		t.Fatalf("parent provider call count = %d, want 1", p.callCount())
 	}
 }
 
@@ -192,7 +161,7 @@ func TestBrokerSeparatesParallelOperationScopesAndTraceMetadata(t *testing.T) {
 			Usage: json.RawMessage(`{"prompt_tokens":7,"completion_tokens":4,"total_tokens":11}`),
 		}, nil
 	}}
-	h := NewHost(Options{Provider: p, Trace: &trace})
+	h := NewHost(Options{Models: modelsWithChat(p), Trace: &trace})
 	t.Cleanup(h.Close)
 	opA := h.NewOperation(context.Background())
 	opB := h.NewOperation(context.Background())
@@ -262,7 +231,7 @@ func TestOperationCloseCancelsOnlyItsProviderWork(t *testing.T) {
 		<-ctx.Done()
 		return provider.Response{}, ctx.Err()
 	}}
-	h := NewHost(Options{Provider: p})
+	h := NewHost(Options{Models: modelsWithChat(p)})
 	t.Cleanup(h.Close)
 	opA := h.NewOperation(context.Background())
 	opB := h.NewOperation(context.Background())
@@ -306,14 +275,14 @@ func TestOperationCloseCancelsOnlyItsProviderWork(t *testing.T) {
 	}
 }
 
-func TestHostCloseCancelsProviderAndClosesBroker(t *testing.T) {
+func TestHostCloseCancelsAndJoinsProviderRequest(t *testing.T) {
 	started := make(chan struct{}, 1)
 	p := &fixtureProvider{gen: func(ctx context.Context, _ provider.Request) (provider.Response, error) {
 		started <- struct{}{}
 		<-ctx.Done()
 		return provider.Response{}, ctx.Err()
 	}}
-	h := NewHost(Options{Provider: p})
+	h := NewHost(Options{Models: modelsWithChat(p)})
 	op := h.NewOperation(context.Background())
 	runID := startFixtureRun(t, op)
 	result := make(chan error, 1)
@@ -323,12 +292,6 @@ func TestHostCloseCancelsProviderAndClosesBroker(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("provider call did not start")
 	}
-	h.mu.Lock()
-	b := h.broker
-	h.mu.Unlock()
-	if b == nil {
-		t.Fatal("broker was not created by RPC")
-	}
 	h.Close()
 	select {
 	case err := <-result:
@@ -337,9 +300,6 @@ func TestHostCloseCancelsProviderAndClosesBroker(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("host close did not stop provider call")
-	}
-	if _, err := net.DialTimeout("tcp", strings.TrimPrefix(b.url, "http://"), 100*time.Millisecond); err == nil {
-		t.Fatal("host close left the broker listener accepting connections")
 	}
 	if _, err := op.Call("start", `{}`); !errors.Is(err, context.Canceled) {
 		t.Fatalf("operation call after host close = %v, want cancellation", err)
@@ -361,7 +321,7 @@ func TestHostCloseWaitsForCancelledHandlerAndTrace(t *testing.T) {
 		<-release // Control handler completion independently of request cancellation.
 		return provider.Response{}, ctx.Err()
 	}}
-	h := NewHost(Options{Provider: p, Trace: &trace})
+	h := NewHost(Options{Models: modelsWithChat(p), Trace: &trace})
 	op := h.NewOperation(context.Background())
 	id := startFixtureRun(t, op)
 	callDone := make(chan struct{})
@@ -392,7 +352,7 @@ func TestProviderErrorDoesNotEchoProviderDiagnostics(t *testing.T) {
 	p := &fixtureProvider{gen: func(context.Context, provider.Request) (provider.Response, error) {
 		return provider.Response{}, fmt.Errorf("upstream echoed %s", secret)
 	}}
-	h := NewHost(Options{Provider: p})
+	h := NewHost(Options{Models: modelsWithChat(p)})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
@@ -434,7 +394,7 @@ func TestObservePublishesLifecycleModelAndAcceptedFinalEvents(t *testing.T) {
 			return provider.Response{}, &provider.ProviderError{Kind: provider.ErrorRateLimit}
 		}
 	}}
-	h := NewHost(Options{Provider: p, Observe: func(event events.Event) {
+	h := NewHost(Options{Models: modelsWithChat(p), Observe: func(event events.Event) {
 		observed.Lock()
 		defer observed.Unlock()
 		copy := make(events.Event, len(event))
@@ -542,7 +502,7 @@ func TestObserveDoesNotLabelUnacceptedFinishAsFinal(t *testing.T) {
 	var observed []events.Event
 	callbackCanLockHost := true
 	var h *Host
-	h = NewHost(Options{Provider: &fixtureProvider{}, Observe: func(event events.Event) {
+	h = NewHost(Options{Models: modelsWithChat(&fixtureProvider{}), Observe: func(event events.Event) {
 		if !h.mu.TryLock() {
 			callbackCanLockHost = false
 		} else {

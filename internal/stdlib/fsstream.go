@@ -1,6 +1,7 @@
 package stdlib
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -45,6 +46,14 @@ func (f *fsHost) openRead(p string, start, end int64) (quickjs.Value, error) {
 	r := &fileReader{rt: f.rt, loop: f.cfg.Loop, file: file, left: left}
 	// A file read partway when the runtime closes is closed with it.
 	r.unhook = f.rt.OnClose(func() { file.Close() })
+	if scope := f.cfg.Loop.executionScope(); scope != nil {
+		var err error
+		r.scopeUnhook, err = scope.AddCleanupHandle(r.close)
+		if err != nil {
+			r.close()
+			return quickjs.Value{}, err
+		}
+	}
 	o := f.rt.NewObject()
 	if err := errors.Join(
 		o.Set("read", r.read),
@@ -66,7 +75,8 @@ type fileReader struct {
 	busy bool
 	done bool
 	// unhook stops the runtime's closing closing the file, once it is.
-	unhook func()
+	unhook      func()
+	scopeUnhook func()
 }
 
 // read answers with the next chunk, or null at the end of the file.
@@ -115,11 +125,14 @@ func (r *fileReader) read() *quickjs.Promise {
 	}
 	loop, file := r.loop, r.file
 	loop.Begin()
-	go func() {
+	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
 		n, err := file.Read(buf)
-		loop.Post(func() { finish(n, err) })
-	}()
+		loop.postExecution(func() { finish(n, err) })
+	}); err != nil {
+		loop.Done()
+		finish(0, err)
+	}
 	return p
 }
 
@@ -130,6 +143,9 @@ func (r *fileReader) close() {
 	r.done = true
 	r.file.Close()
 	r.unhook()
+	if r.scopeUnhook != nil {
+		r.scopeUnhook()
+	}
 }
 
 // openWrite opens a file for writing and hands back something the script can
@@ -154,11 +170,27 @@ func (f *fsHost) openWrite(p string, appending bool) (quickjs.Value, error) {
 	w := &fileWriter{rt: f.rt, loop: f.cfg.Loop, file: file}
 	// A file still being written when the runtime closes is closed with it.
 	w.unhook = f.rt.OnClose(func() { file.Close() })
+	if scope := f.cfg.Loop.executionScope(); scope != nil {
+		var err error
+		w.scopeUnhook, err = scope.AddCleanupHandle(func() {
+			file.Close()
+			w.unhook()
+		})
+		if err != nil {
+			w.unhook()
+			file.Close()
+			return quickjs.Value{}, err
+		}
+	}
 	o := f.rt.NewObject()
 	if err := errors.Join(
 		o.Set("write", w.write),
 		o.Set("close", w.closeValue),
 	); err != nil {
+		w.unhook()
+		if w.scopeUnhook != nil {
+			w.scopeUnhook()
+		}
 		w.file.Close()
 		return quickjs.Value{}, err
 	}
@@ -172,7 +204,8 @@ type fileWriter struct {
 	file *os.File
 	done bool
 	// unhook stops the runtime's closing closing the file, once it is.
-	unhook func()
+	unhook      func()
+	scopeUnhook func()
 }
 
 func (w *fileWriter) write(chunk quickjs.Value) *quickjs.Promise {
@@ -200,17 +233,20 @@ func (w *fileWriter) write(chunk quickjs.Value) *quickjs.Promise {
 	}
 	loop, file := w.loop, w.file
 	loop.Begin()
-	go func() {
+	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
 		_, err := file.Write(data)
-		loop.Post(func() {
+		loop.postExecution(func() {
 			if err != nil {
 				p.RejectError(err)
 				return
 			}
 			p.Resolve(nil)
 		})
-	}()
+	}); err != nil {
+		loop.Done()
+		p.RejectError(err)
+	}
 	return p
 }
 
@@ -227,6 +263,9 @@ func (w *fileWriter) closeValue() *quickjs.Promise {
 	if w.loop == nil {
 		err := file.Close()
 		w.unhook()
+		if w.scopeUnhook != nil {
+			w.scopeUnhook()
+		}
 		if err != nil {
 			p.RejectError(err)
 		} else {
@@ -236,20 +275,30 @@ func (w *fileWriter) closeValue() *quickjs.Promise {
 	}
 	loop := w.loop
 	loop.Begin()
-	go func() {
+	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
 		err := file.Close()
-		loop.Post(func() {
+		loop.postExecution(func() {
 			// Closed: the hook has nothing left to do. Until now it would
 			// have closed the file itself, had the runtime closed first.
 			w.unhook()
+			if w.scopeUnhook != nil {
+				w.scopeUnhook()
+			}
 			if err != nil {
 				p.RejectError(err)
 				return
 			}
 			p.Resolve(nil)
 		})
-	}()
+	}); err != nil {
+		loop.Done()
+		w.unhook()
+		if w.scopeUnhook != nil {
+			w.scopeUnhook()
+		}
+		p.RejectError(err)
+	}
 	return p
 }
 

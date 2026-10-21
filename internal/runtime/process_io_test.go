@@ -53,7 +53,7 @@ func processHelperJS(t *testing.T, mode string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return `spawn(` + jsString(t, exe) + `, ["-test.run=^TestNoeProcessIOHelper$"], {env:{NOE_PROCESS_IO_HELPER:` + jsString(t, mode) + `}})`
+	return `spawn(` + jsString(t, exe) + `, ["-test.run=^TestNoeProcessIOHelper$"], {env:{...process.env,NOE_PROCESS_IO_HELPER:` + jsString(t, mode) + `}})`
 }
 
 func TestProcessStreamsMultipleLiveRequests(t *testing.T) {

@@ -54,13 +54,13 @@ func TestModuleCompletion(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			source := Source{filepath.Join(t.TempDir(), "main.js"), tc.source}
-			h, err := newHost(ctx, Options{Stdout: &stdout}, source)
+			h, err := newManagedExecution(ctx, Options{Stdout: &stdout}, source)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer h.rt.Close()
-			if err := h.rt.Set("later", func(value string, fail bool) quickjs.Value {
-				return h.rt.Go(func(ctx context.Context) (any, error) {
+			defer h.Close()
+			if err := h.runtime.Bindings().Runtime().Set("later", func(value string, fail bool) quickjs.Value {
+				return h.runtime.Bindings().Runtime().Go(func(ctx context.Context) (any, error) {
 					timer := time.NewTimer(5 * time.Millisecond)
 					defer timer.Stop()
 					select {
@@ -86,9 +86,6 @@ func TestModuleCompletion(t *testing.T) {
 				}
 			} else if code != 1 || err == nil || !strings.Contains(err.Error(), tc.errorText) {
 				t.Fatalf("code=%d err=%v want=%q", code, err, tc.errorText)
-			}
-			if tc.name == "root failure" && len(h.unhandled) != 0 {
-				t.Fatalf("root error reported twice: %v", h.unhandled)
 			}
 			if tc.name == "late rejection" && !strings.Contains(Diagnostic(err), "main.js") {
 				t.Fatalf("late rejection lost source location: %v", err)

@@ -109,10 +109,10 @@ func closeFilesErr(files ...*os.File) error {
 	return err
 }
 
-func init() {
-	// The private supervisor is a POSIX-only mode. Never let an accidental
-	// invocation with its reserved argument fall through to the CLI or test run.
-	if len(os.Args) == 2 && os.Args[1] == "--noe-private-process-supervisor-v1" {
-		os.Exit(125)
+// DispatchHelper rejects the POSIX-only reserved helper invocation on Windows.
+func DispatchHelper(args []string) (int, bool) {
+	if len(args) == 1 && args[0] == "--noe-private-process-supervisor-v1" {
+		return 125, true
 	}
+	return 0, false
 }

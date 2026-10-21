@@ -59,6 +59,16 @@ func TestWorkerThreads(t *testing.T) {
 				w.on("error", (e) => events.push("error " + e.constructor.name + " " + e.message));
 				w.on("exit", (c) => { events.push("exit " + c + " " + w.threadId); setTimeout(() => { console.log(cmd, "|", events.join(" | ")); resolve(); }, 10); });
 			});
+			await new Promise((resolve) => {
+				const inherited = new Worker("./w.mjs");
+				inherited.on("message", (m) => {
+					if (typeof m === "object") {
+						console.log("inherited env", m.envX);
+						inherited.postMessage("exit");
+					}
+				});
+				inherited.on("exit", (code) => { console.log("inherited exit", code); resolve(); });
+			});
 			try { new Worker("w.mjs") } catch (e) { console.log(e.code, e.message) }
 			const missing = new Worker("./missing.mjs");
 			missing.on("error", (e) => console.log("missing", e.message));
@@ -72,6 +82,8 @@ func TestWorkerThreads(t *testing.T) {
 		`exit | online | message {"isMainThread":false,"main":false,"workerData":{"n":1},"envX":"y","argv":["a","2"]} | exit 7 -1`,
 		`throw | online | message {"isMainThread":false,"main":false,"workerData":{"n":1},"envX":"y","argv":["a","2"]} | error RangeError from worker | exit 1 -1`,
 		`reject | online | message {"isMainThread":false,"main":false,"workerData":{"n":1},"envX":"y","argv":["a","2"]} | message "echo reject" | error TypeError rejected | exit 1 -1`,
+		"inherited env parent",
+		"inherited exit 7",
 		`ERR_WORKER_PATH The worker script or module filename must be an absolute path or a relative path starting with './' or '../'. Received "w.mjs"`,
 		"missing Cannot find module './missing.mjs'",
 		"missing exit 1",
@@ -306,7 +318,7 @@ func TestWorkerTerminateStopsAHostCall(t *testing.T) {
 		parentPort.postMessage("after");`
 	cfg := stdlib.Config{
 		Workers: workerFiles(map[string]string{"./sleep.mjs": worker}),
-		Run:     &stdlib.Run{Allow: func(string, []string) error { return nil }},
+		Run:     &stdlib.Run{Env: commandTestEnvironment(), Allow: func(string, []string) error { return nil }},
 	}
 	start := time.Now()
 	out, _ := run(t, cfg, `

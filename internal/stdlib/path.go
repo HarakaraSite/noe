@@ -23,11 +23,17 @@ func Path(rt *quickjs.Runtime) error {
 
 // installPath installs path, as path.win32 if windows is set.
 func installPath(rt *quickjs.Runtime, windows bool) error {
+	return installPathEnvironment(rt, windows, "", nil)
+}
+
+// installPathEnvironment supplies the shared Profile environment when the
+// process metadata module has not been selected.
+func installPathEnvironment(rt *quickjs.Runtime, windows bool, cwd string, env map[string]string) error {
 	f, err := evalInternal(rt, "<eval>", pathJS)
 	if err != nil {
 		return err
 	}
-	both, err := f.Call(windows)
+	both, err := f.Call(windows, cwd, env)
 	if err != nil {
 		return err
 	}
@@ -85,7 +91,7 @@ func copyExports(exports map[string]any) map[string]any {
 // the same algorithms, character by character, so that every path comes out
 // as node's does -- which TestPathMatchesNode checks, over a corpus of the
 // awkward ones, against what node answered.
-const pathJS = `(function (windows) {
+const pathJS = `(function (windows, defaultCwd, defaultEnv) {
   "use strict";
 
   const SLASH = 47, BACKSLASH = 92, DOT = 46, COLON = 58, QUESTION = 63;
@@ -133,6 +139,7 @@ const pathJS = `(function (windows) {
   function cwd() {
     const p = globalThis.process;
     if (p && typeof p.cwd === "function") return p.cwd();
+    if (defaultCwd) return defaultCwd;
     return windows ? "\\" : "/";
   }
 
@@ -146,7 +153,7 @@ const pathJS = `(function (windows) {
 
   function env(name) {
     const p = globalThis.process;
-    return p && p.env ? p.env[name] : undefined;
+    return p && p.env ? p.env[name] : defaultEnv ? defaultEnv[name] : undefined;
   }
 
   // normalizeString resolves . and .. elements in a path with directory

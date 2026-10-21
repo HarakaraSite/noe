@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"forge.harakara.site/littleisland/noe/v2/agent/model"
+	"forge.harakara.site/littleisland/noe/v2/internal/noeprofile"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/decision"
 )
 
@@ -44,7 +45,7 @@ for(const options of [null,{}, {...base,provider:undefined},{...base,model:undef
 }
 if(rejected!==14)throw Error("validation count "+rejected);
 console.log("decisions ready");`
-	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "decision.js"), source}, Options{Stdout: &out, Agent: &agent.Options{DecisionProvider: p}})
+	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "decision.js"), source}, Options{Stdout: &out, Agent: &noeprofile.AgentOptions{Models: model.Options{DecisionProvider: p}}})
 	if code != 0 || err != nil || out.String() != "decisions ready\n" || calls.Load() != 2 {
 		t.Fatalf("code=%d err=%v out=%q calls=%d", code, err, out.String(), calls.Load())
 	}
@@ -70,7 +71,7 @@ func TestDecisionUnawaitedWorkIsTrackedAndCancelled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	go func() { <-started; cancel() }()
-	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "cancel.js"), `import {decide} from "noe:decision";decide({provider:"openrouter",model:"m",state:"x",questions:{q:{}}});`}, Options{Agent: &agent.Options{DecisionProvider: p}})
+	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "cancel.js"), `import {decide} from "noe:decision";decide({provider:"openrouter",model:"m",state:"x",questions:{q:{}}});`}, Options{Agent: &noeprofile.AgentOptions{Models: model.Options{DecisionProvider: p}}})
 	if code != 1 || !errors.Is(err, context.Canceled) {
 		t.Fatalf("code=%d err=%v", code, err)
 	}

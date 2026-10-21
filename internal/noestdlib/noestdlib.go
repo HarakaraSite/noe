@@ -3,11 +3,14 @@
 package noestdlib
 
 import (
+	"context"
 	"errors"
 	"io"
 	"reflect"
+	"sync"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/apidocs"
+	"forge.harakara.site/littleisland/noe/v2/internal/commandenv"
 	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 	"forge.harakara.site/littleisland/noe/v2/internal/nativeio"
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
@@ -23,11 +26,19 @@ type IOConfig struct {
 	Cwd   string
 }
 
-// Config selects the capabilities installed on a runtime.
-type Config struct {
-	Core stdlib.Config
-	IO   *IOConfig
-	Docs bool
+// NativeModules selects NOE-owned modules independently for a Profile.
+type NativeModules struct {
+	Stdio, Commands, FS, RawSockets, Signals bool
+}
+
+// ProfileConfig is the internal normalized installation request used by
+// jsexec. It has no application defaults or grouped capability switch.
+type ProfileConfig struct {
+	Context       context.Context
+	Core          stdlib.Config
+	IO            IOConfig
+	Native        NativeModules
+	WorkerInstall stdlib.WorkerInstaller
 }
 
 // Bindings are the normalized output writers shared by the runtime's core,
@@ -37,13 +48,26 @@ type Bindings struct {
 	Stderr *hostio.SharedWriter
 }
 
-// Install installs the selected APIs on rt. It does not take ownership of rt,
-// its loop, or any writer supplied in cfg.
-func Install(rt *quickjs.Runtime, cfg Config) (Bindings, error) {
-	if err := validate(cfg); err != nil {
-		return Bindings{}, err
-	}
+// ProfileBindings owns only adapters created by a Profile installation.
+type ProfileBindings struct {
+	Bindings
+	native *nativeio.Host
+	close  func()
+}
 
+// Close releases runtime-owned adapters, not the runtime, loop, writers, or
+// other resources supplied by the caller.
+func (b *ProfileBindings) Close() {
+	if b != nil && b.close != nil {
+		b.close()
+	}
+}
+
+// InstallProfile installs explicit capabilities and the complete reference catalog.
+func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings, err error) {
+	if err := validate(cfg.Core); err != nil {
+		return nil, err
+	}
 	core := cloneConfig(cfg.Core)
 	outputs := newOutputSet()
 	stdout := outputs.normalize(core.Stdout)
@@ -61,80 +85,61 @@ func Install(rt *quickjs.Runtime, cfg Config) (Bindings, error) {
 			core.Process.Stderr = outputs.normalize(core.Process.Stderr)
 		}
 	}
-
-	bindings := Bindings{Stdout: stdout, Stderr: stderr}
-	closeOutputs := func() {
-		for _, writer := range outputs.owned {
-			_ = writer.Close()
-		}
-	}
-	// This hook is deliberately registered before stdlib.Install: OnClose
-	// runs in reverse order, so workers and native I/O finish before outputs.
-	rt.OnClose(closeOutputs)
-
-	var originalInstalled func(*quickjs.Runtime) error
-	if core.Workers != nil {
-		workers := *core.Workers
-		originalInstalled = workers.Installed
-		workers.Installed = func(workerRT *quickjs.Runtime) error {
-			if err := installExtras(workerRT, cfg.IO, cfg.Docs, bindings, true); err != nil {
-				return err
+	result := &ProfileBindings{Bindings: Bindings{Stdout: stdout, Stderr: stderr}}
+	var closeOnce sync.Once
+	closeAdapters := func() {
+		closeOnce.Do(func() {
+			if result.native != nil {
+				result.native.Close()
 			}
-			if originalInstalled != nil {
-				return originalInstalled(workerRT)
+			for _, writer := range outputs.owned {
+				_ = writer.Close()
 			}
-			return nil
+		})
+	}
+	result.close = closeAdapters
+	rt.OnClose(closeAdapters)
+	if err := stdlib.InstallProfile(rt, core, cfg.Native.Stdio, cfg.WorkerInstall); err != nil {
+		closeAdapters()
+		return nil, err
+	}
+	if err := installDocs(rt); err != nil {
+		closeAdapters()
+		return nil, err
+	}
+	if cfg.Native.Stdio || cfg.Native.Commands || cfg.Native.FS || cfg.Native.RawSockets || cfg.Native.Signals {
+		nativeOptions := nativeio.Options{Context: cfg.Context,
+			Stdin: cfg.IO.Stdin, Stdout: stdout, Stderr: stderr, Cwd: cfg.IO.Cwd,
 		}
-		core.Workers = &workers
+		if core.FS != nil {
+			nativeOptions.FileSystem = core.FS.Backend
+		}
+		if core.Run != nil {
+			nativeOptions.Command = &commandenv.Config{
+				Cwd: core.Run.Dir, Env: core.Run.Env, Allow: core.Run.Allow,
+				Supervisor: core.Run.Supervisor, Timeout: core.Run.Timeout, ResolveDirectory: core.Run.ResolveDirectory,
+			}
+		}
+		host, installErr := nativeio.InstallSelected(rt, nativeOptions, nativeio.Modules{
+			Stdio: cfg.Native.Stdio, Commands: cfg.Native.Commands, FS: cfg.Native.FS,
+			RawSockets: cfg.Native.RawSockets, Signals: cfg.Native.Signals,
+		})
+		if installErr != nil {
+			closeAdapters()
+			return nil, installErr
+		}
+		result.native = host
 	}
-
-	if err := stdlib.Install(rt, core); err != nil {
-		closeOutputs()
-		return Bindings{}, err
-	}
-	if err := installExtras(rt, cfg.IO, cfg.Docs, bindings, false); err != nil {
-		closeOutputs()
-		return Bindings{}, err
-	}
-	return bindings, nil
+	return result, nil
 }
 
-func validate(cfg Config) error {
-	if cfg.IO != nil {
-		if cfg.Core.Process == nil {
-			return errors.New("noestdlib: IO needs Core.Process")
-		}
-		if cfg.Core.NoWebAPIs {
-			return errors.New("noestdlib: IO needs the web APIs")
-		}
-	}
-	if cfg.Core.Workers != nil {
-		if cfg.Core.Loop == nil {
+func validate(cfg stdlib.Config) error {
+	if cfg.Workers != nil {
+		if cfg.Loop == nil {
 			return errors.New("stdlib: Workers needs a Loop")
 		}
-		if cfg.Core.NoWebAPIs {
+		if cfg.NoWebAPIs {
 			return errors.New("stdlib: Workers needs the web APIs")
-		}
-	}
-	return nil
-}
-
-func installExtras(rt *quickjs.Runtime, ioConfig *IOConfig, docs bool, bindings Bindings, worker bool) error {
-	if docs {
-		if err := installDocs(rt); err != nil {
-			return err
-		}
-	}
-	if ioConfig != nil {
-		stdin := ioConfig.Stdin
-		if worker {
-			stdin = nil
-		}
-		_, err := nativeio.Install(rt, nativeio.Options{
-			Stdin: stdin, Stdout: bindings.Stdout, Stderr: bindings.Stderr, Cwd: ioConfig.Cwd,
-		})
-		if err != nil {
-			return err
 		}
 	}
 	return nil

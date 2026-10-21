@@ -1,14 +1,14 @@
 package nativeio
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
-	"sort"
 	"sync"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/commandenv"
 	"forge.harakara.site/littleisland/noe/v2/internal/process"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
@@ -31,19 +31,71 @@ func (h *Host) spawn(payload string) *quickjs.Promise {
 		p.RejectError(err)
 		return p
 	}
-	dir := request.Cwd
-	if dir == "" {
-		dir = h.opts.Cwd
-	} else if !filepath.IsAbs(dir) {
-		dir = filepath.Join(h.opts.Cwd, dir)
+	config := h.opts.Command
+	envOverride := request.Env
+	if config == nil {
+		// Legacy Install lets the JS adapter snapshot process.env on the owner.
+		// That explicit snapshot is the legacy default; Profile passes a Go
+		// command config and never derives defaults from the process object.
+		config = &commandenv.Config{
+			Cwd:        h.opts.Cwd,
+			Env:        request.Env,
+			Supervisor: h.opts.Supervisor,
+			Allow: func(string, []string) error {
+				return nil
+			},
+		}
+		envOverride = nil
 	}
-	env := make([]string, 0, len(request.Env))
-	for k, v := range request.Env {
-		env = append(env, k+"="+v)
+	prepared, err := commandenv.Prepare(*config, request.Command, request.Args, request.Cwd, envOverride)
+	if err != nil {
+		p := h.rt.NewPromise()
+		p.RejectError(err)
+		return p
 	}
-	sort.Strings(env)
+	timeout := config.Timeout
+	supervisor := config.Supervisor
 	return h.async(func() (any, error) {
-		return process.Start(h.ctx, process.Config{Command: request.Command, Args: request.Args, Dir: dir, Env: env})
+		ctx := h.ctx
+		cancel := func() {}
+		if timeout > 0 {
+			ctx, cancel = context.WithTimeout(h.ctx, timeout)
+		}
+		// Retain cancellation on every setup failure. A successful timed
+		// spawn transfers it to the child-lifetime waiter below.
+		ownsCancel := true
+		defer func() {
+			if ownsCancel {
+				cancel()
+			}
+		}()
+		child, err := process.Start(ctx, process.Config{
+			Command:    prepared.Command,
+			Args:       prepared.Args,
+			Dir:        prepared.Dir,
+			Env:        commandenv.EnvList(prepared.Env),
+			Supervisor: supervisor,
+		})
+		if err != nil {
+			return nil, err
+		}
+		// Own the child before JS delivery; advanced Attach can close while
+		// the converted handle is still queued on a borrowed, live runtime.
+		if !h.own(child) {
+			return nil, h.operationError()
+		}
+		if timeout > 0 {
+			ownsCancel = false
+			h.wg.Add(1) // this admitted spawn worker is still counted
+			// Keep the timeout active for the entire child lifetime, then stop
+			// its timer without canceling it immediately after Start returns.
+			go func() {
+				defer h.wg.Done()
+				<-child.Done
+				cancel()
+			}()
+		}
+		return child, nil
 	}, func(value any) (any, error) {
 		return h.childObject(value.(*process.Child), request)
 	}, func(value any) {
@@ -119,7 +171,10 @@ func (s *childState) recordPumpError(err error, src, dst *endpoint) {
 
 func (h *Host) childObject(child *process.Child, request spawnRequest) (quickjs.Value, error) {
 	s := &childState{h: h, child: child}
-	h.own(s)
+	if !h.own(s) {
+		return quickjs.Value{}, h.operationError()
+	}
+	h.release(child)
 	o := h.rt.NewObject()
 	if err := o.Set("pid", child.PID); err != nil {
 		_ = s.Close()

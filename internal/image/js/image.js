@@ -54,7 +54,7 @@ function imageError(details) {
   if (!isRecord(details)) details = {};
   const error = new Error(typeof details.message === "string" ? details.message : "image request failed");
   error.name = "ImageError";
-  for (const field of ["code", "providerCode", "providerMessage", "statusCode", "requestId"]) {
+  for (const field of ["code", "providerCode", "providerMessage", "statusCode", "requestId", "usage"]) {
     if (details[field] !== undefined) error[field] = details[field];
   }
   return error;

@@ -6,11 +6,13 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
-type steerRequest struct {
+type SteerRequest struct {
 	RunID       string `json:"runId"`
 	Instruction string `json:"instruction"`
 	CommandID   string `json:"commandId,omitempty"`
 }
+
+type steerRequest = SteerRequest
 
 type steerInstruction struct {
 	CommandID   string `json:"commandId"`

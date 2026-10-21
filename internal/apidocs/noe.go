@@ -4,8 +4,10 @@ func noeTopics() []topicSpec {
 	return []topicSpec{
 		{ID: "noe", Kind: "overview", Summary: "NOE is a JavaScript runtime and managed agent execution environment.", File: "noe.md"},
 		{ID: "noe:docs", Kind: "module", Summary: "Read the API reference embedded in this NOE binary.", File: "noe-docs.md"},
-		{ID: "noe:run_js", Kind: "agent tool", Summary: "Execute JavaScript in a fresh, owned NOE process; task recipes cover files, commands, imports, HTTP, agents, and failures.", File: "noe-run-js.md"},
+		{ID: "noe:run_js", Kind: "agent tool", Summary: "Execute JavaScript in a fresh, owned NOE runtime; task recipes cover files, commands, imports, HTTP, agents, and failures.", File: "noe-run-js.md"},
 		{ID: "noe:agent", Kind: "module", Summary: "Start and manage agents, inspect model choices, and configure task hooks.", File: "noe-agent.md"},
+		{ID: "noe:model", Kind: "module", Summary: "List model catalog entries and make one provider request without starting an agent loop.", File: "noe-model.md"},
+		{ID: "noe:agent-log", Kind: "module", Summary: "Reconstruct a run from caller-supplied JSONL event data.", File: "noe-agent-log.md"},
 		{ID: "noe:decision", Kind: "module", Summary: "Make one structured decision with an explicitly selected OpenRouter model.", File: "noe-decision.md"},
 		{ID: "noe:image", Kind: "module", Summary: "Read images for an agent request and generate image files with an explicit model.", File: "noe-image.md"},
 		{ID: "noe:auth", Kind: "module", Summary: "Validate and save a completed ChatGPT sign-in result.", File: "noe-auth.md"},

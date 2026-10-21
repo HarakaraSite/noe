@@ -31,7 +31,7 @@ func newUploadBody(rt *quickjs.Runtime, loop *Loop, ctx context.Context, cancel 
 	r, w := io.Pipe()
 	stopped := rt.NewPromise()
 	u := &uploadBody{reader: r, writer: w, cancel: cancel}
-	u.notify = func() { loop.Post(func() { stopped.Resolve(nil) }) }
+	u.notify = func() { loop.postExecution(func() { stopped.Resolve(nil) }) }
 	context.AfterFunc(ctx, func() { u.abort(ctx.Err()) })
 	o := rt.NewObject()
 	err := setAll(o, map[string]any{
@@ -55,10 +55,10 @@ func newUploadBody(rt *quickjs.Runtime, loop *Loop, ctx context.Context, cancel 
 			chunk := append([]byte(nil), b...)
 			u.busy = true
 			loop.Begin()
-			go func() {
+			if err := loop.Go(func(context.Context) {
 				defer loop.Done()
 				_, err := u.writer.Write(chunk)
-				loop.Post(func() {
+				loop.postExecution(func() {
 					u.busy = false
 					if u.isEnded() {
 						p.Resolve(false)
@@ -68,7 +68,11 @@ func newUploadBody(rt *quickjs.Runtime, loop *Loop, ctx context.Context, cancel 
 						p.Resolve(true)
 					}
 				})
-			}()
+			}); err != nil {
+				loop.Done()
+				u.busy = false
+				p.RejectError(err)
+			}
 			return p
 		},
 		"close": func() { u.stop() },

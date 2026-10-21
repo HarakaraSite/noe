@@ -9,27 +9,25 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
-
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 func TestAgentHumanRunInterruptReapsNestedProcessGroups(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	work := t.TempDir()
+	defer processIOKillPIDFiles(filepath.Join(work, "shell.pid"), filepath.Join(work, "grandchild.pid"))
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		code := `// Delegate to a child task that runs a process group.
 import {writeFileSync} from "node:fs";
-writeFileSync("parent.pid",String(process.pid));
+writeFileSync("parent-ready","ready");
 await run_agent({name:"nested"},"nested child");`
 		if agentUser(req) == "nested child" {
 			code = `// Run a shell with a long-lived descendant.
 import {writeFileSync} from "node:fs";
 import {execFile} from "node:child_process";
-writeFileSync("child.pid",String(process.pid));
+writeFileSync("child-ready","ready");
 await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"runner","shell.pid","grandchild.pid"]);`
 		}
 		return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("nested-control", code)}}}, FinishReason: "tool_calls"}
@@ -51,13 +49,11 @@ await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"run
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	defer cancel()
-	parent := agentPIDFile(t, ctx, filepath.Join(work, "parent.pid"))
-	defer syscall.Kill(-parent, syscall.SIGKILL)
-	child := agentPIDFile(t, ctx, filepath.Join(work, "child.pid"))
-	defer syscall.Kill(-child, syscall.SIGKILL)
+	waitAgentFile(t, ctx, filepath.Join(work, "parent-ready"))
+	waitAgentFile(t, ctx, filepath.Join(work, "child-ready"))
 	shell := agentPIDFile(t, ctx, filepath.Join(work, "shell.pid"))
 	grandchild := agentPIDFile(t, ctx, filepath.Join(work, "grandchild.pid"))
-	snapshot := awaitControlAgent(t, ctx, env["NOE_AGENT_RUNTIME_DIR"], func(s agent.AgentSnapshot) bool { return s.Name == "controlled-parent" && s.CurrentRunID != "" })
+	snapshot := awaitControlAgent(t, ctx, work, env, func(s controlAgentSnapshot) bool { return s.Name == "controlled-parent" && s.CurrentRunID != "" })
 	result := runCLI(t, work, env, "interrupt", "--run", snapshot.CurrentRunID)
 	if result.exitCode != 0 {
 		t.Fatalf("interrupt failed: %+v", result)
@@ -69,11 +65,6 @@ await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"run
 		}
 	case <-ctx.Done():
 		t.Fatal("run interrupt did not settle owner")
-	}
-	for _, pid := range []int{parent, child} {
-		if err := syscall.Kill(pid, 0); err != syscall.ESRCH {
-			t.Errorf("generated NOE not reaped: pid=%d error=%v", pid, err)
-		}
 	}
 	requireAgentPIDsStopped(t, shell, grandchild)
 }

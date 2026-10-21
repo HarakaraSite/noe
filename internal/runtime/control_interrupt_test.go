@@ -42,7 +42,27 @@ func waitForInterruptProviderPrompt(t *testing.T, ctx context.Context, requests 
 	}
 }
 
-func TestPublicRunInterruptKeepsKeepAliveAndQueuedTasks(t *testing.T) {
+type interruptCommandTarget struct {
+	agentID   string
+	commandID string
+}
+
+func interruptTargetFromStartedEvent(event events.Event) interruptCommandTarget {
+	target := interruptCommandTarget{}
+	target.agentID, _ = event["agentId"].(string)
+	encoded, err := json.Marshal(event["origin"])
+	if err == nil {
+		var origin struct {
+			CommandID string `json:"commandId"`
+		}
+		if json.Unmarshal(encoded, &origin) == nil {
+			target.commandID = origin.CommandID
+		}
+	}
+	return target
+}
+
+func TestPublicCancelTaskKeepsKeepAliveAndQueuedTasks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	providerStarted := filepath.Join(t.TempDir(), "provider-started")
@@ -71,7 +91,7 @@ func TestPublicRunInterruptKeepsKeepAliveAndQueuedTasks(t *testing.T) {
 		observed = append(observed, event)
 		eventMu.Unlock()
 	}
-	source := fmt.Sprintf(`import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := fmt.Sprintf(`import {spawn_agent,queue_agent,observe_agent,cancel_task,stop_agent} from "noe:agent";
 import {existsSync} from "node:fs";
 const providerStarted=%q;
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"run-interrupt",effort:"auto"},undefined,{keepAlive:true});
@@ -81,11 +101,12 @@ if(!existsSync(providerStarted))throw Error("provider did not begin the first ta
 let snapshot;
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.currentRunId)break;await new Promise(resolve=>setTimeout(resolve,1));}
 if(!snapshot || !snapshot.currentRunId)throw Error("first task did not start");
-const ack=await interrupt_agent({runId:snapshot.currentRunId});
-if(ack.target!=="run"||ack.status!=="accepted")throw Error(JSON.stringify(ack));
+const ack=await cancel_task({agentId,commandId:"hold"});
+if(ack.commandId!=="hold"||ack.status!=="accepted")throw Error(JSON.stringify(ack));
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.state==="idle"&&snapshot.lastResult?.commandId==="last")break;await new Promise(resolve=>setTimeout(resolve,1));}
 if(!snapshot||snapshot.state!=="idle"||snapshot.queueLength!==0||snapshot.lastResult?.answer!=="continue two done")throw Error(JSON.stringify(snapshot));
-await interrupt_agent({agentId});
+const stop=await stop_agent({agentId});
+if(stop.agentId!==agentId||stop.status!=="accepted")throw Error(JSON.stringify(stop));
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.state==="stopped")break;await new Promise(resolve=>setTimeout(resolve,1));}
 if(snapshot.state!=="stopped"||snapshot.reason!=="interrupted")throw Error(JSON.stringify(snapshot));
 console.log("run interrupt preserved queue");`, providerStarted)
@@ -109,19 +130,19 @@ console.log("run interrupt preserved queue");`, providerStarted)
 	defer eventMu.Unlock()
 	var accepted, cancelled []string
 	for _, event := range observed {
-		if event["type"] == "interrupt.accepted" && event["target"] == "run" {
-			accepted = append(accepted, fmt.Sprint(event["runId"]))
+		if event["type"] == "interrupt.accepted" && event["target"] == "task" {
+			accepted = append(accepted, fmt.Sprint(event["commandId"]))
 		}
 		if event["type"] == "command.cancelled" {
 			cancelled = append(cancelled, fmt.Sprint(event["commandId"]))
 		}
 	}
-	if len(accepted) != 1 || accepted[0] == "" || len(cancelled) != 1 || cancelled[0] != "hold" {
-		t.Fatalf("interrupt events accepted=%v cancelled=%v", accepted, cancelled)
+	if len(accepted) != 1 || accepted[0] != "hold" || len(cancelled) != 1 || cancelled[0] != "hold" {
+		t.Fatalf("task cancellation events accepted=%v cancelled=%v", accepted, cancelled)
 	}
 }
 
-func TestPublicAgentInterruptCancelsBusyTaskAndQueue(t *testing.T) {
+func TestPublicStopAgentCancelsBusyTaskAndQueue(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	providerStarted := filepath.Join(t.TempDir(), "provider-started")
@@ -165,7 +186,7 @@ func TestPublicAgentInterruptCancelsBusyTaskAndQueue(t *testing.T) {
 			eventMu.Unlock()
 		}
 	}
-	source := fmt.Sprintf(`import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := fmt.Sprintf(`import {spawn_agent,queue_agent,observe_agent,stop_agent} from "noe:agent";
 import {existsSync} from "node:fs";
 const providerStarted=%q;
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"agent-interrupt",effort:"auto"},undefined,{keepAlive:true});
@@ -175,8 +196,8 @@ if(!existsSync(providerStarted))throw Error("provider did not begin the busy tas
 let snapshot;
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.currentRunId)break;await new Promise(resolve=>setTimeout(resolve,1));}
 if(!snapshot || !snapshot.currentRunId)throw Error("busy task did not start");
-const ack=await interrupt_agent({agentId});
-if(ack.target!=="agent"||ack.status!=="accepted")throw Error(JSON.stringify(ack));
+const ack=await stop_agent({agentId});
+if(ack.agentId!==agentId||ack.status!=="accepted")throw Error(JSON.stringify(ack));
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.state==="stopped")break;await new Promise(resolve=>setTimeout(resolve,1));}
 if(!snapshot||snapshot.state!=="stopped"||snapshot.reason!=="interrupted"||snapshot.queueLength!==0||snapshot.lastResult?.state!=="cancelled")throw Error(JSON.stringify(snapshot));
 console.log("agent interrupt stopped queue");`, providerStarted)
@@ -202,7 +223,7 @@ console.log("agent interrupt stopped queue");`, providerStarted)
 	}
 }
 
-func TestPublicIdleAgentInterruptPreservesLastResult(t *testing.T) {
+func TestPublicStopIdleAgentPreservesLastResult(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	var calls atomic.Int32
@@ -210,13 +231,13 @@ func TestPublicIdleAgentInterruptPreservesLastResult(t *testing.T) {
 		calls.Add(1)
 		return agentAnswer(interruptUserPrompt(request) + " complete"), nil
 	})
-	source := `import {spawn_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := `import {spawn_agent,observe_agent,stop_agent} from "noe:agent";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"idle-interrupt",effort:"auto"},"preserve this answer",{keepAlive:true});
 let snapshot;
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.state==="idle"&&snapshot.lastResult?.state==="completed")break;await new Promise(resolve=>setTimeout(resolve,1));}
 const prior=snapshot?.lastResult;
 if(!prior||prior.answer!=="preserve this answer complete")throw Error(JSON.stringify(snapshot));
-const ack=await interrupt_agent({agentId});
+const ack=await stop_agent({agentId});
 if(ack.status!=="accepted")throw Error(JSON.stringify(ack));
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.state==="stopped")break;await new Promise(resolve=>setTimeout(resolve,1));}
 if(snapshot.state!=="stopped"||snapshot.reason!=="interrupted"||snapshot.lastResult?.answer!==prior.answer||snapshot.lastResult?.state!=="completed")throw Error(JSON.stringify(snapshot));`
@@ -229,26 +250,31 @@ if(snapshot.state!=="stopped"||snapshot.reason!=="interrupted"||snapshot.lastRes
 	}
 }
 
-func TestPublicInterruptRequiresExactlyOneTarget(t *testing.T) {
+func TestPublicCancelAndStopValidateTargets(t *testing.T) {
 	p := agentProviderFunc(func(context.Context, provider.Request) (provider.Response, error) {
 		return agentAnswer("unexpected"), nil
 	})
-	source := `import {interrupt_agent} from "noe:agent";
-for(const target of [{},{runId:"run",agentId:"agent"},{runId:""},{agentId:""}]){
+	source := `import {cancel_task,stop_agent} from "noe:agent";
+for(const target of [{},{agentId:"agent"},{commandId:"command"},{agentId:"",commandId:"command"},{agentId:"agent",commandId:""}]){
   let rejected=false;
-  try{await interrupt_agent(target);}catch(error){rejected=error instanceof TypeError;}
-  if(!rejected)throw Error("invalid interrupt target accepted: "+JSON.stringify(target));
+  try{await cancel_task(target);}catch(error){rejected=error instanceof TypeError;}
+  if(!rejected)throw Error("invalid task cancellation accepted: "+JSON.stringify(target));
+}
+for(const target of [{},{agentId:""}]){
+  let rejected=false;
+  try{await stop_agent(target);}catch(error){rejected=error instanceof TypeError;}
+  if(!rejected)throw Error("invalid agent stop accepted: "+JSON.stringify(target));
 }
 let unknown=false;
-try{await interrupt_agent({runId:"missing-run"});}catch(error){unknown=String(error).includes("unknown or unowned");}
-if(!unknown)throw Error("unknown run did not produce a target diagnostic");`
+try{await cancel_task({agentId:"missing-agent",commandId:"missing-command"});}catch(error){unknown=String(error).includes("unknown or unowned agent");}
+if(!unknown)throw Error("unknown agent did not produce a target diagnostic");`
 	code, err := Execute(context.Background(), Source{"interrupt-validation.js", source}, Options{Agent: agentTestOptions(p)})
 	if code != 0 || err != nil {
 		t.Fatalf("code=%d error=%v", code, err)
 	}
 }
 
-func TestPublicRunInterruptRejectsAfterFinalCommit(t *testing.T) {
+func TestPublicCancelTaskRejectsAfterFinalCommit(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	dir := t.TempDir()
@@ -278,9 +304,9 @@ func TestPublicRunInterruptRejectsAfterFinalCommit(t *testing.T) {
 			}
 		}
 	}
-	source := fmt.Sprintf(`import {spawn_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := fmt.Sprintf(`import {spawn_agent,observe_agent,cancel_task} from "noe:agent";
 import {writeFileSync,existsSync} from "node:fs";
-const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"final-interrupt",effort:"auto"},"finish normally");
+const {agentId,commandId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"final-interrupt",effort:"auto"},"finish normally");
 let snapshot;
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.currentRunId)break;await new Promise(resolve=>setTimeout(resolve,1));}
 if(!snapshot?.currentRunId)throw Error("task did not start");
@@ -288,7 +314,7 @@ const runId=snapshot.currentRunId;
 for(let i=0;i<10000&&!existsSync(%q);i++)await new Promise(resolve=>setTimeout(resolve,1));
 if(!existsSync(%q))throw Error("final commit was not observed");
 let rejected=false;
-try{await interrupt_agent({runId});}catch(error){if(!String(error).includes("finished"))throw error;rejected=true;}
+try{await cancel_task({agentId,commandId});}catch(error){if(!String(error).includes("committed"))throw error;rejected=true;}
 writeFileSync(%q,"release");
 if(!rejected)throw Error("interrupt after final commit was accepted");
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.state==="stopped")break;await new Promise(resolve=>setTimeout(resolve,1));}
@@ -319,10 +345,10 @@ func toolCallResponse(t *testing.T, code string) provider.Response {
 	return provider.Response{Message: message, FinishReason: "tool_calls"}
 }
 
-func TestPublicRunJSCanInterruptItsOwnTaskWithoutJoining(t *testing.T) {
+func TestPublicRunJSCanCancelItsOwnTaskWithoutJoining(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	runID := make(chan string, 1)
+	targets := make(chan interruptCommandTarget, 1)
 	modelRequests := make(chan provider.Request, 4)
 	var calls atomic.Int32
 	p := agentProviderFunc(func(callCtx context.Context, request provider.Request) (provider.Response, error) {
@@ -330,30 +356,35 @@ func TestPublicRunJSCanInterruptItsOwnTaskWithoutJoining(t *testing.T) {
 		if calls.Add(1) != 1 {
 			return agentAnswer("unexpected model continuation"), nil
 		}
-		var id string
+		var target interruptCommandTarget
 		select {
-		case id = <-runID:
+		case target = <-targets:
 		case <-callCtx.Done():
 			return provider.Response{}, callCtx.Err()
 		}
-		code := fmt.Sprintf(`// Interrupt the currently executing managed task.
-await interrupt_agent({runId:%q});
-console.log("interrupt accepted");`, id)
+		if target.agentID == "" || target.commandID == "" {
+			return provider.Response{}, fmt.Errorf("agent.started did not provide a command target: %+v", target)
+		}
+		code := fmt.Sprintf(`// Cancel the currently executing managed task by its accepted command ID.
+const ack=await cancel_task({agentId:%q,commandId:%q});
+if(ack.status!=="accepted"||ack.commandId!==%q)throw Error(JSON.stringify(ack));
+console.log("cancel accepted");`, target.agentID, target.commandID, target.commandID)
 		return toolCallResponse(t, code), nil
 	})
 	options := agentTestOptions(p)
 	options.Observe = func(event events.Event) {
 		if event["type"] == "agent.started" && event["name"] == "self-run-js" {
-			runID <- fmt.Sprint(event["runId"])
+			targets <- interruptTargetFromStartedEvent(event)
 		}
 	}
-	source := `import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := `import {spawn_agent,queue_agent,observe_agent,stop_agent} from "noe:agent";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"self-run-js",effort:"auto"},undefined,{keepAlive:true});
-await queue_agent({agentId,instruction:"run a self interrupt",commandId:"self"});
+const {commandId}=await queue_agent({agentId,instruction:"run a self cancel",commandId:"self"});
+if(commandId!=="self")throw Error("unexpected command receipt");
 let snapshot;
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.state==="idle"&&snapshot.lastResult?.commandId==="self")break;await new Promise(resolve=>setTimeout(resolve,1));}
 if(snapshot.state!=="idle"||snapshot.lastResult?.state!=="cancelled")throw Error(JSON.stringify(snapshot));
-await interrupt_agent({agentId});
+await stop_agent({agentId});
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.state==="stopped")break;await new Promise(resolve=>setTimeout(resolve,1));}`
 	code, err := Execute(ctx, Source{"interrupt-self-run-js.js", source}, Options{Agent: options})
 	if code != 0 || err != nil {
@@ -369,39 +400,50 @@ for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.sta
 	}
 }
 
-func TestPublicRunJSCanInterruptItsOwnInstanceWithoutJoining(t *testing.T) {
+func TestPublicRunJSCanStopItsOwnInstanceWithoutJoining(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	startedAgent := make(chan string, 1)
-	p := agentProviderFunc(func(_ context.Context, request provider.Request) (provider.Response, error) {
-		instruction := interruptUserPrompt(request)
-		const prefix = "self-agent:"
-		if !strings.HasPrefix(instruction, prefix) {
-			return provider.Response{}, fmt.Errorf("unexpected task instruction %q", instruction)
+	startedAgent := make(chan interruptCommandTarget, 1)
+	usedTarget := make(chan interruptCommandTarget, 1)
+	p := agentProviderFunc(func(callCtx context.Context, _ provider.Request) (provider.Response, error) {
+		var target interruptCommandTarget
+		select {
+		case target = <-startedAgent:
+		case <-callCtx.Done():
+			return provider.Response{}, callCtx.Err()
 		}
-		agentID := strings.TrimPrefix(instruction, prefix)
-		startedAgent <- agentID
+		if target.agentID == "" || target.commandID == "" {
+			return provider.Response{}, fmt.Errorf("agent.started did not provide a command target: %+v", target)
+		}
+		usedTarget <- target
 		code := fmt.Sprintf(`// Stop the managed instance which owns this generated JS scope.
-await interrupt_agent({agentId:%q});
-console.log("interrupt accepted");`, agentID)
+const ack=await stop_agent({agentId:%q});
+if(ack.agentId!==%q||ack.status!=="accepted")throw Error(JSON.stringify(ack));
+console.log("stop accepted");`, target.agentID, target.agentID)
 		return toolCallResponse(t, code), nil
 	})
+	options := agentTestOptions(p)
+	options.Observe = func(event events.Event) {
+		if event["type"] == "agent.started" && event["name"] == "self-agent-js" {
+			startedAgent <- interruptTargetFromStartedEvent(event)
+		}
+	}
 	source := `import {spawn_agent,queue_agent,observe_agent} from "noe:agent";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"self-agent-js",effort:"auto"},undefined,{keepAlive:true});
-await queue_agent({agentId,instruction:"self-agent:"+agentId,commandId:"self"});
+await queue_agent({agentId,instruction:"stop self from run_js",commandId:"self"});
 let snapshot;
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.state==="stopped")break;await new Promise(resolve=>setTimeout(resolve,1));}
 if(snapshot.state!=="stopped"||snapshot.reason!=="interrupted"||snapshot.lastResult?.state!=="cancelled")throw Error(JSON.stringify(snapshot));`
-	code, err := Execute(ctx, Source{"interrupt-self-agent-js.js", source}, Options{Agent: agentTestOptions(p)})
+	code, err := Execute(ctx, Source{"stop-self-agent-js.js", source}, Options{Agent: options})
 	if code != 0 || err != nil {
-		t.Fatalf("self instance interrupt deadlocked or failed: code=%d error=%v", code, err)
+		t.Fatalf("self instance stop deadlocked or failed: code=%d error=%v", code, err)
 	}
 	select {
-	case id := <-startedAgent:
-		if id == "" {
-			t.Fatal("provider did not receive the instance identifier")
+	case target := <-usedTarget:
+		if target.agentID == "" || target.commandID != "self" {
+			t.Fatalf("provider used invalid started-event target: %+v", target)
 		}
 	default:
-		t.Fatal("task never reached the fixture provider")
+		t.Fatal("task never received its started-event target")
 	}
 }

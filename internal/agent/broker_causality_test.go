@@ -3,8 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
@@ -12,13 +10,9 @@ import (
 )
 
 func TestHookWorkAndSteersUseInvocationAsTheirCause(t *testing.T) {
-	cwd := t.TempDir()
-	if err := os.WriteFile(filepath.Join(cwd, "hook.mjs"), []byte("export async function beforeModelRequest() {}\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
 	observed := make(chan events.Event, 128)
 	h := NewHost(Options{
-		Provider: &fixtureProvider{}, Cwd: cwd,
+		Models:  modelsWithChat(&fixtureProvider{}),
 		Observe: func(event events.Event) { observed <- event },
 	})
 	t.Cleanup(h.Close)
@@ -63,14 +57,10 @@ func TestHookWorkAndSteersUseInvocationAsTheirCause(t *testing.T) {
 }
 
 func TestSteerAndRejectedCandidateCausalityReachNextRequest(t *testing.T) {
-	cwd := t.TempDir()
-	if err := os.WriteFile(filepath.Join(cwd, "hook.mjs"), []byte("export async function beforeModelRequest() {}\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
 	observed := make(chan events.Event, 256)
 	fixture := &fixtureProvider{}
 	h := NewHost(Options{
-		Provider: fixture, Cwd: cwd,
+		Models:  modelsWithChat(fixture),
 		Observe: func(event events.Event) { observed <- event },
 	})
 	t.Cleanup(h.Close)
@@ -173,7 +163,7 @@ func TestNextLogicalStepJoinsParallelCompletedToolActivities(t *testing.T) {
 		}, nil
 	}}
 	observed := make(chan events.Event, 128)
-	h := NewHost(Options{Provider: fixture, Observe: func(event events.Event) { observed <- event }})
+	h := NewHost(Options{Models: modelsWithChat(fixture), Observe: func(event events.Event) { observed <- event }})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)

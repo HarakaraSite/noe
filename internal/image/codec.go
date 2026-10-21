@@ -39,13 +39,19 @@ func ReadFile(ctx context.Context, path, detail string) (*Data, error) {
 		}
 		return nil, &Error{Code: "filesystem", Message: "read image: " + err.Error()}
 	}
-	return readData(ctx, path, content, detail, "input")
+	return ReadInputData(ctx, path, content, detail)
 }
 
 // ReadData validates provider-returned image bytes and keeps an independent
 // snapshot so callers may safely reuse or modify the input slice.
 func ReadData(ctx context.Context, path string, content []byte, detail string) (*Data, error) {
 	return readData(ctx, path, content, detail, "response")
+}
+
+// ReadInputData validates bytes supplied by the execution filesystem. Invalid
+// file content is an input error, independently of the chosen FS backend.
+func ReadInputData(ctx context.Context, path string, content []byte, detail string) (*Data, error) {
+	return readData(ctx, path, content, detail, "input")
 }
 
 func readData(ctx context.Context, path string, content []byte, detail, invalidImageCode string) (*Data, error) {

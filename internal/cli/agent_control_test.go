@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/app/control"
 )
 
 func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testing.T) {
@@ -24,7 +24,7 @@ func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testin
 			return
 		}
 		if r.URL.Path == "/control/agents" {
-			json.NewEncoder(w).Encode(agent.ControlListing{HostID: "host", PID: 1, Agents: []agent.AgentSnapshot{{AgentID: "agent-full", CurrentRunID: "run-full-identifier", Name: "worker", State: "running"}, {AgentID: "idle-agent-full", Name: "waiting", State: "idle"}}})
+			json.NewEncoder(w).Encode(control.ControlListing{HostID: "host", PID: 1, Agents: []control.AgentSnapshot{{AgentID: "agent-full", CurrentRunID: "run-full-identifier", CurrentCommandID: "command-full", Name: "worker", State: "running"}, {AgentID: "idle-agent-full", Name: "waiting", State: "idle"}}})
 			return
 		}
 		var payload map[string]string
@@ -53,8 +53,8 @@ func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testin
 	}))
 	defer server.Close()
 	dir := t.TempDir()
-	t.Setenv(agent.ControlDirEnv, dir)
-	encoded, _ := json.Marshal(agent.ControlConnection{Version: 1, HostID: "host", PID: 1, URL: server.URL, Token: capability})
+	t.Setenv(control.ControlDirEnv, dir)
+	encoded, _ := json.Marshal(control.ControlConnection{Version: 1, HostID: "host", PID: 1, URL: server.URL, Token: capability})
 	if err := os.WriteFile(filepath.Join(dir, "host.json"), encoded, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testin
 }
 
 func TestAgentControlCLIEmptyRegistryAndInvalidInputs(t *testing.T) {
-	t.Setenv(agent.ControlDirEnv, t.TempDir())
+	t.Setenv(control.ControlDirEnv, t.TempDir())
 	for _, test := range []struct {
 		args []string
 		code int
@@ -103,7 +103,7 @@ func TestAgentControlCLIEmptyRegistryAndInvalidInputs(t *testing.T) {
 	}{
 		{[]string{"agents"}, 0, "No active agents."},
 		{[]string{"agents", "--full"}, 0, "No active agents."},
-		{[]string{"steer", "missing", "task"}, 1, "no active agent"},
+		{[]string{"steer", "missing", "task"}, 1, "no active run"},
 		{[]string{"agents", "extra"}, 2, "Usage:"},
 		{[]string{"agents", "--full", "extra"}, 2, "Usage:"},
 		{[]string{"steer", "run"}, 2, "Usage:"},

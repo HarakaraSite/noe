@@ -48,6 +48,13 @@ func (o *loginOutput) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
+func (o *loginOutput) WriteContext(ctx context.Context, p []byte) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return o.Write(p)
+}
+
 func TestExternalChatGPTHelperHeadlessRegistrationAndReauthorization(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

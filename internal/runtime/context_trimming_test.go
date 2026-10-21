@@ -196,7 +196,7 @@ console.log(result.answers.q.choice);`, payload)
 			mu.Unlock()
 		}
 	}
-	opts.DecisionProvider = decisionProviderFunc(func(_ context.Context, req decision.Request) (decision.Response, error) {
+	opts.Models.DecisionProvider = decisionProviderFunc(func(_ context.Context, req decision.Request) (decision.Response, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		decisions++

@@ -13,11 +13,9 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
-func TestDocsStandaloneBinaryAndRunJS(t *testing.T) {
+func TestDocsStandaloneBinaryAndManagedEval(t *testing.T) {
 	dir := t.TempDir()
 	binary := filepath.Join(dir, filepath.Base(cliPath))
 	src, err := os.Open(cliPath)
@@ -53,9 +51,10 @@ func TestDocsStandaloneBinaryAndRunJS(t *testing.T) {
 				t.Fatal("missing API reference detail")
 			}
 			code := fmt.Sprintf("// Read the bundled API contract.\nconst {docs}=await import(\"noe:docs\");console.log(docs(%q,%q));", tc.topic, tc.member)
-			result := runAgentJS(t, agent.Runner{Executable: binary, Cwd: dir}, code)
-			if result.ExitCode != 0 || result.Reason != "completed" || result.Stderr != "" || strings.TrimSpace(result.Stdout) != strings.TrimSpace(stdout.String()) {
-				t.Fatalf("CLI/run_js reference differs: %+v", result)
+			result := runCLIExecutable(t, binary, dir, nil, strings.NewReader(""), "eval", code)
+			requireExit(t, result, 0)
+			if result.stderr != "" || strings.TrimSpace(result.stdout) != strings.TrimSpace(stdout.String()) {
+				t.Fatalf("standalone CLI/eval reference differs: %+v", result)
 			}
 		})
 	}

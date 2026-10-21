@@ -18,7 +18,7 @@ func TestDelegationAdmissionRequiresOwnersGrant(t *testing.T) {
 		{name: "child-granted", grant: []bool{true}, allowed: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewHost(Options{Provider: &fixtureProvider{}})
+			h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{})})
 			defer h.Close()
 			owner := h.NewOperation(context.Background())
 			defer owner.Close()
@@ -53,7 +53,7 @@ func TestDelegationAdmissionRequiresOwnersGrant(t *testing.T) {
 					t.Fatalf("explicitly authorized delegation: %v", err)
 				}
 			} else {
-				var rpcErr *RPCError
+				var rpcErr *RequestError
 				if !errors.As(err, &rpcErr) || rpcErr.Code != "delegation" {
 					t.Fatalf("unauthorized delegation returned %v", err)
 				}

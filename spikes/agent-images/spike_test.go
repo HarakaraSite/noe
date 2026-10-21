@@ -183,6 +183,50 @@ func keyPath(providerID string) string {
 	}
 	return filepath.Join(config, "noe", "credentials", providerID)
 }
+
+func explicitProviderOptions(t *testing.T, client provider.HTTPClient, userAgent string) provider.Options {
+	t.Helper()
+	env := map[string]string{}
+	for _, key := range []string{
+		"NOE_CONFIG_FILE", "XDG_CONFIG_HOME", "HOME",
+		"NOE_OPENROUTER_API_KEY_FILE", "NOE_OPENCODE_GO_API_KEY_FILE",
+		"NOE_OPENAI_API_KEY_FILE", "NOE_OPENAI_CHATGPT_CREDENTIALS_FILE",
+	} {
+		if value, ok := os.LookupEnv(key); ok {
+			env[key] = value
+		}
+	}
+	baseDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	configHome := env["XDG_CONFIG_HOME"]
+	if configHome == "" {
+		home := env["HOME"]
+		if home == "" {
+			home, err = os.UserHomeDir()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		configHome = filepath.Join(home, ".config")
+	}
+	configDir := filepath.Join(configHome, "noe")
+	configFile := env["NOE_CONFIG_FILE"]
+	if configFile == "" {
+		candidate := filepath.Join(configDir, "config.json")
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			configFile = candidate
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("inspect default provider configuration: %v", statErr)
+		}
+	}
+	return provider.Options{
+		BaseDir: baseDir, ConfigFile: configFile, ConfigDir: configDir,
+		Env: env, HTTPClient: client, UserAgent: userAgent,
+	}
+}
+
 func openAIClient(token string, client *observedClient) openai.Client {
 	return openai.NewClient(option.WithBaseURL("https://api.openai.com/v1"), option.WithAPIKey(token), option.WithAdminAPIKey(""), option.WithOrganization(""), option.WithProject(""), option.WithHTTPClient(client), option.WithMaxRetries(0))
 }
@@ -274,7 +318,7 @@ func TestImageProviderSpike(t *testing.T) {
 					imagePart = map[string]any{"type": "input_image", "image_url": dataURL, "detail": "low"}
 				}
 				content := []any{map[string]any{"type": textType, "text": "Name the two large colors in this image from left to right. Answer only the two color names."}, imagePart}
-				registry := provider.NewRegistry(provider.Options{HTTPClient: client, UserAgent: "noe/1.6.1"})
+				registry := provider.NewExplicitRegistry(explicitProviderOptions(t, client, "noe/1.6.1"))
 				var answer provider.Response
 				maxTokens := 4096
 				if value := os.Getenv("NOE_IMAGE_SPIKE_MAX_TOKENS"); value != "" {

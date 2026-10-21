@@ -4,8 +4,8 @@ package e2e_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -15,7 +15,7 @@ func TestAgentCLITimeoutStopsGeneratedProcessGroup(t *testing.T) {
 	server := agentAPIFixture(t, func(context.Context, agentChatRequest) agentModelReply {
 		code := `import {writeFileSync} from "node:fs";
 import {execFile} from "node:child_process";
-writeFileSync("root.pid",String(process.pid));
+writeFileSync("tool-ready","ready");
 await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"runner","shell.pid","grandchild.pid"]);`
 		return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("wait", code)}}}, FinishReason: "tool_calls"}
 	})
@@ -24,13 +24,8 @@ await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"run
 	requireExit(t, result, 124)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	root := agentPIDFile(t, ctx, filepath.Join(work, "root.pid"))
-	defer syscall.Kill(-root, syscall.SIGKILL)
 	shell := agentPIDFile(t, ctx, filepath.Join(work, "shell.pid"))
 	child := agentPIDFile(t, ctx, filepath.Join(work, "grandchild.pid"))
-	if err := syscall.Kill(root, 0); err != syscall.ESRCH {
-		t.Errorf("generated NOE was not reaped: pid=%d error=%v", root, err)
-	}
 	requireAgentPIDsStopped(t, shell, child)
 }
 
@@ -38,12 +33,12 @@ func TestAgentParentTimeoutStopsNestedProcessGroups(t *testing.T) {
 	work := t.TempDir()
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		code := `import {writeFileSync} from "node:fs";
-writeFileSync("parent.pid",String(process.pid));
+writeFileSync("parent-ready","ready");
 const child=await run_agent({name:"nested"},"nested child");console.log(child.lastResult.answer);`
 		if agentUser(req) == "nested child" {
 			code = `import {writeFileSync} from "node:fs";
 import {execFile} from "node:child_process";
-writeFileSync("child.pid",String(process.pid));
+writeFileSync("child-ready","ready");
 await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"runner","shell.pid","grandchild.pid"]);`
 		}
 		return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("nested-work", code)}}}, FinishReason: "tool_calls"}
@@ -53,16 +48,12 @@ await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"run
 	requireExit(t, result, 124)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	parent := agentPIDFile(t, ctx, filepath.Join(work, "parent.pid"))
-	child := agentPIDFile(t, ctx, filepath.Join(work, "child.pid"))
-	defer syscall.Kill(-parent, syscall.SIGKILL)
-	defer syscall.Kill(-child, syscall.SIGKILL)
-	shell := agentPIDFile(t, ctx, filepath.Join(work, "shell.pid"))
-	grandchild := agentPIDFile(t, ctx, filepath.Join(work, "grandchild.pid"))
-	for _, pid := range []int{parent, child} {
-		if err := syscall.Kill(pid, 0); err != syscall.ESRCH {
-			t.Errorf("nested generated NOE was not reaped: pid=%d error=%v", pid, err)
+	for _, marker := range []string{"parent-ready", "child-ready"} {
+		if _, err := os.Stat(filepath.Join(work, marker)); err != nil {
+			t.Fatalf("managed task did not reach %s: %v", marker, err)
 		}
 	}
+	shell := agentPIDFile(t, ctx, filepath.Join(work, "shell.pid"))
+	grandchild := agentPIDFile(t, ctx, filepath.Join(work, "grandchild.pid"))
 	requireAgentPIDsStopped(t, shell, grandchild)
 }

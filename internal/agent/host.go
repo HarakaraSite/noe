@@ -2,139 +2,234 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/agent/model"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 	"forge.harakara.site/littleisland/noe/v2/internal/decision"
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
-	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 )
 
-// Options configures an agent host. Provider and ProviderOptions are used only
-// by root hosts. Connection makes this host a scoped client of another host.
+// Options configures an agent host. The host borrows its model service and
+// executor and never discovers process-global settings or starts a child host.
 type Options struct {
-	Provider         provider.Provider
-	DecisionProvider decision.Provider
-	ImageProvider    imageapi.Provider
-	ProviderOptions  provider.Options
-	Cwd              string
-	Executable       string
-	ImportMap        *modulemap.Snapshot // host module configuration; never provider config
-	Connection       *Connection
-	ControlDir       string // explicit human control registry directory
-	EnableControl    bool   // resolve the default directory lazily at first broker use
-	Trace            io.Writer
+	Models       model.Service
+	Context      context.Context
+	Execute      Executor
+	Instructions func(context.Context) (string, error)
+	Policy       string
+	Trace        io.Writer
 	// Observe receives structured agent events. Calls are serialized and never
 	// made while Host.mu is held.
 	Observe func(events.Event)
 }
 
-// Host owns the provider and broker. It is safe to close concurrently with
+func (h *Host) loadInstructions(ctx context.Context) (string, error) {
+	var instructions string
+	var err error
+	if h.opts.Instructions != nil {
+		instructions, err = h.opts.Instructions(ctx)
+	}
+	if err != nil {
+		return "", err
+	}
+	if h.opts.Policy == "" {
+		return instructions, nil
+	}
+	if instructions == "" {
+		return h.opts.Policy, nil
+	}
+	return h.opts.Policy + "\n\n" + instructions, nil
+}
+
+// loadInstanceInstructions snapshots the host-supplied source once for an
+// agent instance. The callback runs without Host.mu held and its error is
+// retained just like a successful body so queued tasks observe the same setup.
+func (h *Host) loadInstanceInstructions(ctx context.Context, instance *agentInstance) (string, error) {
+	if instance == nil {
+		return h.loadInstructions(ctx)
+	}
+	for {
+		h.mu.Lock()
+		if instance.instructionLoaded {
+			text, err := instance.instructionText, instance.instructionErr
+			h.mu.Unlock()
+			return text, err
+		}
+		if waiting := instance.instructionLoading; waiting != nil {
+			h.mu.Unlock()
+			select {
+			case <-waiting:
+				continue
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		}
+		waiting := make(chan struct{})
+		instance.instructionLoading = waiting
+		h.mu.Unlock()
+
+		text, err := h.loadInstructions(ctx)
+		if err == nil && ctx.Err() != nil {
+			text, err = "", ctx.Err()
+		}
+
+		h.mu.Lock()
+		instance.instructionText = text
+		instance.instructionErr = err
+		instance.instructionLoaded = true
+		instance.instructionLoading = nil
+		close(waiting)
+		h.mu.Unlock()
+		return text, err
+	}
+}
+
+func (h *Host) instructionFacts() string {
+	return Facts()
+}
+
+// Host owns agent state. It is safe to close concurrently with
 // operations and safe to close more than once.
 type Host struct {
-	mu         sync.Mutex
-	opts       Options
-	provider   provider.Provider
-	catalog    *provider.Registry
-	decider    decision.Provider
-	imager     imageapi.Provider
-	ctx        context.Context
-	cancel     context.CancelFunc
-	closed     bool
-	closeDone  chan struct{}
-	broker     *broker
-	operations map[*Operation]struct{}
-	runs       map[string]*agentRun
-	instances  map[string]*agentInstance
-	groups     map[string]*executionGroup
-	traceMu    sync.Mutex
-	observeMu  sync.Mutex
+	mu                sync.Mutex
+	opts              Options
+	provider          provider.Provider
+	decider           decision.Provider
+	imager            imageapi.Provider
+	ctx               context.Context
+	cancel            context.CancelFunc
+	closed            bool
+	closeDone         chan struct{}
+	operations        map[*Operation]struct{}
+	closingOperations map[*Operation]struct{}
+	runs              map[string]*agentRun
+	instances         map[string]*agentInstance
+	groups            map[string]*executionGroup
+	traceMu           sync.Mutex
+	observeMu         sync.Mutex
 }
 
 // NewHost allocates Go state only. In particular it does not read a key file,
 // create a listener, or make a request.
 func NewHost(opts Options) *Host {
-	ctx, cancel := context.WithCancel(context.Background())
-	p := opts.Provider
-	var catalog *provider.Registry
-	if opts.Connection == nil {
-		catalog, _ = p.(*provider.Registry)
-		if catalog == nil {
-			catalog = provider.NewRegistry(opts.ProviderOptions)
-		}
+	parent := opts.Context
+	if parent == nil {
+		parent = context.Background()
 	}
-	if p == nil && opts.Connection == nil {
-		// The provider itself performs credential lookup lazily on Generate.
-		p = catalog
-	}
-	imager := opts.ImageProvider
-	if imager == nil {
-		imager, _ = p.(imageapi.Provider)
+	ctx, cancel := context.WithCancel(parent)
+	var p provider.Provider
+	var imager imageapi.Provider
+	var decider decision.Provider
+	if opts.Models != nil {
+		adapter := directModelProvider{service: opts.Models}
+		p = adapter
+		imager = adapter
+		decider = adapter
 	}
 	return &Host{
-		imager:     imager,
-		opts:       opts,
-		provider:   p,
-		catalog:    catalog,
-		decider:    decisionProvider(opts.DecisionProvider, p),
-		ctx:        ctx,
-		cancel:     cancel,
-		closeDone:  make(chan struct{}),
-		operations: make(map[*Operation]struct{}),
-		runs:       make(map[string]*agentRun),
-		instances:  make(map[string]*agentInstance),
-		groups:     make(map[string]*executionGroup),
+		imager:            imager,
+		opts:              opts,
+		provider:          p,
+		decider:           decider,
+		ctx:               ctx,
+		cancel:            cancel,
+		closeDone:         make(chan struct{}),
+		operations:        make(map[*Operation]struct{}),
+		closingOperations: make(map[*Operation]struct{}),
+		runs:              make(map[string]*agentRun),
+		instances:         make(map[string]*agentInstance),
+		groups:            make(map[string]*executionGroup),
 	}
 }
 
-func (h *Host) checkProvider(name string) error {
-	if registry, ok := h.provider.(interface{ HasProvider(string) (bool, error) }); ok {
-		exists, err := registry.HasProvider(name)
-		if err != nil {
-			return err
+func (h *Host) checkProvider(ctx context.Context, name string) error {
+	if h.opts.Models == nil {
+		return fmt.Errorf("agent host has no model service")
+	}
+	if ctx == nil {
+		return fmt.Errorf("agent provider check requires a context")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	models, err := h.opts.Models.ListModels(ctx, model.ModelQuery{})
+	if err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
+		if allowed, checked, checkErr := checkModelProvider(h.opts.Models, name); checked {
+			if checkErr != nil {
+				return checkErr
+			}
+			if allowed {
+				return nil
+			}
+		}
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	for _, entry := range models {
+		if entry.Provider == name {
+			return nil
+		}
+	}
+	// A model service may choose a provider that is not represented by its
+	// catalog (or may expose an empty catalog). When it offers an explicit
+	// provider check, let that service classify the name after the
+	// context-aware catalog query has completed.
+	if exists, checked, checkErr := checkModelProvider(h.opts.Models, name); checked {
+		if checkErr != nil {
+			return checkErr
 		}
 		if exists {
 			return nil
 		}
-	} else if name == "openrouter" {
+		return fmt.Errorf("unknown provider %q", name)
+	}
+	if len(models) == 0 {
+		// Services without a catalog own provider validation in Generate.
 		return nil
 	}
 	return fmt.Errorf("unknown provider %q", name)
 }
 
-func decisionProvider(explicit decision.Provider, chat provider.Provider) decision.Provider {
-	if explicit != nil {
-		return explicit
+func checkModelProvider(service model.Service, name string) (exists, checked bool, err error) {
+	checker, ok := service.(interface {
+		HasProvider(string) (bool, error)
+	})
+	if !ok {
+		return false, false, nil
 	}
-	shared, _ := chat.(decision.Provider)
-	return shared
+	exists, err = checker.HasProvider(name)
+	return exists, true, err
 }
 
-// Defaults returns a JSON object containing inherited defaults. Root hosts
-// return {} and connected hosts return the configuration in their capability.
-func (h *Host) Defaults() string {
-	defaults := Config{}
-	if h.opts.Connection != nil {
-		defaults = h.opts.Connection.Defaults
-		// Shared group limits are owned by the root group and never become
-		// child defaults through a connected runtime.
-		defaults.ExecutionLimits = nil
-		defaults.executionLimitsPresent = false
+// requestOperationContext combines one request's lifetime with its owning
+// operation. Direct provider catalog calls must stop when either ends.
+func requestOperationContext(requestCtx context.Context, op *Operation) (context.Context, context.CancelFunc) {
+	if requestCtx == nil {
+		requestCtx = context.Background()
 	}
-	encoded, err := json.Marshal(defaults)
-	if err != nil { // Config has no fields that can fail to marshal.
-		return "{}"
+	ctx, cancel := context.WithCancel(requestCtx)
+	if op == nil || op.ctx == nil {
+		return ctx, cancel
 	}
-	return string(encoded)
+	stop := context.AfterFunc(op.ctx, cancel)
+	return ctx, func() {
+		stop()
+		cancel()
+	}
 }
 
-// Close cancels all Go-owned operations, runs and in-flight HTTP work, then
-// closes the lazy listener. It never touches a JavaScript runtime.
+// Close cancels and joins all Go-owned operations and runs. It never touches a
+// JavaScript runtime or borrowed resources.
 func (h *Host) Close() {
 	h.mu.Lock()
 	if h.closed {
@@ -145,13 +240,17 @@ func (h *Host) Close() {
 	h.closed = true
 	defer close(h.closeDone)
 	h.cancel()
-	var closedOps []*Operation
+	type operationJoin struct {
+		op        *Operation
+		waitClose bool
+	}
+	var closedOps []operationJoin
 	type hookTerminal struct {
 		event     events.Event
 		startDone <-chan struct{}
 	}
 	var hookTerminals []hookTerminal
-	for op := range h.operations {
+	joinOperation := func(op *Operation, waitClose bool) {
 		if op.hookInvocation != nil && op.hookInvocation.state == "active" {
 			op.hookInvocation.state = "cancelled"
 			hookTerminals = append(hookTerminals, hookTerminal{
@@ -165,9 +264,16 @@ func (h *Host) Close() {
 		if op.stopHost != nil {
 			op.stopHost()
 		}
-		closedOps = append(closedOps, op)
+		closedOps = append(closedOps, operationJoin{op: op, waitClose: waitClose})
+	}
+	for op := range h.operations {
+		joinOperation(op, false)
+	}
+	for op := range h.closingOperations {
+		joinOperation(op, true)
 	}
 	clear(h.operations)
+	clear(h.closingOperations)
 	var ended []endedRun
 	var pendingSteers []steerLifecycleEvent
 	for id, run := range h.runs {
@@ -190,7 +296,6 @@ func (h *Host) Close() {
 	for _, instance := range h.instances {
 		instances = append(instances, instance)
 	}
-	b := h.broker
 	h.mu.Unlock()
 	for _, terminal := range hookTerminals {
 		if terminal.startDone != nil {
@@ -208,15 +313,20 @@ func (h *Host) Close() {
 			"status": "cancelled", "duration": time.Since(run.started),
 		})
 	}
-	if b != nil {
-		b.close()
-	}
-	for _, op := range closedOps {
-		op.requests.Wait()
-		op.closeDoneOnce.Do(func() { close(op.closeDone) })
+	for _, joined := range closedOps {
+		joined.op.requests.Wait()
+		if !joined.waitClose {
+			joined.op.closeDoneOnce.Do(func() { close(joined.op.closeDone) })
+		}
 	}
 	for _, instance := range instances {
 		<-instance.done
+		instance.publishWG.Wait()
+	}
+	for _, joined := range closedOps {
+		if joined.waitClose {
+			<-joined.op.closeDone
+		}
 	}
 	h.mu.Lock()
 	clear(h.instances)

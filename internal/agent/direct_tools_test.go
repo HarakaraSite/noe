@@ -1,0 +1,111 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"forge.harakara.site/littleisland/noe/v2/agent/model"
+)
+
+type directToolModels struct{}
+
+func (directToolModels) ListModels(context.Context, model.ModelQuery) ([]model.Model, error) {
+	return nil, nil
+}
+func (directToolModels) Generate(context.Context, model.Request) (model.Response, error) {
+	return model.Response{}, model.ErrUnsupported
+}
+func (directToolModels) Decide(context.Context, model.DecisionRequest) (model.DecisionResponse, error) {
+	return model.DecisionResponse{}, model.ErrUnsupported
+}
+func (directToolModels) GenerateImage(context.Context, model.ImageRequest) (model.GeneratedImage, error) {
+	return model.GeneratedImage{}, model.ErrUnsupported
+}
+
+type customProviderWithCatalog struct{ agentTestModelService }
+
+func (customProviderWithCatalog) HasProvider(name string) (bool, error) {
+	return name == "custom", nil
+}
+
+func TestDirectHostUsesModelServiceProviderClassification(t *testing.T) {
+	models := customProviderWithCatalog{agentTestModelService{
+		chat:    &fixtureProvider{},
+		catalog: []model.Model{{Provider: "listed", Model: "model", Kind: "agent"}},
+	}}
+	host := NewHost(Options{Models: models})
+	defer host.Close()
+	op := host.NewOperation(context.Background())
+	defer op.Close()
+	response, err := op.Call("start", `{"provider":"custom","model":"model","name":"fixture","maxTokens":64,"effort":"none"}`)
+	if err != nil || !json.Valid([]byte(response)) {
+		t.Fatalf("custom provider start response=%q err=%v", response, err)
+	}
+	if _, err := op.Call("start", `{"provider":"missing","model":"model","name":"fixture","maxTokens":64,"effort":"none"}`); err == nil {
+		t.Fatal("model service accepted a provider it does not classify")
+	}
+}
+
+func TestDirectRunJSUsesHostExecutorAndRunScope(t *testing.T) {
+	ctx := context.Background()
+	called := 0
+	host := NewHost(Options{
+
+		Models: directToolModels{},
+		Execute: func(ctx context.Context, execution Execution) (Result, error) {
+			called++
+			if ctx.Err() != nil {
+				t.Fatalf("executor context is canceled: %v", ctx.Err())
+			}
+			if execution.Operation == nil || execution.Operation.host == nil {
+				t.Fatal("executor did not receive an owned operation")
+			}
+			if execution.Kind != ExecutionTool || execution.Code != "return 1" {
+				t.Fatalf("execution=%+v", execution)
+			}
+			var config Config
+			if err := json.Unmarshal(execution.Config, &config); err != nil {
+				t.Fatalf("decode run defaults: %v", err)
+			}
+			if config.Provider != "fixture" || config.Model != "fixture-model" {
+				t.Fatalf("tool defaults=%+v", config)
+			}
+			return Result{ExitCode: 0, Reason: "completed", Stdout: "tool output"}, nil
+		},
+	})
+	defer host.Close()
+	op := host.NewOperation(ctx)
+	defer op.Close()
+
+	startPayload, err := json.Marshal(startRequest{Provider: "fixture", Model: "fixture-model", Name: "fixture", MaxTokens: 64, Effort: "none"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	startJSON, err := op.Call("start", string(startPayload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var started struct {
+		RunID string `json:"runId"`
+	}
+	if err := json.Unmarshal([]byte(startJSON), &started); err != nil || started.RunID == "" {
+		t.Fatalf("start response=%s err=%v", startJSON, err)
+	}
+	code := "return 1"
+	requestPayload, err := json.Marshal(runJSRequest{RunID: started.RunID, Code: &code})
+	if err != nil {
+		t.Fatal(err)
+	}
+	responseJSON, err := op.Call("run_js", string(requestPayload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response runJSResponse
+	if err := json.Unmarshal([]byte(responseJSON), &response); err != nil {
+		t.Fatalf("run_js response=%s err=%v", responseJSON, err)
+	}
+	if called != 1 || response.ExitCode != 0 || response.Reason != "completed" || response.Stdout != "tool output" {
+		t.Fatalf("called=%d response=%+v", called, response)
+	}
+}

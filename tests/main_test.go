@@ -15,8 +15,7 @@ var cliPath string
 var repoRootPath string
 
 func TestMain(m *testing.M) {
-	// Start CLI fixtures independently of the NOE instance running go test.
-	// Connections generated later by the fixture CLI remain untouched.
+	// Keep obsolete outer connection metadata out of the fixture environment.
 	if err := os.Unsetenv("NOE_AGENT_CONNECTION"); err != nil {
 		fmt.Fprintln(os.Stderr, "clear inherited agent connection:", err)
 		os.Exit(1)

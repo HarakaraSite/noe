@@ -2,51 +2,42 @@ package agent
 
 import "encoding/json"
 
-// taskConfig is frozen at registration and copied into each fresh task runner.
-type taskConfig struct {
+// TaskConfig is frozen at registration and copied into each fresh task
+// execution.
+type TaskConfig struct {
 	Config
 	MaxSteps int     `json:"maxSteps"`
 	CacheKey *string `json:"cacheKey,omitempty"`
 }
 
-func (c taskConfig) MarshalJSON() ([]byte, error) {
-	var rawBudget json.RawMessage
-	if c.Config.ContextBudget != nil {
-		encoded, err := json.Marshal(c.Config.ContextBudget)
+// Keep the package-internal spelling used by core dispatch and tests.
+type taskConfig = TaskConfig
+
+// MarshalJSON preserves the complete registration input. Execution-specific
+// projections are made by the executor's caller, never by this public type.
+func (c TaskConfig) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(c.Config)
+	if err != nil {
+		return nil, err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+	fields["maxSteps"], err = json.Marshal(c.MaxSteps)
+	if err != nil {
+		return nil, err
+	}
+	if c.CacheKey != nil {
+		fields["cacheKey"], err = json.Marshal(c.CacheKey)
 		if err != nil {
 			return nil, err
 		}
-		rawBudget = encoded
-	} else if c.Config.contextBudgetPresent {
-		rawBudget = json.RawMessage("null")
 	}
-	var rawContextPolicy json.RawMessage
-	if c.Config.ContextPolicy != nil {
-		encoded, err := json.Marshal(c.Config.ContextPolicy)
-		if err != nil {
-			return nil, err
-		}
-		rawContextPolicy = encoded
-	} else if c.Config.contextPolicyPresent {
-		rawContextPolicy = json.RawMessage("null")
-	}
-	return json.Marshal(struct {
-		Provider      string          `json:"provider,omitempty"`
-		Model         string          `json:"model,omitempty"`
-		Name          string          `json:"name,omitempty"`
-		System        string          `json:"system,omitempty"`
-		MaxTokens     int             `json:"maxTokens,omitempty"`
-		Effort        string          `json:"effort,omitempty"`
-		Cwd           string          `json:"cwd,omitempty"`
-		Hooks         *HookModules    `json:"hooks,omitempty"`
-		ContextBudget json.RawMessage `json:"contextBudget,omitempty"`
-		ContextPolicy json.RawMessage `json:"contextPolicy,omitempty"`
-		MaxSteps      int             `json:"maxSteps"`
-		CacheKey      *string         `json:"cacheKey,omitempty"`
-	}{c.Config.Provider, c.Config.Model, c.Config.Name, c.Config.System, c.Config.MaxTokens, c.Config.Effort, c.Config.Cwd, c.Config.Hooks, rawBudget, rawContextPolicy, c.MaxSteps, c.CacheKey})
+	return json.Marshal(fields)
 }
 
-func (c *taskConfig) UnmarshalJSON(data []byte) error {
+func (c *TaskConfig) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &c.Config); err != nil {
 		return err
 	}

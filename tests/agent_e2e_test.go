@@ -14,8 +14,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 type agentToolCall struct {
@@ -33,6 +31,15 @@ type agentChatMessage struct {
 	ToolCallID       string          `json:"tool_call_id"`
 	ToolCalls        []agentToolCall `json:"tool_calls"`
 	ReasoningDetails json.RawMessage `json:"reasoning_details"`
+}
+
+type agentExecutionResult struct {
+	Stdout             string `json:"stdout"`
+	Stderr             string `json:"stderr"`
+	ExitCode           int    `json:"exitCode"`
+	Reason             string `json:"reason"`
+	StdoutOmittedBytes int64  `json:"stdoutOmittedBytes,omitempty"`
+	StderrOmittedBytes int64  `json:"stderrOmittedBytes,omitempty"`
 }
 
 type agentChatRequest struct {
@@ -155,10 +162,10 @@ const result=await run_agent({provider:"openrouter",model:"fixture/model",maxTok
 if(result.lastResult.state==="completed")console.log(result.lastResult.answer);else console.log(JSON.stringify(result));`
 }
 
-func agentToolResult(t *testing.T, message agentChatMessage) agent.Result {
+func agentToolResult(t *testing.T, message agentChatMessage) agentExecutionResult {
 	t.Helper()
 	var text string
-	var result agent.Result
+	var result agentExecutionResult
 	if err := json.Unmarshal(message.Content, &text); err != nil {
 		t.Error(err)
 		return result

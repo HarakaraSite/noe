@@ -53,7 +53,7 @@ func (h *Host) startListen(payload string, listen netListenFunc) quickjs.Value {
 		}
 		attempt.finishListen(bound, listenErr)
 		work.Complete(func(closed error) {
-			if closed != nil {
+			if closed != nil || h.ctx.Err() != nil {
 				_ = attempt.Close()
 				return
 			}

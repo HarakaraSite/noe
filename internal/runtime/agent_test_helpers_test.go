@@ -3,6 +3,9 @@ package runtime
 import (
 	"encoding/json"
 	"fmt"
+	"forge.harakara.site/littleisland/noe/v2/agent/model"
+	"forge.harakara.site/littleisland/noe/v2/internal/noeprofile"
+	"forge.harakara.site/littleisland/noe/v2/internal/process"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 )
 
@@ -57,6 +59,9 @@ func runtimeContextStatusMessages(messages []runtimeProviderMessage) []runtimePr
 var runtimeTestExecutable string
 
 func TestMain(m *testing.M) {
+	if code, handled := process.DispatchHelper(os.Args[1:]); handled {
+		os.Exit(code)
+	}
 	if os.Getenv("NOE_PROCESS_IO_HELPER") != "" {
 		for _, arg := range os.Args[1:] {
 			if arg == "-test.run=^TestNoeProcessIOHelper$" {
@@ -108,6 +113,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func agentTestOptions(p provider.Provider) *agent.Options {
-	return &agent.Options{Provider: p, Executable: runtimeTestExecutable}
+func agentTestOptions(p provider.Provider) *noeprofile.AgentOptions {
+	return &noeprofile.AgentOptions{Models: model.Options{Provider: p}, Supervisor: runtimeTestExecutable}
 }

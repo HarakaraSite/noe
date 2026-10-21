@@ -962,7 +962,7 @@ export async function beforeTool(event){
 }
 export async function afterTool(event){await receipt("afterTool",event);return {result:event.result};}
 `)
-	main := `import {spawn_agent,observe_agent,queue_agent,interrupt_agent} from "noe:agent";
+	main := `import {spawn_agent,observe_agent,queue_agent,stop_agent} from "noe:agent";
 import {readFile} from "node:fs/promises";
 const receiptPath=` + string(receiptsPath) + `;
 const config={provider:"opencode-go",model:"deepseek-v4.1-flash",effort:"auto",name:"root-live",
@@ -982,7 +982,7 @@ for(let i=0;i<10000;i++){
   await pause();
 }
 const second=await waitSnapshot(s=>s.state==="idle"&&s.queueLength===0&&s.lastResult?.state==="completed"&&s.lastResult.runId!==firstRunId,"queued root task");
-const accepted=await interrupt_agent({agentId});
+const accepted=await stop_agent({agentId});
 const terminal=await waitSnapshot(s=>s.state==="stopped","root terminal");
 console.log(JSON.stringify({agentId,first,queue1,queueReplay,second,accepted,terminal}));`
 	c.write("main.js", main)
@@ -1340,11 +1340,9 @@ console.log(JSON.stringify({lastResult:result.lastResult,execution:result.execut
 func runHooksLiveToolCancel(t *testing.T, artifactRoot, keyFile string) {
 	c := newHooksLiveCase(t, artifactRoot, "l3-cancel-run-js-tree", keyFile)
 	readyPath := filepath.Join(c.work, "tool-ready.json")
-	rootPIDPath := filepath.Join(c.work, "run-js.pid")
 	shellPIDPath := filepath.Join(c.work, "shell.pid")
 	grandchildPIDPath := filepath.Join(c.work, "grandchild.pid")
 	readyJSON, _ := json.Marshal(readyPath)
-	rootPIDJSON, _ := json.Marshal(rootPIDPath)
 	shellPIDJSON, _ := json.Marshal(shellPIDPath)
 	grandchildPIDJSON, _ := json.Marshal(grandchildPIDPath)
 	receiptJSON, _ := json.Marshal(filepath.Join(c.work, "hook-receipts.jsonl"))
@@ -1357,7 +1355,6 @@ export async function beforeTool(event){
   const code="// Start an owned shell process tree and wait for cancellation.\n"+
     "import {writeFileSync} from 'node:fs';\n"+
     "import {spawn} from 'noe:process';\n"+
-    "writeFileSync("+JSON.stringify(`+string(rootPIDJSON)+`)+",String(process.pid));\n"+
     "const child=await spawn('sh',['-c','echo $$ > \"$1\"; sleep 120 & echo $! > \"$2\"; wait','hooks-live-tree',"+
       JSON.stringify(`+string(shellPIDJSON)+`)+","+JSON.stringify(`+string(grandchildPIDJSON)+`)+"],{stdin:'ignore',stdout:'ignore',stderr:'ignore'});\n"+
     "await child.exited;";
@@ -1384,7 +1381,7 @@ console.log(JSON.stringify({lastResult:result.lastResult,execution:result.execut
 		t.Fatalf("invalid tool readiness metadata; artifacts at %s", c.artifact)
 	}
 	var pids []int
-	for _, path := range []string{rootPIDPath, shellPIDPath, grandchildPIDPath} {
+	for _, path := range []string{shellPIDPath, grandchildPIDPath} {
 		data, err := waitHooksLiveFile(ctx, process, path)
 		if err != nil {
 			t.Fatalf("process tree did not publish PID file: %v; artifacts at %s", err, c.artifact)

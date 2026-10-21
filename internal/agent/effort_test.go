@@ -8,7 +8,7 @@ import (
 
 func TestModelEffortMustMatchRunConfiguration(t *testing.T) {
 	p := &fixtureProvider{}
-	h := NewHost(Options{Provider: p})
+	h := NewHost(Options{Models: modelsWithChat(p)})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)

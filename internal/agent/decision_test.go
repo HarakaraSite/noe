@@ -19,34 +19,20 @@ func (f decisionProviderFunc) Decide(ctx context.Context, r decision.Request) (d
 
 const validDecisionRequest = `{"provider":"openrouter","model":"m","state":"x","questions":{"q":{}}}`
 
-func decisionConnection(t *testing.T, h *Host, op *Operation) *Connection {
-	t.Helper()
-	b, err := h.ensureBroker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &Connection{URL: b.url, Token: b.token, Scope: op.scope}
-}
-
-func TestDecisionBrokerUsesScopedParentProvider(t *testing.T) {
+func TestDecisionUsesHostModelService(t *testing.T) {
 	var calls atomic.Int32
-	h := NewHost(Options{DecisionProvider: decisionProviderFunc(func(ctx context.Context, r decision.Request) (decision.Response, error) {
+	h := NewHost(Options{Models: modelsWithDecision(decisionProviderFunc(func(ctx context.Context, r decision.Request) (decision.Response, error) {
 		calls.Add(1)
 		return decision.Response{JSON: json.RawMessage(`{"model":"m","answers":{"q":{"future":9007199254740993}},"extension":true}`)}, nil
-	})})
+	}))})
 	defer h.Close()
 	op := h.NewOperation(context.Background())
 	defer op.Close()
-	connection := decisionConnection(t, h, op)
-	remote := NewHost(Options{Connection: connection})
-	defer remote.Close()
-	child := remote.NewOperation(context.Background())
-	defer child.Close()
-	response, err := child.Call("decide", validDecisionRequest)
+	response, err := op.Call("decide", validDecisionRequest)
 	if err != nil || !json.Valid([]byte(response)) || calls.Load() != 1 {
 		t.Fatalf("response=%s err=%v calls=%d", response, err, calls.Load())
 	}
-	if _, err := child.Call("decide", `{"provider":"openrouter","model":"m","state":"x","questions":{"q":{}},"extra":true}`); err == nil || calls.Load() != 1 {
+	if _, err := op.Call("decide", `{"provider":"openrouter","model":"m","state":"x","questions":{"q":{}},"extra":true}`); err == nil || calls.Load() != 1 {
 		t.Fatalf("invalid request reached provider: %v", err)
 	}
 }
@@ -54,22 +40,17 @@ func TestDecisionBrokerUsesScopedParentProvider(t *testing.T) {
 func TestDecisionOperationCloseCancelsRemoteRequest(t *testing.T) {
 	started := make(chan struct{})
 	stopped := make(chan struct{})
-	h := NewHost(Options{DecisionProvider: decisionProviderFunc(func(ctx context.Context, _ decision.Request) (decision.Response, error) {
+	h := NewHost(Options{Models: modelsWithDecision(decisionProviderFunc(func(ctx context.Context, _ decision.Request) (decision.Response, error) {
 		close(started)
 		<-ctx.Done()
 		close(stopped)
 		return decision.Response{}, ctx.Err()
-	})})
+	}))})
 	defer h.Close()
 	op := h.NewOperation(context.Background())
 	defer op.Close()
-	connection := decisionConnection(t, h, op)
-	remote := NewHost(Options{Connection: connection})
-	defer remote.Close()
-	child := remote.NewOperation(context.Background())
-	defer child.Close()
 	done := make(chan error, 1)
-	go func() { _, err := child.Call("decide", validDecisionRequest); done <- err }()
+	go func() { _, err := op.Call("decide", validDecisionRequest); done <- err }()
 	<-started
 	op.Close()
 	select {
@@ -88,19 +69,19 @@ func TestDecisionOperationCloseCancelsRemoteRequest(t *testing.T) {
 }
 
 func TestDecisionDoesNotFallBackFromFixtureToRealProvider(t *testing.T) {
-	h := NewHost(Options{Provider: &fixtureProvider{}})
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{})})
 	defer h.Close()
 	op := h.NewOperation(context.Background())
 	defer op.Close()
 	_, err := op.Call("decide", validDecisionRequest)
-	var rpc *RPCError
-	if !errors.As(err, &rpc) || rpc.Code != "provider" {
+	var requestErr *RequestError
+	if !errors.As(err, &requestErr) || requestErr.Code != "provider" {
 		t.Fatalf("error=%v", err)
 	}
 }
 
 func TestDecisionOwnerMetadataSurvivesRunRemoval(t *testing.T) {
-	h := NewHost(Options{Provider: &fixtureProvider{}})
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{})})
 	defer h.Close()
 	op := h.NewOperation(context.Background())
 	defer op.Close()

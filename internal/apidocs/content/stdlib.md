@@ -35,9 +35,9 @@ For HTTP, prefer `import { fetch, serve } from "noe:http"`. That NOE module shar
 
 ### Runtime behavior
 
-NOE installs these modules using its stdlib.Config. Filesystem and process access are enabled for the local command-line runtime; fetch, HTTP serving, and WebSockets are also enabled. child_process.execFile already returns a promise. fs.createReadStream and fs.createWriteStream return Web Streams, not Node streams. Workers load through NOE's local loader, whose limitations are documented in node:worker_threads.
+The local command-line runtime selects these modules through its execution profile. A Go host selects filesystem, process/commands, DNS, fetch, serving, WebSockets, and Workers independently; `noe:docs` remains a full catalog even when a capability is disabled. `node:fs` and `node:fs/promises` require the filesystem capability. `node:child_process` and `noe:process` require the command capability. `noe:fs-handle` uses the same filesystem view. `child_process.execFile` already returns a promise. `fs.createReadStream` and `fs.createWriteStream` return Web Streams, not Node streams. Workers load through the selected execution's loader factory, whose contract is documented in node:worker_threads.
 
-Use noe:fs-handle for positional file access and noe:sockets for raw TCP/Unix byte streams. HTTP and WebSocket APIs handle requests and messages, not raw byte-stream sockets. In stdlib.Config, Sockets configures WebSockets; it is distinct from NOE's noe:sockets raw network API. Use noe:process for NOE-managed process handles. See globals for APIs installed directly on globalThis.
+Use noe:fs-handle for positional file access and noe:sockets for raw TCP/Unix byte streams. HTTP and WebSocket APIs handle requests and messages, not raw byte-stream sockets. The WebSockets capability selects the WebSocket client and server APIs; it is distinct from NOE's raw network socket module. Use noe:process for NOE-managed process handles. See globals for APIs installed directly on globalThis.
 
 ### Source basis
 

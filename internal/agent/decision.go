@@ -12,49 +12,37 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
-func (b *broker) handleDecide(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var raw json.RawMessage
-	if err := decodeRequest(r, &raw); err != nil {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid decision request")
-		return
+func (h *Host) decide(requestContext context.Context, op *Operation, request decision.Request) (json.RawMessage, error) {
+	if requestContext == nil || op == nil {
+		return nil, newOperationError(http.StatusBadRequest, "request", "decision request context is required")
 	}
-	request, err := decision.ParseRequest(raw)
-	if err != nil {
-		writeRPCError(w, http.StatusBadRequest, "request", err.Error())
-		return
-	}
-	if b.host.decider == nil {
-		writeRPCError(w, http.StatusBadGateway, "provider", "decision provider is unavailable")
-		return
+	if h.decider == nil {
+		return nil, newOperationError(http.StatusBadGateway, "provider", "decision provider is unavailable")
 	}
 	ctx, cancel := context.WithCancel(op.ctx)
-	stopRequest := context.AfterFunc(r.Context(), cancel)
+	stopRequest := context.AfterFunc(requestContext, cancel)
 	defer func() { stopRequest(); cancel() }()
 	if ctx.Err() != nil {
 		status, code, message := classifyProviderError(ctx.Err(), ctx)
-		writeRPCError(w, status, code, message)
-		return
+		return nil, newOperationError(status, code, message)
 	}
 	requestID, err := randomID()
 	if err != nil {
-		writeRPCError(w, http.StatusInternalServerError, "request", "cannot identify decision request")
-		return
+		return nil, newOperationError(http.StatusInternalServerError, "request", "cannot identify decision request")
 	}
 	activityID, err := randomID()
 	if err != nil {
-		writeRPCError(w, http.StatusInternalServerError, "request", "cannot identify decision activity")
-		return
+		return nil, newOperationError(http.StatusInternalServerError, "request", "cannot identify decision activity")
 	}
-	fields, group, limitAction, admitted := b.host.beginDecisionActivity(op, requestID, activityID, request)
+	fields, group, limitAction, admitted := h.beginDecisionActivity(op, requestID, activityID, request)
 	if !admitted {
-		b.host.finishExecutionLimit(limitAction)
+		h.finishExecutionLimit(limitAction)
 		code, message := executionLimitError(group)
-		writeRPCError(w, http.StatusConflict, code, message)
-		return
+		return nil, newOperationError(http.StatusConflict, code, message)
 	}
 	started := time.Now()
-	b.host.decisionEvent("decision.started", fields, nil)
-	response, err := b.host.decider.Decide(ctx, request)
+	h.decisionEvent("decision.started", fields, nil)
+	response, err := h.decider.Decide(ctx, request)
 	if ctx.Err() != nil {
 		err = ctx.Err()
 	}
@@ -72,10 +60,9 @@ func (b *broker) handleDecide(w http.ResponseWriter, r *http.Request, op *Operat
 		if errors.As(err, &providerErr) && providerErr.StatusCode != 0 {
 			end["statusCode"] = providerErr.StatusCode
 		}
-		b.host.decorateExecution(end, group)
-		b.host.decisionEvent(kind, fields, end)
-		writeRPCError(w, status, code, message)
-		return
+		h.decorateExecution(end, group)
+		h.decisionEvent(kind, fields, end)
+		return nil, newOperationError(status, code, message)
 	}
 	var meta struct {
 		Model string          `json:"model"`
@@ -91,15 +78,15 @@ func (b *broker) handleDecide(w http.ResponseWriter, r *http.Request, op *Operat
 	}
 	if len(meta.Usage) != 0 {
 		end["usage"] = meta.Usage
-		b.host.mu.Lock()
+		h.mu.Lock()
 		if group != nil {
 			group.usage.add(summarizeUsage(meta.Usage))
 		}
-		b.host.mu.Unlock()
+		h.mu.Unlock()
 	}
-	b.host.decorateExecution(end, group)
-	b.host.decisionEvent("decision.completed", fields, end)
-	writeJSON(w, response.JSON)
+	h.decorateExecution(end, group)
+	h.decisionEvent("decision.completed", fields, end)
+	return append(json.RawMessage(nil), response.JSON...), nil
 }
 
 func (h *Host) decisionFields(op *Operation, requestID string, request decision.Request) events.Event {

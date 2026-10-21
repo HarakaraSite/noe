@@ -15,6 +15,7 @@ import (
 // Snapshot is an immutable, absolute-target import map. Its entries are kept
 // private so callers can safely share a snapshot between runtimes.
 type Snapshot struct {
+	virtual bool
 	imports map[string]string
 }
 
@@ -35,6 +36,13 @@ func Load(path string) (*Snapshot, error) {
 // Parse validates an import-map JSON document. baseDir is the directory used
 // to resolve relative targets; an empty baseDir means the current directory.
 func Parse(data []byte, baseDir string) (*Snapshot, error) {
+	return parse(data, baseDir, false)
+}
+
+// ParseVirtual resolves paths in a rooted execution namespace without host volumes.
+func ParseVirtual(data []byte, baseDir string) (*Snapshot, error) { return parse(data, baseDir, true) }
+
+func parse(data []byte, baseDir string, virtual bool) (*Snapshot, error) {
 	root, err := decodeUniqueJSON(data)
 	if err != nil {
 		return nil, fmt.Errorf("invalid import map JSON: %w", err)
@@ -55,7 +63,11 @@ func Parse(data []byte, baseDir string) (*Snapshot, error) {
 		return nil, fmt.Errorf("unsupported import map field %q", fields[0])
 	}
 
-	base, err := absoluteDirectory(baseDir)
+	directory := absoluteDirectory
+	if virtual {
+		directory = func(value string) (string, error) { return virtualCanonical(value, "/") }
+	}
+	base, err := directory(baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("import map base directory %q: %w", baseDir, err)
 	}
@@ -79,14 +91,18 @@ func Parse(data []byte, baseDir string) (*Snapshot, error) {
 			if err := validateImportKey(key); err != nil {
 				return nil, fmt.Errorf("import map key %q: %w", key, err)
 			}
-			target, err := resolveTarget(value, base)
+			resolve := resolveTarget
+			if virtual {
+				resolve = virtualTarget
+			}
+			target, err := resolve(value, base)
 			if err != nil {
 				return nil, fmt.Errorf("import map key %q target %q: %w", key, value, err)
 			}
 			imports[key] = target
 		}
 	}
-	return &Snapshot{imports: imports}, nil
+	return &Snapshot{imports: imports, virtual: virtual}, nil
 }
 
 // Resolve turns an import specifier into its canonical local module ID. A
@@ -101,6 +117,9 @@ func (s *Snapshot) Resolve(specifier, referrer string) (string, error) {
 		}
 	}
 
+	if s != nil && s.virtual {
+		return virtualResolve(specifier, referrer)
+	}
 	if isFileURL(specifier) {
 		path, err := localFileURLPath(specifier)
 		if err != nil {
@@ -298,4 +317,16 @@ func decodeJSONValue(decoder *json.Decoder, location string) (any, error) {
 	default:
 		return token, nil
 	}
+}
+
+// Imports returns an independent copy of the normalized local mappings.
+func (s *Snapshot) Imports() map[string]string {
+	if s == nil {
+		return nil
+	}
+	entries := make(map[string]string, len(s.imports))
+	for key, value := range s.imports {
+		entries[key] = value
+	}
+	return entries
 }

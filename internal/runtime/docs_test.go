@@ -91,7 +91,7 @@ func TestAgentLooksUpDocsThenUsesAPI(t *testing.T) {
 			messages = append(messages, message)
 		}
 		if step == 1 {
-			if len(messages) == 0 || !strings.Contains(messages[0].Content, "noe:docs") || !strings.Contains(messages[0].Content, "managed by NOE") {
+			if len(messages) == 0 || !strings.Contains(messages[0].Content, "noe:docs") || !strings.Contains(messages[0].Content, "fresh owned JavaScript runtime") {
 				return provider.Response{}, fmt.Errorf("initial instructions lost identity or reference navigation")
 			}
 			return hookToolReply(map[string]string{"lookup": "// Read the positional file API contract.\nconst {docs}=await import(\"noe:docs\");console.log(docs(\"noe:fs-handle\"));console.log(docs(\"noe:fs-handle\",\"FileHandle.readAt\"));"}, "lookup"), nil

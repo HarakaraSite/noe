@@ -48,11 +48,28 @@ type Process struct {
 
 	// worker marks a worker's process, whose exit ends the worker.
 	worker bool
+	// interruptExit marks Profile execution, where process.exit interrupts the
+	// current drive even when the host callback is supplied by the caller.
+	interruptExit bool
+}
+
+// SetExecutionExit installs the host's exit recorder and makes process.exit
+// interrupt a Profile drive after the callback has recorded its status.
+func SetExecutionExit(p *Process, exit func(int)) {
+	if p == nil {
+		return
+	}
+	p.Exit = exit
+	p.interruptExit = true
 }
 
 // Processes installs the process object, as a global and as the "process"
 // module, which is where a program looks for it either way.
 func Processes(rt *quickjs.Runtime, cfg *Process) error {
+	return processes(rt, cfg, true)
+}
+
+func processes(rt *quickjs.Runtime, cfg *Process, exposeStdio bool) error {
 	if cfg == nil {
 		cfg = &Process{}
 	}
@@ -118,7 +135,7 @@ func Processes(rt *quickjs.Runtime, cfg *Process) error {
 					"this runtime cannot end the process"))
 			}
 			cfg.Exit(n)
-			if cfg.worker {
+			if cfg.worker || cfg.interruptExit {
 				// A worker's exit ends the worker at once, as a program's
 				// ends the program.
 				return context.Canceled
@@ -142,24 +159,26 @@ func Processes(rt *quickjs.Runtime, cfg *Process) error {
 		return err
 	}
 
-	stdout, err := writableStream(rt, cfg.Stdout)
-	if err != nil {
-		return err
-	}
-	stderr, err := writableStream(rt, cfg.Stderr)
-	if err != nil {
-		return err
-	}
-	stdin, err := readableStream(rt, cfg.Stdin)
-	if err != nil {
-		return err
-	}
-	if err := setAll(p, map[string]any{
-		"stdout": stdout,
-		"stderr": stderr,
-		"stdin":  stdin,
-	}); err != nil {
-		return err
+	if exposeStdio {
+		stdout, err := writableStream(rt, cfg.Stdout)
+		if err != nil {
+			return err
+		}
+		stderr, err := writableStream(rt, cfg.Stderr)
+		if err != nil {
+			return err
+		}
+		stdin, err := readableStream(rt, cfg.Stdin)
+		if err != nil {
+			return err
+		}
+		if err := setAll(p, map[string]any{
+			"stdout": stdout,
+			"stderr": stderr,
+			"stdin":  stdin,
+		}); err != nil {
+			return err
+		}
 	}
 
 	// The event interface a node program expects, as far as it means anything

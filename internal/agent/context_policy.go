@@ -2,11 +2,12 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"math"
 
-	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/agent/model"
 )
 
 const (
@@ -246,32 +247,32 @@ func floorNinetyPercent(tokens int64) int64 {
 	return (tokens/10)*9 + (tokens%10)*9/10
 }
 
-func contextMaxOutputTokensForModel(catalog interface {
-	ListModels(provider.ModelQuery) ([]provider.Model, error)
-}, providerName, modelName string) *int64 {
-	if catalog == nil {
-		return nil
-	}
-	models, err := catalog.ListModels(provider.ModelQuery{Provider: providerName, Kind: "agent"})
-	if err != nil {
-		return nil
-	}
-	for _, model := range models {
-		if model.Model == modelName && model.MaxOutputTokens > 0 {
-			value := model.MaxOutputTokens
-			return &value
-		}
-	}
-	return nil
+func (h *Host) contextModelLimits(providerName, modelName string) (*int64, *int64) {
+	return h.contextModelLimitsContext(h.ctx, providerName, modelName)
 }
 
-func (h *Host) contextModelLimits(providerName, modelName string) (*int64, *int64) {
-	if h.opts.Connection != nil {
-		defaults := h.opts.Connection.Defaults
-		if defaults.Provider == providerName && defaults.Model == modelName {
-			return cloneInt64(h.opts.Connection.ModelWindow), cloneInt64(h.opts.Connection.ModelMaxOutputTokens)
-		}
+func (h *Host) contextModelLimitsContext(ctx context.Context, providerName, modelName string) (*int64, *int64) {
+	if h.opts.Models == nil || ctx == nil {
 		return nil, nil
 	}
-	return contextWindowForModel(h.catalog, providerName, modelName), contextMaxOutputTokensForModel(h.catalog, providerName, modelName)
+	models, err := h.opts.Models.ListModels(ctx, model.ModelQuery{Provider: providerName, Kind: "agent"})
+	if err != nil || ctx.Err() != nil {
+		return nil, nil
+	}
+	for _, entry := range models {
+		if entry.Provider != providerName || entry.Model != modelName {
+			continue
+		}
+		var window, output *int64
+		if entry.ContextWindow > 0 {
+			value := entry.ContextWindow
+			window = &value
+		}
+		if entry.MaxOutputTokens > 0 {
+			value := entry.MaxOutputTokens
+			output = &value
+		}
+		return window, output
+	}
+	return nil, nil
 }

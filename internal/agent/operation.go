@@ -2,7 +2,7 @@ package agent
 
 import (
 	"context"
-	"net/http"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -19,9 +19,6 @@ type Operation struct {
 	scope            string
 	initErr          error
 	closed           bool // protected by host.mu
-	remoteBase       string
-	remoteAuth       string
-	client           *http.Client
 	parentRunID      string
 	ownerRun         *agentRun
 	hookScope        bool
@@ -31,6 +28,7 @@ type Operation struct {
 	activityOrigin   activityOrigin
 	imageOwner       *imageOwner
 	decisionOwner    events.Event              // immutable after the run_js scope is registered
+	resolvedHooks    map[int]resolvedHook      // direct task-loader resolutions owned by this scope
 	instances        map[string]*agentInstance // direct evaluation-owned instances; host.mu
 	task             *managedTask              // task bootstrap scope; host.mu
 	control          bool                      // trusted host control, never delegated to JS
@@ -43,39 +41,17 @@ type Operation struct {
 }
 
 // NewOperation starts an independent cancellation scope without performing
-// network or file I/O. A local root gets a fresh scope; a connected host uses
-// the scope granted by its parent broker.
+// network or file I/O.
 func (h *Host) NewOperation(parent context.Context) *Operation {
 	if parent == nil {
 		parent = context.Background()
 	}
 	ctx, cancel := context.WithCancel(parent)
-	scope := ""
-	var scopeErr error
-	remoteBase, remoteAuth := "", ""
-	if h.opts.Connection != nil {
-		scope = h.opts.Connection.Scope
-		remoteBase = h.opts.Connection.URL
-		remoteAuth = h.opts.Connection.Token
-		if remoteBase == "" || remoteAuth == "" || scope == "" {
-			scopeErr = &RPCError{Code: "connection", Message: "agent connection is incomplete"}
-		} else {
-			scopeErr = validateConnectionURL(remoteBase)
-		}
-	} else {
-		scope, scopeErr = randomID()
-	}
+	scope, scopeErr := randomID()
 	op := &Operation{
 		host: h, ctx: ctx, cancel: cancel, scope: scope,
-		remoteBase: remoteBase, remoteAuth: remoteAuth,
 		instances: make(map[string]*agentInstance),
 		closeDone: make(chan struct{}),
-		// A zero Timeout is deliberate: long model calls are governed solely by
-		// the operation context and explicit runtime cancellation.
-		client: &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			// Never forward a broker capability to a redirect target.
-			return http.ErrUseLastResponse
-		}},
 	}
 	op.initErr = scopeErr
 	op.stopHost = context.AfterFunc(h.ctx, cancel)
@@ -88,6 +64,18 @@ func (h *Host) NewOperation(parent context.Context) *Operation {
 		op.closeDoneOnce.Do(func() { close(op.closeDone) })
 	} else {
 		h.operations[op] = struct{}{}
+	}
+	h.mu.Unlock()
+	return op
+}
+
+// NewControlOperation starts a trusted Go-management scope. It is intended for
+// the public Host's administrative methods and must never be exposed to JS.
+func (h *Host) NewControlOperation(parent context.Context) *Operation {
+	op := h.NewOperation(parent)
+	h.mu.Lock()
+	if !op.closed {
+		op.control = true
 	}
 	h.mu.Unlock()
 	return op
@@ -112,10 +100,11 @@ func (op *Operation) Close() {
 	op.closed = true
 	op.cancel()
 	op.closeRequestGate()
+	delete(h.operations, op)
+	h.closingOperations[op] = struct{}{}
 	if op.stopHost != nil {
 		op.stopHost()
 	}
-	delete(h.operations, op)
 	var ended []endedRun
 	var pendingSteers []steerLifecycleEvent
 	var childScopes []*Operation
@@ -170,6 +159,7 @@ func (op *Operation) Close() {
 	op.requests.Wait()
 	for _, instance := range instances {
 		<-instance.done
+		instance.publishWG.Wait()
 	}
 	for _, run := range ended {
 		h.traceEvent(traceEvent{
@@ -191,7 +181,38 @@ func (op *Operation) Close() {
 		}
 		h.mu.Unlock()
 	}
+	// Signal completion before dropping the join record. Host.Close either sees
+	// this closing operation and waits for the signal, or sees it removed after
+	// all Go-owned cleanup has finished.
 	op.closeDoneOnce.Do(func() { close(op.closeDone) })
+	h.mu.Lock()
+	delete(h.closingOperations, op)
+	h.mu.Unlock()
+}
+
+// CloseClient cancels and joins a client-owned scope. If Host.Close already
+// owns shutdown, it waits for the Host's full join as well. Internal task and
+// tool execution scopes must use Close so Host.Close can finish their owner
+// instances without forming a shutdown cycle.
+func (op *Operation) CloseClient() {
+	if op == nil || op.host == nil {
+		return
+	}
+	op.Close()
+
+	h := op.host
+	h.mu.Lock()
+	hostClosing := h.closed
+	hostDone := h.closeDone
+	opDone := op.closeDone
+	h.mu.Unlock()
+	if hostClosing {
+		<-hostDone
+		return
+	}
+	if opDone != nil {
+		<-opDone
+	}
 }
 
 func (op *Operation) beginRequest() bool {
@@ -214,3 +235,50 @@ func (op *Operation) closeRequestGate() {
 
 // Context is the lifetime of the current runtime evaluation's native work.
 func (op *Operation) Context() context.Context { return op.ctx }
+
+// Defaults returns the model and run settings inherited by this execution.
+// It deliberately excludes host administration and execution-group limits,
+// which are Host-owned rather than task defaults.
+func (op *Operation) Defaults() string {
+	if op == nil || op.host == nil {
+		return "{}"
+	}
+	h := op.host
+	h.mu.Lock()
+	var config Config
+	if op.task != nil && op.task.instance != nil {
+		config = publicConfig(op.task.instance.config.Config)
+	} else if owner := h.currentOwnerRunLocked(op); owner != nil {
+		config = configFromRun(owner.config)
+	}
+	h.mu.Unlock()
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		return "{}"
+	}
+	return string(encoded)
+}
+
+func publicConfig(config Config) Config {
+	return Config{
+		Provider: config.Provider, Model: config.Model,
+		MaxTokens: config.MaxTokens, Effort: config.Effort,
+		Hooks:                cloneHookModules(config.hookModules()),
+		ContextBudget:        cloneContextBudget(config.ContextBudget),
+		contextBudgetPresent: config.contextBudgetPresent || config.ContextBudget != nil,
+		ContextPolicy:        cloneContextPolicy(config.ContextPolicy),
+		contextPolicyPresent: config.contextPolicyPresent || config.ContextPolicy != nil,
+	}
+}
+
+func configFromRun(run runConfig) Config {
+	return Config{
+		Provider: run.Provider, Model: run.Model, Name: run.Name,
+		MaxTokens: run.MaxTokens, Effort: run.Effort,
+		Hooks:                cloneHookModules(run.Hooks),
+		ContextBudget:        cloneContextBudget(run.ContextBudget),
+		contextBudgetPresent: run.ContextBudgetPresent || run.ContextBudget != nil,
+		ContextPolicy:        cloneContextPolicy(run.ContextPolicy),
+		contextPolicyPresent: run.ContextPolicyPresent || run.ContextPolicy != nil,
+	}
+}

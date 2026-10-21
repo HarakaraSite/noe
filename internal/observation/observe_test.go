@@ -1,14 +1,12 @@
 package observation
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -179,57 +177,6 @@ func TestObserveWaitsForLifecycleCompletionAndReturnsImmediatelyAfter(t *testing
 	}
 }
 
-func TestObserveCancellationInterruptsHistoryRebuild(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "events.jsonl")
-	var log bytes.Buffer
-	encoder := json.NewEncoder(&log)
-	for seq := 1; seq <= 2000; seq++ {
-		typeName := "agent.message"
-		fields := map[string]any{"runId": "r", "text": "progress"}
-		if seq == 1 {
-			typeName = "agent.started"
-			fields["name"], fields["model"] = "large", "m"
-		}
-		if seq == 2000 {
-			typeName = "agent.completed"
-			fields["status"] = "completed"
-		}
-		event := map[string]any{
-			"version": 1, "executionId": "exec", "seq": seq,
-			"time": "2026-10-17T00:00:00Z", "type": typeName,
-		}
-		for key, value := range fields {
-			event[key] = value
-		}
-		if err := encoder.Encode(event); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := os.WriteFile(path, log.Bytes(), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	counting := &countErrContext{Context: context.Background()}
-	records, err := readRecords(counting, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	base, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	// Observe performs three checks before readRecords, then one check for each
-	// record in its target-execution and max-sequence passes. Cancel on the fifth
-	// record of the state reconstruction pass.
-	checksBeforeRebuild := int32(3) + atomic.LoadInt32(&counting.checks) + 2*int32(len(records))
-	ctx := &cancelAfterErrChecks{Context: base, cancel: cancel, after: checksBeforeRebuild + 5}
-	_, err = Observe(ctx, Query{LogPath: path, RunID: "r"})
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("rebuild error = %v after %d context checks", err, atomic.LoadInt32(&ctx.checks))
-	}
-	if got := atomic.LoadInt32(&ctx.checks); got != checksBeforeRebuild+5 {
-		t.Fatalf("context checks = %d, want cancellation at rebuild row %d", got, checksBeforeRebuild+5)
-	}
-}
-
 func TestObserveCanceledContextDoesNotReturnTerminalSnapshot(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -239,30 +186,6 @@ func TestObserveCanceledContextDoesNotReturnTerminalSnapshot(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled observation error = %v", err)
 	}
-}
-
-type cancelAfterErrChecks struct {
-	context.Context
-	cancel context.CancelFunc
-	after  int32
-	checks int32
-}
-
-func (c *cancelAfterErrChecks) Err() error {
-	if atomic.AddInt32(&c.checks, 1) >= c.after {
-		c.cancel()
-	}
-	return c.Context.Err()
-}
-
-type countErrContext struct {
-	context.Context
-	checks int32
-}
-
-func (c *countErrContext) Err() error {
-	atomic.AddInt32(&c.checks, 1)
-	return c.Context.Err()
 }
 
 func TestObserveWaitReturnsContextCancellation(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 // are retained by canonical absolute ID until this Loader is discarded.
 type Loader struct {
 	snapshot *Snapshot
+	read     func(string) ([]byte, error)
 	entryID  string
 	entry    string
 	hasEntry bool
@@ -23,11 +24,18 @@ type Loader struct {
 // NewLoader creates a runtime-local source cache. When entryName is non-empty,
 // entryCode is the in-memory source for that canonical module ID.
 func NewLoader(snapshot *Snapshot, entryName, entryCode string) *Loader {
-	l := &Loader{snapshot: snapshot, sources: make(map[string]string)}
+	return NewReaderLoader(snapshot, entryName, entryCode, os.ReadFile)
+}
+
+// NewReaderLoader reads modules through the execution filesystem selected by its owner.
+func NewReaderLoader(snapshot *Snapshot, entryName, entryCode string, read func(string) ([]byte, error)) *Loader {
+	l := &Loader{snapshot: snapshot, read: read, sources: make(map[string]string)}
 	if entryName != "" {
 		l.hasEntry = true
 		l.entry = entryCode
-		if isFileURL(entryName) {
+		if snapshot != nil && snapshot.virtual {
+			l.entryID, l.entryErr = virtualCanonical(entryName, "/")
+		} else if isFileURL(entryName) {
 			path, err := localFileURLPath(entryName)
 			if err != nil {
 				l.entryErr = fmt.Errorf("entry name %q: %w", entryName, err)
@@ -66,7 +74,10 @@ func (l *Loader) Load(specifier, referrer string) (source, resolved string, err 
 	if source, ok := l.sources[resolved]; ok {
 		return source, resolved, nil
 	}
-	data, err := os.ReadFile(resolved)
+	if l.read == nil {
+		return "", "", fmt.Errorf("module filesystem is unavailable")
+	}
+	data, err := l.read(resolved)
 	if err != nil {
 		return "", "", fmt.Errorf("read module %q: %w", resolved, err)
 	}
@@ -83,6 +94,9 @@ func (l *Loader) EntryID() (string, error) {
 	}
 	if l.entryErr != nil {
 		return "", l.entryErr
+	}
+	if l.snapshot != nil && l.snapshot.virtual {
+		return l.entryID, nil
 	}
 	return filepath.Clean(l.entryID), nil
 }

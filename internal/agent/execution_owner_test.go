@@ -10,7 +10,7 @@ import (
 func TestExecutionTaskScopeManagesOwnInstance(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	h := NewHost(Options{})
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{})})
 	defer h.Close()
 	owner := h.NewOperation(ctx)
 	defer owner.Close()
@@ -44,7 +44,7 @@ func TestExecutionTaskScopeManagesOwnInstance(t *testing.T) {
 func TestExecutionTaskScopeOwnsSpawnedAgent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	h := NewHost(Options{})
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{})})
 	defer h.Close()
 	owner := h.NewOperation(ctx)
 	defer owner.Close()
@@ -93,7 +93,7 @@ func TestExecutionTaskScopeOwnsSpawnedAgent(t *testing.T) {
 }
 
 func TestExecutionMissingParentScopeCannotSpawnNewRoot(t *testing.T) {
-	h := NewHost(Options{})
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{})})
 	defer h.Close()
 	op := h.NewOperation(context.Background())
 	defer op.Close()

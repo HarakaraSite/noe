@@ -9,10 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
-	"time"
-
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 )
 
 const verboseToolSource = `// Emit more output than the retained stream budgets
@@ -22,7 +20,7 @@ for(let i=0;i<256;i++){console.log(chunk);console.error(chunk);}
 console.log("OUT-TAIL"); console.error("ERR-TAIL");
 `
 
-func checkTruncatedToolResult(t *testing.T, result agent.Result, exit int) {
+func checkTruncatedToolResult(t *testing.T, result agentExecutionResult, exit int) {
 	t.Helper()
 	const limit = 65536
 	const emitted = len("OUT-HEAD\n") + 256*8192 + len("OUT-TAIL\n")
@@ -58,7 +56,7 @@ func TestAgentOutputTruncationReachesHooksModelAndEvents(t *testing.T) {
   if (!event.result.stdout.includes("OUT-TAIL") || !event.result.stderr.includes("ERR-TAIL")) throw Error("missing output tail");
   return {result:{...event.result,hookSawTruncation:true}};
 }`)
-			observed := make(chan agent.Result, 1)
+			observed := make(chan agentExecutionResult, 1)
 			server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 				if len(req.Messages) == 2 {
 					return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("verbose", verboseToolSource+fmt.Sprintf("process.exit(%d);", exit))}}}, FinishReason: "tool_calls"}
@@ -94,14 +92,14 @@ func TestAgentOutputTruncationReachesHooksModelAndEvents(t *testing.T) {
 			seen := map[string]bool{}
 			for _, line := range strings.Split(strings.TrimSpace(result.stdout), "\n") {
 				var record struct {
-					Type               string       `json:"type"`
-					Source             string       `json:"source"`
-					Text               string       `json:"text"`
-					OmittedBytes       int64        `json:"omittedBytes"`
-					StdoutOmittedBytes int64        `json:"stdoutOmittedBytes"`
-					StderrOmittedBytes int64        `json:"stderrOmittedBytes"`
-					RawResult          agent.Result `json:"rawResult"`
-					Result             agent.Result `json:"result"`
+					Type               string               `json:"type"`
+					Source             string               `json:"source"`
+					Text               string               `json:"text"`
+					OmittedBytes       int64                `json:"omittedBytes"`
+					StdoutOmittedBytes int64                `json:"stdoutOmittedBytes"`
+					StderrOmittedBytes int64                `json:"stderrOmittedBytes"`
+					RawResult          agentExecutionResult `json:"rawResult"`
+					Result             agentExecutionResult `json:"result"`
 				}
 				if err := json.Unmarshal([]byte(line), &record); err != nil {
 					t.Fatal(err)
@@ -138,50 +136,83 @@ func TestAgentOutputTruncationStillAllowsCancellation(t *testing.T) {
 	work := t.TempDir()
 	ready := filepath.Join(work, "ready")
 	encoded, _ := json.Marshal(ready)
-	source := verboseToolSource + `const {writeFile}=await import("node:fs/promises");
+	tool := verboseToolSource + `const {writeFile}=await import("node:fs/promises");
 await writeFile(` + string(encoded) + `,"ready");
 setInterval(()=>{},1000);await new Promise(()=>{});`
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	type outcome struct {
-		result agent.Result
-		err    error
+	var calls atomic.Int32
+	server := agentAPIFixture(t, func(_ context.Context, _ agentChatRequest) agentModelReply {
+		if calls.Add(1) != 1 {
+			t.Errorf("canceled task made an extra model request: %d", calls.Load())
+			return agentModelReply{Content: "unexpected"}
+		}
+		return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("verbose", tool)}}}, FinishReason: "tool_calls"}
+	})
+	defer server.Close()
+	eventPath := filepath.Join(work, "events.jsonl")
+	env := agentCLIEnv(t, server.URL)
+	env["NOE_AGENT_TRACE"] = ""
+	script := `import {spawn_agent,queue_agent,cancel_task,wait_task,stop_agent} from "noe:agent";
+import {readFile} from "node:fs/promises";
+const worker=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",name:"output-cancel"},undefined,{keepAlive:true});
+const commandId="output-cancel-task";
+await queue_agent({agentId:worker.agentId,commandId,instruction:"emit verbose output and wait"});
+let ready=false;for(let i=0;i<5000;i++){try{await readFile("ready");ready=true;break}catch{await new Promise(resolve=>setTimeout(resolve,2));}}
+if(!ready)throw Error("tool did not write its readiness marker");
+const receipt=await cancel_task({agentId:worker.agentId,commandId});
+const outcome=await wait_task({agentId:worker.agentId,commandId});
+await stop_agent({agentId:worker.agentId});
+console.log(JSON.stringify({receipt,outcome}));`
+	result := runCLI(t, work, env, "eval", "--events="+eventPath, script)
+	requireExit(t, result, 0)
+	if calls.Load() != 1 || result.stderr != "" {
+		t.Fatalf("canceled output task: calls=%d result=%+v", calls.Load(), result)
 	}
-	done := make(chan outcome, 1)
-	joined := false
-	go func() {
-		result, err := (agent.Runner{Executable: cliPath, Cwd: work}).Run(ctx, source)
-		done <- outcome{result, err}
-	}()
-	defer func() {
-		cancel()
-		if joined {
-			return
-		}
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			t.Error("runner cleanup did not finish")
-		}
-	}()
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		if _, err := os.Stat(ready); err == nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("child blocked before writing its ready file")
-		}
-		time.Sleep(10 * time.Millisecond)
+	var outcome struct {
+		Receipt struct {
+			Status    string `json:"status"`
+			CommandID string `json:"commandId"`
+		} `json:"receipt"`
+		Outcome struct {
+			State     string `json:"state"`
+			CommandID string `json:"commandId"`
+		} `json:"outcome"`
 	}
-	cancel()
-	select {
-	case got := <-done:
-		joined = true
-		if got.err != nil || got.result.Reason != "cancelled" || got.result.StdoutOmittedBytes <= 0 || got.result.StderrOmittedBytes <= 0 {
-			t.Fatalf("err=%v reason=%s stdout omitted=%d stderr omitted=%d", got.err, got.result.Reason, got.result.StdoutOmittedBytes, got.result.StderrOmittedBytes)
+	if err := json.Unmarshal([]byte(strings.TrimSpace(result.stdout)), &outcome); err != nil {
+		t.Fatalf("invalid cancellation result: %v\n%s", err, result.stdout)
+	}
+	if outcome.Receipt.Status != "accepted" || outcome.Receipt.CommandID != "output-cancel-task" || outcome.Outcome.State != "cancelled" || outcome.Outcome.CommandID != "output-cancel-task" {
+		t.Fatalf("task cancellation contract: %+v", outcome)
+	}
+	data, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seenRunJS, seenStdout, seenStderr := false, false, false
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		var event struct {
+			Type               string `json:"type"`
+			Source             string `json:"source"`
+			OmittedBytes       int64  `json:"omittedBytes"`
+			StdoutOmittedBytes int64  `json:"stdoutOmittedBytes"`
+			StderrOmittedBytes int64  `json:"stderrOmittedBytes"`
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("cancellation did not finish")
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			continue
+		}
+		switch event.Type {
+		case "stdout":
+			if event.Source == "run_js" && event.OmittedBytes > 0 {
+				seenStdout = true
+			}
+		case "stderr":
+			if event.Source == "run_js" && event.OmittedBytes > 0 {
+				seenStderr = true
+			}
+		case "run_js.finished":
+			seenRunJS = event.StdoutOmittedBytes > 0 && event.StderrOmittedBytes > 0
+		}
+	}
+	if !seenRunJS || !seenStdout || !seenStderr {
+		t.Fatalf("cancelled tool lost bounded output events: run_js=%v stdout=%v stderr=%v", seenRunJS, seenStdout, seenStderr)
 	}
 }

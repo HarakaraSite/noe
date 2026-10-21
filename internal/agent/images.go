@@ -1,86 +1,17 @@
 package agent
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
-	"net/http"
-	"path/filepath"
-	"sort"
 )
 
 // imageOwner is granted only to a physical run_js scope. Hook and task scopes
 // cannot attach images on behalf of another model judgment.
 type imageOwner struct{ runID, stepID, toolID string }
 
-func writeImageError(w http.ResponseWriter, err error) {
-	writeJSON(w, map[string]any{"imageError": imageapi.AsError(err)})
-}
 func imageInput(message string) error { return &imageapi.Error{Code: "input", Message: message} }
-
-func (b *broker) handleReadImage(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request struct {
-		Path    string `json:"path"`
-		Detail  string `json:"detail"`
-		Ordinal int    `json:"ordinal"`
-	}
-	if decodeRequest(r, &request) != nil || request.Path == "" || request.Ordinal <= 0 {
-		writeImageError(w, imageInput("path is required"))
-		return
-	}
-	h := b.host
-	h.mu.Lock()
-	owner := op.imageOwner
-	run, tool := h.admitImageLocked(op)
-	if tool != nil {
-		if tool.imageOrders == nil {
-			tool.imageOrders = map[int]bool{}
-		}
-		if tool.imageOrders[request.Ordinal] {
-			tool = nil
-		} else {
-			tool.imageOrders[request.Ordinal] = true
-		}
-	}
-	h.mu.Unlock()
-	if run == nil || tool == nil {
-		writeImageError(w, imageInput("read_image requires an active run_js model tool call"))
-		return
-	}
-	path := request.Path
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(h.opts.Cwd, path)
-	}
-	ctx, cancel := context.WithCancel(op.ctx)
-	stop := context.AfterFunc(r.Context(), cancel)
-	defer func() { stop(); cancel() }()
-	data, err := imageapi.ReadFile(ctx, path, request.Detail)
-	if err != nil {
-		writeImageError(w, err)
-		return
-	}
-	id, err := randomID()
-	if err != nil {
-		writeImageError(w, err)
-		return
-	}
-	data.ImageID = id
-	data.Ordinal = request.Ordinal
-	h.mu.Lock()
-	current, call := h.admitImageLocked(op)
-	if current != run || call != tool || ctx.Err() != nil {
-		h.mu.Unlock()
-		writeImageError(w, &imageapi.Error{Code: "cancelled", Message: "image attachment scope has ended"})
-		return
-	}
-	tool.rawImages = append(tool.rawImages, data)
-	sort.Slice(tool.rawImages, func(i, j int) bool { return tool.rawImages[i].Ordinal < tool.rawImages[j].Ordinal })
-	h.mu.Unlock()
-	h.observeRun("image.read", run.id, run, map[string]any{"path": data.Path, "modelStepId": owner.stepID, "toolCallId": owner.toolID, "image": data.Metadata})
-	writeJSON(w, data.Metadata)
-}
 
 func (h *Host) admitImageLocked(op *Operation) (*agentRun, *toolCallState) {
 	if op == nil || op.imageOwner == nil || op.closed || op.ctx.Err() != nil || h.closed {
@@ -139,26 +70,22 @@ func discardStepImages(step *modelStepState) {
 		call.images = nil
 	}
 }
-func (b *broker) handleDiscardImages(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var req struct {
-		RunID       string `json:"runId"`
-		ModelStepID string `json:"modelStepId"`
-	}
-	if decodeRequest(r, &req) != nil {
-		writeRPCError(w, 400, "request", "invalid image discard")
-		return
-	}
-	h := b.host
+
+type discardImagesRequest struct {
+	RunID       string `json:"runId"`
+	ModelStepID string `json:"modelStepId"`
+}
+
+func (h *Host) discardImages(op *Operation, req discardImagesRequest) (map[string]bool, error) {
 	h.mu.Lock()
 	run := h.runs[req.RunID]
-	if run == nil || run.operation != op || run.modelStep == nil || run.modelStep.id != req.ModelStepID {
+	if op == nil || op.closed || h.closed || op.ctx.Err() != nil || run == nil || run.operation != op || run.modelStep == nil || run.modelStep.id != req.ModelStepID {
 		h.mu.Unlock()
-		writeRPCError(w, 409, "scope", "image discard scope has ended")
-		return
+		return nil, newOperationError(409, "scope", "image discard scope has ended")
 	}
 	discardStepImages(run.modelStep)
 	h.mu.Unlock()
-	writeJSON(w, map[string]bool{"discarded": true})
+	return map[string]bool{"discarded": true}, nil
 }
 
 func selectedToolImages(tool *toolCallState, raw, selected []imageapi.Metadata) ([]*imageapi.Data, error) {

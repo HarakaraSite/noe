@@ -1,4 +1,5 @@
-import { spawn_agent, queue_agent, observe_agent, steer_agent, interrupt_agent } from "noe:agent";
+import { spawn_agent, queue_agent, observe_agent, steer_agent, cancel_task, stop_agent } from "noe:agent";
+import { analyze_log } from "noe:agent-log";
 import { readFile, stat } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -84,7 +85,11 @@ export async function startAgentServer(options, html) {
   async function progress(task) {
     if (!options.eventsPath || !task.runId) return;
     try {
-      const observed = await observe_agent({ logPath: options.eventsPath, runId: task.runId });
+      const text = await readFile(options.eventsPath, "utf8");
+      const query = { runId: task.runId };
+      if (task.progressCursor) query.cursor = task.progressCursor;
+      const observed = analyze_log(text, query);
+      task.progressCursor = observed.cursor;
       task.progress = {
         status: observed.status, phase: observed.phase, action: observed.action,
         lastMessage: observed.lastMessage, lastToolResult: observed.lastToolResult,
@@ -171,9 +176,9 @@ export async function startAgentServer(options, html) {
               task.state = "cancelled"; task.finishedAt = now();
             }
           }
-          await interrupt_agent({ agentId });
+          await stop_agent({ agentId });
         });
-        // Interrupt returns on acceptance, NOT on owned-work cleanup.
+        // stop_agent returns on acceptance, NOT on owned-work cleanup.
         while (true) {
           await locked(refresh);
           if (["stopped", "failed"].includes(snapshot.state)) break;
@@ -275,7 +280,7 @@ export async function startAgentServer(options, html) {
           task.steers.push(steer);
           return json(steer, 202);
         }
-        try { await interrupt_agent({ runId: task.runId }); }
+        try { await cancel_task({ agentId, commandId: task.commandId }); }
         catch (error) { throw new HTTPError(409, message(error)); }
         task.state = "stopping";
         return json({ id: task.id, runId: task.runId, state: task.state, status: "accepted" }, 202);
@@ -292,7 +297,7 @@ export async function startAgentServer(options, html) {
     timer = setTimeout(poll, 0);
     return { url: server.url, agentId, close };
   } catch (error) {
-    await interrupt_agent({ agentId });
+    await stop_agent({ agentId });
     while (!["stopped", "failed"].includes((await observe_agent({ agentId })).state)) await sleep(25);
     throw error;
   }

@@ -27,7 +27,7 @@ func observationRunID(t *testing.T, path string) string {
 	return ""
 }
 
-func TestObserveRecordedRunThroughHumanCLIAndJS(t *testing.T) {
+func TestObserveRecordedRunThroughHumanCLIAndLogParser(t *testing.T) {
 	work := t.TempDir()
 	data, err := os.ReadFile(filepath.Join(repoRootPath, "internal", "observation", "testdata", "real-run.jsonl"))
 	if err != nil {
@@ -42,10 +42,11 @@ func TestObserveRecordedRunThroughHumanCLIAndJS(t *testing.T) {
 		t.Fatalf("human output:\n%s", human.stdout)
 	}
 	encodedID, _ := json.Marshal(runID)
-	script := `import {observe_agent} from "noe:agent";
-const options={logPath:"events.jsonl",runId:` + string(encodedID) + `};
-const first=await observe_agent(options);
-const second=await observe_agent({...options,cursor:first.cursor,wait:true});
+	script := `import {readFile} from "node:fs/promises";
+import {analyze_log} from "noe:agent-log";
+const text=await readFile("events.jsonl","utf8");
+const first=analyze_log(text,{runId:` + string(encodedID) + `});
+const second=analyze_log(text,{runId:` + string(encodedID) + `,cursor:first.cursor});
 console.log(JSON.stringify({status:second.status,finalText:second.finalText,delta:second.events.length,lastToolResult:second.lastToolResult}));`
 	writeFixture(t, filepath.Join(work, "nested", "read.js"), script)
 	result := runCLI(t, work, map[string]string{"NOE_OPENROUTER_API_KEY_FILE": filepath.Join(work, "absent-key")}, "run", "nested/read.js")

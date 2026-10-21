@@ -1,5 +1,5 @@
 import { readFile, writeFile, appendFile } from "node:fs/promises";
-import { run_agent, spawn_agent, queue_agent, wait_task, interrupt_agent } from "noe:agent";
+import { run_agent, spawn_agent, queue_agent, wait_task, stop_agent } from "noe:agent";
 import { spawn } from "noe:process";
 import { decide } from "noe:decision";
 
@@ -128,7 +128,7 @@ try {
   report.error = String(error?.stack ?? error);
   throw error;
 } finally {
-  if (worker) await interrupt_agent({ agentId: worker.agentId });
+  if (worker) await stop_agent({ agentId: worker.agentId });
   report.finishedAt = new Date().toISOString();
   await writeFile(`${cwd}/report.json`, JSON.stringify(report, null, 2) + "\n");
   console.log("WORKFLOW_RESULT", JSON.stringify({ outcome: report.outcome, polls: report.polls, waits: report.waits,

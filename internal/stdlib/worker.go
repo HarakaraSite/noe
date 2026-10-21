@@ -83,6 +83,25 @@ func (c *Config) releaseWorker() {
 // the program itself is thread 0.
 var threadIDs atomic.Int64
 
+// InheritWorkerState carries the parts of a worker Config that identify and
+// account for its execution when an explicit Profile installer rebuilds the
+// capability selection. Profile-owned process metadata may change, but worker
+// lifecycle callbacks and the shared worker count must survive.
+func InheritWorkerState(dst *Config, src Config) {
+	if dst == nil {
+		return
+	}
+	dst.worker = src.worker
+	dst.running = src.running
+	if dst.Process == nil || src.Process == nil {
+		return
+	}
+	dst.Process.worker = src.Process.worker
+	dst.Process.Exit = src.Process.Exit
+	dst.Process.Unhandled = src.Process.Unhandled
+	dst.Process.interruptExit = src.Process.interruptExit
+}
+
 // workerContext is what a worker's runtime knows of itself.
 type workerContext struct {
 	threadID int
@@ -153,7 +172,12 @@ func installWorkers(rt *quickjs.Runtime, cfg Config, m *messaging, events quickj
 	if cfg.Workers != nil && cfg.Loop != nil {
 		// A runtime whose loop is closed has no use for its workers, and
 		// one that is closed has them ended before its Close returns.
-		context.AfterFunc(cfg.Loop.Context(), h.terminateAll)
+		context.AfterFunc(loopContext(cfg.Loop), h.terminateAll)
+		if scope := cfg.Loop.executionScope(); scope != nil {
+			if err := scope.AddCleanup(h.endAll); err != nil {
+				return err
+			}
+		}
 		rt.OnClose(h.endAll)
 	}
 	host := rt.NewObject()
@@ -310,7 +334,7 @@ func (h *workerHost) start(obj quickjs.Value, specifier string, data quickjs.Val
 		return quickjs.Value{}, err
 	}
 
-	ctx, stop := context.WithCancel(context.Background())
+	ctx, stop := context.WithCancel(loopContext(h.loop))
 	wh := &workerHandle{host: h, obj: obj, reffed: true, stop: stop, thread: int(threadIDs.Add(1)), done: make(chan struct{})}
 	end.worker = wh
 	// The port to a worker dispatches at once; the worker, not the port,
@@ -343,26 +367,36 @@ func (h *workerHost) childConfig(w *workerContext, specifier string, o workerOpt
 	c := h.cfg
 	c.worker = w
 	c.Loop = nil
+	script := specifier
+	if o.Eval {
+		script = "[worker eval]"
+	}
+	exe := "qjs"
+	if len(c.environmentArgs) > 0 {
+		exe = c.environmentArgs[0]
+	} else if c.Process != nil && len(c.Process.Args) > 0 {
+		exe = c.Process.Args[0]
+	}
+	c.environmentArgs = append([]string{exe, script}, o.Argv...)
+	if o.HasEnv {
+		c.environmentEnv = maps.Clone(o.Env)
+	} else if c.environmentEnv != nil {
+		c.environmentEnv = maps.Clone(c.environmentEnv)
+	} else if c.Process != nil {
+		// Legacy Config has no execution environment snapshot. Inherit the
+		// process environment unless the worker options explicitly override it.
+		c.environmentEnv = maps.Clone(c.Process.Env)
+	} else {
+		c.environmentEnv = nil
+	}
 	if h.cfg.Process != nil {
 		p := *h.cfg.Process
 		p.Stdin = nil
 		p.Exit, p.worker = w.exit, true
 		// The parent's handling of its own rejections is not the worker's.
 		p.Unhandled = nil
-		script := specifier
-		if o.Eval {
-			script = "[worker eval]"
-		}
-		exe := "qjs"
-		if len(p.Args) > 0 {
-			exe = p.Args[0]
-		}
-		p.Args = append([]string{exe, script}, o.Argv...)
-		if o.HasEnv {
-			p.Env = o.Env
-		} else {
-			p.Env = maps.Clone(p.Env)
-		}
+		p.Args = append([]string(nil), c.environmentArgs...)
+		p.Env = maps.Clone(c.environmentEnv)
 		c.Process = &p
 	}
 	return c
@@ -454,10 +488,10 @@ func (h *workerHost) terminateAll() {
 	}
 }
 
-// endAll ends every worker the runtime started and waits, for at most
-// closeWait in all, for each to have stopped and closed its runtime: what
-// the runtime's closing does, as a node worker's ending ends the workers it
-// started. The lock is not held while it waits: a worker ending takes it.
+// endAll ends every worker the runtime started and joins them. An execution
+// scope cannot leave owned workers behind, while legacy runtime close retains
+// its historical closeWait bound. The lock is not held while it waits: a
+// worker ending takes it.
 func (h *workerHost) endAll() {
 	h.mu.Lock()
 	ending := make([]*workerHandle, 0, len(h.workers))
@@ -466,6 +500,19 @@ func (h *workerHost) endAll() {
 		ending = append(ending, wh)
 	}
 	h.mu.Unlock()
+	if h.loop != nil && h.loop.executionScope() != nil {
+		for _, wh := range ending {
+			<-wh.done
+			// Scope shutdown cannot wait for the parent's queued exit task.
+			// Release the loop hold here and discard the ended handle directly.
+			wh.ended = true
+			wh.hold()
+			h.mu.Lock()
+			delete(h.workers, wh)
+			h.mu.Unlock()
+		}
+		return
+	}
 	deadline := time.NewTimer(closeWait)
 	defer deadline.Stop()
 	for _, wh := range ending {
@@ -529,6 +576,7 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 	code := 0
 	var fail error
 	var rt *quickjs.Runtime
+	var installation WorkerInstallation
 	defer func() {
 		if c, ok := wh.exitCode(); ok {
 			// Ended by process.exit or terminate, whose code it is, and
@@ -544,6 +592,14 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 			code = 1
 			w.port.send(portMsg{kind: msgError, data: w.errorData(rt, fail)})
 		}
+		if cfg.Loop != nil {
+			if installation.Close != nil {
+				installation.Close()
+			}
+			if scope := cfg.Loop.executionScope(); scope != nil {
+				scope.Close()
+			}
+		}
 		if w.m != nil {
 			w.m.shutdown(w.port)
 		}
@@ -555,6 +611,9 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 		}
 		w.port.disentangle(code)
 	}()
+	if ctx.Err() != nil {
+		return
+	}
 
 	var err error
 	if cfg.Workers != nil && cfg.Workers.New != nil {
@@ -568,6 +627,9 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 	}
 	if rt == nil {
 		fail = errors.New("the host made no runtime for the worker")
+		return
+	}
+	if ctx.Err() != nil {
 		return
 	}
 	// The loop's context ends when the worker is terminated, and with it
@@ -589,7 +651,12 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 	if cfg.Process != nil {
 		cfg.Process.Unhandled = failWith
 	}
-	if err := Install(rt, cfg); err != nil {
+	if cfg.workerInstaller != nil {
+		installation, err = cfg.workerInstaller(rt, loop, cfg)
+	} else {
+		err = Install(rt, cfg)
+	}
+	if err != nil {
 		fail = err
 		return
 	}
@@ -604,23 +671,35 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 	}
 
 	src, name, module := specifier, "[worker eval]", false
-	switch {
-	case o.Eval:
-		// Code that parses only as a module is one.
-		module = o.Type == "module" || rt.CheckSyntax(src) != nil && rt.CheckModuleSyntax(src) == nil
-	case cfg.Workers == nil || cfg.Workers.Load == nil:
-		fail = errors.New("this runtime cannot load a worker's code, only run code passed with eval")
-		return
-	default:
-		if src, name, module, err = cfg.Workers.Load(specifier); err != nil {
+	if cfg.workerInstaller != nil {
+		if installation.Prepare == nil {
+			fail = errors.New("this runtime cannot prepare a worker's code")
+			return
+		}
+		src, name, module, err = installation.Prepare(specifier, o.Eval, o.Type)
+		if err != nil {
 			fail = err
 			return
 		}
-		switch o.Type {
-		case "module":
-			module = true
-		case "classic":
-			module = false
+	} else {
+		switch {
+		case o.Eval:
+			// Code that parses only as a module is one.
+			module = o.Type == "module" || rt.CheckSyntax(src) != nil && rt.CheckModuleSyntax(src) == nil
+		case cfg.Workers == nil || cfg.Workers.Load == nil:
+			fail = errors.New("this runtime cannot load a worker's code, only run code passed with eval")
+			return
+		default:
+			if src, name, module, err = cfg.Workers.Load(specifier); err != nil {
+				fail = err
+				return
+			}
+			switch o.Type {
+			case "module":
+				module = true
+			case "classic":
+				module = false
+			}
 		}
 	}
 

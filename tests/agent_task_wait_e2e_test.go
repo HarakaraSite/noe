@@ -40,7 +40,7 @@ if("answer" in view.lastResult || view.lastResult.answerBytes!==11)throw Error(J
 const earlier=await read_task_result({agentId:worker.agentId,commandId:first.commandId,maxBytes:5});
 const later=await read_task_result({agentId:worker.agentId,commandId:second.commandId});
 if(earlier.text!=="first" || earlier.eof || earlier.nextOffset!==5 || later.text!=="second done" || !later.eof)throw Error(JSON.stringify({earlier,later}));
-await interrupt_agent({agentId:worker.agentId});
+await stop_agent({agentId:worker.agentId});
 console.log("workflow passed");`)}}}, FinishReason: "tool_calls"}
 		}
 		if task == "parent" {

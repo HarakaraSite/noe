@@ -121,8 +121,9 @@ type socket struct {
 	conn   *wsproto.Conn
 	// unwatch stops the connection being closed with the loop, and unhook
 	// with the runtime, once it has been closed anyway.
-	unwatch func() bool
-	unhook  func()
+	unwatch     func() bool
+	unhook      func()
+	scopeUnhook func()
 
 	mu     sync.Mutex
 	queue  []outgoing
@@ -171,7 +172,10 @@ func (h *wsHost) connect(rawURL string, protocols quickjs.Value) (quickjs.Value,
 		return quickjs.Value{}, h.rt.Throw(h.rt.NewError("Error", err.Error()))
 	}
 
-	s := h.newSocket()
+	s, err := h.newSocket()
+	if err != nil {
+		return quickjs.Value{}, err
+	}
 	names := stringsOf(protocols)
 	timeout := h.cfg.HandshakeTimeout
 	if timeout == 0 {
@@ -182,21 +186,38 @@ func (h *wsHost) connect(rawURL string, protocols quickjs.Value) (quickjs.Value,
 
 	loop := h.cfg.Loop
 	loop.Begin()
-	go func() {
+	if err := loop.Go(func(ctx context.Context) {
 		defer loop.Done()
-		conn, protocol, err := dialWebSocket(loop.Context(), target, names, timeout, tlsCfg, limit)
-		loop.Post(func() {
+		conn, protocol, err := dialWebSocket(ctx, target, names, timeout, tlsCfg, limit)
+		var removeConnCleanup func()
+		if err == nil && conn != nil {
+			if scope := loop.executionScope(); scope != nil {
+				removeConnCleanup, err = scope.AddCleanupHandle(func() { conn.Close() })
+				if err != nil {
+					conn.Close()
+					return
+				}
+			}
+		}
+		loop.postExecution(func() {
 			if err != nil {
 				s.opened.RejectError(err)
 				s.finish()
 				return
+			}
+			if removeConnCleanup != nil {
+				removeConnCleanup()
 			}
 			s.start(conn)
 			o := s.rt.NewObject()
 			o.Set("protocol", protocol)
 			s.opened.Resolve(o)
 		})
-	}()
+	}); err != nil {
+		loop.Done()
+		s.finish()
+		s.opened.RejectError(err)
+	}
 	return s.value()
 }
 
@@ -206,7 +227,10 @@ func (h *wsHost) connect(rawURL string, protocols quickjs.Value) (quickjs.Value,
 func (h *wsHost) reserve() (quickjs.Value, error) {
 	h.nextID++
 	token := "ws-" + strconv.FormatInt(h.nextID, 10)
-	s := h.newSocket()
+	s, err := h.newSocket()
+	if err != nil {
+		return quickjs.Value{}, err
+	}
 	h.pending[token] = s
 
 	v, err := s.value()
@@ -235,14 +259,22 @@ func (h *wsHost) attach(token string, conn net.Conn, br *bufio.Reader, protocol 
 	s.opened.Resolve(o)
 }
 
-func (h *wsHost) newSocket() *socket {
-	return &socket{
+func (h *wsHost) newSocket() (*socket, error) {
+	s := &socket{
 		rt:     h.rt,
 		loop:   h.cfg.Loop,
 		host:   h,
 		opened: h.rt.NewPromise(),
 		signal: make(chan struct{}, 1),
 	}
+	if scope := h.cfg.Loop.executionScope(); scope != nil {
+		var err error
+		s.scopeUnhook, err = scope.AddCleanupHandle(s.finish)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
 }
 
 // value is the object the script holds: the handshake, the next message, and
@@ -269,9 +301,12 @@ func (s *socket) start(conn *wsproto.Conn) {
 	s.loop.Begin()
 	// And the connection is closed with the loop, and with the runtime,
 	// before its Close returns.
-	s.unwatch = context.AfterFunc(s.loop.Context(), conn.Close)
+	s.unwatch = context.AfterFunc(loopContext(s.loop), conn.Close)
 	s.unhook = s.rt.OnClose(conn.Close)
-	go s.writing()
+	if err := s.loop.Go(func(context.Context) { s.writing() }); err != nil {
+		conn.Close()
+		s.finish()
+	}
 }
 
 // writing is the one goroutine that writes to the connection, so that messages
@@ -344,10 +379,10 @@ func (s *socket) receive() *quickjs.Promise {
 
 	loop, conn := s.loop, s.conn
 	loop.Begin()
-	go func() {
+	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
 		op, payload, err := conn.ReadMessage()
-		loop.Post(func() {
+		loop.postExecution(func() {
 			s.reading = false
 			if err != nil {
 				s.finish()
@@ -373,7 +408,11 @@ func (s *socket) receive() *quickjs.Promise {
 			}
 			p.Resolve(out)
 		})
-	}()
+	}); err != nil {
+		loop.Done()
+		s.reading = false
+		p.RejectError(err)
+	}
 	return p
 }
 
@@ -416,11 +455,19 @@ func (s *socket) closeWith(code quickjs.Value, reason quickjs.Value) {
 	// with the goodbye.
 	loop := s.loop
 	loop.Begin()
-	go func() {
+	if err := loop.Go(func(ctx context.Context) {
 		defer loop.Done()
-		time.Sleep(50 * time.Millisecond)
+		timer := time.NewTimer(50 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+		}
 		conn.Close()
-	}()
+	}); err != nil {
+		loop.Done()
+		conn.Close()
+	}
 	s.releaseLoop()
 	s.ended = true
 }
@@ -446,6 +493,9 @@ func (s *socket) finish() {
 	}
 	if s.unhook != nil {
 		s.unhook()
+	}
+	if s.scopeUnhook != nil {
+		s.scopeUnhook()
 	}
 	s.releaseLoop()
 }

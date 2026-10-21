@@ -8,14 +8,22 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func testPNG(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 2, 3))
+	img.SetRGBA(0, 0, color.RGBA{R: 255, A: 255})
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, img); err != nil {
+		t.Fatal(err)
+	}
+	return encoded.Bytes()
+}
 
 func imageFixture(t *testing.T) (string, []byte) {
 	t.Helper()
@@ -41,7 +49,7 @@ func imageFixture(t *testing.T) (string, []byte) {
 }
 func imageRunFixture(t *testing.T) (*Host, *Operation, *Operation, *agentRun) {
 	t.Helper()
-	h := NewHost(Options{Provider: &fixtureProvider{}})
+	h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{})})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	child := h.NewOperation(op.ctx)
@@ -54,17 +62,17 @@ func imageRunFixture(t *testing.T) (*Host, *Operation, *Operation, *agentRun) {
 func TestImageAttachmentsSurviveChildCloseAndCommit(t *testing.T) {
 	path, original := imageFixture(t)
 	h, op, child, run := imageRunFixture(t)
-	payload, _ := json.Marshal(map[string]any{"path": path, "detail": "low", "ordinal": 1})
-	reply, err := child.Call("read_image", string(payload))
+	meta, err := child.ReadImage(context.Background(), path, "low", 1, func(_ context.Context, selected string) ([]byte, error) {
+		if selected != path {
+			t.Fatalf("reader path=%q", selected)
+		}
+		return os.ReadFile(selected)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var meta imageapi.Metadata
-	if err := json.Unmarshal([]byte(reply), &meta); err != nil || meta.ImageID == "" {
-		t.Fatalf("reply=%s error=%v", reply, err)
-	}
-	if strings.Contains(reply, "base64") {
-		t.Fatal("binary leaked")
+	if meta.ImageID == "" || meta.Detail != "low" {
+		t.Fatalf("metadata=%+v", meta)
 	}
 	child.Close()
 	os.WriteFile(path, []byte("overwritten"), 0600)
@@ -112,23 +120,20 @@ func TestImageAttachmentsSurviveChildCloseAndCommit(t *testing.T) {
 func TestImageAdmissionRejectsRootAndAbortedLateReads(t *testing.T) {
 	path, _ := imageFixture(t)
 	h, op, child, run := imageRunFixture(t)
-	payload, _ := json.Marshal(map[string]any{"path": path, "ordinal": 1})
-	reply, err := op.Call("read_image", string(payload))
-	if err != nil || !strings.Contains(reply, `"code":"input"`) {
-		t.Fatalf("root=%s err=%v", reply, err)
+	read := func(_ context.Context, selected string) ([]byte, error) { return os.ReadFile(selected) }
+	if _, err := op.ReadImage(context.Background(), path, "auto", 1, read); imageErrorCode(err) != "input" {
+		t.Fatalf("root image read error=%v code=%q", err, imageErrorCode(err))
 	}
-	reply, err = child.Call("read_image", string(payload))
-	if err != nil || !strings.Contains(reply, `"imageId"`) {
-		t.Fatalf("child=%s err=%v", reply, err)
+	if _, err := child.ReadImage(context.Background(), path, "auto", 1, read); err != nil {
+		t.Fatalf("owned image read: %v", err)
 	}
-	_, err = op.Call("discard_images", `{"runId":"image-run","modelStepId":"step"}`)
+	_, err := op.Call("discard_images", `{"runId":"image-run","modelStepId":"step"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	latePayload, _ := json.Marshal(map[string]any{"path": path, "ordinal": 2})
-	reply, err = child.Call("read_image", string(latePayload))
-	if err != nil || !strings.Contains(reply, "imageError") {
-		t.Fatalf("late=%s err=%v", reply, err)
+	_, err = child.ReadImage(context.Background(), path, "auto", 2, read)
+	if imageErrorCode(err) != "input" {
+		t.Fatalf("late image read error=%v code=%q", err, imageErrorCode(err))
 	}
 	if len(run.modelStep.toolCalls["tool"].rawImages) != 0 {
 		t.Fatal("aborted bytes retained")
@@ -192,10 +197,11 @@ func TestImageConcurrentRegistrationUsesInvocationOrder(t *testing.T) {
 	// Broker arrival can be out of order: the native boundary launches one
 	// goroutine per request. JS ordinals define the public call order.
 	for _, ordinal := range []int{2, 1} {
-		payload, _ := json.Marshal(map[string]any{"path": path, "ordinal": ordinal})
-		reply, err := child.Call("read_image", string(payload))
-		if err != nil || strings.Contains(reply, "imageError") {
-			t.Fatalf("ordinal=%d reply=%s err=%v", ordinal, reply, err)
+		_, err := child.ReadImage(context.Background(), path, "auto", ordinal, func(_ context.Context, selected string) ([]byte, error) {
+			return os.ReadFile(selected)
+		})
+		if err != nil {
+			t.Fatalf("ordinal=%d image read: %v", ordinal, err)
 		}
 	}
 	h.mu.Lock()
@@ -210,12 +216,7 @@ func TestImageConcurrentRegistrationUsesInvocationOrder(t *testing.T) {
 	}
 }
 
-type lostImageCheckpointWriter struct{ header http.Header }
-
-func (w *lostImageCheckpointWriter) Header() http.Header       { return w.header }
-func (w *lostImageCheckpointWriter) WriteHeader(int)           {}
-func (w *lostImageCheckpointWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
-func TestImageCheckpointRetainsHostCommitWhenAcknowledgementIsLost(t *testing.T) {
+func TestImageCheckpointCommitsHostStateAndRetainsImage(t *testing.T) {
 	path, _ := imageFixture(t)
 	h, op, child, run := imageRunFixture(t)
 	initial, err := initialConversation("system", "task")
@@ -225,13 +226,12 @@ func TestImageCheckpointRetainsHostCommitWhenAcknowledgementIsLost(t *testing.T)
 	instance := &agentInstance{id: "instance", conversation: initial}
 	run.instance = instance
 	op.task = &managedTask{instance: instance, run: run}
-	payload, _ := json.Marshal(map[string]any{"path": path, "ordinal": 1})
-	reply, err := child.Call("read_image", string(payload))
+	meta, err := child.ReadImage(context.Background(), path, "auto", 1, func(_ context.Context, selected string) ([]byte, error) {
+		return os.ReadFile(selected)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var meta imageapi.Metadata
-	json.Unmarshal([]byte(reply), &meta)
 	child.Close()
 	h.finishToolImages(run, "step", "tool", true)
 	h.mu.Lock()
@@ -247,9 +247,9 @@ func TestImageCheckpointRetainsHostCommitWhenAcknowledgementIsLost(t *testing.T)
 	if err := next.appendRaw("block", messages); err != nil {
 		t.Fatal(err)
 	}
-	body, _ := json.Marshal(conversationCheckpointRequest{RunID: run.id, Snapshot: next})
-	writer := &lostImageCheckpointWriter{header: make(http.Header)}
-	(&broker{host: h}).handleConversationCheckpoint(writer, httptest.NewRequest("POST", "/", bytes.NewReader(body)), op)
+	if _, err := h.conversationCheckpoint(op, conversationCheckpointRequest{RunID: run.id, Snapshot: next}); err != nil {
+		t.Fatal(err)
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if !conversationSnapshotEqual(instance.conversation, next) || instance.images[meta.ImageID] == nil || !run.modelStep.imagesCommitted {

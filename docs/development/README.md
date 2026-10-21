@@ -60,8 +60,8 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 | テーマ | 計画・調査 | 実装・検証 |
 | --- | --- | --- |
-| v2：API再設計と3者の責務 | [構成案](v2-agent-runtime-plan.md)・[API/移行契約](v2-api-redesign.md)・[責務/経路](v2-responsibility-boundaries.md) | 破壊的変更採用・改訂レビュー完了、製品実装前 |
-| v2：実装と総合検証 | [11スライス実装計画](v2-agent-runtime-implementation-plan.md)・[通常/批判的レビュー](v2-api-redesign-review.md) | 通常/批判的レビュー・指摘反映・限定再確認完了 |
+| v2：API再設計と3者の責務 | [構成案](v2-agent-runtime-plan.md)・[API/移行契約](v2-api-redesign.md)・[責務/経路](v2-responsibility-boundaries.md) | 破壊的変更採用・改訂レビュー完了 |
+| v2：実装と総合検証 | [11スライス実装計画](v2-agent-runtime-implementation-plan.md)・[計画レビュー](v2-api-redesign-review.md)・[実装記録](v2-implementation.md) | 承認済み計画に従い実装・スライス別検証中 |
 | agentの起動・待受・queue | [計画](agent-lifecycle-plan.md) | [実装記録](agent-lifecycle-implementation.md) |
 | steer・interrupt・人間向け操作 | [計画](agent-control-plan.md) | [実装記録](agent-control-implementation.md)・[OpenRouter検証](agent-control-openrouter-validation.md) |
 | provider設定とOpenCode Go | [計画](provider-config-plan.md)・[SDK接続スパイク](opencode-go-sdk-spike.md) | [検証記録](provider-config-validation.md) |

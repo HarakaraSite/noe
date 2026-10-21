@@ -33,27 +33,21 @@ type modelResponse struct {
 	Steers       []steerInstruction `json:"steers,omitempty"`
 }
 
-func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request modelRequest
-	decodeErr := decodeRequest(r, &request)
+func (h *Host) model(requestContext context.Context, op *Operation, request modelRequest) (modelResponse, error) {
 	effort, validEffort := provider.NormalizeEffort(request.Effort)
-	if decodeErr != nil || request.RunID == "" || strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 || !validEffort {
-		writeRPCError(w, http.StatusBadRequest, "request", "invalid model request")
-		return
+	if request.RunID == "" || strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 || !validEffort {
+		return modelResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model request")
 	}
 	for _, message := range request.Messages {
 		if !isJSONObject(message) {
-			writeRPCError(w, http.StatusBadRequest, "request", "invalid model message")
-			return
+			return modelResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model message")
 		}
 	}
 	for _, tool := range request.Tools {
 		if !isJSONObject(tool) {
-			writeRPCError(w, http.StatusBadRequest, "request", "invalid model tool")
-			return
+			return modelResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model tool")
 		}
 	}
-	h := b.host
 	requestID, activityID := "", ""
 	causedBy := []string(nil)
 	h.mu.Lock()
@@ -61,49 +55,41 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 	valid := run != nil && run.operation == op && run.ctx.Err() == nil && !run.interrupting && !op.closed && !h.closed && !run.finalClosed
 	if !valid {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "unknown agent run")
-		return
+		return modelResponse{}, newOperationError(http.StatusConflict, "run", "unknown agent run")
 	}
 	if !h.executionGroupOpenLocked(run.group) {
 		group := run.group
 		h.mu.Unlock()
 		code, message := executionLimitError(group)
-		writeRPCError(w, http.StatusConflict, code, message)
-		return
+		return modelResponse{}, newOperationError(http.StatusConflict, code, message)
 	}
 	if request.Model != run.config.Model || request.MaxTokens != run.config.MaxTokens || effort != run.config.Effort {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusBadRequest, "request", "model request does not match agent run configuration")
-		return
+		return modelResponse{}, newOperationError(http.StatusBadRequest, "request", "model request does not match agent run configuration")
 	}
 	if request.ModelStepID != "" && (run.modelStep == nil || run.modelStep.id != request.ModelStepID || run.modelStep.finished) {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "model_step", "model request does not match the active logical step")
-		return
+		return modelResponse{}, newOperationError(http.StatusConflict, "model_step", "model request does not match the active logical step")
 	}
 	expandedMessages, imageErr := h.expandImagesLocked(run, request.Messages)
 	if imageErr != nil {
 		h.mu.Unlock()
-		writeRPCError(w, 400, "image", imageErr.Error())
-		return
+		return modelResponse{}, newOperationError(http.StatusBadRequest, "image", imageErr.Error())
 	}
 	steers := h.deliverPendingSteersLocked(run)
 	if len(steers) == 0 {
 		if run.context.pendingPlan != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "context_plan", "context trim has not been acknowledged")
-			return
+			return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "context trim has not been acknowledged")
 		}
 		if run.context.finalPrepared && (len(request.Messages) < 2 || contextHistoryDigest(request.Messages[:len(request.Messages)-1], request.Tools) != run.context.preparedDigest) {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "context_plan", "model transcript differs from prepared context")
-			return
+			return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "model transcript differs from prepared context")
 		}
 		if run.config.MaxSteps > 0 && run.providerCalls >= run.config.MaxSteps {
 			limit := run.config.MaxSteps
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusConflict, "max_steps", fmt.Sprintf("agent reached maxSteps=%d without a final answer", limit))
-			return
+			return modelResponse{}, newOperationError(http.StatusConflict, "max_steps", fmt.Sprintf("agent reached maxSteps=%d without a final answer", limit))
 		}
 		var err error
 		requestID, err = randomID()
@@ -112,8 +98,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		}
 		if err != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate model request activity")
-			return
+			return modelResponse{}, newOperationError(http.StatusInternalServerError, "broker", "could not allocate model request activity")
 		}
 		origin := activityOrigin{Kind: "model", RunID: run.id, AgentID: run.agentID(), ModelStepID: request.ModelStepID}
 		limitAction, admitted := h.reserveExecutionLocked(run.group, "providerCalls", "agent", activityID, origin)
@@ -122,8 +107,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			h.mu.Unlock()
 			h.finishExecutionLimit(limitAction)
 			code, message := executionLimitError(group)
-			writeRPCError(w, http.StatusConflict, code, message)
-			return
+			return modelResponse{}, newOperationError(http.StatusConflict, code, message)
 		}
 		if request.ModelStepID != "" {
 			step := run.modelStep
@@ -138,7 +122,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			causedBy = append(causedBy, run.activityID)
 		}
 		// Applied steering instructions are consumed by the next actual
-		// provider request, after any steer-only model RPCs have returned.
+		// provider request, after any steer-only model operations have returned.
 		run.pendingSteerActivityIDs = nil
 		// Count only requests that cross the provider boundary. Returning a
 		// queued steer batch does not consume the task's model-call budget.
@@ -155,8 +139,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 	}
 	h.mu.Unlock()
 	if len(steers) != 0 {
-		writeJSON(w, modelResponse{Steers: steers})
-		return
+		return modelResponse{Steers: steers}, nil
 	}
 	origin := activityOrigin{Kind: "model", RunID: run.id, AgentID: run.agentID(), ModelStepID: request.ModelStepID}
 	if h.opts.Observe != nil {
@@ -168,7 +151,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		h.observeRun("model.started", request.RunID, run, fields)
 	}
 	ctx, cancel := context.WithCancel(run.ctx)
-	stopRequest := context.AfterFunc(r.Context(), cancel)
+	stopRequest := context.AfterFunc(requestContext, cancel)
 	defer func() { stopRequest(); cancel() }()
 	started := time.Now()
 	var observeStream func(provider.StreamEvent)
@@ -222,8 +205,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			addActivityFields(fields, activityID, causedBy, origin)
 			h.observeRun("model.failed", request.RunID, run, fields)
 		}
-		writeRPCError(w, status, code, message)
-		return
+		return modelResponse{}, newOperationError(status, code, message)
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		status, code, message := classifyProviderError(ctxErr, ctx)
@@ -243,8 +225,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			addActivityFields(fields, activityID, causedBy, origin)
 			h.observeRun("model.failed", request.RunID, run, fields)
 		}
-		writeRPCError(w, status, code, message)
-		return
+		return modelResponse{}, newOperationError(status, code, message)
 	}
 	if !json.Valid(response.Message) || len(response.Message) == 0 || (len(response.Usage) != 0 && !json.Valid(response.Usage)) {
 		h.mu.Lock()
@@ -263,8 +244,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			addActivityFields(fields, activityID, causedBy, origin)
 			h.observeRun("model.failed", request.RunID, run, fields)
 		}
-		writeRPCError(w, http.StatusBadGateway, "provider_response", "provider returned an invalid response")
-		return
+		return modelResponse{}, newOperationError(http.StatusBadGateway, "provider_response", "provider returned an invalid response")
 	}
 	h.traceEvent(traceEvent{
 		RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
@@ -286,8 +266,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 		toolCalls, toolCallOrder, toolErr := modelToolCallStates(response.Message)
 		if toolErr != nil {
 			h.mu.Unlock()
-			writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate tool activity IDs")
-			return
+			return modelResponse{}, newOperationError(http.StatusInternalServerError, "broker", "could not allocate tool activity IDs")
 		}
 		run.modelStep.responseComplete = true
 		run.modelStep.toolCalls = toolCalls
@@ -315,7 +294,7 @@ func (b *broker) handleModel(w http.ResponseWriter, r *http.Request, op *Operati
 			h.observeRun("agent.message", request.RunID, run, fields)
 		}
 	}
-	writeJSON(w, modelResponse{RequestID: requestID, Message: response.Message, FinishReason: response.FinishReason, Usage: response.Usage})
+	return modelResponse{RequestID: requestID, Message: response.Message, FinishReason: response.FinishReason, Usage: response.Usage}, nil
 }
 
 func modelToolCallStates(raw json.RawMessage) (map[string]*toolCallState, []string, error) {

@@ -32,10 +32,14 @@ func runCLIWithInput(t *testing.T, dir string, stdin string, args ...string) cli
 }
 
 func runCLICommand(t *testing.T, dir string, extraEnv map[string]string, stdin io.Reader, args ...string) cliResult {
+	return runCLIExecutable(t, cliPath, dir, extraEnv, stdin, args...)
+}
+
+func runCLIExecutable(t *testing.T, executable, dir string, extraEnv map[string]string, stdin io.Reader, args ...string) cliResult {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, cliPath, args...)
+	cmd := exec.CommandContext(ctx, executable, args...)
 	cmd.Dir = dir
 	cmd.Stdin = stdin
 	cmd.Env = os.Environ()

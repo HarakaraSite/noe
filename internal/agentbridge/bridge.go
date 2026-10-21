@@ -7,44 +7,32 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 
 	core "forge.harakara.site/littleisland/noe/v2/internal/agent"
-	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
-	"forge.harakara.site/littleisland/noe/v2/internal/credentials"
 	"forge.harakara.site/littleisland/noe/v2/internal/decision"
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
-	"forge.harakara.site/littleisland/noe/v2/internal/observation"
+	"forge.harakara.site/littleisland/noe/v2/internal/modelbinding"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
-// Config is the private adapter between the public agent facade and the
-// existing Go agent host. Resource and callback fields are borrowed.
-type Config struct {
-	Loop  *stdlib.Loop
-	Agent core.Options
-	Auth  *credentials.Options
-	Load  quickjs.ModuleLoader
-}
-
 // Binding owns the Go-side lifetime for one runtime agent installation. It
 // never owns the QuickJS runtime or its stdlib loop.
 type Binding struct {
-	rt   *quickjs.Runtime
-	loop *stdlib.Loop
-	cwd  string
-	host *core.Host
-	op   *core.Operation
+	rt            *quickjs.Runtime
+	loop          *stdlib.Loop
+	joinHostClose bool
+	view          *stdlib.Bindings
+	op            *core.Operation
+	models        *modelbinding.Binding
 
 	mu        sync.Mutex
 	closed    bool
 	closeDone chan struct{}
 	workers   sync.WaitGroup
 	stopCtx   func() bool
+	stopView  func() bool
 
 	hookMu     sync.Mutex
 	hookScopes map[string]hookScope
@@ -63,137 +51,8 @@ var installations = struct {
 // Install connects the agent modules to rt and starts one operation under
 // ctx. A runtime can receive only one bridge installation. The caller remains
 // responsible for closing rt and cfg.Loop.
-func Install(ctx context.Context, rt *quickjs.Runtime, cfg Config) (*Binding, error) {
-	if ctx == nil {
-		return nil, errors.New("agent: context is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if rt == nil {
-		return nil, errors.New("agent: runtime is required")
-	}
-	runtimeCtx := rt.Context()
-	if runtimeCtx == nil {
-		return nil, errors.New("agent: live runtime is required")
-	}
-	if err := runtimeCtx.Err(); err != nil {
-		return nil, err
-	}
-	if cfg.Loop == nil {
-		return nil, errors.New("agent: Loop is required")
-	}
-	loopCtx := cfg.Loop.Context()
-	if loopCtx == nil {
-		return nil, errors.New("agent: live Loop is required")
-	}
-	if err := loopCtx.Err(); err != nil {
-		return nil, err
-	}
 
-	installations.Lock()
-	if _, exists := installations.runtimes[rt]; exists {
-		installations.Unlock()
-		return nil, errors.New("agent: runtime already has an installation")
-	}
-	installations.runtimes[rt] = struct{}{}
-	installations.Unlock()
-	// Register reservation release before the binding close callback. QuickJS
-	// invokes OnClose callbacks in LIFO order, so the Go lifetime is joined
-	// before this runtime can be considered available for pointer reuse.
-	rt.OnClose(func() {
-		installations.Lock()
-		delete(installations.runtimes, rt)
-		installations.Unlock()
-	})
-
-	settings, err := cloneAgentOptions(cfg.Agent)
-	if err != nil {
-		return nil, err
-	}
-	if settings.Cwd == "" {
-		settings.Cwd, err = os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-	}
-	if cfg.Auth != nil {
-		auth := *cfg.Auth
-		cfg.Auth = &auth
-	}
-	settings.Cwd, err = filepath.Abs(settings.Cwd)
-	if err != nil {
-		return nil, err
-	}
-
-	host := core.NewHost(settings)
-	op := host.NewOperation(ctx)
-	b := &Binding{
-		rt: rt, loop: cfg.Loop, cwd: settings.Cwd, host: host, op: op,
-		closeDone: make(chan struct{}), hookScopes: make(map[string]hookScope),
-	}
-	stopCtx := context.AfterFunc(ctx, b.Close)
-	b.mu.Lock()
-	b.stopCtx = stopCtx
-	closedDuringInstall := b.closed
-	b.mu.Unlock()
-	if closedDuringInstall {
-		stopCtx()
-	}
-	rt.OnClose(b.Close)
-
-	local := cfg.Load
-	rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
-		if source, ok := moduleSource(specifier, cfg.Auth != nil); ok {
-			return source, specifier, nil
-		}
-		if local == nil {
-			return "", "", fmt.Errorf("module %q has no configured loader", specifier)
-		}
-		return local(specifier, referrer)
-	})
-	if err := b.installModules(cfg.Auth); err != nil {
-		b.Close()
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		b.Close()
-		return nil, err
-	}
-	if b.isClosed() {
-		b.Close()
-		return nil, context.Canceled
-	}
-	return b, nil
-}
-
-func cloneAgentOptions(options core.Options) (core.Options, error) {
-	if options.Connection != nil {
-		data, err := json.Marshal(options.Connection)
-		if err != nil {
-			return core.Options{}, fmt.Errorf("copy agent connection: %w", err)
-		}
-		var connection core.Connection
-		if err := json.Unmarshal(data, &connection); err != nil {
-			return core.Options{}, fmt.Errorf("copy agent connection: %w", err)
-		}
-		options.Connection = &connection
-	}
-	if profile := options.ProviderOptions.Profile; profile != nil {
-		data, err := json.Marshal(profile)
-		if err != nil {
-			return core.Options{}, fmt.Errorf("copy provider profile: %w", err)
-		}
-		var copied provider.Definition
-		if err := json.Unmarshal(data, &copied); err != nil {
-			return core.Options{}, fmt.Errorf("copy provider profile: %w", err)
-		}
-		options.ProviderOptions.Profile = &copied
-	}
-	return options, nil
-}
-
-func moduleSource(specifier string, authEnabled bool) (string, bool) {
+func moduleSource(specifier string) (string, bool) {
 	switch specifier {
 	case "noe:agent":
 		return core.ModuleSource, true
@@ -205,10 +64,6 @@ func moduleSource(specifier string, authEnabled bool) (string, bool) {
 		return imageapi.ModuleSource, true
 	case "noe:decision":
 		return decision.ModuleSource, true
-	case "noe:auth":
-		if authEnabled {
-			return credentials.ModuleSource, true
-		}
 	case "noe:agent/task":
 		return core.TaskModuleSource, true
 	case "noe:agent/history":
@@ -217,48 +72,19 @@ func moduleSource(specifier string, authEnabled bool) (string, bool) {
 	return "", false
 }
 
-func (b *Binding) installModules(auth *credentials.Options) error {
-	if err := b.rt.SetModule("noe:image/internal", map[string]any{"request": b.agentRequest}); err != nil {
-		return err
-	}
-	if err := b.rt.SetModule("noe:decision/internal", map[string]any{"request": b.agentRequest}); err != nil {
-		return err
-	}
+func (b *Binding) installModules() error {
 	if err := b.rt.SetModule("noe:agent/internal", map[string]any{
-		"request":        b.agentRequest,
-		"defaults":       b.host.Defaults,
-		"instructions":   core.Instructions,
-		"observe":        b.agentObserve,
-		"beginHookScope": b.agentBeginHookScope,
-		"requestHook":    b.agentRequestHook,
-		"endHookScope":   b.agentEndHookScope,
-		"observeHook":    b.agentObserveHook,
+		"request":           b.agentRequest,
+		"defaults":          b.defaults,
+		"instructions":      b.instructions,
+		"resolveHookModule": b.resolveHookModule,
+		"beginHookScope":    b.agentBeginHookScope,
+		"requestHook":       b.agentRequestHook,
+		"endHookScope":      b.agentEndHookScope,
 	}); err != nil {
 		return err
 	}
-	if auth == nil {
-		return nil
-	}
-	settings := *auth
-	return b.rt.SetModule("noe:auth/internal", map[string]any{
-		"save": func(payload string) *quickjs.Promise {
-			promise := b.rt.NewPromise()
-			var request credentials.SaveRequest
-			if err := json.Unmarshal([]byte(payload), &request); err != nil || request.File == "" {
-				promise.RejectError(errors.New("invalid ChatGPT sign-in result"))
-				return promise
-			}
-			if !filepath.IsAbs(request.File) {
-				request.File = filepath.Join(b.cwd, request.File)
-			}
-			b.start(promise, func() (string, error) {
-				account, err := credentials.SaveChatGPT(b.Context(), request, settings)
-				data, _ := json.Marshal(account)
-				return string(data), err
-			})
-			return promise
-		},
-	})
+	return nil
 }
 
 // Context returns this binding's operation context.
@@ -284,23 +110,33 @@ func (b *Binding) Close() {
 	}
 	b.closed = true
 	stopCtx := b.stopCtx
+	stopView := b.stopView
+	models := b.models
 	b.mu.Unlock()
 	if stopCtx != nil {
 		stopCtx()
+	}
+	if stopView != nil {
+		stopView()
 	}
 
 	// Operation.Close cancels provider requests and owned runs before joining
 	// their internal request gates. The bridge's own producers are joined after
 	// it; they only post owner work and never wait for that work to run.
-	b.op.Close()
-	b.host.Close()
-	b.workers.Wait()
+	models.Close()
 	b.hookMu.Lock()
 	for id, scope := range b.hookScopes {
 		delete(b.hookScopes, id)
 		scope.cancel()
 	}
 	b.hookMu.Unlock()
+
+	if b.joinHostClose {
+		b.op.CloseClient()
+	} else {
+		b.op.Close()
+	}
+	b.workers.Wait()
 	close(b.closeDone)
 }
 
@@ -366,10 +202,6 @@ func (b *Binding) watchOwned(done <-chan struct{}) {
 
 func (b *Binding) agentRequest(method, payload string) *quickjs.Promise {
 	promise := b.rt.NewPromise()
-	if b.op == nil {
-		promise.RejectError(errors.New("agent request outside an evaluation"))
-		return promise
-	}
 	b.start(promise, func() (string, error) {
 		response, err := b.op.Call(method, payload)
 		if err == nil && method == "spawn_agent" {
@@ -381,31 +213,6 @@ func (b *Binding) agentRequest(method, payload string) *quickjs.Promise {
 			}
 		}
 		return response, err
-	})
-	return promise
-}
-
-func (b *Binding) agentObserve(payload string) *quickjs.Promise {
-	promise := b.rt.NewPromise()
-	if b.op == nil {
-		promise.RejectError(errors.New("agent observation outside an evaluation"))
-		return promise
-	}
-	var query observation.Query
-	if err := json.Unmarshal([]byte(payload), &query); err != nil {
-		promise.RejectError(err)
-		return promise
-	}
-	if query.LogPath != "" && !filepath.IsAbs(query.LogPath) {
-		query.LogPath = filepath.Join(b.cwd, query.LogPath)
-	}
-	b.start(promise, func() (string, error) {
-		snapshot, err := b.op.ObserveLog(query)
-		if err != nil {
-			return "", err
-		}
-		encoded, err := json.Marshal(snapshot)
-		return string(encoded), err
 	})
 	return promise
 }
@@ -477,7 +284,7 @@ func (b *Binding) agentRequestHook(scopeID, method, payload string) *quickjs.Pro
 
 func hookAPIMethod(method string) bool {
 	switch method {
-	case "list_models", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "wait_task", "read_task_result", "steer_agent", "interrupt_agent", "execution_get", "context_get", "context_set_runtime_info":
+	case "list_models", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "wait_task", "read_task_result", "steer_agent", "cancel_task", "stop_agent", "execution_get", "context_get", "context_set_runtime_info":
 		return true
 	}
 	return false
@@ -503,30 +310,14 @@ func (b *Binding) agentEndHookScope(scopeID, status, errorText string) *quickjs.
 	return promise
 }
 
-func (b *Binding) agentObserveHook(scopeID, payload string) *quickjs.Promise {
-	promise := b.rt.NewPromise()
-	b.hookMu.Lock()
-	scope, ok := b.hookScopes[scopeID]
-	b.hookMu.Unlock()
-	if !ok || scope.ctx.Err() != nil {
-		promise.RejectError(errors.New("hook API scope has ended"))
-		return promise
+func reserveRuntime(rt *quickjs.Runtime) error {
+	installations.Lock()
+	if _, exists := installations.runtimes[rt]; exists {
+		installations.Unlock()
+		return errors.New("agent: runtime already has an installation")
 	}
-	var query observation.Query
-	if err := json.Unmarshal([]byte(payload), &query); err != nil {
-		promise.RejectError(err)
-		return promise
-	}
-	if query.LogPath != "" && !filepath.IsAbs(query.LogPath) {
-		query.LogPath = filepath.Join(b.cwd, query.LogPath)
-	}
-	b.start(promise, func() (string, error) {
-		snapshot, err := observation.Observe(scope.ctx, query)
-		if err != nil {
-			return "", err
-		}
-		encoded, err := json.Marshal(snapshot)
-		return string(encoded), err
-	})
-	return promise
+	installations.runtimes[rt] = struct{}{}
+	installations.Unlock()
+	rt.OnClose(func() { installations.Lock(); delete(installations.runtimes, rt); installations.Unlock() })
+	return nil
 }

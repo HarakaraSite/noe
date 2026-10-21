@@ -488,72 +488,6 @@ console.log(JSON.stringify(await run_agent({provider:"openrouter",model:"fixture
 	}
 }
 
-func TestHooksGenericToolWrapperUsesSamePhases(t *testing.T) {
-	cwd := t.TempDir()
-	writePhaseHook(t, cwd, "generic.mjs", `
-export async function beforeTool(event) {
- if(event.toolName!=="fixture_echo") throw Error("wrong generic tool");
- return {arguments:{value:"replaced"}};
-}
-export async function afterTool(event) {
- if(event.result.echo!=="replaced") throw Error("generic executor did not receive patched arguments");
- return {result:{answer:"fixture effective"}};
-}`)
-	p := agentProviderFunc(func(context.Context, provider.Request) (provider.Response, error) {
-		return provider.Response{Message: json.RawMessage(`{"role":"assistant","tool_calls":[{"id":"generic-call","type":"function","function":{"name":"fixture_echo","arguments":"{\"value\":\"raw\"}"}}]}`), FinishReason: "tool_calls"}, nil
-	})
-	var eventMu sync.Mutex
-	var observed []events.Event
-	settings := agentTestOptions(p)
-	settings.Observe = func(event events.Event) { eventMu.Lock(); observed = append(observed, event); eventMu.Unlock() }
-	hookPath, _ := json.Marshal(filepath.Join(cwd, "generic.mjs"))
-	source := fmt.Sprintf(`import {request} from "noe:agent/internal";
-import {executeToolWithHooks} from "noe:agent/task";
-import {loadHookModules} from "noe:agent/hooks";
-const rpc=async(method,payload)=>JSON.parse(await request(method,JSON.stringify(payload)));
-const config={provider:"openrouter",model:"fixture/model",name:"generic-fixture",effort:"auto",maxTokens:0,hooks:[%s]};
-const {runId}=await rpc("start",config);
-let finished=false;
-try {
- const loaded=await loadHookModules(config.hooks);
- const messages=[{role:"user",content:"private generic tool fixture"}];
- const tools=[{type:"function",function:{name:"fixture_echo",parameters:{type:"object",properties:{value:{type:"string"}},required:["value"]}}}];
- const {modelStepId}=await rpc("begin_model_step",{runId,messages,tools});
- const response=await rpc("model",{runId,modelStepId,model:config.model,maxTokens:0,effort:"auto",messages,tools});
- const result=await executeToolWithHooks(loaded,{runId,modelStepId,requestId:response.requestId},response.message.tool_calls[0],async call=>({echo:JSON.parse(call.function.arguments).value}));
- if(result.answer!=="fixture effective") throw Error("wrong result: "+JSON.stringify(result));
- console.log(result.answer);
- await rpc("finish",{runId,status:"completed",answer:"fixture done"});finished=true;
-} finally {
- if(!finished) await rpc("finish",{runId,status:"failed",error:"generic fixture failed"});
-}`, hookPath)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	var out, stderr bytes.Buffer
-	code, err := Execute(ctx, Source{Name: filepath.Join(cwd, "main.js"), Code: source}, Options{Cwd: cwd, Agent: settings, Stdout: &out, Stderr: &stderr})
-	if code != 0 || err != nil || out.String() != "fixture effective\n" {
-		t.Fatalf("code=%d error=%v stdout=%q stderr=%q", code, err, &out, &stderr)
-	}
-	eventMu.Lock()
-	defer eventMu.Unlock()
-	phases := map[string]int{}
-	genericResult := false
-	for _, event := range observed {
-		if event["type"] == "run_js.started" {
-			t.Fatal("generic wrapper unexpectedly used run_js")
-		}
-		if event["type"] == "hook.started" {
-			phases[fmt.Sprint(event["phase"])]++
-		}
-		if event["type"] == "tool.finished" && event["toolName"] == "fixture_echo" {
-			genericResult = true
-		}
-	}
-	if phases["beforeTool"] != 1 || phases["afterTool"] != 1 || !genericResult {
-		t.Fatalf("generic tool hooks/results=%v/%v", phases, genericResult)
-	}
-}
-
 func TestHooksInterruptReapsStuckCallbackAndOwnedChild(t *testing.T) {
 	for _, test := range []struct{ name, body string }{{"cpu", "while(true) {}"}, {"promise", "setInterval(()=>{},1000); await new Promise(()=>{});"}} {
 		t.Run(test.name, func(t *testing.T) {
@@ -562,7 +496,7 @@ func TestHooksInterruptReapsStuckCallbackAndOwnedChild(t *testing.T) {
 			writePhaseHook(t, cwd, "stuck.mjs", fmt.Sprintf(`import {writeFileSync} from "node:fs";
 export async function beforeModelRequest(event,api) {
  const {agentId}=await api.agents.spawn_agent({name:"hung-hook-child",hooks:[]},undefined,{keepAlive:true});
- writeFileSync(%q,JSON.stringify({agentId,runId:event.runId}));
+ writeFileSync(%q,JSON.stringify({agentId,runId:event.runId,commandId:event.commandId}));
  %s
 }`, ready, test.body))
 			var mu sync.Mutex
@@ -577,12 +511,12 @@ export async function beforeModelRequest(event,api) {
 			var observed []events.Event
 			settings := agentTestOptions(p)
 			settings.Observe = func(event events.Event) { eventMu.Lock(); observed = append(observed, event); eventMu.Unlock() }
-			source := fmt.Sprintf(`import {spawn_agent,observe_agent,interrupt_agent} from "noe:agent";
+			source := fmt.Sprintf(`import {spawn_agent,observe_agent,stop_agent,cancel_task} from "noe:agent";
 import {existsSync,readFileSync} from "node:fs";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",hooks:["./stuck.mjs"]},"interrupt stuck hook");
 while(!existsSync(%q)) await new Promise(resolve=>setTimeout(resolve,5));
 const ready=JSON.parse(readFileSync(%q,"utf8"));
-const receipt=await interrupt_agent({runId:ready.runId});
+const receipt=await cancel_task({agentId,commandId:ready.commandId});
 let state;
 while(true) {
  state=await observe_agent({agentId});

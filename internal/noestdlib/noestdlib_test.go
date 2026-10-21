@@ -3,16 +3,11 @@ package noestdlib
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
@@ -23,18 +18,16 @@ import (
 func TestValidationHappensBeforeRegistration(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  Config
+		cfg  ProfileConfig
 	}{
-		{name: "io needs process", cfg: Config{IO: &IOConfig{}, Docs: true}},
-		{name: "io needs web apis", cfg: Config{Core: stdlib.Config{Process: &stdlib.Process{}, NoWebAPIs: true}, IO: &IOConfig{}}},
-		{name: "workers need loop", cfg: Config{Core: stdlib.Config{Workers: &stdlib.Workers{}}}},
-		{name: "workers need web apis", cfg: Config{Core: stdlib.Config{Loop: &stdlib.Loop{}, Workers: &stdlib.Workers{}, NoWebAPIs: true}}},
+		{name: "workers need loop", cfg: ProfileConfig{Core: stdlib.Config{Workers: &stdlib.Workers{}}}},
+		{name: "workers need web apis", cfg: ProfileConfig{Core: stdlib.Config{Loop: &stdlib.Loop{}, Workers: &stdlib.Workers{}, NoWebAPIs: true}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rt := quickjs.New()
 			defer rt.Close()
-			if _, err := Install(rt, tc.cfg); err == nil {
+			if _, err := InstallProfile(rt, tc.cfg); err == nil {
 				t.Fatal("Install succeeded for an invalid configuration")
 			}
 			if _, err := rt.EvalModule("probe.mjs", `import "noe:docs"`); err == nil {
@@ -54,10 +47,10 @@ func TestDocsAreIndependentFromIOAndProcess(t *testing.T) {
 	rt := quickjs.New()
 	defer rt.Close()
 	input := &observedInput{}
-	if _, err := Install(rt, Config{Core: stdlib.Config{
+	if _, err := InstallProfile(rt, ProfileConfig{Core: stdlib.Config{
 		NoWebAPIs: true,
 		Process:   &stdlib.Process{Stdin: input},
-	}, Docs: true}); err != nil {
+	}}); err != nil {
 		t.Fatal(err)
 	}
 	ns, err := rt.EvalModule("docs-test.mjs", `
@@ -94,7 +87,7 @@ func TestInstallClonesSettingsAndCanReuseConfiguration(t *testing.T) {
 	process := &stdlib.Process{Args: []string{"qjs", "main.js"}, Env: map[string]string{"A": "one"}}
 	runEnv := map[string]string{"B": "two"}
 	dnsServers := []string{"192.0.2.53"}
-	cfg := Config{Core: stdlib.Config{
+	cfg := ProfileConfig{Core: stdlib.Config{
 		Stdout:  shared,
 		Process: process,
 		FS:      &stdlib.FS{Root: "."},
@@ -106,7 +99,7 @@ func TestInstallClonesSettingsAndCanReuseConfiguration(t *testing.T) {
 
 	for range 2 {
 		rt := quickjs.New()
-		if _, err := Install(rt, cfg); err != nil {
+		if _, err := InstallProfile(rt, cfg); err != nil {
 			t.Fatalf("Install on a fresh runtime: %v", err)
 		}
 		if err := rt.Close(); err != nil {
@@ -163,7 +156,7 @@ func TestOutputNormalizationAliasesAndBorrowsWriters(t *testing.T) {
 	t.Run("comparable aliases share one facade", func(t *testing.T) {
 		sink := &bytes.Buffer{}
 		rt := quickjs.New()
-		bindings, err := Install(rt, Config{Core: stdlib.Config{
+		bindings, err := InstallProfile(rt, ProfileConfig{Core: stdlib.Config{
 			Stdout: sink, Stderr: sink, Process: &stdlib.Process{Stdout: sink, Stderr: sink},
 		}})
 		if err != nil {
@@ -172,10 +165,10 @@ func TestOutputNormalizationAliasesAndBorrowsWriters(t *testing.T) {
 		if bindings.Stdout != bindings.Stderr {
 			t.Fatal("same comparable output sink got separate facades")
 		}
-		if _, err := rt.Eval(`console.log("console"); process.stdout.write("process")`); err != nil {
+		if _, err := rt.Eval(`console.log("console"); console.log("process")`); err != nil {
 			t.Fatal(err)
 		}
-		if got := sink.String(); got != "console\nprocess" {
+		if got := sink.String(); got != "console\nprocess\n" {
 			t.Fatalf("output = %q", got)
 		}
 		if err := rt.Close(); err != nil {
@@ -184,7 +177,7 @@ func TestOutputNormalizationAliasesAndBorrowsWriters(t *testing.T) {
 		if _, err := bindings.Stdout.Write([]byte("after close")); !errors.Is(err, hostio.ErrClosed) {
 			t.Errorf("owned facade write after runtime close: %v", err)
 		}
-		if got := sink.String(); got != "console\nprocess" {
+		if got := sink.String(); got != "console\nprocess\n" {
 			t.Errorf("borrowed sink changed after close: %q", got)
 		}
 	})
@@ -192,13 +185,13 @@ func TestOutputNormalizationAliasesAndBorrowsWriters(t *testing.T) {
 	t.Run("non-comparable writer does not panic", func(t *testing.T) {
 		var sink uncomparableWriter = make([]byte, 0, 64)
 		rt := quickjs.New()
-		_, err := Install(rt, Config{Core: stdlib.Config{
+		_, err := InstallProfile(rt, ProfileConfig{Core: stdlib.Config{
 			Stdout: sink, Process: &stdlib.Process{Stdout: sink},
 		}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := rt.Eval(`process.stdout.write("ok")`); err != nil {
+		if _, err := rt.Eval(`console.log("ok")`); err != nil {
 			t.Fatal(err)
 		}
 		rt.Close()
@@ -207,7 +200,7 @@ func TestOutputNormalizationAliasesAndBorrowsWriters(t *testing.T) {
 	t.Run("context writer is preserved", func(t *testing.T) {
 		sink := &contextWriter{}
 		rt := quickjs.New()
-		bindings, err := Install(rt, Config{Core: stdlib.Config{Stdout: sink}})
+		bindings, err := InstallProfile(rt, ProfileConfig{Core: stdlib.Config{Stdout: sink}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -225,7 +218,7 @@ func TestExistingSharedWriterIsBorrowed(t *testing.T) {
 	sink := &bytes.Buffer{}
 	original := hostio.NewSharedWriter(sink)
 	rt := quickjs.New()
-	bindings, err := Install(rt, Config{Core: stdlib.Config{Stdout: original}})
+	bindings, err := InstallProfile(rt, ProfileConfig{Core: stdlib.Config{Stdout: original}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,269 +242,4 @@ type observedInput struct{ reads atomic.Int32 }
 func (i *observedInput) Read([]byte) (int, error) {
 	i.reads.Add(1)
 	return 0, io.EOF
-}
-
-func TestWorkerAndGrandchildGetExtrasAndNoStdin(t *testing.T) {
-	input := &observedInput{}
-	var output bytes.Buffer
-	var installed atomic.Int32
-	loopContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	rt := quickjs.New()
-	loop := stdlib.NewLoop(rt)
-	rt.OnClose(loop.Close)
-	defer rt.Close()
-	core := stdlib.Config{
-		Stdout:  &output,
-		Loop:    loop,
-		Process: &stdlib.Process{},
-		Workers: &stdlib.Workers{
-			Max: -1,
-			Load: func(specifier string) (string, string, bool, error) {
-				sources := map[string]string{
-					"./child.mjs": `
-						import {parentPort, Worker} from "node:worker_threads";
-						import {stdin} from "noe:io";
-						const input = await stdin.getReader().read();
-						if (!input.done) throw Error("worker inherited stdin");
-						const child = new Worker("./grand.mjs");
-						child.on("message", value => parentPort.postMessage("child:" + value));
-					`,
-					"./grand.mjs": `
-						import {parentPort} from "node:worker_threads";
-						import {stdin} from "noe:io";
-						const input = await stdin.getReader().read();
-						if (!input.done) throw Error("grandchild inherited stdin");
-						parentPort.postMessage("grand");
-					`,
-				}
-				source, ok := sources[specifier]
-				if !ok {
-					return "", "", false, errors.New("missing worker source: " + specifier)
-				}
-				return source, specifier, true, nil
-			},
-			Installed: func(workerRT *quickjs.Runtime) error {
-				installed.Add(1)
-				_, err := workerRT.EvalModule("installed-check.mjs", `
-					import {docs} from "noe:docs";
-					import {stdin} from "noe:io";
-					export const installed = typeof docs === "function" && stdin instanceof ReadableStream;
-				`)
-				return err
-			},
-		},
-	}
-	bindings, err := Install(rt, Config{Core: core, IO: &IOConfig{Stdin: input}, Docs: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := rt.EvalModule("main.mjs", `
-		import {Worker} from "node:worker_threads";
-		const worker = new Worker("./child.mjs");
-		worker.on("message", message => console.log(message));
-		worker.on("error", error => console.error(error.message));
-	`); err != nil {
-		t.Fatal(err)
-	}
-	if err := loop.Run(loopContext); err != nil {
-		t.Fatal(err)
-	}
-	if got := output.String(); got != "child:grand\n" {
-		t.Fatalf("root output = %q, want child message on shared output", got)
-	}
-	if installed.Load() != 2 {
-		t.Errorf("original Installed callback count = %d, want once for each child", installed.Load())
-	}
-	if reads := input.reads.Load(); reads != 0 {
-		t.Errorf("root stdin was read by workers: %d reads", reads)
-	}
-	if err := rt.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := bindings.Stdout.Write([]byte("after close")); !errors.Is(err, hostio.ErrClosed) {
-		t.Errorf("output facade after runtime close: %v", err)
-	}
-}
-
-func TestWorkerInstalledFailureKeepsRootOutputUsable(t *testing.T) {
-	loopContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	var output bytes.Buffer
-	var callbackCount atomic.Int32
-
-	rt := quickjs.New()
-	loop := stdlib.NewLoop(rt)
-	rt.OnClose(loop.Close)
-	defer rt.Close()
-	bindings, err := Install(rt, Config{
-		Core: stdlib.Config{
-			Stdout:  &output,
-			Loop:    loop,
-			Process: &stdlib.Process{},
-			Workers: &stdlib.Workers{
-				Max: -1,
-				Load: func(specifier string) (string, string, bool, error) {
-					return `throw Error("worker body should not run")`, specifier, true, nil
-				},
-				Installed: func(*quickjs.Runtime) error {
-					callbackCount.Add(1)
-					return errors.New("installed sentinel")
-				},
-			},
-		},
-		IO:   &IOConfig{},
-		Docs: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := rt.EvalModule("worker-failure.mjs", `
-		import {Worker} from "node:worker_threads";
-		import {stdout} from "noe:io";
-		const worker = new Worker("./failure.mjs");
-		worker.on("error", error => console.log("error", error.message));
-		worker.on("exit", async code => {
-			console.log("exit", code);
-			const writer = stdout.getWriter();
-			await writer.write(new TextEncoder().encode("alive"));
-			writer.releaseLock();
-		});
-	`); err != nil {
-		t.Fatal(err)
-	}
-	if err := loop.Run(loopContext); err != nil {
-		t.Fatal(err)
-	}
-	if got, want := output.String(), "error installed sentinel\nexit 1\nalive"; got != want {
-		t.Fatalf("root output after child install failure = %q, want %q", got, want)
-	}
-	if callbackCount.Load() != 1 {
-		t.Errorf("original Installed callback count = %d, want 1", callbackCount.Load())
-	}
-	if _, err := bindings.Stdout.Write([]byte("!")); err != nil {
-		t.Errorf("root binding was closed by child failure: %v", err)
-	}
-}
-
-func TestSpawnUsesProcessEnvironmentAndWorkingDirectory(t *testing.T) {
-	defaultDir := t.TempDir()
-	optionDir := t.TempDir()
-	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	loopContext, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	rt := quickjs.New()
-	loop := stdlib.NewLoop(rt)
-	rt.OnClose(loop.Close)
-	defer rt.Close()
-	_, err = Install(rt, Config{Core: stdlib.Config{
-		Loop: loop,
-		Process: &stdlib.Process{
-			Cwd: defaultDir,
-			Env: map[string]string{
-				"NOE_TEST_SPAWN_FIXTURE": "1",
-				"NOE_TEST_BASE":          "from-process",
-				"NOE_TEST_OVERRIDE":      "process-value",
-			},
-		},
-	}, IO: &IOConfig{Cwd: defaultDir}})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	argsJSON, err := json.Marshal([]string{"-test.run=^TestSpawnFixture$"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	exeJSON, err := json.Marshal(executable)
-	if err != nil {
-		t.Fatal(err)
-	}
-	optionDirJSON, err := json.Marshal(optionDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	main := fmt.Sprintf(`
-		import {spawn} from "noe:process";
-		const args = %s;
-		const run = async options => {
-			const child = await spawn(%s, args, {stdout:"pipe", stderr:"pipe", ...options});
-			const reader = child.stdout.getReader();
-			let text = "";
-			for (;;) {
-				const {done, value} = await reader.read();
-				if (done) break;
-				text += new TextDecoder().decode(value);
-			}
-			const status = await child.exited;
-			await child.close();
-			if (status.code !== 0) throw Error("fixture exit " + status.code + ": " + text);
-			return JSON.parse(text.split("\n")[0]);
-		};
-		(async () => {
-			const inherited = await run({env:{}});
-			const overridden = await run({cwd:%s, env:{NOE_TEST_OVERRIDE:"option-value"}});
-			globalThis.spawnResults = {inherited, overridden};
-		})().catch(error => { globalThis.spawnError = error.stack || error.message; });
-	`, string(argsJSON), string(exeJSON), string(optionDirJSON))
-	if _, err := rt.EvalModule("spawn-check.mjs", main); err != nil {
-		t.Fatal(err)
-	}
-	if err := loop.Run(loopContext); err != nil {
-		t.Fatal(err)
-	}
-	result, err := rt.Eval(`JSON.stringify({result: globalThis.spawnResults, error: globalThis.spawnError})`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got struct {
-		Result struct {
-			Inherited  spawnFixtureResult `json:"inherited"`
-			Overridden spawnFixtureResult `json:"overridden"`
-		} `json:"result"`
-		Error string `json:"error"`
-	}
-	if err := json.Unmarshal([]byte(result.String()), &got); err != nil {
-		t.Fatalf("decode spawn result %q: %v", result.String(), err)
-	}
-	if got.Error != "" {
-		t.Fatalf("spawn failed: %s", got.Error)
-	}
-	if got.Result.Inherited.Base != "from-process" || got.Result.Inherited.Override != "process-value" || got.Result.Inherited.Cwd != filepath.Clean(defaultDir) {
-		t.Errorf("default spawn settings = %#v", got.Result.Inherited)
-	}
-	if got.Result.Overridden.Base != "from-process" || got.Result.Overridden.Override != "option-value" || got.Result.Overridden.Cwd != filepath.Clean(optionDir) {
-		t.Errorf("explicit spawn settings = %#v", got.Result.Overridden)
-	}
-}
-
-type spawnFixtureResult struct {
-	Base     string `json:"base"`
-	Override string `json:"override"`
-	Cwd      string `json:"cwd"`
-}
-
-func TestSpawnFixture(t *testing.T) {
-	if os.Getenv("NOE_TEST_SPAWN_FIXTURE") != "1" {
-		return
-	}
-	result := spawnFixtureResult{
-		Base: os.Getenv("NOE_TEST_BASE"), Override: os.Getenv("NOE_TEST_OVERRIDE"), Cwd: mustGetwd(),
-	}
-	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func mustGetwd() string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	return filepath.Clean(cwd)
 }

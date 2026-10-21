@@ -57,13 +57,18 @@ func TestExternalPortableConsumer(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "go", "run", "-mod=mod", ".", "portable")
-	cmd.Dir = work
-	cmd.Env = consumerEnvironment()
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("portable external Go consumer failed: %v\n%s", err, output)
+	for _, mode := range []string{"portable", "gohost"} {
+		t.Run(mode, func(t *testing.T) {
+			cmd := exec.CommandContext(ctx, "go", "run", "-mod=mod", ".", mode)
+			cmd.Dir = work
+			cmd.Env = consumerEnvironment()
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("external Go consumer failed: %v\n%s", err, output)
+			}
+		})
 	}
+
 }
 
 func consumerEnvironment() []string {

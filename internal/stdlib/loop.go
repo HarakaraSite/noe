@@ -91,6 +91,10 @@ type Loop struct {
 	// report is asked about an error a callback raised, before Run returns
 	// it; true means it was reported, and Run goes on.
 	report func(error) bool
+
+	// scope is attached by one Profile execution at a time. It is immutable
+	// until the owner closes that scope; the loop itself remains borrowed.
+	scope *ExecutionScope
 }
 
 // NewLoop returns a loop for a runtime.
@@ -116,8 +120,22 @@ func newLoop(rt *quickjs.Runtime, ctx context.Context) *Loop {
 // touch the runtime. Posting to a loop that has stopped does nothing, so a
 // request that outlives the loop cannot block on it.
 func (l *Loop) Post(fn func()) {
+	l.post(fn, false)
+}
+
+// postExecution hands execution-owned work to the loop. Unlike public Post,
+// this work is discarded when the attached execution scope closes.
+func (l *Loop) postExecution(fn func()) {
+	l.post(fn, true)
+}
+
+func (l *Loop) post(fn func(), executionOwned bool) {
 	l.mu.Lock()
 	closed := l.closed
+	scope := l.scope
+	if executionOwned && scope != nil && scope.isClosing() {
+		closed = true
+	}
 	if !closed {
 		// Work that has been posted counts as outstanding until it has run.
 		// Without that the loop can decide the program is over in the moment
@@ -132,7 +150,7 @@ func (l *Loop) Post(fn func()) {
 	// The runtime holds what is posted until it runs, whatever the loop is
 	// doing; a loop closed by then runs none of it.
 	l.work.Post(func(err error) {
-		if err == nil && !l.isClosed() {
+		if err == nil && !l.isClosed() && (!executionOwned || scope == nil || !scope.isClosing()) {
 			fn()
 		}
 		l.ran()
@@ -204,6 +222,10 @@ func (l *Loop) Close() {
 // from any goroutine.
 func (l *Loop) Context() context.Context { return l.ctx }
 
+// Owns reports whether l was created for rt. Attach uses it to reject a loop
+// that would deliver host work into a different QuickJS runtime.
+func (l *Loop) Owns(rt *quickjs.Runtime) bool { return l != nil && rt != nil && l.rt == rt }
+
 // isClosed reports whether Close has been called.
 func (l *Loop) isClosed() bool {
 	l.mu.Lock()
@@ -216,7 +238,59 @@ func loopContext(l *Loop) context.Context {
 	if l == nil {
 		return context.Background()
 	}
+	if scope := l.executionScope(); scope != nil {
+		return scope.Context()
+	}
 	return l.ctx
+}
+
+func (l *Loop) executionScope() *ExecutionScope {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	scope := l.scope
+	l.mu.Unlock()
+	return scope
+}
+
+// Go starts host work tracked by the attached execution scope, when present.
+// Without a scope it preserves the legacy loop-lifetime behavior.
+func (l *Loop) Go(fn func(context.Context)) error {
+	if l == nil || fn == nil {
+		return errors.New("stdlib: host work needs an event loop and function")
+	}
+	if scope := l.executionScope(); scope != nil {
+		return scope.Go(fn)
+	}
+	go fn(l.ctx)
+	return nil
+}
+
+// discardScopeTimers releases timers whose callbacks belong to scope. Close is
+// called on the loop owner, so this only edits Go-side queue bookkeeping and
+// never invokes JavaScript.
+func (l *Loop) discardScopeTimers(scope *ExecutionScope) {
+	if l == nil || scope == nil {
+		return
+	}
+	kept := l.timers.entries[:0]
+	for _, t := range l.timers.entries {
+		if t == nil {
+			continue
+		}
+		if t.scope == scope {
+			t.dead = true
+			delete(l.timers.byID, t.id)
+			continue
+		}
+		kept = append(kept, t)
+	}
+	for i := len(kept); i < len(l.timers.entries); i++ {
+		l.timers.entries[i] = nil
+	}
+	l.timers.entries = kept
+	heap.Init((*timerHeap)(&l.timers))
 }
 
 // Run works until there is nothing left to do.
@@ -357,6 +431,11 @@ func (l *Loop) takeFailure() error {
 // fire runs a timer's callback, and the microtasks it queued, under ctx, and
 // re-arms it if it repeats.
 func (l *Loop) fire(ctx context.Context, t *timer, now time.Time) error {
+	if t.scope != nil && t.scope.isClosing() {
+		t.dead = true
+		delete(l.timers.byID, t.id)
+		return nil
+	}
 	if t.repeat > 0 {
 		t.at = now.Add(t.repeat)
 		l.timers.add(t)
@@ -389,6 +468,7 @@ type timer struct {
 	// actx is the async context the timer was armed in, which its callback
 	// runs in.
 	actx  quickjs.Value
+	scope *ExecutionScope
 	index int
 	dead  bool
 }

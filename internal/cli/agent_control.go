@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"forge.harakara.site/littleisland/noe/v2/internal/agent"
+	"forge.harakara.site/littleisland/noe/v2/internal/app/control"
 )
 
 func runAgentControl(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -43,12 +43,12 @@ func runAgentControl(ctx context.Context, args []string, stdout, stderr io.Write
 	default:
 		return invalid()
 	}
-	dir, err := agent.DefaultControlDir()
+	dir, err := control.DefaultControlDir()
 	if err != nil {
 		return fail(err)
 	}
 	if args[0] == "agents" {
-		hosts, err := agent.DiscoverControls(ctx, dir)
+		hosts, err := control.DiscoverControls(ctx, dir)
 		if err != nil {
 			return fail(err)
 		}
@@ -89,9 +89,13 @@ func runAgentControl(ctx context.Context, args []string, stdout, stderr io.Write
 		id = args[2]
 		run = args[1] == "--run"
 	}
-	connection, fullID, err := agent.ResolveControlTarget(ctx, dir, id, run)
+	connection, snapshot, err := control.ResolveControlTarget(ctx, dir, id, run)
 	if err != nil {
 		return fail(err)
+	}
+	fullID := snapshot.AgentID
+	if run {
+		fullID = snapshot.CurrentRunID
 	}
 	payload := make(map[string]any)
 	if run {

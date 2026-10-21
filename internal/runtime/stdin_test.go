@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -44,4 +45,11 @@ func (r *trackedStdin) Read(p []byte) (int, error) {
 func (r *trackedStdin) Close() error {
 	r.closed = true
 	return nil
+}
+
+func (r *trackedStdin) ReadContext(ctx context.Context, p []byte) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.Read(p)
 }

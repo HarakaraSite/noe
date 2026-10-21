@@ -49,13 +49,13 @@ throw error;`
 
 func TestExceptionRetainsOriginalGoCause(t *testing.T) {
 	source := Source{filepath.Join(t.TempDir(), "cause.js"), `fail()`}
-	h, err := newHost(context.Background(), Options{}, source)
+	h, err := newManagedExecution(context.Background(), Options{}, source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer h.rt.Close()
+	defer h.Close()
 	want := errors.New("original host error")
-	if err := h.rt.Set("fail", func() error { return want }); err != nil {
+	if err := h.runtime.Bindings().Runtime().Set("fail", func() error { return want }); err != nil {
 		t.Fatal(err)
 	}
 	_, err = h.run()

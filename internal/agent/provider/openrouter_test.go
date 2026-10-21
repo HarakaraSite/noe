@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -371,23 +372,17 @@ func TestOpenRouterClassifiesCredentialAndProviderFailures(t *testing.T) {
 }
 
 func TestOpenRouterReadsCredentialsLazilyAndUsesKeyFileOverride(t *testing.T) {
-	configDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", configDir)
-	if got, want := defaultKeyFile(), configDir+"/"+defaultKeyFileSubpath; got != want {
-		t.Errorf("defaultKeyFile() = %q, want %q", got, want)
-	}
-	homeDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", "")
-	t.Setenv("HOME", homeDir)
-	if got, want := defaultKeyFile(), homeDir+"/.config/"+defaultKeyFileSubpath; got != want {
-		t.Errorf("defaultKeyFile() without XDG_CONFIG_HOME = %q, want %q", got, want)
-	}
-	keyOverride := t.TempDir() + "/override-key"
-	t.Setenv("XDG_CONFIG_HOME", configDir)
+	keyOverride := filepath.Join(t.TempDir(), "override-key")
 	t.Setenv(DefaultKeyFileEnv, keyOverride)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	provider := NewOpenRouter(Options{})
+	if provider.keyFile != "" {
+		t.Fatalf("ambient environment selected keyFile %q", provider.keyFile)
+	}
+
+	provider = NewOpenRouter(Options{KeyFile: keyOverride})
 	if provider.keyFile != keyOverride {
-		t.Fatalf("keyFile = %q, want override %q", provider.keyFile, keyOverride)
+		t.Fatalf("explicit keyFile = %q, want %q", provider.keyFile, keyOverride)
 	}
 	var reads atomic.Int32
 	provider.readFile = func(path string) ([]byte, error) {

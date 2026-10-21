@@ -71,7 +71,7 @@ snapshotは取得時点の情報であり、hook実行中に新しいsteerが届
 ## hook用API
 
 `api.agents`は`run_agent`、`spawn_agent`、`observe_agent`、`queue_agent`、`wait_task`、`read_task_result`、
-`steer_agent`、`interrupt_agent`、`list_models`を持つ。
+`steer_agent`、`cancel_task`、`stop_agent`、`list_models`を持つ。
 引数・戻り値・受付と完了の区別は[通常のagent API](api.md)と同じ。
 各hookの呼出元へ束縛され、同時実行中の別hookの原因情報と混ざらない。
 通常の`noe:agent` importも利用でき、現在のtaskに所有されるが、正確なhook原因が
@@ -190,7 +190,7 @@ metadataのみを記録する。`afterTool`で例外が起きた場合も取得�
 既存の`run_js.started` / `run_js.finished`は、実際の実行ソースと成功・失敗を示す。
 
 interruptはhandlerの完了を待たずに取消しを開始する。終了しないJSやPromiseも
-既存task processの停止対象となる。強制取消し時はafter handlerの完走を保証しない。
+所有するtask runtimeの取消し対象となる。強制取消し時はafter handlerの完走を保証しない。
 handlerがspawnしたagentの寿命は現在のrunに属し、handlerのreturnだけでは停止しない。
 
 ## 所属と集計

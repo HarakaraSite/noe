@@ -35,8 +35,20 @@ type Request struct {
 }
 
 func (r Request) Validate() error {
-	if strings.TrimSpace(r.Provider) == "" || strings.TrimSpace(r.Model) == "" || strings.TrimSpace(r.Prompt) == "" || strings.TrimSpace(r.Output) == "" {
+	if err := r.ValidateGeneration(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(r.Output) == "" {
 		return &Error{Code: "input", Message: "provider, model, prompt, and output must be nonempty strings"}
+	}
+	return nil
+}
+
+// ValidateGeneration validates a provider image-generation request that only
+// returns bytes. Saving those bytes is a separate caller-owned operation.
+func (r Request) ValidateGeneration() error {
+	if strings.TrimSpace(r.Provider) == "" || strings.TrimSpace(r.Model) == "" || strings.TrimSpace(r.Prompt) == "" {
+		return &Error{Code: "input", Message: "provider, model, and prompt must be nonempty strings"}
 	}
 	for key, value := range r.Parameters {
 		switch strings.ToLower(key) {
@@ -48,6 +60,15 @@ func (r Request) Validate() error {
 		}
 	}
 	return nil
+}
+
+// GenerationRequest describes model generation independently of file saving.
+type GenerationRequest struct {
+	Provider   string                     `json:"provider"`
+	Model      string                     `json:"model"`
+	Prompt     string                     `json:"prompt"`
+	Parameters map[string]json.RawMessage `json:"parameters,omitempty"`
+	RunID      string                     `json:"-"`
 }
 
 type Generated struct {
@@ -71,12 +92,13 @@ type Provider interface {
 }
 
 type Error struct {
-	Code            string `json:"code"`
-	Message         string `json:"message"`
-	ProviderCode    string `json:"providerCode,omitempty"`
-	ProviderMessage string `json:"providerMessage,omitempty"`
-	StatusCode      int    `json:"statusCode,omitempty"`
-	RequestID       string `json:"requestId,omitempty"`
+	Usage           json.RawMessage `json:"usage,omitempty"`
+	Code            string          `json:"code"`
+	Message         string          `json:"message"`
+	ProviderCode    string          `json:"providerCode,omitempty"`
+	ProviderMessage string          `json:"providerMessage,omitempty"`
+	StatusCode      int             `json:"statusCode,omitempty"`
+	RequestID       string          `json:"requestId,omitempty"`
 }
 
 func (e *Error) Error() string {

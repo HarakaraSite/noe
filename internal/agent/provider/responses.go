@@ -89,7 +89,7 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 		}
 		input = append(input, encoded)
 	}
-	var tools []map[string]json.RawMessage
+	tools := make([]map[string]json.RawMessage, 0, len(request.Tools))
 	for _, raw := range request.Tools {
 		var tool struct {
 			Type     string                     `json:"type"`

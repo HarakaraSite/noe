@@ -18,56 +18,46 @@ type beginModelStepResponse struct {
 	Steers      []steerInstruction `json:"steers,omitempty"`
 }
 
-func (b *broker) handleBeginModelStep(w http.ResponseWriter, r *http.Request, op *Operation) {
-	var request beginModelStepRequest
-	if decodeRequest(r, &request) != nil || request.RunID == "" || len(request.Messages) == 0 {
-		writeRPCError(w, http.StatusBadRequest, "request", "runId and nonempty messages are required")
-		return
+func (h *Host) beginModelStep(op *Operation, request beginModelStepRequest) (beginModelStepResponse, error) {
+	if request.RunID == "" || len(request.Messages) == 0 {
+		return beginModelStepResponse{}, newOperationError(http.StatusBadRequest, "request", "runId and nonempty messages are required")
 	}
 	for _, message := range request.Messages {
 		if !isJSONObject(message) {
-			writeRPCError(w, http.StatusBadRequest, "request", "invalid model message")
-			return
+			return beginModelStepResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model message")
 		}
 	}
 	for _, tool := range request.Tools {
 		if !isJSONObject(tool) {
-			writeRPCError(w, http.StatusBadRequest, "request", "invalid model tool")
-			return
+			return beginModelStepResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model tool")
 		}
 	}
 
-	h := b.host
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	if run == nil || run.operation != op || run.ctx.Err() != nil || run.interrupting || run.finalClosed || op.closed || h.closed {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "run", "unknown or finished agent run")
-		return
+		return beginModelStepResponse{}, newOperationError(http.StatusConflict, "run", "unknown or finished agent run")
 	}
 	if !h.executionGroupOpenLocked(run.group) {
 		group := run.group
 		h.mu.Unlock()
 		code, message := executionLimitError(group)
-		writeRPCError(w, http.StatusConflict, code, message)
-		return
+		return beginModelStepResponse{}, newOperationError(http.StatusConflict, code, message)
 	}
 	if run.modelStep != nil && !run.modelStep.finished {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusConflict, "model_step", "the previous logical step has not finished")
-		return
+		return beginModelStepResponse{}, newOperationError(http.StatusConflict, "model_step", "the previous logical step has not finished")
 	}
 	stepID, err := randomID()
 	if err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate model step")
-		return
+		return beginModelStepResponse{}, newOperationError(http.StatusInternalServerError, "broker", "could not allocate model step")
 	}
 	activityID, err := randomID()
 	if err != nil {
 		h.mu.Unlock()
-		writeRPCError(w, http.StatusInternalServerError, "broker", "could not allocate model step activity")
-		return
+		return beginModelStepResponse{}, newOperationError(http.StatusInternalServerError, "broker", "could not allocate model step activity")
 	}
 	causedBy := []string(nil)
 	predecessors := []string(nil)
@@ -76,8 +66,7 @@ func (b *broker) handleBeginModelStep(w http.ResponseWriter, r *http.Request, op
 			for _, call := range previous.toolCalls {
 				if len(call.images) > 0 {
 					h.mu.Unlock()
-					writeRPCError(w, 409, "image", "image tool exchange has not been checkpointed")
-					return
+					return beginModelStepResponse{}, newOperationError(http.StatusConflict, "image", "image tool exchange has not been checkpointed")
 				}
 			}
 			discardStepImages(previous)
@@ -111,7 +100,7 @@ func (b *broker) handleBeginModelStep(w http.ResponseWriter, r *http.Request, op
 	h.mu.Unlock()
 
 	h.observe(stepEvent)
-	writeJSON(w, beginModelStepResponse{ModelStepID: stepID, Steers: steers})
+	return beginModelStepResponse{ModelStepID: stepID, Steers: steers}, nil
 }
 
 func completedStepActivityIDs(step *modelStepState) []string {

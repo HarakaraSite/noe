@@ -167,3 +167,29 @@ func TestResponsesImagePartsContainOnlyNativeFields(t *testing.T) {
 		t.Fatal("mutated history")
 	}
 }
+
+func TestResponsesWithoutToolsSendsEmptyArrayThroughSDK(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Error(err)
+		}
+		if string(request["tools"]) != "[]" {
+			t.Errorf("tool-less Responses tools=%s", request["tools"])
+			http.Error(w, "tools must be an array", 400)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		writeSSE(w, `{"type":"response.completed","sequence_number":1,"response":`+nativeResponseFixture(`[{"id":"m","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"standalone","annotations":[]}]}]`)+`}`)
+	}))
+	defer server.Close()
+	key := filepath.Join(t.TempDir(), "key")
+	if err := os.WriteFile(key, []byte("fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	provider := NewOpenRouter(Options{KeyFile: key, BaseURL: server.URL, Profile: &Definition{API: "responses", Path: "/responses"}})
+	response, err := provider.Generate(context.Background(), Request{Model: "fixture/model", Messages: []json.RawMessage{json.RawMessage(`{"role":"user","content":"standalone"}`)}})
+	if err != nil || response.FinishReason != "stop" || !strings.Contains(string(response.Message), "standalone") {
+		t.Fatalf("response=%+v error=%v", response, err)
+	}
+}

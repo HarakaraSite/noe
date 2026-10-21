@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"forge.harakara.site/littleisland/noe/v2/agent/model"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -14,6 +15,7 @@ import (
 
 	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/noeprofile"
 )
 
 type agentProviderFunc func(context.Context, provider.Request) (provider.Response, error)
@@ -63,7 +65,7 @@ console.log(JSON.stringify([first.lastResult.answer,second.lastResult.answer,[le
 			t.Fatalf("settings/history not isolated: %+v", req)
 		}
 		messages := decodeRuntimeProviderMessages(t, req.Messages)
-		if !runtimeMessageContains(messages, "system", agent.Instructions()+"\nadditional") {
+		if !runtimeMessageContains(messages, "system", agent.Facts()+"\n\n"+noeprofile.Policy()+"\n\nadditional") {
 			t.Fatalf("embedded Markdown and custom instructions were not composed: %+v", messages)
 		}
 		instruction := interruptUserPrompt(req)
@@ -95,10 +97,10 @@ func TestAgentLazyImportAndConfigurationErrors(t *testing.T) {
 	})
 	for _, source := range []string{
 		`const api=await import("noe:agent");
-if (Object.keys(api).sort().join(",")!=="interrupt_agent,list_models,observe_agent,queue_agent,read_task_result,run_agent,spawn_agent,steer_agent,wait_task") throw Error("unexpected public exports: "+Object.keys(api));
+if (Object.keys(api).sort().join(",")!=="cancel_task,list_models,observe_agent,queue_agent,read_task_result,run_agent,spawn_agent,steer_agent,stop_agent,wait_task") throw Error("unexpected public exports: "+Object.keys(api));
 if ("createAgent" in api) throw Error("legacy createAgent is still exported");`,
 		`import {run_agent} from "noe:agent"; let failures=0;
-for (const config of [{model:""},{model:42},{provider:"unknown"},{maxTokens:-1},{maxSteps:-1},{cacheKey:42}]) {
+for (const config of [{model:""},{model:42},{provider:""},{maxTokens:-1},{maxSteps:-1},{cacheKey:42}]) {
   const pending=run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",...config},"must not contact provider");
   if (!(pending instanceof Promise)) throw Error("run_agent did not return a promise");
   try { await pending; } catch { failures++; }
@@ -125,7 +127,7 @@ if(failures!==7)throw Error("wait validation missed "+failures);`,
 	}
 	// Prove importing the public API does not read a missing credential.
 	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), `import {run_agent} from "noe:agent";if(typeof run_agent!=="function")throw Error("missing run_agent");`},
-		Options{Agent: &agent.Options{Executable: runtimeTestExecutable, ProviderOptions: provider.Options{KeyFile: filepath.Join(t.TempDir(), "missing")}}})
+		Options{Agent: &noeprofile.AgentOptions{Supervisor: runtimeTestExecutable, Models: model.Options{KeyFile: filepath.Join(t.TempDir(), "missing")}}})
 	if code != 0 || err != nil {
 		t.Fatalf("lazy auth code=%d error=%v", code, err)
 	}

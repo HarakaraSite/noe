@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func TestCLITestMainIsolatesInheritedAgentConnection(t *testing.T) {
+func TestCLIIgnoresLegacyAgentConnection(t *testing.T) {
 	if os.Getenv("NOE_TEST_ISOLATION_PROBE") == "1" {
 		runCLIIsolationProbe(t)
 		return
@@ -44,9 +44,8 @@ func TestCLITestMainIsolatesInheritedAgentConnection(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
-			// Exercise TestMain in suite mode, not its managed "run" dispatch.
-			// Use a focused root/child probe instead of rerunning unrelated suites.
-			cmd := exec.CommandContext(ctx, executable, "-test.run=^TestCLITestMainIsolatesInheritedAgentConnection$", "-test.count=1")
+			// Verify CLI assembly ignores and filters the obsolete ambient capability.
+			cmd := exec.CommandContext(ctx, executable, "-test.run=^TestCLIIgnoresLegacyAgentConnection$", "-test.count=1")
 			cmd.Env = append(os.Environ(), "NOE_AGENT_CONNECTION="+tc.value, "NOE_TEST_ISOLATION_PROBE=1")
 			if output, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("isolated fixture suite: %v\n%s", err, output)
@@ -73,7 +72,7 @@ func runCLIIsolationProbe(t *testing.T) {
 		delta := map[string]any{"role": "assistant", "content": "done"}
 		finish := "stop"
 		if body.Model == "parent" && step == 1 {
-			args, _ := json.Marshal(map[string]string{"code": "// Verify the fixture child uses its new broker connection.\nconst child=await run_agent({model:'child'},'child');if(child.lastResult?.answer!=='done')throw Error(JSON.stringify(child));"})
+			args, _ := json.Marshal(map[string]string{"code": "// Verify the child uses the explicitly assembled host.\nconst child=await run_agent({model:'child'},'child');if(child.lastResult?.answer!=='done')throw Error(JSON.stringify(child));"})
 			delta = map[string]any{"role": "assistant", "tool_calls": []any{map[string]any{"index": 0, "id": "child", "type": "function", "function": map[string]any{"name": "run_js", "arguments": string(args)}}}}
 			finish = "tool_calls"
 		}

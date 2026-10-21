@@ -1,15 +1,15 @@
 package stdlib
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
-	"sync"
 	"time"
+
+	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
@@ -25,6 +25,11 @@ import (
 // With a root set, a path that climbs out of it with ".." or a symbolic link is
 // refused rather than followed, and the script sees the root as "/".
 type FS struct {
+	// Cwd is fixed at installation; under Root it is a virtual directory.
+	Cwd string
+	// Backend is the shared implementation for this execution's Go bindings.
+	// When supplied, its root, cwd and write policy are authoritative.
+	Backend *filesystem.Backend
 	// Root confines every path to this directory. Empty means the whole
 	// filesystem, which is what a trusted script or a command-line tool wants
 	// and what untrusted code must not have.
@@ -62,7 +67,17 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	if cfg == nil {
 		cfg = &FS{}
 	}
-	f := &fsHost{rt: rt, cfg: cfg}
+	settings := *cfg
+	backend := settings.Backend
+	if backend == nil {
+		var err error
+		backend, err = filesystem.New(filesystem.Config{Root: settings.Root, Cwd: settings.Cwd, ReadOnly: settings.ReadOnly})
+		if err != nil {
+			return err
+		}
+	}
+	settings.Root, settings.Cwd = backend.Root(), backend.Cwd()
+	f := &fsHost{rt: rt, cfg: &settings, backend: backend}
 
 	sync := map[string]any{
 		"readFileSync":   f.readFile,
@@ -187,109 +202,17 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	return setNodeModule(rt, "fs/promises", pexports)
 }
 
-// fsHost carries what the filesystem operations need.
+// fsHost keeps JS conversion separate from the shared Go filesystem.
 type fsHost struct {
-	rt  *quickjs.Runtime
-	cfg *FS
-	// root is the configured root with its own links resolved, worked out
-	// once: on a machine where the temporary directory is itself a link, a
-	// root that has not been resolved matches nothing inside it.
-	root     string
-	rootOnce sync.Once
-	rootErr  error
+	rt      *quickjs.Runtime
+	cfg     *FS
+	backend *filesystem.Backend
 }
 
-// rootPath is the real directory the script is confined to.
-func (f *fsHost) rootPath() (string, error) {
-	f.rootOnce.Do(func() {
-		abs, err := filepath.Abs(f.cfg.Root)
-		if err != nil {
-			f.rootErr = err
-			return
-		}
-		if real, err := filepath.EvalSymlinks(abs); err == nil {
-			abs = real
-		}
-		f.root = abs
-	})
-	return f.root, f.rootErr
-}
-
-// resolve turns a path from script into one on the host's filesystem, refusing
-// anything that leaves the root.
-//
-// With a root set, the script's view begins at "/": what it calls "/etc/hosts"
-// is the root's own etc/hosts, and "../.." climbs no further than the root
-// itself. Symbolic links are resolved before the check, so a link pointing out
-// of the root does not lead out of it.
-func (f *fsHost) resolve(p string) (string, error) {
-	return f.resolvePath(p, true)
-}
-
-// resolveEntry validates the entire path, including the final link's target,
-// but returns a path to the entry itself for operations that must not follow
-// that link. Checking only the parent would newly allow outward-pointing links.
-func (f *fsHost) resolveEntry(p string) (string, error) {
-	return f.resolvePath(p, false)
-}
-
-func (f *fsHost) resolvePath(p string, followFinal bool) (string, error) {
-	if p == "" {
-		return "", errors.New("the path is empty")
-	}
-	if f.cfg.Root == "" {
-		return p, nil
-	}
-	root, err := f.rootPath()
-	if err != nil {
-		return "", err
-	}
-	// Everything is taken as relative to the root, whether or not it looks
-	// absolute: a script confined to a directory has no way to name anything
-	// outside it, not even by writing a leading slash.
-	clean := filepath.Clean(filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(p, "/"))))
-	if !within(root, clean) {
-		return "", fmt.Errorf("%s is outside the permitted root", p)
-	}
-	// A link is followed and the result checked again, so that a link inside
-	// the root pointing outside it is refused rather than obeyed. A path that
-	// does not exist yet cannot be a link, and is checked as written.
-	if real, err := filepath.EvalSymlinks(clean); err == nil {
-		if !within(root, real) {
-			return "", fmt.Errorf("%s leads outside the permitted root", p)
-		}
-		if followFinal {
-			return real, nil
-		}
-	}
-	if !followFinal {
-		// Resolve linked parents while retaining the final directory entry.
-		if parent, err := filepath.EvalSymlinks(filepath.Dir(clean)); err == nil {
-			entry := filepath.Join(parent, filepath.Base(clean))
-			if !within(root, entry) {
-				return "", fmt.Errorf("%s leads outside the permitted root", p)
-			}
-			return entry, nil
-		}
-	}
-	return clean, nil
-}
-
-// within reports whether a path is the root or inside it.
-func within(root, p string) bool {
-	if p == root {
-		return true
-	}
-	return strings.HasPrefix(p, root+string(filepath.Separator))
-}
-
-// writable refuses a change to a read-only filesystem.
-func (f *fsHost) writable() error {
-	if f.cfg.ReadOnly {
-		return errors.New("the filesystem is read-only")
-	}
-	return nil
-}
+func (f *fsHost) rootPath() (string, error)             { return f.backend.Root(), nil }
+func (f *fsHost) resolve(p string) (string, error)      { return f.backend.Resolve(p, true) }
+func (f *fsHost) resolveEntry(p string) (string, error) { return f.backend.Resolve(p, false) }
+func (f *fsHost) writable() error                       { return f.backend.CheckWritable() }
 
 func (f *fsHost) readFile(p string, enc quickjs.Value) (any, error) {
 	b, err := f.readBytes(p)
@@ -585,11 +508,14 @@ func (f *fsHost) promise(work func() (any, error)) *quickjs.Promise {
 		return p
 	}
 	loop.Begin()
-	go func() {
+	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
 		v, err := work()
-		loop.Post(func() { f.settle(p, v, err) })
-	}()
+		loop.postExecution(func() { f.settle(p, v, err) })
+	}); err != nil {
+		loop.Done()
+		p.RejectError(err)
+	}
 	return p
 }
 

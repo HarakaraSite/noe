@@ -70,7 +70,10 @@ type Registry struct {
 	imageClients  map[string]imageapi.Provider
 }
 
-func NewRegistry(opts Options) *Registry {
+// NewExplicitRegistry creates a registry using only the paths and environment
+// snapshot supplied in opts. An empty ConfigFile uses the embedded provider
+// definitions.
+func NewExplicitRegistry(opts Options) *Registry {
 	return &Registry{opts: opts, clients: make(map[string]Provider), sharedClients: make(map[string]Provider), imageClients: make(map[string]imageapi.Provider)}
 }
 
@@ -175,35 +178,38 @@ func decodeDefinition(data []byte) (Definition, error) {
 }
 
 func (r *Registry) load() {
-	configHome := os.Getenv("XDG_CONFIG_HOME")
-	if configHome == "" {
-		home, err := os.UserHomeDir()
+	path := r.opts.ConfigFile
+	r.configDir = r.opts.ConfigDir
+	if r.configDir != "" && !filepath.IsAbs(r.configDir) {
+		r.configDir = filepath.Join(r.opts.BaseDir, r.configDir)
+	}
+	if r.configDir != "" {
+		var err error
+		r.configDir, err = filepath.Abs(r.configDir)
 		if err != nil {
-			r.err = err
+			r.err = fmt.Errorf("resolve provider configuration directory: %w", err)
 			return
 		}
-		configHome = filepath.Join(home, ".config")
-	}
-	r.configDir = filepath.Join(configHome, "noe")
-	path := r.opts.ConfigFile
-	if path == "" {
-		path = os.Getenv("NOE_CONFIG_FILE")
-	}
-	explicit := path != ""
-	if !explicit {
-		path = filepath.Join(r.configDir, "config.json")
 	}
 	base, err := decodeObject(defaultDefinitions)
 	if err != nil {
 		r.err = err
 		return
 	}
-	data, err := os.ReadFile(path)
-	if err != nil && (!errors.Is(err, os.ErrNotExist) || explicit) {
-		r.err = fmt.Errorf("read provider configuration: %w", err)
-		return
-	}
-	if err == nil {
+	if path != "" {
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(r.opts.BaseDir, path)
+		}
+		path, err = filepath.Abs(path)
+		if err != nil {
+			r.err = fmt.Errorf("resolve provider configuration file: %w", err)
+			return
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			r.err = fmt.Errorf("read provider configuration: %w", err)
+			return
+		}
 		override, err := decodeObject(data)
 		if err != nil {
 			r.err = fmt.Errorf("read provider configuration %s: %w", path, err)
@@ -217,7 +223,7 @@ func (r *Registry) load() {
 		}
 		mergeObject(base, override, 2)
 	}
-	data, err = json.Marshal(base)
+	data, err := json.Marshal(base)
 	if err != nil {
 		r.err = err
 		return
@@ -300,26 +306,20 @@ func (r *Registry) resolve(name, model string) (Provider, error) {
 		userAgent = "noe/dev"
 	}
 	expand := strings.NewReplacer("${configDir}", r.configDir, "${userAgent}", userAgent)
-	d.KeyFile = expand.Replace(d.KeyFile)
-	d.OAuthFile = expand.Replace(d.OAuthFile)
 	for key, value := range d.Headers {
 		d.Headers[key] = expand.Replace(value)
 	}
-	if d.KeyFileEnv != "" {
-		if value := os.Getenv(d.KeyFileEnv); value != "" {
-			d.KeyFile = value
-		}
+	switch d.Auth {
+	case "api-key":
+		d.KeyFile, err = r.resolveCredentialPath(name, d.KeyFile, d.KeyFileEnv, false)
+	case "chatgpt-oauth":
+		d.OAuthFile, err = r.resolveCredentialPath(name, d.OAuthFile, d.OAuthFileEnv, true)
 	}
-	if d.OAuthFileEnv != "" {
-		if value := os.Getenv(d.OAuthFileEnv); value != "" {
-			d.OAuthFile = value
-		}
+	if err != nil {
+		return nil, err
 	}
 	opts := Options{Profile: &d, KeyFile: d.KeyFile, BaseURL: d.BaseURL, HTTPClient: r.opts.HTTPClient, DecisionServerURL: d.DecisionServerURL}
 	if name == "openrouter" {
-		if r.opts.KeyFile != "" {
-			opts.KeyFile = r.opts.KeyFile
-		}
 		if r.opts.BaseURL != "" {
 			opts.BaseURL = r.opts.BaseURL
 			opts.DecisionServerURL = strings.TrimSuffix(strings.TrimRight(opts.BaseURL, "/"), "/api/v1")
@@ -345,6 +345,51 @@ func (r *Registry) resolve(name, model string) (Provider, error) {
 	r.clients[key] = p
 	r.sharedClients[name+string(sharedKey)] = p
 	return p, nil
+}
+
+func (r *Registry) resolveCredentialPath(providerID, configured, envName string, oauth bool) (string, error) {
+	path := configured
+	if envName != "" {
+		if value := r.opts.Env[envName]; value != "" {
+			path = value
+		}
+	}
+	if providerID == "openrouter" && !oauth && r.opts.KeyFile != "" {
+		path = r.opts.KeyFile
+	}
+	if files, ok := r.opts.Credentials[providerID]; ok {
+		if oauth && files.OAuthFile != "" {
+			path = files.OAuthFile
+		} else if !oauth && files.KeyFile != "" {
+			path = files.KeyFile
+		}
+	}
+	userAgent := r.opts.UserAgent
+	if userAgent == "" {
+		userAgent = "noe/dev"
+	}
+	if r.configDir != "" {
+		path = strings.ReplaceAll(path, "${configDir}", r.configDir)
+	}
+	path = strings.ReplaceAll(path, "${userAgent}", userAgent)
+	if strings.Contains(path, "${") {
+		return "", fmt.Errorf("provider %s credential path contains an unresolved placeholder", providerID)
+	}
+	if strings.TrimSpace(path) == "" {
+		kind := "key"
+		if oauth {
+			kind = "OAuth"
+		}
+		return "", fmt.Errorf("provider %s %s credential path is not configured", providerID, kind)
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(r.opts.BaseDir, path)
+	}
+	resolved, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("provider %s credential path: %w", providerID, err)
+	}
+	return resolved, nil
 }
 
 func (r *Registry) Generate(ctx context.Context, request Request) (Response, error) {

@@ -10,6 +10,8 @@ import (
 	"os"
 	"sync"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/commandenv"
+	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
 	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
@@ -19,69 +21,124 @@ import (
 var streamsSource string
 
 type Options struct {
+	// Context binds Profile adapters to an execution without owning its VM.
+	Context        context.Context
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 	Cwd            string
+	FileSystem     *filesystem.Backend
+	Command        *commandenv.Config
+	// Supervisor selects the explicit helper for the legacy command adapter.
+	Supervisor string
+}
+
+// Modules selects the native adapters installed by one Profile. Legacy
+// Install continues to select all adapters as one unit.
+type Modules struct {
+	Stdio, Commands, FS, RawSockets, Signals bool
 }
 
 type Host struct {
-	rt        *quickjs.Runtime
-	ctx       context.Context
-	cancel    context.CancelFunc
-	opts      Options
-	mu        sync.Mutex
-	closed    bool
-	resources map[io.Closer]struct{}
-	wg        sync.WaitGroup
+	rt          *quickjs.Runtime
+	ctx         context.Context
+	cancel      context.CancelFunc
+	opts        Options
+	modules     Modules
+	mu          sync.Mutex
+	closed      bool
+	resources   map[io.Closer]struct{}
+	wg          sync.WaitGroup
+	stopRuntime func() bool
 }
 
 // Install must run on the runtime owner, after stdlib.Install.
 func Install(rt *quickjs.Runtime, opts Options) (result *Host, err error) {
-	ctx, cancel := context.WithCancel(rt.Context())
-	h := &Host{rt: rt, ctx: ctx, cancel: cancel, opts: opts, resources: make(map[io.Closer]struct{})}
+	return install(rt, opts, Modules{Stdio: true, Commands: true, FS: true, RawSockets: true, Signals: true})
+}
+
+// InstallSelected installs only the selected native modules.
+func InstallSelected(rt *quickjs.Runtime, opts Options, modules Modules) (result *Host, err error) {
+	return install(rt, opts, modules)
+}
+
+func install(rt *quickjs.Runtime, opts Options, modules Modules) (result *Host, err error) {
+	parent := opts.Context
+	if parent == nil {
+		parent = rt.Context()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	stopRuntime := context.AfterFunc(rt.Context(), cancel)
+	h := &Host{rt: rt, ctx: ctx, cancel: cancel, opts: opts, modules: modules, resources: make(map[io.Closer]struct{}), stopRuntime: stopRuntime}
 	rt.OnClose(h.Close)
 	defer func() {
 		if err != nil {
 			h.Close()
 		}
 	}()
-	input := h.endpoint(opts.Stdin, nil, nil)
-	output := h.endpoint(nil, opts.Stdout, nil)
-	errout := h.endpoint(nil, opts.Stderr, nil)
-	api := rt.NewObject()
-	if err := errors.Join(api.Set("stdin", input.object()), api.Set("stdout", output.object()), api.Set("stderr", errout.object()), api.Set("spawn", h.spawn)); err != nil {
-		h.Close()
-		return nil, err
-	}
-	factory, err := rt.EvalFile("<noe-streams>", streamsSource)
-	if err != nil {
-		h.Close()
-		return nil, err
-	}
-	values, err := factory.Call(api)
-	if err != nil {
-		h.Close()
-		return nil, err
-	}
-	exports := make(map[string]quickjs.Value)
-	for _, name := range []string{"stdin", "stdout", "stderr", "pipe"} {
-		v, e := values.Get(name)
-		if e != nil {
-			return nil, e
+	if modules.Stdio || modules.Commands {
+		input := h.endpoint(opts.Stdin, nil, nil)
+		output := h.endpoint(nil, opts.Stdout, nil)
+		errout := h.endpoint(nil, opts.Stderr, nil)
+		api := rt.NewObject()
+		if err := api.Set("legacyProcessEnv", opts.Command == nil); err != nil {
+			return nil, err
 		}
-		exports[name] = v
+		if err := errors.Join(api.Set("stdin", input.object()), api.Set("stdout", output.object()), api.Set("stderr", errout.object())); err != nil {
+			h.Close()
+			return nil, err
+		}
+		if modules.Commands {
+			if err := api.Set("spawn", h.spawn); err != nil {
+				h.Close()
+				return nil, err
+			}
+		}
+		factory, err := rt.EvalFile("<noe-streams>", streamsSource)
+		if err != nil {
+			h.Close()
+			return nil, err
+		}
+		values, err := factory.Call(api)
+		if err != nil {
+			h.Close()
+			return nil, err
+		}
+		if modules.Stdio {
+			exports := make(map[string]quickjs.Value)
+			for _, name := range []string{"stdin", "stdout", "stderr", "pipe"} {
+				v, e := values.Get(name)
+				if e != nil {
+					return nil, e
+				}
+				exports[name] = v
+			}
+			if err := rt.SetModuleValues("noe:io", exports); err != nil {
+				return nil, err
+			}
+		}
+		if modules.Commands {
+			spawn, e := values.Get("spawn")
+			if e != nil {
+				return nil, e
+			}
+			if err := rt.SetModuleValues("noe:process", map[string]quickjs.Value{"spawn": spawn}); err != nil {
+				return nil, err
+			}
+		}
 	}
-	if err := rt.SetModuleValues("noe:io", exports); err != nil {
-		return nil, err
+	installs := []struct {
+		selected bool
+		install  func() error
+	}{
+		{modules.FS, h.installFS},
+		{modules.RawSockets, h.installNet},
+		{modules.Signals, h.installSignals},
 	}
-	spawn, e := values.Get("spawn")
-	if e != nil {
-		return nil, e
-	}
-	if err := rt.SetModuleValues("noe:process", map[string]quickjs.Value{"spawn": spawn}); err != nil {
-		return nil, err
-	}
-	for _, install := range []func() error{h.installFS, h.installNet, h.installSignals} {
+	for _, item := range installs {
+		if !item.selected {
+			continue
+		}
+		install := item.install
 		if err := install(); err != nil {
 			h.Close()
 			return nil, err
@@ -99,6 +156,9 @@ func (h *Host) Close() {
 	}
 	h.closed = true
 	h.cancel()
+	if h.stopRuntime != nil {
+		h.stopRuntime()
+	}
 	resources := make([]io.Closer, 0, len(h.resources))
 	for c := range h.resources {
 		resources = append(resources, c)
@@ -131,13 +191,16 @@ func (h *Host) release(c io.Closer) {
 // also runs only on the owner; drop releases results after runtime shutdown.
 func (h *Host) async(run func() (any, error), convert func(any) (any, error), drop func(any)) *quickjs.Promise {
 	p := h.rt.NewPromise()
+	if !h.admitWorker() {
+		p.RejectError(h.operationError())
+		return p
+	}
 	w := h.rt.StartAsyncWork()
-	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
 		value, err := run()
 		w.Complete(func(closed error) {
-			if closed != nil {
+			if closed != nil || h.ctx.Err() != nil {
 				if drop != nil {
 					drop(value)
 				}
@@ -154,6 +217,23 @@ func (h *Host) async(run func() (any, error), convert func(any) (any, error), dr
 		})
 	}()
 	return p
+}
+
+// admitWorker shares Close's admission gate so Add cannot race a zero-count Wait.
+func (h *Host) admitWorker() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed || h.ctx.Err() != nil {
+		return false
+	}
+	h.wg.Add(1)
+	return true
+}
+func (h *Host) operationError() error {
+	if err := h.ctx.Err(); err != nil {
+		return err
+	}
+	return os.ErrClosed
 }
 
 type endpoint struct {

@@ -51,7 +51,7 @@ func TestHookModuleMapDependenciesAndFreshQueueRuntime(t *testing.T) {
 	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
 		return agentAnswer(interruptUserPrompt(req)), nil
 	})
-	source := `import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := `import {spawn_agent,queue_agent,observe_agent,stop_agent} from "noe:agent";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",hooks:["project-hooks"]},undefined,{keepAlive:true});
 await queue_agent({agentId,instruction:"first",commandId:"first"});
 await queue_agent({agentId,instruction:"second",commandId:"second"});
@@ -65,7 +65,7 @@ while (true) {
   }
   await new Promise(resolve=>setTimeout(resolve,5));
 }
-await interrupt_agent({agentId});`
+await stop_agent({agentId});`
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	var out, stderr bytes.Buffer

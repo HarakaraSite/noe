@@ -81,6 +81,8 @@ type portEnd struct {
 	broadcast bool
 	// unwatch stops a BroadcastChannel's watch on its runtime's end.
 	unwatch func() bool
+	// scopeUnhook removes its execution cleanup after an explicit close.
+	scopeUnhook func()
 	// work is how what arrives from other goroutines reaches the end's
 	// runtime. It does not keep the runtime busy: hold does that for a port
 	// that is listening, as node's does.
@@ -274,6 +276,10 @@ func (m *messaging) adoptEnd(core *portCore) (*portEnd, error) {
 	core.mu.Lock()
 	core.owner, core.started, core.scheduled = e, false, false
 	core.mu.Unlock()
+	if err := e.watchExecution(); err != nil {
+		e.closeForExecution()
+		return nil, err
+	}
 	return e, nil
 }
 
@@ -436,10 +442,63 @@ func (c *portCore) enqueue(msg portMsg) {
 // closed, there is nothing to dispatch to.
 func (e *portEnd) schedule() {
 	e.work.Post(func(err error) {
-		if err == nil {
+		if err == nil && !e.executionClosing() {
 			e.dispatchNext()
 		}
 	})
+}
+
+// watchExecution releases a port with the scope that owns its runtime. A
+// transferred port removes this cleanup before it changes owners.
+func (e *portEnd) watchExecution() error {
+	if e.m == nil || e.m.loop == nil {
+		return nil
+	}
+	if scope := e.m.loop.executionScope(); scope != nil {
+		var err error
+		e.scopeUnhook, err = scope.AddCleanupHandle(e.closeForExecution)
+		return err
+	}
+	return nil
+}
+
+func (e *portEnd) executionClosing() bool {
+	if e == nil || e.m == nil || e.m.loop == nil {
+		return false
+	}
+	if scope := e.m.loop.executionScope(); scope != nil {
+		return scope.isClosing()
+	}
+	return false
+}
+
+// closeForExecution releases the port without delivering a JavaScript close
+// event. The scope is ending, but the borrowed runtime remains usable.
+func (e *portEnd) closeForExecution() {
+	if e == nil {
+		return
+	}
+	if e.broadcast {
+		e.closeBroadcast()
+		return
+	}
+	if e.m.halted != nil {
+		// A worker's shutdown immediately follows its scope cleanup and keeps
+		// parentPort until it can send the worker's actual exit code.
+		if e.scopeUnhook != nil {
+			e.scopeUnhook()
+			e.scopeUnhook = nil
+		}
+		return
+	}
+	c := e.core
+	c.mu.Lock()
+	if c.owner == e {
+		c.owner, c.started, c.scheduled = nil, false, false
+	}
+	c.mu.Unlock()
+	e.release()
+	c.disentangle(0)
 }
 
 // startWork is what one of the runtime's ends hears through: work that does
@@ -572,7 +631,7 @@ func (e *portEnd) close() {
 	e.release()
 	// The close event is a task of its own, which the program waits for.
 	e.m.rt.StartAsyncWork().Complete(func(err error) {
-		if err == nil {
+		if err == nil && !e.executionClosing() {
 			e.m.raise(e.m.deliver.Call(e.obj, "close"))
 		}
 	})
@@ -665,7 +724,11 @@ func (m *messaging) openBroadcast(name string, obj quickjs.Value) int {
 	// A channel the script never closes stops hearing its name when its
 	// runtime is closed: until then it kept the runtime reachable, and what
 	// was broadcast to it queued up without end.
-	e.unwatch = context.AfterFunc(m.rt.Context(), func() { unregisterBroadcast(name, core) })
+	e.unwatch = context.AfterFunc(loopContext(m.loop), func() { unregisterBroadcast(name, core) })
+	if err := e.watchExecution(); err != nil {
+		e.closeForExecution()
+		return e.id
+	}
 	e.hold()
 	return e.id
 }
@@ -703,7 +766,9 @@ func (e *portEnd) broadcastMessage(v quickjs.Value) error {
 
 // closeBroadcast stops a BroadcastChannel hearing its name.
 func (e *portEnd) closeBroadcast() {
-	e.unwatch()
+	if e.unwatch != nil {
+		e.unwatch()
+	}
 	unregisterBroadcast(e.channel, e.core)
 	e.release()
 }
@@ -749,6 +814,10 @@ func (e *portEnd) detach() {
 
 // release is the end being this runtime's no longer.
 func (e *portEnd) release() {
+	if e.scopeUnhook != nil {
+		e.scopeUnhook()
+		e.scopeUnhook = nil
+	}
 	e.work.Done()
 	delete(e.m.ports, e.id)
 	e.reffed = false

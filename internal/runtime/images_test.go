@@ -86,11 +86,11 @@ const {read_image}=await import("noe:image");await read_image(` + string(encoded
 	})
 	opts := agentTestOptions(p)
 	opts.Observe = func(e events.Event) { mu.Lock(); defer mu.Unlock(); observed = append(observed, e) }
-	source := `import {spawn_agent,queue_agent,observe_agent,interrupt_agent} from "noe:agent";
+	source := `import {spawn_agent,queue_agent,observe_agent,stop_agent} from "noe:agent";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:3},"read image",{keepAlive:true});
 await queue_agent({agentId,instruction:"describe it again",commandId:"second"});
 while(true){const s=await observe_agent({agentId});if(s.state==="failed"||s.state==="stopped")throw Error(JSON.stringify(s));if(s.state==="idle"&&s.lastResult?.commandId==="second"){if(s.lastResult.state!=="completed")throw Error(JSON.stringify(s));break;}await new Promise(r=>setTimeout(r,5));}
-await interrupt_agent({agentId});`
+await stop_agent({agentId});`
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: opts})
@@ -205,9 +205,9 @@ const generation=await im.generate_image({provider:"openai-chatgpt",model:"gpt-i
 if(generation!=="ImageError:unsupported")throw Error(generation);`, Options{})
 }
 
-type runtimeImageProvider func(context.Context, imageapi.Request) (imageapi.Generated, error)
+type runtimeImageProvider func(context.Context, imageapi.GenerationRequest) (imageapi.Generated, error)
 
-func (f runtimeImageProvider) GenerateImage(ctx context.Context, r imageapi.Request) (imageapi.Generated, error) {
+func (f runtimeImageProvider) GenerateImage(ctx context.Context, r imageapi.GenerationRequest) (imageapi.Generated, error) {
 	return f(ctx, r)
 }
 func TestImageGenerationPublicModuleSavesWithoutAutomaticAttachment(t *testing.T) {
@@ -218,10 +218,10 @@ func TestImageGenerationPublicModuleSavesWithoutAutomaticAttachment(t *testing.T
 		t.Fatal("unexpected chat call")
 		return provider.Response{}, nil
 	}))
-	opts.ImageProvider = runtimeImageProvider(func(context.Context, imageapi.Request) (imageapi.Generated, error) {
+	opts.Models.ImageProvider = runtimeImageProvider(func(context.Context, imageapi.GenerationRequest) (imageapi.Generated, error) {
 		return imageapi.Generated{Content: data, ResponseModel: "image/revision"}, nil
 	})
-	source := `import {generate_image} from "noe:image";const x=await generate_image({provider:"openai-api",model:"image/model",prompt:"circle",output:` + string(encoded) + `});if(x.width!==128||x.mimeType!=="image/png"||"imageId" in x||JSON.stringify(x).includes("base64"))throw Error(JSON.stringify(x));`
+	source := `import {generate_image} from "noe:image";const x=await generate_image({provider:"openai-api",model:"image/model",prompt:"circle",output:` + string(encoded) + `});if(x.width!==128||x.mimeType!=="image/png"||"imageId" in x||"content" in x||JSON.stringify(x).includes("base64"))throw Error(JSON.stringify(x));`
 	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: opts})
 	if code != 0 || err != nil {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -263,11 +263,11 @@ const {generate_image,read_image}=await import("noe:image");const result=await g
 		return agentAnswer("generated and inspected"), nil
 	})
 	opts := agentTestOptions(p)
-	opts.ImageProvider = runtimeImageProvider(func(ctx context.Context, r imageapi.Request) (imageapi.Generated, error) {
+	opts.Models.ImageProvider = runtimeImageProvider(func(ctx context.Context, r imageapi.GenerationRequest) (imageapi.Generated, error) {
 		if r.Provider != "openai-api" || r.Model != "image/model" || r.RunID == "" {
 			t.Errorf("generation inheritance changed explicit config: %+v", r)
 		}
-		return imageapi.Generated{Content: data, Usage: json.RawMessage(`{"input_tokens":3,"output_tokens":4}`)}, nil
+		return imageapi.Generated{Content: data, RequestID: "generated-image-request", ResponseModel: "image/revision", Usage: json.RawMessage(`{"input_tokens":3,"output_tokens":4}`)}, nil
 	})
 	opts.Observe = func(e events.Event) { mu.Lock(); defer mu.Unlock(); eventsSeen = append(eventsSeen, e) }
 	source := `import {run_agent} from "noe:agent";const s=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",executionLimits:{providerCalls:3}},"make and inspect");if(s.lastResult?.answer!=="generated and inspected")throw Error(JSON.stringify(s));`
@@ -279,7 +279,7 @@ const {generate_image,read_image}=await import("noe:image");const result=await g
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	completed := 0
+	completed, saved, read := 0, 0, 0
 	for _, e := range eventsSeen {
 		if e["type"] == "image.completed" {
 			completed++
@@ -287,10 +287,26 @@ const {generate_image,read_image}=await import("noe:image");const result=await g
 			if !bytes.Contains(body, []byte(`"imageProviderCalls":1`)) || !bytes.Contains(body, []byte(`"decisionProviderCalls":0`)) || !bytes.Contains(body, []byte(`"providerCalls":2`)) {
 				t.Fatalf("generation counters=%s", body)
 			}
+			if e["providerRequestId"] != "generated-image-request" || e["responseModel"] != "image/revision" {
+				t.Fatalf("generation response metadata=%+v", e)
+			}
+		} else if e["type"] == "image.saved" {
+			saved++
+			metadata, ok := e["image"].(imageapi.Metadata)
+			if !ok || metadata.Path != path || metadata.MIMEType != "image/png" || metadata.Bytes != len(data) ||
+				e["path"] != path || e["providerRequestId"] != "generated-image-request" || e["responseModel"] != "image/revision" {
+				t.Fatalf("saved image metadata=%+v", e)
+			}
+		} else if e["type"] == "image.read" {
+			read++
+			metadata, ok := e["image"].(imageapi.Metadata)
+			if !ok || metadata.ImageID == "" || metadata.Path != path || e["path"] != path {
+				t.Fatalf("read image was not registered for the parent vision call: %+v", e)
+			}
 		}
 	}
-	if completed != 1 {
-		t.Fatalf("generation terminals=%d", completed)
+	if completed != 1 || saved != 1 || read != 1 {
+		t.Fatalf("generation/saved/read events=%d/%d/%d", completed, saved, read)
 	}
 }
 
