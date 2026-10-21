@@ -1172,3 +1172,51 @@ exhaustive one-to-one audit of every test. No source changed during review;
 The tag includes the already tested preparation and documentation finalization.
 Publication, workflow execution, actual module download and downloaded-binary
 verification are recorded separately below after they complete.
+
+
+## v2.0.0 Release validation — 2026-10-21
+
+- Annotated tag: `v2.0.0`, pointing to `0dc3cbf7a57062d07439536cc70b83640e82c2a1`. The peeled remote tag matches the successful workflow commit.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/27): succeeded (API run ID 208, job ID 229).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.0.0): published, neither draft nor prerelease (Release ID 141). Its body matches the committed [English notes](v2.0.0.md).
+
+The actual workflow passed the CGO-free unit and vet gates, built Linux/macOS/
+Windows binaries for amd64 and arm64 with the v2 ldflags path, and uploaded all
+six binaries plus SHA256SUMS. All seven assets were downloaded, and all six
+binary hashes matched the published checksum file.
+
+The downloaded Linux amd64 binary reports `noe v2.0.0`. Build information
+matches the tagged commit with `vcs.modified=false`, `CGO_ENABLED=0` and
+`go-quickjs v0.27.0`. Native local-fixture smoke checks passed: two queue tasks
+keep one session ID and separate run IDs, metadata-only waits omit answers,
+retained full/ranged reads and repeated waits preserve both task outcomes,
+exactly two local model requests occur, automatic events contain no wait-only
+events, synchronous command failures retain stdout/stderr and exit 7,
+all six run_js recipe lookups and arithmetic succeed. The instance is stopped
+using the v2 `stop_agent` API. These publication checks made no real model calls.
+
+The first stable Go module was also verified from two clean modules outside
+the checkout. The actual commands fetched:
+
+```sh
+go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.0.0
+go get forge.harakara.site/littleisland/noe/v2/agent@v2.0.0
+```
+
+Neither module uses local replace or the synthetic artifact proxy. Both
+examples built and ran, `go mod verify` passed, and selected versions are
+`forge.harakara.site/littleisland/noe/v2 v2.0.0` and
+`github.com/go-quickjs/go-quickjs v0.27.0`. The agent example returned
+`The total is 31.` using its deterministic provider. Downloaded module files
+`go.mod`, `agent/host.go`, `stdlib/profile.go` and `internal/cli/cli.go` match
+the tagged source bytes. This establishes published-module retrieval in
+addition to the earlier local/artifact consumer tests.
+
+The verified published Linux amd64 binary was atomically installed to
+repository-root `./noe` and `~/.local/bin/noe`; both match the downloaded bytes
+and report v2.0.0. Previous binaries were backed up before replacement.
+Evidence, downloaded assets, source/version checks, smoke logs and backups:
+`/var/tmp/noe-v2.0.0-release-jmsxcwez`. Other targets have build/checksum evidence only;
+native macOS/Windows/arm64 execution and long-term continuous operation were
+not tested. This documentation-only follow-up does not move or replace the
+v2.0.0 release tag.
