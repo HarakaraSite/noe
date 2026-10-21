@@ -343,7 +343,17 @@ noe queue AGENT_ID "$(cat next-task.md)"
 
 ### <未完了> agentのアプリ内runtime実行 — 2026-10-20
 
-利用者の今後の課題メモ。外部Goアプリへagentを組み込む際、別のNOE実行ファイルを配備せず、アプリ内のgo-quickjs runtimeで実行できる方式を検討する。今は記録のみとし、実装時期・API・優先順位は決定しない。
+2026-10-20時点の課題メモ。外部Goアプリへagentを組み込む際、別のNOE実行ファイルを配備せず、アプリ内のgo-quickjs runtimeで実行できる方式を検討する。この時点では記録のみで、実装時期・API・優先順位は決定しなかった。
+
+2026-10-21、利用者の依頼で[v2へ向けた構成案](development/v2-agent-runtime-plan.md)を作成し、[通常レビュー・批判的レビュー](development/v2-agent-runtime-review.md)を実施した。NOE・stdlib・agent・engineの責務、instruction/APIキー/OAuth/provider設定の場所と読込み処理の分離を含む。次は実行・設定・終了の具体設計であり、製品実装・v2公開はまだ行っていない。
+
+同日の追加依頼で[具体設計・8つの実装スライスと最終総合テスト](development/v2-agent-runtime-implementation-plan.md)を計画し、[通常/批判的レビューと指摘反映・限定再確認](development/v2-agent-runtime-implementation-review.md)を完了した。各スライスで実装・対象テスト・独立コードレビューを行う計画で、今回は利用者の指示どおり計画段階で停止する。製品実装と実provider検証は未実施。
+
+その後、利用者の「パス以外のNOE依存」「docsの扱い」という観点で[追加の批判的レビュー](development/v2-agent-runtime-separation-review.md)を実施した。agent側Go I/OはFiles、運用方針はPolicy、supervisorは既定の直接起動とNOEの明示helperへ分離する設計に修正した。docsは共通の参照機構を維持し、有効化条件と本文/metadata/error案内の更新を計画した。同じreviewerによる変更箇所の限定再確認も完了し、残る必須指摘なし。計画を実装へ渡せる状態と判断し、製品実装前で停止した。
+
+続く依頼で[3者の責務・設定元・資源所有・呼出し経路の台帳](development/v2-responsibility-boundaries.md)を追加し、通常/hook/子/CLIの接続を8スライスへ対応付けた。ログ観察は明示openerを各bindingへ渡してbroker不要を維持し、controlを含むNOE既定値をnoeprofileへ集約する計画。同じreviewerによる追加差分のレビューも完了し、必須指摘なし。計画修正で停止しており、実装による分離確認は未実施。
+
+その後、利用者は全APIの再設計提案と破壊的変更を承認し、計画を再改訂した。[API/移行契約](development/v2-api-redesign.md)を正本に、Go Host/Client、Profile/独立I/O/共通loader、model/auth/log単独利用、controlのNOE移転、docs常時導入、instruction sourceとログdata解析を採用。旧API維持・8slice・内部RPC維持の計画を[11スライスと最終総合検証](development/v2-agent-runtime-implementation-plan.md)へ置換した。[新しい通常/批判的レビュー](development/v2-api-redesign-review.md)、P2の4件の反映、限定再確認を完了し、残る必須指摘なし。旧レビュー合格は転用せず、本改訂を計画として実装へ渡せると判断して停止した。製品実装は未着手。
 
 現在の公開`agent` packageは、プロバイダー接続・認証・agent管理をGoホストで行い、taskのJSループと`run_js`を別のNOEプロセスで実行する。このため、ツールを使わないtaskでもNOE実行ファイルが必要。汎用`stdlib`だけの組み込みには、この実行ファイル依存はない。[現行のagent組み込み仕様](go-agent-embedding.md)。
 
