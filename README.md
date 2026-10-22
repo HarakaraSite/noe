@@ -6,10 +6,10 @@ A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://gi
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
-[v2.0.1 release notes](docs/releases/v2.0.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.0.1)
+[v2.1.0 release notes](docs/releases/v2.1.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.1.0)
 
-v2.0.1 displays human queue/steer instructions in observation output and adds a
-[resident Go host example](examples/embedding-server/README.md).
+v2.1.0 upgrades the JavaScript engine to go-quickjs v0.28.0, keeping the
+experimental JIT disabled and preserving the existing CLI, JavaScript and Go APIs.
 
 v2 embeds managed agents directly in Go applications. See the
 [v2 migration guide](docs/v2-migration.md) for breaking Go embedding and
@@ -24,7 +24,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.0.1
+# noe v2.1.0
 ```
 
 The examples below assume the repository root is your working directory.
