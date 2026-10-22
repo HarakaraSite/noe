@@ -1300,3 +1300,49 @@ published-module consumers and backups: `/var/tmp/noe-v2.0.1-release-0lJV8Q`.
 Native execution on macOS, Windows and arm64, actual systemd user-service
 installation, and long-term continuous operation remain unverified. This
 documentation-only follow-up does not move or replace the release tag.
+
+## v2.1.0 preparation — 2026-10-22
+
+The release adopts go-quickjs v0.28.0 from `fdfadb39dc0f0afa293701e97de6b44931b7ccc3`.
+Normal and critical plan/code reviews, including re-review of the existing
+Linux procfs test correction, have no unresolved P2-or-higher findings. The
+[adoption record](../development/go-quickjs-v0.28.0-plan.md) preserves the first
+race failure, its reproduction with the previous engine and the corrected
+test's positive/negative controls.
+
+The full profile checks completed for the adoption source are reused:
+
+| Reference-host gate | Result |
+| --- | --- |
+| Full CGO-free unit/E2E suite | PASS, 46.437s |
+| Full internal/stdlib/agent race | PASS, 82.874s |
+| Sustained Go Client model/tool waits and cancellation | PASS, 30.766s; all four cases ran |
+| Vet including E2E tags | PASS, 1.369s |
+| All six distribution targets, CGO-free compilation | PASS, 26.985s; compile only |
+| External stdlib/agent consumers, local and synthetic artifact | PASS; both select engine v0.28.0 |
+
+Adoption evidence is retained at `/var/tmp/noe-q280-XrXP1S`. Release source
+`c74d7e31d200176b6e3ad91c6add5fbd7ee89628` changes only the CLI version constant
+and its two expected strings among runtime/test/dependency files. A byte-level
+comparison confirms all other runtime code and dependencies match the adoption
+source. Later tag-preparation changes are documentation only. The existing
+stdlib source origin stays v0.27.0, JIT stays disabled, and other dependencies
+and Go 1.27.2 are unchanged.
+
+The release source was checked again in a clean detached worktree:
+
+| Release-specific check | Result |
+| --- | --- |
+| CLI package unit tests | PASS, 6.615s |
+| Real CLI version/control/managed run_js E2E cases | PASS, 2.427s |
+| Vet including E2E tags | PASS, 1.423s |
+| CGO-free release-flags native build | PASS, 0.770s; v2.1.0, engine v0.28.0, checked commit, clean build metadata |
+| BigInt/object/Worker/primitive-delete CLI smoke | PASS, 0.065s |
+| Local agent fixture, stable queue session, ranged results, command diagnostics and docs | PASS, 0.667s |
+
+Commands, logs, source comparison, clean worktree and build information are in
+`/var/tmp/noe-v2.1.0-release-WnXLpO`. The current embedding guides and example
+instructions select the v2.1.0 published module; their local placeholder remains
+unchanged. Publication and downloaded-asset checks are recorded after tagging.
+Native execution is Linux amd64 only; other targets have compilation evidence.
+No real provider calls or JIT execution/performance tests were performed.

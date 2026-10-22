@@ -11,12 +11,12 @@ From the repository root, with Go 1.27.2 or later:
 CGO_ENABLED=0 go run ./examples/embedding
 ```
 
-To use a separate module before publication, copy `main.go` and
+To use a separate module with a local checkout, copy `main.go` and
 `go.mod.template` outside the repository, rename the template to `go.mod`, and
 set its replacement to the absolute checkout path. Then run
 `GOWORK=off go mod tidy` and `GOWORK=off CGO_ENABLED=0 go run .`.
 `v2.0.0-dev.0` is a local-development placeholder, not a published tag.
-After v2.0.0 is published, remove the replacement and require that stable tag
+For the published release, remove the replacement and require v2.1.0
 instead; see the [v2 migration guide](../../docs/v2-migration.md).
 
 For a long-running Go HTTP host that creates a fresh runtime per request, see
