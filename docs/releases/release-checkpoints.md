@@ -1346,3 +1346,45 @@ instructions select the v2.1.0 published module; their local placeholder remains
 unchanged. Publication and downloaded-asset checks are recorded after tagging.
 Native execution is Linux amd64 only; other targets have compilation evidence.
 No real provider calls or JIT execution/performance tests were performed.
+
+## v2.1.0 Release validation — 2026-10-22
+
+- Annotated tag: `v2.1.0`, pointing to `d5fc7ee54b06090b7803f1dbb504482b4365d0b6`. Its runtime/test/dependency source matches the checked release source; the additional preparation commit changes only documentation.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/29): succeeded (API run ID 210, job ID 231).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.1.0): published, neither draft nor prerelease (Release ID 143). Its body matches the tagged [English notes](v2.1.0.md).
+
+The workflow passed the CGO-free unit-test and vet gates, linked all six
+distribution binaries and uploaded them with SHA256SUMS. All seven assets were
+downloaded, and all six binary hashes matched the published checksum file.
+
+The downloaded Linux amd64 binary reports `noe v2.1.0`; build information
+contains the tag commit, `vcs.modified=false`, `CGO_ENABLED=0` and go-quickjs
+v0.28.0 with the expected checksum. It has no JIT build tag. The downloaded
+binary passed the BigInt/object/Worker/primitive-delete smoke.
+
+A temporary TestMain-only overlay selected the downloaded binary for the
+tagged CLI E2E assertions instead of rebuilding the CLI. Version/CLI commands,
+live human queue/steer observation and saved replay, low-level managed run_js,
+and agent file-reading/tool-history cases all passed. Native local-fixture
+smoke also passed stable queue sessions, separate run IDs, metadata-only waits,
+retained/ranged results, synchronous command failure details, bundled docs and
+the six run_js recipes. No paid model-provider requests were made.
+
+Two clean external modules fetched the actual published stdlib and agent
+packages at v2.1.0 without local replacement or a synthetic proxy. Both built,
+ran and passed `go mod verify`; MVS selected go-quickjs v0.28.0. The deterministic
+agent returned `The total is 31.`. These are publication checks, separate from
+the adoption's local/synthetic-artifact consumer validation.
+
+The verified downloaded Linux amd64 asset was atomically installed to
+repository-root `./noe` and `~/.local/bin/noe`, after backing up both previous
+executables. Both installed files match the asset bytes and report v2.1.0.
+Linux asset/installation SHA256:
+`f82f68c787da88e7a4689cf3cd075971a764d4be2f3f2c045a973a8187f72817`.
+
+Evidence, all downloaded assets, workflow logs, module consumers, native and
+artifact-E2E logs, build information and backups are retained at
+`/var/tmp/noe-v2.1.0-release-WnXLpO`. Other five targets have build/hash
+verification but no native execution on this host. JIT behavior and workload
+performance were not tested. This documentation-only follow-up does not move
+or replace the release tag; the unrelated active JSONL logs remain excluded.
