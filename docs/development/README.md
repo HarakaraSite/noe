@@ -54,6 +54,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 上流修正待ち：ES module内のブロック関数宣言が消える不具合 | [再現・原因・回避方法](dependency-updates.md#上流修正待ちes-module内のブロック関数宣言--2026-10-24) |
 | 単独noe observeの出力待機中の取消し | [修正・検証記録](observe-cancellation.md) |
 | JSによるExa MCPクライアントとソケットデーモンの利用例 | [実装・検証記録](mcp-daemon-examples.md) |
+| txiki.jsとの機能差と今後の改善の参考 | [比較調査（2026-10-24）](txikijs-comparison-20261024.md) |
 | go-quickjs v0.28.0の取り込み | [計画・レビュー・検証記録](go-quickjs-v0.28.0-plan.md) |
 | 配布対象・品質確認・公開手順 | [リリースチェックポイント](../releases/release-checkpoints.md) |
 
