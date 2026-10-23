@@ -1490,3 +1490,44 @@ approved deletion of the unauthorized v2.2.0 and managed-engine public tags.
 
 Rollback evidence: `/var/tmp/noe-rollback-v211-20261023-175657`.
 The rollback is a new commit; prior Git history is preserved.
+
+## v2.3.0 preparation — 2026-10-24
+
+The user authorized v2.3.0 publication after agreeing to skip the withdrawn
+v2.2.0 number. Reusing that number could confuse downloaded artifacts and
+Go proxy caches. Implementation and integrated validation are complete at
+`1d6ab38`; see the [implementation record](../development/ai-execution-contract-implementation.md).
+The checked release source is `2834fba`, which adds the version, release notes
+and current-version migration links. The tag-preparation commit changes this
+evidence document only.
+
+Existing S2/S3/S4/T results are reused for unchanged product logic and
+dependencies: affected unit/race tests, remaining unit tests, ordinary CLI E2E,
+declaration fixtures, external stdlib/agent consumers through local and module
+artifact paths, and the deterministic docs/static-check/run_js/repair flow.
+The agent-server explicit-import correction and its three cleanup tests are
+included. Optional MCP SDK bundle, real-provider and long-wait suites were not
+newly run; no paid provider requests were made.
+
+| Release verification | Result |
+| --- | --- |
+| Updated CLI version subtest | PASS, `CGO_ENABLED=0 go test ./internal/cli -run '^TestCLI/version$' -count=1`, 2.292s |
+| Clean native release-flags build | PASS, `2834fba`, `vcs.modified=false`, CGO disabled |
+| Version, arithmetic, embedded result contract and agent declaration path | PASS against the native build |
+| Go module verification | PASS; dependencies unchanged from v2.1.1 |
+| Relative release/guide links | PASS, 120 links |
+| Source whitespace/diff | PASS |
+
+The first docs smoke assertion used lowercase `diagnostics` where the selected
+member starts with `Diagnostics`. Its successful saved output was checked
+against the actual text; no product fix or build repeat was needed.
+
+Go 1.27.2 and official upstream go-quickjs v0.28.0 remain unchanged; no engine
+fork, dependency update or JIT is introduced. No full unit/E2E/race/vet or
+six-target local build is repeated for the version change. The unchanged light
+CI builds all six distribution binaries, creates SHA256SUMS and uploads them.
+Native build execution is Linux amd64 only. Actual public artifacts and module
+retrieval are checked after publication.
+
+Evidence and detached checked source:
+`/var/tmp/noe-v2.3.0-release-u241ahed`. User event logs remain untouched.
