@@ -1578,3 +1578,36 @@ existing v2.2.0 tag. The build now exposes the checked-out tag commit and passes
 it explicitly to the uploader's sha input. Release notes come from the selected
 tag's committed file. This correction changes no source or tag and repeats no
 source validation; a new light dispatch only builds and publishes.
+
+## v2.2.0 publication validation — 2026-10-23
+
+- Immutable annotated tag: `v2.2.0`, source commit
+  `315eba0e14df94077b192e0c3f31d7680179e495`. No release tag was moved.
+- Successful light distribution workflow:
+  [run 33](https://forge.harakara.site/littleisland/noe/actions/runs/33)
+  (API 214 / job 235). Workflow control is commit `7279130`; checkout and the
+  uploader's explicit SHA both select the existing v2.2.0 source tag.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.2.0)
+  is published, neither draft nor prerelease. Notes match the tagged file.
+- All six binaries and SHA256SUMS were downloaded. Every binary hash matches.
+  The Linux amd64 binary reports v2.2.0, the tag's source revision,
+  vcs.modified=false, CGO disabled and managed engine v0.28.1-noe.1 without JIT.
+  Version and arithmetic smoke passed against the downloaded binary.
+- Actual published stdlib and agent consumers, the Worker consumer and
+  `go install forge.harakara.site/littleisland/noe/v2/cmd/noe@v2.2.0` passed.
+  Clean modules use no local replace or synthetic proxy, select the managed
+  engine, and pass go mod verify. These completed results were reused during
+  CI recovery; they were not repeated.
+
+The successful CI contains only checkout/setup, distribution builds, checksum
+creation and upload. It runs no unit/E2E/race/vet/engine source suites. The
+completed local source checks were reused, and post-download verification was
+limited to asset integrity, build metadata and minimal CLI smoke. No source
+suites were repeated for recovery. Published binaries were not installed over
+the user's existing local binaries by this release task.
+
+Evidence: `/var/tmp/noe-v2.2.0-release-20261023-171109`, including the first two
+failed CI logs, successful run metadata, all downloaded assets,
+`published-verification.json`, `public-module-verification.json` and build info.
+The test assertions and release source were not weakened or changed to recover
+publication. This documentation-only record does not alter the release tag.
