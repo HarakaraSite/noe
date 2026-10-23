@@ -308,7 +308,7 @@ func TestContextTrimmingQueuedTaskContinuesConversationAndTrimState(t *testing.T
 
 func contextTrimToolReply(call int) agentModelReply {
 	id := fmt.Sprintf("trim-block-%d", call)
-	code := fmt.Sprintf("// emit completed context block %d\nconsole.log('TRIM_E2E_BLOCK_%d:' + 'x'.repeat(24000));", call, call)
+	code := fmt.Sprintf("// emit completed context block %d\n// @noe: {\"outputBytes\": 65536}\nconsole.log('TRIM_E2E_BLOCK_%d:' + 'x'.repeat(24000));", call, call)
 	return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool(id, code)}}}, FinishReason: "tool_calls"}
 }
 
@@ -322,7 +322,7 @@ func contextTrimRunSource(queued bool) string {
 
 func contextTrimQueuedToolReply(call int) agentModelReply {
 	id := fmt.Sprintf("queue-trim-block-%d", call)
-	code := fmt.Sprintf("// emit queued context block %d\nconsole.log('QUEUE_TRIM_E2E_BLOCK_%d:' + 'x'.repeat(24000));", call, call)
+	code := fmt.Sprintf("// emit queued context block %d\n// @noe: {\"outputBytes\": 65536}\nconsole.log('QUEUE_TRIM_E2E_BLOCK_%d:' + 'x'.repeat(24000));", call, call)
 	return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool(id, code)}}}, FinishReason: "tool_calls"}
 }
 

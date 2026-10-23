@@ -13,7 +13,10 @@ import (
 	"github.com/OpenRouterTeam/go-sdk/retry"
 )
 
-const nativeResponseItems = "_noe_response_items"
+const (
+	nativeResponseItems = "_noe_response_items"
+	rawJSInputCarrier   = "_noe_raw_input"
+)
 
 func (p *OpenRouter) responsesRequestBody(request Request) ([]byte, error) {
 	return configuredResponsesRequestBody(p.profile, request)
@@ -28,6 +31,7 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 		return nil, err
 	}
 	var input []json.RawMessage
+	callTypes := make(map[string]string)
 	for _, raw := range request.Messages {
 		var message map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &message); err != nil {
@@ -42,11 +46,26 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 				if err := json.Unmarshal(items, &native); err != nil {
 					return nil, err
 				}
+				for _, item := range native {
+					var call struct {
+						Type   string `json:"type"`
+						CallID string `json:"call_id"`
+					}
+					if json.Unmarshal(item, &call) == nil && call.CallID != "" {
+						callTypes[call.CallID] = call.Type
+					}
+				}
 				input = append(input, native...)
 				continue
 			}
 		case "tool":
-			item := map[string]any{"type": "function_call_output", "call_id": message["tool_call_id"], "output": message["content"]}
+			var callID string
+			_ = json.Unmarshal(message["tool_call_id"], &callID)
+			outputType := "function_call_output"
+			if callTypes[callID] == "custom_tool_call" {
+				outputType = "custom_tool_call_output"
+			}
+			item := map[string]any{"type": outputType, "call_id": message["tool_call_id"], "output": message["content"]}
 			encoded, err := json.Marshal(item)
 			if err != nil {
 				return nil, err
@@ -97,6 +116,19 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 		}
 		if json.Unmarshal(raw, &tool) != nil || tool.Type != "function" || tool.Function == nil {
 			return nil, errors.New("unsupported Responses tool")
+		}
+		var name string
+		if json.Unmarshal(tool.Function["name"], &name) == nil && name == "run_js" && profile.RunJSInput == "javascript" {
+			custom := map[string]json.RawMessage{
+				"type":   json.RawMessage(`"custom"`),
+				"name":   tool.Function["name"],
+				"format": json.RawMessage(`{"type":"text"}`),
+			}
+			if description := tool.Function["description"]; len(description) > 0 {
+				custom["description"] = description
+			}
+			tools = append(tools, custom)
+			continue
 		}
 		tool.Function["type"] = json.RawMessage(`"function"`)
 		tools = append(tools, tool.Function)
@@ -247,6 +279,7 @@ func responseFromNative(raw json.RawMessage) (Response, error) {
 			CallID    string `json:"call_id"`
 			Name      string `json:"name"`
 			Arguments string `json:"arguments"`
+			Input     string `json:"input"`
 			Content   []struct {
 				Type    string `json:"type"`
 				Text    string `json:"text"`
@@ -261,6 +294,22 @@ func responseFromNative(raw json.RawMessage) (Response, error) {
 				return Response{}, providerError(ErrorResponse, 0, nil)
 			}
 			calls = append(calls, map[string]any{"id": item.CallID, "type": "function", "function": map[string]any{"name": item.Name, "arguments": item.Arguments}})
+		}
+		if item.Type == "custom_tool_call" {
+			if item.CallID == "" || item.Name == "" {
+				return Response{}, providerError(ErrorResponse, 0, nil)
+			}
+			arguments, err := json.Marshal(struct {
+				Code string `json:"code"`
+			}{Code: item.Input})
+			if err != nil {
+				return Response{}, err
+			}
+			calls = append(calls, map[string]any{
+				"id": item.CallID, "type": "function",
+				"function":        map[string]any{"name": item.Name, "arguments": string(arguments)},
+				rawJSInputCarrier: item.Input,
+			})
 		}
 		for _, part := range item.Content {
 			if part.Type == "output_text" {

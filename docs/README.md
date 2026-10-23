@@ -37,6 +37,7 @@ v2への更新は[v2移行ガイド](v2-migration.md)、さらに以前のスク
 | NOEをビルド・検証し、実装の構成を知る | [開発ガイド](development/README.md)・[agentの構成](development/agent-architecture.md) |
 | 機能ごとの計画・レビュー・検証を追う | [開発記録の一覧](development/README.md#機能別の計画と検証記録) |
 | 未着手・一部完了の候補を検討する | [次の機能候補](future-candidates.md) |
+| トークン効率改善の実装と測定を追う | [計画](development/token-efficiency-plan.md)・[実装・検証](development/token-efficiency-implementation.md) |
 | txiki.jsとの機能差と改善の着眼点を調べる | [比較調査（2026-10-24）](development/txikijs-comparison-20261024.md) |
 | MVP・旧API・初期インクリメントを調べる | [初期開発の履歴](archive/README.md) |
 | 候補の過去の議論・旧API案を調べる | [検討メモの履歴](archive/future-candidates-history.md) |

@@ -54,7 +54,7 @@ tool handlerは`undefined`で変更なし、上記objectで置換する。
 tool名・call IDは変更できない。tool完了後の置換は実際の終了状態を書き換えない。
 例外はtaskの失敗とし、完了済みtoolやhookを再実行しない。
 
-`beforeTool`の`rawArguments`はモデルが返した元のJSON文字列、`arguments`は解析結果。
+`beforeTool`の`rawArguments`はモデルが返した原文です。JSON toolではJSON文字列、openai-chatgptの生JS toolではJSソース文字列になります。`arguments`はどちらも解析・正規化した`{code: string}`です。
 解析できない場合は`null`を渡し、hookが置換しなければ通常のtool入力エラーとして扱う。
 `run_js`の置換引数は`{code: string}`。`afterTool`の置換結果はJSONにできる値で、
 文字列や要点だけのobjectへまとめることもできる。
@@ -183,9 +183,11 @@ afterから追加されたsteerは最終確定前の確認で扱う。
 `beforeTool` / `afterTool`は個々のtool callに対応する。並列実行しても履歴への
 結果追加はモデルが返したcall順。現在のtoolは`run_js`。
 
+`afterTool`はモデル向け予算を適用する前の結果を受け取ります。加工後の値に既定3 KiBの予算を適用し、超過時は不完全なpreviewへ変換します。詳細は[実行結果](execution-results.md)を参照してください。
+
 `tool.finished`には元の`rawArguments` / `rawResult`、実行用の`arguments`と
 モデル向け`result`を分けて記録する。`run_js`の画像候補は`rawImages`、hook選択後は`images`へ
-metadataのみを記録する。`afterTool`で例外が起きた場合も取得済みの実行結果を保持し、
+metadataのみを記録する。加工値が元結果と異なり、preview化で失われる場合だけ`hookResult`にも制限前の加工値を保存する。`afterTool`で例外が起きた場合も取得済みの実行結果を保持し、
 `modelResultAvailable: false`と`hookError`を記録する。hookが除外した画像は`images`に含めない。
 既存の`run_js.started` / `run_js.finished`は、実際の実行ソースと成功・失敗を示す。
 

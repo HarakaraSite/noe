@@ -92,6 +92,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 自動コンテキスト切り捨て | [計画](context-trimming-plan.md) | [実装記録](context-trimming-implementation.md) |
 | queueの会話継続 | [計画](queue-continuation-plan.md) | [実装記録](queue-continuation-implementation.md) |
 | Vision入力・画像生成 | [計画](agent-images-plan.md)・[スパイク](agent-images-spike.md) | [実装記録](agent-images-implementation.md)・[実接続](agent-images-integration.md) |
+| docs重複・モデル向け出力予算・生JS | [計画・レビュー](token-efficiency-plan.md) | [実装・検証記録](token-efficiency-implementation.md)・[測定結果](token-efficiency-results.json) |
 | agentの責務整理・捕捉出力上限 | [計画](agent-refactor-plan.md) | [実装記録](agent-refactor-implementation.md) |
 
 ## 構造化された検証結果

@@ -2,7 +2,7 @@
 
 [ドキュメント一覧](README.md) · [JS検査](javascript-checks.md) · [API説明](reference.md) · [イベント](events.md)
 
-このページはv2.3.0以降の契約です。v2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
+基本の実行結果はv2.3.0以降の契約です。モデル向け3 KiB制限は次版向けの変更です。v2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
 
 ## run_jsのデータ返却
 
@@ -33,6 +33,27 @@ defaultのPromise/thenableは待機します。default関数は自動で呼び�
 entry/defaultとLoop上の仕事が完了してからJSON化し、JSON化が追加した仕事も同じcontext/Loopで処理してから成功を確定します。JSON化を再実行しないため、その後の値の変更はsnapshotへ反映しません。後続仕事が失敗した場合はdataを破棄します。cleanupだけが失敗した場合は、確定済みdataとcleanup診断を返します。
 未処理例外や取消しによる後続失敗ではdataを破棄します。単にprocess.exitCodeが非zeroとなった場合は、その終了codeを返し、確定できたdataは保持します。dataを途中で切断して成功扱いにしたり、自動で全文artifactを保存したりはしません。大きな成果物はファイルへ保存して、小さな要約とpathを返せます。
 
+## モデル向け出力の3 KiB予算
+
+runnerの結果をafterToolへ渡した後、モデルへ送るJSON全体に既定3 KiB（3,072 UTF-8 bytes）の本文予算を適用します。stdout・stderr・data・diagnosticsと、hookが置換した任意JSONをまとめて数えます。例外内のcommand出力や長いstackも対象です。予算内なら返却形を変えません。超過時は次の専用envelopeになります。
+
+- `outputPreview`: 加工後JSON全体の先頭と末尾。不完全なJSONテキストなので完全なdataとしてparseしない。
+- `outputLimit`: `limitBytes`、`sourceBytes`、`shownBytes`、`omittedBytes`、`returnedBytes`、`complete:false`と絞込みの案内。
+- `execution`: 元runnerの`exitCode`・`reason`と短い`diagnosticSummary`。hookが作った任意fieldとは区別する。
+
+shown/omittedは元の加工後JSONの残したbytesと省いたbytesです。returnedはpreviewと診断summaryの本文bytesで、固定metadataとJSONエスケープは含みません。診断summaryは予算の最大1/4（既定768 bytes）、残りをpreviewに使います。stdout/stderrの既存64 KiB捕捉上限とは別です。JSONLの元結果や公開Go実行APIに、このモデル向け予算は適用しません。
+
+検索結果なら条件や対象を絞り、ファイル名や件数だけ返してから必要箇所を読みます。必要な本文自体が大きい場合は、呼出しごとに予算を明示できます。
+
+```js
+// Read the required HTTP detail.
+// @noe: {"outputBytes": 12288}
+import {docs} from "noe:docs";
+console.log(docs("noe:http", "serve"));
+```
+
+先頭の行コメント群で指定します。操作説明を1行目に残せます。`outputBytes`は正のsafe integerとし、未知field・不正値・重複指定は実行前のsetup診断になります。beforeToolで変更した場合は実効コードの指定を使います。捕捉上限で失った出力は増量しても復元できません。ソースを自動再実行せず、全文artifactも自動保存しません。副作用を確認し、必要なら明示保存したファイルの該当箇所を読みます。
+
 ## 診断の読み方
 
 診断要素は`{code, stage, message, stack?, position?, exception?}`です。
@@ -51,7 +72,7 @@ stageがserializeの場合は、ファイル変更や外部処理を済ませた
 
 ## hook・履歴・観察
 
-runner結果のdata/diagnosticsはafterToolの入力へ渡ります。afterToolによる任意のresult加工は維持し、モデルには加工後の結果を渡します。JSONLの`tool.finished`にrawResultとresultを別々に保存します。hook自体が失敗した場合は既存のhookError/modelResultAvailable経路を使います。
+runner結果のdata/diagnosticsはafterToolの入力へ渡ります。afterToolによる任意のresult加工は維持し、モデルには加工後の結果に上記予算を適用した値を渡します。JSONLの`tool.finished`に`rawResult`と実際のモデル向け`result`を別々に保存します。hookが結果を変更し、超過でその加工値が失われる場合だけ、制限前の値を`hookResult`へ追加保存します。hook自体が失敗した場合は既存のhookError/modelResultAvailable経路を使います。
 
 `run_js.finished`は元のdata/diagnosticsを記録します。agent task自体のsetup/VM/cleanup診断は`execution.diagnostic`へ記録し、agentId・commandIdと、判明している場合だけrunIdを付けます。まだ存在しないrunIdは補いません。
 CLIの観察では診断を別項目に表示します。ログ解析の`includeOutput`はstdout/stderrと返却dataに適用し、diagnosticsは省略しません。起動前の診断などrunIdがないeventは、runIdで絞ったsnapshotには属さず、全体ログ・CLI観察から確認します。

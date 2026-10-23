@@ -12,20 +12,11 @@ Availability: Requires Profile.Modules.RawSockets. Platform support and cancella
 
 Public-definition source: internal/nativeio/net.go, internal/nativeio/js/net.js. Reading this reference evaluates no target module and makes no provider request.
 
-`noe:sockets` exports `connect` and `listen` for raw TCP and Unix stream sockets. These APIs carry bytes through Web Streams; they are distinct from HTTP/WebSocket APIs and from the standard library's WebSocket setting. The module is available in the main runtime and Workers. Open listeners and connections keep the owning runtime active and are reclaimed when it ends.
-
-Socket options use one of these forms:
-
-```js
-{network: "tcp", host: "127.0.0.1", port: 9000, signal?}
-{network: "unix", path: "/tmp/service.sock", signal?}
-```
-
-For TCP, `host` is nonempty and `connect` requires port 1–65535; `listen` also permits port `0` for an OS-selected port. Unix paths are local paths and must fit the operating-system path limit. `signal` cancels only the pending open operation; it does not close an established listener or connection. A Unix listener does not remove a pre-existing path, and forced termination may leave its socket path behind.
+`noe:sockets` exports `connect` and `listen` for raw TCP and Unix stream sockets. These APIs carry bytes through Web Streams; they are distinct from HTTP/WebSocket APIs and from the standard library's WebSocket setting. The module is available in the main runtime and Workers. Open listeners and connections keep the owning runtime active and are reclaimed when it ends. See the selected detail for its address, platform, and cancellation requirements.
 
 ## connect
 
-`connect(options) -> Promise<Connection>` opens a TCP or Unix connection and returns `{readable, writable, close}`. Invalid options throw `TypeError` or `RangeError`; network failures and aborts reject the Promise. The stream directions can be shut down independently; call `close()` in `finally` to release the full connection.
+`connect(options) -> Promise<Connection>` opens a TCP or Unix connection and returns `{readable, writable, close}`. Set `options.network` to `"tcp"` or `"unix"`: use `{network: "tcp", host, port, signal?}` or `{network: "unix", path, signal?}`. For TCP, `host` must be nonempty and `port` must be 1–65535. For Unix sockets, `path` is a local path that must fit the operating-system path limit. An optional `signal` cancels only the pending connection; it does not close an established connection. Invalid options throw `TypeError` or `RangeError`; network failures and aborts reject the Promise. The stream directions can be shut down independently; call `close()` in `finally` to release the full connection.
 
 ```js
 import { connect } from "noe:sockets";
@@ -44,7 +35,7 @@ try {
 
 ## listen
 
-`listen(options) -> Promise<Listener>` binds and returns `{address, accept, close}`. `address` describes the bound network endpoint; for TCP port `0`, read the selected port from `listener.address.port`. Each `accept()` resolves to a `Connection`. Closing the listener cancels pending accepts and prevents new connections; already accepted connections remain open until closed.
+`listen(options) -> Promise<Listener>` binds and returns `{address, accept, close}`. Set `options.network` to `"tcp"` or `"unix"`: use `{network: "tcp", host, port, signal?}` or `{network: "unix", path, signal?}`. For TCP, `host` must be nonempty and `port` must be 0–65535; port `0` asks the OS to select a port. For Unix sockets, `path` is a local path that must fit the operating-system path limit. An optional `signal` cancels only the pending listen; it does not close an established listener. A Unix listener does not remove a pre-existing path, and forced termination may leave its socket path behind. `address` describes the bound network endpoint; for TCP port `0`, read the selected port from `listener.address.port`. Each `accept()` resolves to a `Connection`. Closing the listener cancels pending accepts and prevents new connections; already accepted connections remain open until closed.
 
 ```js
 import { listen } from "noe:sockets";

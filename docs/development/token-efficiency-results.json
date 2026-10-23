@@ -1,0 +1,282 @@
+{
+  "baselineCommit": "46ae6f5",
+  "docs": {
+    "before": {
+      "sourceCommit": "46ae6f5",
+      "binary": "installed NOE v2.3.0",
+      "docs": [
+        {
+          "member": "ReadableStream",
+          "bytes": 5580,
+          "chars": 5580
+        },
+        {
+          "member": "ReadableStream.getReader",
+          "bytes": 5569,
+          "chars": 5569
+        },
+        {
+          "member": "Response",
+          "bytes": 5436,
+          "chars": 5436
+        },
+        {
+          "member": "AbortController",
+          "bytes": 5398,
+          "chars": 5398
+        },
+        {
+          "member": "AbortSignal",
+          "bytes": 5355,
+          "chars": 5355
+        },
+        {
+          "member": "setTimeout",
+          "bytes": 5363,
+          "chars": 5363
+        },
+        {
+          "member": "clearTimeout",
+          "bytes": 5667,
+          "chars": 5667
+        }
+      ],
+      "combinedBytes": 38368,
+      "combinedChars": 38368
+    },
+    "after": {
+      "docs": [
+        {
+          "member": "ReadableStream",
+          "bytes": 1291,
+          "chars": 1291
+        },
+        {
+          "member": "ReadableStream.getReader",
+          "bytes": 1280,
+          "chars": 1280
+        },
+        {
+          "member": "Response",
+          "bytes": 1147,
+          "chars": 1147
+        },
+        {
+          "member": "AbortController",
+          "bytes": 1109,
+          "chars": 1109
+        },
+        {
+          "member": "AbortSignal",
+          "bytes": 1066,
+          "chars": 1066
+        },
+        {
+          "member": "setTimeout",
+          "bytes": 1074,
+          "chars": 1074
+        },
+        {
+          "member": "clearTimeout",
+          "bytes": 1378,
+          "chars": 1378
+        }
+      ],
+      "combinedBytes": 8345,
+      "combinedChars": 8345
+    },
+    "savedBytes": 30023,
+    "savedPercent": 78.25
+  },
+  "live": {
+    "provider": "openai-chatgpt",
+    "model": "gpt-6.1-sol",
+    "effort": "low",
+    "probeBinarySHA256": "f71dc4663942ebfd56e9b0e85308104e2791f303116486454d22b0a081c4a5b6",
+    "artifactDirectory": "/var/tmp/noe-token-efficiency-gmmpzzx5",
+    "cases": [
+      {
+        "name": "live-search",
+        "state": "completed",
+        "answer": "cedar-4729",
+        "modelCalls": 4,
+        "toolCalls": 3,
+        "usage": {
+          "promptTokens": 12583,
+          "completionTokens": 221,
+          "cachedTokens": 6400,
+          "totalTokens": 12804
+        },
+        "perRequestUsage": [
+          {
+            "promptTokens": 1854,
+            "completionTokens": 102,
+            "totalTokens": 1956,
+            "cachedTokens": 0
+          },
+          {
+            "promptTokens": 3084,
+            "completionTokens": 48,
+            "totalTokens": 3132,
+            "cachedTokens": 0
+          },
+          {
+            "promptTokens": 3658,
+            "completionTokens": 62,
+            "totalTokens": 3720,
+            "cachedTokens": 2944
+          },
+          {
+            "promptTokens": 3987,
+            "completionTokens": 9,
+            "totalTokens": 3996,
+            "cachedTokens": 3456
+          }
+        ],
+        "tools": [
+          {
+            "reason": "failed",
+            "exitCode": 1,
+            "source": "// Run the required broad route search and print its unfiltered stdout.\nimport { execFile } from \"node:child_process\";\nconst result = await new Promise((resolve, reject) => execFile(\"rg\", [\"-n\", \"ROUTE\", \"routes.txt\"], {maxBuffer: 32 * 1024 * 1024}, (error, stdout, stderr) => error ? reject(error) : resolve(stdout)));\nconsole.log(result);\n",
+            "rawStdoutBytes": 0,
+            "modelJSONBytes": 3708,
+            "outputLimit": {
+              "limitBytes": 3072,
+              "sourceBytes": 92708,
+              "shownBytes": 3003,
+              "omittedBytes": 89705,
+              "returnedBytes": 3072,
+              "complete": false,
+              "notice": "Incomplete JSON text preview; do not parse it as complete data. For search results, narrow the query or scope, return matching filenames/counts, or read a relevant part. Increase outputBytes explicitly only when the required content itself is larger. The source was not rerun. Original captured output remains in execution logs when enabled."
+            }
+          },
+          {
+            "reason": "completed",
+            "exitCode": 0,
+            "source": "// Inspect the local execFile signature before the focused search.\nimport {docs} from \"noe:docs\";\nconsole.log(docs(\"node:child_process\", \"execFile\"));\n",
+            "rawStdoutBytes": 1207,
+            "modelJSONBytes": 1296,
+            "outputLimit": null
+          },
+          {
+            "reason": "completed",
+            "exitCode": 0,
+            "source": "// Search only the unique TARGET route to retrieve its recovery key.\nimport { execFile } from \"node:child_process\";\nconst {stdout} = await execFile(\"rg\", [\"-n\", \"TARGET\", \"routes.txt\"]);\nconsole.log(stdout);\n",
+            "rawStdoutBytes": 75,
+            "modelJSONBytes": 136,
+            "outputLimit": null
+          }
+        ]
+      },
+      {
+        "name": "live-search-success",
+        "state": "completed",
+        "answer": "cedar-4729",
+        "modelCalls": 3,
+        "toolCalls": 2,
+        "usage": {
+          "promptTokens": 8271,
+          "completionTokens": 121,
+          "cachedTokens": 1664,
+          "totalTokens": 8392
+        },
+        "perRequestUsage": [
+          {
+            "promptTokens": 1870,
+            "completionTokens": 55,
+            "totalTokens": 1925,
+            "cachedTokens": 0
+          },
+          {
+            "promptTokens": 3040,
+            "completionTokens": 57,
+            "totalTokens": 3097,
+            "cachedTokens": 1664
+          },
+          {
+            "promptTokens": 3361,
+            "completionTokens": 9,
+            "totalTokens": 3370,
+            "cachedTokens": 0
+          }
+        ],
+        "tools": [
+          {
+            "reason": "completed",
+            "exitCode": 0,
+            "source": "// Inspect the broad route search output.\nimport {execFile} from \"node:child_process\";\nconst {stdout}=await execFile(\"rg\",[\"-n\",\"ROUTE\",\"routes.txt\"]);\nconsole.log(stdout);\n",
+            "rawStdoutBytes": 65582,
+            "modelJSONBytes": 3664,
+            "outputLimit": {
+              "limitBytes": 3072,
+              "sourceBytes": 66133,
+              "shownBytes": 3053,
+              "omittedBytes": 63080,
+              "returnedBytes": 3072,
+              "complete": false,
+              "notice": "Incomplete JSON text preview; do not parse it as complete data. For search results, narrow the query or scope, return matching filenames/counts, or read a relevant part. Increase outputBytes explicitly only when the required content itself is larger. The source was not rerun. Original captured output remains in execution logs when enabled."
+            }
+          },
+          {
+            "reason": "completed",
+            "exitCode": 0,
+            "source": "// Find only the TARGET route.\nimport {execFile} from \"node:child_process\";\nconst {stdout}=await execFile(\"rg\",[\"-n\",\"\\\\bTARGET\\\\b\",\"routes.txt\"]);\nconsole.log(stdout);\n",
+            "rawStdoutBytes": 75,
+            "modelJSONBytes": 136,
+            "outputLimit": null
+          }
+        ]
+      },
+      {
+        "name": "live-docs",
+        "state": "completed",
+        "answer": "`docs(\"noe:http\", \"serve\")` の全文をツール結果に表示しました。取得した詳細の UTF-8 サイズは **5,922 バイト**です。\n\n文書に記載された終了動作：\n- `server.close()` は**同期的かつ冪等**。新規リクエストの受け付けを停止し、正常終了を最大5秒待ってから、残った HTTP 接続を強制切断します。\n- ランタイム終了、実行タイムアウト、キャンセル、Worker 終了でも、リスナーと稼働中の HTTP 接続が閉じられます。\n- `close()` はレスポンスを消費した後、ハンドラーの外で呼びます。ハンドラー内で呼ぶと、その完了を妨げる場合があります。\n- アップグレード済みの WebSocket は別途閉じる必要があり、`server.close()` では代替できません。",
+        "modelCalls": 2,
+        "toolCalls": 1,
+        "usage": {
+          "promptTokens": 5270,
+          "completionTokens": 305,
+          "cachedTokens": 1792,
+          "totalTokens": 5575
+        },
+        "perRequestUsage": [
+          {
+            "promptTokens": 1831,
+            "completionTokens": 83,
+            "totalTokens": 1914,
+            "cachedTokens": 0
+          },
+          {
+            "promptTokens": 3439,
+            "completionTokens": 222,
+            "totalTokens": 3661,
+            "cachedTokens": 1792
+          }
+        ],
+        "tools": [
+          {
+            "reason": "completed",
+            "exitCode": 0,
+            "source": "// Display the complete bundled HTTP serve documentation and its UTF-8 byte length.\n// @noe: {\"outputBytes\": 24000}\nimport {docs} from \"noe:docs\";\nconst detail = docs(\"noe:http\", \"serve\");\nconsole.log(detail);\nconsole.log(\"UTF-8 bytes:\", new TextEncoder().encode(detail).length);\n",
+            "rawStdoutBytes": 5941,
+            "modelJSONBytes": 6062,
+            "outputLimit": null
+          }
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "fullUnit": "go test ./...: pass; context fixtures updated for explicit larger results",
+    "vet": "go vet -tags=e2e ./...: pass",
+    "targetedE2E": "output/cancellation/docs/context observation: pass; trimming fixtures updated and trimming E2E pass",
+    "apidocs": "go test ./internal/apidocs -count=1 -v: pass",
+    "reviews": "normal and critical plan/implementation reviews: no open Blocker/P1/P2"
+  },
+  "limitations": [
+    "3 KiB counts preview and diagnostic text; fixed metadata and JSON escaping are outside that budget.",
+    "Probe tasks are functional acceptance cases, not a paired token-efficiency benchmark.",
+    "Initial search case failed due to callback-style execFile misuse, recovered by reading docs and narrowing search.",
+    "Live probe binary predates final observation-slice clone and socket/agent/decision/image documentation corrections; affected paths verified by local tests without repeating external inference."
+  ]
+}

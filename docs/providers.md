@@ -90,6 +90,7 @@ SDK側の暗黙のretryは無効のまま、NOE側で上記の再試行だけを
 | `oauthFile` | ChatGPTのJSON credential recordのpath |
 | `oauthFileEnv` | `oauthFile`を上書きする環境変数の名前 |
 | `api` | `chat-completions`または`responses` |
+| `runJSInput` | `run_js`入力形式。`json`（省略時）またはResponses専用の`javascript` |
 | `baseURL` | APIのbase URL。HTTP/HTTPS |
 | `path` | base URLに加えるpath。例：`/chat/completions`、`/responses` |
 | `keyFile` | APIキーファイルのpath |
@@ -103,6 +104,8 @@ SDK側の暗黙のretryは無効のまま、NOE側で上記の再試行だけを
 | `decisionServerURL` | OpenRouter Decisions操作のserver URL。operationが`/api/alpha/decisions`を加える |
 | `imageGeneration` | 画像生成用endpointの`baseURL`・`path`とprovider既定の`parameters` |
 | `models` | model IDごとの項目上書き |
+
+`runJSInput`を`javascript`にすると、Responsesの`run_js`だけをtext custom toolとして送信し、モデルが生成したJavaScript原文をhookの`rawArguments`へ渡します。組込みproviderでは`openai-chatgpt`だけがこの形式を既定で使います。
 
 モデルentryの`catalog`は選択用metadataとして通信設定から分離し、送信パラメータには含めません。
 

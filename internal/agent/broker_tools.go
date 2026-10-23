@@ -31,6 +31,7 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	if requestContext == nil || op == nil || request.RunID == "" || request.Code == nil {
 		return runJSResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid run_js request")
 	}
+	outputBytes, pragmaErr := runJSOutputBytes(*request.Code)
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	valid := run != nil && run.operation == op && run.ctx.Err() == nil && !run.interrupting && !run.finalClosed && !op.closed && !h.closed
@@ -82,6 +83,7 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	}
 	if toolState != nil {
 		toolState.started = true
+		toolState.outputBytes = outputBytes
 	}
 	h.mu.Unlock()
 
@@ -97,6 +99,12 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 		startFields["text"] = comment
 	}
 	h.observeRun("run_js.started", request.RunID, run, startFields)
+	if pragmaErr != nil {
+		result := Result{ExitCode: -1, Reason: "failed"}
+		appendExecutionDiagnostic(&result, pragmaErr, "setup")
+		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
+		return runJSResponse{Result: result}, nil
+	}
 
 	ctx, cancel := context.WithCancel(run.ctx)
 	stopRequest := context.AfterFunc(requestContext, cancel)

@@ -10,11 +10,13 @@ Task recipes are available as details: results, files, commands, imports, http, 
 
 ## run_js
 
-The input is an object with one required property:
+The internal input is an object with one required property. JSON tool providers use this form:
 
 ```json
 {"code":"// Read the embedded API reference.\nimport { docs } from 'noe:docs';\nconsole.log(docs('noe:process', 'spawn'));"}
 ```
+
+The built-in openai-chatgpt provider instead accepts the JavaScript module source directly as a custom tool input, without JSON wrapping or code fences. Hooks still receive parsed `arguments: {code}`; `rawArguments` is the original source on that transport, and the original JSON string on JSON tool transports.
 
 `code` must be a string. NOE's default Policy asks for a short English `//` comment describing the operation on the first line, before imports and executable statements, with no leading blank line. This is a NOE policy, not an API requirement; other hosts supply their own Policy. Agent helpers are not implicitly bound: import them explicitly from noe:agent, just like other ES module APIs.
 
@@ -40,7 +42,18 @@ Diagnostics contain code, stage, message, and available stack/position/exception
 
 Serialization occurs after the entry/default and its owned work complete. Jobs created by successful JSON conversion are checked before final success; the value is not serialized twice. A serialize failure or later job failure may follow completed file writes or external effects. NOE does not replay the source to repair it. If cleanup alone fails after data is finalized, data remains available together with a failure diagnostic.
 
-No data truncation or automatic artifact storage is added. Save large artifacts with the filesystem APIs and return a useful summary/path. Caught exceptions stay caught; printing an error does not make NOE infer an uncaught failure.
+The runner preserves its captured result for hooks and execution events. After afterTool, the model-facing JSON value has a shared default budget of 3 KiB (3072 UTF-8 bytes), including stdout, stderr, data, diagnostics, command exception output, and arbitrary hook results. Values within budget retain their existing shape. Overflow returns an envelope with outputPreview, outputLimit, and original execution status in execution. The preview keeps the beginning and end of the serialized hook result, is incomplete JSON text, and must not be parsed as complete data. outputLimit reports limitBytes, sourceBytes, shownBytes, omittedBytes, returnedBytes, and complete:false. shown/omitted count source JSON bytes; returned counts preview plus diagnostic summary text, excluding fixed metadata and JSON escaping. Capture omissions are separate.
+
+For oversized searches, narrow the query/scope or return filenames/counts, then read relevant parts. When the required content itself is larger, request a per-call budget in the initial line-comment block. Keep the operation comment first:
+
+~~~js
+// Read the required HTTP detail.
+// @noe: {"outputBytes": 12288}
+import {docs} from "noe:docs";
+console.log(docs("noe:http", "serve"));
+~~~
+
+Only outputBytes is accepted, as a positive safe integer. Invalid or duplicate pragmas return a setup diagnostic before execution. Effective code after beforeTool controls this setting. A larger budget does not recover output already omitted by the independent capture limit. NOE does not replay the source or automatically save a full artifact. Check side effects before repeating work. Save large artifacts explicitly with the filesystem APIs and return a useful summary/path. Caught exceptions stay caught; printing an error does not make NOE infer an uncaught failure.
 
 ## files
 

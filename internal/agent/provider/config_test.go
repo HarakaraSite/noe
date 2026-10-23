@@ -80,6 +80,50 @@ func TestExplicitRegistryDefaultsAndLazyConfiguration(t *testing.T) {
 	}
 }
 
+func TestRunJSInputDefaultsAndValidation(t *testing.T) {
+	var embedded definitions
+	if err := json.Unmarshal(defaultDefinitions, &embedded); err != nil {
+		t.Fatal(err)
+	}
+	for providerID, want := range map[string]string{
+		"openrouter": "json", "opencode-go": "json", "openai-chatgpt": "javascript", "openai-api": "json",
+	} {
+		definition, err := decodeDefinition(embedded.Providers[providerID])
+		if err != nil {
+			t.Fatalf("decode %s: %v", providerID, err)
+		}
+		if definition.RunJSInput != want {
+			t.Errorf("%s runJSInput = %q, want %q", providerID, definition.RunJSInput, want)
+		}
+	}
+
+	base := `{"sdk":"openai","auth":"none","api":"responses","baseURL":"http://localhost/v1","path":"/responses"}`
+	var configured map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(base), &configured); err != nil {
+		t.Fatal(err)
+	}
+	configured["runJSInput"] = json.RawMessage(`"javascript"`)
+	data, _ := json.Marshal(configured)
+	definition, err := decodeDefinition(data)
+	if err != nil || definition.RunJSInput != "javascript" {
+		t.Fatalf("explicit JavaScript setting: %+v, %v", definition, err)
+	}
+
+	for _, setting := range []struct {
+		api, format string
+	}{
+		{"responses", "unknown"},
+		{"chat-completions", "javascript"},
+	} {
+		configured["api"], _ = json.Marshal(setting.api)
+		configured["runJSInput"], _ = json.Marshal(setting.format)
+		data, _ = json.Marshal(configured)
+		if _, err := decodeDefinition(data); err == nil {
+			t.Errorf("accepted runJSInput=%q with api=%q", setting.format, setting.api)
+		}
+	}
+}
+
 func TestChatGPTDefaultSessionHeaderAcrossTasks(t *testing.T) {
 	cases := []struct{ run, session, cache string }{
 		{"task-1", "parent-instance", "parent-instance"},

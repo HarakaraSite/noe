@@ -9,7 +9,7 @@ const runJSTool = Object.freeze({
   type: "function",
   function: {
     name: "run_js",
-    description: "Execute a JavaScript ES module with top-level await in a fresh owned runtime. Import agent operations explicitly, for example: import {spawn_agent} from 'noe:agent';. Export a default value to return data after JSON serialization; without a default, data is omitted, while null is returned as data: null. Runtime failures are returned separately in diagnostics. The result includes stdout, stderr, exitCode, and reason. Each output stream retains its first and last 32 KiB and reports omitted bytes when truncated.",
+    description: "Execute a JavaScript ES module with top-level await in a fresh owned runtime. Import agent operations explicitly, for example: import {spawn_agent} from 'noe:agent';. Export default to return JSON data. Results include stdout, stderr, exitCode, reason, and optional data/diagnostics. Model-facing results have a shared 3072-byte budget, including diagnostics and hook results; larger results become explicitly incomplete outputPreview text with outputLimit metadata and original execution status. For oversized searches, narrow scope or return filenames/counts. When the required content itself is larger, add // @noe: {\"outputBytes\": 12288} in the initial line-comment block after the operation comment. Do not blindly rerun side effects to retrieve output. Each captured stream separately retains its first and last 32 KiB. On providers using raw JavaScript input, send the module source itself without JSON or code fences.",
     parameters: {
       type: "object",
       properties: {
@@ -193,7 +193,8 @@ export async function executeToolWithHooks(loaded, event, toolCall, execute, onI
   }
   const fn = toolCall.function;
   const toolName = typeof fn.name === "string" && fn.name.trim() ? fn.name : "<invalid>";
-  const originalArguments = fn.arguments === undefined ? null : fn.arguments;
+  const originalArguments = typeof toolCall._noe_raw_input === "string"
+    ? toolCall._noe_raw_input : (fn.arguments === undefined ? null : fn.arguments);
   const before = await callHooks(loaded, "beforeTool", {
     ...event, toolCallId: toolCall.id, toolName,
     rawArguments: originalArguments, arguments: parsedToolArguments(toolCall),
@@ -239,9 +240,12 @@ export async function executeToolWithHooks(loaded, event, toolCall, execute, onI
   }
   const result = after.changed ? after.event.result : rawResult;
   const images = after.event.images === undefined ? rawImages : validateImageMetadata(after.event.images);
-  await rpc("tool_result", {...report, result, images, modelResultAvailable: true});
+  const recorded = await rpc("tool_result", {...report, result, images, modelResultAvailable: true});
+  if (!isRecord(recorded) || !Object.hasOwn(recorded, "result")) {
+    throw new Error("broker returned an invalid model tool output");
+  }
   if (onImages !== undefined) onImages(images);
-  return result;
+  return recorded.result;
 }
 
 function validateToolCalls(message) {

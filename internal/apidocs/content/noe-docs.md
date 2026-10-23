@@ -16,7 +16,7 @@ Public-definition source: internal/noestdlib/noestdlib.go. Reading this referenc
 
 ### Availability
 
-The module is available in the main runtime and Workers. Topic aliases resolve to the same reference where an alias is listed. Returned member IDs identify sections that can be requested independently. A topic overview includes the shared summary and member list; a member lookup includes the shared summary and only the selected detail.
+The module is available in the main runtime and Workers. Topic aliases resolve to the same reference where an alias is listed. Returned member IDs identify sections that can be requested independently. A topic lookup returns the full overview and member list. A member lookup returns the topic name, short summary, any type-declaration and availability notes, and only the selected detail; it omits the full overview and other member IDs.
 
 ## docs
 

@@ -22,6 +22,8 @@ import { decide } from "noe:decision";
 
 `decide({provider, model, state, questions}) -> Promise<DecisionResponse>` requires all four fields:
 
+When called from a managed task, the request belongs to that task's owner and cancellation scope and consumes its shared provider-call limit.
+
 - `provider` must be `"openrouter"`.
 - `model` must be a nonempty model ID. NOE does not infer a decision model; select it explicitly, for example from `list_models({kind: "decision"})`.
 - `state` is a nonempty string, JSON object, or JSON array.

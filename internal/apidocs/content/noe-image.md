@@ -35,6 +35,8 @@ console.log(metadata.width, metadata.height, metadata.mimeType);
 
 `generate_image({provider, model, prompt, output, parameters?}) -> Promise<GeneratedImage>` requires nonempty `provider`, `model`, `prompt`, and `output`. The provider and model must be explicit; use `list_models({kind: "image"})` to inspect configured candidates. A relative output path is resolved from the current working directory. Optional `parameters` must be a JSON object of provider-specific generation options.
 
+This sends an external provider request and writes the generated image to the requested output path.
+
 Image parameters cannot override transport or identity fields such as `model`, `prompt`, `provider`, `output`, `headers`, `api_key`, `authorization`, `n`, or image input fields. Unknown top-level options, reserved parameter names, non-JSON values, and cyclic data reject with an `ImageError` whose `code` is `"input"`.
 
 The returned object contains image metadata and provider information, including `path`, `mimeType`, `bytes`, `width`, `height`, `provider`, and `model`; `responseModel`, `requestId`, or `usage` may also be present. It does not expose generated image bytes. Provider errors reject with `ImageError`; fields may include `code`, `providerCode`, `providerMessage`, `statusCode`, and `requestId`. The API does not choose credentials or a provider implicitly.

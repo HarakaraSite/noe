@@ -109,6 +109,127 @@ func TestConfiguredResponsesToolCycleKeepsNativeReasoning(t *testing.T) {
 	}
 }
 
+func TestResponsesJavaScriptCustomToolRoundTripWithMixedCalls(t *testing.T) {
+	profile := Definition{API: "responses", RunJSInput: "javascript"}
+	request := Request{
+		Model:    "fixture/model",
+		Messages: []json.RawMessage{json.RawMessage(`{"role":"user","content":"calculate"}`)},
+		Tools: []json.RawMessage{
+			json.RawMessage(`{"type":"function","function":{"name":"run_js","description":"Run JavaScript","parameters":{"type":"object","properties":{"code":{"type":"string"}}}}}`),
+			json.RawMessage(`{"type":"function","function":{"name":"lookup","description":"Look up a value","parameters":{"type":"object"}}}`),
+		},
+	}
+	body, err := configuredResponsesRequestBody(profile, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var outgoing struct {
+		Tools []map[string]json.RawMessage `json:"tools"`
+	}
+	if err := json.Unmarshal(body, &outgoing); err != nil {
+		t.Fatal(err)
+	}
+	if len(outgoing.Tools) != 2 || string(outgoing.Tools[0]["type"]) != `"custom"` || string(outgoing.Tools[0]["name"]) != `"run_js"` || string(outgoing.Tools[0]["description"]) != `"Run JavaScript"` || string(outgoing.Tools[0]["format"]) != `{"type":"text"}` || outgoing.Tools[0]["parameters"] != nil {
+		t.Fatalf("run_js was not sent as a text custom tool: %s", body)
+	}
+	if string(outgoing.Tools[1]["type"]) != `"function"` || string(outgoing.Tools[1]["name"]) != `"lookup"` || outgoing.Tools[1]["parameters"] == nil {
+		t.Fatalf("unrelated function tool changed: %s", body)
+	}
+
+	rawInput := "console.log(\"x\")\nconst result = 42;"
+	output := `[{"id":"rs-1","type":"reasoning","summary":[],"encrypted_content":"opaque-reasoning","provider_extra":{"keep":true}},{"id":"ct-1","type":"custom_tool_call","status":"completed","call_id":"custom-1","name":"run_js","input":` + mustJSON(rawInput) + `,"provider_extra":{"keep":true}},{"id":"fc-1","type":"function_call","status":"completed","call_id":"function-1","name":"lookup","arguments":"{\"query\":\"x\"}","provider_extra":17}]`
+	response, err := responseFromNative(json.RawMessage(nativeResponseFixture(output)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var assistant struct {
+		ToolCalls []struct {
+			ID       string `json:"id"`
+			RawInput string `json:"_noe_raw_input"`
+			Function struct {
+				Name      string `json:"name"`
+				Arguments string `json:"arguments"`
+			} `json:"function"`
+		} `json:"tool_calls"`
+	}
+	if err := json.Unmarshal(response.Message, &assistant); err != nil {
+		t.Fatal(err)
+	}
+	if len(assistant.ToolCalls) != 2 {
+		t.Fatalf("normalized calls: %s", response.Message)
+	}
+	var customArguments struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal([]byte(assistant.ToolCalls[0].Function.Arguments), &customArguments); err != nil {
+		t.Fatal(err)
+	}
+	if assistant.ToolCalls[0].ID != "custom-1" || assistant.ToolCalls[0].Function.Name != "run_js" || assistant.ToolCalls[0].RawInput != rawInput || customArguments.Code != rawInput {
+		t.Fatalf("custom call normalization: %+v arguments=%+v", assistant.ToolCalls[0], customArguments)
+	}
+	if assistant.ToolCalls[1].ID != "function-1" || assistant.ToolCalls[1].Function.Name != "lookup" || assistant.ToolCalls[1].RawInput != "" || assistant.ToolCalls[1].Function.Arguments != `{"query":"x"}` {
+		t.Fatalf("function call changed: %+v", assistant.ToolCalls[1])
+	}
+
+	request.Messages = append(request.Messages, response.Message,
+		json.RawMessage(`{"role":"tool","tool_call_id":"custom-1","content":"custom result"}`),
+		json.RawMessage(`{"role":"tool","tool_call_id":"function-1","content":"function result"}`),
+	)
+	body, err = configuredResponsesRequestBody(profile, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var continuation struct {
+		Input []json.RawMessage `json:"input"`
+	}
+	if err := json.Unmarshal(body, &continuation); err != nil {
+		t.Fatal(err)
+	}
+	if len(continuation.Input) != 6 {
+		t.Fatalf("continuation input has %d items: %s", len(continuation.Input), body)
+	}
+	var nativeCustom struct {
+		Input string `json:"input"`
+	}
+	if json.Unmarshal(continuation.Input[2], &nativeCustom) != nil || nativeCustom.Input != rawInput || !strings.Contains(string(continuation.Input[1]), "opaque-reasoning") || !strings.Contains(string(continuation.Input[1]), `"provider_extra":{"keep":true}`) {
+		t.Fatalf("native output items were not retained: %s", body)
+	}
+	var customOutput, functionOutput struct {
+		Type   string `json:"type"`
+		CallID string `json:"call_id"`
+		Output string `json:"output"`
+	}
+	if err := json.Unmarshal(continuation.Input[4], &customOutput); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(continuation.Input[5], &functionOutput); err != nil {
+		t.Fatal(err)
+	}
+	if customOutput.Type != "custom_tool_call_output" || customOutput.CallID != "custom-1" || customOutput.Output != "custom result" {
+		t.Errorf("custom output did not match its call: %+v", customOutput)
+	}
+	if functionOutput.Type != "function_call_output" || functionOutput.CallID != "function-1" || functionOutput.Output != "function result" {
+		t.Errorf("function output did not match its call: %+v", functionOutput)
+	}
+
+	// An omitted setting remains the existing JSON function-tool contract.
+	legacyBody, err := configuredResponsesRequestBody(Definition{API: "responses"}, Request{
+		Model: "fixture/model", Messages: []json.RawMessage{json.RawMessage(`{"role":"user","content":"calculate"}`)}, Tools: request.Tools,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy struct {
+		Tools []map[string]json.RawMessage `json:"tools"`
+	}
+	if err := json.Unmarshal(legacyBody, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	if len(legacy.Tools) != 2 || string(legacy.Tools[0]["type"]) != `"function"` || string(legacy.Tools[0]["name"]) != `"run_js"` || legacy.Tools[0]["parameters"] == nil {
+		t.Fatalf("default JSON tool contract changed: %s", legacyBody)
+	}
+}
+
 func TestConfiguredChatReasoningContentIsConcatenatedAndReplayed(t *testing.T) {
 	for _, field := range []string{"reasoning_content", "custom_thinking"} {
 		t.Run(field, func(t *testing.T) {

@@ -348,6 +348,7 @@ func TestImageHistoryTrimmingKeepsLatestCompleteExchange(t *testing.T) {
 		}
 		id := fmt.Sprint("tool-", calls)
 		return hookToolReply(map[string]string{id: `// Read an image for this complete history block
+// @noe: {"outputBytes": 65536}
 const {read_image}=await import("noe:image");await read_image(` + string(encoded) + `);`}, id), nil
 	})
 	opts := agentTestOptions(p)

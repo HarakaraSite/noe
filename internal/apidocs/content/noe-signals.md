@@ -12,11 +12,7 @@ Availability: Requires Profile.Modules.Signals. Supported signal names depend on
 
 Public-definition source: internal/nativeio/signals.go, internal/nativeio/js/signals.js. Reading this reference evaluates no target module and makes no provider request.
 
-`noe:signals` exports `subscribe` to receive supported operating-system signals as an async iterator. It is available in the main runtime and Workers. A live subscription keeps its owner active until it is closed or the owner ends. Signal notifications may be coalesced by the operating system or runtime.
-
-On Linux and macOS, supported names are `SIGHUP`, `SIGINT`, `SIGTERM`, `SIGUSR1`, and `SIGUSR2`. On Windows, only `SIGINT` is supported. Other operating systems may expose no names. An unsupported name throws an `Error` with `code === "ERR_UNSUPPORTED_SIGNAL"`.
-
-SIGINT still cancels the NOE CLI; asynchronous cleanup is not guaranteed after an interrupt. A `SIGTERM` subscription suppresses the process's default termination while the subscription is active, including a subscription owned only by a Worker. Closing a Worker reclaims that Worker's subscriptions; coordinate with the main runtime using messages when the whole process should exit. Runtime shutdown closes owned subscriptions without waiting for JavaScript callbacks.
+`noe:signals` exports `subscribe` to receive operating-system signals as an async iterator. It is available in the main runtime and Workers. See `subscribe` for supported names and signal behavior; subscriptions are reclaimed with their owning runtime.
 
 ## subscribe
 
@@ -25,6 +21,8 @@ import { subscribe } from "noe:signals";
 ```
 
 `subscribe(name) -> SignalSubscription` synchronously registers the named signal and returns an async iterator. `name` must be supported on the current operating system.
+
+Linux and macOS support `SIGHUP`, `SIGINT`, `SIGTERM`, `SIGUSR1`, and `SIGUSR2`; Windows supports only `SIGINT`, and other operating systems may expose none. An unsupported name throws an `Error` with `code === "ERR_UNSUPPORTED_SIGNAL"`. A live subscription keeps its owner active until closed. While a `SIGTERM` subscription is active, it suppresses the process's default termination, including when owned only by a Worker. `SIGINT` still cancels the NOE CLI, so asynchronous cleanup is not guaranteed after an interrupt. Closing a Worker reclaims its subscriptions; use messages to coordinate whole-process shutdown.
 
 ```js
 import { subscribe } from "noe:signals";

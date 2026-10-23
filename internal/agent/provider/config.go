@@ -39,6 +39,7 @@ type Definition struct {
 	SessionField      string                     `json:"sessionField"`
 	ReasoningField    string                     `json:"reasoningField"`
 	EffortField       string                     `json:"effortField"`
+	RunJSInput        string                     `json:"runJSInput"`
 	DecisionServerURL string                     `json:"decisionServerURL"`
 	ImageGeneration   *ImageGenerationDefinition `json:"imageGeneration,omitempty"`
 	Models            map[string]json.RawMessage `json:"models"`
@@ -157,6 +158,15 @@ func decodeDefinition(data []byte) (Definition, error) {
 	}
 	if d.API != "chat-completions" && d.API != "responses" {
 		return d, fmt.Errorf("unsupported provider API %q", d.API)
+	}
+	if d.RunJSInput == "" {
+		d.RunJSInput = "json"
+	}
+	if d.RunJSInput != "json" && d.RunJSInput != "javascript" {
+		return d, fmt.Errorf("unsupported run_js input format %q", d.RunJSInput)
+	}
+	if d.RunJSInput == "javascript" && d.API != "responses" {
+		return d, errors.New("JavaScript run_js input requires Responses")
 	}
 	u, err := url.Parse(d.BaseURL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {

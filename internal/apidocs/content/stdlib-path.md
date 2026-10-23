@@ -22,17 +22,19 @@ resolve and relative use process.cwd() when available. This module transforms pa
 
 Syntax: join(...parts) -> string. It joins path segments with the selected flavor's separator and normalizes the result.
 
+In NOE, bare `node:path` uses POSIX rules on every host. Use `node:path/win32` or `node:path/posix` when path syntax must remain stable across hosts.
+
 ~~~js
 import path from "node:path";
 
 const file = path.join("reports", "2026", "summary.txt");
 ~~~
 
-Use node:path/win32 or node:path/posix when a path syntax must remain stable across hosts.
-
 ## resolve
 
 Syntax: resolve(...parts) -> absolutePath. It works from right to left until it finds an absolute segment, then normalizes. If none is absolute, it uses process.cwd() in NOE.
+
+In NOE, bare `node:path` uses POSIX rules on every host. Use `node:path/win32` or `node:path/posix` when path syntax must remain stable across hosts.
 
 ~~~js
 import { resolve } from "node:path";
@@ -44,6 +46,8 @@ const absolute = resolve("data", "input.json");
 
 Syntax: dirname(path) -> string. It returns the directory part using the selected flavor's separator rules.
 
+In NOE, bare `node:path` uses POSIX rules on every host. Use `node:path/win32` or `node:path/posix` when path syntax must remain stable across hosts.
+
 ~~~js
 import { dirname } from "node:path";
 
@@ -54,6 +58,8 @@ console.log(dirname("/work/report.txt")); // /work
 
 Syntax: basename(path, suffix?) -> string. It returns the final path component and removes the optional suffix only when it matches the end.
 
+In NOE, bare `node:path` uses POSIX rules on every host. Use `node:path/win32` or `node:path/posix` when path syntax must remain stable across hosts.
+
 ~~~js
 import { basename } from "node:path";
 
@@ -63,6 +69,8 @@ console.log(basename("/work/report.txt", ".txt")); // report
 ## extname
 
 Syntax: extname(path) -> string. It returns the final component's extension, including its leading dot, or an empty string if there is no extension.
+
+In NOE, bare `node:path` uses POSIX rules on every host. Use `node:path/win32` or `node:path/posix` when path syntax must remain stable across hosts.
 
 ~~~js
 import { extname } from "node:path";

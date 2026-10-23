@@ -57,6 +57,8 @@ Built-in agent providers retry transient transport failures, HTTP 429/5xx, and i
 
 `run_agent(config, instruction, options?) -> Promise<AgentSnapshot>` starts one task and waits until its instance stops and cleanup completes. `instruction` must be a nonempty string. `options` supports `{keepAlive?: boolean, allowDelegation?: boolean}`. `keepAlive` defaults to `false`.
 
+A root call must provide `provider`, `model`, and `effort`; a child inherits omitted values from its parent. Model requests use the configured provider and may incur cost.
+
 `allowDelegation` controls whether the launched instance may start children. It defaults to `true` for a root and `false` for a child. The owner must explicitly pass `{allowDelegation:true}` in the third argument to grant a child permission to delegate. The permission is frozen at launch and is not inherited by the next generation. The shared Go operation checks the caller before admitting any launch, including hook calls. An unauthorized caller cannot grant itself permission by setting this option on its attempted child. Rejection affects that request without starting an instance, consuming an agent-start allowance, or stopping its group.
 
 With `keepAlive: true`, `run_agent` remains pending until that instance is stopped. Use `spawn_agent` when you need to manage or queue work while it is running. Task outcomes with `state: "failed"` or `"cancelled"` are returned in `snapshot.lastResult`; the Promise is for task acceptance/lifecycle, not task success alone.
@@ -78,6 +80,8 @@ if (snapshot.lastResult?.state === "completed") {
 ## spawn_agent
 
 `spawn_agent(config?, instruction?, options?) -> Promise<{agentId, commandId?}>` returns after the instance is created and an initial task, if supplied, is accepted. `commandId` identifies the initial task and is absent for an idle launch. It does not wait for the first model response or task completion. If `keepAlive` is false (the default), `instruction` is required. With `keepAlive: true`, omit `instruction` to start an idle instance, or provide an initial task.
+
+A root launch requires `provider`, `model`, and `effort`; a child inherits omitted values from its parent. Running accepted work uses the configured provider and may incur cost.
 
 The new instance belongs to the current owner. A fresh instance has its own conversation and system instructions. A new child inherits provider, model, effort, maxTokens, hooks, contextBudget, and contextPolicy when those fields are omitted; it does not inherit name, system, maxSteps, or cacheKey. Root execution limits remain shared and cannot be overridden by a child.
 

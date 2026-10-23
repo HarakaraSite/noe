@@ -108,6 +108,7 @@ func TestContextPolicyAndModelBudgetInheritAcrossRunJSProcesses(t *testing.T) {
 					switch n {
 					case 1:
 						return hookToolReply(map[string]string{"parent-old": `// Emit the oldest large parent block.
+// @noe: {"outputBytes": 65536}
 console.log("PARENT_OLD_TOOL_BLOCK");`}, "parent-old"), nil
 					case 2, 3:
 						id := fmt.Sprintf("parent-%d", n)
@@ -128,6 +129,7 @@ console.log("PARENT_CHILD:child completed");`
 					switch n {
 					case 1:
 						return hookToolReply(map[string]string{"child-old": `// Emit the oldest large child block.
+// @noe: {"outputBytes": 65536}
 console.log("CHILD_OLD_BLOCK:"+"c".repeat(32000));`}, "child-old"), nil
 					case 2, 3:
 						id := fmt.Sprintf("child-%d", n)

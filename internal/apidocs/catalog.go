@@ -149,7 +149,7 @@ func Lookup(topic, member string) (string, error) {
 	}
 	if member != "" {
 		if detail, ok := e.details[member]; ok {
-			return e.overview + "\n" + detail, nil
+			return memberContext(e) + detail, nil
 		}
 		return "", fmt.Errorf("API reference detail %q not found in %s; use noe docs %s for available details (a missing detail does not imply an unsupported API)", member, e.info.ID, e.info.ID)
 	}
@@ -163,4 +163,31 @@ func Lookup(topic, member string) (string, error) {
 		fmt.Fprintf(&b, "\nCLI: `noe docs %s MEMBER`\n\nJavaScript: `docs(%q, \"MEMBER\")`\n", e.info.ID, e.info.ID)
 	}
 	return b.String(), nil
+}
+
+// memberContext keeps the compact usage context needed to interpret a detail.
+// The full overview remains available through Lookup(topic, "").
+func memberContext(e *entry) string {
+	title := "# " + e.info.ID
+	var conditions []string
+	for _, line := range strings.Split(e.overview, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "# ") {
+			title = line
+		}
+		if strings.HasPrefix(line, "Type declarations:") || strings.HasPrefix(line, "Availability:") {
+			conditions = append(conditions, line)
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString(title)
+	b.WriteString("\n\n")
+	b.WriteString(e.info.Summary)
+	if len(conditions) > 0 {
+		b.WriteString("\n\n")
+		b.WriteString(strings.Join(conditions, "\n"))
+	}
+	b.WriteString("\n\n")
+	return b.String()
 }

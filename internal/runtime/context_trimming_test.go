@@ -178,7 +178,11 @@ console.log(result.answers.q.choice);`, payload)
 		defer mu.Unlock()
 		calls++
 		if calls <= 2 {
-			return provider.Response{Message: json.RawMessage(fmt.Sprintf(`{"role":"assistant","tool_calls":[{"id":"c%d","type":"function","function":{"name":"run_js","arguments":"invalid"}}]}`, calls)), FinishReason: "tool_calls"}, nil
+			// Keep the synthetic history large enough to exercise trimming before the decision.
+			id := fmt.Sprintf("c%d", calls)
+			return hookToolReply(map[string]string{id: `// Prepare the synthetic history block.
+// @noe: {"outputBytes": 65536}
+export default null;`}, id), nil
 		}
 		if calls == 3 {
 			if trims == 0 {

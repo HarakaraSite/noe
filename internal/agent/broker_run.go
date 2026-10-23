@@ -63,6 +63,7 @@ type modelStepState struct {
 
 type toolCallState struct {
 	name           string
+	outputBytes    int64
 	activityID     string
 	started        bool
 	resultRecorded bool

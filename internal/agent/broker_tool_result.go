@@ -43,6 +43,20 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 		h.mu.Unlock()
 		return nil, newOperationError(http.StatusConflict, "tool_call", "unknown or completed tool call")
 	}
+	modelResultAvailable := request.ModelResultAvailable == nil || *request.ModelResultAvailable
+	modelResult := json.RawMessage("null")
+	var hookResult json.RawMessage
+	if modelResultAvailable {
+		projected, truncated, err := projectToolOutput(request.Result, request.RawResult, toolState.outputBytes)
+		if err != nil {
+			h.mu.Unlock()
+			return nil, newOperationError(http.StatusInternalServerError, "tool_output", err.Error())
+		}
+		modelResult = projected
+		if truncated && !sameToolOutput(request.Result, request.RawResult) {
+			hookResult = cloneRawJSON(request.Result)
+		}
+	}
 	if toolState.activityID == "" {
 		activityID, err := randomID()
 		if err != nil {
@@ -75,16 +89,7 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 	activityID := toolState.activityID
 	requestID := run.modelStep.requestID
 	requestActivityID := run.modelStep.requestActivityID
-	modelResultAvailable := true
-	if request.ModelResultAvailable != nil {
-		modelResultAvailable = *request.ModelResultAvailable
-	}
 	h.mu.Unlock()
-
-	modelResult := cloneRawJSON(request.Result)
-	if !modelResultAvailable {
-		modelResult = json.RawMessage("null")
-	}
 	fields := events.Event{
 		"modelStepId":  request.ModelStepID,
 		"requestId":    requestID,
@@ -94,11 +99,14 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 		"arguments":    cloneRawJSON(request.Arguments),
 		"rawResult":    cloneRawJSON(request.RawResult),
 		"rawImages":    request.RawImages, "images": imageMetadata(selected),
-		"result":               modelResult,
+		"result":               cloneRawJSON(modelResult),
 		"modelResultAvailable": modelResultAvailable,
 	}
 	if request.HookError != "" {
 		fields["hookError"] = request.HookError
+	}
+	if hookResult != nil {
+		fields["hookResult"] = hookResult
 	}
 	if requestID != "" {
 		fields["requestId"] = requestID
@@ -116,7 +124,7 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 		fields["toolExecution"] = facts
 	}
 	h.observeRun("tool.finished", run.id, run, fields)
-	return map[string]any{"recorded": true}, nil
+	return map[string]any{"recorded": true, "result": modelResult}, nil
 }
 
 func cloneRawJSON(raw json.RawMessage) json.RawMessage {

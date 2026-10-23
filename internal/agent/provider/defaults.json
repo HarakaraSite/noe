@@ -160,6 +160,7 @@
       "sessionHeader": "session_id",
       "sessionField": "prompt_cache_key",
       "effortField": "reasoning.effort",
+      "runJSInput": "javascript",
       "models": {
         "gpt-6.1-sol": {
           "catalog": {

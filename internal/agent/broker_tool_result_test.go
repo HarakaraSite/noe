@@ -17,7 +17,15 @@ func TestToolResultObservationKeepsRawAndEffectiveExecutionResult(t *testing.T) 
 		}, nil
 	}}
 	observed := make(chan events.Event, 64)
-	h := NewHost(Options{Models: modelsWithChat(fixture), Observe: func(event events.Event) { observed <- event }})
+	h := NewHost(Options{Models: modelsWithChat(fixture), Observe: func(event events.Event) {
+		if event["type"] == "tool.finished" {
+			value := event["result"].(json.RawMessage)
+			event["result"] = cloneRawJSON(value)
+			// A consumer may edit its observation; it must not alter the RPC result.
+			copy(value, []byte(`{"summary":99}`))
+		}
+		observed <- event
+	}})
 	t.Cleanup(h.Close)
 	op := h.NewOperation(context.Background())
 	t.Cleanup(op.Close)
@@ -33,7 +41,7 @@ func TestToolResultObservationKeepsRawAndEffectiveExecutionResult(t *testing.T) 
 	lifecycleCall(t, op, "model", request)
 	_ = takeCausalityEvent(t, observed, "model.started")
 	_ = takeCausalityEvent(t, observed, "model.finished")
-	lifecycleCall(t, op, "tool_result", toolResultRequest{
+	response := lifecycleCall(t, op, "tool_result", toolResultRequest{
 		RunID: runID, ModelStepID: stepID, ToolCallID: "call-1", ToolName: "run_js",
 		RawArguments:         json.RawMessage(`{"code":"export default {answer:42}"}`),
 		Arguments:            json.RawMessage(`{"code":"export default {answer:42}"}`),
@@ -41,6 +49,12 @@ func TestToolResultObservationKeepsRawAndEffectiveExecutionResult(t *testing.T) 
 		Result:               json.RawMessage(`{"summary":42}`),
 		ModelResultAvailable: boolPointer(true),
 	})
+	var reply struct {
+		Result json.RawMessage `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(response), &reply); err != nil || string(reply.Result) != `{"summary":42}` {
+		t.Fatalf("observer changed model-facing result: %s err=%v", response, err)
+	}
 	event := takeCausalityEvent(t, observed, "tool.finished")
 	encoded, err := json.Marshal(event)
 	if err != nil {

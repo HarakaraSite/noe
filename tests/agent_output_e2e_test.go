@@ -47,6 +47,34 @@ func checkTruncatedToolResult(t *testing.T, result agentExecutionResult, exit in
 	}
 }
 
+type modelOutputPreview struct {
+	OutputPreview string `json:"outputPreview"`
+	OutputLimit   struct {
+		LimitBytes    int  `json:"limitBytes"`
+		SourceBytes   int  `json:"sourceBytes"`
+		ShownBytes    int  `json:"shownBytes"`
+		OmittedBytes  int  `json:"omittedBytes"`
+		ReturnedBytes int  `json:"returnedBytes"`
+		Complete      bool `json:"complete"`
+	} `json:"outputLimit"`
+	Execution struct {
+		ExitCode int    `json:"exitCode"`
+		Reason   string `json:"reason"`
+	} `json:"execution"`
+}
+
+func checkModelOutputPreview(t *testing.T, result modelOutputPreview, exit int) {
+	t.Helper()
+	reason := "completed"
+	if exit != 0 {
+		reason = "failed"
+	}
+	limit := result.OutputLimit
+	if result.Execution.ExitCode != exit || result.Execution.Reason != reason || limit.LimitBytes != 3072 || limit.ReturnedBytes > 3072 || limit.OmittedBytes <= 0 || limit.Complete || limit.ShownBytes+limit.OmittedBytes != limit.SourceBytes {
+		t.Errorf("incorrect model projection: %+v", result)
+	}
+}
+
 func TestAgentOutputTruncationReachesHooksModelAndEvents(t *testing.T) {
 	for _, exit := range []int{0, 7} {
 		t.Run(fmt.Sprintf("exit=%d", exit), func(t *testing.T) {
@@ -56,7 +84,7 @@ func TestAgentOutputTruncationReachesHooksModelAndEvents(t *testing.T) {
   if (!event.result.stdout.includes("OUT-TAIL") || !event.result.stderr.includes("ERR-TAIL")) throw Error("missing output tail");
   return {result:{...event.result,hookSawTruncation:true}};
 }`)
-			observed := make(chan agentExecutionResult, 1)
+			observed := make(chan modelOutputPreview, 1)
 			server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 				if len(req.Messages) == 2 {
 					return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("verbose", verboseToolSource+fmt.Sprintf("process.exit(%d);", exit))}}}, FinishReason: "tool_calls"}
@@ -65,13 +93,17 @@ func TestAgentOutputTruncationReachesHooksModelAndEvents(t *testing.T) {
 					if message.Role != "tool" {
 						continue
 					}
-					result := agentToolResult(t, message)
 					var text string
 					_ = json.Unmarshal(message.Content, &text)
-					if !strings.Contains(text, `"hookSawTruncation":true`) {
-						t.Error("model did not receive hook result")
+					var preview modelOutputPreview
+					if err := json.Unmarshal([]byte(text), &preview); err != nil {
+						t.Fatal(err)
 					}
-					observed <- result
+					checkModelOutputPreview(t, preview, exit)
+					if !strings.Contains(preview.OutputPreview, `"hookSawTruncation":true`) {
+						t.Error("model did not receive hook result preview tail")
+					}
+					observed <- preview
 					return agentModelReply{Content: "output inspected"}
 				}
 				t.Error("missing model tool result")
@@ -85,7 +117,7 @@ func TestAgentOutputTruncationReachesHooksModelAndEvents(t *testing.T) {
 			requireExit(t, result, 0)
 			select {
 			case received := <-observed:
-				checkTruncatedToolResult(t, received, exit)
+				checkModelOutputPreview(t, received, exit)
 			default:
 				t.Fatal("model did not receive a captured result")
 			}
@@ -99,7 +131,8 @@ func TestAgentOutputTruncationReachesHooksModelAndEvents(t *testing.T) {
 					StdoutOmittedBytes int64                `json:"stdoutOmittedBytes"`
 					StderrOmittedBytes int64                `json:"stderrOmittedBytes"`
 					RawResult          agentExecutionResult `json:"rawResult"`
-					Result             agentExecutionResult `json:"result"`
+					Result             modelOutputPreview   `json:"result"`
+					HookResult         agentExecutionResult `json:"hookResult"`
 				}
 				if err := json.Unmarshal([]byte(line), &record); err != nil {
 					t.Fatal(err)
@@ -119,7 +152,8 @@ func TestAgentOutputTruncationReachesHooksModelAndEvents(t *testing.T) {
 					seen[record.Type] = true
 				case "tool.finished":
 					checkTruncatedToolResult(t, record.RawResult, exit)
-					checkTruncatedToolResult(t, record.Result, exit)
+					checkModelOutputPreview(t, record.Result, exit)
+					checkTruncatedToolResult(t, record.HookResult, exit)
 					seen[record.Type] = true
 				}
 			}
