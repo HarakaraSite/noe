@@ -13,10 +13,11 @@ import (
 	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 	agentobservation "forge.harakara.site/littleisland/noe/v2/internal/observation"
 )
 
-func runObserve(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+func runObserve(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode int) {
 	flags := flag.NewFlagSet("noe observe", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	runID := flags.String("run", "", "select a run ID")
@@ -37,6 +38,14 @@ func runObserve(ctx context.Context, args []string, stdin io.Reader, stdout, std
 	if flags.NArg() == 1 {
 		path = flags.Arg(0)
 	}
+	output := newOutputAdapter(stdout)
+	defer func() {
+		if err := output.Close(); err != nil && ctx.Err() == nil {
+			fmt.Fprintln(stderr, "noe observe: close output:", err)
+			exitCode = 1
+		}
+	}()
+	display := observeOutput{ctx: ctx, output: output}
 	if *structured {
 		if path == "-" || *runID == "" || *follow {
 			fmt.Fprintln(stderr, "noe observe: --json requires --run and an events file; --follow is for terminal display")
@@ -44,14 +53,10 @@ func runObserve(ctx context.Context, args []string, stdin io.Reader, stdout, std
 		}
 		snapshot, err := agentobservation.Observe(ctx, agentobservation.Query{LogPath: path, RunID: *runID, Wait: *wait})
 		if err == nil {
-			err = json.NewEncoder(stdout).Encode(snapshot)
+			err = json.NewEncoder(display).Encode(snapshot)
 		}
 		if err != nil {
-			fmt.Fprintln(stderr, "noe observe:", err)
-			if ctx.Err() != nil {
-				return 130
-			}
-			return 1
+			return observeError(ctx, stderr, err)
 		}
 		return 0
 	}
@@ -69,7 +74,7 @@ func runObserve(ctx context.Context, args []string, stdin io.Reader, stdout, std
 		defer file.Close()
 		input = file
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	readCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	type item struct {
 		event events.Event
@@ -78,49 +83,80 @@ func runObserve(ctx context.Context, args []string, stdin io.Reader, stdout, std
 	items := make(chan item, 8)
 	go func() {
 		defer close(items)
-		err := readObservationEvents(ctx, input, *follow && path != "-", func(event events.Event) error {
+		err := readObservationEvents(readCtx, input, *follow && path != "-", func(event events.Event) error {
 			select {
 			case items <- item{event: event}:
 				return nil
-			case <-ctx.Done():
-				return ctx.Err()
+			case <-readCtx.Done():
+				return readCtx.Err()
 			}
 		})
 		if err != nil {
 			select {
 			case items <- item{err: err}:
-			case <-ctx.Done():
+			case <-readCtx.Done():
 			}
 		}
 	}()
 	renderer := newAgentRenderer(stdout)
+	// Measure the original destination before replacing it with the context
+	// writer, so terminal width detection keeps seeing the borrowed *os.File.
+	renderer.out = display
 	for {
 		select {
 		case <-ctx.Done():
-			_ = renderer.finish()
 			return 130
 		case entry, ok := <-items:
 			if !ok {
 				if err := renderer.finish(); err != nil {
-					fmt.Fprintln(stderr, "noe observe:", err)
-					return 1
+					return observeError(ctx, stderr, err)
+				}
+				if ctx.Err() != nil {
+					return 130
 				}
 				return 0
 			}
 			if entry.err != nil {
-				_ = renderer.finish()
-				fmt.Fprintln(stderr, "noe observe:", entry.err)
-				return 1
+				return observeError(ctx, stderr, errors.Join(entry.err, renderer.finish()))
 			}
 			if *runID != "" && entry.event["runId"] != *runID {
 				continue
 			}
 			if err := renderer.render(entry.event); err != nil {
-				fmt.Fprintln(stderr, "noe observe:", err)
-				return 1
+				return observeError(ctx, stderr, err)
 			}
 		}
 	}
+}
+
+// observeOutput opts files and ContextWriters into cancellable writes. A plain
+// custom io.Writer retains synchronous Write behavior; it is never rejected or
+// left writing in a detached goroutine. The adapter owns only its duplicates.
+type observeOutput struct {
+	ctx    context.Context
+	output *outputAdapter
+}
+
+func (w observeOutput) Write(p []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
+	n, err := w.output.WriteContext(w.ctx, p)
+	if n == 0 && errors.Is(err, hostio.ErrUnsupported) {
+		if err := w.ctx.Err(); err != nil {
+			return 0, err
+		}
+		return w.output.Write(p)
+	}
+	return n, err
+}
+
+func observeError(ctx context.Context, stderr io.Writer, err error) int {
+	if ctx.Err() != nil {
+		return 130
+	}
+	fmt.Fprintln(stderr, "noe observe:", err)
+	return 1
 }
 
 // A file follower retains a partial row across EOF. Stdin ends at EOF, while

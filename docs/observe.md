@@ -126,6 +126,10 @@ agent idle
 
 標準入力はEOFまで逐次読み、EOFで終了します。`--follow`はファイルへの追記を待ち、Ctrl+Cで終了します。追記途中の行は改行が届くまで保持します。通常表示はJSONLのままではなく、元のJSONLファイルを書き換えることもありません。
 
+単独の`noe observe`は、stdoutへの書込みがpipe等で待機している間もCtrl+Cで取り消し、
+終了コード130を返します。通常表示・最後の改行・`--json`の出力が対象です。
+取消した時点で出力を止めるため、表示やJSONが途中までになる場合があります。
+
 ## 親向け：observe_agent
 
 `noe:agent`の`observe_agent`は、live agent instanceのsnapshotと、既存JSONLの観察に使えます。二つのtargetは別形式で、同じ呼出しへ混在させません。

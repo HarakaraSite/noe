@@ -52,6 +52,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
 | 上流修正待ち：ES module内のブロック関数宣言が消える不具合 | [再現・原因・回避方法](dependency-updates.md#上流修正待ちes-module内のブロック関数宣言--2026-10-24) |
+| 単独noe observeの出力待機中の取消し | [修正・検証記録](observe-cancellation.md) |
 | go-quickjs v0.28.0の取り込み | [計画・レビュー・検証記録](go-quickjs-v0.28.0-plan.md) |
 | 配布対象・品質確認・公開手順 | [リリースチェックポイント](../releases/release-checkpoints.md) |
 

@@ -18,6 +18,7 @@ FSはlstat/readlink/unlinkだけでなく、同原因のrm・renameも対象と�
 
 - Root外へのリンクと不存在宛先を組み合わせた新規作成の迂回。dangling symlinkも含めた別の修正単位とする。本作業でFS.Rootの完全な封じ込めやTOCTOU解決を主張しない。
 - standalone `noe observe`の出力詰まり時の取消し。custom writerとの互換性を含む別の修正単位とする。
+  2026-10-24に別件として対応した。[修正・検証記録](observe-cancellation.md)を参照。
 - 新機能の追加、大規模なリファクタ、依存更新、外部providerへの実接続、タグ作成・公開。
 
 ## 実施手順・受入条件
