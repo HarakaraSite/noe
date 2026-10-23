@@ -5,12 +5,22 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to build and publish
+        required: true
+        type: string
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || forgejo.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -18,36 +28,14 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      # Render only portable, non-interactive test/vet gates here. Reference-host
-      # race, PTY/TTY, tmux/fzf, GUI, and real-data checks are pre-tag evidence.
-      - name: Verify unit tests
-        run: |
-          set -euo pipefail
-          CGO_ENABLED=0 go test ./...
-
-      - name: Verify managed engine
-        run: |
-          set -euo pipefail
-          cd third_party/go-quickjs
-          GOWORK=off CGO_ENABLED=0 go test ./...
-
-      - name: Vet
-        run: |
-          set -euo pipefail
-          CGO_ENABLED=0 go vet ./...
-
-      - name: Vet managed engine
-        run: |
-          set -euo pipefail
-          cd third_party/go-quickjs
-          GOWORK=off CGO_ENABLED=0 go vet ./...
-
+      # Source tests and release verification are completed locally before tagging.
+      # CI builds and publishes the selected immutable tag without repeating them.
       - name: Build binaries
         id: build
         run: |
           set -euo pipefail
           mkdir -p dist
-          LDFLAGS='-s -w -X forge.harakara.site/littleisland/noe/v2/internal/cli.Version=${{ forgejo.ref_name }}'
+          LDFLAGS="-s -w -X forge.harakara.site/littleisland/noe/v2/internal/cli.Version=$RELEASE_TAG"
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/noe-linux-amd64 ./cmd/noe
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o dist/noe-linux-arm64 ./cmd/noe
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/noe-darwin-amd64 ./cmd/noe
@@ -64,6 +52,6 @@ jobs:
           url: ${{ forgejo.server_url }}
           repo: ${{ forgejo.repository }}
           token: ${{ forgejo.token }}
-          tag: ${{ forgejo.ref_name }}
+          tag: ${{ env.RELEASE_TAG }}
           release-dir: dist
-          release-notes: ${{ format('Release {0}', forgejo.ref_name) }}
+          release-notes: ${{ format('Release {0}', env.RELEASE_TAG) }}

@@ -8,13 +8,20 @@ The `v1.0.0` evidence below refers to the listed release commits. It predates th
 
 ## Distribution gate
 
-The Forgejo workflow generated from this profile runs the following on the confirmed `ubuntu-latest` runner when a `v*` tag is pushed:
+The Forgejo workflow builds and publishes a selected release tag on the
+confirmed `ubuntu-latest` runner. A `v*` push selects that tag; manual dispatch
+accepts an existing release tag for recovery without moving it.
 
-1. Set up the Go version specified in `go.mod` (currently 1.27.2).
-2. Run `CGO_ENABLED=0 go test ./...` and `CGO_ENABLED=0 go vet ./...` in the root and, since v2.2.0, in the independent `third_party/go-quickjs` module (`GOWORK=off`).
-3. Build `./cmd/noe` with CGO disabled, `-trimpath`, and the profile's ldflags. Embed the tag in `forge.harakara.site/littleisland/noe/v2/internal/cli.Version`.
-4. Produce `noe-linux-amd64`, `noe-linux-arm64`, `noe-darwin-amd64`, `noe-darwin-arm64`, `noe-windows-amd64.exe`, and `noe-windows-arm64.exe`, plus `SHA256SUMS`.
-5. Upload the binaries and checksums on success using `actions/forgejo-release@v2` and the automatic `forgejo.token`.
+1. Check out the selected tag and set up the Go version in go.mod.
+2. Build the six distribution binaries with CGO disabled and the tag embedded.
+3. Create SHA256SUMS and upload binaries plus checksums using the workflow token.
+
+Source tests and release verification are local; CI does not repeat them.
+The required order is **local changes → tests → release verification → light CI**.
+Release verification is normally light and reuses valid implementation evidence.
+Expand it only where the actual changes require additional coverage. It is not
+an automatic second full unit/E2E/race/long-wait run. Distribution builds are CI
+work; local six-target compilation is used only for relevant portability changes.
 
 The uploader creates a non-draft Release within the existing repository visibility; it does not make a private repository public. Failed gates or builds must leave their output in native Actions logs and must not publish Release assets.
 
@@ -22,7 +29,7 @@ The `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`, `v1.3.1`, `v1.3.2`, `v1.3.3`, `v1.4.
 
 ## Reference checks before tagging
 
-Run these commands from the repository root on VM201 (Linux amd64, Go 1.27.2, C toolchain), and record the code revision and results here before tagging:
+The commands below are a reference toolbox, not a checklist to rerun for every release. Select checks from the actual delta and reuse completed implementation evidence for unchanged code. Record the selected source revision, results and reasons before tagging. The reference host is VM201 (Linux amd64, Go 1.27.2, C toolchain):
 
 ```sh
 CGO_ENABLED=1 go test -race ./internal/... ./stdlib/... ./agent/... -count=1
@@ -1547,3 +1554,20 @@ binaries. Native execution is Linux amd64 only. Exact commands and logs:
 `/var/tmp/noe-v2.2.0-release-20261023-171109/reference-results.json`.
 Publication, downloaded assets and actual NOE module retrieval are recorded
 after the tag, without moving published tags.
+
+## v2.2.0 CI scope correction — 2026-10-23
+
+The first tag workflow (run 31 / API 212, job 233) failed because the added
+engine-wide gate included a CPU-affinity benchmark-tool test requiring taskset
+or numactl, absent on the runner. This was an overly broad release gate, not a
+runtime regression. No release assets were published by that failed run.
+
+The user clarified the required flow: local changes, tests, normally light
+release verification (expanded when warranted), then lightweight CI. Local and
+CI verification must not duplicate each other. The CI source-test/vet gates
+were removed; already successful local evidence is reused. Future releases
+must not repeat a full reference suite by default. The corrected workflow can
+build and publish an existing immutable tag by manual dispatch, so v2.2.0 and
+the engine tag remain unchanged. No application source or test assertion was
+modified to make this correction. Only YAML/expression/Bash syntax is checked
+locally for this workflow change; source suites are not rerun.

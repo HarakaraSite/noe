@@ -12,14 +12,14 @@ release:
   url_expression: ${{ forgejo.server_url }}
   repository_expression: ${{ forgejo.repository }}
   token_expression: ${{ forgejo.token }}
-  tag_expression: ${{ forgejo.ref_name }}
-  notes_expression: ${{ format('Release {0}', forgejo.ref_name) }}
+  tag_expression: ${{ inputs.release_tag || forgejo.ref_name }}
+  notes_expression: ${{ format('Release {0}', inputs.release_tag || forgejo.ref_name) }}
 
 build:
   product: noe
   package: ./cmd/noe
   cgo_enabled: false
-  ldflags: '-s -w -X forge.harakara.site/littleisland/noe/v2/internal/cli.Version=${{ forgejo.ref_name }}'
+  ldflags: '-s -w -X forge.harakara.site/littleisland/noe/v2/internal/cli.Version=$RELEASE_TAG'
   targets:
     - linux/amd64
     - linux/arm64
@@ -29,14 +29,15 @@ build:
     - windows/arm64
 
 quality:
-  test_command: CGO_ENABLED=0 go test ./... && (cd third_party/go-quickjs && GOWORK=off CGO_ENABLED=0 go test ./...)
-  vet_command: CGO_ENABLED=0 go vet ./... && (cd third_party/go-quickjs && GOWORK=off CGO_ENABLED=0 go vet ./...)
   checksums: true
 
 diagnostics:
   mode: native-actions-logs
 
+# Local change -> tests -> impact-based release verification -> lightweight CI.
+# Reuse valid implementation evidence; do not rerun the same checks in CI.
 pre_release:
+  validation_policy: reuse existing implementation evidence; release verification is normally light and expands only for affected behavior
   reference_environment: VM201, Linux amd64, Go 1.27.2, C toolchain
   reference_checks:
     - name: race
