@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -82,4 +83,65 @@ func TestWorkerInitializerFailureLeavesParentOutputUsable(t *testing.T) {
 		t.Fatalf("result=%+v err=%v output=%q init=%d cleanup=%d", result, err, output.String(), initialized.Load(), cleaned.Load())
 	}
 	output.WriteString(";borrowed alive")
+}
+
+// Closing parentPort ends messaging, not the Worker. Neither its exit event
+// nor the managed owner's return may precede its initializer cleanup.
+func TestWorkerPortCloseWaitsForCleanup(t *testing.T) {
+	for _, waitForExit := range []bool{false, true} {
+		t.Run(fmt.Sprintf("waitForExit=%t", waitForExit), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			cleanupEntered, releaseCleanup, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			var releaseOnce sync.Once
+			var cleaned atomic.Bool
+			var result stdlib.Result
+			var executionErr error
+			profile := stdlib.Profile{
+				Modules: stdlib.Modules{Workers: &stdlib.WorkerOptions{Max: 1}},
+				Initialize: func(_ context.Context, b *stdlib.Bindings) (func(), error) {
+					if b.Worker() {
+						return func() { close(cleanupEntered); <-releaseCleanup; cleaned.Store(true) }, nil
+					}
+					return nil, b.Runtime().Set("cleanupCompleted", func() bool { return cleaned.Load() })
+				},
+			}
+			code := `import {Worker} from "node:worker_threads";
+const w=new Worker('import {parentPort} from "node:worker_threads";parentPort.postMessage(42);parentPort.close();',{eval:true,type:"module"});
+`
+			if waitForExit {
+				code += `const values=[];w.on("message",v=>values.push(v));
+const exit=await new Promise((ok,fail)=>{w.once("exit",ok);w.once("error",fail)});
+if(!cleanupCompleted())throw Error("exit before cleanup");
+if(exit!==0||values.length!==1||values[0]!==42)throw Error("messages or exit lost");`
+			} else {
+				code += `if(await new Promise((ok,fail)=>{w.once("message",ok);w.once("error",fail)})!==42)throw Error("message lost");`
+			}
+			go func() {
+				result, executionErr = stdlib.Execute(ctx, stdlib.Source{Name: "[worker port close]", Virtual: true, Module: true, Code: code}, profile)
+				close(done)
+			}()
+			defer func() { releaseOnce.Do(func() { close(releaseCleanup) }); cancel(); <-done }()
+			select {
+			case <-cleanupEntered:
+			case <-done:
+				t.Fatalf("execution ended without entering cleanup: result=%+v err=%v", result, executionErr)
+			case <-ctx.Done():
+				t.Fatal("worker did not enter cleanup")
+			}
+			select {
+			case <-done:
+				t.Fatalf("execution returned while Worker cleanup was blocked: result=%+v err=%v", result, executionErr)
+			case <-time.After(50 * time.Millisecond):
+			}
+			releaseOnce.Do(func() { close(releaseCleanup) })
+			select {
+			case <-done:
+			case <-ctx.Done():
+				t.Fatal("execution did not join the released Worker")
+			}
+			if executionErr != nil || result.Code != 0 || !cleaned.Load() {
+				t.Fatalf("result=%+v err=%v cleaned=%t", result, executionErr, cleaned.Load())
+			}
+		})
+	}
 }

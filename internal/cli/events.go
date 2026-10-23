@@ -25,6 +25,9 @@ type observation struct {
 	stdout, stderr *eventOutput
 	cancel         context.CancelFunc
 	renderer       *agentRenderer
+	stdoutOutput   *outputAdapter
+	stderrOutput   *outputAdapter
+	outputs        []*outputAdapter
 }
 
 func openObservation(ctx context.Context, option *string, human bool, stdout, stderr io.Writer) (context.Context, *observation, error) {
@@ -65,18 +68,36 @@ func openObservation(ctx context.Context, option *string, human bool, stdout, st
 	} else if !human {
 		out = stdout
 	}
+	o.stdoutOutput = o.newOutputAdapter(stdout)
+	o.stderrOutput = o.newOutputAdapter(stderr)
+	var recordOutput *outputAdapter
 	if human {
+		if out != nil {
+			recordOutput = o.newOutputAdapter(out)
+		}
 		o.renderer = newAgentRenderer(stdout)
-		out = &renderedEventsWriter{record: out, renderer: o.renderer}
+		out = &renderedEventsWriter{record: out, recordOutput: recordOutput, displayOutput: o.stdoutOutput, renderer: o.renderer}
 	}
-	o.writer = events.New(cancelOnWriteError{out: out, cancel: cancel, ctx: ctx}, id)
+	var eventOutputAdapter *outputAdapter
+	if !human && o.toStdout {
+		eventOutputAdapter = o.stdoutOutput
+	} else {
+		eventOutputAdapter = o.newOutputAdapter(out)
+	}
+	o.writer = events.New(cancelOnWriteError{out: out, output: eventOutputAdapter, cancel: cancel, ctx: ctx}, id)
 	var mirrorOut, mirrorErr io.Writer
 	if !o.toStdout {
 		mirrorOut, mirrorErr = stdout, stderr
 	}
-	o.stdout = &eventOutput{events: o.writer, kind: "stdout", mirror: mirrorOut, cancel: cancel}
-	o.stderr = &eventOutput{events: o.writer, kind: "stderr", mirror: mirrorErr, cancel: cancel}
+	o.stdout = &eventOutput{events: o.writer, kind: "stdout", mirror: mirrorOut, mirrorOutput: o.stdoutOutput, cancel: cancel}
+	o.stderr = &eventOutput{events: o.writer, kind: "stderr", mirror: mirrorErr, mirrorOutput: o.stderrOutput, cancel: cancel}
 	return ctx, o, nil
+}
+
+func (o *observation) newOutputAdapter(out io.Writer) *outputAdapter {
+	adapter := newOutputAdapter(out)
+	o.outputs = append(o.outputs, adapter)
+	return adapter
 }
 
 func (o *observation) configureAgent(options *noeprofile.AgentOptions) {
@@ -105,6 +126,11 @@ func (o *observation) finish(code int, diagnostic io.Writer) int {
 			err = renderErr
 		}
 	}
+	for _, output := range o.outputs {
+		if closeErr := output.Close(); err == nil {
+			err = closeErr
+		}
+	}
 	if o.file != nil {
 		if closeErr := o.file.Close(); err == nil {
 			err = closeErr
@@ -121,30 +147,55 @@ func (o *observation) finish(code int, diagnostic io.Writer) int {
 // shared renderer sees the same values and ordering as `| noe observe`. Optional
 // recording retains the original JSONL independently of the terminal format.
 type renderedEventsWriter struct {
-	record   io.Writer
-	renderer *agentRenderer
+	record        io.Writer
+	recordOutput  *outputAdapter
+	displayOutput *outputAdapter
+	renderer      *agentRenderer
 }
 
-func writeOutputContext(ctx context.Context, out io.Writer, p []byte) (int, error) {
-	w, err := hostio.NewWriter(out)
-	if err != nil {
-		return 0, err
+type outputAdapter struct {
+	out    io.Writer
+	writer hostio.Writer
+}
+
+func newOutputAdapter(out io.Writer) *outputAdapter {
+	return &outputAdapter{out: out, writer: hostio.NewSharedWriter(out)}
+}
+
+func (w *outputAdapter) WriteContext(ctx context.Context, p []byte) (int, error) {
+	if w == nil || w.writer == nil {
+		return 0, hostio.ErrUnsupported
 	}
-	defer w.Close()
-	return w.WriteContext(ctx, p)
+	return w.writer.WriteContext(ctx, p)
+}
+
+func (w *outputAdapter) Write(p []byte) (int, error) {
+	if w == nil || w.out == nil {
+		return 0, hostio.ErrUnsupported
+	}
+	return w.out.Write(p)
+}
+
+func (w *outputAdapter) Close() error {
+	if w == nil || w.writer == nil {
+		return nil
+	}
+	return w.writer.Close()
 }
 
 type contextOutput struct {
-	ctx context.Context
-	out io.Writer
+	ctx    context.Context
+	output *outputAdapter
 }
 
-func (w contextOutput) Write(p []byte) (int, error) { return writeOutputContext(w.ctx, w.out, p) }
+func (w contextOutput) Write(p []byte) (int, error) {
+	return w.output.WriteContext(w.ctx, p)
+}
 
 func (w *renderedEventsWriter) WriteContext(ctx context.Context, p []byte) (int, error) {
 	committed := false
 	if w.record != nil {
-		if n, err := writeOutputContext(ctx, w.record, p); err != nil {
+		if n, err := w.recordOutput.WriteContext(ctx, p); err != nil {
 			return n, err
 		}
 		committed = true
@@ -154,7 +205,7 @@ func (w *renderedEventsWriter) WriteContext(ctx context.Context, p []byte) (int,
 		return 0, err
 	}
 	original := w.renderer.out
-	w.renderer.out = contextOutput{ctx, original}
+	w.renderer.out = contextOutput{ctx: ctx, output: w.displayOutput}
 	defer func() { w.renderer.out = original }()
 	if err := w.renderer.render(event); err != nil {
 		if committed && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
@@ -187,6 +238,7 @@ func (w *renderedEventsWriter) Write(p []byte) (int, error) {
 
 type cancelOnWriteError struct {
 	out    io.Writer
+	output *outputAdapter
 	cancel context.CancelFunc
 	ctx    context.Context
 }
@@ -195,7 +247,7 @@ func (w cancelOnWriteError) Write(p []byte) (int, error) {
 	var n int
 	var err error
 	if w.ctx != nil {
-		n, err = writeOutputContext(w.ctx, w.out, p)
+		n, err = w.output.WriteContext(w.ctx, p)
 		if errors.Is(err, hostio.ErrUnsupported) {
 			n, err = w.out.Write(p)
 		}
@@ -212,7 +264,7 @@ func (w cancelOnWriteError) Write(p []byte) (int, error) {
 }
 
 func (w cancelOnWriteError) WriteContext(ctx context.Context, p []byte) (int, error) {
-	n, err := writeOutputContext(ctx, w.out, p)
+	n, err := w.output.WriteContext(ctx, p)
 	var committed *events.CommittedCancellation
 	if err != nil && !(ctx.Err() != nil && errors.Is(err, ctx.Err()) && (n == 0 || errors.As(err, &committed))) {
 		w.cancel()
@@ -223,14 +275,15 @@ func (w cancelOnWriteError) WriteContext(ctx context.Context, p []byte) (int, er
 // eventOutput emits text fragments immediately, including writes without a
 // newline. Only incomplete UTF-8 runes are held until the next write or close.
 type eventOutput struct {
-	mu       sync.Mutex
-	gateOnce sync.Once
-	gate     chan struct{}
-	events   *events.Writer
-	kind     string
-	mirror   io.Writer
-	pending  []byte
-	cancel   context.CancelFunc
+	mu           sync.Mutex
+	gateOnce     sync.Once
+	gate         chan struct{}
+	events       *events.Writer
+	kind         string
+	mirror       io.Writer
+	mirrorOutput *outputAdapter
+	pending      []byte
+	cancel       context.CancelFunc
 }
 
 func (w *eventOutput) Write(p []byte) (int, error) {
@@ -267,7 +320,7 @@ func (w *eventOutput) write(ctx context.Context, p []byte, cancellable bool) (in
 	var mirrorErr error
 	if w.mirror != nil {
 		if cancellable {
-			n, mirrorErr = writeOutputContext(ctx, w.mirror, p)
+			n, mirrorErr = w.mirrorOutput.WriteContext(ctx, p)
 		} else {
 			n, mirrorErr = w.mirror.Write(p)
 		}

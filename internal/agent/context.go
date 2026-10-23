@@ -80,7 +80,8 @@ type contextSnapshot struct {
 }
 
 // contextRunState deliberately stores only the current estimate inputs and
-// runtime information. The transcript remains in the task runtime.
+// runtime information. The transcript belongs to the managed conversation or
+// the unmanaged task history, rather than this estimate state.
 type contextRunState struct {
 	policy                 *ContextPolicy
 	policyDisabled         bool
@@ -407,20 +408,37 @@ func estimateContextTokens(messagesBytes, toolsBytes int) int64 {
 }
 
 func prepareContextEstimate(state *contextRunState, runID string, messages []json.RawMessage, tools []json.RawMessage) (contextSnapshot, string, error) {
+	stats, err := measureContextHistory(messages, tools, state.imageEstimates)
+	if err != nil {
+		return contextSnapshot{}, "", err
+	}
+	return prepareContextEstimateFromStats(state, runID, stats), "", nil
+}
+
+type contextHistoryStats struct {
+	messagesBytes, messageCount, toolsBytes int
+	imageTokens                             int64
+}
+
+func measureContextHistory(messages, tools []json.RawMessage, estimates map[string]int64) (contextHistoryStats, error) {
 	messageData, err := json.Marshal(messages)
 	if err != nil {
-		return contextSnapshot{}, "", fmt.Errorf("encode context messages: %w", err)
+		return contextHistoryStats{}, fmt.Errorf("encode context messages: %w", err)
 	}
 	toolData, err := json.Marshal(tools)
 	if err != nil {
-		return contextSnapshot{}, "", fmt.Errorf("encode context tools: %w", err)
+		return contextHistoryStats{}, fmt.Errorf("encode context tools: %w", err)
 	}
-	state.baseImageTokens = historyImageTokens(messages, state.imageEstimates)
-	state.baseMessagesBytes = len(messageData)
-	state.baseMessageCount = len(messages)
-	state.toolsBytes = len(toolData)
+	return contextHistoryStats{len(messageData), len(messages), len(toolData), historyImageTokens(messages, estimates)}, nil
+}
+
+func prepareContextEstimateFromStats(state *contextRunState, runID string, stats contextHistoryStats) contextSnapshot {
+	state.baseImageTokens = stats.imageTokens
+	state.baseMessagesBytes = stats.messagesBytes
+	state.baseMessageCount = stats.messageCount
+	state.toolsBytes = stats.toolsBytes
 	state.prepared = true
-	return recalculatePreparedContext(state, runID, time.Now()), "", nil
+	return recalculatePreparedContext(state, runID, time.Now())
 }
 
 func recalculatePreparedContext(state *contextRunState, runID string, now time.Time) contextSnapshot {

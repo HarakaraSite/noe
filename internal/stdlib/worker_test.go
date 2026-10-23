@@ -458,3 +458,25 @@ func TestWorkersMax(t *testing.T) {
 		t.Errorf("got %q, want %q", out, want)
 	}
 }
+
+func TestWorkerLifecycleContinuesAfterParentPortClose(t *testing.T) {
+	for _, tc := range []struct{ name, tail, want string }{
+		{"exit code", `process.exit(7);`, "message 1 | message 2 | exit 7"},
+		{"error", `throw Error("after close");`, "message 1 | message 2 | error after close | exit 1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			worker := `import {parentPort} from "node:worker_threads";
+parentPort.postMessage(1);parentPort.postMessage(2);parentPort.close();` + tc.tail
+			output, _ := run(t, stdlib.Config{Workers: workerFiles(map[string]string{"./closed.mjs": worker}), Process: &stdlib.Process{}}, `
+const {Worker}=require_worker_threads;
+const events=[];
+const worker=new Worker("./closed.mjs");
+worker.on("message",value=>events.push("message "+value));
+worker.on("error",error=>events.push("error "+error.message));
+worker.on("exit",code=>{events.push("exit "+code);console.log(events.join(" | "));});`)
+			if output != tc.want {
+				t.Fatalf("events=%q; want %q", output, tc.want)
+			}
+		})
+	}
+}

@@ -20,9 +20,11 @@ type observedBody struct {
 	skipLF    bool
 	firstLine bool
 	dataLines []string
-	events    []json.RawMessage
-	done      bool
-	readErr   error
+	// Each payload owns its bytes and is immutable after append. snapshot callers
+	// must not modify payload bytes; snapshot only copies this outer slice.
+	events  []json.RawMessage
+	done    bool
+	readErr error
 
 	closeOnce sync.Once
 	closeErr  error
@@ -66,9 +68,8 @@ func (b *observedBody) snapshot() (events []json.RawMessage, done bool, readErr 
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	events = make([]json.RawMessage, len(b.events))
-	for i := range b.events {
-		events[i] = append(json.RawMessage(nil), b.events[i]...)
-	}
+	// Payloads remain immutable, so only the mutable outer slice needs copying.
+	copy(events, b.events)
 	return events, b.done, b.readErr
 }
 
@@ -111,7 +112,8 @@ func (b *observedBody) processLineLocked() json.RawMessage {
 			if data == "[DONE]" {
 				b.done = true
 			} else {
-				event = json.RawMessage(data)
+				event = make(json.RawMessage, len(data))
+				copy(event, data)
 				b.events = append(b.events, event)
 			}
 		}

@@ -8,9 +8,10 @@ import (
 )
 
 type beginModelStepRequest struct {
-	RunID    string            `json:"runId"`
-	Messages []json.RawMessage `json:"messages"`
-	Tools    []json.RawMessage `json:"tools,omitempty"`
+	HistoryRevision int64             `json:"historyRevision,omitempty"`
+	RunID           string            `json:"runId"`
+	Messages        []json.RawMessage `json:"messages"`
+	Tools           []json.RawMessage `json:"tools,omitempty"`
 }
 
 type beginModelStepResponse struct {
@@ -19,7 +20,7 @@ type beginModelStepResponse struct {
 }
 
 func (h *Host) beginModelStep(op *Operation, request beginModelStepRequest) (beginModelStepResponse, error) {
-	if request.RunID == "" || len(request.Messages) == 0 {
+	if request.RunID == "" || (len(request.Messages) == 0 && request.HistoryRevision == 0) || request.HistoryRevision < 0 || (request.HistoryRevision != 0 && request.Messages != nil) {
 		return beginModelStepResponse{}, newOperationError(http.StatusBadRequest, "request", "runId and nonempty messages are required")
 	}
 	for _, message := range request.Messages {
@@ -38,6 +39,12 @@ func (h *Host) beginModelStep(op *Operation, request beginModelStepRequest) (beg
 	if run == nil || run.operation != op || run.ctx.Err() != nil || run.interrupting || run.finalClosed || op.closed || h.closed {
 		h.mu.Unlock()
 		return beginModelStepResponse{}, newOperationError(http.StatusConflict, "run", "unknown or finished agent run")
+	}
+	if request.HistoryRevision != 0 {
+		if _, err := conversationAtRevisionLocked(run, request.HistoryRevision); err != nil {
+			h.mu.Unlock()
+			return beginModelStepResponse{}, err
+		}
 	}
 	if !h.executionGroupOpenLocked(run.group) {
 		group := run.group

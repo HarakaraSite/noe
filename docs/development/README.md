@@ -46,6 +46,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 対象 | 文書 |
 | --- | --- |
 | 採用した小規模改善5件の範囲・実装・検証 | [対応記録](small-improvements-20261020.md) |
+| 処理の重複・履歴転送・Go Client JSON往復の整理 | [8スライスの実装・検証記録](processing-simplification.md) |
 | agent内部の責務・JSとGoの分担・所有関係・同期 | [agentの構成](agent-architecture.md) |
 | agentへ渡す組込みの説明 | [instructions.md](../../internal/agent/instructions.md) |
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |

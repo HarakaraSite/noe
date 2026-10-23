@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 
@@ -125,16 +124,15 @@ func clientCall[T any](ctx context.Context, c *Client, method string, request an
 	if ctx == nil || c == nil || c.op == nil {
 		return result, errors.New("agent: live Client and context are required")
 	}
-	payload, err := json.Marshal(request)
+	value, err := c.op.CallTypedContext(ctx, method, request)
 	if err != nil {
 		return result, err
 	}
-	response, err := c.op.CallContext(ctx, method, string(payload))
-	if err != nil {
-		return result, err
+	result, ok := value.(T)
+	if !ok {
+		return result, errors.New("agent: typed operation returned an unexpected response")
 	}
-	err = json.Unmarshal([]byte(response), &result)
-	return result, err
+	return result, nil
 }
 func (c *Client) Spawn(ctx context.Context, q SpawnRequest) (SpawnResponse, error) {
 	return clientCall[SpawnResponse](ctx, c, "spawn_agent", q)

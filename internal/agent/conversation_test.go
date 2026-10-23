@@ -148,3 +148,20 @@ func newConversationTestRun(t *testing.T, h *Host, op *Operation) (*agentInstanc
 	h.mu.Unlock()
 	return instance, run, cancelRun
 }
+
+func TestConversationJSONEqualityPreservesSemanticComparison(t *testing.T) {
+	for _, tc := range []struct {
+		left, right string
+		equal       bool
+	}{
+		{`{"content":"same","n":12345678901234567890}`, `{"content":"same","n":12345678901234567890}`, true},
+		{`{"content":"a","role":"user"}`, `{"role":"user","content":"\u0061"}`, true},
+		{`{"n":12345678901234567890}`, `{"n":12345678901234567891}`, false},
+		{`{"content":"before"}`, `{"content":"after"}`, false},
+		{`{"broken":`, `{"broken":`, false},
+	} {
+		if got := conversationJSONEqual(json.RawMessage(tc.left), json.RawMessage(tc.right)); got != tc.equal {
+			t.Errorf("equal(%s, %s)=%t; want %t", tc.left, tc.right, got, tc.equal)
+		}
+	}
+}

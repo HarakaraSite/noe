@@ -141,7 +141,11 @@ func (w *pendingRenderSink) WriteContext(ctx context.Context, p []byte) (int, er
 func TestEventsCancelledDisplayPreservesCommittedRecordSequence(t *testing.T) {
 	var record bytes.Buffer
 	display := &pendingRenderSink{make(chan struct{})}
-	out := &renderedEventsWriter{record: &record, renderer: newAgentRenderer(display)}
+	recordOutput := newOutputAdapter(&record)
+	displayOutput := newOutputAdapter(display)
+	defer recordOutput.Close()
+	defer displayOutput.Close()
+	out := &renderedEventsWriter{record: &record, recordOutput: recordOutput, displayOutput: displayOutput, renderer: newAgentRenderer(display)}
 	w := events.New(out, "recorded")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -159,6 +163,53 @@ func TestEventsCancelledDisplayPreservesCommittedRecordSequence(t *testing.T) {
 	records := readEvents(t, record.String())
 	if len(records) != 2 || records[0]["seq"] != float64(1) || records[1]["seq"] != float64(2) {
 		t.Fatalf("committed sequence lost: %s", record.String())
+	}
+}
+
+type borrowedEventOutput struct {
+	bytes.Buffer
+	closeCalls int
+}
+
+func (w *borrowedEventOutput) WriteContext(ctx context.Context, p []byte) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return w.Write(p)
+}
+
+func (w *borrowedEventOutput) Close() error {
+	w.closeCalls++
+	return nil
+}
+
+func TestObservationOutputAdaptersDoNotCloseBorrowedStreams(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	stdout, stderr := &borrowedEventOutput{}, &borrowedEventOutput{}
+	ctx, observation, err := openObservation(context.Background(), &path, false, stdout, stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := observation.stdout.WriteContext(ctx, []byte("visible")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := observation.stderr.WriteContext(ctx, []byte("diagnostic")); err != nil {
+		t.Fatal(err)
+	}
+	if code := observation.finish(0, io.Discard); code != 0 {
+		t.Fatalf("finish code = %d", code)
+	}
+	if stdout.closeCalls != 0 || stderr.closeCalls != 0 {
+		t.Fatalf("borrowed outputs were closed: stdout=%d stderr=%d", stdout.closeCalls, stderr.closeCalls)
+	}
+	if stdout.String() != "visible" || stderr.String() != "diagnostic" {
+		t.Fatalf("mirrored output changed: stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if _, err := stdout.Write([]byte("still borrowed")); err != nil {
+		t.Fatalf("stdout unusable after observation: %v", err)
+	}
+	if _, err := stderr.Write([]byte("still borrowed")); err != nil {
+		t.Fatalf("stderr unusable after observation: %v", err)
 	}
 }
 

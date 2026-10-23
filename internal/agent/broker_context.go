@@ -8,14 +8,15 @@ import (
 )
 
 type contextPrepareRequest struct {
-	RunID         string                `json:"runId"`
-	ModelStepID   string                `json:"modelStepId"`
-	Messages      []json.RawMessage     `json:"messages"`
-	Tools         []json.RawMessage     `json:"tools,omitempty"`
-	History       *contextHistoryLayout `json:"history,omitempty"`
-	Snapshot      *conversationSnapshot `json:"snapshot,omitempty"`
-	Final         bool                  `json:"final,omitempty"`
-	AppliedPlanID string                `json:"appliedPlanId,omitempty"`
+	HistoryRevision int64                 `json:"historyRevision,omitempty"`
+	RunID           string                `json:"runId"`
+	ModelStepID     string                `json:"modelStepId"`
+	Messages        []json.RawMessage     `json:"messages"`
+	Tools           []json.RawMessage     `json:"tools,omitempty"`
+	History         *contextHistoryLayout `json:"history,omitempty"`
+	Snapshot        *conversationSnapshot `json:"snapshot,omitempty"`
+	Final           bool                  `json:"final,omitempty"`
+	AppliedPlanID   string                `json:"appliedPlanId,omitempty"`
 }
 
 type contextAccessRequest struct {
@@ -41,7 +42,7 @@ type contextPrepareResponse struct {
 }
 
 func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (contextPrepareResponse, error) {
-	if request.RunID == "" || request.ModelStepID == "" || len(request.Messages) == 0 {
+	if request.RunID == "" || request.ModelStepID == "" || (len(request.Messages) == 0 && request.HistoryRevision == 0) || request.HistoryRevision < 0 || (request.HistoryRevision != 0 && (request.Messages != nil || request.History != nil || request.Snapshot != nil || request.AppliedPlanID != "")) {
 		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "runId, modelStepId, and nonempty messages are required")
 	}
 	for _, message := range request.Messages {
@@ -61,12 +62,25 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		h.mu.Unlock()
 		return contextPrepareResponse{}, newOperationError(http.StatusConflict, "scope", "context preparation is outside the current model step")
 	}
-	if _, err := h.expandImagesLocked(run, request.Messages); err != nil {
+	if request.HistoryRevision != 0 {
+		conversation, err := conversationAtRevisionLocked(run, request.HistoryRevision)
+		if err != nil {
+			h.mu.Unlock()
+			return contextPrepareResponse{}, err
+		}
+		request.Messages, request.History = conversation.messageView(), conversation.layout()
+	}
+	if err := h.validateImagesLocked(run, request.Messages); err != nil {
 		h.mu.Unlock()
 		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "image", err.Error())
 	}
 	run.context.imageEstimates = imageEstimatesLocked(run)
-	fixed, execution, _, partsErr := historyParts(request.Messages, request.Tools, request.History, run.context.imageEstimates)
+	stats, statsErr := measureContextHistory(request.Messages, request.Tools, run.context.imageEstimates)
+	if statsErr != nil {
+		h.mu.Unlock()
+		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "could not estimate model context")
+	}
+	fixed, execution, weights, partsErr := historyPartsFromStats(request.Messages, request.History, run.context.imageEstimates, stats)
 	if partsErr != nil {
 		h.mu.Unlock()
 		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", partsErr.Error())
@@ -105,14 +119,11 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 	if request.AppliedPlanID != "" {
 		reconcileImagesLocked(run, request.Messages)
 	}
-	snapshot, _, err := prepareContextEstimate(&run.context, run.id, request.Messages, request.Tools)
-	if err != nil {
-		h.mu.Unlock()
-		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "could not estimate model context")
-	}
+	snapshot := prepareContextEstimateFromStats(&run.context, run.id, stats)
+	var err error
 	var plan *contextTrimPlan
 	if request.Final && request.AppliedPlanID == "" {
-		plan, err = run.context.planTrim(request.Messages, request.Tools, request.History)
+		plan, err = run.context.planTrimWithWeights(request.Messages, request.Tools, request.History, weights)
 		if err != nil {
 			h.mu.Unlock()
 			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "context_plan", err.Error())

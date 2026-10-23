@@ -322,14 +322,19 @@ export async function executeTask(config, instruction) {
           { role: "user", content: instruction },
         );
     async function prepareContext(modelStepId, final = false, appliedPlanId = undefined, candidate = undefined) {
-      return rpc("context_prepare", {runId, modelStepId, messages: candidate ? candidate.messages : history.messages(),
-        tools: [runJSTool], history: candidate ? candidate.layout : history.layout(),
+      return rpc("context_prepare", {runId, modelStepId,
+        ...(managedConversation && !candidate ? {historyRevision: history.revision} : {
+          messages: candidate ? candidate.messages : history.messages(),
+          history: candidate ? candidate.layout : history.layout(),
+        }), tools: [runJSTool],
         snapshot: candidate ? candidate.snapshot : undefined, final, appliedPlanId});
     }
     let modelStepId = null;
     while (true) {
       if (modelStepId === null) {
-        const prepared = await rpc("begin_model_step", { runId, messages: history.messages(), tools: [runJSTool] });
+        const prepared = await rpc("begin_model_step", { runId,
+          ...(managedConversation ? {historyRevision: history.revision} : {messages: history.messages()}),
+        });
         modelStepId = requireString(prepared.modelStepId, "modelStepId");
         if (prepared.steers !== undefined) await appendAndApplySteers(runId, history, prepared.steers);
         await prepareContext(modelStepId);
@@ -351,9 +356,12 @@ export async function executeTask(config, instruction) {
       }
       // Preserve each sent status with its response as ordinary, trimmable history.
       const contextMessage = {role: "user", content: context.notification};
-      const modelMessages = [...history.messages(), contextMessage];
       const response = await rpc("model", {
-        runId, modelStepId, model, messages: modelMessages, tools: [runJSTool], cacheKey, maxTokens, effort,
+        runId, modelStepId, model,
+        ...(managedConversation
+          ? {historyRevision: history.revision, notification: context.notification}
+          : {messages: [...history.messages(), contextMessage]}),
+        tools: [runJSTool], cacheKey, maxTokens, effort,
       });
       if (!isRecord(response)) throw new Error("provider returned an invalid response");
       if (response.steers !== undefined) {

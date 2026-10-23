@@ -260,3 +260,24 @@ func TestImageCheckpointCommitsHostStateAndRetainsImage(t *testing.T) {
 		t.Fatal("batch cleanup freed committed conversation image")
 	}
 }
+
+func TestImageReferenceValidationMatchesExpansion(t *testing.T) {
+	h, _, _, run := imageRunFixture(t)
+	run.imageStore()["owned"] = &imageapi.Data{Metadata: imageapi.Metadata{ImageID: "owned", MIMEType: "image/png", Detail: "low"}, Content: testPNG(t)}
+	for _, raw := range []string{
+		`{"role":"user","content":[{"type":"noe_image","imageId":"owned"}]}`,
+		`{"role":"user","content":[{"type":"noe_image","imageId":"unknown"}]}`,
+		`{"role":"user","content":[{"type":"noe_image","imageId":12}]}`,
+		`{"role":"user","content":"text"}`,
+		`{"role":"user","content":[null]}`,
+		`{"role":"user","content":[{"type":3}]}`,
+		`[]`, `invalid`,
+	} {
+		messages := []json.RawMessage{json.RawMessage(raw)}
+		validation := h.validateImagesLocked(run, messages)
+		_, expansion := h.expandImagesLocked(run, messages)
+		if (validation == nil) != (expansion == nil) || validation != nil && validation.Error() != expansion.Error() {
+			t.Fatalf("%s: validation=%v expansion=%v", raw, validation, expansion)
+		}
+	}
+}

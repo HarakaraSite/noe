@@ -111,6 +111,9 @@ type workerContext struct {
 	web bool
 	// port is the worker's end of the channel to its parent.
 	port *portCore
+	// parent receives lifecycle events even after parentPort is disentangled.
+	// It shares the data queue so error and exit stay after earlier messages.
+	parent *portCore
 	// data is workerData and the environment data, serialized, and the
 	// ports posted with them.
 	data  any
@@ -346,14 +349,15 @@ func (h *workerHost) start(obj quickjs.Value, specifier string, data quickjs.Val
 	h.mu.Unlock()
 	wh.hold()
 
-	w := &workerContext{threadID: wh.thread, name: o.Name, web: o.Web, port: child, data: serialized, ports: ports, ctx: ctx}
+	w := &workerContext{threadID: wh.thread, name: o.Name, web: o.Web, port: child, parent: parent, data: serialized, ports: ports, ctx: ctx}
 	w.exit = func(code int) { wh.terminate(code) }
 	cfg := h.childConfig(w, specifier, o)
 	started = true
 	go func() {
 		defer close(wh.done)
 		defer h.cfg.releaseWorker()
-		runWorker(ctx, cfg, w, wh, specifier, o)
+		code := runWorker(ctx, cfg, w, wh, specifier, o)
+		parent.enqueue(portMsg{kind: msgWorkerExit, code: code})
 	}()
 
 	result := h.rt.NewObject()
@@ -572,8 +576,7 @@ func (u *uncaughtRejection) Error() string { return "uncaught (in promise) " + u
 // runWorker is a worker's goroutine: it makes the worker's runtime, installs
 // it, runs its code and then its loop, and tells the parent how it went --
 // ending, whatever happened, by telling it the worker has.
-func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHandle, specifier string, o workerOptions) {
-	code := 0
+func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHandle, specifier string, o workerOptions) (code int) {
 	var fail error
 	var rt *quickjs.Runtime
 	var installation WorkerInstallation
@@ -590,7 +593,7 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 		}
 		if fail != nil {
 			code = 1
-			w.port.send(portMsg{kind: msgError, data: w.errorData(rt, fail)})
+			w.parent.enqueue(portMsg{kind: msgError, data: w.errorData(rt, fail)})
 		}
 		if cfg.Loop != nil {
 			if installation.Close != nil {
@@ -711,12 +714,12 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 		if !w.web || !errors.As(err, &jsErr) && !errors.As(err, &rejection) {
 			return false
 		}
-		w.port.send(portMsg{kind: msgError, data: w.errorData(rt, err)})
+		w.parent.enqueue(portMsg{kind: msgError, data: w.errorData(rt, err)})
 		return true
 	}
 	loop.report = report
 
-	w.port.send(portMsg{kind: msgOnline})
+	w.parent.enqueue(portMsg{kind: msgOnline})
 	if module {
 		_, err = rt.EvalModuleContext(ctx, name, src)
 	} else {
@@ -726,6 +729,7 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 		err = loop.Run(ctx)
 	}
 	fail = err
+	return
 }
 
 // errorData is what a worker failed with, serialized for its parent: the

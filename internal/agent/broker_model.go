@@ -15,14 +15,16 @@ import (
 )
 
 type modelRequest struct {
-	RunID       string            `json:"runId"`
-	ModelStepID string            `json:"modelStepId,omitempty"`
-	Model       string            `json:"model"`
-	Messages    []json.RawMessage `json:"messages"`
-	Tools       []json.RawMessage `json:"tools,omitempty"`
-	CacheKey    string            `json:"cacheKey,omitempty"`
-	MaxTokens   int               `json:"maxTokens,omitempty"`
-	Effort      string            `json:"effort,omitempty"`
+	HistoryRevision int64             `json:"historyRevision,omitempty"`
+	Notification    *string           `json:"notification,omitempty"`
+	RunID           string            `json:"runId"`
+	ModelStepID     string            `json:"modelStepId,omitempty"`
+	Model           string            `json:"model"`
+	Messages        []json.RawMessage `json:"messages"`
+	Tools           []json.RawMessage `json:"tools,omitempty"`
+	CacheKey        string            `json:"cacheKey,omitempty"`
+	MaxTokens       int               `json:"maxTokens,omitempty"`
+	Effort          string            `json:"effort,omitempty"`
 }
 
 type modelResponse struct {
@@ -35,7 +37,7 @@ type modelResponse struct {
 
 func (h *Host) model(requestContext context.Context, op *Operation, request modelRequest) (modelResponse, error) {
 	effort, validEffort := provider.NormalizeEffort(request.Effort)
-	if request.RunID == "" || strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 || !validEffort {
+	if request.RunID == "" || strings.TrimSpace(request.Model) == "" || (len(request.Messages) == 0 && request.HistoryRevision == 0) || request.HistoryRevision < 0 || (request.HistoryRevision != 0 && (request.Messages != nil || request.Notification == nil || request.ModelStepID == "")) || request.MaxTokens < 0 || !validEffort {
 		return modelResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model request")
 	}
 	for _, message := range request.Messages {
@@ -70,6 +72,22 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 	if request.ModelStepID != "" && (run.modelStep == nil || run.modelStep.id != request.ModelStepID || run.modelStep.finished) {
 		h.mu.Unlock()
 		return modelResponse{}, newOperationError(http.StatusConflict, "model_step", "model request does not match the active logical step")
+	}
+	if request.HistoryRevision != 0 {
+		conversation, err := conversationAtRevisionLocked(run, request.HistoryRevision)
+		if err != nil {
+			h.mu.Unlock()
+			return modelResponse{}, err
+		}
+		if !run.context.finalPrepared {
+			h.mu.Unlock()
+			return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "model context has not been prepared")
+		}
+		// Model services are borrowed callbacks. Give them request-owned bytes so
+		// retaining or modifying a request cannot mutate the authoritative history.
+		request.Messages = conversation.messages()
+		note, _ := json.Marshal(map[string]string{"role": "user", "content": *request.Notification})
+		request.Messages = append(request.Messages, note)
 	}
 	expandedMessages, imageErr := h.expandImagesLocked(run, request.Messages)
 	if imageErr != nil {

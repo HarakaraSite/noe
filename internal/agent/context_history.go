@@ -120,12 +120,18 @@ func historyParts(messages []json.RawMessage, tools []json.RawMessage, layout *c
 	if len(imageEstimates) > 0 {
 		estimates = imageEstimates[0]
 	}
+	stats, err := measureContextHistory(messages, tools, estimates)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	return historyPartsFromStats(messages, layout, estimates, stats)
+}
+
+func historyPartsFromStats(messages []json.RawMessage, layout *contextHistoryLayout, estimates map[string]int64, stats contextHistoryStats) (int64, int64, []int64, error) {
 	if layout == nil {
 		// Old internal callers only supply a transcript, without deletion metadata.
 		// Treat it as protected rather than guessing ownership from roles.
-		encoded, _ := json.Marshal(messages)
-		toolData, _ := json.Marshal(tools)
-		return estimateContextTokens(len(encoded), len(toolData)) + historyImageTokens(messages, estimates), 0, nil, nil
+		return estimateContextTokens(stats.messagesBytes, stats.toolsBytes) + stats.imageTokens, 0, nil, nil
 	}
 	if layout.Revision <= 0 || len(layout.Entries) < 2 {
 		return 0, 0, nil, fmt.Errorf("invalid context history layout")
@@ -152,10 +158,8 @@ func historyParts(messages []json.RawMessage, tools []json.RawMessage, layout *c
 		return 0, 0, nil, fmt.Errorf("context history count mismatch")
 	}
 	fixedData, _ := json.Marshal(protected)
-	toolData, _ := json.Marshal(tools)
-	allData, _ := json.Marshal(messages)
-	fixed := estimateContextTokens(len(fixedData), len(toolData)) + historyImageTokens(protected, estimates)
-	execution := max(0, estimateContextTokens(len(allData), len(toolData))+historyImageTokens(messages, estimates)-fixed)
+	fixed := estimateContextTokens(len(fixedData), stats.toolsBytes) + historyImageTokens(protected, estimates)
+	execution := max(0, estimateContextTokens(stats.messagesBytes, stats.toolsBytes)+stats.imageTokens-fixed)
 	return fixed, execution, weights, nil
 }
 
@@ -163,14 +167,21 @@ func (s *contextRunState) planTrim(messages, tools []json.RawMessage, layout *co
 	if layout == nil || s.policyDisabled {
 		return nil, nil
 	}
+	_, _, weights, err := historyParts(messages, tools, layout, s.imageEstimates)
+	if err != nil {
+		return nil, err
+	}
+	return s.planTrimWithWeights(messages, tools, layout, weights)
+}
+
+func (s *contextRunState) planTrimWithWeights(messages, tools []json.RawMessage, layout *contextHistoryLayout, weights []int64) (*contextTrimPlan, error) {
+	if layout == nil || s.policyDisabled {
+		return nil, nil
+	}
 	snapshot := s.executionSnapshot()
 	if snapshot == nil || s.executionTokens <= 0 || s.executionTokens < snapshot.BudgetTokens {
 		s.targetUnreachable = false
 		return nil, nil
-	}
-	_, _, weights, err := historyParts(messages, tools, layout, s.imageEstimates)
-	if err != nil {
-		return nil, err
 	}
 	target := int64(float64(s.executionTokens) * effectiveContextRetainRatio(s.policy))
 	keep := int64(0)

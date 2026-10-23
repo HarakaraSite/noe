@@ -238,6 +238,23 @@ func (s *conversationSnapshot) messages() []json.RawMessage {
 	return messages
 }
 
+// messageView borrows immutable entry payloads. Callers must hold Host.mu and
+// must copy before handing these bytes to a borrowed model service.
+func (s *conversationSnapshot) messageView() []json.RawMessage {
+	var messages []json.RawMessage
+	for _, entry := range s.Entries {
+		messages = append(messages, entry.Messages...)
+	}
+	return messages
+}
+
+func conversationAtRevisionLocked(run *agentRun, revision int64) (*conversationSnapshot, error) {
+	if run.instance == nil || run.instance.conversation == nil || revision <= 0 || run.instance.conversation.Revision != revision {
+		return nil, newOperationError(http.StatusConflict, "conversation", "unknown or stale conversation revision")
+	}
+	return run.instance.conversation, nil
+}
+
 func (s *conversationSnapshot) layout() *contextHistoryLayout {
 	if s == nil {
 		return nil
@@ -350,14 +367,17 @@ func validateConversationSnapshotMatches(snapshot *conversationSnapshot, message
 			return errors.New("conversation snapshot layout does not match")
 		}
 	}
-	flattened := snapshot.messages()
-	if len(messages) != len(flattened) {
-		return errors.New("conversation snapshot messages do not match")
-	}
-	for index := range messages {
-		if !conversationJSONEqual(messages[index], flattened[index]) {
-			return errors.New("conversation snapshot messages do not match")
+	index := 0
+	for _, entry := range snapshot.Entries {
+		for _, message := range entry.Messages {
+			if index >= len(messages) || !conversationJSONEqual(messages[index], message) {
+				return errors.New("conversation snapshot messages do not match")
+			}
+			index++
 		}
+	}
+	if index != len(messages) {
+		return errors.New("conversation snapshot messages do not match")
 	}
 	return nil
 }
@@ -444,6 +464,11 @@ func conversationSnapshotEqual(left, right *conversationSnapshot) bool {
 }
 
 func conversationJSONEqual(left, right json.RawMessage) bool {
+	// Most mirrored entries retain their exact encoding. Validate before taking
+	// this path so identical malformed input is not accepted as a JSON value.
+	if bytes.Equal(left, right) && json.Valid(left) {
+		return true
+	}
 	decode := func(raw json.RawMessage) (any, error) {
 		decoder := json.NewDecoder(bytes.NewReader(raw))
 		decoder.UseNumber()

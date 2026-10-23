@@ -77,23 +77,13 @@ func (i *agentInstance) execute(cmd *command) (taskOutcome, *agentRun, bool) {
 	}
 	op.Close() // Joins finish/model handlers before reading the authenticated report.
 	h.mu.Lock()
-	run, report := task.run, task.report
-	finalAnswer := ""
-	finalCommitted := false
-	taskInterrupted := false
 	var interruptSettled []chan struct{}
-	if run != nil {
-		finalCommitted = run.finalClosed
-		if finalCommitted {
-			finalAnswer = run.finalAnswer
-		}
-		taskInterrupted = i.interruptedRunID == run.id
+	if run := task.run; run != nil {
 		if accepted := i.runInterruptAccepted[run.id]; accepted != nil {
 			interruptSettled = append(interruptSettled, accepted)
 			delete(i.runInterruptAccepted, run.id)
 		}
 	}
-	instanceInterrupted := i.reason == "interrupted"
 	if i.interruptSettled != nil {
 		interruptSettled = append(interruptSettled, i.interruptSettled)
 	}
@@ -105,10 +95,10 @@ func (i *agentInstance) execute(cmd *command) (taskOutcome, *agentRun, bool) {
 	// Cancellation admission and terminal outcome commit share Host.mu. If a
 	// cancellation wins this lock first, it becomes the command's outcome; if
 	// this commit wins, CancelTask observes the committed outcome and rejects.
-	run, report = task.run, task.report
-	finalAnswer = ""
-	finalCommitted = false
-	taskInterrupted = false
+	run, report := task.run, task.report
+	finalAnswer := ""
+	finalCommitted := false
+	taskInterrupted := false
 	if run != nil {
 		finalCommitted = run.finalClosed
 		if finalCommitted {
@@ -116,7 +106,7 @@ func (i *agentInstance) execute(cmd *command) (taskOutcome, *agentRun, bool) {
 		}
 		taskInterrupted = i.interruptedRunID == run.id
 	}
-	instanceInterrupted = i.reason == "interrupted"
+	instanceInterrupted := i.reason == "interrupted"
 	outcome := taskOutcome{CommandID: cmd.id, State: "failed"}
 	if run != nil {
 		outcome.RunID = run.id

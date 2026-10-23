@@ -46,9 +46,11 @@ type msgKind uint8
 const (
 	// msgData is a message posted.
 	msgData msgKind = iota
-	// msgClose is word that the other end has closed -- for a worker's
-	// port, that the worker has ended, with its exit code.
+	// msgClose says the other port end has closed. A Worker may still run.
 	msgClose
+	// msgWorkerExit follows runtime and initializer cleanup, independently of
+	// whether the Worker already closed its parentPort.
+	msgWorkerExit
 	// msgOnline and msgError are a worker's word that it is running, and
 	// that it failed, with the error.
 	msgOnline
@@ -552,6 +554,15 @@ func (e *portEnd) dispatchNext() {
 
 	switch msg.kind {
 	case msgClose:
+		if e.worker == nil {
+			e.closed(msg.code)
+		}
+		// A Worker's hidden parent end stays alive for lifecycle events. Its
+		// data channel is already disentangled, but it still owns a live Worker.
+	case msgWorkerExit:
+		// Cleanup finished before this event was queued. Join the final Worker
+		// accounting before exposing exit or removing it from the owner's map.
+		<-e.worker.done
 		e.closed(msg.code)
 	case msgOnline:
 		e.worker.online()
@@ -664,8 +675,8 @@ func (c *portCore) send(msg portMsg) {
 	}
 }
 
-// closed is an end hearing that the other has closed -- or, for the port to
-// a worker, that the worker has ended.
+// closed releases an ordinary port on peer close, or a Worker's hidden port
+// after actual Worker completion. Port disconnection alone is not Worker exit.
 func (e *portEnd) closed(code int) {
 	c := e.core
 	c.mu.Lock()

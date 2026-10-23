@@ -11,17 +11,42 @@ import (
 )
 
 func (h *Host) callDirect(ctx context.Context, caller *Operation, scope, method, payload string) (string, error) {
-	target, err := h.directOperation(caller, scope)
+	value, err := h.withDirectRequest(ctx, caller, scope, func(merged context.Context, target *Operation) (any, error) {
+		value, err := h.dispatchDirect(merged, target, method, payload)
+		if err != nil {
+			return nil, err
+		}
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return nil, &directResponseEncodingError{err: fmt.Errorf("encode direct agent response: %w", err)}
+		}
+		return string(encoded), nil
+	})
 	if err != nil {
 		return "", err
 	}
+	response, ok := value.(string)
+	if !ok {
+		return "", errors.New("direct agent response is not encoded")
+	}
+	return response, nil
+}
+
+// withDirectRequest is the shared acceptance boundary for the JSON adapter and
+// the typed Go client. It owns target lookup, close joining, cancellation, and
+// conversion of operation failures into safe request errors.
+func (h *Host) withDirectRequest(ctx context.Context, caller *Operation, scope string, work func(context.Context, *Operation) (any, error)) (any, error) {
+	target, err := h.directOperation(caller, scope)
+	if err != nil {
+		return nil, err
+	}
 	if !caller.beginRequest() {
-		return "", ErrOperationClosed
+		return nil, ErrOperationClosed
 	}
 	defer caller.endRequest()
 	if target != caller {
 		if !target.beginRequest() {
-			return "", ErrOperationClosed
+			return nil, ErrOperationClosed
 		}
 		defer target.endRequest()
 	}
@@ -37,34 +62,41 @@ func (h *Host) callDirect(ctx context.Context, caller *Operation, scope, method,
 		cancel()
 	}()
 	if caller.initErr != nil {
-		return "", caller.initErr
+		return nil, caller.initErr
 	}
 	if target.initErr != nil {
-		return "", target.initErr
+		return nil, target.initErr
 	}
-	value, err := h.dispatchDirect(merged, target, method, payload)
+	value, err := work(merged, target)
 	if err != nil {
+		var encodingErr *directResponseEncodingError
+		if errors.As(err, &encodingErr) {
+			return nil, encodingErr.err
+		}
 		if merged.Err() != nil {
-			return "", merged.Err()
+			return nil, merged.Err()
 		}
 		var operationErr *operationError
 		if errors.As(err, &operationErr) {
-			return "", &RequestError{Code: operationErr.code, Message: operationErr.message, cause: err}
+			return nil, &RequestError{Code: operationErr.code, Message: operationErr.message, cause: err}
 		}
 		if errors.Is(err, errRequestCancelled) {
 			if merged.Err() != nil {
-				return "", merged.Err()
+				return nil, merged.Err()
 			}
-			return "", &RequestError{Code: "cancelled", Message: "agent request cancelled", cause: err}
+			return nil, &RequestError{Code: "cancelled", Message: "agent request cancelled", cause: err}
 		}
-		return "", err
+		return nil, err
 	}
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return "", fmt.Errorf("encode direct agent response: %w", err)
-	}
-	return string(encoded), nil
+	return value, nil
 }
+
+// directResponseEncodingError keeps the JSON adapter's historical precedence:
+// a response encoding failure is returned even if cancellation races with it.
+type directResponseEncodingError struct{ err error }
+
+func (e *directResponseEncodingError) Error() string { return e.err.Error() }
+func (e *directResponseEncodingError) Unwrap() error { return e.err }
 
 func (h *Host) directOperation(caller *Operation, scope string) (*Operation, error) {
 	if caller == nil || caller.host != h {

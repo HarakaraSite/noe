@@ -407,7 +407,9 @@ func normalize(profile Profile) (Profile, Environment, *filesystem.Backend, erro
 		}
 		commands.Supervisor = helper
 	}
-	profile.Environment = cloneEnvironment(env)
+	// cloneProfile already gave this environment independent ownership. Keep
+	// a separate binding copy, while retaining the owned profile copy for Workers.
+	profile.Environment = env
 	return profile, cloneEnvironment(env), backend, nil
 }
 

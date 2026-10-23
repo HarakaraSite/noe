@@ -14,6 +14,22 @@ import (
 const fixtureRunID = "423a2834915a42cb0a5fe2533117e0354010ad4ae4e8846f"
 const fixtureExecutionID = "7ca3f7070d98c10f"
 
+func TestReadObservationBytesReusesScratchStorage(t *testing.T) {
+	content := strings.Repeat("x", 128*1024)
+	scratch := make([]byte, 0, len(content))
+	storage := &scratch[:cap(scratch)][0]
+	got, err := readObservationBytes(context.Background(), strings.NewReader(content), int64(len(content)), scratch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(content) || string(got) != content {
+		t.Fatalf("read content length = %d, want %d", len(got), len(content))
+	}
+	if &got[0] != storage {
+		t.Fatal("read allocated a new buffer despite sufficient scratch capacity")
+	}
+}
+
 func TestObserveRealRunFixtureAndRepeatableCursor(t *testing.T) {
 	path := filepath.Join("testdata", "real-run.jsonl")
 	query := Query{
@@ -174,6 +190,88 @@ func TestObserveWaitsForLifecycleCompletionAndReturnsImmediatelyAfter(t *testing
 	}
 	if time.Since(started) >= 100*time.Millisecond {
 		t.Fatalf("terminal run incurred polling delay: %v", time.Since(started))
+	}
+}
+
+func TestObserveWaitDetectsSameSizeRewriteWithUnchangedModTime(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	initial := []byte("{\"executionId\":\"exec\",\"seq\":1,\"time\":\"2026-10-17T00:00:01Z\",\"type\":\"agent.started\",\"version\":1,\"runId\":\"r\",\"name\":\"waiting\",\"pad\":\"xy\"}\n")
+	completed := strings.Replace(string(initial), `"type":"agent.started"`, `"type":"agent.completed"`, 1)
+	completed = strings.Replace(completed, `"pad":"xy"`, `"pad":""`, 1)
+	if len(completed) != len(initial) {
+		t.Fatalf("rewrite changed file size: %d -> %d", len(initial), len(completed))
+	}
+	if err := os.WriteFile(path, initial, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	unchangedModTime := time.Date(2026, 10, 17, 0, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(path, unchangedModTime, unchangedModTime); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	result := make(chan struct {
+		snapshot Snapshot
+		err      error
+	}, 1)
+	go func() {
+		snapshot, err := Observe(ctx, Query{LogPath: path, RunID: "r", Wait: true})
+		result <- struct {
+			snapshot Snapshot
+			err      error
+		}{snapshot, err}
+	}()
+	time.Sleep(30 * time.Millisecond)
+	if err := os.WriteFile(path, []byte(completed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, unchangedModTime, unchangedModTime); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-result:
+		if got.err != nil || got.snapshot.Status != "completed" {
+			t.Fatalf("same-size rewrite result = %+v, %v", got.snapshot, got.err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("same-size rewrite was not observed: %v", ctx.Err())
+	}
+}
+
+func TestObserveWaitDetectsTruncationAndPathReplacement(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "events.jsonl")
+	writeEvent(t, path, 1, "agent.started", map[string]any{"runId": "r", "name": "waiting", "model": "m"})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result := make(chan struct {
+		snapshot Snapshot
+		err      error
+	}, 1)
+	go func() {
+		snapshot, err := Observe(ctx, Query{LogPath: path, RunID: "r", Wait: true})
+		result <- struct {
+			snapshot Snapshot
+			err      error
+		}{snapshot, err}
+	}()
+	time.Sleep(120 * time.Millisecond)
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(120 * time.Millisecond)
+	replacement := filepath.Join(dir, "replacement.jsonl")
+	writeEvent(t, replacement, 1, "agent.completed", map[string]any{"runId": "r"})
+	if err := os.Rename(replacement, path); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-result:
+		if got.err != nil || got.snapshot.Status != "completed" {
+			t.Fatalf("replacement result = %+v, %v", got.snapshot, got.err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("replacement was not observed: %v", ctx.Err())
 	}
 }
 

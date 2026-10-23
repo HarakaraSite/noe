@@ -136,7 +136,19 @@ func (run *agentRun) imageStore() map[string]*imageapi.Data {
 // Internal history holds references, never data URLs. Expansion returns new
 // request buffers, which pin bytes for the provider even during cancellation.
 func (h *Host) expandImagesLocked(run *agentRun, messages []json.RawMessage) ([]json.RawMessage, error) {
-	result := make([]json.RawMessage, len(messages))
+	return h.processImagesLocked(run, messages, true)
+}
+
+func (h *Host) validateImagesLocked(run *agentRun, messages []json.RawMessage) error {
+	_, err := h.processImagesLocked(run, messages, false)
+	return err
+}
+
+func (h *Host) processImagesLocked(run *agentRun, messages []json.RawMessage, expand bool) ([]json.RawMessage, error) {
+	var result []json.RawMessage
+	if expand {
+		result = make([]json.RawMessage, len(messages))
+	}
 	store := run.imageStore()
 	for i, raw := range messages {
 		var msg map[string]json.RawMessage
@@ -145,7 +157,9 @@ func (h *Host) expandImagesLocked(run *agentRun, messages []json.RawMessage) ([]
 		}
 		var parts []map[string]json.RawMessage
 		if json.Unmarshal(msg["content"], &parts) != nil {
-			result[i] = raw
+			if expand {
+				result[i] = raw
+			}
 			continue
 		}
 		changed := false
@@ -160,6 +174,9 @@ func (h *Host) expandImagesLocked(run *agentRun, messages []json.RawMessage) ([]
 			if data == nil {
 				return nil, errors.New("unknown or uncommitted image reference")
 			}
+			if !expand {
+				continue
+			}
 			encoded, _ := json.Marshal(map[string]any{"type": "image_url", "image_url": map[string]string{"url": "data:" + data.MIMEType + ";base64," + base64.StdEncoding.EncodeToString(data.Content), "detail": data.Detail}})
 			parts[j] = nil
 			json.Unmarshal(encoded, &parts[j])
@@ -168,7 +185,7 @@ func (h *Host) expandImagesLocked(run *agentRun, messages []json.RawMessage) ([]
 		if changed {
 			msg["content"], _ = json.Marshal(parts)
 			result[i], _ = json.Marshal(msg)
-		} else {
+		} else if expand {
 			result[i] = raw
 		}
 	}
