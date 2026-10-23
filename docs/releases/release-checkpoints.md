@@ -1576,3 +1576,15 @@ This publication record does not move the release tag. Repository-root `noe`
 and `/home/agent/.local/bin/noe` are not replaced; the installed version remains
 v2.1.1. User event logs remain unchanged. Publication is complete; deployment
 is a separate next action if requested.
+
+## v2.3.0 local installation — 2026-10-24
+
+After publication, the user explicitly requested installation. The verified
+published Linux amd64 asset replaced repository-root `./noe` and
+`/home/agent/.local/bin/noe` using temporary files and atomic renames. Both
+report `noe v2.3.0`, match published SHA256
+`50de71b27353db9b2d721c7a41a9d4eb558eb2c906d08d932ac185d0af502f00`, and the
+PATH command resolves to the updated user binary. Previous binaries are saved
+at `/var/tmp/noe-v2.3.0-release-u241ahed/installation-dip_3ak0`; the installation
+record is `/var/tmp/noe-v2.3.0-release-u241ahed/installation.json`.
+No source test suite was repeated for installing the verified artifact.

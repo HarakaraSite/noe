@@ -95,3 +95,50 @@ consumerのv0.27.0要求は維持し、MVSがv0.28.0を選ぶことを確認す�
 生存・権限・停止前の異常を引き続き検出することを確認してから総合テストを再実行した。
 最終変更は依存・説明/記録と、この既存テストの最小修正のみ。
 初回の失敗も含む作業ログ・結果は`/var/tmp/noe-q280-XrXP1S`に保存している。
+
+## 上流修正待ち：ES module内のブロック関数宣言 — 2026-10-24
+
+**状態：利用者の指示により上流修正待ち。** 正式go-quickjs v0.28.0を維持する。
+発端は`noe-events-20261024-033909-c8ef146fa483f3ef.jsonl`のHTTP stream課題で、
+定義済みの`worker`が`ReferenceError: worker is not defined`になったこと。
+
+### 再現と影響
+
+次のES moduleは本来`7`を出力するが、NOE v2.1.1/v2.3.0と正式go-quickjs
+v0.28.0単体の`EvalModule`でReferenceErrorになる。
+
+```js
+try {
+  async function worker() { return 7; }
+  console.log(await worker());
+} catch (error) {
+  console.log(String(error));
+}
+```
+
+- module本体配下の`try`・`catch`・`finally`・`if`・`for`・`switch`等のブロックで発生。
+  通常の`function`でも再現し、asyncや並列処理に限らない。
+- 同名の外側の関数があると、ReferenceErrorではなく外側の関数を呼ぶこともある。
+  期待値7に対して外側の関数の値99を返すケースを確認した。
+- script実行、module最上位の関数宣言、関数本体内のブロック、`const`へ代入する
+  関数式は成功。Node.jsでは対応するscript/moduleの38ケースが成功した。
+- 当該箇所を`const worker = async () => { ... };`とすることで回避できる。
+
+### 原因と追随時の確認
+
+上流v0.28.0の`internal/compiler/module.go:91`が`moduleBindingsDone`を設定する。
+`internal/compiler/stmt.go:91`の`hoistBlockDeclarations`はこのフラグだけで関数宣言を
+スキップし、module最上位以外のブロック内宣言まで生成しなくなる。
+`compileStatement`も関数宣言は生成済みとして処理を省くため、bindingが存在しない。
+NOEのwrapperや今回のdata/診断変更を介さずに再現しており、上流compilerの既存不具合。
+[仕様のBlockDeclarationInstantiation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-blockdeclarationinstantiation)
+ではブロック内の関数bindingを作成・初期化する。
+
+修正版を取り込む際は、最小再現と外側の同名関数を誤って呼ぶケースの解消を確認する。
+上流の最新branchでの修正有無・issue/PRの状況は未確認で、この調査からの提出は行っていない。
+engine・module cache・依存・NOE製品コードは変更していない。
+
+調査用consumer、再現コード、ケース別結果、集約結果は
+`/var/tmp/noe-worker-scope-investigation-9dsr772r`（`summary.json`、`repro.mjs`、
+`quickjs-results.jsonl`、`shadow-results.jsonl`、`node-matched-results.json`）に保存。
+consumerにNOE依存やlocal replaceはなく、`go mod verify`も成功した。

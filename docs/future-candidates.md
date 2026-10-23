@@ -11,13 +11,13 @@
 
 | 分類 | 件数 | 状況 |
 | --- | ---: | --- |
-| [完了](#completed) | 20 | 合意した範囲のコード・利用経路あり。範囲外の拡張は別候補 |
-| [一部完了](#partially-completed) | 8 | 実装済み部分と、保留・未整備の範囲を本文で区別 |
+| [完了](#completed) | 21 | 合意した範囲のコード・利用経路あり。範囲外の拡張は別候補 |
+| [一部完了](#partially-completed) | 7 | 実装済み部分と、保留・未整備の範囲を本文で区別 |
 | [未完了](#not-completed) | 11 | 検討・未着手・意図的な保留。実装を決定した一覧ではない |
 
 第3階層の候補見出し単位で集計し、Jevの応用例を1件として含めます。観察機能の内訳である「外部JS案」は別件に数えません。旧REPLの判断は履歴1件として集計外です。主な更新は、Zed環境を未完了から一部完了へ変更、NOE側の同期コマンド改善を上流PRから分離、再委譲制限と結果取得のv1.16.0公開状況の反映です。
 
-同日の追加依頼で[TypeScript対応の検討メモ](#typescript)を未完了候補へ追記し、件数へ反映しました。
+同日の追加依頼で[TypeScript対応の検討メモ](#typescript)を未完了候補へ追記し、件数へ反映しました。2026-10-24にZedの型宣言追随と再利用ガイドを完了し、一部完了から完了へ移しました。
 
 <a id="completed"></a>
 
@@ -214,6 +214,18 @@ stdlibはProfile・VM/Loop・loader・共通FS/I/Oと回収、agentは会話・s
 
 照合根拠：[`agent/host.go`](../agent/host.go)・[`agentexec`](../internal/agentexec/executor.go)・[`noeprofile`](../internal/noeprofile/profile.go)と、実Go Host・外部moduleの[`consumer検証`](../agent/consumer_test.go)。
 
+### <完了> ZedでのNOEスクリプト開発環境の整備 — 2026-10-24
+
+<a id="一部完了-zedでのnoeスクリプト開発環境の整備--2026-10-17"></a>
+
+workspaceの`.zed/jsconfig.json`は、v2.3.0の`stdlib/types/noestdlib.d.ts`と`agent/types/noeagentlib.d.ts`を直接参照する。v1.15.1の独自`.zed/noe.d.ts`を削除し、DOM型への依存も外した。runnerの設定型は正式な`NOEAgent.AgentConfig`へ移行。既存のprovider/model/effort、指示ファイルの読込み、keepAlive待受、実行タスクは維持する。
+
+[Zedの設定・再利用ガイド](zed.md)に、型宣言の設定、JSDoc、新しいcheckoutへのrunner配置、指示ファイル用task、型検査と別workspaceでの再利用を記載した。`.zed/`はGit管理外のlocal設定で、cloneしただけで配布されるものではない。利用ガイドを追跡対象として残す。
+
+利用者のリモートターミナル・tmuxによる運用方針は維持する。ファイルの指示をシェルから`noe steer RUN_ID "$(cat instruction.md)"`や`noe queue AGENT_ID "$(cat next-task.md)"`で送る方法も引き続き利用できる。これらのCLIへ専用の`--file`・stdin入力指定を追加する作業は含めない。
+
+TypeScript 5.9.3で既存runnerとガイドから作った単発/keepAlive runnerの型検査・help表示が成功。新APIの正常例を受け付け、不正な`includeAnswer`とDOM APIの利用を検出した。読み込んだ型にDOM・`@types/node`・旧宣言がないこと、既存tasks/promptsとrunnerの実行ロジックを維持したことも確認した。記録と旧設定のbackupは`/var/tmp/noe-zed-types-ljjhhrq9/results.json`と同ディレクトリ。Zed GUIでの補完表示と実providerへの接続は未確認で、Go全体suiteは再実行していない。実行コードのTypeScript化やZed専用拡張は今回の範囲に含めない。
+
 <a id="partially-completed"></a>
 
 ## 一部完了（実装済み範囲と残件）
@@ -300,19 +312,6 @@ Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動�
 
 照合根拠：[`noe-transport.js`](../scripts/spikes/process-io-mcp/noe-transport.js)と[`import_map_mcp_e2e_test.go`](../tests/import_map_mcp_e2e_test.go)。SDK bundleを事前作成し`NOE_MCP_SDK_BUNDLE`を指定するopt-inテストであり、未指定時はskipする。
 
-### <一部完了> ZedでのNOEスクリプト開発環境の整備 — 2026-10-17
-
-**workspace向けの型定義・設定・実行タスクは作成済みです。** [`.zed/noe.d.ts`](../.zed/noe.d.ts)はNOE固有の公開11 moduleとfs/path/process/child_processの主要API、[`.zed/jsconfig.json`](../.zed/jsconfig.json)は`.zed/`内のJSの型検査を設定しています。[`.zed/tasks.json`](../.zed/tasks.json)は編集中の指示ファイルを保存し、[`run-task.js`](../.zed/run-task.js)へ渡して`run --observe`で起動します。runnerは`keepAlive:true`でqueueを受け付けます。任意のJSファイルを直接実行するタスクとは区別します。
-
-残件は、型定義の現行API追随と再利用向けの利用ガイドです。型定義はv1.15.1時点で、`allowDelegation`・`includeAnswer`・`read_task_result`がなく、`cacheKey`省略時の説明も現行のagentIdではなくrunIdのままです。DOM型で補完されるすべてのAPIの動作を保証するものではなく、stdlib全moduleの網羅もしていません。実行コードのTypeScript化やZed専用拡張は必須にしません。
-
-利用者はリモートターミナルとtmuxを使う方針です。ファイルに書いた指示は現在もシェル経由で送れます。`noe steer`・`noe queue`に専用の`--file`・stdin入力指定はありません（上記runner固有の`--task-file`とは別です）。
-
-```sh
-noe steer RUN_ID "$(cat instruction.md)"
-noe queue AGENT_ID "$(cat next-task.md)"
-```
-
 ### <一部完了> go-quickjs stdlibとNode.jsのAPI差異の説明整備 — 2026-10-17
 
 現在の組込み[モデル向けfacts](../internal/agent/facts.md)は、NOEの実行環境と版が一致する内蔵docsの調べ方を説明します。Node-styleの全26 moduleの概要・export一覧と、優先APIの詳細を英文で収録しました。[参照方法](reference.md)と[実装・検証記録](development/builtin-docs-implementation.md)を参照してください。
@@ -357,7 +356,7 @@ TSを実行するための変換と、型の正しさを検査する処理は分
 - 保存して繰り返し使う処理は、外部の`tsc --noEmit`やエディター・CIで検査し、`noe run app.ts`で同じファイルを実行する案。チェックしたファイルの本文を`run_ts`へ渡し直す必要はない。
 - 型チェック用helperは外部JS・TSでもよく、NOE本体への`noe check`実装や`tsc`同梱をTS実行対応の前提にしない。helperはNOEの型定義・設定・import解決を実行環境と揃え、診断と終了コードを返す役割を持つ。
 
-当初は`noe check app.ts`や実行前の毎回チェックも例に挙げたが、議論後半では外部helperでよいと整理した。毎回の型チェック、常駐チェッカー、チェック結果・変換結果のcacheは今回の必須要件にしない。必要なら後で選ぶ。NOEの公開APIに追随した型定義は別途整備が必要で、既存のworkspace用型定義の状態は[Zed環境の候補](#一部完了-zedでのnoeスクリプト開発環境の整備--2026-10-17)を参照。
+当初は`noe check app.ts`や実行前の毎回チェックも例に挙げたが、議論後半では外部helperでよいと整理した。毎回の型チェック、常駐チェッカー、チェック結果・変換結果のcacheは今回の必須要件にしない。必要なら後で選ぶ。NOEの公開APIの型宣言はv2.3.0で整備済みで、workspaceも正式宣言の参照へ移行した。[Zed環境の記録](#一部完了-zedでのnoeスクリプト開発環境の整備--2026-10-17)を参照。TS実行の追加は別候補とする。
 
 参考となる分担は、Node.jsの型除去と外部`tsc`、およびDenoの`run`・`check`・`run --check`。Denoはチェッカーも同梱するが、NOEが同じ配布構成を採ると決めたものではない。[Node.jsのTS対応](https://nodejs.org/api/typescript.html)・[DenoのTS対応](https://docs.deno.com/runtime/fundamentals/typescript/)。
 

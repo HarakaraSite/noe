@@ -181,3 +181,9 @@ Tの確認で追加の製品不具合は検出していない。修正はテス�
 - S2/S3/S4/Tの有効なソース検証を再利用した。追加検証はバージョンの対象subtest、native release build・docs・依存/リンク確認と、公開配布物・実moduleの成立確認。全体unit/E2E/race等を繰り返さず、CIもビルド・checksum・公開だけ。証拠は`/var/tmp/noe-v2.3.0-release-u241ahed`。
 - 作業場所は同じrepositoryの`main`。この公開後記録はタグ後の文書コミットとし、mainへpushする。リリースタグは移動しない。未追跡イベントログ4件は保持する。
 - 配置は未更新で、repository直下の`./noe`と`/home/agent/.local/bin/noe`はv2.1.1のまま。公開は完了し、未完了の実装・検証・公開作業はない。次の作業は利用者の指示で決める。上流変更の事前許可など、これまでの権限境界は維持する。
+
+## 配置後の引き継ぎ（2026-10-24）
+
+利用者の「配置して 上記の指示もファイルにして」に従い、公開済みv2.3.0のLinux amd64バイナリをrepository直下の`./noe`と`/home/agent/.local/bin/noe`へ配置した。両方のversionと公開checksumの一致を確認し、PATH上の`noe`もv2.3.0。旧版は`/var/tmp/noe-v2.3.0-release-u241ahed/installation-dip_3ak0`へ保存し、配置記録は同release evidenceの`installation.json`へ保存した。
+
+相談したrun_jsのHTTP stream・並列収集課題は、repository直下の[run-js-stream-challenge.txt](../../run-js-stream-challenge.txt)へ原文のまま保存した。配置作業では課題自体は実行していない。この配置記録と課題ファイルは、その後の調査メモ・Zed利用ガイドとともに利用者の追加指示でコミットする。`.zed/`のlocal設定は既定どおりGit管理外とし、設定内容と再利用手順を[Zedガイド](../zed.md)へ残す。利用者のイベントログは変更しない。

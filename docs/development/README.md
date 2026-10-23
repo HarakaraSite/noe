@@ -51,6 +51,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | agentへ渡す組込みの説明 | [instructions.md](../../internal/agent/instructions.md) |
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
+| 上流修正待ち：ES module内のブロック関数宣言が消える不具合 | [再現・原因・回避方法](dependency-updates.md#上流修正待ちes-module内のブロック関数宣言--2026-10-24) |
 | go-quickjs v0.28.0の取り込み | [計画・レビュー・検証記録](go-quickjs-v0.28.0-plan.md) |
 | 配布対象・品質確認・公開手順 | [リリースチェックポイント](../releases/release-checkpoints.md) |
 
@@ -62,7 +63,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 | テーマ | 計画・調査 | 実装・検証 |
 | --- | --- | --- |
-| AI向け実行改善：静的ツール・標準API情報・結果/診断 | [範囲見直し計画・レビュー](ai-execution-contract-plan.md)・[S1詳細設計・レビュー](ai-execution-contract-design.md) | [実施・検証記録](ai-execution-contract-implementation.md)：S1〜S4・T完了。v2.3.0公開・配布物/公開Go module確認済み。配置は未更新 |
+| AI向け実行改善：静的ツール・標準API情報・結果/診断 | [範囲見直し計画・レビュー](ai-execution-contract-plan.md)・[S1詳細設計・レビュー](ai-execution-contract-design.md) | [実施・検証記録](ai-execution-contract-implementation.md)：S1〜S4・T完了。v2.3.0公開・配布物/公開Go module確認・配置済み |
 | v2：API再設計と3者の責務 | [構成案](v2-agent-runtime-plan.md)・[API/移行契約](v2-api-redesign.md)・[責務/経路](v2-responsibility-boundaries.md) | 破壊的変更採用・改訂レビュー完了 |
 | v2：実装と総合検証 | [11スライス実装計画](v2-agent-runtime-implementation-plan.md)・[計画レビュー](v2-api-redesign-review.md)・[実装記録](v2-implementation.md) | 承認済み計画に従い実装・スライス別検証中 |
 | agentの起動・待受・queue | [計画](agent-lifecycle-plan.md) | [実装記録](agent-lifecycle-implementation.md) |

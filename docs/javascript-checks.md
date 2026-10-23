@@ -157,6 +157,9 @@ tsc --project ./tsconfig.noe-api-checks.json --pretty false
 型不足の診断を実装バグと決めつけたり、空の`declare module`や`any`で抑えてNOE APIの型検査済みとしたりしません。[内蔵docs](reference.md)で契約を読み、型未確認の範囲を明示します。
 宣言があっても、tscのmodule解決はNOEのimport mapやloaderを実行して検証するものではありません。型宣言は対応APIを説明するもので、Profileが選んだ能力やWorkerでの利用可否を自動判定しません。
 
+Zedのworkspaceで同じ2ファイルを直接参照する設定と、指示ファイルを実行するtaskは
+[Zedの利用ガイド](zed.md)を参照してください。
+
 ## 5. 検査結果と実行結果を区別する
 
 静的検査に合格しても、外部状態や実行時の値で失敗することがあります。例えば次は構文・型が正しくても実行時にJSONのparseで失敗します。
