@@ -1,5 +1,11 @@
 # examplesの動作確認
 
+## ローカルWebコンソール — 2026-10-23
+
+[agent-console](agent-console/README.md)を追加し、実CLI＋ローカルprovider fixtureとChromium 151で確認しました。idle起動、Queueの会話継続と回答全文保存、Steer・Interrupt・全停止、切断中の監視、再起動後の履歴閲覧、Host・Origin検証、1,000件の表示保持量を超える履歴のスクロールを確認しています。実ブラウザから実NOEを経由して12,014-byteのUnicode回答を表示する経路も成功しました。
+
+独立コードレビューの軽微な1件を修正・再確認し、全体E2Eを含むGoテスト、vet、JS lintが成功しました。サンプルの実provider呼出しや長期連続稼働は検証していません。[実装・検証記録](../docs/development/agent-web-console-implementation.md)を参照してください。
+
 ## Go常駐組み込み例の追加確認
 
 [embedding-server](embedding-server/README.md)をLinux amd64 / Go 1.27.2で確認しました。

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
 // ErrorKind classifies provider failures without exposing SDK diagnostics or
@@ -18,13 +20,17 @@ const (
 	ErrorStream         ErrorKind = "stream"
 	ErrorResponse       ErrorKind = "response"
 	ErrorCancelled      ErrorKind = "cancelled"
+	ErrorPolicy         ErrorKind = "policy"
 )
 
 // ProviderError is a safe, classified error from a provider adapter.
 type ProviderError struct {
 	Kind       ErrorKind
 	StatusCode int
-	cause      error
+	// Details is populated only for explicitly recognized policy errors, with
+	// credentials removed before leaving the adapter.
+	Details *imageapi.Error
+	cause   error
 }
 
 func (e *ProviderError) Error() string {
@@ -39,6 +45,7 @@ func (e *ProviderError) Error() string {
 		ErrorStream:         "invalid or incomplete response stream",
 		ErrorResponse:       "invalid provider response",
 		ErrorCancelled:      "request cancelled",
+		ErrorPolicy:         "request blocked by cybersecurity policy",
 	}[e.Kind]
 	if message == "" {
 		message = "request failed"

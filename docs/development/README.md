@@ -62,8 +62,11 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 | テーマ | 計画・調査 | 実装・検証 |
 | --- | --- | --- |
+| AI向けコード実行契約の再設計（MoonBit調査からの応用） | [調査メモ](moonbit-ai-toolchain-notes.md)・[改訂案と5スライス実装計画](ai-execution-contract-plan.md) | 改訂案の通常・批判的レビュー反映済み。製品実装未着手、最後に総合テスト |
+| サイバーセキュリティ制限の応答分類・表示・再試行 | [調査・対応メモ](cyber-policy-response-notes.md) | 実装済み・両SDKのローカルfixtureと実CLIで確認 |
 | v2：API再設計と3者の責務 | [構成案](v2-agent-runtime-plan.md)・[API/移行契約](v2-api-redesign.md)・[責務/経路](v2-responsibility-boundaries.md) | 破壊的変更採用・改訂レビュー完了 |
 | v2：実装と総合検証 | [11スライス実装計画](v2-agent-runtime-implementation-plan.md)・[計画レビュー](v2-api-redesign-review.md)・[実装記録](v2-implementation.md) | 承認済み計画に従い実装・スライス別検証中 |
+| 常駐agentのローカルWebコンソール | [サンプル案](agent-web-console-plan.md) | [実装・検証](agent-web-console-implementation.md) |
 | agentの起動・待受・queue | [計画](agent-lifecycle-plan.md) | [実装記録](agent-lifecycle-implementation.md) |
 | steer・interrupt・人間向け操作 | [計画](agent-control-plan.md) | [実装記録](agent-control-implementation.md)・[OpenRouter検証](agent-control-openrouter-validation.md) |
 | provider設定とOpenCode Go | [計画](provider-config-plan.md)・[SDK接続スパイク](opencode-go-sdk-spike.md) | [検証記録](provider-config-validation.md) |

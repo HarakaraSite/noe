@@ -203,7 +203,14 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		if code == "cancelled" {
 			modelStatus = "cancelled"
 		}
+		var policyDetails *imageapi.Error
 		h.mu.Lock()
+		var failure *provider.ProviderError
+		if code == string(provider.ErrorPolicy) && errors.As(err, &failure) && failure.Details != nil {
+			details := *failure.Details
+			policyDetails = &details
+			run.refusal = policyDetails
+		}
 		contextSnapshot, contextActivityID, contextCauses := h.completeContextRequestLocked(run, requestID, modelStatus, nil, time.Now())
 		h.mu.Unlock()
 		h.emitContextUpdated(run, contextSnapshot, modelStatus, contextActivityID, contextCauses)
@@ -217,6 +224,9 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 				modelStatus = "cancelled"
 			}
 			fields := events.Event{"requestId": requestID, "status": modelStatus, "reason": code, "duration": time.Since(started)}
+			if policyDetails != nil {
+				fields["errorDetails"] = policyDetails
+			}
 			if request.ModelStepID != "" {
 				fields["modelStepId"] = request.ModelStepID
 			}
@@ -420,6 +430,8 @@ func classifyProviderError(err error, ctx context.Context) (int, string, string)
 			status = http.StatusPaymentRequired
 		case provider.ErrorRateLimit:
 			status = http.StatusTooManyRequests
+		case provider.ErrorPolicy:
+			status = http.StatusForbidden
 		case provider.ErrorCancelled:
 			return http.StatusRequestTimeout, "cancelled", "provider request cancelled"
 		}

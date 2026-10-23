@@ -46,12 +46,11 @@ func (p *OpenAI) Generate(ctx context.Context, request Request) (Response, error
 	return generateWithRetry(ctx, request, p.generateOnce)
 }
 
-func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, error) {
+func (p *OpenAI) generateOnce(ctx context.Context, request Request) (response Response, err error) {
 	if err := cancellationError(ctx); err != nil {
 		return Response{}, err
 	}
 	var payload []byte
-	var err error
 	if p.profile.API == "responses" {
 		payload, err = configuredResponsesRequestBody(p.profile, request)
 	} else {
@@ -77,6 +76,7 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 	state := &callState{requestBody: payload, observe: request.Observe, sessionID: request.sessionID(), reasoningField: p.profile.ReasoningField}
 	ctx = context.WithValue(ctx, callContextKey{}, state)
 	defer state.closeBody()
+	defer state.classifyFailure(ctx, &err)
 	opts := []option.RequestOption{option.WithAPIKey(token), option.WithRequestBody("application/json", payload)}
 	completed := false
 	if p.profile.API == "responses" {

@@ -124,6 +124,8 @@ console.log(result);
 
 `wait_task({agentId, commandId})`は初期タスクまたはqueueで受領された特定のタスクが終わるまで待ち、`{runId, commandId, state, answer, error?, errorDetails?}`を返します。`state`は`completed`・`failed`・`cancelled`です。失敗・取消しも結果としてresolveし、不正・不明・所有範囲外のIDはrejectします。開始前に取り消されたタスクでは`runId`と`answer`が空です。steerの`commandId`は指定できません。
 
+上流の`cyber_policy`エラーでは`state:"failed"`となり、`errorDetails.code`と`providerCode`に`cyber_policy`、取得できた上流の理由・HTTPステータス・request IDを`providerMessage`・`statusCode`・`requestId`へ保持します。同じ詳細はsnapshotの`lastResult.errorDetails`にも入ります。[providerのエラー処理](providers.md#サイバーセキュリティ制限)を参照してください。
+
 `wait_task`とlive `observe_agent`は`includeAnswer`を指定でき、既定は`true`です。`false`なら`answer`（observeでは`lastResult.answer`）を省略し、代わりに`answerBytes`としてUTF-8のbyte数を返します。状態・ID・error等は受け取れ、保存された原文は変わりません。
 
 `read_task_result({agentId, commandId, offset?, maxBytes?})`は完了済みタスクの原文を範囲取得し、`{runId, commandId, state, text, offset, nextOffset, totalBytes, eof}`を返します。`offset`は既定0のUTF-8 byte位置で、文字境界かつ原文末尾までの非負safe integer、`maxBytes`は既定4096の正のsafe integerです。続きは`nextOffset`から取得します。文字の途中で切らず、指定byte数に一文字も収まらない場合だけ、その一文字を返すため最大3bytes超えます。末尾では空文字と`eof:true`です。未完了ならrejectするので先に`wait_task`で待ちます。所有範囲・結果保持期間は`wait_task`と同じで、追加モデル呼出しや自動要約・原文の切り捨ては行いません。

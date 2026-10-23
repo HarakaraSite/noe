@@ -122,7 +122,7 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 	return json.Marshal(body)
 }
 
-func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Response, error) {
+func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (response Response, err error) {
 	payload, err := p.responsesRequestBody(request)
 	if err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
@@ -130,6 +130,7 @@ func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Re
 	state := &callState{requestBody: payload, observe: request.Observe, sessionID: request.sessionID(), responseAPI: "responses"}
 	ctx = context.WithValue(ctx, callContextKey{}, state)
 	defer state.closeBody()
+	defer state.classifyFailure(ctx, &err)
 	model := request.Model
 	stream := true
 	tier := components.ResponsesRequestServiceTierAuto

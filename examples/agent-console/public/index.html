@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>NOE Agent Console</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="agent-header">
+    <div class="brand">NOE Agent Console <span class="subtle">現在の agent</span></div>
+    <div class="agent-summary">
+      <h1 id="agent-name">接続中…</h1>
+      <span id="agent-state" class="state-chip">—</span>
+      <span>Queue: <strong id="queue-length">—</strong></span>
+    </div>
+    <div class="agent-details"><span id="agent-id"></span><span id="agent-model">Model: —</span></div>
+    <p id="connection-status" class="notice error" role="status" hidden></p>
+  </header>
+
+  <main class="timeline-panel" aria-labelledby="timeline-heading">
+    <div class="history-toolbar">
+      <div class="session-row">
+        <h2 id="timeline-heading">Agent の履歴</h2>
+        <label for="session-select">セッション</label>
+        <select id="session-select" disabled aria-describedby="session-note"></select>
+      </div>
+      <p id="session-note" class="session-note">現在のセッションを読み込み中…</p>
+      <div class="paging-row">
+        <span id="history-range" class="subtle">履歴を読み込み中…</span>
+        <div class="paging-actions">
+          <button id="load-older" type="button" disabled>← 古い履歴</button>
+          <button id="load-newer" type="button" disabled>新しい履歴 →</button>
+          <button id="go-tail" type="button" disabled><span id="new-count"></span>末尾へ ↓</button>
+        </div>
+      </div>
+      <p id="history-error" class="notice error" role="status" hidden></p>
+    </div>
+    <div id="history" class="history" tabindex="0" role="region" aria-label="時系列の履歴。上下へスクロールして過去・後続の記録を読み込めます。" aria-busy="true">
+      <p id="history-empty" class="empty">履歴を読み込み中…</p>
+      <ol id="records" class="records"></ol>
+    </div>
+  </main>
+
+  <footer class="composer">
+    <form id="instruction-form">
+      <label for="instruction">agent への指示</label>
+      <textarea id="instruction" rows="3" placeholder="指示を入力…" disabled></textarea>
+      <div class="action-row">
+        <div class="primary-actions">
+          <button id="queue" type="submit" class="primary" disabled>Queue</button>
+          <button id="steer" type="button" disabled>Steer</button>
+          <button id="interrupt" type="button" disabled>Interrupt</button>
+        </div>
+        <button id="stop" type="button" class="danger" disabled>全停止</button>
+      </div>
+    </form>
+    <p id="action-help" class="subtle">Queue は次の依頼、Steer は実行中の依頼への追加指示。Interrupt は対象の依頼のみを中断します。</p>
+    <p id="action-status" class="action-status" role="status">受付は反映・完了を意味しません。状態と結果は履歴で確認してください。</p>
+  </footer>
+</body>
+</html>

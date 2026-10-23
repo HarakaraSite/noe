@@ -81,6 +81,14 @@ retry専用のobserve表示・JSONLイベントは追加せず、`model.started`
 
 SDK側の暗黙のretryは無効のまま、NOE側で上記の再試行だけを行います。対象はOpenRouter・OpenCode Go・OpenAI等の組込みagent生成経路です。単発decision・画像生成・Goホストから注入した独自providerの再試行方針は変更しません。
 
+### サイバーセキュリティ制限
+
+上流がエラーコード`cyber_policy`を明示した場合は、認証失敗や通信障害と区別して`policy`に分類し、自動再試行せずタスクを失敗として終了します。HTTPエラー、Responsesの`response.failed`・`response.incomplete`、ストリーム途中の`error`を対象とし、OpenAI SDKとOpenRouter SDKの両経路で扱います。これらのSDKを使うOpenCode Goの設定にも適用されます。失敗した応答に含まれる未実行のtool callは実行しません。
+
+`lastResult.errorDetails`および`wait_task()`の結果には、`code: "cyber_policy"`、`providerCode`、上流の理由の`providerMessage`、HTTPの`statusCode`、取得できた上流の`x-request-id`を`requestId`として残します。資格情報は既存のmetadataサニタイズ処理で除去します。同じ詳細を`model.failed`・`agent.failed`のイベントにも記録し、`model.failed.reason`は`policy`になります。イベント直下の`requestId`はNOE側の要求IDで、詳細内の上流request IDとは別です。
+
+通常の回答文や未知のエラーメッセージにDaybreak等の文字列があっても、それだけで拒否とは判定しません。completed応答の明示的な`refusal`は従来どおり別に扱います。NOEの応答分類は、上流の制限やDaybreak権限を変更するものではありません。調査と検証は[対応メモ](development/cyber-policy-response-notes.md)を参照してください。
+
 ## 設定項目
 
 | 項目 | 意味 |

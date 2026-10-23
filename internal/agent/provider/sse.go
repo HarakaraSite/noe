@@ -25,6 +25,12 @@ type observedBody struct {
 	events  []json.RawMessage
 	done    bool
 	readErr error
+	// Non-200 bodies are JSON errors rather than SSE. Retain what the SDK
+	// actually reads so classification does not depend on its error types.
+	captureError bool
+	errorBody    []byte
+	requestID    string
+	credential   string
 
 	closeOnce sync.Once
 	closeErr  error
@@ -39,7 +45,11 @@ func (b *observedBody) Read(p []byte) (int, error) {
 	b.mu.Lock()
 	var completed []json.RawMessage
 	if n > 0 {
-		completed = b.feedLocked(p[:n])
+		if b.captureError {
+			b.errorBody = append(b.errorBody, p[:n]...)
+		} else {
+			completed = b.feedLocked(p[:n])
+		}
 	}
 	if err != nil && err != io.EOF && b.readErr == nil {
 		b.readErr = err

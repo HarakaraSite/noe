@@ -170,6 +170,9 @@ func (c *observedHTTPClient) Do(request *http.Request) (*http.Response, error) {
 			source = http.NoBody
 		}
 		body := newObservedBody(source)
+		body.captureError = response.StatusCode != http.StatusOK
+		body.requestID = response.Header.Get("x-request-id")
+		body.credential = strings.TrimPrefix(request.Header.Get("Authorization"), "Bearer ")
 		body.observe = state.observe
 		if state.responseAPI == "responses" {
 			body.extract = responsesObservations
@@ -250,7 +253,7 @@ func (p *OpenRouter) Generate(ctx context.Context, request Request) (Response, e
 	return generateWithRetry(ctx, request, p.generateOnce)
 }
 
-func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (Response, error) {
+func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (response Response, err error) {
 	if err := cancellationError(ctx); err != nil {
 		return Response{}, err
 	}
@@ -264,6 +267,7 @@ func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (Respons
 	state := &callState{requestBody: payload, observe: request.Observe, sessionID: request.sessionID(), reasoningField: p.profile.ReasoningField}
 	ctx = context.WithValue(ctx, callContextKey{}, state)
 	defer state.closeBody()
+	defer state.classifyFailure(ctx, &err)
 
 	model := request.Model
 	streaming := true
@@ -313,7 +317,7 @@ func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (Respons
 	if err := accumulator.consume(events); err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
-	response, err := accumulator.response()
+	response, err = accumulator.response()
 	if err != nil {
 		return Response{}, err
 	}
