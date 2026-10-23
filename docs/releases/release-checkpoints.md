@@ -1425,3 +1425,37 @@ Reference logs, clean source, build information and consumer artifacts:
 `/var/tmp/noe-v2.1.1-release-4Q1KN0`. The tag-triggered workflow remains the
 distribution gate. Published binaries, checksums and the actual public Go
 module are verified separately after publication.
+
+## v2.1.1 Release validation — 2026-10-23
+
+- Annotated tag: `v2.1.1`, pointing to `9349720947186865c7c77dd7d0ca4c1186b7e615`. The peeled remote tag matches the workflow revision; its only difference from the checked source is the preparation evidence document.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/30): succeeded (API run ID 211, job ID 232).
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.1.1): published, neither draft nor prerelease (Release ID 144). Its body matches the tagged [English release notes](v2.1.1.md).
+
+The workflow passed the CGO-free unit-test and vet gates, built all six
+distribution binaries and uploaded them with SHA256SUMS. All seven assets were
+downloaded, and all six binary hashes matched the published checksum file.
+
+The downloaded Linux amd64 binary reports `noe v2.1.1`, the tagged revision,
+`vcs.modified=false`, `CGO_ENABLED=0` and go-quickjs v0.28.0 without JIT. Its
+SHA256 is `80d3a80034696d4c8ae588b706232aaf6ebcbc5bb01b921e7b1e81407026adde`.
+The engine/Worker smoke and native fixture passed against this downloaded
+binary. A TestMain-only overlay also ran the checked CLI E2E assertions against
+the downloaded binary: version/commands, live queue/steer and saved playback,
+managed run_js, file reading and tool history all passed.
+
+Clean modules outside the checkout fetched `stdlib@v2.1.1` and `agent@v2.1.1`
+from the actual published module, with no local replacement or synthetic proxy.
+Both examples built, ran and passed `go mod verify`; MVS selected go-quickjs
+v0.28.0. The deterministic agent returned `The total is 31.`.
+
+The full stdlib Worker consumer also built and ran against the actual published
+module. Its initializer-cleanup, Worker and borrowed-I/O assertions passed in
+all 100 repeated runs with eight concurrent processes. No assertion was relaxed
+to accommodate the formerly failing case.
+
+All assets, workflow log, build information, native/CLI logs, published-module
+consumers and repeated Worker results are retained at
+`/var/tmp/noe-v2.1.1-release-4Q1KN0`. No paid provider calls were made. Other five
+targets have build/hash verification but no native execution on this host.
+This documentation-only publication record does not move the release tag.
