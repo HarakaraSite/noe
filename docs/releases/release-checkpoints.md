@@ -1500,3 +1500,50 @@ Dependency-packaging candidate checks completed before the engine tag:
 
 These packaging checks do not substitute for the final v2.2.0 reference gates
 or actual published-module retrieval, which follow the engine tag.
+
+## v2.2.0 final reference checks — 2026-10-23
+
+Checked release source: `fe5e39dca794a625890fe117266b9a7755239500`, in a clean detached worktree. Final root go.mod
+requires the actual published managed engine and contains no replace directive.
+The tag-preparation commit changes only these evidence documents.
+
+| Check | Result |
+| --- | --- |
+| `engine` | PASS, 67.819s |
+| `unit-e2e` | PASS, 96.357s |
+| `vet` | PASS, 2.202s |
+| `race` | PASS, 146.151s |
+| `engine-vet` | PASS, 1.6s |
+| `long-client` | PASS, 30.861s |
+| `compile-linux-amd64` | PASS, 1.384s |
+| `compile-linux-arm64` | PASS, 5.783s |
+| `compile-darwin-amd64` | PASS, 5.708s |
+| `compile-darwin-arm64` | PASS, 5.758s |
+| `compile-windows-amd64` | PASS, 5.739s |
+| `compile-windows-arm64` | PASS, 5.715s |
+| `stdlib-consumer` | PASS, 10.896s |
+| `agent-consumer` | PASS, 22.493s |
+| `native-build` | PASS, 6.456s |
+| `engine-smoke` | PASS, 0.035s |
+| `native-smoke` | PASS, 0.687s |
+| `go-mod-verify` | PASS, 0.667s |
+
+The native release-flags binary reports v2.2.0, CGO disabled, the checked
+revision and vcs.modified=false. The engine's published module was fetched
+from an empty dedicated cache, ran the prepare/link/evaluate API and passed
+go mod verify. Its 737 distributable source files match the checked managed
+source; two nested tool manifests are excluded by standard Go packaging.
+
+Native smoke passed stable queue sessions, distinct run IDs, answer paging,
+command failure details, bundled docs, non-evaluating module checks, structured
+link diagnostics, API discovery and inspection ownership, plus BigInt/Worker
+behavior. Downloaded-binary E2E uses a TestMain-only overlay, preserving the
+tagged assertions. No paid provider calls were needed for release-specific
+checks; actual OAuth/workflow and new-contract provider evidence is linked
+from the implementation record.
+
+Six-target checks are compilation only; the tag workflow links the six release
+binaries. Native execution is Linux amd64 only. Exact commands and logs:
+`/var/tmp/noe-v2.2.0-release-20261023-171109/reference-results.json`.
+Publication, downloaded assets and actual NOE module retrieval are recorded
+after the tag, without moving published tags.
