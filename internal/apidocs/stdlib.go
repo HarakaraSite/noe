@@ -17,7 +17,7 @@ func stdlibTopics() []topicSpec {
 		{ID: "node:buffer", Kind: "module", Summary: "Provides byte-oriented Buffer helpers and the Buffer global.", File: "stdlib-buffer.md", Aliases: []string{"buffer"}},
 		{ID: "node:child_process", Kind: "module", Summary: "Runs operating-system programs to completion and returns captured output.", File: "stdlib-child_process.md", Aliases: []string{"child_process"}},
 		{ID: "node:crypto", Kind: "module", Summary: "Offers hashing, HMAC, random values, key derivation, and a limited Web Crypto surface.", File: "stdlib-crypto.md", Aliases: []string{"crypto"}},
-		{ID: "node:dns", Kind: "module", Summary: "Resolves names using the host system resolver and exposes Node-style method names as promise-returning functions.", File: "stdlib-dns.md", Aliases: []string{"dns"}},
+		{ID: "node:dns", Kind: "module", Summary: "System resolver queries with callbacks; use node:dns/promises for Promise-based queries.", File: "stdlib-dns.md", Aliases: []string{"dns"}},
 		{ID: "node:dns/promises", Kind: "module", Summary: "Promise-oriented DNS resolver module.", File: "stdlib-dns-promises.md", Aliases: []string{"dns/promises"}},
 		{ID: "node:events", Kind: "module", Summary: "Provides a small EventEmitter implementation and a promise helper.", File: "stdlib-events.md", Aliases: []string{"events"}},
 		{ID: "node:fs", Kind: "module", Summary: "Reads and writes files synchronously or as Web Streams.", File: "stdlib-fs.md", Aliases: []string{"fs"}},

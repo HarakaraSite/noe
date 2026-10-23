@@ -48,7 +48,8 @@ func (p *hostProvider) Generate(ctx context.Context, q model.Request) (model.Res
 	p.identities[instruction] = [2]string{q.SessionID, q.RunID}
 	p.mu.Unlock()
 	if instruction == "root" && !hasTool {
-		code := `import {readFileSync} from "node:fs";
+		code := `import {run_agent} from "noe:agent";
+import {readFileSync} from "node:fs";
 if(readFileSync("input.txt","utf8")!=="selected root")throw Error("tool filesystem");
 const child=await run_agent({name:"child"},"child");if(child.lastResult?.state!=="completed")throw Error("child");console.log(child.lastResult.answer);`
 		args, _ := json.Marshal(map[string]string{"code": code})

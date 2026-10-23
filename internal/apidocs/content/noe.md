@@ -12,4 +12,6 @@ Scripts run with the operating-system permissions of the NOE process. NOE is not
 
 Use `noe docs` for the topic index, `noe docs <topic>` for a topic overview and its member IDs, and `noe docs <topic> <member>` for one member's reference. From JavaScript, import the synchronous `docs` function from `noe:docs`.
 
+Each module overview identifies its public exports, aliases, owner, type-declaration file, and host requirements. noestdlib owns `stdlib/types/noestdlib.d.ts`; noeagentlib owns `agent/types/noeagentlib.d.ts`, including agent/model/image/decision/auth/log modules. Obtain these separate files from the corresponding source version; the binary does not download or combine them. Reading this catalog never evaluates the described module. Type declarations and reference entries do not grant or detect runtime capabilities.
+
 For HTTP requests and servers, use `import { fetch, serve } from "noe:http"`. It shares the existing Web types and supports outgoing, incoming, and response-body streaming. Read `docs("noe:http")` for demand-driven request-body reads, body limits, `Expect: 100-continue`, and resource-lifetime details.

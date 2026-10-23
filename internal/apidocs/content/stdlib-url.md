@@ -1,5 +1,15 @@
 # node:url
 
+### API information
+
+Reference: `node:url`; aliases: `url`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Installed by stdlib.Profile in main runtimes and Workers. Operations still follow the selected host capabilities and the limits below.
+
+Public-definition source: internal/stdlib/extras.go. Reading this reference evaluates no target module and makes no provider request.
+
 Exposes Web URL and URLSearchParams plus a small set of URL and file-URL helpers. parse and format wrap Web URL behavior; they are not Node's legacy URL parser/formatter.
 
 ### Exports

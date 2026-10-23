@@ -186,6 +186,7 @@ type Bindings struct {
 	exitCode      int
 	closeErr      error
 	snapshotter   quickjs.Value
+	rethrower     quickjs.Value
 	mu            sync.Mutex
 }
 
@@ -238,6 +239,10 @@ func attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile, worker bool,
 		}
 	}()
 	b.snapshotter, err = rt.EvalFileContext(ctx, "<stdlib-diagnostic>", diagnosticSource)
+	if err != nil {
+		return nil, err
+	}
+	b.rethrower, err = rt.EvalFileContext(ctx, "<stdlib-rethrow>", `(value) => { throw value; }`)
 	if err != nil {
 		return nil, err
 	}
@@ -510,6 +515,28 @@ func (b *Bindings) DefineModule(specifier, source string) error {
 	}
 	b.modules[specifier] = source
 	return nil
+}
+
+// installManagedModules registers the private entry helper and wrapper as one
+// owner operation. A collision in Profile-defined modules is reported to the
+// caller so it can choose another private specifier without replacing it.
+func (b *Bindings) installManagedModules(helperName, wrapperName, wrapperSource string, helperExports map[string]any) (bool, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return false, errors.New("stdlib: bindings are closed")
+	}
+	if _, exists := b.modules[helperName]; exists {
+		return false, nil
+	}
+	if _, exists := b.modules[wrapperName]; exists {
+		return false, nil
+	}
+	if err := b.rt.SetModule(helperName, helperExports); err != nil {
+		return false, err
+	}
+	b.modules[wrapperName] = wrapperSource
+	return true, nil
 }
 
 // Prepare creates this execution's loader and returns a normalized entry for

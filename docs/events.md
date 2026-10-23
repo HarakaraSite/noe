@@ -96,7 +96,8 @@ agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等�
 | `agent.message` | toolを呼ぶ応答に含まれる途中の発言`text`と`requestId` |
 | `agent.final` | loopが正常な最終回答として受け入れた`text` |
 | `run_js.started` | `toolCallId`・モデルが渡したJS全文の`code`と、codeの先頭行が`//`コメントならその行の`text` |
-| `run_js.finished` | `toolCallId`・`success`・`exitCode`・`reason`・`duration` |
+| `run_js.finished` | `toolCallId`・`success`・`exitCode`・`reason`・`duration`、返却がある場合の`data`、失敗情報の`diagnostics` |
+| `execution.diagnostic` | agent task自体のVM診断。`source: "agent_task"`・`agentId`・`commandId`・判明時のみ`runId`・`diagnostics` |
 | `image.read` | `path`・`modelStepId`・`toolCallId`と、`image`内のimage ID・MIME・byte数・寸法・detail |
 | `image.started` / `image.completed` / `image.failed` / `image.cancelled` | `provider`・`imageModel`・`path`。完了時は画像metadata・取得できる`responseModel`・`providerRequestId`・`usage`・`duration`、失敗・取消し時は`error`と`duration` |
 | `tool.finished` | `run_js`では`rawImages`（hook前の読取り候補）と`images`（採用後）を`rawResult`・`result`と分けて記録。画像項目はmetadataのみ |
@@ -115,11 +116,11 @@ thinking・summary・messageの断片はストリーム受信時に出ます。p
 
 通常のJS出力は改行なしでも書込みごとに通知します。UTF-8文字の途中で分割された書込みは、文字が揃ってから通知します。`child_process`が返す捕捉出力は、JSが表示した時点で通常出力になります。`run_js`内のstdout/stderrは現在もrunnerが捕捉し、tool完了時に`source: "run_js"`とrun/tool ID付きで記録します。tool内部の出力の逐次中継は行っていません。
 
-`run_js.started.code`は実行開始時に記録するため、失敗・取消しの場合も呼出し方を確認できます。NOEが付けるhelper importや接続情報は含みません。人間向けの`--observe`と`noe observe`は従来どおり先頭コメントを表示し、JS全文は表示しません。コードの記録は`--events`に含まれ、従来のメタデータtraceには含まれません。
+`run_js.started.code`は実行開始時に記録するため、失敗・取消しの場合も呼出し方を確認できます。元sourceをそのまま記録します。agent helperは利用者が明示importし、内部wrapperや接続情報をcodeへ合成しません。人間向けの`--observe`と`noe observe`は従来どおり先頭コメントを表示し、JS全文は表示しません。コードの記録は`--events`に含まれ、従来のメタデータtraceには含まれません。
 
 `run_js`のstdout・stderrは各64KiB（先頭32KiB＋末尾32KiB）までの捕捉出力と省略マーカーを記録します。省略があるstreamの出力イベントには`omittedBytes`、`run_js.finished`には`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。`tool.finished.rawResult`にも同じ省略情報が入り、`result`はその後のhook変換に従います。JSONLは省略された出力の完全ログではありません。通常のトップレベルJS出力の記録は変更しません。
 
-未処理例外の診断には、従来のメッセージ・利用可能なstackに加え、取得できる`code`・`stdout`・`stderr`を`exception details: {…}`というJSON付きの行で残します。この診断は`run_js`のstderrとしてモデルへ返り、同じ内容がJSONLの`stderr`イベントにも入ります。`run_js.finished.exitCode`はNOEのJSプロセスの終了コードであり、例外内の`code`は内部コマンドの終了コード等を示す別の値です。
+S4開発版では、未処理例外を`diagnostics`のcode/stage/messageと、取得できたstack/position/exceptionとして返します。診断をtoolのstderrやJSONLの`stderr`イベントへ合成しません。commandのstdout/stderrは例外詳細内で区別し、byte出力はencoding付きで保存します。`run_js.finished.exitCode`はNOEの実行終了コードであり、`diagnostics[].exception.code`は内部コマンドや利用者例外の別の値です。agent task自体の診断は`execution.diagnostic`へ残します。詳細は[実行結果と診断](execution-results.md)を参照してください。
 
 詳細保持は固定した項目の文字列・有限の数値・booleanを対象とし、読取りに失敗する項目やオブジェクトは省略します。任意のプロパティ、循環参照、独自の`toJSON`、バイナリ出力等を完全に保存する仕組みではありません。JS内で捕捉して処理した例外は自動記録しません。NOE管理の`child_process`では、非同期の`execFile`・`exec`に加え、同期の`execFileSync`・`execSync`も失敗時のErrorにコマンドの`code`・`stdout`・`stderr`を持つため、未処理ならこの診断で取得できます。同期版の出力は常に文字列です。これはNOE側の変更であり、原型のgo-quickjs v0.27.0の同期版にはありません。
 

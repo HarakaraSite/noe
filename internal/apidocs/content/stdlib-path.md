@@ -1,5 +1,15 @@
 # node:path
 
+### API information
+
+Reference: `node:path`; aliases: `path`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Installed by stdlib.Profile in main runtimes and Workers. Operations still follow the selected host capabilities and the limits below.
+
+Public-definition source: internal/stdlib/path.go. Reading this reference evaluates no target module and makes no provider request.
+
 Computes path strings without reading the filesystem. NOE's bare path module uses POSIX rules on every host; path/posix and path/win32 select a flavor explicitly, and each path object exposes both posix and win32 properties.
 
 ### Exports

@@ -9,7 +9,7 @@ const runJSTool = Object.freeze({
   type: "function",
   function: {
     name: "run_js",
-    description: "Execute an ES module with top-level await in a fresh owned JavaScript runtime. Each call has a new global scope and module cache. Relative imports from the virtual entry resolve from the configured working directory; file-backed modules resolve relative imports from their referrer. The result contains stdout, stderr, exitCode, and reason. Each output stream retains its first and last 32 KiB; truncated results report omitted bytes.",
+    description: "Execute a JavaScript ES module with top-level await in a fresh owned runtime. Import agent operations explicitly, for example: import {spawn_agent} from 'noe:agent';. Export a default value to return data after JSON serialization; without a default, data is omitted, while null is returned as data: null. Runtime failures are returned separately in diagnostics. The result includes stdout, stderr, exitCode, and reason. Each output stream retains its first and last 32 KiB and reports omitted bytes when truncated.",
     parameters: {
       type: "object",
       properties: {
@@ -93,13 +93,44 @@ function requireContextPolicy(value) {
 }
 
 function failedToolResult(message) {
-  return { stdout: "", stderr: message, exitCode: -1, reason: "failed" };
+  return { stdout: "", stderr: "", exitCode: -1, reason: "failed",
+    diagnostics: [{code: "execution_error", stage: "setup", message}] };
 }
 
 function requireRunnerResult(value) {
   if (!isRecord(value) || typeof value.stdout !== "string" || typeof value.stderr !== "string" ||
       !Number.isInteger(value.exitCode) || !["completed", "failed", "timeout", "cancelled"].includes(value.reason)) {
     throw new Error("runner returned an invalid tool result");
+  }
+  if (Object.hasOwn(value, "data")) {
+    const data = value.data;
+    const dataType = typeof data;
+    if (data === undefined || dataType === "function" || dataType === "symbol" ||
+        (dataType === "number" && !Number.isFinite(data))) {
+      throw new Error("runner returned invalid execution data");
+    }
+  }
+  if (value.diagnostics !== undefined) {
+    if (!Array.isArray(value.diagnostics)) throw new Error("runner returned invalid diagnostics");
+    for (const diagnostic of value.diagnostics) {
+      if (!isRecord(diagnostic) || typeof diagnostic.code !== "string" ||
+          typeof diagnostic.stage !== "string" || typeof diagnostic.message !== "string" ||
+          (diagnostic.stack !== undefined && typeof diagnostic.stack !== "string")) {
+        throw new Error("runner returned invalid diagnostics");
+      }
+      if (diagnostic.position !== undefined) {
+        const position = diagnostic.position;
+        if (!isRecord(position) ||
+            (position.source !== undefined && typeof position.source !== "string") ||
+            (position.line !== undefined && (!Number.isInteger(position.line) || position.line < 1)) ||
+            (position.column !== undefined && (!Number.isInteger(position.column) || position.column < 1))) {
+          throw new Error("runner returned invalid diagnostic position");
+        }
+      }
+      if (diagnostic.exception !== undefined && !isRecord(diagnostic.exception)) {
+        throw new Error("runner returned invalid exception details");
+      }
+    }
   }
   if (value.images !== undefined && value.images !== null) validateImageMetadata(value.images);
   return value;

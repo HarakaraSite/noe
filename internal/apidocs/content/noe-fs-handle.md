@@ -1,5 +1,17 @@
 # `noe:fs-handle`
 
+### API information
+
+Public exports: `open`.
+
+Reference: `noe:fs-handle`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.FS; paths and access follow that execution's filesystem view.
+
+Public-definition source: internal/nativeio/file.go, internal/nativeio/js/file.js. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:fs-handle` exports `open` for positional byte I/O on an existing local file. Use standard `node:fs` for whole-file and sequential stream operations; `noe:fs-handle` provides position-based `readAt` and `writeAt`, not a replacement for the standard filesystem API. It is available in the main runtime and Workers. An open handle alone does not keep an evaluation alive; the runtime owns and closes it at shutdown.
 
 ## open

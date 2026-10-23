@@ -32,7 +32,8 @@ await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"run
 func TestAgentParentTimeoutStopsNestedProcessGroups(t *testing.T) {
 	work := t.TempDir()
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
-		code := `import {writeFileSync} from "node:fs";
+		code := `import {run_agent} from "noe:agent";
+import {writeFileSync} from "node:fs";
 writeFileSync("parent-ready","ready");
 const child=await run_agent({name:"nested"},"nested child");console.log(child.lastResult.answer);`
 		if agentUser(req) == "nested child" {

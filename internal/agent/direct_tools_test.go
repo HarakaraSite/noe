@@ -3,9 +3,12 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"forge.harakara.site/littleisland/noe/v2/agent/model"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 )
 
 type directToolModels struct{}
@@ -13,6 +16,7 @@ type directToolModels struct{}
 func (directToolModels) ListModels(context.Context, model.ModelQuery) ([]model.Model, error) {
 	return nil, nil
 }
+
 func (directToolModels) Generate(context.Context, model.Request) (model.Response, error) {
 	return model.Response{}, model.ErrUnsupported
 }
@@ -21,6 +25,34 @@ func (directToolModels) Decide(context.Context, model.DecisionRequest) (model.De
 }
 func (directToolModels) GenerateImage(context.Context, model.ImageRequest) (model.GeneratedImage, error) {
 	return model.GeneratedImage{}, model.ErrUnsupported
+}
+
+func TestDirectRunJSExecutorErrorIsKeptOutOfStderr(t *testing.T) {
+	host := NewHost(Options{
+		Models: modelsWithChat(&fixtureProvider{}),
+		Execute: func(context.Context, Execution) (Result, error) {
+			return Result{ExitCode: 0, Reason: "completed", Stderr: "actual stderr"}, errors.New("executor failed")
+		},
+	})
+	t.Cleanup(host.Close)
+	op := host.NewOperation(context.Background())
+	t.Cleanup(op.Close)
+	runID := startFixtureRun(t, op)
+	code := "console.log('run')"
+	request := runJSRequest{RunID: runID, Code: &code}
+	responseJSON := lifecycleCall(t, op, "run_js", request)
+	var response runJSResponse
+	if err := json.Unmarshal([]byte(responseJSON), &response); err != nil {
+		t.Fatalf("decode run_js response %q: %v", responseJSON, err)
+	}
+	if response.Stderr != "actual stderr" {
+		t.Fatalf("executor error was appended to user stderr: %q", response.Stderr)
+	}
+	if response.Reason != "failed" || response.ExitCode == 0 || len(response.Diagnostics) != 1 ||
+		response.Diagnostics[0].Code != "execution_error" || response.Diagnostics[0].Stage != "execute" ||
+		response.Diagnostics[0].Message != "executor failed" {
+		t.Fatalf("executor error was not separated into diagnostics: %+v", response)
+	}
 }
 
 type customProviderWithCatalog struct{ agentTestModelService }
@@ -50,9 +82,11 @@ func TestDirectHostUsesModelServiceProviderClassification(t *testing.T) {
 func TestDirectRunJSUsesHostExecutorAndRunScope(t *testing.T) {
 	ctx := context.Background()
 	called := 0
+	var observed []events.Event
 	host := NewHost(Options{
 
-		Models: directToolModels{},
+		Models:  directToolModels{},
+		Observe: func(event events.Event) { observed = append(observed, event) },
 		Execute: func(ctx context.Context, execution Execution) (Result, error) {
 			called++
 			if ctx.Err() != nil {
@@ -71,7 +105,11 @@ func TestDirectRunJSUsesHostExecutorAndRunScope(t *testing.T) {
 			if config.Provider != "fixture" || config.Model != "fixture-model" {
 				t.Fatalf("tool defaults=%+v", config)
 			}
-			return Result{ExitCode: 0, Reason: "completed", Stdout: "tool output"}, nil
+			return Result{
+				ExitCode: 0, Reason: "completed", Stdout: "tool output",
+				Data:        json.RawMessage(`{"answer":42}`),
+				Diagnostics: []executionresult.Diagnostic{{Code: "cleanup_error", Stage: "cleanup", Message: "close failed"}},
+			}, nil
 		},
 	})
 	defer host.Close()
@@ -107,5 +145,28 @@ func TestDirectRunJSUsesHostExecutorAndRunScope(t *testing.T) {
 	}
 	if called != 1 || response.ExitCode != 0 || response.Reason != "completed" || response.Stdout != "tool output" {
 		t.Fatalf("called=%d response=%+v", called, response)
+	}
+	if string(response.Data) != `{"answer":42}` || len(response.Diagnostics) != 1 || response.Diagnostics[0].Message != "close failed" {
+		t.Fatalf("run_js response lost execution result fields: %+v", response)
+	}
+	var finished events.Event
+	for _, event := range observed {
+		if event["type"] == "run_js.finished" {
+			finished = event
+		}
+	}
+	if finished == nil {
+		t.Fatal("run_js.finished event was not observed")
+	}
+	encoded, err := json.Marshal(finished)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var eventFields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &eventFields); err != nil {
+		t.Fatal(err)
+	}
+	if string(eventFields["data"]) != `{"answer":42}` || !json.Valid(eventFields["diagnostics"]) {
+		t.Fatalf("run_js.finished omitted result fields: %s", encoded)
 	}
 }

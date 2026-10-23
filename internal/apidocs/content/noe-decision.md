@@ -1,5 +1,17 @@
 # `noe:decision`
 
+### API information
+
+Public exports: `decide`.
+
+Reference: `noe:decision`. Owner: noeagentlib.
+
+Type declarations: `agent/types/noeagentlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires the model/decision binding in the main runtime. Provider calls follow the configured service and execution scope.
+
+Public-definition source: internal/decision/decision.go, internal/modelbinding/binding.go. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:decision` exports one operation, `decide`. It makes a structured provider decision and returns the provider response as JSON; it does not start an agent loop. It is available in the main runtime, not Workers. When called from a managed task, the request belongs to that task's owner and cancellation scope and counts toward its shared provider-call limit.
 
 ## decide

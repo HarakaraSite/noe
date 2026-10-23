@@ -189,7 +189,7 @@ const next = await analyze_log(await readFile("agent.jsonl"), {
 | `runId` | 必須。観察するrunの完全なID |
 | `cursor` | 前回返された`{executionId, seq}`。省略時は最初から |
 | `includeThinking` | 既定は`false`。差分へthinking・summaryを含める |
-| `includeOutput` | 既定は`false`。差分へstdout/stderrと直近toolの捕捉出力を含める |
+| `includeOutput` | 既定は`false`。差分へstdout/stderrと直近toolの捕捉出力・返却dataを含める。diagnosticsはこの選択によらず保持 |
 
 戻り値には次の情報があります。
 
@@ -197,7 +197,7 @@ const next = await analyze_log(await readFile("agent.jsonl"), {
 - `status`：`unknown`・`running`・`completed`・`failed`・`cancelled`
 - `phase`：`unknown`・`starting`・`model`・`run_js`・`between_steps`・`settled`
 - `action`：実行中または直近のJSコメント。`lastMessage`：直近の途中の発言
-- `lastToolResult`：完了済みの直近toolのID・成功失敗・終了コード・理由・所要時間。実行中のtoolの結果ではない
+- `lastToolResult`：完了済みの直近toolのID・成功失敗・終了コード・理由・所要時間とdiagnostics。includeOutput時はdataと捕捉出力も含む。実行中のtoolの結果ではない
 - `finalText`：確定した最終回答。`error`：記録されているrunの失敗情報
 - `usage`：そのrunでproviderから返った使用量の合計。`updatedAt`：最後に観察した関連イベントの時刻
 - `events`：選択runの状態・発言・tool等の差分。空の場合は`[]`

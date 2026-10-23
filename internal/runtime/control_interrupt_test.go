@@ -366,6 +366,7 @@ func TestPublicRunJSCanCancelItsOwnTaskWithoutJoining(t *testing.T) {
 			return provider.Response{}, fmt.Errorf("agent.started did not provide a command target: %+v", target)
 		}
 		code := fmt.Sprintf(`// Cancel the currently executing managed task by its accepted command ID.
+import {cancel_task} from "noe:agent";
 const ack=await cancel_task({agentId:%q,commandId:%q});
 if(ack.status!=="accepted"||ack.commandId!==%q)throw Error(JSON.stringify(ack));
 console.log("cancel accepted");`, target.agentID, target.commandID, target.commandID)
@@ -417,6 +418,7 @@ func TestPublicRunJSCanStopItsOwnInstanceWithoutJoining(t *testing.T) {
 		}
 		usedTarget <- target
 		code := fmt.Sprintf(`// Stop the managed instance which owns this generated JS scope.
+import {stop_agent} from "noe:agent";
 const ack=await stop_agent({agentId:%q});
 if(ack.agentId!==%q||ack.status!=="accepted")throw Error(JSON.stringify(ack));
 console.log("stop accepted");`, target.agentID, target.agentID)

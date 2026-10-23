@@ -1,5 +1,17 @@
 # `noe:docs`
 
+### API information
+
+Public exports: `docs`.
+
+Reference: `noe:docs`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Installed by stdlib.Profile in main runtimes and Workers, independently of selected host capabilities.
+
+Public-definition source: internal/noestdlib/noestdlib.go. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:docs` exposes this binary's embedded Markdown reference to JavaScript. It performs no external I/O, provider request, or persistent work. The same content is used by the `noe docs` CLI command.
 
 ### Availability

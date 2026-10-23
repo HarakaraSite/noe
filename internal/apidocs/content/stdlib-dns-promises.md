@@ -1,5 +1,15 @@
 # node:dns/promises
 
+### API information
+
+Reference: `node:dns/promises`; aliases: `dns/promises`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.DNS.
+
+Public-definition source: internal/stdlib/dns.go. Reading this reference evaluates no target module and makes no provider request.
+
 Promise-oriented DNS resolver module. It uses the same system resolver as node:dns; operations resolve to addresses or records and reject on lookup errors.
 
 ### Exports

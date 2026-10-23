@@ -84,7 +84,8 @@ func TestAgentChildrenRunConcurrentlyAndInheritSettings(t *testing.T) {
 				t.Errorf("parent settings: %+v", req)
 			}
 			if len(req.Messages) == 2 {
-				code := `const results=await Promise.all([
+				code := `import {run_agent} from "noe:agent";
+const results=await Promise.all([
 run_agent({name:"left",maxSteps:3},"left"),
 run_agent({name:"right",model:"fixture/override",maxTokens:321,effort:"low",system:"right-only-setting",cacheKey:"right-cache",maxSteps:3},"right")
 ]);console.log(JSON.stringify(results.map(result=>result.lastResult.answer)));`
@@ -217,7 +218,8 @@ func TestAgentChildDefaultsBelongToLaunchingRun(t *testing.T) {
 			if suffix == "b" {
 				config = `{maxTokens:0,effort:"auto"}`
 			}
-			code := `const result=await run_agent(` + config + `,"child-` + suffix + `");console.log(result.lastResult.answer);`
+			code := `import {run_agent} from "noe:agent";
+const result=await run_agent(` + config + `,"child-` + suffix + `");console.log(result.lastResult.answer);`
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("child", code)}}}, FinishReason: "tool_calls"}
 		}
 		got := agentToolResult(t, req.Messages[len(req.Messages)-1])
@@ -282,7 +284,8 @@ func TestAgentSpawnedChildSurvivesToolExitAndIsReclaimedWithParent(t *testing.T)
 			return agentModelReply{Status: 500}
 		}
 		if len(req.Messages) == 2 {
-			code := `const {agentId}=await spawn_agent({name:"abandoned"},"blocked child",{keepAlive:true});
+			code := `import {spawn_agent} from "noe:agent";
+const {agentId}=await spawn_agent({name:"abandoned"},"blocked child",{keepAlive:true});
 const {writeFileSync,existsSync}=await import("node:fs");writeFileSync("child.json",JSON.stringify({agentId}));
 while(!existsSync("child-started")) await new Promise(r=>setTimeout(r,5));
 process.exit(9);`
@@ -290,7 +293,8 @@ process.exit(9);`
 		}
 		got := agentToolResult(t, req.Messages[len(req.Messages)-1])
 		if got.ExitCode == 9 && got.Reason == "failed" {
-			code := `const {readFileSync}=await import("node:fs");
+			code := `import {observe_agent,queue_agent} from "noe:agent";
+const {readFileSync}=await import("node:fs");
 const {agentId}=JSON.parse(readFileSync("child.json","utf8"));
 const snapshot=await observe_agent({agentId});
 if(snapshot.state!=="running"||!snapshot.currentRunId)throw Error(JSON.stringify(snapshot));

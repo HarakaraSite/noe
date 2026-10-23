@@ -140,10 +140,12 @@ func testRunJSCommandFailureDetailsReachModelAndEvents(t *testing.T, call string
 	if tool.Role != "tool" || tool.ToolCallID != "call-failure" || result.ExitCode != 1 || result.Reason != "failed" {
 		t.Fatalf("tool=%+v result=%+v", tool, result)
 	}
-	for _, want := range []string{`"code":128`, `"stdout":"partial output\n"`, `"stderr":"fatal: 日本語\n"`} {
-		if !strings.Contains(result.Stderr, want) {
-			t.Errorf("model did not receive %q: %s", want, result.Stderr)
-		}
+	if result.Stderr != "" || len(result.Diagnostics) != 1 {
+		t.Fatalf("diagnostic mixed with stderr: %+v", result)
+	}
+	diagnostic := result.Diagnostics[0]
+	if diagnostic.Code != "execution_error" || diagnostic.Stage != "execute" || diagnostic.Exception["code"] != float64(128) || diagnostic.Exception["stdout"] != "partial output\n" || diagnostic.Exception["stderr"] != "fatal: 日本語\n" {
+		t.Fatalf("model lost structured command diagnostic: %+v", diagnostic)
 	}
 	var foundCode, foundError bool
 	for _, event := range observed {
@@ -153,8 +155,15 @@ func testRunJSCommandFailureDetailsReachModelAndEvents(t *testing.T, call string
 		if event["type"] == "run_js.started" && event["code"] == js {
 			foundCode = true
 		}
-		if event["type"] == "stderr" && event["text"] == result.Stderr {
-			foundError = true
+		if event["type"] == "stderr" {
+			t.Fatalf("command exception was synthesized as tool stderr: %+v", event)
+		}
+		if event["type"] == "run_js.finished" {
+			encoded, err := json.Marshal(event["diagnostics"])
+			if err != nil {
+				t.Fatal(err)
+			}
+			foundError = strings.Contains(string(encoded), "fatal: 日本語") && strings.Contains(string(encoded), "execution_error")
 		}
 	}
 	if !foundCode || !foundError {

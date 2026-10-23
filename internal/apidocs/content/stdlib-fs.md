@@ -1,5 +1,15 @@
 # node:fs
 
+### API information
+
+Reference: `node:fs`; aliases: `fs`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.FS.
+
+Public-definition source: internal/stdlib/fs.go, internal/stdlib/fsstream.go. Reading this reference evaluates no target module and makes no provider request.
+
 Reads and writes files synchronously or as Web Streams. The module exposes synchronous file helpers, a promises namespace, and createReadStream/createWriteStream. Stream values are Web Streams, not Node streams: there are no Node-style stream events or pipe() methods.
 
 ### Exports

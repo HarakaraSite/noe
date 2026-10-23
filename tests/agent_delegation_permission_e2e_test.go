@@ -22,7 +22,8 @@ func TestAgentDelegationRequiresExplicitParentPermission(t *testing.T) {
 		switch instruction {
 		case "root":
 			if step == 1 {
-				code = `const blocked = await run_agent({name:"blocked"}, "blocked");
+				code = `import {run_agent} from "noe:agent";
+const blocked = await run_agent({name:"blocked"}, "blocked");
 if (blocked.lastResult?.answer !== "blocked correctly") throw Error(JSON.stringify(blocked));
 const allowed = await run_agent({name:"allowed"}, "allowed", {allowDelegation:true});
 if (allowed.lastResult?.answer !== "delegated correctly") throw Error(JSON.stringify(allowed));
@@ -36,7 +37,8 @@ console.log("done");`
 			}
 		case "blocked":
 			if step == 1 {
-				code = `for (const launch of [spawn_agent,run_agent]) {
+				code = `import {spawn_agent,run_agent} from "noe:agent";
+for (const launch of [spawn_agent,run_agent]) {
   try { await launch({name:"forbidden"},"forbidden",{allowDelegation:true}); }
   catch(error) {
     if (!String(error).includes("not allowed to delegate")) throw error;
@@ -54,7 +56,8 @@ console.log("both rejected");`
 			}
 		case "allowed":
 			if step == 1 {
-				code = `const grandchild=await run_agent({name:"grandchild"},"grandchild");
+				code = `import {run_agent} from "noe:agent";
+const grandchild=await run_agent({name:"grandchild"},"grandchild");
 if(grandchild.lastResult?.answer!=="grandchild done")throw Error(JSON.stringify(grandchild));
 console.log("grandchild done");`
 			} else {

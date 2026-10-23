@@ -1,5 +1,17 @@
 # `noe:auth`
 
+### API information
+
+Public exports: `save_chatgpt_credentials`.
+
+Reference: `noe:auth`. Owner: noeagentlib.
+
+Type declarations: `agent/types/noeagentlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires agent/auth.Bind. NOE's CLI installs it in the main runtime and omits it from Workers; an embedding host selects its bindings explicitly.
+
+Public-definition source: agent/auth/binding.go, internal/credentials/js/auth.js. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:auth` exports `save_chatgpt_credentials`. It completes persistence of a ChatGPT sign-in result produced by the authentication helper; it is not a general-purpose OAuth client. The module is available in the main runtime, not Workers. Saving validates the sign-in over OpenID discovery/JWKS requests and writes a private local credential record. No access or refresh token is returned to JavaScript.
 
 ## save_chatgpt_credentials

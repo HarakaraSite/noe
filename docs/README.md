@@ -10,6 +10,8 @@
 | --- | --- |
 | 認証を登録し、agentを起動する | [agent起動ガイド](agents.md) |
 | バイナリと同じ版のAPI説明を調べる | [内蔵docs](reference.md) |
+| 生成したJSを、環境にあるBiome／tscで確認する | [既存ツールによるJS検査](javascript-checks.md) |
+| run_jsのdata・診断・明示importへ移行する | [実行結果と診断](execution-results.md) |
 | API引数・CLIオプション・実行制御・終了コードを調べる | [APIリファレンス](api.md) |
 | 自作JS・検証済みESMを再利用する | [import map](import-map.md) |
 | 接続先・認証・要求形式を設定する | [provider設定](providers.md) |

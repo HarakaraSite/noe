@@ -13,8 +13,14 @@ func projectEvent(event events.Event, q Query) events.Event {
 	switch typeName {
 	case "agent.started", "agent.completed", "agent.failed", "agent.cancelled",
 		"agent.message", "agent.final", "model.started", "model.finished", "model.failed",
-		"run_js.started", "run_js.finished", "decision.started", "decision.completed", "decision.failed", "decision.cancelled", "image.read", "image.started", "image.completed", "image.failed", "image.cancelled", "image.saved", "image.save_failed":
+		"run_js.started", "decision.started", "decision.completed", "decision.failed", "decision.cancelled", "image.read", "image.started", "image.completed", "image.failed", "image.cancelled", "image.saved", "image.save_failed":
 		return cloneEvent(event)
+	case "run_js.finished":
+		projected := cloneEvent(event)
+		if !q.IncludeOutput {
+			delete(projected, "data")
+		}
+		return projected
 	case "tool.finished":
 		projected := cloneEvent(event)
 		if !q.IncludeOutput {
@@ -24,7 +30,7 @@ func projectEvent(event events.Event, q Query) events.Event {
 			delete(projected, "result")
 		}
 		return projected
-	case "model.step.started", "context.updated", "context.trimmed", "hook.started", "hook.finished", "hook.failed", "hook.cancelled", "execution.limit_reached":
+	case "model.step.started", "context.updated", "context.trimmed", "hook.started", "hook.finished", "hook.failed", "hook.cancelled", "execution.limit_reached", "execution.diagnostic":
 		return cloneEvent(event)
 	case "thinking", "thinking_summary":
 		if q.IncludeThinking {

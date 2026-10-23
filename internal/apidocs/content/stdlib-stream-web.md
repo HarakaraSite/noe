@@ -1,5 +1,15 @@
 # node:stream/web
 
+### API information
+
+Reference: `node:stream/web`; aliases: `stream/web`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Installed by stdlib.Profile in main runtimes and Workers. Operations still follow the selected host capabilities and the limits below.
+
+Public-definition source: internal/stdlib/streams.go. Reading this reference evaluates no target module and makes no provider request.
+
 Exports Web Streams classes and strategies, including text encoding/decoding streams. They are used by node:fs file streams, fetch response bodies, and process standard streams.
 
 ### Exports

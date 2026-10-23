@@ -28,6 +28,7 @@ func TestAgentTaskWaitInGeneratedJS(t *testing.T) {
 		}
 		if task == "parent" && len(req.Messages) == 2 {
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("workflow", `// Run two queued tasks without polling.
+import {observe_agent,queue_agent,read_task_result,spawn_agent,stop_agent,wait_task} from "noe:agent";
 const worker=await spawn_agent({name:"worker"},undefined,{keepAlive:true});
 if("commandId" in worker)throw Error("idle spawn has an initial task");
 const first=await queue_agent({agentId:worker.agentId,instruction:"first"});

@@ -4,26 +4,43 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sync/atomic"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 	lower "forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
+var nextRuntimeID atomic.Uint64
+
 // Result contains detached execution data. JS values stay with their VM owner.
-type Result struct{ Code int }
+type Result struct {
+	Code        int                          `json:"Code"`
+	Data        json.RawMessage              `json:"data,omitempty"`
+	Diagnostics []executionresult.Diagnostic `json:"diagnostics,omitempty"`
+}
 
 // Runtime owns one VM, one Loop and one entry execution. NewRuntime, Run and
 // Close run on its owner goroutine; Cancel can be called from another goroutine.
 type Runtime struct {
-	rt          *quickjs.Runtime
-	loop        *lower.Loop
-	bindings    *Bindings
-	ctx         context.Context
-	cancel      context.CancelFunc
-	observe     quickjs.Value
-	stopLoop    func() bool
-	ran, closed bool
-	closeErr    error
+	rt            *quickjs.Runtime
+	loop          *lower.Loop
+	bindings      *Bindings
+	ctx           context.Context
+	cancel        context.CancelFunc
+	observe       quickjs.Value
+	runDefault    quickjs.Value
+	stringify     quickjs.Value
+	helperName    string
+	acceptDefault func(bool, quickjs.Value, quickjs.Value)
+	dataValue     quickjs.Value
+	hasData       bool
+	defaultWait   quickjs.Value
+	awaitDefault  bool
+	stopLoop      func() bool
+	ran, closed   bool
+	closeErr      error
 }
 
 func NewRuntime(ctx context.Context, profile Profile) (*Runtime, error) {
@@ -35,17 +52,46 @@ func NewRuntime(ctx context.Context, profile Profile) (*Runtime, error) {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	rt := quickjs.New()
-	r := &Runtime{rt: rt, ctx: ctx, cancel: cancel, loop: lower.NewLoop(rt)}
+	helperName := fmt.Sprintf("noe:internal/jsexec/%d", nextRuntimeID.Add(1))
+	r := &Runtime{rt: rt, ctx: ctx, cancel: cancel, loop: lower.NewLoop(rt), helperName: helperName}
 	rt.OnClose(r.loop.Close)
-	// Capture Promise operations before user initialization can replace globals.
-	observe, err := rt.EvalFile("<stdlib-await>", `(() => {
+	// Capture every operation used by result waiting and serialization before
+	// profile initialization or user modules can replace the corresponding globals.
+	captured, err := rt.EvalFileContext(ctx, "<stdlib-intrinsics>", `(() => {
  const P=Promise,resolve=P.resolve,then=P.prototype.then,apply=Reflect.apply;
- return (value,fulfilled,rejected) => {
+	 const owns=Object.prototype.hasOwnProperty,jsonObject=JSON,stringify=JSON.stringify;
+ const observe=(value,fulfilled,rejected) => {
    const p=apply(resolve,P,[value]); apply(then,p,[fulfilled,rejected]); return p;
  };
+ const run=(namespace,accept) => {
+   if(!apply(owns,namespace,["default"])) { accept(false,undefined,undefined); return; }
+   const p=apply(resolve,P,[namespace.default]);
+   accept(true,undefined,p);
+   return apply(then,p,[value=>{accept(true,value,undefined);},error=>{throw error;}]);
+ };
+	 const encode=value=>apply(stringify,jsonObject,[value]);
+	 return {observe,run,encode};
 })()`)
 	if err == nil {
-		r.observe = observe
+		r.observe, _ = captured.Get("observe")
+		r.runDefault, _ = captured.Get("run")
+		r.stringify, _ = captured.Get("encode")
+		r.acceptDefault = func(present bool, value, promise quickjs.Value) {
+			if !present {
+				r.hasData = false
+				return
+			}
+			if !promise.IsUndefined() {
+				r.hasData = true
+				r.defaultWait = promise
+				r.awaitDefault = true
+				return
+			}
+			r.hasData = true
+			r.dataValue = value
+		}
+	}
+	if err == nil {
 		r.bindings, err = attach(rt, r.loop, profile, false, nil, ctx)
 	}
 	if err != nil {
@@ -68,13 +114,18 @@ func (r *Runtime) Cancel() {
 func (r *Runtime) Run(source Source) (result Result, err error) {
 	result.Code = 1
 	if r == nil || r.closed {
-		return result, errors.New("stdlib: runtime is closed")
+		err = errors.New("stdlib: runtime is closed")
+		result.Diagnostics = diagnosticsFor(err, "setup")
+		return result, err
 	}
 	if r.ran {
-		return result, errors.New("stdlib: runtime already ran an entry")
+		err = errors.New("stdlib: runtime already ran an entry")
+		result.Diagnostics = diagnosticsFor(err, "setup")
+		return result, err
 	}
 	r.ran = true
 	b := r.bindings
+	stage := "setup"
 	defer func() {
 		// Caller cancellation wins; diagnostic causes are detached before teardown.
 		failure := b.failure()
@@ -91,6 +142,9 @@ func (r *Runtime) Run(source Source) (result Result, err error) {
 		}
 		if err != nil {
 			result.Code = 1
+			result.Data = nil
+			err = &executionStageError{stage: stage, err: err}
+			result.Diagnostics = diagnosticsFor(err, stage)
 		}
 	}()
 	if err := r.ctx.Err(); err != nil {
@@ -100,11 +154,19 @@ func (r *Runtime) Run(source Source) (result Result, err error) {
 	if err != nil {
 		return result, err
 	}
+	var wrapperName string
+	if entry.Module {
+		wrapperName, err = r.installEntryWrapper(b, entry.Name)
+		if err != nil {
+			return result, err
+		}
+	}
+	stage = "execute"
 	driveCtx, stopDrive := context.WithCancel(b.ctx)
 	defer stopDrive()
 	var value quickjs.Value
 	if entry.Module {
-		name, _ := json.Marshal(entry.Name)
+		name, _ := json.Marshal(wrapperName)
 		value, err = r.rt.EvalFileContext(b.ctx, "<stdlib-entry>", `(() => {const p=import(`+string(name)+`);p.catch(()=>{});return p;})()`)
 	} else {
 		value, err = r.rt.EvalFileContext(b.ctx, entry.Name, entry.Code)
@@ -127,8 +189,13 @@ func (r *Runtime) Run(source Source) (result Result, err error) {
 		// Await only after the owner leaves the job runner. The engine retains
 		// the native Go cause on the rejected Promise; a string/value snapshot
 		// here would lose errors.Is/errors.As before detached diagnostics run.
-		_, err := observed.Await(b.ctx)
-		return result, err
+		var waitErr error
+		if r.awaitDefault {
+			_, waitErr = r.defaultWait.Await(b.ctx)
+		} else {
+			_, waitErr = observed.Await(b.ctx)
+		}
+		return result, waitErr
 	}
 	if err := b.ctx.Err(); err != nil {
 		return result, err
@@ -143,7 +210,59 @@ func (r *Runtime) Run(source Source) (result Result, err error) {
 	if code, ok := lower.ExitCode(r.rt); ok {
 		result.Code = code
 	}
+	if b.exitRequested {
+		return result, nil
+	}
+	if entry.Module && r.hasData {
+		stage = "serialize"
+		encoded, stringifyErr := r.stringify.CallContext(b.ctx, r.dataValue)
+		if stringifyErr != nil {
+			return result, fmt.Errorf("stdlib: evaluated result could not be serialized; side effects will not be replayed: %w", stringifyErr)
+		}
+		if !encoded.IsString() {
+			return result, errors.New("stdlib: evaluated result could not be serialized; JSON.stringify returned no JSON text")
+		}
+		result.Data = json.RawMessage(encoded.String())
+		stage = "execute"
+		if err := r.loop.Run(driveCtx); err != nil {
+			return result, err
+		}
+		if err := b.ctx.Err(); err != nil {
+			return result, err
+		}
+		if err := b.failure(); err != nil {
+			return result, err
+		}
+		if code, ok := lower.ExitCode(r.rt); ok {
+			result.Code = code
+		}
+	}
 	return result, nil
+}
+
+func (r *Runtime) installEntryWrapper(b *Bindings, entryName string) (string, error) {
+	helperName := r.helperName
+	for {
+		wrapperName := helperName + "/entry"
+		if helperName == entryName || wrapperName == entryName {
+			helperName = fmt.Sprintf("noe:internal/jsexec/%d", nextRuntimeID.Add(1))
+			continue
+		}
+		quotedEntry, _ := json.Marshal(entryName)
+		quotedHelper, _ := json.Marshal(helperName)
+		wrapperSource := "import {run,accept} from " + string(quotedHelper) + ";\nimport * as entry from " + string(quotedEntry) + ";\nawait run(entry,accept);\n"
+		installed, err := b.installManagedModules(helperName, wrapperName, wrapperSource, map[string]any{
+			"run": r.runDefault, "accept": r.acceptDefault,
+		})
+		if err != nil {
+			return "", err
+		}
+		if installed {
+			r.helperName = helperName
+			return wrapperName, nil
+		}
+		helperName = fmt.Sprintf("noe:internal/jsexec/%d", nextRuntimeID.Add(1))
+	}
 }
 
 // Close cancels and joins owned work, runs owner cleanup and releases the VM.
@@ -174,10 +293,18 @@ func (r *Runtime) Close() error {
 func Execute(ctx context.Context, source Source, profile Profile) (result Result, err error) {
 	runtime, err := NewRuntime(ctx, profile)
 	if err != nil {
-		return Result{Code: 1}, err
+		return Result{Code: 1, Diagnostics: diagnosticsFor(err, "setup")}, err
 	}
 	result, err = runtime.Run(source)
 	closeErr := runtime.Close()
+	if closeErr != nil {
+		for _, cause := range errorLeaves(closeErr) {
+			if err != nil && errors.Is(err, cause) {
+				continue
+			}
+			result.Diagnostics = append(result.Diagnostics, diagnosticsFor(&executionStageError{stage: "cleanup", err: cause}, "cleanup")...)
+		}
+	}
 	err = errors.Join(err, closeErr)
 	if err != nil {
 		result.Code = 1

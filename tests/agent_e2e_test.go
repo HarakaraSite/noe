@@ -34,12 +34,18 @@ type agentChatMessage struct {
 }
 
 type agentExecutionResult struct {
-	Stdout             string `json:"stdout"`
-	Stderr             string `json:"stderr"`
-	ExitCode           int    `json:"exitCode"`
-	Reason             string `json:"reason"`
-	StdoutOmittedBytes int64  `json:"stdoutOmittedBytes,omitempty"`
-	StderrOmittedBytes int64  `json:"stderrOmittedBytes,omitempty"`
+	Stdout             string          `json:"stdout"`
+	Stderr             string          `json:"stderr"`
+	ExitCode           int             `json:"exitCode"`
+	Reason             string          `json:"reason"`
+	StdoutOmittedBytes int64           `json:"stdoutOmittedBytes,omitempty"`
+	StderrOmittedBytes int64           `json:"stderrOmittedBytes,omitempty"`
+	Data               json.RawMessage `json:"data,omitempty"`
+	Diagnostics        []struct {
+		Code    string `json:"code"`
+		Stage   string `json:"stage"`
+		Message string `json:"message"`
+	} `json:"diagnostics,omitempty"`
 }
 
 type agentChatRequest struct {
@@ -365,13 +371,13 @@ func TestAgentCLIFixesFailedJavaScriptAndMalformedArguments(t *testing.T) {
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{call}}}, FinishReason: "tool_calls"}
 		case 2:
 			got := agentToolResult(t, req.Messages[len(req.Messages)-1])
-			if got.Reason != "failed" || got.ExitCode == 0 || got.Stderr == "" {
+			if got.Reason != "failed" || got.ExitCode == 0 || got.Stderr != "" || len(got.Diagnostics) != 1 || got.Diagnostics[0].Stage != "setup" {
 				t.Errorf("bad arguments hidden: %+v", got)
 			}
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("work", `throw Error("intentional failure");`)}}}, FinishReason: "tool_calls"}
 		case 3:
 			got := agentToolResult(t, req.Messages[len(req.Messages)-1])
-			if got.Reason != "failed" || got.ExitCode == 0 || !strings.Contains(got.Stderr, "intentional failure") {
+			if got.Reason != "failed" || got.ExitCode == 0 || got.Stderr != "" || len(got.Diagnostics) != 1 || !strings.Contains(got.Diagnostics[0].Message, "intentional failure") {
 				t.Errorf("JS failure hidden: %+v", got)
 			}
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("work", `console.log(100);`)}}}, FinishReason: "tool_calls"}

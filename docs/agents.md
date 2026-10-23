@@ -4,6 +4,8 @@
 
 NOEのagentは、指示を受けて`run_js`でファイル操作・JavaScriptやコマンドの実行・失敗の修正を行い、最終回答を返します。認証とprovider通信はGoが担当します。生成したJSはNOEを起動したユーザーのOS権限で動き、人間の承認を待たずに処理を進めます。
 
+生成したJSの実行前の確認には、[環境にあるBiome／tscを使う手順](javascript-checks.md)を利用できます。どちらも任意で、未導入の環境への自動インストールは行いません。
+
 以下はビルド済みの`./noe`を使い、リポジトリのルートから実行する手順です。
 
 ## 1. providerと認証を準備する
@@ -90,6 +92,8 @@ root agentには`provider`・`model`・`effort`が必須です。`effort: "auto"
 `run`・`eval`は`--events`でagentイベントを記録できます。パス指定は追記、単独指定は起動時のcwdの`.noe/events/`に日時・ID付きのログを作り、`--events=-`はstdoutをJSONLにします。自動保存先のディレクトリはなければ作成します。同じstdoutを使う`--observe`と`--events=-`は併用しません。従来の`NOE_AGENT_TRACE=1`はstderrへメタデータtraceを出します。
 
 捕捉する`run_js`のstdout・stderrは各64KiB（先頭32KiB＋末尾32KiB）までです。超過分は省略マーカーとバイト数を残し、自動保存はしません。完全なログが必要ならJSやコマンドからファイルへ書き出します。イベント内容と親からの観察は[JSONLイベント](events.md)・[観察の入口](observe.md)を参照してください。
+
+S4開発版では、run_jsのagent操作も明示importし、`export default`によるdataとdiagnosticsを出力から分けて受け取れます。診断はstderrへ合成しません。[実行結果と診断の移行](execution-results.md)を参照してください。
 
 ## 4. 指示をファイルから渡す
 

@@ -1,5 +1,15 @@
 # node:fs/promises
 
+### API information
+
+Reference: `node:fs/promises`; aliases: `fs/promises`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.FS.
+
+Public-definition source: internal/stdlib/fs.go. Reading this reference evaluates no target module and makes no provider request.
+
 Provides promise-returning whole-file and metadata operations. Every listed export is present on both the module namespace and its default object. readFile returns bytes unless an encoding is supplied; write operations accept strings or byte data.
 
 ### Exports

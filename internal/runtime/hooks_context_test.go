@@ -172,6 +172,7 @@ func TestHooksContextBudgetSurvivesRunJSChildDefaults(t *testing.T) {
 		mu.Unlock()
 		if input == "parent-budget" && !previous {
 			return hookToolReply(map[string]string{"children": `// Check inherited and cleared budgets through ordinary child helpers.
+import {run_agent} from "noe:agent";
 const inherited=await run_agent({name:"inherited"},"inherited-budget");
 const cleared=await run_agent({name:"cleared",contextBudget:null},"cleared-budget");
 if(inherited.context.budget.inputTokens!==9000 || cleared.context.budget.inputTokens!==null) throw Error("child budget mismatch "+JSON.stringify({inherited,cleared}));

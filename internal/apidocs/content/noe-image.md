@@ -1,5 +1,17 @@
 # `noe:image`
 
+### API information
+
+Public exports: `generate_image`, `read_image`.
+
+Reference: `noe:image`. Owner: noeagentlib.
+
+Type declarations: `agent/types/noeagentlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires the model/image binding in the main runtime. Vision attachments additionally require an agent tool context; file access follows the selected filesystem.
+
+Public-definition source: internal/image/js/image.js, internal/modelbinding/binding.go. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:image` exports `read_image` and `generate_image`. The module is available in the main runtime, not Workers. Image bytes stay in the Go host; JavaScript receives metadata. Image generation makes an external provider request and writes the generated file to the requested output path.
 
 ## read_image

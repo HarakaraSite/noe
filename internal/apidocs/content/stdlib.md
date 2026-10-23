@@ -1,5 +1,15 @@
 # NOE standard-library modules
 
+### API information
+
+Reference: `stdlib`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: This is the complete reference, not a report of the current runtime. Globals and host operations depend on Profile.Modules; ECMAScript built-ins come from the pinned engine.
+
+Public-definition source: internal/stdlib/stdlib.go, internal/jsexec/profile.go. Reading this reference evaluates no target module and makes no provider request.
+
 NOE exposes the 26 built-in Node-style modules listed below from its NOE-maintained standard library, based on go-quickjs v0.27.0. Each module is registered under its canonical node: ID and bare alias; both names resolve to the same implementation. A reserved node: prefix does not make other Node modules available. Each module page lists the actual named exports, including default. Details are included only for documented members.
 
 For HTTP, prefer `import { fetch, serve } from "noe:http"`. That NOE module shares the existing global functions and Web types; the Node-style module list below is unchanged.

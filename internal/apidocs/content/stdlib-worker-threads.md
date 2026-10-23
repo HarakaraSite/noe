@@ -1,5 +1,15 @@
 # node:worker_threads
 
+### API information
+
+Reference: `node:worker_threads`; aliases: `worker_threads`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Messaging exports are present in the stdlib profile; starting a Worker requires Profile.Modules.Workers. Worker entries use their own runtime and loader.
+
+Public-definition source: internal/stdlib/worker.go. Reading this reference evaluates no target module and makes no provider request.
+
 Runs JavaScript in additional QuickJS runtimes and exchanges structured-clone messages through ports. NOE enables Workers. Each Worker has its own runtime, loader, and resource lifetime.
 
 ### Exports
@@ -86,7 +96,7 @@ port1.postMessage("hello");
 
 ## terminate
 
-await worker.terminate() -> exitCode. It stops the Worker and resolves when its runtime has ended. Repeated calls after exit resolve immediately. Closing the parent runtime also terminates its Workers.
+await worker.terminate() -> exitCode or undefined. It stops an active Worker and resolves to its exit code when its runtime has ended. If the Worker has already exited, it resolves immediately to undefined. Closing the parent runtime also terminates its Workers.
 
 ~~~js
 import { Worker } from "node:worker_threads";

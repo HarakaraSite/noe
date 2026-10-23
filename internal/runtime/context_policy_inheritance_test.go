@@ -116,6 +116,7 @@ console.log("PARENT_RECENT_%s:"+"p".repeat(1900));`, id, id)
 						return hookToolReply(map[string]string{id: code}, id), nil
 					case 4:
 						code := `// Start a child only after the parent has prepared its trimmed context.
+import {run_agent} from "noe:agent";
 const child=await run_agent({name:"child-run",model:"fixture/child",hooks:[],maxSteps:5` + contextPolicyField(test.childPolicy) + `},"child task",{allowDelegation:true});
 if(child.lastResult?.answer!=="child completed")throw Error(JSON.stringify(child));
 console.log("PARENT_CHILD:child completed");`
@@ -135,6 +136,7 @@ console.log("CHILD_RECENT_%s:"+"c".repeat(1900));`, id)
 						return hookToolReply(map[string]string{id: code}, id), nil
 					case 4:
 						code := `// Start a grandchild after the child has prepared its context.
+import {run_agent} from "noe:agent";
 const grandchild=await run_agent({name:"grandchild-run",model:"fixture/grandchild",hooks:[],maxSteps:1` + contextPolicyField(test.grandchildPolicy) + `},"grandchild task");
 if(grandchild.lastResult?.answer!=="grandchild completed")throw Error(JSON.stringify(grandchild));
 console.log("CHILD_GRANDCHILD:grandchild completed");`

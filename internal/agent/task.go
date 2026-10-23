@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 )
 
 type managedTask struct {
@@ -66,6 +67,7 @@ func (i *agentInstance) execute(cmd *command) (taskOutcome, *agentRun, bool) {
 		if h.opts.Execute == nil {
 			err = errors.New("agent execution runtime is unavailable")
 			result = failedResult()
+			appendExecutionDiagnostic(&result, err, "setup")
 		} else {
 			result, err = h.opts.Execute(ctx, Execution{
 				Operation: op, Kind: ExecutionTask,
@@ -74,8 +76,13 @@ func (i *agentInstance) execute(cmd *command) (taskOutcome, *agentRun, bool) {
 		}
 	} else {
 		result = Result{ExitCode: -1, Reason: "cancelled"}
+		appendExecutionDiagnostic(&result, err, "setup")
 	}
 	op.Close() // Joins finish/model handlers before reading the authenticated report.
+	if err != nil {
+		appendExecutionDiagnostic(&result, err, "execute")
+	}
+	appendReasonDiagnostic(&result, "execute")
 	h.mu.Lock()
 	var interruptSettled []chan struct{}
 	if run := task.run; run != nil {
@@ -159,12 +166,35 @@ func (i *agentInstance) execute(cmd *command) (taskOutcome, *agentRun, bool) {
 	if result.Stderr != "" {
 		i.event("stderr", events.Event{"source": "agent_task", "runId": outcome.RunID, "text": result.Stderr})
 	}
+	if len(result.Diagnostics) > 0 {
+		fields := events.Event{
+			"source": "agent_task", "commandId": cmd.id,
+			"diagnostics": result.Diagnostics,
+		}
+		if outcome.RunID != "" {
+			fields["runId"] = outcome.RunID
+		}
+		i.event("execution.diagnostic", fields)
+	}
 	return outcome, run, fatal
 }
 
 func taskProcessFailure(result Result, fallback string) string {
+	if detail := executionDiagnosticMessage(result.Diagnostics); detail != "" {
+		return fallback + ": " + detail
+	}
 	if detail := strings.TrimSpace(result.Stderr); detail != "" {
 		return fallback + ": " + detail
 	}
 	return fallback
+}
+
+func executionDiagnosticMessage(diagnostics []executionresult.Diagnostic) string {
+	messages := make([]string, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		if message := strings.TrimSpace(diagnostic.Message); message != "" {
+			messages = append(messages, message)
+		}
+	}
+	return strings.Join(messages, "; ")
 }

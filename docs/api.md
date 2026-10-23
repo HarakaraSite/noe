@@ -8,6 +8,8 @@ NOEは固定したgo-quickjs v0.28.0をJavaScriptエンジンに使い、go-quic
 
 JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`docs`・`--timeout`と、組み込みES moduleの`noe:agent`・`noe:model`・`noe:agent-log`・`noe:decision`・`noe:image`・`noe:auth`があります。NOE既定Profileではagent・model・log・decision・image・authモジュールをWorkersへ導入しません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:http`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
 
+S4開発版のrun_js返却data・診断・明示importへの移行は[実行結果と診断](execution-results.md)を参照してください。
+
 ## 利用できる機能と権限
 
 Web APIにはURL、Fetch、Request/Response/Headers、Web Streams、タイマー、WebSocket、Worker、cryptoなどがあります。Node形式の組み込みモジュールには、たとえば`assert`、`buffer`、`child_process`、`dns`、`events`、`fs`、`fs/promises`、`http`、`os`、`path`、`process`、`timers`、`timers/promises`、`url`、`util`、`vm`、`worker_threads`、`zlib`があります。暗号機能はWeb Cryptoと`crypto`から利用できます。APIごとの未実装機能や差異は、NOE管理の`internal/stdlib`と、そのバイナリに内蔵したdocsを参照してください。

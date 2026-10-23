@@ -1,5 +1,15 @@
 # node:assert
 
+### API information
+
+Reference: `node:assert`; aliases: `assert`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Installed by stdlib.Profile in main runtimes and Workers. Operations still follow the selected host capabilities and the limits below.
+
+Public-definition source: internal/stdlib/node.go. Reading this reference evaluates no target module and makes no provider request.
+
 Synchronous assertion helpers for checking values and thrown errors. Failed assertions throw. This small Node-style subset does not add process or filesystem access.
 
 ### Exports

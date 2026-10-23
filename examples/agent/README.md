@@ -4,6 +4,8 @@
 
 コマンドはリポジトリのルートで、ビルド済みの`./noe`を使って実行します。
 
+S4開発版のrun_jsでは、agent操作も`import {run_agent} from "noe:agent"`等の明示importを使います。構造化した返却はdefault export、失敗情報はstderrと別のdiagnosticsです。[移行と結果の契約](../../docs/execution-results.md)を参照してください。下記の起動用JSは既に明示importを使っています。
+
 | スクリプト | 内容 | provider |
 | --- | --- | --- |
 | [try-agent.js](try-agent.js) | 指示文またはファイルから任意タスクを実行 | 既定OpenRouter、起動引数で変更可 |

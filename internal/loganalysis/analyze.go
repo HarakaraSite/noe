@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 )
 
 // Cursor identifies a position in one NOE execution's event stream. The
@@ -39,12 +40,14 @@ type Usage struct {
 // ToolResult describes the most recently completed run_js call. Text contains
 // that tool's captured stdout and stderr when output was requested.
 type ToolResult struct {
-	ToolCallID string `json:"toolCallId"`
-	Success    bool   `json:"success"`
-	ExitCode   int    `json:"exitCode"`
-	Reason     string `json:"reason,omitempty"`
-	Duration   int64  `json:"duration,omitempty"`
-	Text       string `json:"text,omitempty"`
+	ToolCallID  string                       `json:"toolCallId"`
+	Success     bool                         `json:"success"`
+	ExitCode    int                          `json:"exitCode"`
+	Reason      string                       `json:"reason,omitempty"`
+	Duration    int64                        `json:"duration,omitempty"`
+	Text        string                       `json:"text,omitempty"`
+	Data        json.RawMessage              `json:"data,omitempty"`
+	Diagnostics []executionresult.Diagnostic `json:"diagnostics,omitempty"`
 }
 
 // Snapshot is the reconstructed state of one run plus its meaningful event

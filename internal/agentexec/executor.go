@@ -11,6 +11,7 @@ import (
 
 	core "forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/agentbridge"
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
 )
 
@@ -80,13 +81,15 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 		encoded, _ := json.Marshal(string(execution.Config))
 		instruction, _ := json.Marshal(execution.Instruction)
 		code = "import {executeTask} from 'noe:agent/task';\nawait executeTask(JSON.parse(" + string(encoded) + ")," + string(instruction) + ");"
-	} else if execution.Kind == "tool" {
-		code = "import {run_agent,spawn_agent,observe_agent,queue_agent,wait_task,read_task_result,steer_agent,cancel_task,stop_agent} from 'noe:agent';\n" + code
-	} else {
+	} else if execution.Kind != "tool" {
 		return core.Result{}, fmt.Errorf("agent: unknown execution kind %q", execution.Kind)
 	}
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[agent " + execution.Kind + "]", Code: code, Module: true, Virtual: true}, profile)
-	out := core.Result{ExitCode: result.Code, Reason: "completed"}
+	out := core.Result{
+		ExitCode: result.Code, Reason: "completed",
+		Data:        append(json.RawMessage(nil), result.Data...),
+		Diagnostics: append([]executionresult.Diagnostic(nil), result.Diagnostics...),
+	}
 	if result.Code != 0 {
 		out.Reason = "failed"
 	}
@@ -99,7 +102,18 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 		if errors.Is(err, context.DeadlineExceeded) {
 			out.Reason = "timeout"
 		}
-		_, _ = stderr.Write([]byte("\n" + stdlib.Diagnostic(err) + "\n"))
+		if len(out.Diagnostics) == 0 {
+			code, stage := "execution_error", "execute"
+			if errors.Is(err, context.Canceled) {
+				code = "cancelled"
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				code = "timeout"
+			}
+			out.Diagnostics = append(out.Diagnostics, executionresult.Diagnostic{
+				Code: code, Stage: stage, Message: stdlib.Diagnostic(err),
+			})
+		}
 	}
 	// Task failures are reported through their scoped finish request; VM errors
 	// remain an execution result, as with nonzero command exits.

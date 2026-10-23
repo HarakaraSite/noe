@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 )
 
 type activeTool struct {
@@ -141,6 +142,21 @@ func (s *runState) apply(rec record, includeOutput bool) {
 		if includeOutput {
 			if output := s.outputs[toolCallID]; output != nil {
 				result.Text = output.text.String()
+			}
+			if data, present := event["data"]; present {
+				if encoded, err := json.Marshal(data); err == nil {
+					result.Data = encoded
+				}
+			}
+		}
+		if diagnostics, present := event["diagnostics"]; present {
+			if encoded, err := json.Marshal(diagnostics); err == nil {
+				// Malformed extension fields do not discard historical run state.
+				// Assign only a complete decode; the original event remains available.
+				var decoded []executionresult.Diagnostic
+				if err := json.Unmarshal(encoded, &decoded); err == nil {
+					result.Diagnostics = decoded
+				}
 			}
 		}
 		s.snapshot.LastToolResult = result

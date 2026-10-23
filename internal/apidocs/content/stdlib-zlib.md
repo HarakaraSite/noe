@@ -1,5 +1,15 @@
 # node:zlib
 
+### API information
+
+Reference: `node:zlib`; aliases: `zlib`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Installed by stdlib.Profile in main runtimes and Workers. Operations still follow the selected host capabilities and the limits below.
+
+Public-definition source: internal/stdlib/compress.go. Reading this reference evaluates no target module and makes no provider request.
+
 Compresses and decompresses byte data with synchronous and promise forms, and provides Web CompressionStream/DecompressionStream globals. This is a byte API, not Node's callback or event-based stream API.
 
 ### Exports

@@ -1,5 +1,17 @@
 # `noe:http`
 
+### API information
+
+Public exports: `fetch`, `serve`.
+
+Reference: `noe:http`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: The module is installed when Profile.Modules.Fetch or Serve is selected. Only the selected functions are exported; the declarations describe the full supported surface.
+
+Public-definition source: internal/stdlib/http.go, internal/stdlib/fetch.go, internal/stdlib/serve.go. Reading this reference evaluates no target module and makes no provider request.
+
 The recommended HTTP entry point in NOE. It exports `fetch` and `serve` as named functions, with no default export. Both functions are the same values as their globals; `serve` is also the function exported by `node:http` and `http`. Existing entry points remain available.
 
 Use the existing global Headers, Request, Response, ReadableStream, AbortController, WebSocket, and upgradeWebSocket APIs with these functions. The module does not create new types or re-export these globals. It is available in main, Node-style Workers, nested Workers, Web Workers, and agent `run_js` runtimes when the host selects the required capabilities.

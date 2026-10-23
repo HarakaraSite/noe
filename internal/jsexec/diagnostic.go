@@ -1,10 +1,13 @@
 package jsexec
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"math"
 	"strings"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
@@ -13,48 +16,68 @@ import (
 type diagnosticError struct {
 	message, diagnostic string
 	cause               error
+	structured          executionresult.Diagnostic
 }
 
 func (e *diagnosticError) Error() string { return e.message }
 func (e *diagnosticError) Unwrap() error { return e.cause }
 
 type diagnosticData struct {
-	Message string         `json:"message"`
-	Stack   string         `json:"stack"`
-	Details map[string]any `json:"details"`
+	Message string `json:"message"`
+	Stack   string `json:"stack"`
 }
 
 // The renderer runs under CallContext. Property details use data descriptors
 // so inspecting code/stdout never invokes a user getter. Proxy traps, stack
 // rendering and user conversions remain bounded by the execution context.
 const diagnosticSource = `(() => {
- const stringify=JSON.stringify,parse=JSON.parse,descriptor=Object.getOwnPropertyDescriptor,create=Object.create,finite=Number.isFinite;
- return (value,describe) => {
-   const rendered=parse(describe()),out=create(null),details=create(null);
+ const stringify=JSON.stringify,parse=JSON.parse,descriptor=Object.getOwnPropertyDescriptor,create=Object.create,apply=Reflect.apply,hasOwn=Object.prototype.hasOwnProperty;
+ return (value,describe,record) => {
+   const rendered=parse(describe()),out=create(null);
    out.message=rendered.message;out.stack=rendered.stack;
    if(value!==null&&(typeof value==="object"||typeof value==="function")){
      for(const key of ["code","signal","stdout","stderr"]){
        let entry;try{entry=descriptor(value,key)}catch{continue}
-       if(!entry)continue;
-       const data=descriptor(entry,"value");if(!data)continue;
-       const v=data.value,type=typeof v;
-       if(type==="string"||type==="boolean"||(type==="number"&&finite(v)))details[key]=v;
+       if(!entry||!apply(hasOwn,entry,["value"]))continue;
+       record(key,entry.value);
      }
    }
-   out.details=details;return stringify(out);
+   return stringify(out);
  };
 })()`
 
-func (b *Bindings) snapshotValue(value quickjs.Value, describe func() (string, string)) error {
-	fallback := &diagnosticError{message: "JavaScript exception", diagnostic: "JavaScript exception"}
+func (b *Bindings) snapshotValue(value quickjs.Value, describe func() (string, string), stage string) error {
+	fallback := &diagnosticError{message: "JavaScript exception", diagnostic: "JavaScript exception", structured: executionresult.Diagnostic{Stage: stage, Message: "JavaScript exception"}}
 	if !b.snapshotter.IsFunction() || b.ctx.Err() != nil {
 		return fallback
+	}
+	details := make(map[string]any)
+	record := func(key string, detail quickjs.Value) {
+		if key == "" {
+			return
+		}
+		if key == "stdout" || key == "stderr" {
+			if content, ok := detail.Bytes(); ok {
+				details[key] = executionresult.EncodedBytes{Encoding: "base64", Data: base64.StdEncoding.EncodeToString(append([]byte(nil), content...))}
+				return
+			}
+		}
+		switch detail.Kind() {
+		case quickjs.KindString:
+			details[key] = detail.String()
+		case quickjs.KindBool:
+			details[key] = detail.Bool()
+		case quickjs.KindNumber:
+			if f := detail.Float(); !math.IsNaN(f) && !math.IsInf(f, 0) {
+				details[key] = f
+			}
+		}
 	}
 	encoded, err := b.snapshotter.CallContext(b.ctx, value, func() string {
 		message, stack := describe()
 		data, _ := json.Marshal(diagnosticData{Message: message, Stack: stack})
 		return string(data)
-	})
+	}, record)
 	if err != nil || !encoded.IsString() {
 		return fallback
 	}
@@ -66,15 +89,18 @@ func (b *Bindings) snapshotValue(value quickjs.Value, describe func() (string, s
 	if data.Stack != "" {
 		diagnostic = data.Stack
 	}
-	if len(data.Details) > 0 {
-		encoded, _ := json.Marshal(data.Details)
+	if len(details) > 0 {
+		encoded, _ := json.Marshal(details)
 		diagnostic += "\nexception details: " + string(encoded)
 	}
-	return &diagnosticError{message: data.Message, diagnostic: diagnostic}
+	return &diagnosticError{
+		message: data.Message, diagnostic: diagnostic,
+		structured: executionresult.Diagnostic{Stage: stage, Message: data.Message, Stack: data.Stack, Exception: details},
+	}
 }
 
 func (b *Bindings) snapshotUnhandled(value quickjs.Value) error {
-	return b.snapshotValue(value, func() (string, string) {
+	detached := b.snapshotValue(value, func() (string, string) {
 		message := value.String()
 		stack := ""
 		if value.IsObject() {
@@ -83,7 +109,21 @@ func (b *Bindings) snapshotUnhandled(value quickjs.Value) error {
 			}
 		}
 		return message, stack
-	})
+	}, "execute")
+	if b.ctx.Err() != nil || !b.rethrower.IsFunction() {
+		return detached
+	}
+	// Re-throw the already-observed reason through a captured JS function so
+	// QuickJS can return its original Go cause as a public *quickjs.Error.
+	// This does not run the rejected work or read any additional properties.
+	_, thrown := b.rethrower.CallContext(b.ctx, value)
+	var jsError *quickjs.Error
+	if errors.As(thrown, &jsError) {
+		if retained, ok := detached.(*diagnosticError); ok {
+			retained.cause = b.retainException(jsError.Unwrap())
+		}
+	}
+	return detached
 }
 
 func (b *Bindings) retainException(err error) error {
@@ -109,7 +149,7 @@ func (b *Bindings) retainException(err error) error {
 			stack = strings.Replace(message, jsError.Error(), stack, 1)
 		}
 		return message, stack
-	}).(*diagnosticError)
+	}, "execute").(*diagnosticError)
 	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
 		detached.cause = b.retainException(wrapped.Unwrap())
 	}

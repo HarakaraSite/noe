@@ -1,5 +1,15 @@
 # Global APIs
 
+### API information
+
+Reference: `globals`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: This is the complete reference, not a report of the current runtime. Globals and host operations depend on Profile.Modules; ECMAScript built-ins come from the pinned engine.
+
+Public-definition source: internal/stdlib/stdlib.go, internal/jsexec/profile.go. Reading this reference evaluates no target module and makes no provider request.
+
 This page lists globals provided by the pinned go-quickjs engine and the NOE-maintained standard library. Global names do not have a module default export. Core ECMAScript globals are listed for discovery only; this page does not attempt to document the full JavaScript language reference.
 
 ### NOE and Node-style globals

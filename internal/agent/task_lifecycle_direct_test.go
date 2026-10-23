@@ -11,6 +11,7 @@ import (
 
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 )
 
 func TestDirectExecutorFailureClosesAdmissionAndSettlesAcceptedQueue(t *testing.T) {
@@ -168,7 +169,13 @@ func TestCommittedFinalSurvivesExecutorExitWithoutFinishReport(t *testing.T) {
 			}
 			// Deliberately omit finish: an executor's clean exit is not an
 			// authenticated task completion report.
-			return Result{ExitCode: 0, Reason: "completed"}, nil
+			return Result{
+				ExitCode: 0, Reason: "completed", Stderr: "captured task stderr",
+				Diagnostics: []executionresult.Diagnostic{{
+					Code: "execution_error", Stage: "execute", Message: "top-level task failure",
+					Stack: "Error: top-level task failure\n    at main.js:1:1",
+				}},
+			}, nil
 		},
 	})
 	t.Cleanup(host.Close)
@@ -189,18 +196,146 @@ func TestCommittedFinalSurvivesExecutorExitWithoutFinishReport(t *testing.T) {
 	if err != nil || outcome.State != "failed" || outcome.Answer != answer || outcome.Error != "task process exited without an authenticated completion report" {
 		t.Fatalf("committed final after missing finish: %+v err=%v", outcome, err)
 	}
-	finals, failed, completed := 0, 0, 0
+	finals, failed, completed, diagnosticEvents, stderrEvents := 0, 0, 0, 0, 0
 	for len(observed) > 0 {
-		switch (<-observed)["type"] {
+		event := <-observed
+		switch event["type"] {
 		case "agent.final":
 			finals++
 		case "agent.failed":
 			failed++
 		case "agent.completed":
 			completed++
+		case "execution.diagnostic":
+			diagnosticEvents++
+			if event["source"] != "agent_task" || event["runId"] != outcome.RunID {
+				t.Errorf("task diagnostic event metadata=%#v", event)
+			}
+			diagnostics, ok := event["diagnostics"].([]executionresult.Diagnostic)
+			if !ok || len(diagnostics) != 1 || diagnostics[0].Stack != "Error: top-level task failure\n    at main.js:1:1" {
+				t.Errorf("task diagnostic event lost stack: %#v", event["diagnostics"])
+			}
+		case "stderr":
+			if event["source"] == "agent_task" {
+				stderrEvents++
+				if event["text"] != "captured task stderr" {
+					t.Errorf("task diagnostic was merged into stderr: %#v", event)
+				}
+			}
 		}
 	}
 	if finals != 1 || failed != 1 || completed != 0 {
 		t.Fatalf("final/failure/completion events=%d/%d/%d", finals, failed, completed)
+	}
+	if diagnosticEvents != 1 || stderrEvents != 1 {
+		t.Fatalf("task diagnostic/stderr events=%d/%d; want one each", diagnosticEvents, stderrEvents)
+	}
+}
+
+func TestTaskDiagnosticsAreObservedBeforeAndAfterFinishReport(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		finishReport bool
+	}{
+		{name: "failure before report"},
+		{name: "executor exit after report", finishReport: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observed := make(chan events.Event, 64)
+			models := modelsWithChat(&fixtureProvider{})
+			host := NewHost(Options{
+				Models:  models,
+				Observe: func(event events.Event) { observed <- event },
+				Execute: func(ctx context.Context, execution Execution) (Result, error) {
+					var runID string
+					if test.finishReport {
+						var config taskConfig
+						if err := json.Unmarshal(execution.Config, &config); err != nil {
+							return Result{}, err
+						}
+						startPayload, _ := json.Marshal(startRequest{
+							Provider: config.Provider, Model: config.Model, Name: config.Name,
+							MaxTokens: config.MaxTokens, Effort: config.Effort,
+						})
+						startedJSON, err := execution.Operation.CallContext(ctx, "start", string(startPayload))
+						if err != nil {
+							return Result{}, err
+						}
+						var started struct {
+							RunID string `json:"runId"`
+						}
+						if err := json.Unmarshal([]byte(startedJSON), &started); err != nil || started.RunID == "" {
+							return Result{}, fmt.Errorf("invalid start response %q: %v", startedJSON, err)
+						}
+						runID = started.RunID
+						finishPayload, _ := json.Marshal(finishRequest{RunID: runID, Status: "failed", Error: "reported task failure"})
+						if _, err := execution.Operation.CallContext(ctx, "finish", string(finishPayload)); err != nil {
+							return Result{}, err
+						}
+					}
+					return Result{
+						ExitCode: 1, Reason: "failed", Stderr: "captured task stderr",
+						Diagnostics: []executionresult.Diagnostic{{
+							Code: "execution_error", Stage: "execute", Message: "task VM failure",
+							Stack: "Error: task VM failure\n    at task.mjs:4:2",
+						}},
+					}, nil
+				},
+			})
+			t.Cleanup(host.Close)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			op := host.NewOperation(ctx)
+			t.Cleanup(op.Close)
+			instruction := "run the fixture"
+			var spawned spawnResponse
+			response := lifecycleCall(t, op, "spawn_agent", spawnRequest{
+				Config:      taskConfig{Config: Config{Provider: "fixture", Model: "model", Name: "diagnostic-worker", MaxTokens: 64, Effort: "none"}},
+				Instruction: &instruction,
+			})
+			if err := json.Unmarshal([]byte(response), &spawned); err != nil || spawned.AgentID == "" || spawned.CommandID == "" {
+				t.Fatalf("spawn response %q: %v", response, err)
+			}
+			outcome, err := host.waitTask(op, taskRequest{AgentID: spawned.AgentID, CommandID: spawned.CommandID}, ctx)
+			if err != nil || outcome.State != "failed" {
+				t.Fatalf("task outcome=%+v err=%v", outcome, err)
+			}
+			if test.finishReport && outcome.Error != "reported task failure" {
+				t.Fatalf("finish report was not retained: %+v", outcome)
+			}
+
+			diagnosticEvents, stderrEvents := 0, 0
+			for len(observed) > 0 {
+				event := <-observed
+				switch event["type"] {
+				case "execution.diagnostic":
+					diagnosticEvents++
+					if event["agentId"] != spawned.AgentID || event["commandId"] != spawned.CommandID || event["source"] != "agent_task" {
+						t.Errorf("task diagnostic event metadata=%#v", event)
+					}
+					if test.finishReport {
+						if event["runId"] != outcome.RunID {
+							t.Errorf("task diagnostic event run ID=%#v, want %q", event["runId"], outcome.RunID)
+						}
+					} else if _, exists := event["runId"]; exists {
+						t.Errorf("task diagnostic event invented a run ID: %#v", event)
+					}
+					diagnostics, ok := event["diagnostics"].([]executionresult.Diagnostic)
+					if !ok || len(diagnostics) != 1 || diagnostics[0].Stack != "Error: task VM failure\n    at task.mjs:4:2" {
+						t.Errorf("task diagnostic event lost VM stack: %#v", event["diagnostics"])
+					}
+				case "stderr":
+					if event["source"] == "agent_task" {
+						stderrEvents++
+						if event["text"] != "captured task stderr" {
+							t.Errorf("diagnostic was merged into task stderr: %#v", event)
+						}
+					}
+				}
+			}
+			if diagnosticEvents != 1 || stderrEvents != 1 {
+				t.Fatalf("task diagnostic/stderr events=%d/%d; want one each", diagnosticEvents, stderrEvents)
+			}
+		})
 	}
 }

@@ -173,3 +173,7 @@ into the single `Environment`; select each native capability through
 with `agent.NewHost` and a Go `Client`, or call `agent.Attach` from the runtime
 initializer to expose the same host to JavaScript. Do not carry over the old
 executable, connection, or combined-IO settings.
+
+## Structured execution results
+
+Managed module execution also returns `Result.Data` (detached JSON, nil for no default export) and `Result.Diagnostics`. Explicit null is JSON `null`, not absence. Existing Code/error handling and `Diagnostic(err)` remain available. Plain-script completion and Worker entry execution keep their existing behavior. The [result and migration guide](execution-results.md) describes the S4 development contract, cancellation, JSON conversion, and separate diagnostics.

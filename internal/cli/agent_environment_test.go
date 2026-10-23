@@ -72,7 +72,7 @@ func runCLIIsolationProbe(t *testing.T) {
 		delta := map[string]any{"role": "assistant", "content": "done"}
 		finish := "stop"
 		if body.Model == "parent" && step == 1 {
-			args, _ := json.Marshal(map[string]string{"code": "// Verify the child uses the explicitly assembled host.\nconst child=await run_agent({model:'child'},'child');if(child.lastResult?.answer!=='done')throw Error(JSON.stringify(child));"})
+			args, _ := json.Marshal(map[string]string{"code": "// Verify the child uses the explicitly assembled host.\nimport {run_agent} from \"noe:agent\";\nconst child=await run_agent({model:'child'},'child');if(child.lastResult?.answer!=='done')throw Error(JSON.stringify(child));"})
 			delta = map[string]any{"role": "assistant", "tool_calls": []any{map[string]any{"index": 0, "id": "child", "type": "function", "function": map[string]any{"name": "run_js", "arguments": string(args)}}}}
 			finish = "tool_calls"
 		}

@@ -1,5 +1,17 @@
 # `noe:model`
 
+### API information
+
+Public exports: `decide`, `generate`, `generate_image`, `list_models`.
+
+Reference: `noe:model`. Owner: noeagentlib.
+
+Type declarations: `agent/types/noeagentlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires agent/model.Bind or the model binding installed by an agent client/operation. Model bindings reject Worker installation.
+
+Public-definition source: internal/modelbinding/binding.go. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:model` exposes a model catalog and one-shot chat generation through the
 configured model service. It does not start an agent loop. The module is
 available only when the host installs a model binding; the embedded catalog

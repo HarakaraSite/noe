@@ -1,5 +1,17 @@
 # `noe:agent`
 
+### API information
+
+Public exports: `cancel_task`, `list_models`, `observe_agent`, `queue_agent`, `read_task_result`, `run_agent`, `spawn_agent`, `steer_agent`, `stop_agent`, `wait_task`.
+
+Reference: `noe:agent`. Owner: noeagentlib.
+
+Type declarations: `agent/types/noeagentlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires an agent client/operation binding in the main runtime. The agent binding rejects Worker installation.
+
+Public-definition source: internal/agent/js/agent.js, internal/agent/js/api.js, internal/agentbridge/managed.go. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `read_task_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
 
 A managed agent owns its task runtime and descendants. A returned snapshot is a point-in-time plain object, not a live handle. Use `observe_agent` to refresh it. Accepted task failures are represented in the result or snapshot; ordinary task failure does not make `run_agent` reject. Input, configuration, or acceptance failures reject. Cancellation follows ownership and recovers work owned by the current evaluation.

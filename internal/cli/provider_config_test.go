@@ -44,7 +44,7 @@ func TestCLIConfiguredProviderParentChildSessions(t *testing.T) {
 		if body.Model == "parent" && step == 1 {
 			write(map[string]any{"role": "assistant", "reasoning_content": "one "}, nil)
 			write(map[string]any{"reasoning_content": "two"}, nil)
-			arguments, _ := json.Marshal(map[string]any{"code": "// Run an inherited child task\nconst child=await run_agent({name:'child',model:'child'},'child task');console.log(child.lastResult.answer);"})
+			arguments, _ := json.Marshal(map[string]any{"code": "// Run an inherited child task\nimport {run_agent} from \"noe:agent\";\nconst child=await run_agent({name:'child',model:'child'},'child task');console.log(child.lastResult.answer);"})
 			write(map[string]any{"tool_calls": []any{map[string]any{"index": 0, "id": "call-1", "type": "function", "function": map[string]any{"name": "run_js", "arguments": string(arguments)}}}}, "tool_calls")
 		} else {
 			var reasoning json.RawMessage

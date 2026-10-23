@@ -194,7 +194,8 @@ func runtimeHasToolReply(request model.Request, callID string) bool {
 const markerImport = `import {loaderGeneration} from "fixture:runtime-marker";`
 
 func parentChildrenCode() string {
-	return markerImport + `
+	return markerImport + `import {cancel_task,queue_agent,spawn_agent,stop_agent,wait_task} from "noe:agent";
+
 globalThis.parentToolSecret = "must stay in this VM";
 const config = {provider:"fixture", model:"fixture-model", name:"child", effort:"none", maxSteps:4};
 const child = await spawn_agent(config, "default child", {keepAlive:true});
@@ -220,7 +221,7 @@ if (typeof globalThis.parentToolSecret !== "undefined") throw new Error("tool Ja
 const api = await import("noe:agent");
 if ("interrupt_agent" in api) throw new Error("legacy interrupt API is still exported");
 let savedLogRejected = false;
-try { await observe_agent({logPath:"old.jsonl", runId:"old-run"}); }
+try { await api.observe_agent({logPath:"old.jsonl", runId:"old-run"}); }
 catch (error) { savedLogRejected = String(error).includes("live observation"); }
 if (!savedLogRejected) throw new Error("observe_agent accepted saved-log options");
 console.log("parent-tool-two:" + loaderGeneration + ":fresh");
@@ -230,7 +231,8 @@ console.error("stderr-head:" + body + ":stderr-tail");`
 }
 
 func defaultChildCode() string {
-	return markerImport + `
+	return markerImport + `import {spawn_agent} from "noe:agent";
+
 if (typeof globalThis.parentToolSecret !== "undefined") throw new Error("parent tool JavaScript state leaked into child");
 let denied = false;
 try {
@@ -243,7 +245,8 @@ console.log("default-delegation-denied:" + loaderGeneration);`
 }
 
 func allowedChildCode() string {
-	return markerImport + `
+	return markerImport + `import {spawn_agent,wait_task} from "noe:agent";
+
 if (typeof globalThis.parentToolSecret !== "undefined") throw new Error("parent tool JavaScript state leaked into child");
 const grandchild = await spawn_agent({provider:"fixture", model:"fixture-model", name:"grandchild", effort:"none", maxSteps:2}, "grandchild");
 const result = await wait_task({agentId:grandchild.agentId, commandId:grandchild.commandId});

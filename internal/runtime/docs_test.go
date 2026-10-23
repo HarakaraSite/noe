@@ -34,15 +34,21 @@ for(const call of [()=>docs("node:net"),()=>docs("noe:run_js","missing"),()=>doc
 let toolOnly=false;try{await import("noe:run_js")}catch{toolOnly=true}if(!toolOnly)throw Error("tool is not a module");
 `
 	for _, topic := range apidocs.Topics() {
-		if !strings.HasPrefix(topic.ID, "node:") {
+		if topic.Kind != "module" {
 			continue
 		}
 		source += fmt.Sprintf(`{
  const m=await import(%q), text=docs(%q);
- const missing=Object.keys(m).filter(name=>!text.includes("`+"`"+`"+name+"`+"`"+`"));
- if(missing.length)throw Error(%q+missing.join(","));
+ const declaration=text.match(/(?:### Exports\s*\n\s*|Public exports: )([^\n]+)/);
+ if(!declaration)throw Error("missing explicit export inventory");
+ const documented=[...declaration[1].matchAll(/\x60([^\x60]+)\x60/g)].map(match=>match[1]).sort();
+ const actual=Object.keys(m).sort();
+ if(JSON.stringify(actual)!==JSON.stringify(documented))throw Error(%q+JSON.stringify({actual,documented}));
 }
 `, topic.ID, topic.ID, topic.ID+" exports absent from docs: ")
+		for _, alias := range topic.Aliases {
+			source += fmt.Sprintf(`if(JSON.stringify(Object.keys(await import(%q)).sort())!==JSON.stringify(Object.keys(await import(%q)).sort()))throw Error("alias exports differ");`+"\n", alias, topic.ID)
+		}
 	}
 	source += `console.log("docs contracts passed");`
 	if out := runStdlib(t, source, Options{}); out != "docs contracts passed\n" {

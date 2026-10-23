@@ -1,5 +1,15 @@
 # node:events
 
+### API information
+
+Reference: `node:events`; aliases: `events`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Installed by stdlib.Profile in main runtimes and Workers. Operations still follow the selected host capabilities and the limits below.
+
+Public-definition source: internal/stdlib/node.go. Reading this reference evaluates no target module and makes no provider request.
+
 Provides a small EventEmitter implementation and a promise helper. Listeners run synchronously in registration order when an event is emitted. This is not the full Node event utility surface.
 
 ### Exports

@@ -1,5 +1,17 @@
 # `noe:signals`
 
+### API information
+
+Public exports: `subscribe`.
+
+Reference: `noe:signals`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.Signals. Supported signal names depend on the operating system.
+
+Public-definition source: internal/nativeio/signals.go, internal/nativeio/js/signals.js. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:signals` exports `subscribe` to receive supported operating-system signals as an async iterator. It is available in the main runtime and Workers. A live subscription keeps its owner active until it is closed or the owner ends. Signal notifications may be coalesced by the operating system or runtime.
 
 On Linux and macOS, supported names are `SIGHUP`, `SIGINT`, `SIGTERM`, `SIGUSR1`, and `SIGUSR2`. On Windows, only `SIGINT` is supported. Other operating systems may expose no names. An unsupported name throws an `Error` with `code === "ERR_UNSUPPORTED_SIGNAL"`.

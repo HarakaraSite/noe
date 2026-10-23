@@ -1,5 +1,17 @@
 # `noe:io`
 
+### API information
+
+Public exports: `pipe`, `stderr`, `stdin`, `stdout`.
+
+Reference: `noe:io`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.Stdio. Workers receive empty stdin and share the configured output destinations.
+
+Public-definition source: internal/nativeio/host.go, internal/nativeio/js/streams.js. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:io` exports host `stdin`, `stdout`, and `stderr` as Web Streams of `Uint8Array`, plus a cancellation-aware `pipe` function. It is available in the main runtime and Workers. These are byte streams; encode and decode text explicitly. Importing `stdin` does not start reading.
 
 The main runtime's input comes from its configured host input. Workers receive empty `stdin` (immediate EOF), rather than sharing the process input. Worker `stdout` and `stderr` use the host output destinations; send input to a Worker through messages when needed.

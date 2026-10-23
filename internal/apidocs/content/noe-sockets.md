@@ -1,5 +1,17 @@
 # `noe:sockets`
 
+### API information
+
+Public exports: `connect`, `listen`.
+
+Reference: `noe:sockets`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.RawSockets. Platform support and cancellation follow the socket API contract below.
+
+Public-definition source: internal/nativeio/net.go, internal/nativeio/js/net.js. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:sockets` exports `connect` and `listen` for raw TCP and Unix stream sockets. These APIs carry bytes through Web Streams; they are distinct from HTTP/WebSocket APIs and from the standard library's WebSocket setting. The module is available in the main runtime and Workers. Open listeners and connections keep the owning runtime active and are reclaimed when it ends.
 
 Socket options use one of these forms:

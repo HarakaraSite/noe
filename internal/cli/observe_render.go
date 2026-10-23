@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 	"forge.harakara.site/littleisland/noe/v2/internal/mdcli/markdown"
 )
 
@@ -86,6 +87,8 @@ func (r *agentRenderer) render(event events.Event) error {
 	key := eventString(event, "executionId") + "/" + eventString(event, "runId") + "/" + eventString(event, "requestId") + "/" + eventString(event, "toolCallId") + "/" + kind
 	text := eventString(event, "text")
 	switch kind {
+	case "execution.diagnostic":
+		return r.diagnostics(label, event["diagnostics"])
 	case "context.updated":
 		return r.line(label, "context:"+contextDetail(event["context"]), "")
 	case "context.trimmed":
@@ -187,7 +190,10 @@ func (r *agentRenderer) render(event events.Event) error {
 		if reason := eventString(event, "reason"); reason != "" && reason != "completed" && reason != "failed" {
 			parts = append(parts, reason)
 		}
-		return r.line(label, kind, strings.Join(parts, " / "))
+		if err := r.line(label, kind, strings.Join(parts, " / ")); err != nil {
+			return err
+		}
+		return r.diagnostics(label, event["diagnostics"])
 	case "model.started":
 		return r.line(label, "model", "waiting for response")
 	case "model.failed":
@@ -201,6 +207,59 @@ func (r *agentRenderer) render(event events.Event) error {
 		return r.line(label, map[string]string{"execution.error": "execution error", "repl.error": "evaluation error", "repl.result": "result"}[kind], text)
 	case "execution.finished":
 		return r.line(label, "finished", fmt.Sprintf("exitCode=%v", event["exitCode"]))
+	}
+	return nil
+}
+
+func (r *agentRenderer) diagnostics(label string, raw any) error {
+	if raw == nil {
+		return nil
+	}
+	diagnostics, ok := raw.([]executionresult.Diagnostic)
+	if !ok {
+		encoded, err := json.Marshal(raw)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(encoded, &diagnostics); err != nil {
+			// Preserve an unfamiliar saved-log payload instead of inventing fields.
+			return r.line(label, "diagnostic", string(encoded))
+		}
+	}
+	for _, diagnostic := range diagnostics {
+		text := diagnostic.Message
+		if diagnostic.Stack != "" && diagnostic.Stack != text {
+			if strings.Contains(diagnostic.Stack, text) {
+				text = diagnostic.Stack
+			} else {
+				text += "\n" + diagnostic.Stack
+			}
+		}
+		if position := diagnostic.Position; position != nil {
+			var parts []string
+			if position.Source != "" {
+				parts = append(parts, position.Source)
+			}
+			if position.Line > 0 {
+				parts = append(parts, fmt.Sprintf("line %d", position.Line))
+			}
+			if position.Column > 0 {
+				parts = append(parts, fmt.Sprintf("column %d", position.Column))
+			}
+			if len(parts) > 0 {
+				text += "\n" + strings.Join(parts, ": ")
+			}
+		}
+		if len(diagnostic.Exception) > 0 {
+			encoded, err := json.Marshal(diagnostic.Exception)
+			if err != nil {
+				return err
+			}
+			text += "\nexception: " + string(encoded)
+		}
+		if err := r.line(label, "diagnostic "+diagnostic.Code+" ["+diagnostic.Stage+"]", text); err != nil {
+			return err
+		}
 	}
 	return nil
 }

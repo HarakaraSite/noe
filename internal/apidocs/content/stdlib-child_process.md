@@ -1,5 +1,15 @@
 # node:child_process
 
+### API information
+
+Reference: `node:child_process`; aliases: `child_process`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.Commands.
+
+Public-definition source: internal/stdlib/exec.go. Reading this reference evaluates no target module and makes no provider request.
+
 Runs operating-system programs to completion and returns captured output. execFile invokes a program directly; exec and execSync pass a command string through the platform shell. There is no streaming spawn or asynchronous callback API.
 
 ### Exports

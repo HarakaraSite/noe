@@ -1,5 +1,17 @@
 # `noe:process`
 
+### API information
+
+Public exports: `spawn`.
+
+Reference: `noe:process`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.Commands. Processes belong to the execution that starts them, including Worker executions.
+
+Public-definition source: internal/nativeio/host.go, internal/nativeio/js/streams.js. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:process` exports `spawn(command, args?, options?)`. It starts a child command directly; it does not invoke a shell. Its standard streams use Web Streams of `Uint8Array`, not Node.js child-process stream events. The module is available in the main runtime and Workers. A child process and its pipes are owned by the creating runtime and cannot outlive it.
 
 ## spawn

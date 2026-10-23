@@ -106,6 +106,7 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	}()
 	if ctx.Err() != nil {
 		result := Result{ExitCode: -1, Reason: reasonForContext(ctx.Err())}
+		appendExecutionDiagnostic(&result, ctx.Err(), "setup")
 		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
 		return runJSResponse{}, ctx.Err()
 	}
@@ -128,10 +129,15 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	h.mu.Unlock()
 	if !registered {
 		childOperation.Close()
-		result := Result{ExitCode: -1, Reason: reasonForContext(run.ctx.Err())}
+		scopeErr := run.ctx.Err()
+		if scopeErr == nil {
+			scopeErr = errors.New("run_js scope has ended")
+		}
+		result := Result{ExitCode: -1, Reason: reasonForContext(scopeErr)}
 		if result.Reason == "" {
 			result.Reason = "cancelled"
 		}
+		appendExecutionDiagnostic(&result, scopeErr, "setup")
 		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
 		if !groupOpen {
 			code, message := executionLimitError(run.group)
@@ -154,11 +160,13 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	defer release()
 	if opErr := childOperation.ctx.Err(); opErr != nil {
 		result := Result{ExitCode: -1, Reason: reasonForContext(opErr)}
+		appendExecutionDiagnostic(&result, opErr, "setup")
 		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
 		return runJSResponse{}, opErr
 	}
 	if childOperation.initErr != nil {
-		result := Result{Stderr: childOperation.initErr.Error(), ExitCode: -1, Reason: "failed"}
+		result := Result{ExitCode: -1, Reason: "failed"}
+		appendExecutionDiagnostic(&result, childOperation.initErr, "setup")
 		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
 		return runJSResponse{Result: result}, nil
 	}
@@ -168,6 +176,7 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	if h.opts.Execute == nil {
 		err = errors.New("agent execution runtime is unavailable")
 		result = failedResult()
+		appendExecutionDiagnostic(&result, err, "setup")
 	} else {
 		config, _ := json.Marshal(hookDefaults(run))
 		result, err = h.opts.Execute(childOperation.ctx, Execution{
@@ -180,19 +189,21 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	if contextErr != nil {
 		result.ExitCode = -1
 		result.Reason = reasonForContext(contextErr)
+		appendExecutionDiagnostic(&result, contextErr, "execute")
 		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
 		return runJSResponse{}, contextErr
 	}
 	if err != nil {
 		result.Reason = "failed"
+		if contextReason := reasonForContext(err); contextReason == "cancelled" || contextReason == "timeout" {
+			result.Reason = contextReason
+		}
 		if result.ExitCode == 0 {
 			result.ExitCode = -1
 		}
-		if result.Stderr != "" {
-			result.Stderr += "\n"
-		}
-		result.Stderr += err.Error()
+		appendExecutionDiagnostic(&result, err, "execute")
 	}
+	appendReasonDiagnostic(&result, "execute")
 	if result.Reason == "" {
 		if result.ExitCode == 0 {
 			result.Reason = "completed"
@@ -237,6 +248,12 @@ func (h *Host) finishJSResult(runID string, run *agentRun, started time.Time, to
 	}
 	if result.StderrOmittedBytes > 0 {
 		finishFields["stderrOmittedBytes"] = result.StderrOmittedBytes
+	}
+	if len(result.Data) > 0 {
+		finishFields["data"] = cloneRawJSON(result.Data)
+	}
+	if len(result.Diagnostics) > 0 {
+		finishFields["diagnostics"] = result.Diagnostics
 	}
 	if origin.ModelStepID != "" {
 		finishFields["modelStepId"] = origin.ModelStepID

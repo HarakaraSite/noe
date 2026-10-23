@@ -4,9 +4,9 @@
 
 Every call starts a new runtime. The supplied source is a virtual entry, so relative imports resolve from the execution's configured cwd; imports from ordinary files keep normal referrer-relative behavior. The selected loader factory handles imports. HTTP imports, npm discovery, and unmapped bare package imports are unavailable. Resources created during the call belong to its runtime; owned work is recovered when the task ends or is cancelled.
 
-Top-level await and ES module imports are supported. Print results with console.log; a final expression is not automatically returned to the model. Filesystem paths are relative to process.cwd(). Virtual-entry relative imports use the configured cwd; imports from loaded files resolve relative to their referrer. Use an absolute path for an unmapped local module.
+Top-level await and ES module imports are supported. Return structured data with export default value or export default await operation(); console.log remains captured stdout. A final expression is not automatically returned to the model. Filesystem paths are relative to process.cwd(). Virtual-entry relative imports use the configured cwd; imports from loaded files resolve relative to their referrer. Use an absolute path for an unmapped local module.
 
-Task recipes are available as details: files, commands, imports, http, agents, and failures. For example, docs("noe:run_js", "files") reads file-operation recipes directly. Each code block below is a separate run_js call; adapt input files, program names, and URLs to the task.
+Task recipes are available as details: results, files, commands, imports, http, agents, and failures. For example, docs("noe:run_js", "files") reads file-operation recipes directly. Each code block below is a separate run_js call; adapt input files, program names, and URLs to the task.
 
 ## run_js
 
@@ -16,15 +16,31 @@ The input is an object with one required property:
 {"code":"// Read the embedded API reference.\nimport { docs } from 'noe:docs';\nconsole.log(docs('noe:process', 'spawn'));"}
 ```
 
-`code` must be a string. NOE's default Policy asks for a short English `//` comment describing the operation on the first line, before imports and executable statements, with no leading blank line. This is a NOE policy, not an API requirement; other hosts supply their own Policy. Do not import or redeclare the managed-agent helpers already bound by the tool, such as `run_agent` and `observe_agent`.
+`code` must be a string. NOE's default Policy asks for a short English `//` comment describing the operation on the first line, before imports and executable statements, with no leading blank line. This is a NOE policy, not an API requirement; other hosts supply their own Policy. Agent helpers are not implicitly bound: import them explicitly from noe:agent, just like other ES module APIs.
 
-The result reports `stdout`, `stderr`, `exitCode`, and `reason`. A nonzero exit code is still a result and can include useful output. `reason` distinguishes ordinary completion from process failure, timeout, or cancellation.
+The result reports `stdout`, `stderr`, `exitCode`, and `reason`, plus optional `data` and `diagnostics`. A nonzero exit code is still a result and can include useful output. `reason` distinguishes ordinary completion from process failure, timeout, or cancellation. stdout/stderr contain actual writes only; NOE exception diagnostics are separate.
 
 Standard output and standard error are captured independently. Each stream retains at most 64 KiB: the first 32 KiB and last 32 KiB. If a stream is larger, its text contains a truncation marker and the result includes the corresponding `stdoutOmittedBytes` or `stderrOmittedBytes` count. These byte counts describe omitted captured output, not an exit status.
 
 Use `noe:docs` from `run_js` to look up an API before using it. Use `noe:process` when a child command must remain active during the call, and close owned handles in `finally`. A child process, socket, signal subscription, or other owned resource cannot continue independently after its owning tool runtime ends.
 
 `noe:image` has a task-specific path: `read_image(path)` returns metadata to JavaScript and attaches the image to the next model request after the tool call. Do not expect a top-level `noe run`, `eval`, or Worker to provide model vision context.
+
+## results
+
+~~~js
+// Return a structured directory count.
+import {readdirSync} from "node:fs";
+export default {count: readdirSync(".").length};
+~~~
+
+This returns data: {count: ...}, separately from stdout/stderr. No default export omits data; export default null returns data: null. A default Promise or thenable is awaited once. A default function is never called automatically. Root undefined/function/Symbol values with no JSON representation, BigInt, cycles, and throwing conversions fail serialization. Normal nested JSON.stringify rules apply, including omitted object properties, null in arrays, and toJSON/getter calls. Nested Promises are not deeply awaited; resolve them yourself, for example with Promise.all.
+
+Diagnostics contain code, stage, message, and available stack/position/exception. Stages are setup, execute, serialize, and cleanup; these are observed NOE stages, not exact engine parse/link phases. Position components are included only when actually available. A diagnostic's code is a NOE classification; exception.code is the original command/user code. Command stdout/stderr remain inside exception details; binary output is {encoding: "base64", data: "..."}.
+
+Serialization occurs after the entry/default and its owned work complete. Jobs created by successful JSON conversion are checked before final success; the value is not serialized twice. A serialize failure or later job failure may follow completed file writes or external effects. NOE does not replay the source to repair it. If cleanup alone fails after data is finalized, data remains available together with a failure diagnostic.
+
+No data truncation or automatic artifact storage is added. Save large artifacts with the filesystem APIs and return a useful summary/path. Caught exceptions stay caught; printing an error does not make NOE infer an uncaught failure.
 
 ## files
 
@@ -121,10 +137,11 @@ HTTP 4xx/5xx responses do not reject fetch by themselves; inspect response.ok/st
 
 ## agents
 
-Managed-agent helpers are already bound inside run_js. Do not import or redeclare them. A child inherits the current agent's provider, model, and effort when omitted. Use run_agent for a single task and inspect lastResult.state before accepting its answer:
+Import managed-agent helpers explicitly from noe:agent; the tool does not add bindings to your source. A child inherits the current agent's provider, model, and effort when omitted. Use run_agent for a single task and inspect lastResult.state before accepting its answer:
 
 ~~~js
 // Ask a child to summarize the README.
+import {run_agent} from "noe:agent";
 const child = await run_agent({name: "reader", maxSteps: 4},
   "Read README.md and summarize its purpose in three lines.");
 const task = child.lastResult;
@@ -138,6 +155,7 @@ For a keep-alive worker, pass keepAlive in the third argument, queue the task, a
 
 ~~~js
 // Queue a task and wait for its specific outcome.
+import {spawn_agent, queue_agent, wait_task, stop_agent} from "noe:agent";
 const worker = await spawn_agent({name: "worker", maxSteps: 4},
   undefined, {keepAlive: true});
 try {
@@ -156,7 +174,7 @@ Child agents remain owned by the parent task across run_js calls; local variable
 
 ## failures
 
-A failed run_js result can still contain useful stdout and stderr. Read the error location and operation details before retrying. If an assumed Node API shape failed, inspect its NOE docs and the actual value/export shape rather than repeating the same assumption. For example:
+A failed run_js result can still contain useful stdout and stderr. Read diagnostics, any available error location, and operation details before retrying. If an assumed Node API shape failed, inspect its NOE docs and the actual value/export shape rather than repeating the same assumption. For example:
 
 ~~~js
 // Inspect the directory listing type and its documented contract.

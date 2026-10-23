@@ -18,6 +18,11 @@ func TestCatalogNavigationAndIsolation(t *testing.T) {
 		if err != nil || !strings.HasPrefix(overview, "# ") {
 			t.Fatalf("topic %s: %v", topic.ID, err)
 		}
+		if topic.Kind == "module" || topic.Kind == "global" || topic.ID == "stdlib" {
+			if !strings.Contains(overview, "Type declarations:") || !strings.Contains(overview, "Availability:") {
+				t.Fatalf("topic %s must distinguish reference types from runtime availability", topic.ID)
+			}
+		}
 		for _, alias := range topic.Aliases {
 			text, err := Lookup(alias, "")
 			if err != nil || text != overview {

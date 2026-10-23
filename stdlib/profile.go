@@ -2,6 +2,7 @@ package stdlib
 
 import (
 	"context"
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 	"forge.harakara.site/littleisland/noe/v2/internal/jsexec"
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
@@ -58,6 +59,17 @@ type Runtime = jsexec.Runtime
 
 // Result is execution data that remains valid after the runtime closes.
 type Result = jsexec.Result
+
+// ExecutionDiagnostic is detached, structured information about an execution
+// failure. Exception details contain only supported scalar values or encoded
+// command bytes; no JavaScript values escape the runtime.
+type ExecutionDiagnostic = executionresult.Diagnostic
+
+// DiagnosticPosition is a source location reported by the engine.
+type DiagnosticPosition = executionresult.Position
+
+// DiagnosticEncodedBytes represents binary command output in a diagnostic.
+type DiagnosticEncodedBytes = executionresult.EncodedBytes
 
 func NewRuntime(ctx context.Context, profile Profile) (*Runtime, error) {
 	return jsexec.NewRuntime(ctx, profile)

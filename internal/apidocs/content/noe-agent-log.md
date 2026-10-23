@@ -1,5 +1,17 @@
 # `noe:agent-log`
 
+### API information
+
+Public exports: `analyze_log`.
+
+Reference: `noe:agent-log`. Owner: noeagentlib.
+
+Type declarations: `agent/types/noeagentlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires agent/log.Bind. NOE's CLI installs it in the main runtime and omits it from Workers; analysis reads only caller-supplied data.
+
+Public-definition source: agent/log/binding.go, internal/logbinding/binding.go. Reading this reference evaluates no target module and makes no provider request.
+
 `noe:agent-log` reconstructs one run from caller-supplied JSONL event data. It
 does not open files, poll for changes, wait for an agent, call a provider, or
 create a Host. The module is available when the runtime installs the log
@@ -42,3 +54,5 @@ The returned snapshot includes reconstructed `status`, `phase`, `action`,
 `cursor`, and the selected `events` delta. An unknown run returns status
 `unknown` with an empty event list. Ambiguous run IDs across executions and a
 cursor from a different execution reject.
+
+S4 results preserve lastToolResult.diagnostics regardless of includeOutput. Returned data and captured output are included only when includeOutput is true; explicit null data remains distinct from absent data. execution.diagnostic events preserve agent-task VM failures separately from stderr. An event without a runId belongs to the instance/execution log and is not invented into a run-specific snapshot.

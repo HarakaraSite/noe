@@ -1,5 +1,15 @@
 # node:process
 
+### API information
+
+Reference: `node:process`; aliases: `process`. Owner: noestdlib.
+
+Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
+
+Availability: Requires Profile.Modules.ProcessInfo; standard I/O also depends on Modules.Stdio.
+
+Public-definition source: internal/stdlib/process.go. Reading this reference evaluates no target module and makes no provider request.
+
 Exports the process object as the module default and as the global process. It reports NOE's arguments, environment, working directory, standard streams, and process controls; it is not a full Node process object.
 
 ### Exports

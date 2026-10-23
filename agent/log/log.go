@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 	"forge.harakara.site/littleisland/noe/v2/internal/loganalysis"
 )
 
@@ -16,6 +17,8 @@ type Snapshot = loganalysis.Snapshot
 type Cursor = loganalysis.Cursor
 type Usage = loganalysis.Usage
 type ToolResult = loganalysis.ToolResult
+type ExecutionDiagnostic = executionresult.Diagnostic
+type DiagnosticPosition = executionresult.Position
 type Event = events.Event
 
 func Analyze(ctx context.Context, reader io.Reader, query Query) (Snapshot, error) {
