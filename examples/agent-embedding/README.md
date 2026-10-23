@@ -17,7 +17,7 @@ checkout. Rename the template to `go.mod`, set its replacement to the absolute
 checkout path, and run `GOWORK=off go mod tidy` followed by
 `GOWORK=off CGO_ENABLED=0 go run .`. The module version in the template is a
 local-development placeholder. For the published release, remove the replacement
-and require v2.1.1 instead; see the [v2 migration guide](../../docs/v2-migration.md).
+and require v2.3.0 instead; see the [v2 migration guide](../../docs/v2-migration.md).
 
 `Client.Run` waits for the managed instance to finish. For a keep-alive
 instance, use `Spawn`, retain both the returned `agentId` and `commandId`, then

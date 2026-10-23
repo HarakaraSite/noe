@@ -106,7 +106,7 @@ project内の版を使う場合は`tsc`を`./node_modules/.bin/tsc`へ置き換�
 
 ### NOE APIの宣言ファイル
 
-noestdlibの[宣言](../stdlib/types/noestdlib.d.ts)とnoeagentlibの[宣言](../agent/types/noeagentlib.d.ts)を別々に参照します。`noe:agent`だけでなく、`noe:model`・`noe:image`・`noe:decision`・`noe:auth`・`noe:agent-log`もagentlib側の所有です。これは本変更を含む開発版sourceの機能で、公開済みv2.1.1のsourceには未収録です。
+noestdlibの[宣言](../stdlib/types/noestdlib.d.ts)とnoeagentlibの[宣言](../agent/types/noeagentlib.d.ts)を別々に参照します。`noe:agent`だけでなく、`noe:model`・`noe:image`・`noe:decision`・`noe:auth`・`noe:agent-log`もagentlib側の所有です。宣言ファイルはv2.3.0以降のsourceに収録されています。
 
 宣言と下記の利用例はTypeScript 5.9.3で確認しています。古いcompiler等で宣言の構文を読めない場合も、コードの型不一致と区別して検査環境の問題を報告します。
 

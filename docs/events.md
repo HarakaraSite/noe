@@ -120,7 +120,7 @@ thinking・summary・messageの断片はストリーム受信時に出ます。p
 
 `run_js`のstdout・stderrは各64KiB（先頭32KiB＋末尾32KiB）までの捕捉出力と省略マーカーを記録します。省略があるstreamの出力イベントには`omittedBytes`、`run_js.finished`には`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。`tool.finished.rawResult`にも同じ省略情報が入り、`result`はその後のhook変換に従います。JSONLは省略された出力の完全ログではありません。通常のトップレベルJS出力の記録は変更しません。
 
-S4開発版では、未処理例外を`diagnostics`のcode/stage/messageと、取得できたstack/position/exceptionとして返します。診断をtoolのstderrやJSONLの`stderr`イベントへ合成しません。commandのstdout/stderrは例外詳細内で区別し、byte出力はencoding付きで保存します。`run_js.finished.exitCode`はNOEの実行終了コードであり、`diagnostics[].exception.code`は内部コマンドや利用者例外の別の値です。agent task自体の診断は`execution.diagnostic`へ残します。詳細は[実行結果と診断](execution-results.md)を参照してください。
+v2.3.0以降では、未処理例外を`diagnostics`のcode/stage/messageと、取得できたstack/position/exceptionとして返します。診断をtoolのstderrやJSONLの`stderr`イベントへ合成しません。commandのstdout/stderrは例外詳細内で区別し、byte出力はencoding付きで保存します。`run_js.finished.exitCode`はNOEの実行終了コードであり、`diagnostics[].exception.code`は内部コマンドや利用者例外の別の値です。agent task自体の診断は`execution.diagnostic`へ残します。詳細は[実行結果と診断](execution-results.md)を参照してください。
 
 詳細保持は固定した項目の文字列・有限の数値・booleanを対象とし、読取りに失敗する項目やオブジェクトは省略します。任意のプロパティ、循環参照、独自の`toJSON`、バイナリ出力等を完全に保存する仕組みではありません。JS内で捕捉して処理した例外は自動記録しません。NOE管理の`child_process`では、非同期の`execFile`・`exec`に加え、同期の`execFileSync`・`execSync`も失敗時のErrorにコマンドの`code`・`stdout`・`stderr`を持つため、未処理ならこの診断で取得できます。同期版の出力は常に文字列です。これはNOE側の変更であり、原型のgo-quickjs v0.27.0の同期版にはありません。
 

@@ -93,7 +93,7 @@ root agentには`provider`・`model`・`effort`が必須です。`effort: "auto"
 
 捕捉する`run_js`のstdout・stderrは各64KiB（先頭32KiB＋末尾32KiB）までです。超過分は省略マーカーとバイト数を残し、自動保存はしません。完全なログが必要ならJSやコマンドからファイルへ書き出します。イベント内容と親からの観察は[JSONLイベント](events.md)・[観察の入口](observe.md)を参照してください。
 
-S4開発版では、run_jsのagent操作も明示importし、`export default`によるdataとdiagnosticsを出力から分けて受け取れます。診断はstderrへ合成しません。[実行結果と診断の移行](execution-results.md)を参照してください。
+v2.3.0以降では、run_jsのagent操作も明示importし、`export default`によるdataとdiagnosticsを出力から分けて受け取れます。診断はstderrへ合成しません。[実行結果と診断の移行](execution-results.md)を参照してください。
 
 ## 4. 指示をファイルから渡す
 

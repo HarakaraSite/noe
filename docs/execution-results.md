@@ -2,7 +2,7 @@
 
 [ドキュメント一覧](README.md) · [JS検査](javascript-checks.md) · [API説明](reference.md) · [イベント](events.md)
 
-このページはS4の開発版契約です。公開済みv2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
+このページはv2.3.0以降の契約です。v2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
 
 ## run_jsのデータ返却
 

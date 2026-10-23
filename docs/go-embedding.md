@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.1.1; see the
+select model providers or agent behavior. The current release is v2.3.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.28.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.1.1`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.3.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
