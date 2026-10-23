@@ -1388,3 +1388,40 @@ artifact-E2E logs, build information and backups are retained at
 verification but no native execution on this host. JIT behavior and workload
 performance were not tested. This documentation-only follow-up does not move
 or replace the release tag; the unrelated active JSONL logs remain excluded.
+
+## v2.1.1 preparation — 2026-10-23
+
+Implementation commit: `aa108dd` (agent processing simplification and Worker
+cleanup joining). Checked release source: `20273af`, including the v2.1.1 CLI
+version and release notes. All checks below ran in its clean detached worktree.
+The tag-preparation evidence commit changes documentation only.
+
+| Reference-host gate | Result |
+| --- | --- |
+| Full CGO-free unit/E2E suite | PASS, 68.367s |
+| Full internal/stdlib/agent race | PASS, 101.285s |
+| Sustained Go Client model/tool waits and cancellation | PASS, 40.416s |
+| Vet including E2E tags | PASS, 1.934s |
+| Six distribution targets, CGO-free compilation | PASS; compile only |
+| External stdlib consumer, local replace and module artifact | PASS, 21.234s |
+| External agent consumer, local replace and module artifact | PASS, 29.618s; portable and gohost modes |
+| Native release-flags build | PASS, 2.142s; v2.1.1, clean checked revision, CGO disabled |
+| Engine/Worker CLI smoke | PASS, 0.064s |
+| Local agent fixture, queue continuity, retained/ranged answers, command diagnostics and docs | PASS, 0.667s |
+| Go module verification | PASS |
+
+The processing and Worker changes passed independent code review. The Worker
+regression tests failed with the previous Worker implementation restored by
+overlay and passed after the fix. The formerly failing external stdlib artifact
+also passed 100 runs with eight concurrent processes; see the
+[implementation record](../development/processing-simplification.md).
+
+Go 1.27.2 and go-quickjs v0.28.0 are unchanged. JIT remains disabled. The
+maintained stdlib source origin is still v0.27.0. No paid provider calls were
+made. Native execution is Linux amd64 only; the other targets have compilation
+evidence before tagging and will be linked by the release workflow.
+
+Reference logs, clean source, build information and consumer artifacts:
+`/var/tmp/noe-v2.1.1-release-4Q1KN0`. The tag-triggered workflow remains the
+distribution gate. Published binaries, checksums and the actual public Go
+module are verified separately after publication.
