@@ -1,3 +1,5 @@
+forge.harakara.site/littleisland/noe/third_party/go-quickjs v0.28.1-noe.1 h1:B5cDDCjlLNBs8nwdbT3RurL5ZbwrnZBTrE/+a1ICe2E=
+forge.harakara.site/littleisland/noe/third_party/go-quickjs v0.28.1-noe.1/go.mod h1:+FldX442jukAQ50q2L8F65sErsWscO6cv42k57k6RgE=
 github.com/OpenRouterTeam/go-sdk v0.9.61 h1:iMb7Ml41OSnuHkMNYqEXQFUPiSdk9bKDcNCStE2XOFg=
 github.com/OpenRouterTeam/go-sdk v0.9.61/go.mod h1:8vFtUZ9I2YiDntYbck42wQhrx9DsJN5PHbViaHwTkXc=
 github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=

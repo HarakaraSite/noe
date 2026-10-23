@@ -10,8 +10,6 @@ require (
 	golang.org/x/sys v0.49.0
 )
 
-replace forge.harakara.site/littleisland/noe/third_party/go-quickjs => ./third_party/go-quickjs
-
 require (
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/go-quickjs/go-intl v0.6.1 // indirect
