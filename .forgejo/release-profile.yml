@@ -13,6 +13,8 @@ release:
   repository_expression: ${{ forgejo.repository }}
   token_expression: ${{ forgejo.token }}
   tag_expression: ${{ inputs.release_tag || forgejo.ref_name }}
+  sha_expression: ${{ steps.build.outputs.sha }}
+  notes_file_expression: docs/releases/${{ inputs.release_tag || forgejo.ref_name }}.md
   notes_expression: ${{ format('Release {0}', inputs.release_tag || forgejo.ref_name) }}
 
 build:

@@ -1571,3 +1571,10 @@ build and publish an existing immutable tag by manual dispatch, so v2.2.0 and
 the engine tag remain unchanged. No application source or test assertion was
 modified to make this correction. Only YAML/expression/Bash syntax is checked
 locally for this workflow change; source suites are not rerun.
+
+The first manual recovery (run 32 / API 213) built all six binaries but the
+uploader correctly rejected the main workflow SHA as different from the
+existing v2.2.0 tag. The build now exposes the checked-out tag commit and passes
+it explicitly to the uploader's sha input. Release notes come from the selected
+tag's committed file. This correction changes no source or tag and repeats no
+source validation; a new light dispatch only builds and publishes.
