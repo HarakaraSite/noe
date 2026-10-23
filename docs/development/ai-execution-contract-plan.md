@@ -1,6 +1,6 @@
 # AI向け実行改善計画（範囲見直し版）
 
-更新日: 2026-10-24。状態: S1〜S4とTの総合検証を完了。S4後に見つかったagent-serverの明示import移行漏れも修正・確認した。[実施・検証記録](ai-execution-contract-implementation.md)を参照。公開・配置は行っていない。
+更新日: 2026-10-24。状態: S1〜S4とTの総合検証を完了。S4後に見つかったagent-serverの明示import移行漏れも修正・確認した。[実施・検証記録](ai-execution-contract-implementation.md)を参照。追加のリリース指示によりv2.3.0を公開し、配布物と公開Go moduleの利用を確認した。配置済みバイナリは未更新。[公開記録](../releases/release-checkpoints.md#v230-release-validation--2026-10-24)を参照。
 
 基点はv2.1.1への復旧コミット`5781755`。go-quickjsは正式な上流v0.28.0を使用する。
 撤回・ロールバックした旧計画のengine改造と派生moduleの設計は引き継がない。

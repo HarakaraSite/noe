@@ -62,7 +62,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 | テーマ | 計画・調査 | 実装・検証 |
 | --- | --- | --- |
-| AI向け実行改善：静的ツール・標準API情報・結果/診断 | [範囲見直し計画・レビュー](ai-execution-contract-plan.md)・[S1詳細設計・レビュー](ai-execution-contract-design.md) | [実施・検証記録](ai-execution-contract-implementation.md)：S1〜S4・T完了。公開・配置は未実施 |
+| AI向け実行改善：静的ツール・標準API情報・結果/診断 | [範囲見直し計画・レビュー](ai-execution-contract-plan.md)・[S1詳細設計・レビュー](ai-execution-contract-design.md) | [実施・検証記録](ai-execution-contract-implementation.md)：S1〜S4・T完了。v2.3.0公開・配布物/公開Go module確認済み。配置は未更新 |
 | v2：API再設計と3者の責務 | [構成案](v2-agent-runtime-plan.md)・[API/移行契約](v2-api-redesign.md)・[責務/経路](v2-responsibility-boundaries.md) | 破壊的変更採用・改訂レビュー完了 |
 | v2：実装と総合検証 | [11スライス実装計画](v2-agent-runtime-implementation-plan.md)・[計画レビュー](v2-api-redesign-review.md)・[実装記録](v2-implementation.md) | 承認済み計画に従い実装・スライス別検証中 |
 | agentの起動・待受・queue | [計画](agent-lifecycle-plan.md) | [実装記録](agent-lifecycle-implementation.md) |
@@ -123,6 +123,6 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補と完了区分は[次の機能候補](../future-candidates.md)を更新します。
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs) v0.28.0、汎用JavaScript APIにはv0.27.0のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleに実装済みですが、v2タグは未公開です。外部moduleで試す場合は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドに従ってローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs) v0.28.0、汎用JavaScript APIにはv0.27.0のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleで公開済みです。現行リリースはv2.3.0で、外部moduleからの利用は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドを参照してください。未公開のcheckoutを試す場合はローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
 
 `_refs/`はローカル専用の未追跡の参考資料で、ビルド・テスト依存に含めません。リリースの配布対象・品質確認は[プロファイル](../../.forgejo/release-profile.yml)と[ワークフロー](../../.forgejo/workflows/release.yml)に定義されています。

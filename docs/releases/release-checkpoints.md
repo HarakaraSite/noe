@@ -1531,3 +1531,48 @@ retrieval are checked after publication.
 
 Evidence and detached checked source:
 `/var/tmp/noe-v2.3.0-release-u241ahed`. User event logs remain untouched.
+
+## v2.3.0 Release validation — 2026-10-24
+
+- Annotated tag `v2.3.0` points to `8e7c82ad980d2bf51a11b1615a28e01cc625ca4f`.
+  The peeled remote tag matches the workflow revision. Its only difference
+  from checked source `2834fba` is the preparation evidence above.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/34)
+  succeeded (API run ID 215, job ID 236). It built the six binaries, generated
+  checksums and uploaded them; the saved log contains no repeated source-test
+  or vet command.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.3.0)
+  is published, neither draft nor prerelease (Release ID 147). Its body matches
+  the tagged [English release notes](v2.3.0.md). v2.2.0 is not reused.
+
+All seven assets were downloaded and all six binary hashes matched SHA256SUMS.
+The Linux amd64 binary reports `noe v2.3.0`, the tagged revision,
+`vcs.modified=false`, `CGO_ENABLED=0` and official go-quickjs v0.28.0, without
+JIT. Its SHA256 is
+`50de71b27353db9b2d721c7a41a9d4eb558eb2c906d08d932ac185d0af502f00`.
+
+Against the downloaded binary, a local fixture verified embedded docs,
+explicit imports, an execution failure with diagnostics separated from empty
+stderr, a corrected async default result, actual stdout, next-model-request
+delivery and JSONL retention. Static-tool/declaration source tests were not
+repeated for this artifact check.
+
+Clean external modules fetched `stdlib@v2.3.0` and `agent@v2.3.0` through the
+actual published module without local replacement or a synthetic proxy. Both
+examples built and ran, and both passed `go mod verify`; the deterministic
+agent returned `The total is 31.`. MVS selected official go-quickjs v0.28.0.
+Both declaration files in the fetched module match the tagged source.
+An external stdlib probe also confirmed absent/null/Promise data, detached
+structured diagnostics, native Go causes and serialization failure without
+replaying side effects.
+
+Evidence is retained at `/var/tmp/noe-v2.3.0-release-u241ahed`, including
+`published-verification.json`, `public-module-verification.json`, the workflow
+log, downloaded assets, module consumers and result/diagnostic fixture output.
+No paid provider calls were made. Other five platforms have CI build and hash
+evidence, without native execution here.
+
+This publication record does not move the release tag. Repository-root `noe`
+and `/home/agent/.local/bin/noe` are not replaced; the installed version remains
+v2.1.1. User event logs remain unchanged. Publication is complete; deployment
+is a separate next action if requested.

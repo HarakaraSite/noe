@@ -165,7 +165,7 @@ unitのskip 4件は実provider用3件と専用processから起動されるheartb
 
 Tの確認で追加の製品不具合は検出していない。修正はテストfixtureの明示import 1行で、上流・依存・CI・配置済みバイナリは変更していない。この修正は本記録と同じコミットに含める。リリース・配置・公開は行っていない。
 
-## 次セッションへの引き継ぎ（2026-10-24）
+## 実装完了時の引き継ぎ（公開前、2026-10-24）
 
 - 作業場所は`/home/agent/projects/noe`、branchは`main`。復旧基点`5781755`→S1設計`e5bbe1e`→S2〜S4実装`4389385`→本記録とagent-serverの修正、という状態。計画のS1〜S4・Tは完了し、実装・検証の残作業はない。次の作業は利用者の指示を受けて決める。
 - 範囲は「既存静的ツールの利用案内」「noestdlib/noeagentlibがそれぞれ供給するAPI説明・型宣言」「実行結果・実行時診断」の3本。[計画](ai-execution-contract-plan.md)と[S1設計](ai-execution-contract-design.md)が正本。利用契約は[実行結果・移行](../execution-results.md)と[JS検査](../javascript-checks.md)を参照する。
@@ -173,3 +173,11 @@ Tの確認で追加の製品不具合は検出していない。修正はテス�
 - Tの結果と任意試験の未実施範囲は上記のとおり。集約結果は`/var/tmp/noe-t-validation/summary.json`、S3/S4の詳細は`/var/tmp/noe-s3-validation`・`/var/tmp/noe-s4-tests`。一時成果物を正本にせず、本記録を完了状態として使う。同じ製品ソース・依存なら有効な検証結果を再利用し、セッション変更だけを理由にunit/E2E/raceをやり直さない。
 - 配置は更新していない。引き継ぎ時にrepository直下の`./noe version`と`/home/agent/.local/bin/noe version`はどちらも`noe v2.1.1`と確認した。今回の検証用バイナリは`/var/tmp/noe-s4-audit-bin`。公開・push・tag・Release作成・配置はこのコミット依頼に含まれず、実施していない。リリース指示後も[AGENTS.md](../../AGENTS.md)の「ローカル修正→テスト→通常軽いリリース検証→軽いCI」に従う。
 - 利用者の未追跡イベントログ4件（20261021の203157/215119、20261023の110042/112051）は変更・削除・コミットしない。
+
+## 公開後の引き継ぎ（2026-10-24）
+
+- 利用者がv2.2.0を欠番としてv2.3.0へ進むことを了承し、「では進めて」と指示したため、リリースノート・バージョン・利用ガイドを更新し、軽いリリース検証、コミット、main/tagのpush、CI公開、公開後検証まで完了した。[リリース記録](../releases/release-checkpoints.md#v230-release-validation--2026-10-24)が公開状態の正本。
+- `v2.3.0`は`8e7c82ad980d2bf51a11b1615a28e01cc625ca4f`を指す。CI run 215（表示番号34）は成功。Release ID 147は公開済みで、6配布物のchecksumが一致し、公開Linuxバイナリのdata/診断配送と公開Go moduleのstdlib/agent利用・型宣言収録も確認済み。正式go-quickjs v0.28.0を維持し、実providerは呼んでいない。
+- S2/S3/S4/Tの有効なソース検証を再利用した。追加検証はバージョンの対象subtest、native release build・docs・依存/リンク確認と、公開配布物・実moduleの成立確認。全体unit/E2E/race等を繰り返さず、CIもビルド・checksum・公開だけ。証拠は`/var/tmp/noe-v2.3.0-release-u241ahed`。
+- 作業場所は同じrepositoryの`main`。この公開後記録はタグ後の文書コミットとし、mainへpushする。リリースタグは移動しない。未追跡イベントログ4件は保持する。
+- 配置は未更新で、repository直下の`./noe`と`/home/agent/.local/bin/noe`はv2.1.1のまま。公開は完了し、未完了の実装・検証・公開作業はない。次の作業は利用者の指示で決める。上流変更の事前許可など、これまでの権限境界は維持する。
