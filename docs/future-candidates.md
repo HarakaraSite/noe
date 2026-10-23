@@ -11,9 +11,9 @@
 
 | 分類 | 件数 | 状況 |
 | --- | ---: | --- |
-| [完了](#completed) | 21 | 合意した範囲のコード・利用経路あり。範囲外の拡張は別候補 |
+| [完了](#completed) | 22 | 合意した範囲のコード・利用経路あり。範囲外の拡張は別候補 |
 | [一部完了](#partially-completed) | 7 | 実装済み部分と、保留・未整備の範囲を本文で区別 |
-| [未完了](#not-completed) | 11 | 検討・未着手・意図的な保留。実装を決定した一覧ではない |
+| [未完了](#not-completed) | 10 | 検討・未着手・意図的な保留。実装を決定した一覧ではない |
 
 第3階層の候補見出し単位で集計し、Jevの応用例を1件として含めます。観察機能の内訳である「外部JS案」は別件に数えません。旧REPLの判断は履歴1件として集計外です。主な更新は、Zed環境を未完了から一部完了へ変更、NOE側の同期コマンド改善を上流PRから分離、再委譲制限と結果取得のv1.16.0公開状況の反映です。
 
@@ -226,6 +226,14 @@ workspaceの`.zed/jsconfig.json`は、v2.3.0の`stdlib/types/noestdlib.d.ts`と`
 
 TypeScript 5.9.3で既存runnerとガイドから作った単発/keepAlive runnerの型検査・help表示が成功。新APIの正常例を受け付け、不正な`includeAnswer`とDOM APIの利用を検出した。読み込んだ型にDOM・`@types/node`・旧宣言がないこと、既存tasks/promptsとrunnerの実行ロジックを維持したことも確認した。記録と旧設定のbackupは`/var/tmp/noe-zed-types-ljjhhrq9/results.json`と同ディレクトリ。Zed GUIでの補完表示と実providerへの接続は未確認で、Go全体suiteは再実行していない。実行コードのTypeScript化やZed専用拡張は今回の範囲に含めない。
 
+### <完了> MCPとデーモンのexample作成 — 2026-10-24
+
+[MCP利用例](../examples/mcp/README.md)は、公式SDKを事前bundleし、NOE上のJSからExa公式Streamable HTTPサーバーへ接続する。匿名のtool一覧取得、明示的な検索、任意のkeyファイルを使うheader認証の手順を整えた。ローカルのJSON/SSE fixtureでも外部サービスなしに試せる。既存のstdioスパイクは維持する。
+
+[デーモン例](../examples/daemon/README.md)は、`noe:sockets`でTCP/JSONL要求を受け、`noe:signals`のSIGTERMでlistener・接続・処理を回収する。外部shellから独立したNOEプロセスを起動・利用・停止する手順も記載した。
+
+Linux amd64でローカルMCPの初期化/一覧/並列呼出し、Exaエントリのfixture、実Exaの初期化と一覧、デーモンの分割/並行/不正要求・SIGTERMを確認。実Exaの検索や有料要求は行っていない。[実装・検証記録](development/mcp-daemon-examples.md)を参照。Go製品コード・go.mod/go.sum・上流は変更していない。
+
 <a id="partially-completed"></a>
 
 ## 一部完了（実装済み範囲と残件）
@@ -308,7 +316,7 @@ TypeScript 5.9.3で既存runnerとガイドから作った単発/keepAlive runne
 
 **JSで外部MCPツールを呼ぶ経路は検証済みです。** 公式SDKのClientをESMへbundleし、`noe:process`を使う独自JS stdio transportを組み合わせた[スパイク](../scripts/spikes/process-io-mcp/README.md)があります。main・Worker・fixture agentの`run_js`で、初期化、tool一覧、並行呼出し、要求と応答の対応付け、大きなUTF-8応答、異常終了と子の回収を確認しました（[import mapの検証記録](development/local-import-map-implementation.md)）。
 
-Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動かします。専用のGo製MCP APIは追加していません。通常利用向けの配布・設定・接続先管理をどう整えるかは未決定です。スパイクがあることと、製品として組込みMCPクライアントを提供していることは区別します。
+Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動かします。専用のGo製MCP APIは追加していません。2026-10-24に[Exa公式HTTPサーバーとローカルfixtureを使う通常利用例](../examples/mcp/README.md)を追加しました。SDKの事前bundleとimport mapでの配置、URLと任意keyファイルの指定を案内しています。製品としてのSDK自動配布・設定・接続先管理は未決定です。スパイクがあることと、製品として組込みMCPクライアントを提供していることは区別します。
 
 照合根拠：[`noe-transport.js`](../scripts/spikes/process-io-mcp/noe-transport.js)と[`import_map_mcp_e2e_test.go`](../tests/import_map_mcp_e2e_test.go)。SDK bundleを事前作成し`NOE_MCP_SDK_BUNDLE`を指定するopt-inテストであり、未指定時はskipする。
 
@@ -409,15 +417,6 @@ QuickJS-NGは最新のECMAScript仕様への追随を目指し、test262への�
 `x/sys`とWebP用の`x/image`も維持する方針です。
 
 照合根拠：[`markdown.go`](../internal/mdcli/markdown/markdown.go)は`ANSI`・`ColorTheme`とhighlightを保持。削除はしておらず、未完了は不具合ではなく保留方針を表す。
-
-### <未完了> MCPとデーモンのexample作成 — 2026-10-19
-
-利用者の作業メモとして、次の実行例を`examples/`へ追加する。ソケットの有限往復とsignal待機の部品例はあるが、MCPの通常利用例、および要求受付・signal終了・外部からの起動停止をまとめたデーモン例は未整備。
-
-- MCP：既存のMCPクライアントスパイクを参考に、利用例と起動手順を整える。クライアント/サーバーの役割・通信方式の詳細は作成時に決める。
-- デーモン：`noe:sockets`の待受・要求処理と`noe:signals`による終了を使う常駐処理の例を作る。独立したNOEプロセスとして外部から起動・停止する手順も示す。
-
-照合根拠：現存するのは[`index-roundtrip.js`](../examples/low-level/index-roundtrip.js)・[`wait-signal.js`](../examples/low-level/wait-signal.js)とMCPスパイク。候補の完成例とは区別する。
 
 ### <未完了> NOEへのMCPサーバー機能の組込み — 2026-10-17
 

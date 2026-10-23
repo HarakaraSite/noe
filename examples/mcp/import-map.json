@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "mcp/sdk": "./mcp-sdk.bundle.mjs"
+  }
+}

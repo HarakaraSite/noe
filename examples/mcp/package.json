@@ -1,0 +1,12 @@
+{
+  "name": "noe-mcp-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild sdk-entry.js --bundle --format=esm --platform=neutral --conditions=browser --main-fields=module,main --external:noe:* --external:node:* --outfile=mcp-sdk.bundle.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "esbuild": "0.25.12"
+  }
+}

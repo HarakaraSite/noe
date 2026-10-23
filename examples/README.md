@@ -14,6 +14,8 @@
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |
 | [http](http/README.md) | noe:httpでのローカル往復、stream upload、JSON・バイナリ取得、HTTPサーバー | ローカル例は不要、外部APIの例は接続先URLが必要 |
 | [process](process/README.md) | 常駐子プロセス、JSONL通信、パイプライン | 不要 |
+| [mcp](mcp/README.md) | 公式SDKでExa MCPへ接続、ローカルHTTP/SSE往復 | ローカル例は不要、Exa例は外部接続 |
+| [daemon](daemon/README.md) | JSでTCP待受、JSONL要求、SIGTERM終了と外部からの起動停止 | 不要 |
 | [low-level](low-level/README.md) | 位置指定ファイルI/O、TCP/Unix通信、OSシグナル | 不要 |
 | [import-map](import-map/README.md) | ローカルESMへの名前付け | 不要 |
 | [agent](agent/README.md) | 任意タスク、要約、並列委譲、provider選択、hook、steer・queue・interrupt | 各providerの認証 |

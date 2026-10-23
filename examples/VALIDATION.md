@@ -1,5 +1,17 @@
 # examplesの動作確認
 
+## MCP・JSデーモン例 — 2026-10-24
+
+[MCP](mcp/README.md)と[デーモン](daemon/README.md)をLinux amd64 / NOE v2.3.0で確認した。
+公式SDKの固定依存からのbundle、ローカルHTTP/JSON/SSEでの初期化・一覧・並列tool呼出し、
+Exaエントリのローカルfixture、実Exa公式サーバーの匿名での一覧取得が成功した。
+実Exaの検索toolは呼んでいない。キーのheaderはダミーkeyによるfixtureで確認した。
+
+デーモンはJSONLの分割・複数要求・並行接続・不正要求後の継続、CLI client、
+接続中のSIGTERM、接続とlistenerの解放を確認した。新規JSのBiome lintも成功。
+Node/npmはSDKの準備だけに使い、実行には使っていない。
+詳細と未確認範囲は[実装・検証記録](../docs/development/mcp-daemon-examples.md)を参照。
+
 ## Go常駐組み込み例の追加確認
 
 [embedding-server](embedding-server/README.md)をLinux amd64 / Go 1.27.2で確認しました。
