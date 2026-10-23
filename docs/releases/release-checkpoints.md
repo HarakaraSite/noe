@@ -1588,3 +1588,38 @@ PATH command resolves to the updated user binary. Previous binaries are saved
 at `/var/tmp/noe-v2.3.0-release-u241ahed/installation-dip_3ak0`; the installation
 record is `/var/tmp/noe-v2.3.0-release-u241ahed/installation.json`.
 No source test suite was repeated for installing the verified artifact.
+
+## v2.4.0 preparation — 2026-10-24
+
+The user authorized committing and publishing the completed token-efficiency
+changes. Implementation commit `0f0f519` contains the compact API member docs,
+3 KiB model-facing text budget, per-call output pragma, and openai-chatgpt raw
+JavaScript transport. The release also includes the previously committed
+standalone observe cancellation fix and MCP/daemon examples since v2.3.0.
+See the [implementation and review record](../development/token-efficiency-implementation.md)
+and [English release notes](v2.4.0.md).
+
+Checked release source: `f1b99211afa4071cde8655d94ace38c1fb5b55c6`.
+The tag-preparation follow-up changes this evidence document only.
+Implementation full unit, affected runtime/provider/E2E, vet and real
+openai-chatgpt results are reused. Normal and critical plan/implementation
+reviews have no unresolved Blocker/P1/P2. Dependencies, public Go execution
+contracts, release profile and workflow are unchanged.
+
+| Release verification | Result |
+| --- | --- |
+| CLI version subtest | PASS, `CGO_ENABLED=0 go test ./internal/cli -run '^TestCLI/version$' -count=1` |
+| Clean native release-flags build | PASS, checked source above, `vcs.modified=false`, CGO disabled |
+| Native version/arithmetic/embedded budget and pragma docs | PASS, `noe v2.4.0` |
+| Native local diagnostic-to-repair fixture | PASS, original diagnostics, structured data and next-request delivery |
+| Current release/guide relative links and source diff | PASS |
+| Dependencies and existing event logs | Unchanged |
+
+Evidence is retained at `/var/tmp/noe-v2.4.0-release-x4rfnar6`, including a
+clean detached source checkout and `preparation-verification.json`.
+No full unit/E2E/race/vet or six-target local distribution build is repeated
+for the version update. The existing light CI builds six binaries, creates
+SHA256SUMS and publishes the immutable tag. Native execution here is Linux
+amd64; other platforms receive CI build and checksum verification.
+Published artifacts and actual public-module retrieval are checked separately
+after publication. Installation of the new binary is a separate action.
