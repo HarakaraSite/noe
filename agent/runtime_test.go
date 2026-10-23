@@ -13,10 +13,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/agent"
 	"forge.harakara.site/littleisland/noe/v2/agent/model"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 type runtimeFlowModels struct {
@@ -191,8 +191,7 @@ func runtimeHasToolReply(request model.Request, callID string) bool {
 	return false
 }
 
-const markerImport = `import {loaderGeneration} from "fixture:runtime-marker";
-import {spawn_agent, queue_agent, cancel_task, wait_task, stop_agent, observe_agent} from "noe:agent";`
+const markerImport = `import {loaderGeneration} from "fixture:runtime-marker";`
 
 func parentChildrenCode() string {
 	return markerImport + `

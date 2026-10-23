@@ -4,15 +4,15 @@ The `/v2` `agent` package provides a Go `Host` and scoped `Client`. Agents run
 inside fresh in-process JavaScript executions; the embedding application does
 not need a separate NOE executable or the CLI. Import
 `forge.harakara.site/littleisland/noe/v2/agent`, `agent/model`, and
-`stdlib`. The current release is v2.2.0. For an unpublished checkout, use the
+`stdlib`. The current release is v2.1.1. For an unpublished checkout, use the
 local module setup in the [agent example](../examples/agent-embedding/README.md).
 To use the published release, use
-`go get forge.harakara.site/littleisland/noe/v2/agent@v2.2.0` without a local
+`go get forge.harakara.site/littleisland/noe/v2/agent@v2.1.1` without a local
 replacement. See the [v2 migration guide](v2-migration.md) for breaking changes.
 
-The package requires Go 1.27.2 or later and uses the independently versioned
-managed engine module `forge.harakara.site/littleisland/noe/third_party/go-quickjs`
-v0.28.1-noe.1, based on upstream go-quickjs v0.28.0. From the checkout root, run the deterministic example with:
+The package requires Go 1.27.2 or later. The current checkout is checked with
+go-quickjs v0.28.0; published NOE tags retain the engine dependency recorded in
+their own `go.mod`. From the checkout root, run the deterministic example with:
 
 ```sh
 CGO_ENABLED=0 go run ./examples/agent-embedding
@@ -196,30 +196,3 @@ Replace saved-log variants of `observe_agent` with caller-side file reading
 and `agent/log` parsing. Replace task/instance interruption with the separate
 `CancelTask` and `StopAgent` operations. Do not pass NOE control directories,
 executable paths, or internal connection tokens into the library API.
-
-## Execution contract in v2.2.0
-
-The current checkout returns an ESM default export as detached JSON in
-`stdlib.Result.Data`. No export means nil; an explicit null is JSON `null`.
-Use `export default await operation()` for async values. A default Promise or
-unserializable value fails with `JS_RESULT` in the `serialize` phase after code
-may already have run. `Result.Diagnostics` contains structured facts and
-`Result.Phase` identifies the processing stage. `stdlib.Diagnostic(err)` remains
-available for human-readable stacks and native Go causes remain inspectable.
-
-`stdlib.Check(ctx, source, profile)` links a fresh static module graph without
-evaluating module bodies. Only `Profile.InspectInitialize` is used for inspection;
-normal `Initialize` is not replayed. Inspection callbacks own their resources
-and must not close a running execution's binding or operation. The matching
-JavaScript entry is `check(code)` from `noe:runtime`. The docs module's
-`describe(topic?, member?)` separates real exports from reference detail IDs.
-
-The managed engine is an independent module under `third_party/go-quickjs`,
-with public path `forge.harakara.site/littleisland/noe/third_party/go-quickjs`.
-Custom Go bindings that name engine types must import this module instead of
-`github.com/go-quickjs/go-quickjs`; types from the two module paths are distinct.
-The alias `quickjs` can remain unchanged. For local checkout development, the
-example template replaces both NOE and the engine; dependency replacements are
-not inherited. Published consumers need neither replacement. Synthetic artifact
-checks precede publication; actual published-module retrieval is checked after
-the engine submodule tag and NOE tag are pushed.

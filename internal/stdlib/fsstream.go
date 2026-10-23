@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // fileChunk is how much one read of a file asks for.

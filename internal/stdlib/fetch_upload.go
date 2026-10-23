@@ -6,7 +6,7 @@ import (
 	"io"
 	"sync"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // uploadBody bridges one owner-side stream reader to the transport. Only plain

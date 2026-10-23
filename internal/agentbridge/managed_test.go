@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	core "forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 func TestManagedBindingClosePreservesBorrowedRuntimeAndLoop(t *testing.T) {

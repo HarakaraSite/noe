@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 const serveReadSize = 32 << 10

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 type loopDNSResolver struct{}

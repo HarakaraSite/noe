@@ -4,8 +4,6 @@
 
 ## spawn
 
-Signature: `spawn(command: string, args?: string[], options?: object) -> Promise<ChildProcess>`
-
 ```js
 import { spawn } from "noe:process";
 ```

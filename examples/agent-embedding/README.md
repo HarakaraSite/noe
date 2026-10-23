@@ -13,12 +13,11 @@ CGO_ENABLED=0 go run ./examples/agent-embedding
 ```
 
 For a separate module, copy `main.go` and `go.mod.template` outside the
-checkout. Rename the template to `go.mod`, set the NOE replacement to the
-absolute checkout path and the engine replacement to that path plus
-`/third_party/go-quickjs`, and run `GOWORK=off go mod tidy` followed by
+checkout. Rename the template to `go.mod`, set its replacement to the absolute
+checkout path, and run `GOWORK=off go mod tidy` followed by
 `GOWORK=off CGO_ENABLED=0 go run .`. The module version in the template is a
-local-development placeholder. For the published release, remove both replacements
-and require v2.2.0 instead; see the [v2 migration guide](../../docs/v2-migration.md).
+local-development placeholder. For the published release, remove the replacement
+and require v2.1.1 instead; see the [v2 migration guide](../../docs/v2-migration.md).
 
 `Client.Run` waits for the managed instance to finish. For a keep-alive
 instance, use `Spawn`, retain both the returned `agentId` and `commandId`, then

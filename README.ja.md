@@ -6,9 +6,9 @@ Just JavaScript. Until you need an agent.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.2.0リリースノート](docs/releases/v2.2.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.2.0)
+[v2.1.1リリースノート](docs/releases/v2.1.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.1.1)
 
-v2.2.0では明示的なES module import、default exportによるデータ返却、構造化診断、非実行検査、API発見を導入しました。長いtool結果は参照から範囲取得できます。run_jsとGoのengine importに破壊的変更を含むため、更新前にリリースノートを確認してください。
+v2.1.1ではagent処理の重複を減らし、Workerのcleanup完了を待って終了を通知するよう修正しました。既存のCLI・JavaScript・Go APIを維持しています。
 
 v2ではGoアプリ内でagentを直接実行できます。Go組み込みとJS APIの破壊的変更は[v2移行ガイド](docs/v2-migration.md)を参照してください。
 
@@ -21,7 +21,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.2.0
+# noe v2.1.1
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。

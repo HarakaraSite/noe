@@ -89,8 +89,8 @@ agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等�
 | `instance.started` / `instance.idle` / `instance.running` / `instance.stopping` / `instance.stopped` / `instance.failed` | AgentInstance状態の変化。`agentId`・状態・停止理由など。taskの成功・失敗イベントとは別に記録 |
 | `command.accepted` / `command.applied` / `command.completed` / `command.failed` / `command.cancelled` | queueまたはsteer commandの受領・適用・結果。`operation`は`queue`または`steer`、`commandId`とstatusも付く。queueの結果にはtaskの`runId`も付く。`command.accepted`には指示本文の`instruction`も付く（後続状態には繰り返さない） |
 | `interrupt.accepted` | taskまたはinstanceへの停止要求の受付。`target`は`run`または`agent`、`status`は`accepted`。run対象には`runId`、agent対象には`agentId`が付き、taskが実行中なら`runId`も付く。いずれも`parentRunId`・`name`・`model`を含む |
-| `agent.started` / `agent.completed` / `agent.failed` / `agent.cancelled` | TaskRunの状態・終了時の`duration`。instanceが管理するrunにはinstance側の`agentId`も付く。失敗時は`error`、明示的なrefusalや`cyber_policy`があるrunでは`errorDetails`も付く |
-| `model.started` / `model.finished` / `model.failed` | モデル要求の`requestId`。完了時は`finishReason`・`usage`・`duration`、失敗時は`reason`等。明示的なrefusalを含む`model.finished`や`cyber_policy`による`model.failed`には`errorDetails`が付く |
+| `agent.started` / `agent.completed` / `agent.failed` / `agent.cancelled` | TaskRunの状態・終了時の`duration`。instanceが管理するrunにはinstance側の`agentId`も付く。失敗時は`error`、明示的なVision refusalがあるrunでは`errorDetails`も付く |
+| `model.started` / `model.finished` / `model.failed` | モデル要求の`requestId`。完了時は`finishReason`・`usage`・`duration`、失敗時は`reason`等。明示的なVision refusalを含む`model.finished`には`errorDetails`が付く |
 | `thinking` / `thinking_summary` | providerから返った推論本文・要約の断片`text`と`requestId` |
 | `message_delta` | モデルの発言本文の断片`text`と`requestId` |
 | `agent.message` | toolを呼ぶ応答に含まれる途中の発言`text`と`requestId` |
@@ -108,8 +108,6 @@ agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等�
 `duration`はnanosecondsです。並列実行のイベントは到着順に並びますが、同じNOE内の書込みを直列化するため、JSON同士が文字単位で混ざりません。
 
 Vision応答でproviderが明示的にrefusalを返した場合、`model.finished`および失敗した`agent.failed`の`errorDetails`に`code: "refusal"`と取得できる`providerMessage`・`requestId`を残します。モデルのrefusal本文を検出した場合の情報で、通常の通信・入力エラーをrefusalと推定しません。画像の生成と読取りの使い方は[画像ガイド](agent-images.md)を参照してください。
-
-上流が`cyber_policy`を明示した失敗では、`model.failed.reason`は`policy`となり、`model.failed`と`agent.failed`の`errorDetails`に`code: "cyber_policy"`・`providerCode`・`providerMessage`・`statusCode`と取得できた上流の`requestId`を記録します。イベント直下の`requestId`はNOEが発行した要求IDです。`command.failed`は従来どおりcommandの状態を示し、詳細を重複して載せません。
 
 意思決定要求は[noe:decision](decision.md)を使います。`run_js`内からの要求には所有runのmetadataと`toolCallId`を付け、共通の`model`は親agentの設定モデルを維持します。意思決定のモデル名は`decisionModel`・`responseModel`へ分けます。通常JSからの直接要求にはagent/run IDや共通の`model`を割り当てません。人間向けは要求の開始・終了を短く表示し、親のファイル観察は差分イベントへ含めます。意思決定イベントで親runのphaseや終了状態を変更しません。応答本文はJSへ返し、JSONLのdecisionイベントはmetadataを記録します。
 
@@ -143,11 +141,3 @@ tail -f agent.jsonl | jq --unbuffered -c \
 人間向けの整形表示はGoの`noe observe`、live状態は`noe:agent`の`observe_agent`、保存ログの状態・差分・結果解析は`noe:agent-log`の`analyze_log`を利用できます。`--observe`と`noe observe`は1行目に`[name agent=<agentId8>]`や`[name run=<runId8> tool=<toolId8>]`、2行目に`agent idle`や`run_js started: 内容`を表示し、イベント間に空行を入れます。task開始時にはagent IDとrun IDの両方を示します。steerの受付・適用・取消しとinterruptの受付も人間向け表示に出します。`noe queue`・`noe steer`から送った指示（`origin.kind: "human"`）は受付時に本文を1回表示し、Markdownとして整形せず、改行も保持します。人間由来のqueueの完了・失敗・取消しと、steerの後続状態はcommand IDだけを表示します。初回タスクや内部queueは人間向け表示では引き続き省略します。`./noe run --events=- examples/agent/try-agent.js | ./noe observe`で逐次表示できます。使い方は[観察の入口](observe.md)を参照してください。steer・interrupt・人間用control CLIの受付と確認方法は[APIリファレンス](api.md#実行中taskへの指示と停止)にまとめています。外部JSによる表示とSQLite保存は、当初の[検討メモ](future-candidates.md#外部jsによるリアルタイム表示--2026-10-17)に残しています。設計と対象範囲は[control計画](development/agent-control-plan.md)を参照してください。
 
 従来の`NOE_AGENT_TRACE=1`はメタデータのみをstderrへ出す機能として維持しています。詳細本文やtool出力を含む`--events`とは独立しており、従来のtraceの内容は変わりません。
-
-## 構造化されたrun_js結果
-
-`run_js.finished`は`phase`、取得できた`diagnostics`（code/phase/message/source/line/column/stack/exception）を含みます。
-例外の利用者定義codeは`exception.code`であり、NOEの分類codeとは別です。
-大きい結果には`resultRef`と省略byte数を付け、`tool.finished`のrawResult/resultは原結果/加工結果の抜粋です。
-全文参照の寿命は同じactive taskまでで、JSONLへ保存した参照が再起動後にも読めるわけではありません。
-人間向けobserveは失敗診断の分類・位置・messageを表示します。

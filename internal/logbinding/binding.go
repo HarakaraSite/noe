@@ -9,9 +9,9 @@ import (
 	"io"
 	"sync"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/loganalysis"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 const moduleSource = `import {analyze} from "noe:agent-log/internal";

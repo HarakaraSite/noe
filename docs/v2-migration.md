@@ -66,13 +66,3 @@ task/toolは同じOS process内の別VMで実行します。`process.pid`をtask
 queueでの会話継続、instanceごとのsession ID、再委譲受付、保持結果のUTF-8範囲取得、hook、画像のmetadata-only受け渡しは維持します。通常の`run`・`eval`、credential file配置、NOEのinstruction directory、ログ保存・人間向けcontrolの使い方も維持します。
 
 `run_js`のstdout/stderrはツール終了時のcapture結果として通知されます。途中のconsole出力をtool内の到達証明にしないでください。この挙動は旧1.16.0でも同じで、v2による退行ではありません。
-
-## v2.2.0の追加変更
-
-`run_js`のagent helperは暗黙importされなくなりました。`noe:agent`等から明示importし、
-構造化データは`export default value`または`export default await operation()`で返します。
-失敗情報はstderrと混ぜず`diagnostics`から取得します。[v2.2.0リリースノート](releases/v2.2.0.md)を参照してください。
-
-独自Go bindingでquickjsの型を使う場合、importを`github.com/go-quickjs/go-quickjs`から
-`forge.harakara.site/littleisland/noe/third_party/go-quickjs`へ変更します。alias `quickjs`は維持できますが、
-異なるmodule pathの型同士は互換ではありません。engineはNOEとは独立したmodule/versionで配布します。

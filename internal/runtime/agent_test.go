@@ -97,7 +97,7 @@ func TestAgentLazyImportAndConfigurationErrors(t *testing.T) {
 	})
 	for _, source := range []string{
 		`const api=await import("noe:agent");
-if (Object.keys(api).sort().join(",")!=="cancel_task,list_models,observe_agent,queue_agent,read_task_result,read_tool_result,run_agent,spawn_agent,steer_agent,stop_agent,wait_task") throw Error("unexpected public exports: "+Object.keys(api));
+if (Object.keys(api).sort().join(",")!=="cancel_task,list_models,observe_agent,queue_agent,read_task_result,run_agent,spawn_agent,steer_agent,stop_agent,wait_task") throw Error("unexpected public exports: "+Object.keys(api));
 if ("createAgent" in api) throw Error("legacy createAgent is still exported");`,
 		`import {run_agent} from "noe:agent"; let failures=0;
 for (const config of [{model:""},{model:42},{provider:""},{maxTokens:-1},{maxSteps:-1},{cacheKey:42}]) {

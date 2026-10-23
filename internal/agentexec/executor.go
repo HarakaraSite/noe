@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"strings"
 	"sync"
 
@@ -24,29 +22,11 @@ type Executor struct {
 type capture struct {
 	sync.Mutex
 	capturedOutput
-	retainFull bool
-	file       *os.File
 }
 
 func (c *capture) Write(p []byte) (int, error) {
 	c.Lock()
 	defer c.Unlock()
-	if c.retainFull && c.file == nil && c.total+int64(len(p)) > capturedOutputLimit {
-		file, err := os.CreateTemp("", "noe-tool-output-")
-		if err != nil {
-			return 0, err
-		}
-		c.file = file
-		previous, _ := c.capturedOutput.result()
-		if _, err := io.WriteString(file, previous); err != nil {
-			return 0, err
-		}
-	}
-	if c.file != nil {
-		if _, err := c.file.Write(p); err != nil {
-			return 0, err
-		}
-	}
 	return c.capturedOutput.Write(p)
 }
 func (c *capture) WriteContext(ctx context.Context, p []byte) (int, error) {
@@ -61,80 +41,13 @@ func (c *capture) result() (string, int64) {
 	return c.capturedOutput.result()
 }
 
-func (c *capture) takeFull() (io.ReadCloser, error) {
-	c.Lock()
-	defer c.Unlock()
-	if c.file == nil {
-		return nil, nil
-	}
-	if _, err := c.file.Seek(0, io.SeekStart); err != nil {
-		return nil, err
-	}
-	reader := &capturedFile{File: c.file}
-	c.file = nil
-	return reader, nil
-}
-
-func (c *capture) close() {
-	c.Lock()
-	defer c.Unlock()
-	if c.file != nil {
-		// Best-effort cleanup after cancellation or a failed ownership transfer.
-		_ = c.file.Close()
-		_ = os.Remove(c.file.Name())
-		c.file = nil
-	}
-}
-
-type capturedFile struct {
-	*os.File
-	once sync.Once
-	err  error
-}
-
-func (f *capturedFile) Close() error {
-	f.once.Do(func() { f.err = errors.Join(f.File.Close(), os.Remove(f.File.Name())) })
-	return f.err
-}
-
 // Execute creates only the runtime required by this task or tool. Configuration,
 // callbacks and scope stay in Go; no source file or capability is serialized.
 func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.Result, error) {
 	profile := e.Profile
 	stdout, stderr := new(capture), new(capture)
-	stdout.retainFull, stderr.retainFull = execution.Kind == "tool", execution.Kind == "tool"
-	defer stdout.close()
-	defer stderr.close()
 	profile.Environment.Stdin = strings.NewReader("")
 	profile.Environment.Stdout, profile.Environment.Stderr = stdout, stderr
-	inspectInitialize := profile.InspectInitialize
-	profile.InspectInitialize = func(ctx context.Context, view *stdlib.Bindings) (func(), error) {
-		var cleanup func()
-		if inspectInitialize != nil {
-			var err error
-			cleanup, err = inspectInitialize(ctx, view)
-			if err != nil {
-				return cleanup, err
-			}
-		}
-		if view.Worker() {
-			return cleanup, nil
-		}
-		// A check owns its own operation. Closing it must never close the
-		// calling tool's operation or its children.
-		op := e.Host.NewOperation(ctx)
-		binding, err := agentbridge.AttachOperation(ctx, view, e.Host, op)
-		if err != nil {
-			op.Close()
-			return cleanup, err
-		}
-		return func() {
-			binding.Close()
-			if cleanup != nil {
-				cleanup()
-			}
-		}, nil
-	}
 	initialize := profile.Initialize
 	profile.Initialize = func(ctx context.Context, view *stdlib.Bindings) (func(), error) {
 		var cleanup func()
@@ -167,19 +80,13 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 		encoded, _ := json.Marshal(string(execution.Config))
 		instruction, _ := json.Marshal(execution.Instruction)
 		code = "import {executeTask} from 'noe:agent/task';\nawait executeTask(JSON.parse(" + string(encoded) + ")," + string(instruction) + ");"
-	} else if execution.Kind != "tool" {
+	} else if execution.Kind == "tool" {
+		code = "import {run_agent,spawn_agent,observe_agent,queue_agent,wait_task,read_task_result,steer_agent,cancel_task,stop_agent} from 'noe:agent';\n" + code
+	} else {
 		return core.Result{}, fmt.Errorf("agent: unknown execution kind %q", execution.Kind)
 	}
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[agent " + execution.Kind + "]", Code: code, Module: true, Virtual: true}, profile)
-	out := core.Result{ExitCode: result.Code, Reason: "completed", Data: result.Data, Phase: result.Phase}
-	for _, item := range result.Diagnostics {
-		diagnostic := core.ExecutionDiagnostic{Code: item.Code, Phase: item.Phase, Message: item.Message,
-			Source: item.Source, Line: item.Line, Column: item.Column, Exception: item.Exception}
-		for _, frame := range item.Stack {
-			diagnostic.Stack = append(diagnostic.Stack, core.ExecutionFrame{Function: frame.Function, Source: frame.Source, Line: frame.Line, Column: frame.Column})
-		}
-		out.Diagnostics = append(out.Diagnostics, diagnostic)
-	}
+	out := core.Result{ExitCode: result.Code, Reason: "completed"}
 	if result.Code != 0 {
 		out.Reason = "failed"
 	}
@@ -192,17 +99,11 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 		if errors.Is(err, context.DeadlineExceeded) {
 			out.Reason = "timeout"
 		}
+		_, _ = stderr.Write([]byte("\n" + stdlib.Diagnostic(err) + "\n"))
 	}
 	// Task failures are reported through their scoped finish request; VM errors
 	// remain an execution result, as with nonzero command exits.
 	out.Stdout, out.StdoutOmittedBytes = stdout.result()
 	out.Stderr, out.StderrOmittedBytes = stderr.result()
-	var stdoutErr, stderrErr error
-	out.StdoutFull, stdoutErr = stdout.takeFull()
-	out.StderrFull, stderrErr = stderr.takeFull()
-	if outputErr := errors.Join(stdoutErr, stderrErr); outputErr != nil {
-		out.Diagnostics = append(out.Diagnostics, core.ExecutionDiagnostic{Code: "JS_HOST", Phase: "cleanup", Message: outputErr.Error()})
-		out.ExitCode, out.Reason, out.Phase = 1, "failed", "cleanup"
-	}
 	return out, nil
 }

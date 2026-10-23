@@ -13,8 +13,6 @@ import zipfile
 
 MODULE = "forge.harakara.site/littleisland/noe/v2"
 VERSION = "v2.0.0-dev.0"
-ENGINE = "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
-ENGINE_VERSION = "v0.28.1-noe.1"
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -52,12 +50,9 @@ def main():
         folder.mkdir()
         for source in (ROOT / package / "testdata/consumer").glob("*.go"):
             shutil.copyfile(source, folder / source.name)
-        text = f"module example.com/noe-{package}-consumer\n\ngo 1.27.2\n\nrequire (\n {MODULE} {VERSION}\n {ENGINE} {ENGINE_VERSION}\n)\n"
+        text = f"module example.com/noe-{package}-consumer\n\ngo 1.27.2\n\nrequire (\n {MODULE} {VERSION}\n github.com/go-quickjs/go-quickjs v0.27.0\n)\n"
         if replacement:
             text += f"\nreplace {MODULE} => {json.dumps(str(ROOT))}\n"
-            engine_source = ROOT / "third_party/go-quickjs"
-            if engine_source.is_dir():
-                text += f"replace {ENGINE} => {json.dumps(str(engine_source))}\n"
         (folder / "go.mod").write_text(text)
         shutil.copyfile(ROOT / "go.sum", folder / "go.sum")
         return folder
@@ -76,7 +71,6 @@ def main():
             names.add(name)
     names.update(["scripts/check-stdlib-consumer.py", "docs/go-embedding.md", "examples/embedding/go.mod.template"])
     nested = [str(Path(name).parent) + "/" for name in tracked if name.endswith("/go.mod")]
-    nested.append("third_party/go-quickjs/")
     names = sorted(name for name in names
                    if not name.startswith(tuple(nested + ["_refs/", ".git/", ".zed/"]))
                    and name not in {"noe", "agent-server-build.jsonl"}
@@ -94,32 +88,6 @@ def main():
     (proxy / (VERSION + ".info")).write_text(json.dumps(dict(Version=VERSION, Time="2026-10-19T00:00:00Z")))
     (proxy / "list").write_text(VERSION + "\n")
 
-    # The engine candidate is an independent module. Downstream modules ignore
-    # the NOE checkout's replace directives, so provide the exact dependency as
-    # an artifact too, rather than relying on a pre-populated developer cache.
-    engine_source = ROOT / "third_party/go-quickjs"
-    private_modules = MODULE
-    if engine_source.is_dir():
-        engine_proxy = output / "proxy" / ENGINE / "@v"
-        engine_proxy.mkdir(parents=True)
-        engine_manifest = []
-        engine_nested = [p.parent for p in engine_source.rglob("go.mod") if p.parent != engine_source]
-        with zipfile.ZipFile(engine_proxy / (ENGINE_VERSION + ".zip"), "w", zipfile.ZIP_DEFLATED) as archive:
-            for source in sorted(engine_source.rglob("*")):
-                if not source.is_file() or ".git" in source.relative_to(engine_source).parts:
-                    continue
-                if any(folder == source.parent or folder in source.parents for folder in engine_nested):
-                    continue
-                name = source.relative_to(engine_source).as_posix()
-                data = source.read_bytes()
-                engine_manifest.append(dict(path=name, sha256=hashlib.sha256(data).hexdigest()))
-                archive.writestr(f"{ENGINE}@{ENGINE_VERSION}/{name}", data)
-        shutil.copyfile(engine_source / "go.mod", engine_proxy / (ENGINE_VERSION + ".mod"))
-        (engine_proxy / (ENGINE_VERSION + ".info")).write_text(json.dumps(dict(Version=ENGINE_VERSION, Time="2026-10-23T00:00:00Z")))
-        (engine_proxy / "list").write_text(ENGINE_VERSION + "\n")
-        (output / "engine-manifest.json").write_text(json.dumps(engine_manifest, indent=2) + "\n")
-        private_modules += "," + ENGINE
-
     local = consumer("local-consumer", True)
     command("local-tidy", ["go", "mod", "tidy"], local)
     command("local-imports", ["go", "list", "-f", "{{join .Imports \"\\n\"}}", "."], local)
@@ -129,7 +97,7 @@ def main():
     command("local-build", ["go", "build", "-o", str(local / "consumer"), "."], local)
     for index, mode in enumerate(modes):
         command(f"local-run-{index}", [str(local / "consumer"), *mode], local)
-    command("local-versions", ["go", "list", "-m", MODULE, ENGINE], local)
+    command("local-versions", ["go", "list", "-m", MODULE, "github.com/go-quickjs/go-quickjs"], local)
     command("package-deps", ["go", "list", "-deps", MODULE + "/" + package], local)
     deps = (output / "package-deps.log").read_text().splitlines()
     forbidden_names = ["cli", "runtime"] if args.agent else ["cli", "runtime", "agent", "agentbridge", "credentials"]
@@ -144,22 +112,11 @@ def main():
 
     artifact = consumer("artifact-consumer", False)
     cache = output / "modcache"
-    artifact_env = dict(env, GOMODCACHE=str(cache), GOPRIVATE="", GONOPROXY="", GONOSUMDB=private_modules, GOSUMDB="sum.golang.org",
+    artifact_env = dict(env, GOMODCACHE=str(cache), GOPRIVATE="", GONOPROXY="", GONOSUMDB=MODULE, GOSUMDB="sum.golang.org",
                         GOPROXY=",".join([(output / "proxy").as_uri(), (Path(host["GOMODCACHE"]) / "cache/download").as_uri(), "https://proxy.golang.org", "direct"]))
     command("artifact-tidy", ["go", "mod", "tidy"], artifact, artifact_env)
     assert "replace" not in (artifact / "go.mod").read_text()
-    command("artifact-versions", ["go", "list", "-m", "-json", MODULE, ENGINE], artifact, artifact_env)
-    decoder = json.JSONDecoder()
-    versions_text = (output / "artifact-versions.log").read_text().strip()
-    selected_modules = {}
-    while versions_text:
-        selected, end = decoder.raw_decode(versions_text)
-        selected_modules[selected["Path"]] = selected
-        versions_text = versions_text[end:].lstrip()
-    if engine_source.is_dir():
-        selected_engine = selected_modules[ENGINE]
-        assert selected_engine["Version"] == ENGINE_VERSION, selected_engine
-        assert "Replace" not in selected_engine, selected_engine
+    command("artifact-versions", ["go", "list", "-m", "-json", MODULE, "github.com/go-quickjs/go-quickjs"], artifact, artifact_env)
     command("artifact-build", ["go", "build", "-o", str(artifact / "consumer"), "."], artifact, artifact_env)
     for index, mode in enumerate(modes):
         command(f"artifact-run-{index}", [str(artifact / "consumer"), *mode], artifact, artifact_env)

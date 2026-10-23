@@ -8,20 +8,17 @@ The `v1.0.0` evidence below refers to the listed release commits. It predates th
 
 ## Distribution gate
 
-The Forgejo workflow builds and publishes a selected release tag on the
-confirmed `ubuntu-latest` runner. A `v*` push selects that tag; manual dispatch
-accepts an existing release tag for recovery without moving it.
+Release work follows **local changes → tests → release verification → light CI**.
+Necessary heavy source tests finish before release preparation. Reuse valid
+implementation evidence for unchanged source and dependencies. Release
+verification is normally light and expands only for actual affected behavior.
+The commands below are a reference toolbox, not a mandatory repeated full suite.
 
-1. Check out the selected tag and set up the Go version in go.mod.
-2. Build the six distribution binaries with CGO disabled and the tag embedded.
-3. Create SHA256SUMS and upload binaries plus checksums using the workflow token.
-
-Source tests and release verification are local; CI does not repeat them.
-The required order is **local changes → tests → release verification → light CI**.
-Release verification is normally light and reuses valid implementation evidence.
-Expand it only where the actual changes require additional coverage. It is not
-an automatic second full unit/E2E/race/long-wait run. Distribution builds are CI
-work; local six-target compilation is used only for relevant portability changes.
+CI checks out the selected tag, builds the six distribution binaries with CGO
+disabled, creates SHA256SUMS and uploads them. It does not repeat local source
+tests, E2E, race or vet. Manual dispatch can publish an existing selected tag;
+the uploader uses the checked-out source commit rather than the workflow's
+branch commit.
 
 The uploader creates a non-draft Release within the existing repository visibility; it does not make a private repository public. Failed gates or builds must leave their output in native Actions logs and must not publish Release assets.
 
@@ -29,7 +26,7 @@ The `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`, `v1.3.1`, `v1.3.2`, `v1.3.3`, `v1.4.
 
 ## Reference checks before tagging
 
-The commands below are a reference toolbox, not a checklist to rerun for every release. Select checks from the actual delta and reuse completed implementation evidence for unchanged code. Record the selected source revision, results and reasons before tagging. The reference host is VM201 (Linux amd64, Go 1.27.2, C toolchain):
+Use existing implementation results first. Select additional commands below only when actual changes require them; record the checked source and reason. The reference host is VM201 (Linux amd64, Go 1.27.2, C toolchain):
 
 ```sh
 CGO_ENABLED=1 go test -race ./internal/... ./stdlib/... ./agent/... -count=1
@@ -1467,147 +1464,29 @@ consumers and repeated Worker results are retained at
 targets have build/hash verification but no native execution on this host.
 This documentation-only publication record does not move the release tag.
 
-## v2.2.0 dependency publication preparation — 2026-10-23
+## Rollback to v2.1.1 — 2026-10-23
 
-Implementation `af8c2a6` passed the full reference checks and real-provider
-examples recorded in the [implementation record](../development/ai-execution-implementation.md).
-OAuth and the complete workflow follow-up reached all 51 JS/MJS example files.
+The user requested rollback to the last stable 2.1.x release and explicitly
+approved deletion of the unauthorized v2.2.0 and managed-engine public tags.
 
-The unpublished engine dependency is being made distributable as the independent
-nested module `forge.harakara.site/littleisland/noe/third_party/go-quickjs`
-v0.28.1-noe.1, tagged `third_party/go-quickjs/v0.28.1-noe.1` in this repository.
-This changes Go engine type identities; the explicit import migration is in the
-[v2.2.0 notes](v2.2.0.md) and [migration guide](../v2-migration.md).
-The JavaScript engine's processing logic and file layout are unchanged.
+- Application, dependency, test and example source is restored to v2.1.1.
+  577 product files were compared byte-for-byte with the v2.1.1 tag; no
+  mismatches remain. The source snapshot uses the post-publication v2.1.1
+  documentation commit `1c78569`, whose application source matches the tag.
+- go.mod again requires upstream `github.com/go-quickjs/go-quickjs v0.28.0`.
+  The managed fork source, new execution contract and new module dependency
+  are removed from the active main tree.
+- Both repository-root noe and ~/.local/bin/noe already contain the published
+  v2.1.1 binary. Each reports v2.1.1 and matches published SHA256
+  `80d3a80034696d4c8ae588b706232aaf6ebcbc5bb01b921e7b1e81407026adde`.
+- The v2.2.0 Release was changed to draft, withdrawing it from public Releases.
+  The user approved deleting tags `v2.2.0` and
+  `third_party/go-quickjs/v0.28.1-noe.1`; the rollback push removes those refs.
+  Already downloaded Go proxy content cannot be recalled by deleting Git tags.
+- AGENTS.md and the corrected light-CI policy are retained. User event logs
+  were hashed before restoration and preserved unchanged. No heavy suite or
+  CI test rerun is needed for restoration of the exact previously validated
+  stable source and binaries. No new release version is published.
 
-The engine tag is published first and verified from a clean module. The final
-NOE go.mod then removes its development replace and records the published
-engine checksums. v2.2.0 is tagged only after the final reference gates pass.
-An engine tag does not trigger the `v*` binary workflow; if NOE publication is
-interrupted, the independently usable engine tag remains without changing older
-NOE releases. Published tags are not moved or replaced.
-
-Release evidence directory: `/var/tmp/noe-v2.2.0-release-20261023-171109`.
-Packaging checks, independent review, final reference results, published assets
-and actual module retrieval are recorded below as they complete.
-
-Dependency-packaging candidate checks completed before the engine tag:
-
-- Engine full suite passed after the module/self-import changes; generated
-  tree operand imports were regenerated from the updated generator template.
-- Root jsexec/agentexec/stdlib/agent targets passed (9.501s).
-- Both stdlib and agent local/synthetic-artifact consumers passed (12.499s and
-  21.341s), selecting the managed engine without downstream replacement.
-- All 333 changed engine Go files have identical added/removed line multisets
-  after canonicalizing the module prefix; no processing-logic delta was found.
-- Independent normal/critical packaging review completed. Its P2 about two
-  consumer-template replacements was fixed and rechecked; no findings remain.
-- Workflow/profile YAML, added engine test/vet gates, Bash syntax and actionlint
-  passed (equivalent github context used only in a temporary lint copy).
-
-These packaging checks do not substitute for the final v2.2.0 reference gates
-or actual published-module retrieval, which follow the engine tag.
-
-## v2.2.0 final reference checks — 2026-10-23
-
-Checked release source: `fe5e39dca794a625890fe117266b9a7755239500`, in a clean detached worktree. Final root go.mod
-requires the actual published managed engine and contains no replace directive.
-The tag-preparation commit changes only these evidence documents.
-
-| Check | Result |
-| --- | --- |
-| `engine` | PASS, 67.819s |
-| `unit-e2e` | PASS, 96.357s |
-| `vet` | PASS, 2.202s |
-| `race` | PASS, 146.151s |
-| `engine-vet` | PASS, 1.6s |
-| `long-client` | PASS, 30.861s |
-| `compile-linux-amd64` | PASS, 1.384s |
-| `compile-linux-arm64` | PASS, 5.783s |
-| `compile-darwin-amd64` | PASS, 5.708s |
-| `compile-darwin-arm64` | PASS, 5.758s |
-| `compile-windows-amd64` | PASS, 5.739s |
-| `compile-windows-arm64` | PASS, 5.715s |
-| `stdlib-consumer` | PASS, 10.896s |
-| `agent-consumer` | PASS, 22.493s |
-| `native-build` | PASS, 6.456s |
-| `engine-smoke` | PASS, 0.035s |
-| `native-smoke` | PASS, 0.687s |
-| `go-mod-verify` | PASS, 0.667s |
-
-The native release-flags binary reports v2.2.0, CGO disabled, the checked
-revision and vcs.modified=false. The engine's published module was fetched
-from an empty dedicated cache, ran the prepare/link/evaluate API and passed
-go mod verify. Its 737 distributable source files match the checked managed
-source; two nested tool manifests are excluded by standard Go packaging.
-
-Native smoke passed stable queue sessions, distinct run IDs, answer paging,
-command failure details, bundled docs, non-evaluating module checks, structured
-link diagnostics, API discovery and inspection ownership, plus BigInt/Worker
-behavior. Downloaded-binary E2E uses a TestMain-only overlay, preserving the
-tagged assertions. No paid provider calls were needed for release-specific
-checks; actual OAuth/workflow and new-contract provider evidence is linked
-from the implementation record.
-
-Six-target checks are compilation only; the tag workflow links the six release
-binaries. Native execution is Linux amd64 only. Exact commands and logs:
-`/var/tmp/noe-v2.2.0-release-20261023-171109/reference-results.json`.
-Publication, downloaded assets and actual NOE module retrieval are recorded
-after the tag, without moving published tags.
-
-## v2.2.0 CI scope correction — 2026-10-23
-
-The first tag workflow (run 31 / API 212, job 233) failed because the added
-engine-wide gate included a CPU-affinity benchmark-tool test requiring taskset
-or numactl, absent on the runner. This was an overly broad release gate, not a
-runtime regression. No release assets were published by that failed run.
-
-The user clarified the required flow: local changes, tests, normally light
-release verification (expanded when warranted), then lightweight CI. Local and
-CI verification must not duplicate each other. The CI source-test/vet gates
-were removed; already successful local evidence is reused. Future releases
-must not repeat a full reference suite by default. The corrected workflow can
-build and publish an existing immutable tag by manual dispatch, so v2.2.0 and
-the engine tag remain unchanged. No application source or test assertion was
-modified to make this correction. Only YAML/expression/Bash syntax is checked
-locally for this workflow change; source suites are not rerun.
-
-The first manual recovery (run 32 / API 213) built all six binaries but the
-uploader correctly rejected the main workflow SHA as different from the
-existing v2.2.0 tag. The build now exposes the checked-out tag commit and passes
-it explicitly to the uploader's sha input. Release notes come from the selected
-tag's committed file. This correction changes no source or tag and repeats no
-source validation; a new light dispatch only builds and publishes.
-
-## v2.2.0 publication validation — 2026-10-23
-
-- Immutable annotated tag: `v2.2.0`, source commit
-  `315eba0e14df94077b192e0c3f31d7680179e495`. No release tag was moved.
-- Successful light distribution workflow:
-  [run 33](https://forge.harakara.site/littleisland/noe/actions/runs/33)
-  (API 214 / job 235). Workflow control is commit `7279130`; checkout and the
-  uploader's explicit SHA both select the existing v2.2.0 source tag.
-- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.2.0)
-  is published, neither draft nor prerelease. Notes match the tagged file.
-- All six binaries and SHA256SUMS were downloaded. Every binary hash matches.
-  The Linux amd64 binary reports v2.2.0, the tag's source revision,
-  vcs.modified=false, CGO disabled and managed engine v0.28.1-noe.1 without JIT.
-  Version and arithmetic smoke passed against the downloaded binary.
-- Actual published stdlib and agent consumers, the Worker consumer and
-  `go install forge.harakara.site/littleisland/noe/v2/cmd/noe@v2.2.0` passed.
-  Clean modules use no local replace or synthetic proxy, select the managed
-  engine, and pass go mod verify. These completed results were reused during
-  CI recovery; they were not repeated.
-
-The successful CI contains only checkout/setup, distribution builds, checksum
-creation and upload. It runs no unit/E2E/race/vet/engine source suites. The
-completed local source checks were reused, and post-download verification was
-limited to asset integrity, build metadata and minimal CLI smoke. No source
-suites were repeated for recovery. Published binaries were not installed over
-the user's existing local binaries by this release task.
-
-Evidence: `/var/tmp/noe-v2.2.0-release-20261023-171109`, including the first two
-failed CI logs, successful run metadata, all downloaded assets,
-`published-verification.json`, `public-module-verification.json` and build info.
-The test assertions and release source were not weakened or changed to recover
-publication. This documentation-only record does not alter the release tag.
+Rollback evidence: `/var/tmp/noe-rollback-v211-20261023-175657`.
+The rollback is a new commit; prior Git history is preserved.

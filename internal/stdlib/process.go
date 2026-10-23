@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Process describes what the process object tells a script about the world it

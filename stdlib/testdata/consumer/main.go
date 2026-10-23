@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 func main() {
@@ -47,7 +47,6 @@ func run() error {
 	input := &borrowedInput{reader: strings.NewReader("borrowed input")}
 	sink := new(borrowedSink)
 	initialized, cleaned := 0, 0
-	inspectInitialized, inspectCleaned := 0, 0
 	var mu sync.Mutex
 	profile := stdlib.Profile{
 		Environment: stdlib.Environment{Cwd: "/", Args: []string{"consumer", "entry"}, Env: map[string]string{"SELECTED": "yes"}, Stdin: input, Stdout: sink, Stderr: sink},
@@ -70,23 +69,7 @@ func run() error {
 			}
 			return func() { mu.Lock(); cleaned++; mu.Unlock() }, nil
 		},
-		InspectInitialize: func(context.Context, *stdlib.Bindings) (func(), error) {
-			mu.Lock()
-			inspectInitialized++
-			mu.Unlock()
-			return func() { mu.Lock(); inspectCleaned++; mu.Unlock() }, nil
-		},
 	}
-	checked, err := stdlib.Check(ctx, stdlib.Source{Name: "[consumer-check]", Virtual: true, Code: `export const value=42;`}, profile)
-	if err != nil || !checked.OK || checked.Stage != "link" || checked.Entry != "[consumer-check]" {
-		return fmt.Errorf("public check result=%+v error=%v", checked, err)
-	}
-	invalid, err := stdlib.Check(ctx, stdlib.Source{Name: "[consumer-syntax]", Virtual: true, Code: `export const value=;`}, profile)
-	if err == nil || invalid.OK || len(invalid.Diagnostics) != 1 || invalid.Diagnostics[0].Code != "JS_SYNTAX" {
-		return fmt.Errorf("public check diagnostic=%+v error=%v", invalid, err)
-	}
-	var frames []stdlib.StackFrame = invalid.Diagnostics[0].Stack
-	_ = frames
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[consumer]", Virtual: true, Module: true, Code: `
 import {value} from "value";import {Worker} from "node:worker_threads";import {docs} from "noe:docs";
 import {open} from "noe:fs-handle";
@@ -94,18 +77,14 @@ if(value!==42||process.env.SELECTED!=="yes"||process.cwd()!=="/"||process.stdin.
 const file=await open("value.mjs");try{if((await file.readAt(0,6)).bytesRead!==6)throw Error("native FS");}finally{await file.close();}
 if(await (await fetch(endpoint)).text()!=="loopback response")throw Error("fetch");
 const worker=new Worker("./worker.mjs",{type:"module"});const answer=await new Promise((resolve,reject)=>{worker.on("message",resolve);worker.on("error",reject)});await worker.terminate();
-if(answer!==42||!docs().includes("noe:agent"))throw Error("worker or full docs");console.log("managed consumer");export default {answer,value};`}, profile)
+if(answer!==42||!docs().includes("noe:agent"))throw Error("worker or full docs");console.log("managed consumer");`}, profile)
 	if err != nil || result.Code != 0 {
 		return fmt.Errorf("managed result=%+v error=%s", result, stdlib.Diagnostic(err))
 	}
-	if result.Phase != "complete" || string(result.Data) != `{"answer":42,"value":42}` {
-		return fmt.Errorf("public result data=%s phase=%q", result.Data, result.Phase)
-	}
 	mu.Lock()
 	balanced := initialized == 2 && cleaned == 2
-	inspectionBalanced := inspectInitialized == 2 && inspectCleaned == 2
 	mu.Unlock()
-	if !balanced || !inspectionBalanced || sink.closed || input.closed || !strings.Contains(sink.String(), "managed consumer") {
+	if !balanced || sink.closed || input.closed || !strings.Contains(sink.String(), "managed consumer") {
 		return errors.New("execution ownership or initializer cleanup failed")
 	}
 	_, err = sink.Write([]byte("caller retains output"))

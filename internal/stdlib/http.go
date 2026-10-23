@@ -1,6 +1,6 @@
 package stdlib
 
-import quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+import quickjs "github.com/go-quickjs/go-quickjs"
 
 // installHTTP exposes the functions already installed by this configuration.
 // Reading existing values preserves their hosts, types, loop and permissions.

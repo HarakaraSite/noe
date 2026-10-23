@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Console installs the console object, writing to the given streams.

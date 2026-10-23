@@ -62,7 +62,6 @@ func TestImportMapAgentSnapshotDelegationAndRootIsolation(t *testing.T) {
 const {value}=await import("app/value");console.log(value);`
 			if parent {
 				code = `// Read the library and delegate with the same mapping.
-import {run_agent} from "noe:agent";
 const {value}=await import("app/value");const child=await run_agent({},"child-` + suffix + `");
 if(child.lastResult.state!=="completed")throw Error(JSON.stringify(child));
 console.log(value+child.lastResult.answer);`

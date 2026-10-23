@@ -29,7 +29,7 @@ func TestAgentEventsParallelRootsChildrenAndToolResults(t *testing.T) {
 				return agentModelReply{Deltas: []map[string]any{
 					{"reasoning": "考える"},
 					{"reasoning_details": []any{map[string]any{"type": "reasoning.summary", "index": 0, "summary": "要約"}}},
-					{"content": "子に依頼します", "tool_calls": []any{agentTool("delegate", "// 子に集計を依頼する\nimport {run_agent} from \"noe:agent\";\nconst child=await run_agent({name:'child'},'C');console.log(child.lastResult.answer);")}},
+					{"content": "子に依頼します", "tool_calls": []any{agentTool("delegate", "// 子に集計を依頼する\nconst child=await run_agent({name:'child'},'C');console.log(child.lastResult.answer);")}},
 				}, FinishReason: "tool_calls"}
 			case "B":
 				return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("fails", "// 失敗を確認する\nconsole.error('tool failure');process.exit(7);")}}}, FinishReason: "tool_calls"}

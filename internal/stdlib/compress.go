@@ -8,7 +8,7 @@ import (
 	"errors"
 	"io"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // maxInflated bounds what one decompression may produce, so that a small input

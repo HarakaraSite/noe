@@ -8,7 +8,7 @@ import (
 
 	"forge.harakara.site/littleisland/noe/v2/internal/signals"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 //go:embed js/signals.js

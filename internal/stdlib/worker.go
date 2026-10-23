@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Workers lets a script start workers -- node:worker_threads' Worker, and the

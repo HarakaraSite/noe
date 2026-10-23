@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 func TestQuickJSUnifiesAliasesAndRetainsLoadedNamespace(t *testing.T) {

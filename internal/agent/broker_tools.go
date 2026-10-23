@@ -164,7 +164,6 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	}
 
 	var result Result
-	defer closeResultStreams(&result)
 	var err error
 	if h.opts.Execute == nil {
 		err = errors.New("agent execution runtime is unavailable")
@@ -201,11 +200,6 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 			result.Reason = "failed"
 		}
 	}
-	if err := h.retainToolResult(ctx, run, &result); err != nil {
-		result.ExitCode, result.Reason = -1, reasonForContext(err)
-		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		return runJSResponse{}, err
-	}
 	h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
 	images := h.finishToolImages(run, request.ModelStepID, request.ToolCallID, result.ExitCode == 0 && result.Reason == "completed")
 	return runJSResponse{Result: result, Images: images}, nil
@@ -237,21 +231,6 @@ func (h *Host) finishJSResult(runID string, run *agentRun, started time.Time, to
 		"success":  result.Reason == "completed" && result.ExitCode == 0,
 		"exitCode": result.ExitCode, "reason": result.Reason,
 		"duration": time.Since(started),
-	}
-	if result.Phase != "" {
-		finishFields["phase"] = result.Phase
-	}
-	if len(result.Diagnostics) != 0 {
-		finishFields["diagnostics"] = result.Diagnostics
-	}
-	if result.ResultRef != "" {
-		finishFields["resultRef"] = result.ResultRef
-	}
-	if result.DataOmittedBytes != 0 {
-		finishFields["dataOmittedBytes"] = result.DataOmittedBytes
-	}
-	if result.DiagnosticsOmittedBytes != 0 {
-		finishFields["diagnosticsOmittedBytes"] = result.DiagnosticsOmittedBytes
 	}
 	if result.StdoutOmittedBytes > 0 {
 		finishFields["stdoutOmittedBytes"] = result.StdoutOmittedBytes

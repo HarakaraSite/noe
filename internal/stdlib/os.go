@@ -4,7 +4,7 @@ import (
 	"os"
 	"runtime"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // OS installs the "os" module: what the host is, rather than what is on it.

@@ -17,7 +17,6 @@
 | [low-level](low-level/README.md) | 位置指定ファイルI/O、TCP/Unix通信、OSシグナル | 不要 |
 | [import-map](import-map/README.md) | ローカルESMへの名前付け | 不要 |
 | [agent](agent/README.md) | 任意タスク、要約、並列委譲、provider選択、hook、steer・queue・interrupt | 各providerの認証 |
-| [agent-console](agent-console/README.md) | agent中心のローカルWebコンソール、observe履歴の保存・スクロール、Queue・Steer・Interrupt | 各providerの認証 |
 | [image](image/README.md) | agentによる画像読取り、JavaScriptからの画像生成 | 読取りはagent用provider認証、生成は対応provider認証と利用料 |
 | [decision](decision/README.md) | Jev等による単発の構造化判断 | OpenRouter認証 |
 | [exa](exa/README.md) | 再利用できるExa検索ライブラリ | Exa APIキー |

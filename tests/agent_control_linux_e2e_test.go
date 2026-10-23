@@ -20,7 +20,6 @@ func TestAgentHumanRunInterruptReapsNestedProcessGroups(t *testing.T) {
 	defer processIOKillPIDFiles(filepath.Join(work, "shell.pid"), filepath.Join(work, "grandchild.pid"))
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		code := `// Delegate to a child task that runs a process group.
-import {run_agent} from "noe:agent";
 import {writeFileSync} from "node:fs";
 writeFileSync("parent-ready","ready");
 await run_agent({name:"nested"},"nested child");`

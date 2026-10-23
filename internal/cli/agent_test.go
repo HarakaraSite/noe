@@ -47,7 +47,7 @@ func TestCLIAgentRunAndEval(t *testing.T) {
 	}))
 	defer server.Close()
 	agentFixtureSettings(t, server.URL)
-	source := `import {run_agent} from "noe:agent";import {check} from "noe:runtime";const inspected=check('import "noe:agent";import "noe:auth";import "noe:agent-log";');if(!inspected.ok)throw Error(JSON.stringify(inspected));const result=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"hello");console.log(result.lastResult.answer);`
+	source := `import {run_agent} from "noe:agent";const result=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"hello");console.log(result.lastResult.answer);`
 	file := filepath.Join(t.TempDir(), "agent.js")
 	if err := os.WriteFile(file, []byte(source), 0600); err != nil {
 		t.Fatal(err)

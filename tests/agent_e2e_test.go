@@ -34,22 +34,12 @@ type agentChatMessage struct {
 }
 
 type agentExecutionResult struct {
-	Stdout             string            `json:"stdout"`
-	Stderr             string            `json:"stderr"`
-	ExitCode           int               `json:"exitCode"`
-	Reason             string            `json:"reason"`
-	Data               json.RawMessage   `json:"data,omitempty"`
-	Phase              string            `json:"phase,omitempty"`
-	Diagnostics        []agentDiagnostic `json:"diagnostics,omitempty"`
-	StdoutOmittedBytes int64             `json:"stdoutOmittedBytes,omitempty"`
-	StderrOmittedBytes int64             `json:"stderrOmittedBytes,omitempty"`
-}
-
-type agentDiagnostic struct {
-	Code    string `json:"code"`
-	Phase   string `json:"phase,omitempty"`
-	Message string `json:"message"`
-	Source  string `json:"source,omitempty"`
+	Stdout             string `json:"stdout"`
+	Stderr             string `json:"stderr"`
+	ExitCode           int    `json:"exitCode"`
+	Reason             string `json:"reason"`
+	StdoutOmittedBytes int64  `json:"stdoutOmittedBytes,omitempty"`
+	StderrOmittedBytes int64  `json:"stderrOmittedBytes,omitempty"`
 }
 
 type agentChatRequest struct {
@@ -381,7 +371,7 @@ func TestAgentCLIFixesFailedJavaScriptAndMalformedArguments(t *testing.T) {
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("work", `throw Error("intentional failure");`)}}}, FinishReason: "tool_calls"}
 		case 3:
 			got := agentToolResult(t, req.Messages[len(req.Messages)-1])
-			if got.Reason != "failed" || got.ExitCode == 0 || len(got.Diagnostics) != 1 || got.Diagnostics[0].Code != "JS_EXCEPTION" || !strings.Contains(got.Diagnostics[0].Message, "intentional failure") || got.Diagnostics[0].Source != "[agent tool]" {
+			if got.Reason != "failed" || got.ExitCode == 0 || !strings.Contains(got.Stderr, "intentional failure") {
 				t.Errorf("JS failure hidden: %+v", got)
 			}
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("work", `console.log(100);`)}}}, FinishReason: "tool_calls"}

@@ -45,7 +45,7 @@ func TestCLIOpenAIChatGPTParentChildAndAPIKeyRoute(t *testing.T) {
 		}
 		output := []any{map[string]any{"type": "message", "id": "message", "role": "assistant", "status": "completed", "content": []any{map[string]any{"type": "output_text", "text": "answer-" + body.Model, "annotations": []any{}}}}}
 		if body.Model == "parent" && index == 1 {
-			args, _ := json.Marshal(map[string]string{"code": "// Run a child with inherited ChatGPT authentication\nimport {run_agent} from \"noe:agent\";\nconst child=await run_agent({name:'child',model:'child'},'child task');console.log(child.lastResult.answer);"})
+			args, _ := json.Marshal(map[string]string{"code": "// Run a child with inherited ChatGPT authentication\nconst child=await run_agent({name:'child',model:'child'},'child task');console.log(child.lastResult.answer);"})
 			output = []any{map[string]any{"id": "call-item", "type": "function_call", "status": "completed", "call_id": "delegate", "name": "run_js", "arguments": string(args)}}
 		} else if body.Model == "parent" {
 			input, _ := json.Marshal(body.Input)

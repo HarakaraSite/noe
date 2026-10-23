@@ -1,23 +1,5 @@
 # examplesの動作確認
 
-## AI実行契約変更の候補確認 — 2026-10-23
-
-今回の候補と、そのコミット`af8c2a6`からビルドしたCLIでJS/MJS全51ファイルを実行経路に含めました。library・hook・browser用fileは利用側から呼んでいます。詳細は[AI実行契約の実装記録](../docs/development/ai-execution-implementation.md)と `/var/tmp/noe-oauth-workflow-20261023-165717/examples-coverage.json` を参照してください。
-
-- ローカル入出力・HTTP・process・signal等25件が成功。task-loopのsolution/testは意図的な失敗baselineを維持し、一時コピー内で確認。
-- agent 7入口、hook、decision、画像生成・画像読取をローカルprovider fixtureで確認。agent-controlはsteer適用とtask完了を確認してからSIGINTでkeepAliveを終了。最初の単純完了待ちはkeepAliveのためtimeoutになり、成功扱いにしていません。
-- agent-serverはHTTP受付→run_jsのdata→回答→正常shutdown、agent-consoleはbackend E2EとChromiumによるUI検査3本が成功。
-- Exa libraryはfetch差替えで成功・入力検査・HTTP失敗を確認。実Exa、実画像生成・visionの品質は今回検証していません。
-- 追加実行で`agent-openai.js`と`task-loop-jev/workflow.js`も実providerで成功。OAuth自動更新後、専用例は`gpt-6-luna`で437を返しました。全workflowは`gpt-6.1-sol / high`とOpenRouterの`typesafe/jev-1.14`を使い、計画修正1回、コード修正0回、5テスト合格、wait 2回、poll 0回で完了。元のworkflow・要件・テストを変えず、一時コピーだけで計画・実装を修正しています。
-
-examplesの通常経路を先に検証し、その後総合検証で見つかったasync診断frame取得だけを修正しています。更新後は全体E2Eと新契約の実model probeで影響箇所を再確認しています。OAuth例・全workflowの追加実行は修正を含む`af8c2a6`で行い、記録は `/var/tmp/noe-oauth-workflow-20261023-165717/verification.json` にあります。以前の49/51時点の記録は初回検証の範囲です。
-
-## ローカルWebコンソール — 2026-10-23
-
-[agent-console](agent-console/README.md)を追加し、実CLI＋ローカルprovider fixtureとChromium 151で確認しました。idle起動、Queueの会話継続と回答全文保存、Steer・Interrupt・全停止、切断中の監視、再起動後の履歴閲覧、Host・Origin検証、1,000件の表示保持量を超える履歴のスクロールを確認しています。実ブラウザから実NOEを経由して12,014-byteのUnicode回答を表示する経路も成功しました。
-
-独立コードレビューの軽微な1件を修正・再確認し、全体E2Eを含むGoテスト、vet、JS lintが成功しました。サンプルの実provider呼出しや長期連続稼働は検証していません。[実装・検証記録](../docs/development/agent-web-console-implementation.md)を参照してください。
-
 ## Go常駐組み込み例の追加確認
 
 [embedding-server](embedding-server/README.md)をLinux amd64 / Go 1.27.2で確認しました。

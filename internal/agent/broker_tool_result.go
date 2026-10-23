@@ -22,24 +22,9 @@ type toolResultRequest struct {
 	RawImages            []imageapi.Metadata `json:"rawImages,omitempty"`
 	Images               []imageapi.Metadata `json:"images,omitempty"`
 	HookError            string              `json:"hookError,omitempty"`
-	ArgumentsUnchanged   bool                `json:"argumentsUnchanged,omitempty"`
-	ResultUnchanged      bool                `json:"resultUnchanged,omitempty"`
 }
 
 func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[string]any, error) {
-	// The common unchanged path sends each source/result once across JS→Go.
-	// Reconstruct the effective views in Go while keeping provider-native
-	// assistant items untouched in the transcript.
-	if request.ArgumentsUnchanged {
-		var encoded string
-		request.Arguments = json.RawMessage("null")
-		if json.Unmarshal(request.RawArguments, &encoded) == nil && json.Valid([]byte(encoded)) {
-			request.Arguments = json.RawMessage(encoded)
-		}
-	}
-	if request.ResultUnchanged {
-		request.Result = request.RawResult
-	}
 	if request.RunID == "" || request.ModelStepID == "" || request.ToolCallID == "" || strings.TrimSpace(request.ToolName) == "" ||
 		len(request.RawArguments) == 0 || len(request.Arguments) == 0 || !json.Valid(request.RawArguments) || !json.Valid(request.Arguments) ||
 		len(request.RawResult) == 0 || !json.Valid(request.RawResult) || len(request.Result) == 0 || !json.Valid(request.Result) {
@@ -96,11 +81,7 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 	}
 	h.mu.Unlock()
 
-	rawResult := cloneRawJSON(request.RawResult)
-	modelResult := rawResult
-	if !request.ResultUnchanged {
-		modelResult = cloneRawJSON(request.Result)
-	}
+	modelResult := cloneRawJSON(request.Result)
 	if !modelResultAvailable {
 		modelResult = json.RawMessage("null")
 	}
@@ -111,7 +92,7 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 		"toolName":     request.ToolName,
 		"rawArguments": cloneRawJSON(request.RawArguments),
 		"arguments":    cloneRawJSON(request.Arguments),
-		"rawResult":    rawResult,
+		"rawResult":    cloneRawJSON(request.RawResult),
 		"rawImages":    request.RawImages, "images": imageMetadata(selected),
 		"result":               modelResult,
 		"modelResultAvailable": modelResultAvailable,

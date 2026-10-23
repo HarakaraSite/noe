@@ -1,7 +1,7 @@
 package stdlib
 
 import (
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Extras installs the smaller node modules that need no capability:

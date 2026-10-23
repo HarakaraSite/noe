@@ -12,7 +12,6 @@ The suite builds the CLI once with CGO disabled. Ordinary E2E tests use temporar
 - `cli_helpers_test.go`: CLI execution, stream capture, environment, and file helpers.
 - `cli_e2e_test.go`, `io_*`, `filesystem_*`, `binary_io_*`, `http_*`, `serve_*`, `sleep_*`, and `stdlib_*`: CLI and standard-library behavior.
 - `agent_*`, `observe_*`, and `decision_*`: agents, observation, control, and decisions. Agent model responses are served by local fixtures in `agent_e2e_test.go`.
-- `agent_console_e2e_test.go`: the agent-console sample through the real CLI, local provider fixtures, persistent history, control races, and Host/Origin checks; also runs its focused JavaScript backend tests.
 - `fixtures/`: static inputs for live acceptance tests.
 
 The managed-agent package also builds its CLI fixture once per test process.

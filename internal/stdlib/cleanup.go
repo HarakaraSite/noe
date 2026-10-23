@@ -3,7 +3,7 @@ package stdlib
 import (
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // What the standard library holds for a script is released as the runtime

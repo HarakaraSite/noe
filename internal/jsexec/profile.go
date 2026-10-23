@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
 	"forge.harakara.site/littleisland/noe/v2/internal/noestdlib"
 	lower "forge.harakara.site/littleisland/noe/v2/internal/stdlib"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Environment is the one snapshot shared by the modules installed on an
@@ -38,11 +38,10 @@ type Environment struct {
 
 // Profile selects the environment and capabilities for one runtime.
 type Profile struct {
-	Environment       Environment
-	Modules           Modules
-	NewLoader         LoaderFactory
-	Initialize        RuntimeInitializer
-	InspectInitialize RuntimeInitializer
+	Environment Environment
+	Modules     Modules
+	NewLoader   LoaderFactory
+	Initialize  RuntimeInitializer
 }
 
 // Modules selects capabilities independently. A nil option pointer disables
@@ -284,9 +283,6 @@ func attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile, worker bool,
 		return nil, installErr
 	}
 	b.adapter = installed.Close
-	if err := b.installRuntimeModule(profile); err != nil {
-		return nil, err
-	}
 	if core.Process == nil {
 		rt.OnUnhandledRejection(b.unhandled)
 	}

@@ -11,7 +11,7 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/commandenv"
 	"forge.harakara.site/littleisland/noe/v2/internal/process"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 type spawnRequest struct {

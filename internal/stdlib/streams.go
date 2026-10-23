@@ -1,7 +1,7 @@
 package stdlib
 
 import (
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Streams installs the web's streams: ReadableStream, WritableStream,

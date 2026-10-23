@@ -10,7 +10,7 @@ import (
 	"io"
 	"time"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // WebAPIs installs the things a browser has that the language does not, as far

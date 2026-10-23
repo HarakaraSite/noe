@@ -41,7 +41,6 @@ type agentRun struct {
 	resolvedHooks           map[int]resolvedHook
 	images                  map[string]*imageapi.Data
 	refusal                 *imageapi.Error
-	toolResults             *toolResultStore
 }
 
 // modelStepState retains only the current logical judgment and the IDs needed

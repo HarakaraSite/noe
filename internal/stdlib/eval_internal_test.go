@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // The public evaluation adapter must retain the initialization semantics that
