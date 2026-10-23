@@ -109,6 +109,7 @@ func (op *Operation) Close() {
 	var pendingSteers []steerLifecycleEvent
 	var childScopes []*Operation
 	var instances []*agentInstance
+	var resultStores []*toolResultStore
 	var terminalHookEvent events.Event
 	var hookStartEventDone <-chan struct{}
 	if op.hookInvocation != nil && op.hookInvocation.state == "active" {
@@ -121,6 +122,9 @@ func (op *Operation) Close() {
 	}
 	for id, run := range h.runs {
 		if run.operation == op {
+			if run.toolResults != nil {
+				resultStores = append(resultStores, run.toolResults)
+			}
 			discardStepImages(run.modelStep)
 			run.images = nil
 			run.cancel()
@@ -157,6 +161,11 @@ func (op *Operation) Close() {
 		childScope.Close()
 	}
 	op.requests.Wait()
+	for _, store := range resultStores {
+		// After cancellation and request joining, removing owned temporary
+		// results is best-effort cleanup; no reader is still using them.
+		_ = store.Close()
+	}
 	for _, instance := range instances {
 		<-instance.done
 		instance.publishWG.Wait()

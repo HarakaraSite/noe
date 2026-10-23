@@ -59,6 +59,32 @@ func TestDiagnosticDetailsDoNotCallUserGetter(t *testing.T) {
 	}
 }
 
+func TestUnhandledPromiseDiagnosticCapturesFramesBeforeStackRendering(t *testing.T) {
+	runtime, err := NewRuntime(context.Background(), Profile{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, runErr := runtime.Run(Source{
+		Name: "unhandled-promise.mjs", Module: true, Virtual: true,
+		Code: `Promise.resolve().then(() => { throw new Error("promise rejected"); }); export const ready = true;`,
+	})
+	closeErr := runtime.Close()
+	err = errors.Join(runErr, closeErr)
+	if result.Code != 1 || err == nil || len(result.Diagnostics) != 1 {
+		t.Fatalf("result=%+v error=%v", result, err)
+	}
+	diagnostic := result.Diagnostics[0]
+	if diagnostic.Code != codeJSException || diagnostic.Phase != "evaluate" || !strings.Contains(diagnostic.Message, "promise rejected") {
+		t.Fatalf("unhandled Promise diagnostic = %#v", diagnostic)
+	}
+	if diagnostic.Source != "unhandled-promise.mjs" || diagnostic.Line == 0 || diagnostic.Column == 0 || len(diagnostic.Stack) == 0 {
+		t.Fatalf("unhandled Promise lost structured frames: %#v", diagnostic)
+	}
+	if diagnostic.Stack[0].Source != "unhandled-promise.mjs" || diagnostic.Stack[0].Line == 0 {
+		t.Fatalf("unhandled Promise stack = %#v", diagnostic.Stack)
+	}
+}
+
 func TestDiagnosticUserConversionHonorsRuntimeCancel(t *testing.T) {
 	started := make(chan struct{})
 	runtime, err := NewRuntime(context.Background(), Profile{Initialize: func(ctx context.Context, b *Bindings) (func(), error) {

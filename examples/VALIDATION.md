@@ -1,5 +1,17 @@
 # examplesの動作確認
 
+## AI実行契約変更の候補確認 — 2026-10-23
+
+今回の候補でJS/MJS 51ファイルのうち49ファイルを実行経路に含めました。library・hook・browser用fileは利用側から呼んでいます。詳細は[AI実行契約の実装記録](../docs/development/ai-execution-implementation.md)と `/var/tmp/noe-ai-execution-20261023/examples-coverage.json` を参照してください。
+
+- ローカル入出力・HTTP・process・signal等25件が成功。task-loopのsolution/testは意図的な失敗baselineを維持し、一時コピー内で確認。
+- agent 7入口、hook、decision、画像生成・画像読取をローカルprovider fixtureで確認。agent-controlはsteer適用とtask完了を確認してからSIGINTでkeepAliveを終了。最初の単純完了待ちはkeepAliveのためtimeoutになり、成功扱いにしていません。
+- agent-serverはHTTP受付→run_jsのdata→回答→正常shutdown、agent-consoleはbackend E2EとChromiumによるUI検査3本が成功。
+- Exa libraryはfetch差替えで成功・入力検査・HTTP失敗を確認。実Exa、実画像生成・visionの品質は今回検証していません。
+- `agent-openai.js`と`task-loop-jev/workflow.js`の全体実行は未実施。公式OAuthと実providerを使う条件であり、今回の実provider課題はOpenCode Goへ限定しています。これらを実行済みとは数えません。
+
+examplesの通常経路を先に検証し、その後総合検証で見つかったasync診断frame取得だけを修正しています。更新後は全体E2Eと新契約の実model probeで影響箇所を再確認しています。
+
 ## ローカルWebコンソール — 2026-10-23
 
 [agent-console](agent-console/README.md)を追加し、実CLI＋ローカルprovider fixtureとChromium 151で確認しました。idle起動、Queueの会話継続と回答全文保存、Steer・Interrupt・全停止、切断中の監視、再起動後の履歴閲覧、Host・Origin検証、1,000件の表示保持量を超える履歴のスクロールを確認しています。実ブラウザから実NOEを経由して12,014-byteのUnicode回答を表示する経路も成功しました。

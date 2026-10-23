@@ -127,6 +127,12 @@ func (h *Host) dispatchDirect(ctx context.Context, op *Operation, method, payloa
 		return json.Unmarshal([]byte(payload), target)
 	}
 	switch method {
+	case "read_tool_result":
+		var request toolArtifactRequest
+		if err := decode(&request); err != nil {
+			return nil, newOperationError(400, "request", "invalid tool result query")
+		}
+		return h.readToolResult(ctx, op, request)
 	case "list_agents":
 		if !op.control {
 			return nil, newOperationError(403, "scope", "host management is only available to a trusted Go operation")
@@ -306,7 +312,7 @@ func validOperationMethod(method string) bool {
 		"context_prepare", "context_get", "context_set_runtime_info", "begin_hook_scope", "end_hook_scope",
 		"execution_get", "run_js", "tool_result", "conversation_checkpoint", "discard_images", "apply_steers",
 		"commit_final", "steer_agent", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "wait_task",
-		"read_task_result", "cancel_task", "stop_agent":
+		"read_task_result", "read_tool_result", "cancel_task", "stop_agent":
 		return true
 	}
 	return false

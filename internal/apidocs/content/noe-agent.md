@@ -1,6 +1,6 @@
 # `noe:agent`
 
-`noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `read_task_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
+`noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `read_task_result`, `read_tool_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
 
 A managed agent owns its task runtime and descendants. A returned snapshot is a point-in-time plain object, not a live handle. Use `observe_agent` to refresh it. Accepted task failures are represented in the result or snapshot; ordinary task failure does not make `run_agent` reject. Input, configuration, or acceptance failures reject. Cancellation follows ownership and recovers work owned by the current evaluation.
 
@@ -14,6 +14,7 @@ A managed agent owns its task runtime and descendants. A returned snapshot is a 
 | `queue_agent` | Submit a future task to a keep-alive instance. |
 | `wait_task` | Wait for the retained outcome of one accepted task; optionally omit its answer. |
 | `read_task_result` | Read a UTF-8 byte range from a retained answer. |
+| `read_tool_result` | Read a UTF-8 byte range from an original large tool result during the same active task. |
 | `steer_agent` | Add guidance to an active task. |
 | `cancel_task` | Cancel one accepted task without stopping the instance or its queue. |
 | `stop_agent` | Stop an instance, active task, and remaining queue. |
@@ -43,6 +44,8 @@ Built-in agent providers retry transient transport failures, HTTP 429/5xx, and i
 
 ## run_agent
 
+Signature: `run_agent(config: AgentConfig = {}, instruction: string, options?: AgentOptions) -> Promise<AgentSnapshot>`
+
 `run_agent(config, instruction, options?) -> Promise<AgentSnapshot>` starts one task and waits until its instance stops and cleanup completes. `instruction` must be a nonempty string. `options` supports `{keepAlive?: boolean, allowDelegation?: boolean}`. `keepAlive` defaults to `false`.
 
 `allowDelegation` controls whether the launched instance may start children. It defaults to `true` for a root and `false` for a child. The owner must explicitly pass `{allowDelegation:true}` in the third argument to grant a child permission to delegate. The permission is frozen at launch and is not inherited by the next generation. The shared Go operation checks the caller before admitting any launch, including hook calls. An unauthorized caller cannot grant itself permission by setting this option on its attempted child. Rejection affects that request without starting an instance, consuming an agent-start allowance, or stopping its group.
@@ -65,21 +68,29 @@ if (snapshot.lastResult?.state === "completed") {
 
 ## spawn_agent
 
+Signature: `spawn_agent(config: AgentConfig = {}, instruction?: string, options?: AgentOptions) -> Promise<AgentReceipt>`
+
 `spawn_agent(config?, instruction?, options?) -> Promise<{agentId, commandId?}>` returns after the instance is created and an initial task, if supplied, is accepted. `commandId` identifies the initial task and is absent for an idle launch. It does not wait for the first model response or task completion. If `keepAlive` is false (the default), `instruction` is required. With `keepAlive: true`, omit `instruction` to start an idle instance, or provide an initial task.
 
 The new instance belongs to the current owner. A fresh instance has its own conversation and system instructions. A new child inherits provider, model, effort, maxTokens, hooks, contextBudget, and contextPolicy when those fields are omitted; it does not inherit name, system, maxSteps, or cacheKey. Root execution limits remain shared and cannot be overridden by a child.
 
 ## observe_agent
 
+Signature: `observe_agent({agentId: string, includeAnswer?: boolean}) -> Promise<AgentSnapshot>`
+
 `observe_agent({agentId, includeAnswer?}) -> Promise<AgentSnapshot>` returns the current live snapshot immediately. `includeAnswer` defaults to `true`; `false` omits `lastResult.answer` and adds `lastResult.answerBytes`, retaining the original result. This API does not read saved event files or wait for a terminal run. Use `wait_task` for one accepted task, or read a saved event snapshot and pass it to `analyze_log` from `noe:agent-log`.
 
 ## queue_agent
+
+Signature: `queue_agent({agentId: string, instruction: string, commandId?: string}) -> Promise<TaskReceipt>`
 
 `queue_agent({agentId, instruction, commandId?}) -> Promise<{commandId, status}>` submits a nonempty instruction to a `keepAlive` instance in `starting`, `running`, or `idle` state. A queued task receives a new run ID and starts after earlier queued work. It continues the instance's confirmed conversation after context trimming; trimmed history is not restored. Its runtime, hook-module state, cancellation scope, and `maxSteps` counter are new.
 
 If omitted, `commandId` is generated. Repeating the same ID with the same instruction returns its current status without submitting a duplicate; reusing that ID with different text is an error. Finished instances and instances started without `keepAlive` reject queue requests.
 
 ## wait_task
+
+Signature: `wait_task({agentId: string, commandId: string, includeAnswer?: boolean}) -> Promise<TaskOutcome>`
 
 `wait_task({agentId, commandId, includeAnswer?}) -> Promise<TaskOutcome>` waits for one accepted initial or queued task. Obtain `commandId` from `spawn_agent` with an instruction or from `queue_agent`. It does not wait for the instance to become idle or stop; a later task may already be running when the Promise resolves.
 
@@ -102,6 +113,8 @@ if (result.state === "completed") console.log(result.answer);
 
 ## read_task_result
 
+Signature: `read_task_result({agentId: string, commandId: string, offset?: number, maxBytes?: number}) -> Promise<TaskResult>`
+
 `read_task_result({agentId, commandId, offset?, maxBytes?})` reads a completed task's retained answer without consuming it. The result is `{runId, commandId, state, text, offset, nextOffset, totalBytes, eof}`. Pass `nextOffset` to continue. `offset` defaults to `0` and must be a nonnegative safe integer at a UTF-8 character boundary within the answer, including its end. `maxBytes` defaults to `4096` and must be a positive safe integer. The slice ends at a character boundary; when one character alone exceeds the requested limit, that character is returned (up to three extra bytes) so reading makes progress.
 
 Use `wait_task` first: unfinished tasks reject rather than wait. Ownership and result lifetime match `wait_task`, including results of failed or cancelled tasks and results retained after later queue work. Reads make no provider calls and do not truncate or summarize the stored answer. For an empty answer or an offset at its end, `text` is empty and `eof` is true.
@@ -114,17 +127,25 @@ console.log(meta, part.text);
 
 ## steer_agent
 
+Signature: `steer_agent({runId: string, instruction: string, commandId?: string}) -> Promise<object>`
+
 `steer_agent({runId, instruction, commandId?}) -> Promise<{commandId, status}>` adds a nonempty instruction to an active task without interrupting its current work. The steer is applied at a model-decision boundary; acceptance does not mean it has already been applied. A supplied command ID makes retries idempotent for the same instruction.
 
 ## cancel_task
+
+Signature: `cancel_task({agentId: string, commandId: string}) -> Promise<object>`
 
 `cancel_task({agentId, commandId}) -> Promise<{agentId, commandId, status}>` requests cancellation of one accepted initial or queued task. `commandId` is the task identifier returned by `spawn_agent` or `queue_agent`; it is not a `runId`. A task that has not started can be cancelled too. The request does not stop the instance or its other queued tasks. Its Promise reports acceptance; use `wait_task` or `observe_agent` to inspect the outcome and cleanup.
 
 ## stop_agent
 
+Signature: `stop_agent({agentId: string}) -> Promise<object>`
+
 `stop_agent({agentId}) -> Promise<{agentId, status}>` requests shutdown of the managed instance, its active task, and remaining queue. Its Promise reports acceptance, not completion. Use `observe_agent` to confirm the stopped state. Ownership scope is enforced, and an owned runtime reclaims its work when its owner ends.
 
 ## list_models
+
+Signature: `list_models({provider?: string, kind?: string}?) -> Promise<object[]>`
 
 `list_models({provider?, kind?} = {}) -> Promise<ModelInfo[]>` reads the merged catalog of curated model metadata without loading credentials or contacting a provider. `kind` is `agent`, `decision`, or `image`. Entries are sorted by provider and model and contain `provider`, `model`, `kind`, and available `description`, `tags`, `capabilities`, `contextWindow`, `maxOutputTokens`, and `efforts` fields. Missing metadata means unknown; the list is selection guidance, not a benchmark or allowlist. Directly specified models are not restricted to listed entries.
 
@@ -160,7 +181,7 @@ export async function beforeTool(event) {
 
 ## HookAPI.agents
 
-The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `read_task_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models` with the same argument and return contracts as this module. It is bound to that hook invocation, preserving its ownership and cause information. Requests made through the callback API are cancelled when the callback returns; an agent started by a hook remains owned by the run and is recovered with it. Prefer `api.agents` when the action should be attributed to that hook invocation.
+The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `read_task_result`, `read_tool_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models` with the same argument and return contracts as this module. It is bound to that hook invocation, preserving its ownership and cause information. Requests made through the callback API are cancelled when the callback returns; an agent started by a hook remains owned by the run and is recovered with it. Prefer `api.agents` when the action should be attributed to that hook invocation.
 
 ## HookAPI.context.get
 
@@ -173,3 +194,28 @@ The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_
 ## HookAPI.execution.get
 
 `await api.execution.get() -> ExecutionSnapshot` returns the owning group summary and the current hook invocation's cause information. The summary includes `groupId`, `counters`, `limits`, and `elapsedMs`, plus `usage` or `stop` when available. Counters include provider calls, agent starts, queued tasks, hook calls, and active work. Reading the snapshot does not call a model.
+
+## read_tool_result
+
+Signature: `read_tool_result(resultRef: string, options?: {offset?: number, limit?: number}) -> Promise<{text: string, offset: number, nextOffset: number, totalBytes: number, truncated: boolean}>`
+
+Read the original full tool result JSON referred to by `resultRef`. The default
+page is 24 KiB so its text plus JSON escaping and metadata fit the usual data
+preview. Explicit `limit` is 4–65536 bytes. `offset` is a nonnegative UTF-8 byte
+boundary within the artifact; an offset inside a character or past the end is
+an error. A page's end is shortened to a character boundary and `nextOffset`
+reflects the bytes actually returned. `truncated` is true while more bytes
+remain. Join pages and JSON.parse when the complete object is needed.
+
+```js
+// Read a retained result page.
+import {read_tool_result} from "noe:agent";
+export default await read_tool_result("RESULT_REF_FROM_PREVIOUS_TOOL");
+```
+
+A reference belongs only to the task that produced it, including across that
+task's fresh run_js calls. It expires when that task completes or is cancelled;
+it is not an answer reference for `read_task_result` and does not cross queued
+tasks or child tasks. Save durable artifacts to a file before finishing. Full
+results describe actual execution before afterTool transformations. Hooks and
+model history normally receive the bounded preview plus this reference.

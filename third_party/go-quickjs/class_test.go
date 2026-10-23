@@ -1,0 +1,1379 @@
+package quickjs_test
+
+import (
+	"strings"
+	"testing"
+
+	quickjs "github.com/go-quickjs/go-quickjs"
+)
+
+// new.target is what decides what an object is, and it is not always the
+// constructor being run: `new D()` on a class derived from B eventually runs
+// B's constructor, but the object is a D. Reflect.construct exposes the same
+// split directly.
+func TestConstructNewTarget(t *testing.T) {
+	const isCtor = `function isConstructor(f) {
+	  try { Reflect.construct(function () {}, [], f); } catch (e) { return false; }
+	  return true;
+	}
+	`
+	cases := []struct{ src, want string }{
+		// A built-in method is not a constructor, however ordinary it looks.
+		{isCtor + `[isConstructor(Array.prototype.map), isConstructor(Object.keys),
+		   isConstructor(Math.max), isConstructor(RegExp.prototype[Symbol.match])].join(",")`,
+			"false,false,false,false"},
+		{isCtor + `[isConstructor(Array), isConstructor(RegExp), isConstructor(Proxy),
+		   isConstructor(class {}), isConstructor(function () {})].join(",")`,
+			"true,true,true,true,true"},
+		// Nor is anything that has no object to build: an arrow has no
+		// prototype at all, and calling a generator produces an iterator.
+		{isCtor + `[isConstructor(() => {}), isConstructor({m() {}}.m),
+		   isConstructor(function* () {}), isConstructor(async function () {})].join(",")`,
+			"false,false,false,false"},
+
+		// The prototype comes from new.target, not from the constructor.
+		{`function B() {} function D() {} D.prototype = {tag: "D"};
+		  String(Reflect.construct(B, [], D).tag)`, "D"},
+		{`class A { constructor() { this.nt = new.target.name; } } function F() {}
+		  String(Reflect.construct(A, [], F).nt)`, "F"},
+		// Including for a native constructor, which builds its own object and
+		// knows nothing of new.target.
+		{`function F() {}
+		  String(Object.getPrototypeOf(Reflect.construct(Array, [], F)) === F.prototype)`, "true"},
+		{`function F() {} var a = Reflect.construct(Array, [1, 2], F);
+		  [a.length, Array.isArray(a)].join(",")`, "2,true"},
+		{`String(Reflect.construct(Array, [3]).length)`, "3"},
+
+		// The ordinary path is unchanged.
+		{`class B { constructor() { this.nt = new.target.name; } } class D extends B {}
+		  new D().nt`, "D"},
+		{`class A extends Array {} var a = new A(); a.push(1);
+		  [a.length, a instanceof A].join(",")`, "1,true"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+
+	bad := []string{
+		// Both arguments have to be constructors.
+		`Reflect.construct(Math.max, [])`,
+		`Reflect.construct(function () {}, [], 1)`,
+		`Reflect.construct(function () {}, [], Math.max)`,
+		`Reflect.construct({}, [])`,
+		// A generator has a prototype property, which is not the same thing.
+		`new (function* () {})()`,
+		`new (async function () {})()`,
+	}
+	for _, src := range bad {
+		rt := quickjs.New()
+		if _, err := rt.Eval(src); err == nil {
+			t.Errorf("%s: accepted, want TypeError", src)
+		}
+		rt.Close()
+	}
+}
+
+// An array iterator reads through the property table rather than the dense
+// element slice, which is what makes a frozen or sparse array iterate at all:
+// freezing moves the elements out of the dense slice so that they can be marked
+// read-only.
+func TestIteratingNonDenseArrays(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`var a = [1, 2]; Object.freeze(a); [...a].join(",")`, "1,2"},
+		{`var a = [1, 2]; Object.freeze(a); Array.from(a).join(",")`, "1,2"},
+		{`var a = [1, 2]; Object.freeze(a);
+		  var o = []; for (const x of a) o.push(x); o.join(",")`, "1,2"},
+		{`var a = [1, 2]; Object.freeze(a); [...a.keys()].join(",")`, "0,1"},
+		{`var a = [1, 2]; Object.freeze(a);
+		  [...a.entries()].map(e => e.join(":")).join(",")`, "0:1,1:2"},
+		{`var a = [1, 2]; Object.seal(a); [...a].join(",")`, "1,2"},
+		{`var a = [1, 2]; Object.defineProperty(a, 0, {value: 9}); [...a].join(",")`, "9,2"},
+		{`function f(...r) { return r.join(","); }
+		  var a = [1, 2]; Object.freeze(a); f(...a)`, "1,2"},
+
+		// A hole is filled from the prototype chain, which the dense path
+		// would have reported as undefined.
+		{`Object.defineProperty(Array.prototype, 0, {value: "p", configurable: true});
+		  var a = [, 1]; [...a].join(",")`, "p,1"},
+		{`var a = [, 1]; [...a].map(String).join(",")`, "undefined,1"},
+
+		// Length is re-read as iteration proceeds, so an array that grows is
+		// seen doing so.
+		{`var a = [1]; var out = [];
+		  for (const x of a) { out.push(x); if (a.length < 3) a.push(a.length + 1); }
+		  out.join(",")`, "1,2,3"},
+
+		// And the ordinary dense path is unchanged.
+		{`[...[1, 2, 3]].join(",")`, "1,2,3"},
+		{`[...[1, 2].keys()].join(",")`, "0,1"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+}
+
+// A private name is resolved when the program is compiled, not when it runs:
+// `this.#x` outside any class declaring #x is a syntax error, in the same way
+// an unbalanced brace is. That is what makes a private field private -- there
+// is no way to ask an object for one you were not written alongside, and so no
+// way to discover one by probing.
+func TestPrivateNamesAreResolvedAtCompileTime(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`class C { #x = 1; m() { return this.#x; } } String(new C().m())`, "1"},
+		{`class C { #m() { return 1; } m() { return this.#m(); } } String(new C().m())`, "1"},
+		{`class C { static #x = 1; static m() { return C.#x; } } String(C.m())`, "1"},
+		{`class C { #x; static has(o) { return #x in o; } }
+		  [C.has(new C()), C.has({})].join(",")`, "true,false"},
+		// A method may refer to a field declared below it, so the names are
+		// collected from the whole body before any of it is compiled.
+		{`class C { m() { return this.#x; } #x = 2; } String(new C().m())`, "2"},
+		// A heritage clause is outside the body that declares the names, so
+		// they are not in scope there.
+		{`class Outer { #p = 1;
+		    m() { var self = this;
+		      return (class extends Object { static f() { return self.#p } }).f() } }
+		  String(new Outer().m())`, "1"},
+		// A nested class sees the enclosing one's names.
+		{`class Outer { #x = 3;
+		    m() { var self = this; return (class { static f() { return self.#x; } }).f(); }
+		  } String(new Outer().m())`, "3"},
+		// A getter and a setter may share a name.
+		{`class C { get #x() { return 4; } set #x(v) {} m() { return this.#x; } }
+		  String(new C().m())`, "4"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+
+	// Each of these has to fail to parse, so a throw before it never runs.
+	bad := []string{
+		// Undeclared, inside a class and outside one.
+		`throw 0; class C { m() { this.#x; } }`,
+		`throw 0; class C { m() { return #x in this; } }`,
+		`throw 0; this.#x;`,
+		`throw 0; function f() { return this.#x; }`,
+		`throw 0; class C { #x; } class D { m() { return this.#x; } }`,
+		// A sibling class's name is not in scope either.
+		`throw 0; class C { #x; m() { return (class { n(o) { return o.#y; } }); } }`,
+		// Writing one is the same as reading one.
+		`throw 0; class C { m() { this.#x = 1; } }`,
+		`throw 0; class C { m() { this.#x += 1; } }`,
+		// A private name cannot be deleted, declared or not.
+		`throw 0; class C { #x; m() { delete this.#x; } }`,
+		`throw 0; class C { #x; m() { delete (this.#x); } }`,
+		`throw 0; class C { #m() {} m() { delete this.#m; } }`,
+		// A constructor has to be a plain method.
+		`throw 0; class C { get constructor() {} }`,
+		`throw 0; class C { set constructor(v) {} }`,
+		`throw 0; class C { *constructor() {} }`,
+		`throw 0; class C { async constructor() {} }`,
+		// And the names have to be distinct.
+		`throw 0; class C { #x; #x; }`,
+		`throw 0; class C { #constructor; }`,
+		`throw 0; class C { static prototype() {} }`,
+		// The heritage clause is evaluated before the class's own names come
+		// into scope, so it cannot use them.
+		"throw 0; class C extends (o) => [o.#foo] { #foo; }",
+		"throw 0; class C extends [this.#x] { #x; }",
+	}
+	for _, src := range bad {
+		rt := quickjs.New()
+		if _, err := rt.Eval(src); err == nil {
+			t.Errorf("%s: accepted, want SyntaxError", src)
+		} else if !strings.Contains(err.Error(), "SyntaxError") {
+			t.Errorf("%s: got %v, want SyntaxError", src, err)
+		}
+		rt.Close()
+	}
+}
+
+// A derived constructor does not receive `this`; super() binds it. Until then
+// the object exists but is unreachable, which is what stops a subclass from
+// touching what the base class has not finished building.
+func TestThisIsBoundBySuper(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`class B {} class D extends B { constructor() { this.x; super(); } }
+		  try { new D() } catch (e) { e.constructor.name }`, "ReferenceError"},
+		{`class B {} class D extends B { constructor() { super(); super(); } }
+		  try { new D() } catch (e) { e.constructor.name }`, "ReferenceError"},
+		// Falling off the end without calling super() is the same mistake.
+		{`class B {} class D extends B { constructor() {} }
+		  try { new D() } catch (e) { e.constructor.name }`, "ReferenceError"},
+		// An arrow written before super() closes over the same unbound `this`.
+		{`class B {} class D extends B {
+		    constructor() { var f = () => this; var n;
+		      try { f() } catch (e) { n = e.constructor.name } super(); this.n = n; }
+		  } new D().n`, "ReferenceError"},
+
+		// And the ordinary paths are unchanged.
+		{`class B {} class D extends B {} String(new D() instanceof D)`, "true"},
+		{`class B { constructor() { this.a = 1; } }
+		  class D extends B { b = 2; constructor() { super(); this.c = 3; } }
+		  var d = new D(); [d.a, d.b, d.c].join(",")`, "1,2,3"},
+		{`class D extends Array { constructor() { super(1, 2); } } new D().join(",")`, "1,2"},
+		// A base constructor has its `this` from the start.
+		{`class B { constructor() { this.x = 1; } } String(new B().x)`, "1"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+}
+
+// A class field is created on the instance rather than written through it, so a
+// setter the prototype happens to have for the same name is not called, and a
+// private field is added rather than requiring one to be there already.
+func TestClassFieldsAreDefined(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`class C { x = 1; } String(new C().x)`, "1"},
+		{`class C { x = 1 } var d = Object.getOwnPropertyDescriptor(new C(), "x");
+		  [d.writable, d.enumerable, d.configurable].join(",")`, "true,true,true"},
+		{`class C { ["a" + "b"] = 1 } String(new C().ab)`, "1"},
+		{`class C { #x = 1; #y = 2; m() { return this.#x + this.#y; } }
+		  String(new C().m())`, "3"},
+		{`class C { static x = 1 } String(C.x)`, "1"},
+
+		// A setter inherited from the parent is not called by a field.
+		{`var called = false;
+		  class B { set x(v) { called = true; } }
+		  class D extends B { x = 1; }
+		  [new D().x, called].join(",")`, "1,false"},
+		{`var called = false;
+		  class B { static set x(v) { called = true; } }
+		  class D extends B { static x = 1; }
+		  [D.x, called].join(",")`, "1,false"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+
+	bad := []string{
+		// A private field is added when the object is constructed and never
+		// afterwards, so writing one to an object that does not have it is a
+		// mistake rather than a way to add it.
+		`class C { #x; static set(o) { o.#x = 1; } } C.set({})`,
+		`class C { #x; static get(o) { return o.#x; } } C.get({})`,
+		`class C { #m() {} static call(o) { return o.#m(); } } C.call({})`,
+		`class C { static #x = 1; static get(o) { return o.#x; } } C.get({})`,
+	}
+	for _, src := range bad {
+		rt := quickjs.New()
+		if _, err := rt.Eval(src); err == nil {
+			t.Errorf("%s: accepted, want TypeError", src)
+		} else if !strings.Contains(err.Error(), "TypeError") {
+			t.Errorf("%s: got %v, want TypeError", src, err)
+		}
+		rt.Close()
+	}
+}
+
+// Array.prototype[Symbol.iterator] is the same function object as values, and
+// the fast paths that copy an array's elements directly check for exactly that
+// -- including the case where the iterator has been deleted, which makes
+// destructuring an array a TypeError that a fast path would quietly succeed at.
+func TestArrayIterationRespectsTheProtocol(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`String(Array.prototype.values === Array.prototype[Symbol.iterator])`, "true"},
+		{`Array.prototype[Symbol.iterator] = function* () { yield 9; };
+		  [...[1, 2]].join(",")`, "9"},
+		{`var a = [1, 2]; a[Symbol.iterator] = function* () { yield 7; };
+		  [...a].join(",")`, "7"},
+		{`[...[1, 2, 3]].join(",")`, "1,2,3"},
+		{`var [a, b] = [1, 2]; a + "," + b`, "1,2"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+
+	const noIter = "delete Array.prototype[Symbol.iterator];\n"
+	for _, src := range []string{
+		noIter + `var [a] = [1, 2];`,
+		noIter + `[...[1, 2]];`,
+		noIter + `function f([x]) {} f([1]);`,
+		noIter + `for (const x of [1]) {}`,
+	} {
+		rt := quickjs.New()
+		if _, err := rt.Eval(src); err == nil {
+			t.Errorf("%s: accepted, want TypeError", src)
+		} else if !strings.Contains(err.Error(), "TypeError") {
+			t.Errorf("%s: got %v, want TypeError", src, err)
+		}
+		rt.Close()
+	}
+}
+
+// An object pattern reads properties from its source, so the source has to be
+// something properties can be read from -- and that is checked before any of
+// them are, which is the only thing an empty pattern does.
+func TestObjectPatternRequiresCoercible(t *testing.T) {
+	bad := []string{
+		`var {} = null`,
+		`var {} = undefined`,
+		`var {a} = null`,
+		`var {a} = undefined`,
+		`({} = null)`,
+		`function f({}) {} f(null)`,
+		`function f({} = null) {} f()`,
+		`function* g({} = null) {} g()`,
+		`var C = class { m({} = null) {} }; C.prototype.m()`,
+		`var C = class { *m({} = null) {} }; C.prototype.m()`,
+		`var {a: {b}} = {a: null}`,
+		`for (var {} of [null]) {}`,
+		`try { throw null } catch ({}) {}`,
+	}
+	for _, src := range bad {
+		rt := quickjs.New()
+		if _, err := rt.Eval(src); err == nil {
+			t.Errorf("%s: accepted, want TypeError", src)
+		} else if !strings.Contains(err.Error(), "TypeError") {
+			t.Errorf("%s: got %v, want TypeError", src, err)
+		}
+		rt.Close()
+	}
+
+	cases := []struct{ src, want string }{
+		{`var {} = {}; "ok"`, "ok"},
+		{`var {a} = {a: 1}; String(a)`, "1"},
+		// A primitive that is coercible reads through its wrapper.
+		{`var {length} = "abc"; String(length)`, "3"},
+		{`var {constructor} = 5; String(constructor === Number)`, "true"},
+		{`var {a, ...r} = {a: 1, b: 2}; JSON.stringify(r)`, `{"b":2}`},
+		{`var {a = 5} = {}; String(a)`, "5"},
+	}
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+}
+
+// A String object is a box round an immutable string, and its characters are
+// own properties: indexed, enumerable, read-only and not configurable. Its
+// length is one too, and is not enumerable.
+func TestStringObjectIndices(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`Object.keys("ab").join(",")`, "0,1"},
+		{`Object.getOwnPropertyNames("ab").join(",")`, "0,1,length"},
+		{`Object.keys(new String("ab")).join(",")`, "0,1"},
+		{`JSON.stringify(Object.entries("ab"))`, `[["0","a"],["1","b"]]`},
+		{`JSON.stringify(Object.getOwnPropertyDescriptor(new String("ab"), "0"))`,
+			`{"value":"a","writable":false,"enumerable":true,"configurable":false}`},
+		{`JSON.stringify(Object.getOwnPropertyDescriptor(new String("ab"), "length"))`,
+			`{"value":2,"writable":false,"enumerable":false,"configurable":false}`},
+		{`String(Object.getOwnPropertyDescriptor(new String("ab"), "5"))`, "undefined"},
+		// Characters come first, then anything the object was given.
+		{`var s = new String("ab"); s.x = 1; Object.keys(s).join(",")`, "0,1,x"},
+		{`var out = []; for (var k in "ab") out.push(k); out.join(",")`, "0,1"},
+
+		{`String(Object.setPrototypeOf(1, null))`, "1"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+
+	for _, src := range []string{
+		// The target is checked before the prototype, so the more obvious
+		// mistake is the one reported.
+		`Object.setPrototypeOf(null, {})`,
+		`Object.setPrototypeOf(undefined, {})`,
+		`Object.setPrototypeOf(null, 1)`,
+	} {
+		rt := quickjs.New()
+		if _, err := rt.Eval(src); err == nil {
+			t.Errorf("%s: accepted, want TypeError", src)
+		} else if !strings.Contains(err.Error(), "TypeError") {
+			t.Errorf("%s: got %v, want TypeError", src, err)
+		}
+		rt.Close()
+	}
+}
+
+// Function.prototype.length is how many arguments a function expects, not how
+// many it has room for: it counts the parameters before the first one with a
+// default or a rest element.
+func TestFunctionLength(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`function f() {} String(f.length)`, "0"},
+		{`function f(a, b) {} String(f.length)`, "2"},
+		{`function f(a, b,) {} String(f.length)`, "2"},
+		{`function f(a, b = 1) {} String(f.length)`, "1"},
+		{`function f(a, b = 1,) {} String(f.length)`, "1"},
+		{`function f(a = 1, b) {} String(f.length)`, "0"},
+		{`function f(a, ...r) {} String(f.length)`, "1"},
+		{`function f(...r) {} String(f.length)`, "0"},
+		{`function f([a], {b}) {} String(f.length)`, "2"},
+
+		{`({m(a, b = 1) {}}).m.length + ""`, "1"},
+		{`class C { m(a, b = 1) {} } String(C.prototype.m.length)`, "1"},
+		{`((a, b = 1) => {}).length + ""`, "1"},
+		{`(function* (a, b = 1) {}).length + ""`, "1"},
+		{`(async function (a, b = 1) {}).length + ""`, "1"},
+		{`class C { constructor(a, b = 1) {} } String(C.length)`, "1"},
+
+		// length is configurable and not writable, like every built-in's.
+		{`function f(a) {} var d = Object.getOwnPropertyDescriptor(f, "length");
+		  [d.writable, d.enumerable, d.configurable].join(",")`, "false,false,true"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+}
+
+// `super` in a static field initializer or a static block resolves against the
+// parent class rather than its prototype, because the home object there is the
+// class itself.
+func TestSuperInStaticInitializers(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`class A { static m() { return 1 } } class B extends A { static x = super.m(); }
+		  String(B.x)`, "1"},
+		{`class A { static m() { return 2 } }
+		  class B extends A { static { B.y = super.m() } } String(B.y)`, "2"},
+		{`class A { static m() { return 3 } }
+		  class B extends A { static n() { return super.m() } } String(B.n())`, "3"},
+		{`class A { static get p() { return 5 } }
+		  class B extends A { static x = super.p; } String(B.x)`, "5"},
+		// An arrow in the initializer shares its super.
+		{`class A { static m() { return 6 } }
+		  class B extends A { static x = (() => super.m())(); } String(B.x)`, "6"},
+		// A static member sees the parent class, not its prototype, so an
+		// instance method is not there.
+		{`class A { m() { return 1 } }
+		  class B extends A { static x = typeof super.m; } B.x`, "undefined"},
+
+		// An instance field initializer resolves against the prototype, as a
+		// method does.
+		{`class A { m() { return 4 } } class B extends A { x = super.m(); }
+		  String(new B().x)`, "4"},
+		{`class A { m() { return 7 } } class B extends A { x = () => super.m(); }
+		  String(new B().x())`, "7"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+}
+
+// Number is the one place a BigInt converts to a Number without complaint: it
+// is what a program asking for the conversion explicitly has written, rather
+// than one mixing the two kinds by accident.
+func TestNumberOfBigInt(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`String(Number(1n))`, "1"},
+		{`String(Number(-2n))`, "-2"},
+		// The conversion is lossy above 2**53, which is why it is never
+		// implicit.
+		{`String(Number(-9007199254740993n))`, "-9007199254740992"},
+		{`String(Number(2n ** 100n))`, "1.2676506002282294e+30"},
+		{`String(Number(Object(5n)))`, "5"},
+		{`String(new Number(3n).valueOf())`, "3"},
+
+		{`String(Number("3"))`, "3"},
+		{`String(Number())`, "0"},
+		{`String(Number(null))`, "0"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+
+	// Everything else still refuses to mix the two kinds.
+	for _, src := range []string{`1n + 1`, `+1n`, `Math.max(1n)`, `1n | 1`} {
+		rt := quickjs.New()
+		if _, err := rt.Eval(src); err == nil {
+			t.Errorf("%s: accepted, want TypeError", src)
+		}
+		rt.Close()
+	}
+}
+
+// A derived constructor may return an object, which becomes the result, or
+// nothing, in which case the object super() built is. Anything else would
+// silently discard that object, so it is a TypeError.
+func TestDerivedConstructorReturn(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`class B {} class D extends B { constructor() { super(); return {tag: 1} } }
+		  String(new D().tag)`, "1"},
+		{`class B {} class D extends B { constructor() { super(); return undefined } }
+		  String(new D() instanceof D)`, "true"},
+		{`class B {} class D extends B { constructor() { super(); return } }
+		  String(new D() instanceof D)`, "true"},
+		// Returning an object does not even need super() to have run.
+		{`class B {} class D extends B { constructor() { return {tag: 2} } }
+		  String(new D().tag)`, "2"},
+
+		// A base constructor has no such rule: it returns `this` for anything
+		// that is not an object.
+		{`class D { constructor() { return 1 } } String(new D() instanceof D)`, "true"},
+		{`class B { constructor() { return 1 } } class D extends B {}
+		  String(new D() instanceof D)`, "true"},
+		{`class D extends Array { constructor() { super(1, 2) } } new D().join(",")`, "1,2"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+
+	bad := []string{
+		`class B {} class D extends B { constructor() { super(); return 1 } } new D()`,
+		`class B {} class D extends B { constructor() { super(); return null } } new D()`,
+		`class B {} class D extends B { constructor() { super(); return "s" } } new D()`,
+		`class B {} class D extends B { constructor() { return 1 } } new D()`,
+		// Through a finally, which is where the return actually happens.
+		`class B {} class D extends B { constructor() { try { return 1 } finally {} } } new D()`,
+	}
+	for _, src := range bad {
+		rt := quickjs.New()
+		if _, err := rt.Eval(src); err == nil {
+			t.Errorf("%s: accepted, want TypeError", src)
+		} else if !strings.Contains(err.Error(), "TypeError") {
+			t.Errorf("%s: got %v, want TypeError", src, err)
+		}
+		rt.Close()
+	}
+}
+
+// A private name is not a string. Two classes may spell one the same way
+// without sharing it, and neither may two evaluations of the same class: the
+// key is minted when the class is evaluated, and lives in a binding the body
+// closes over.
+func TestPrivateNamesAreUniquePerClassEvaluation(t *testing.T) {
+	cases := []struct{ src, want string }{
+		// Two evaluations of one class expression.
+		{`function make() { return class { #x = 1; static read(o) { return o.#x } } }
+		  var A = make(), B = make();
+		  try { A.read(new B()) } catch (e) { e.constructor.name }`, "TypeError"},
+		{`function make() { return class { #x = 1; static read(o) { return o.#x } } }
+		  var A = make(); String(A.read(new A()))`, "1"},
+
+		// An inner class that spells a name the outer one also spells.
+		{`class O {
+		    #x = 1;
+		    static probe(o) {
+		      class I { #x = 2; static read(v) { return v.#x } }
+		      try { return String(I.read(o)) } catch (e) { return e.constructor.name }
+		    }
+		  }
+		  O.probe(new O())`, "TypeError"},
+
+		// An object that merely inherits from the prototype is not an
+		// instance, whatever kind of member is asked for.
+		{`class C { #m() {} static probe(o) {
+		    try { o.#m() } catch (e) { return e.constructor.name }
+		  } }
+		  C.probe(Object.create(C.prototype))`, "TypeError"},
+		{`class C { get #g() { return 1 } static probe(o) {
+		    try { o.#g } catch (e) { return e.constructor.name }
+		  } }
+		  C.probe(Object.create(C.prototype))`, "TypeError"},
+		{`class C { #m() { return 1 } static has(o) { return #m in o } }
+		  [C.has(new C()), C.has(Object.create(C.prototype))].join(",")`, "true,false"},
+
+		// A private method belongs to the instance and is installed when the
+		// instance is made -- which in a derived class is when super() returns,
+		// not before.
+		{`class A { constructor() { this.probe = D.check(this) } }
+		  class D extends A {
+		    #m() {}
+		    constructor() { super() }
+		    static check(o) {
+		      try { o.#m(); return "installed" } catch (e) { return "not yet" }
+		    }
+		  }
+		  new D().probe`, "not yet"},
+		{`class A { constructor() {} }
+		  class D extends A { #m() { return 7 } constructor() { super() }
+		    read() { return this.#m() } }
+		  String(new D().read())`, "7"},
+
+		// The same function object for every instance, as the specification
+		// requires -- not one per instance.
+		{`class C { #m() {} static same(a, b) { return a.#m === b.#m } }
+		  String(C.same(new C(), new C()))`, "true"},
+
+		// A method cannot be written through; a field can.
+		{`class C { #m() {} static w(o) {
+		    try { o.#m = 1 } catch (e) { return e.constructor.name }
+		  } }
+		  C.w(new C())`, "TypeError"},
+		{`class C { #x = 1; static swap(o) { o.#x = 5; return o.#x } }
+		  String(C.swap(new C()))`, "5"},
+
+		// Nothing reflective reports a private member, accessor or not.
+		{`class C { get #g() { return 1 } #m() {} #f = 1 }
+		  var o = new C();
+		  [Object.getOwnPropertyNames(C.prototype).join("|"),
+		   Object.getOwnPropertyNames(o).length,
+		   Object.getOwnPropertySymbols(o).length,
+		   JSON.stringify(o)].join(",")`, "constructor,0,0,{}"},
+
+		// Static private members live on the constructor.
+		{`class C { static #s = 1; static #m() { return 2 } static get #g() { return 3 }
+		    static read() { return [C.#s, C.#m(), C.#g].join(",") } }
+		  C.read()`, "1,2,3"},
+
+		// A class inside a field initializer of another reaches the outer
+		// class's private names. The hidden bindings are numbered across the
+		// whole compilation for that reason: numbered per function, the inner
+		// class's first name would shadow the outer class's.
+		{`class C {
+		    #outer = "outer";
+		    Inner = class { #inner = 1; read(o) { return o.#outer } }
+		  }
+		  var c = new C(); new c.Inner().read(c)`, "outer"},
+
+		// super in a private method resolves against the prototype's prototype.
+		{`class A { hi() { return "a" } }
+		  class B extends A { #m() { return super.hi() } read() { return this.#m() } }
+		  new B().read()`, "a"},
+	}
+
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+}
+
+// A super reference reads `this` first, then the key expression, and only then
+// looks at the home object's prototype -- so a derived constructor that has not
+// called super() fails before anything the key might do, and a class with no
+// prototype to read from fails whatever the key would have been.
+func TestSuperProperties(t *testing.T) {
+	cases := []struct{ src, want string }{
+		// Writing through a super reference lands on the instance, unless the
+		// prototype has a setter, which runs with the instance as its `this`.
+		{`var o = {m() { super.x = 8; return this.x }}; String(o.m())`, "8"},
+		{`class X {} class Y extends X { m() { super.a = 1; return this.a } }
+		  String(new Y().m())`, "1"},
+		{`class A { set p(v) { this.got = v } }
+		  class B extends A { m() { super.p = 5; return this.got } }
+		  String(new B().m())`, "5"},
+		{`var o = {m() { super["k"] = 3; return this.k }}; String(o.m())`, "3"},
+		{`var o = {m() { "use strict"; super.x = 8; Object.freeze(o);
+		    try { super.y = 9 } catch (e) { return e.constructor.name } }};
+		  o.m()`, "TypeError"},
+
+		// Compound assignment and update read through the prototype and write
+		// to the instance.
+		{`class A {} A.prototype.c = 5;
+		  class B extends A { m() { return super.c++ } }
+		  var b = new B(); b.m() + "," + b.c`, "5,6"},
+		{`class A {} A.prototype.c = 5;
+		  class B extends A { m() { return ++super.c } }
+		  var b = new B(); b.m() + "," + b.c`, "6,6"},
+		{`class A {} A.prototype.k = 2;
+		  class B extends A { m() { return super["k"]++ } }
+		  var b = new B(); b.m() + "," + b.k`, "2,3"},
+		{`class A {} A.prototype.n = 1;
+		  class B extends A { m() { super.n += 2; return this.n } }
+		  String(new B().m())`, "3"},
+		{`class A {} class B extends A { m() { super.z ??= 7; return this.z } }
+		  String(new B().m())`, "7"},
+
+		// A class with no prototype has nothing to read from.
+		{`class C extends null { m() { try { super.x } catch (e) { return e.constructor.name } } }
+		  C.prototype.m()`, "TypeError"},
+
+		// delete parses and then throws, after the reference has been built --
+		// so `this` first, then the key expression, but not its conversion.
+		{`class X { m() { return 1 } }
+		  class Y extends X { m() { delete super.m } }
+		  try { new Y().m() } catch (e) { e.constructor.name }`, "ReferenceError"},
+		{`var log = [];
+		  var o = {m() {
+		    try { delete super[{toString: function () { log.push("k"); return "x" }}] }
+		    catch (e) { log.push(e.constructor.name) }
+		  }};
+		  o.m(); log.join(",")`, "ReferenceError"},
+		{`class Base { constructor() { throw new Error("base ran") } }
+		  class Derived extends Base { constructor() { delete super[(super(), 0)] } }
+		  try { new Derived() } catch (e) { e.constructor.name }`, "ReferenceError"},
+
+		// Deleting a property of nothing is a TypeError before the key is
+		// converted.
+		{`var n = null; try { delete n.x } catch (e) { e.constructor.name }`, "TypeError"},
+		{`var n; try { delete n[{toString: function () { throw new RangeError() }}] }
+		  catch (e) { e.constructor.name }`, "TypeError"},
+	}
+	for _, tc := range cases {
+		rt := quickjs.New()
+		v, err := rt.Eval(tc.src)
+		if err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+		} else if got := v.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+}
+
+// TestClassMemberAttributes covers what a class member's property descriptor
+// says, which differs from an object literal's in every case.
+func TestClassMemberAttributes(t *testing.T) {
+	cases := []struct{ src, want string }{
+		// A class member is never enumerable, however it is written.
+		{`class C { m() {} get g() {} set s(v) {} }
+		  Object.keys(C.prototype).length + "," + Object.getOwnPropertyNames(C.prototype).join(",")`,
+			"0,constructor,m,g,s"},
+		{`class C { ["m"]() {} get ["g"]() {} set ["s"](v) {} }
+		  Object.keys(C.prototype).join(",") + "|" +
+		  Object.getOwnPropertyNames(C.prototype).join(",")`,
+			"|constructor,m,g,s"},
+		{`class C { static m() {} static get g() {} }
+		  Object.keys(C).length + "," + C.hasOwnProperty("m")`, "0,true"},
+		{`var d = Object.getOwnPropertyDescriptor(class { get x() {} }.prototype, "x");
+		  [d.enumerable, d.configurable, typeof d.get, typeof d.set].join(",")`,
+			"false,true,function,undefined"},
+
+		// An object literal's are enumerable, which is what makes the flag a
+		// property of the class rather than of the instruction.
+		{`Object.keys({m() {}, get g() {}, ["c"]: 1, get ["h"]() {}}).join(",")`, "m,g,c,h"},
+
+		// A class field is enumerable even though a method is not.
+		{`class C { f = 1; ["g"] = 2 } Object.keys(new C()).join(",")`, "f,g"},
+		{`class C { static f = 1; static ["g"] = 2 } Object.keys(C).join(",")`, "f,g"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// TestClassPrototypeIsFixed covers a class's prototype property, which unlike a
+// function's cannot be replaced -- so a static member named after it fails.
+func TestClassPrototypeIsFixed(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`var d = Object.getOwnPropertyDescriptor(class {}, "prototype");
+		  [d.writable, d.enumerable, d.configurable].join(",")`, "false,false,false"},
+		{`var d = Object.getOwnPropertyDescriptor(function () {}, "prototype");
+		  [d.writable, d.enumerable, d.configurable].join(",")`, "true,false,false"},
+		{`class C {} var p = C.prototype; C.prototype = {}; C.prototype === p`, "true"},
+
+		// A computed static member reaches the key only at runtime, so this is
+		// a TypeError rather than the SyntaxError the literal spelling gets.
+		{`try { class C { static ["prototype"]() {} } } catch (e) { e.constructor.name }`,
+			"TypeError"},
+		{`try { class C { static get ["prototype"]() {} } } catch (e) { e.constructor.name }`,
+			"TypeError"},
+		{`try { class C { static ["prototype"] = 1 } } catch (e) { e.constructor.name }`,
+			"TypeError"},
+
+		// An object literal has no such property, so the same spelling is fine.
+		{`({["prototype"]: 1}).prototype`, "1"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// TestFunctionLengthAndNameOrder covers where a function's length and name sit
+// among its own keys. They are synthesized on demand, and a member named after
+// one must land where it would have been rather than at the end.
+func TestFunctionLengthAndNameOrder(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`Object.getOwnPropertyNames(function (a, b) {}).join(",")`, "length,name,prototype"},
+		{`function f() {} f.x = 1; Object.getOwnPropertyNames(f).join(",")`,
+			"length,name,prototype,x"},
+		{`class C { static method() {} static length() {} }
+		  Object.getOwnPropertyNames(C).join(",")`, "length,name,prototype,method"},
+		{`class C { static method() {} static name() {} }
+		  Object.getOwnPropertyNames(C).join(",")`, "length,name,prototype,method"},
+		{`var k = "length"
+		  class C { static method() {} static [k]() {} }
+		  Object.getOwnPropertyNames(C).join(",")`, "length,name,prototype,method"},
+		{`function f() {} Object.defineProperty(f, "length", {value: 3})
+		  Object.getOwnPropertyNames(f).join(",") + "|" + f.length`,
+			"length,name,prototype|3"},
+		{`function f() {} f.x = 1; delete f.name
+		  Object.getOwnPropertyNames(f).join(",")`, "length,prototype,x"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// TestClassConstructorRequiresNew covers calling a class constructor as a
+// function, which is a TypeError however it is reached.
+func TestClassConstructorRequiresNew(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`class C {} try { C() } catch (e) { e.constructor.name }`, "TypeError"},
+		{`class C extends Object {} try { C() } catch (e) { e.constructor.name }`, "TypeError"},
+		{`class C {} try { C.call({}) } catch (e) { e.constructor.name }`, "TypeError"},
+		{`class C {} try { [1].map(C) } catch (e) { e.constructor.name }`, "TypeError"},
+		{`class C {} try { Reflect.apply(C, null, []) } catch (e) { e.constructor.name }`,
+			"TypeError"},
+		{`class C {} try { new (C.bind(null))() instanceof C } catch (e) { e.constructor.name }`,
+			"true"},
+		{`class C {} try { C.bind(null)() } catch (e) { e.constructor.name }`, "TypeError"},
+
+		// A method is not a constructor at all, and a plain function still is
+		// callable.
+		{`var o = {m() { return 1 }}; String(o.m())`, "1"},
+		{`function f() { return 1 } String(f())`, "1"},
+		{`class C { static m() { return 1 } } String(C.m())`, "1"},
+		{`class C { constructor() { this.x = 1 } } String(new C().x)`, "1"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// TestPrivateInOptionalChain covers a private member reached through `?.`,
+// which the grammar allows and which is not a property lookup.
+func TestPrivateInOptionalChain(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`class C { #f = "T"; m(o) { return o?.c.#f } }
+		  var c = new C(); c.m({c: c}) + "," + c.m(null)`, "T,undefined"},
+		{`class C { #f = "T"; m(o) { return o?.#f } }
+		  var c = new C(); c.m(c) + "," + c.m(null)`, "T,undefined"},
+		{`class C { #f = 1; m(o) { return o?.c?.#f } }
+		  var c = new C(); c.m({c: c}) + "," + c.m({})`, "1,undefined"},
+		// A private method call keeps its receiver.
+		{`class C { v = 7; #m() { return this.v }; go(o) { return o?.#m() } }
+		  var c = new C(); c.go(c) + "," + c.go(null)`, "7,undefined"},
+		{`class C { #m(a, b) { return a + b }; go(o) { return o?.#m(1, 2) } }
+		  String(new C().go(new C()))`, "3"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// TestPrivateAddedOnlyOnce covers giving an object the same private member
+// twice, which a constructor returning an object it has already built does.
+func TestPrivateAddedOnlyOnce(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`class B { constructor(o) { return o } }
+		  class C extends B { #f = 1 }
+		  var o = {}; new C(o)
+		  try { new C(o); "no throw" } catch (e) { e.constructor.name }`, "TypeError"},
+		{`class B { constructor(o) { return o } }
+		  class C extends B { #m() {} }
+		  var o = {}; new C(o)
+		  try { new C(o); "no throw" } catch (e) { e.constructor.name }`, "TypeError"},
+		{`class B { constructor(o) { return o } }
+		  class C extends B { get #x() { return 1 } set #x(v) {} }
+		  var o = {}; new C(o)
+		  try { new C(o); "no throw" } catch (e) { e.constructor.name }`, "TypeError"},
+
+		// The two halves of an accessor are one member, so installing both on
+		// a fresh instance is not a repeat.
+		{`class C { get #x() { return this.v } set #x(v) { this.v = v }
+		    m() { this.#x = 2; return this.#x } }
+		  String(new C().m())`, "2"},
+		{`class C { #f = 1; #m() { return 2 }; m() { return this.#f + this.#m() } }
+		  String(new C().m())`, "3"},
+		// A different object gets its own copy.
+		{`class B { constructor(o) { return o } }
+		  class C extends B { #f = 1; static read(o) { return o.#f } }
+		  String(C.read(new C({})) + "," + C.read(new C({})))`, "1,1"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// TestClassFieldInitIsItsOwnFunction covers what a field initializer can see.
+// It runs in a function of its own rather than in the constructor, so
+// `arguments` has no meaning there and new.target is undefined.
+func TestClassFieldInitIsItsOwnFunction(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`class C { x = new.target } String(new C().x)`, "undefined"},
+		{`class C { x = (() => new.target)() } String(new C().x)`, "undefined"},
+		{`class C { static x = new.target } String(C.x)`, "undefined"},
+		// A function nested in the initializer has its own, so the enclosing
+		// restriction stops there.
+		{`class C { x = function () { return typeof arguments }() } new C().x`, "object"},
+		{`class C { x = function () { return new.target }() } String(new C().x)`,
+			"undefined"},
+
+		// The eval sees the same rules, and the SyntaxError is early enough
+		// that none of the evaluated code runs.
+		{`var e = false
+		  class C { x = eval("e = true; new.target;") }
+		  String(new C().x) + "," + e`, "undefined,true"},
+		{`var e = false
+		  class C { x = eval("e = true; arguments;") }
+		  try { new C(); "no throw" } catch (err) { err.constructor.name + "," + e }`,
+			"SyntaxError,false"},
+		{`var e = false
+		  class C { x = (() => eval("e = true; arguments"))() }
+		  try { new C(); "no throw" } catch (err) { err.constructor.name + "," + e }`,
+			"SyntaxError,false"},
+		// A function inside the eval has its own arguments object again.
+		{`class C { x = eval("(function () { return typeof arguments })()") }
+		  new C().x`, "object"},
+
+		// Naming it directly is an early error.
+		{`try { eval("class C { x = arguments }"); "no throw" }
+		  catch (err) { err.constructor.name }`, "SyntaxError"},
+		{`try { eval("class C { static x = arguments }"); "no throw" }
+		  catch (err) { err.constructor.name }`, "SyntaxError"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// TestInstanceElementsRunWhenThisAppears covers when an instance is given its
+// private methods and fields. A base class does it before the constructor body;
+// a derived one does it inside super(), wherever that call is written and only
+// for the call that binds `this`.
+func TestInstanceElementsRunWhenThisAppears(t *testing.T) {
+	cases := []struct{ src, want string }{
+		// A base class has its fields before the body runs.
+		{`class C { f = 1; constructor() { this.g = this.f + 1 } } String(new C().g)`, "2"},
+		// A derived class has them only after super(), which need not be the
+		// first statement.
+		{`var order = []
+		  class B { constructor() { order.push("base") } }
+		  class C extends B {
+		    f = order.push("field")
+		    constructor() { order.push("pre"); super(); order.push("post") }
+		  }
+		  new C(); order.join(",")`, "pre,base,field,post"},
+		// Nor need it be written in the constructor itself: an arrow shares the
+		// binding super() initializes.
+		{`class B {}
+		  class C extends B { f = 7; constructor() { (() => super())() } }
+		  String(new C().f)`, "7"},
+		{`class B {}
+		  class C extends B { f = 7; constructor() { eval("super()") } }
+		  String(new C().f)`, "7"},
+		// A constructor may reach super() by any route it likes.
+		{`class B {}
+		  class C extends B {
+		    f = 1
+		    constructor(x) { if (x) { super() } else { super() } }
+		  }
+		  String(new C(true).f) + "," + String(new C(false).f)`, "1,1"},
+
+		// The second super() runs the parent and then finds `this` bound, so
+		// the fields are not initialized twice and the instance does not move.
+		{`var base = 0, field = 0
+		  globalThis.err = ""
+		  class B { constructor() { ++base } }
+		  class C extends B {
+		    f = ++field
+		    constructor() {
+		      super()
+		      var first = this
+		      try { super() } catch (e) { err = e.constructor.name }
+		      if (this !== first) err += ",moved"
+		    }
+		  }
+		  var c = new C();
+		  [err, base, field, c.f].join(",")`, "ReferenceError,2,1,1"},
+		// The parent's arguments are evaluated before that refusal, since the
+		// refusal comes from the construction and not from before it.
+		{`var f = 0
+		  class B {}
+		  class C extends B {
+		    constructor() { super(); try { super((f++, 1)) } catch (e) {} }
+		  }
+		  new C(); String(f)`, "1"},
+		// A super() nested inside another's arguments is a super() like any
+		// other, so once `this` is bound it refuses where it stands and what
+		// follows it in the argument list is never evaluated.
+		{`var f = 0
+		  class B {}
+		  class C extends B {
+		    constructor() { super(); try { super(super(), (f++, 1)) } catch (e) {} }
+		  }
+		  new C(); String(f)`, "0"},
+
+		// A derived constructor that returns an object of its own never binds
+		// `this`, so the fields are never initialized.
+		{`class B {}
+		  class C extends B { f = 1; constructor() { super(); return {} } }
+		  String(new C().f)`, "undefined"},
+
+		// Private methods are there before the first field runs, and the field
+		// of a base class is there before a derived constructor continues.
+		{`class C { #m() { return 5 } f = this.#m() } String(new C().f)`, "5"},
+		{`class B { bf = 1 }
+		  class C extends B { cf = this.bf + 1 }
+		  String(new C().cf)`, "2"},
+		// The initializer's home object is the prototype, so super.x in a field
+		// reads from the parent's.
+		{`class B { get x() { return 3 } }
+		  class C extends B { f = super.x }
+		  String(new C().f)`, "3"},
+		// A parent that builds its own object hands it over, and the fields go
+		// on what the derived class ends up with.
+		{`class C extends Array { f = 1 }
+		  var c = new C(); [c.f, Array.isArray(c), c instanceof C].join(",")`,
+			"1,true,true"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// TestSuperReferenceOrder covers when a super reference settles what it reads
+// from. The base is resolved before the key is computed, so a key that changes
+// the home object's prototype does not move the reference.
+func TestSuperReferenceOrder(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`var proto = {p: "ok"}, proto2 = {p: "bad"}
+		  var obj = {__proto__: proto, m() { return super[key] }}
+		  var key = {toString() { Object.setPrototypeOf(obj, proto2); return "p" }}
+		  obj.m()`, "ok"},
+		{`var calls = 0
+		  var obj = {__proto__: {set p(v) { calls++ }}, m() { super[key] = 1 }}
+		  var key = {toString() { Object.setPrototypeOf(obj, {}); return "p" }}
+		  obj.m(); String(calls)`, "1"},
+
+		// The ordinary readings are unchanged.
+		{`var o = {__proto__: {p: 1}, m() { return super["p"] }}; String(o.m())`, "1"},
+		{`var o = {__proto__: {p: 1}, m() { super["p"] += 5; return this.p }}
+		  String(o.m())`, "6"},
+		{`var o = {__proto__: {p: 1}, m() { return super["p"]++ }}; String(o.m())`, "1"},
+		{`var o = {__proto__: {p: 1}, m() { return ++super["p"] }}; String(o.m())`, "2"},
+		{`var o = {__proto__: {p: 1}, m() { [super["p"]] = [9]; return this.p }}
+		  String(o.m())`, "9"},
+		{`class B { constructor() { this.v = 1 } }
+		  class C extends B { constructor() { super(); super["w"] = 2 } }
+		  String(new C().w)`, "2"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// TestSuperConstructorIsRead covers what super() calls, which is the running
+// class's prototype now rather than what the class was written to extend.
+func TestSuperConstructorIsRead(t *testing.T) {
+	cases := []struct{ src, want string }{
+		// The value of a super call is the object it bound.
+		{`var custom = {}
+		  function P() { return custom }
+		  var value
+		  class C extends P { constructor() { value = super() } }
+		  new C(); String(value === custom)`, "true"},
+		{`class B {}
+		  var same
+		  class C extends B { constructor() { same = super() === this } }
+		  new C(); String(same)`, "true"},
+
+		// setPrototypeOf on the class changes what super() calls.
+		{`class B { constructor() { this.v = 1 } }
+		  class D { constructor() { this.v = 2 } }
+		  class C extends B { constructor() { super() } }
+		  Object.setPrototypeOf(C, D)
+		  String(new C().v)`, "2"},
+		// And a prototype that cannot be constructed is a TypeError the
+		// constructor can catch, after its arguments have been evaluated.
+		{`var evaluated = false, caught
+		  class C extends Object {
+		    constructor() { try { super(evaluated = true) } catch (e) { caught = e } }
+		  }
+		  Object.setPrototypeOf(C, parseInt)
+		  try { new C() } catch (e) {}
+		  (caught && caught.constructor.name) + "," + evaluated`, "TypeError,true"},
+
+		// An arrow inside a derived constructor calls the same super().
+		{`class B { constructor() { this.v = 3 } }
+		  class C extends B { constructor() { (() => super())() } }
+		  String(new C().v)`, "3"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// A class written with a name binds that name inside its own body: an
+// immutable binding, in scope from the heritage clause onwards, that shadows
+// whatever the name means outside.
+func TestClassInnerNameBinding(t *testing.T) {
+	cases := []struct{ name, src, want string }{
+		{"method assignment", `class C { m() { C = 42 } }
+		  try { new C().m(); "no error" } catch (e) { e.constructor.name }`, "TypeError"},
+		{"constructor assignment", `try { new (class C { constructor() { C = 42 } }); "no error" }
+		  catch (e) { e.constructor.name }`, "TypeError"},
+		{"getter assignment", `class C { get x() { C = 42 } }
+		  try { new C().x; "no error" } catch (e) { e.constructor.name }`, "TypeError"},
+		{"static assignment", `class C { static m() { C = 42 } }
+		  try { C.m(); "no error" } catch (e) { e.constructor.name }`, "TypeError"},
+		// The binding is the class, whatever the outer name later becomes.
+		{"names the class", `var Cv = class C { m() { return C === Cv } }
+		  String(new Cv().m())`, "true"},
+		{"in the constructor", `var Cv = class C { constructor() { this.ok = C === Cv } }
+		  String(new Cv().ok)`, "true"},
+		{"outer rebound", `class C { m() { return C } }
+		  var saved = C; C = 1; String(new saved().m() === saved)`, "true"},
+		// It is in its dead zone until the class exists, which the heritage
+		// clause is inside of.
+		{"heritage dead zone", `try { var x = (class x extends x {}); "no error" }
+		  catch (e) { e.constructor.name }`, "ReferenceError"},
+		// A name the class only inferred binds nothing, so an assignment to it
+		// is an ordinary one.
+		{"inferred name", `var Cv = class { m() { Cv = 1; return "assigned" } }
+		  new Cv().m() + "," + Cv`, "assigned,1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { checkEval(t, tc.src, tc.want) })
+	}
+}
+
+// A derived constructor may return an object or nothing. Returning anything
+// else is a TypeError raised by the construction, after the body has finished
+// -- so a try inside the constructor cannot catch it, though a finally still
+// runs on the way out.
+func TestDerivedConstructorReturnValue(t *testing.T) {
+	cases := []struct{ name, src, want string }{
+		{"plain", `class C extends class {} { constructor() { super(); return 0 } }
+		  try { new C(); "no error" } catch (e) { e.constructor.name }`, "TypeError"},
+		{"not catchable", `class C extends class {} {
+		    constructor() { super(); try { return 0 } catch (e) { return } } }
+		  try { new C(); "no error" } catch (e) { e.constructor.name }`, "TypeError"},
+		{"finally still runs", `var ran = 0
+		  class C extends class {} {
+		    constructor() { super(); try { return 0 } finally { ran = 1 } } }
+		  var caught = ""
+		  try { new C() } catch (e) { caught = e.constructor.name }
+		  caught + "," + ran`, "TypeError,1"},
+		{"before super", `class C extends class {} { constructor() { return 0 } }
+		  try { new C(); "no error" } catch (e) { e.constructor.name }`, "TypeError"},
+		// Undefined means the object super() built, and an object of its own
+		// replaces it.
+		{"undefined", `class C extends class {} { constructor() { super(); return } }
+		  String(new C() instanceof C)`, "true"},
+		{"implicit", `class C extends class {} { constructor() { super() } }
+		  String(new C() instanceof C)`, "true"},
+		{"an object", `class C extends class {} { constructor() { super(); return {tag: 9} } }
+		  String(new C().tag)`, "9"},
+		// A base constructor ignores whatever it returns.
+		{"base ignores it", `class B { constructor() { return 0 } }
+		  String(new B() instanceof B)`, "true"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { checkEval(t, tc.src, tc.want) })
+	}
+}
+
+// A class body's accessor keywords are contextual: what follows one has to be
+// the name of the accessor, and a generator's star is not. And a heritage
+// clause is a left-hand-side expression, which an arrow function is not.
+func TestClassMemberGrammarEdges(t *testing.T) {
+	cases := []struct{ name, src, want string }{
+		{"get then a generator", `class A { get
+		  *a() {} }
+		  String(new A().hasOwnProperty("get")) + "," + A.prototype.hasOwnProperty("a")`,
+			"true,true"},
+		{"static get then a generator", `class B { static get
+		  *a() {} }
+		  String(B.hasOwnProperty("get")) + "," + B.prototype.hasOwnProperty("a")`,
+			"true,true"},
+		{"set then a generator", `class D { set
+		  *a() {} }
+		  String(new D().hasOwnProperty("set"))`, "true"},
+		// An accessor written as one is still an accessor.
+		{"an actual getter", `class C { get x() { return 1 } }; String(new C().x)`, "1"},
+		{"an actual setter", `class C { set x(v) { this.v = v } }
+		  var c = new C(); c.x = 2; String(c.v)`, "2"},
+		{"a field named get", `class C { get = 1 }; String(new C().get)`, "1"},
+		// The heritage takes no arrow, however it is written.
+		{"arrow heritage", `try { eval("class C extends () => {} {}"); "no error" }
+		  catch (e) { e.constructor.name }`, "SyntaxError"},
+		{"async arrow heritage", `try { eval("class C extends async () => {} {}"); "no error" }
+		  catch (e) { e.constructor.name }`, "SyntaxError"},
+		{"parenthesized arrow", `try { eval("class C extends (() => {}) {}"); "no error" }
+		  catch (e) { e.constructor.name }`, "TypeError"},
+		{"an arrow inside a heritage", `try { eval("class C extends [() => {}] {}"); "no error" }
+		  catch (e) { e.constructor.name }`, "TypeError"},
+		{"an ordinary heritage", `class C extends Object {}; String(new C() instanceof Object)`,
+			"true"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { checkEval(t, tc.src, tc.want) })
+	}
+}
+
+// The static elements run once the class object exists, in the order they were
+// written: a static field and a static block are the same kind of thing there,
+// and a block between two fields runs between them.
+func TestStaticElementOrder(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`var seq = []
+		  class C {
+		    static x = seq.push("first field")
+		    static { seq.push("first block") }
+		    static y = seq.push("second field")
+		    static { seq.push("second block") }
+		  }
+		  seq.join(",")`, "first field,first block,second field,second block"},
+		// Each sees what the ones before it left behind.
+		{`class C { static a = 1; static { this.b = this.a + 1 } static c = this.b + 1 }
+		  [C.a, C.b, C.c].join(",")`, "1,2,3"},
+		// A throw stops the rest of the class definition, the element it came
+		// from included.
+		{`var same = false, field = false, block = false, caught
+		  var thrown = new Error("stop")
+		  try {
+		    class C {
+		      static { throw thrown; same = true }
+		      static x = field = true
+		      static { block = true }
+		    }
+		  } catch (e) { caught = e }
+		  [caught === thrown, same, field, block].join(",")`, "true,false,false,false"},
+		// `this` in a static block is the class, and super.x reads from the
+		// parent class rather than from its prototype.
+		{`class B { static m() { return "B.m" } }
+		  class C extends B { static { this.r = super.m() } }
+		  C.r`, "B.m"},
+		// A static block is not a function body, so nothing returns from it.
+		{`try { eval("class C { static { return } }"); "no throw" }
+		  catch (e) { e.constructor.name }`, "SyntaxError"},
+		{`try { eval("class C { static { function f() { return 1 } this.r = f() } }; C.r") }
+		  catch (e) { e.constructor.name }`, "1"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}
+
+// A private member is a member like any other: an object closed to new
+// properties takes none, and a private method is not a place to store anything.
+func TestPrivateMembersAreMembers(t *testing.T) {
+	cases := []struct{ src, want string }{
+		// A base constructor that seals `this` refuses the subclass's field.
+		{`class B { constructor(seal) { if (seal) Object.preventExtensions(this) } }
+		  class C extends B {
+		    #v
+		    constructor(seal) { super(seal); this.#v = 42 }
+		    val() { return this.#v }
+		  }
+		  var out = [new C(false).val()]
+		  try { new C(true) } catch (e) { out.push(e.constructor.name) }
+		  out.join(",")`, "42,TypeError"},
+		{`class B { constructor() { Object.preventExtensions(this) } }
+		  class C extends B { #m() {} }
+		  try { new C(); "no throw" } catch (e) { e.constructor.name }`, "TypeError"},
+		{`class B { constructor() { return Object.preventExtensions({}) } }
+		  class C extends B { #x = 1 }
+		  try { new C(); "no throw" } catch (e) { e.constructor.name }`, "TypeError"},
+
+		// A method cannot be assigned to, on an instance or on the class.
+		{`class C { static #m() {} static assign() { this.#m = 0 } }
+		  try { C.assign(); "no throw" } catch (e) { e.constructor.name }`, "TypeError"},
+		{`class C {
+		    #m() { return 1 }
+		    assign() { this.#m = 0 }
+		    call() { return this.#m() }
+		  }
+		  var c = new C()
+		  var out = [c.call()]
+		  try { c.assign() } catch (e) { out.push(e.constructor.name) }
+		  out.join(",")`, "1,TypeError"},
+
+		// A field is writable, and an accessor writes through its setter.
+		{`class C { #x = 1; get() { return this.#x } set(v) { this.#x = v; return this.#x } }
+		  var c = new C(); [c.get(), c.set(5)].join(",")`, "1,5"},
+		{`class C { static #x = 1; static set(v) { C.#x = v; return C.#x } }
+		  String(C.set(5))`, "5"},
+		{`class C {
+		    get #a() { return 1 }
+		    set #a(v) { this.v = v }
+		    go() { this.#a = 7; return [this.#a, this.v].join("/") }
+		  }
+		  new C().go()`, "1/7"},
+	}
+	for _, tc := range cases {
+		checkEval(t, tc.src, tc.want)
+	}
+}

@@ -1,0 +1,566 @@
+package quickjs_test
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+
+	quickjs "github.com/go-quickjs/go-quickjs"
+)
+
+// A host extends the runtime by putting things in it: a global, or a module a
+// script has to import. These cover what a host can build with.
+
+func TestSetModule(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	if err := rt.SetModule("greet", map[string]any{
+		"hello":   func(name string) string { return "hello " + name },
+		"answer":  42,
+		"default": func() string { return "the default" },
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct{ src, want string }{
+		{`import {hello} from "greet"; export const out = hello("world")`, "hello world"},
+		{`import {answer} from "greet"; export const out = answer + ""`, "42"},
+		{`import d from "greet"; export const out = d()`, "the default"},
+		{`import d, {hello} from "greet"; export const out = d() + "/" + hello("x")`,
+			"the default/hello x"},
+		{`import * as m from "greet"; export const out = Object.keys(m).join()`,
+			"answer,default,hello"},
+		// The import is live in the sense that matters: the same module object
+		// answers every importer.
+		{`import * as a from "greet"
+		  import * as b from "greet"
+		  export const out = (a === b) + ""`, "true"},
+		// A namespace is a module namespace, whatever else it looks like.
+		{`import * as m from "greet"
+		  export const out = Object.prototype.toString.call(m)`, "[object Module]"},
+	}
+	for _, tc := range cases {
+		ns, err := rt.EvalModule("main.js", tc.src)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.src, err)
+		}
+		out, err := ns.Get("out")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := out.String(); got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.src, got, tc.want)
+		}
+		// Each case is its own entry point, so the module cache must not make
+		// the second one see the first.
+		rt.Close()
+		rt = quickjs.New()
+		if err := rt.SetModule("greet", map[string]any{
+			"hello":   func(name string) string { return "hello " + name },
+			"answer":  42,
+			"default": func() string { return "the default" },
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// A host module is reached by its own name even when a loader is installed,
+// and a script importing something else still goes to the loader.
+func TestSetModuleBeatsTheLoader(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	rt.SetModuleLoader(func(specifier, referrer string) (string, string, error) {
+		if specifier == "fs" {
+			return `export const readFile = () => "from the loader"`, "fs.js", nil
+		}
+		return `export const where = "loaded"`, specifier, nil
+	})
+	if err := rt.SetModule("fs", map[string]any{
+		"readFile": func() string { return "from the host" },
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ns, err := rt.EvalModule("main.js", `
+		import {readFile} from "fs"
+		import {where} from "./other.js"
+		export const out = readFile() + "/" + where
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _ := ns.Get("out")
+	if got, want := out.String(), "from the host/loaded"; got != want {
+		t.Errorf("out = %q, want %q", got, want)
+	}
+}
+
+// A runtime with no loader at all can still import what the host registered,
+// and still refuses everything else.
+func TestSetModuleWithoutALoader(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	if err := rt.SetModule("host", map[string]any{"n": 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.EvalModule("main.js", `import {n} from "host"; if (n !== 1) throw 1`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := rt.EvalModule("other.js", `import "./elsewhere.js"`)
+	if err == nil {
+		t.Fatal("an import with no loader should have failed")
+	}
+	if !strings.Contains(err.Error(), "module loader") {
+		t.Errorf("error = %v, want it to mention the missing loader", err)
+	}
+}
+
+// A dynamic import reaches a host module too, since that is how a script asks
+// for one it may not have.
+func TestSetModuleThroughDynamicImport(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	if err := rt.SetModule("host", map[string]any{"n": 7}); err != nil {
+		t.Fatal(err)
+	}
+	v, err := rt.Eval(`
+		var out = "pending"
+		import("host").then(m => { out = m.n + "" })
+		out
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The import settles in a job, which Eval drains before returning, so the
+	// value is there by the time the next evaluation reads it.
+	_ = v
+	got, err := rt.Eval(`out`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.String() != "7" {
+		t.Errorf("out = %q, want 7", got.String())
+	}
+}
+
+// A promise the host settles is an ordinary promise: script may await it, and
+// its reactions run when the queue is drained rather than at once.
+func TestHostPromise(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	var pending []*quickjs.Promise
+	rt.Set("later", func() quickjs.Value {
+		p := rt.NewPromise()
+		pending = append(pending, p)
+		return p.Value()
+	})
+
+	if _, err := rt.Eval(`
+		var log = []
+		var p = later()
+		p.then(v => log.push("got " + v))
+		log.push("after")
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := rt.Eval(`log.join()`); v.String() != "after" {
+		t.Errorf("before settling, log = %q", v.String())
+	}
+
+	if err := pending[0].Resolve("it"); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.RunJobs(); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := rt.Eval(`log.join()`); v.String() != "after,got it" {
+		t.Errorf("after settling, log = %q, want %q", v.String(), "after,got it")
+	}
+}
+
+func TestHostPromiseRejection(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	var p *quickjs.Promise
+	rt.Set("later", func() quickjs.Value {
+		p = rt.NewPromise()
+		return p.Value()
+	})
+	if _, err := rt.Eval(`
+		var out = "pending"
+		later().catch(e => { out = e.message })
+	`); err != nil {
+		t.Fatal(err)
+	}
+	p.RejectError(errors.New("it broke"))
+	if err := rt.RunJobs(); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := rt.Eval(`out`); v.String() != "it broke" {
+		t.Errorf("out = %q, want %q", v.String(), "it broke")
+	}
+}
+
+// RejectError rejects with what returning the error would throw: the error a
+// Throw*Error method made, the value a script threw, or an Error carrying a Go
+// error's message that unwraps to it -- a cancellation included, which rejects
+// and stops nothing.
+func TestHostPromiseRejectErrorKinds(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	var p *quickjs.Promise
+	rt.Set("later", func() quickjs.Value {
+		p = rt.NewPromise()
+		return p.Value()
+	})
+	reject := func(err error) string {
+		t.Helper()
+		if _, err := rt.Eval(`
+			var out = "pending", reason
+			later().catch(e => {
+				reason = e
+				out = e instanceof Error ? [e.constructor.name, e.message].join("|") : "code " + e.code
+			})
+		`); err != nil {
+			t.Fatal(err)
+		}
+		p.RejectError(err)
+		if err := rt.RunJobs(); err != nil {
+			t.Fatal(err)
+		}
+		v, err := rt.Eval(`out`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v.String()
+	}
+
+	if got, want := reject(rt.ThrowTypeError("bad port %d", 70000)), "TypeError|bad port 70000"; got != want {
+		t.Errorf("a TypeError: %q, want %q", got, want)
+	}
+	_, thrown := rt.Eval(`throw { code: 42 }`)
+	if got, want := reject(thrown), "code 42"; got != want {
+		t.Errorf("a script's exception: %q, want %q", got, want)
+	}
+	if got, want := reject(context.Canceled), "Error|context canceled"; got != want {
+		t.Errorf("a cancellation: %q, want %q", got, want)
+	}
+	// The reason unwraps to the Go error it was made from, thrown on.
+	if _, err := rt.Eval(`throw reason`); !errors.Is(err, context.Canceled) {
+		t.Errorf("the reason thrown on: %v, want it to unwrap to context.Canceled", err)
+	}
+	if v, err := rt.Eval(`1 + 1`); err != nil || v.String() != "2" {
+		t.Errorf("after a cancellation: %v, %v; the runtime should run on", v, err)
+	}
+}
+
+// An async function may await what the host settles, which is the shape every
+// asynchronous host API takes.
+func TestHostPromiseAwaited(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	var p *quickjs.Promise
+	rt.Set("later", func() quickjs.Value {
+		p = rt.NewPromise()
+		return p.Value()
+	})
+	if _, err := rt.Eval(`
+		var out = "pending"
+		;(async function () { out = "got " + await later() })()
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Resolve(42); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.RunJobs(); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := rt.Eval(`out`); v.String() != "got 42" {
+		t.Errorf("out = %q, want %q", v.String(), "got 42")
+	}
+}
+
+// The pieces a host assembles a value out of.
+func TestHostValueConstruction(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	o := rt.NewObject()
+	if err := o.Set("n", 1); err != nil {
+		t.Fatal(err)
+	}
+	arr, err := rt.NewArray(1, "two", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := o.Set("items", arr); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Set("host", o); err != nil {
+		t.Fatal(err)
+	}
+
+	v, err := rt.Eval(`[typeof host, host.n, Array.isArray(host.items), host.items.join("|")].join()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := v.String(), "object,1,true,1|two|true"; got != want {
+		t.Errorf("= %q, want %q", got, want)
+	}
+}
+
+// A host function that has to throw something other than a plain Error can say
+// which, and a script sees an ordinary exception either way.
+func TestHostThrow(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	rt.Set("refuse", func() error {
+		return rt.Throw(rt.NewError("TypeError", "not that"))
+	})
+	rt.Set("fail", func() error { return errors.New("plain") })
+
+	v, err := rt.Eval(`
+		var out = []
+		try { refuse() } catch (e) { out.push(e.constructor.name + ":" + e.message) }
+		try { fail() } catch (e) { out.push(e.constructor.name + ":" + e.message) }
+		out.join("|")
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := v.String(), "TypeError:not that|Error:plain"; got != want {
+		t.Errorf("= %q, want %q", got, want)
+	}
+}
+
+// Each Throw*Error method throws a new error of its kind, with its message
+// formatted, which a script catches as the kind it is, with a stack that
+// shows the script's frame that made the call.
+func TestHostThrowKinds(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	throwers := map[string]func(format string, args ...any) error{
+		"Error":          rt.ThrowError,
+		"TypeError":      rt.ThrowTypeError,
+		"RangeError":     rt.ThrowRangeError,
+		"ReferenceError": rt.ThrowReferenceError,
+		"SyntaxError":    rt.ThrowSyntaxError,
+		"EvalError":      rt.ThrowEvalError,
+		"URIError":       rt.ThrowURIError,
+	}
+	for kind, throw := range throwers {
+		rt.Set("fail", func(n int) error { return throw("%s number %d, at 100%%", kind, n) })
+		v, err := rt.Eval(`
+			function caller() { fail(7) }
+			try { caller() } catch (e) {
+				[e.constructor.name, e instanceof ` + kind + `, e instanceof Error, e.message,
+				 /at caller /.test(e.stack)].join("|")
+			}
+		`)
+		if err != nil {
+			t.Fatalf("%s: %v", kind, err)
+		}
+		if got, want := v.String(), kind+"|true|true|"+kind+" number 7, at 100%|true"; got != want {
+			t.Errorf("%s: = %q, want %q", kind, got, want)
+		}
+	}
+
+	// Uncaught, it reaches the Go caller as the error it is.
+	rt.Set("refuse", func() error { return rt.ThrowRangeError("out of range: %d", 300) })
+	_, err := rt.Eval(`refuse()`)
+	var jsErr *quickjs.Error
+	if !errors.As(err, &jsErr) {
+		t.Fatalf("uncaught: %v, want a *quickjs.Error", err)
+	}
+	if got, want := jsErr.Error(), "RangeError: out of range: 300"; !strings.Contains(got, want) {
+		t.Errorf("uncaught: %q, want it to contain %q", got, want)
+	}
+
+	closed := quickjs.New()
+	closed.Close()
+	if err := closed.ThrowTypeError("late"); !errors.Is(err, quickjs.ErrClosed) {
+		t.Errorf("on a closed runtime: %v, want ErrClosed", err)
+	}
+}
+
+// A Go function may hand back a promise directly, which is the shape of every
+// host API that finishes later.
+func TestHostFunctionReturningPromise(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	var pending *quickjs.Promise
+	rt.Set("readLater", func(name string) *quickjs.Promise {
+		p := rt.NewPromise()
+		pending = p
+		return p
+	})
+	if _, err := rt.Eval(`
+		var out = "pending"
+		;(async () => { out = await readLater("x") })()
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if err := pending.Resolve("contents"); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.RunJobs(); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := rt.Eval(`out`); v.String() != "contents" {
+		t.Errorf("out = %q, want %q", v.String(), "contents")
+	}
+}
+
+// A module may export values the host built rather than Go functions.
+func TestSetModuleValues(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	o := rt.NewObject()
+	if err := o.Set("version", "1.2.3"); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.SetModuleValues("host", map[string]quickjs.Value{
+		"info":    o,
+		"default": o,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ns, err := rt.EvalModule("main.js", `
+		import info, {info as named} from "host"
+		export const out = [info.version, info === named].join()
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _ := ns.Get("out")
+	if got, want := out.String(), "1.2.3,true"; got != want {
+		t.Errorf("out = %q, want %q", got, want)
+	}
+}
+
+// A promise rejected with nothing waiting for it is reported at the end of the
+// turn -- and one that something takes later in the same turn is not.
+func TestUnhandledRejection(t *testing.T) {
+	cases := []struct{ src, want string }{
+		{`Promise.reject(new Error("nobody wants me"))`, "nobody wants me"},
+		{`new Promise((_, reject) => reject(new Error("from an executor")))`, "from an executor"},
+		{`(async () => { throw new Error("from an async function") })()`, "from an async function"},
+		// Taken in the same turn, so nothing to report.
+		{`const p = Promise.reject(new Error("taken")); p.catch(() => {})`, ""},
+		{`Promise.reject(new Error("caught")).catch(() => {})`, ""},
+		// A rejection that a chain passes along is reported once, by its end.
+		{`Promise.reject(new Error("through a chain")).then(() => {})`, "through a chain"},
+		{`Promise.resolve().then(() => { throw new Error("thrown in a reaction") })`,
+			"thrown in a reaction"},
+	}
+	for _, tc := range cases {
+		rt := quickjs.New()
+		var seen []string
+		rt.OnUnhandledRejection(func(reason quickjs.Value) {
+			msg, err := reason.Get("message")
+			if err == nil {
+				seen = append(seen, msg.String())
+			} else {
+				seen = append(seen, reason.String())
+			}
+		})
+		if _, err := rt.Eval(tc.src); err != nil {
+			t.Errorf("%s: %v", tc.src, err)
+			rt.Close()
+			continue
+		}
+		got := strings.Join(seen, ",")
+		if got != tc.want {
+			t.Errorf("%s reported %q, want %q", tc.src, got, tc.want)
+		}
+		rt.Close()
+	}
+}
+
+// A handler attached in a later turn is too late, and the rejection has
+// already been reported -- once.
+func TestUnhandledRejectionIsReportedOnce(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+	n := 0
+	rt.OnUnhandledRejection(func(quickjs.Value) { n++ })
+	if _, err := rt.Eval(`globalThis.p = Promise.reject(new Error("late"))`); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("reported %d times, want 1", n)
+	}
+	if _, err := rt.Eval(`p.catch(() => {})`); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.RunJobs(); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("reported %d times after a late handler, want 1", n)
+	}
+}
+
+// What a module is told about itself is the host's to decide, and it is told
+// once, the first time it asks.
+func TestImportMetaFromTheHost(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+
+	asked := 0
+	rt.OnImportMeta(func(specifier string, meta quickjs.Value) {
+		asked++
+		meta.Set("url", "https://example.com/"+specifier)
+		meta.Set("count", asked)
+	})
+	ns, err := rt.EvalModule("main.js", `
+		export const url = import.meta.url
+		export const same = import.meta === import.meta
+		export const count = import.meta.count
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	url, _ := ns.Get("url")
+	same, _ := ns.Get("same")
+	count, _ := ns.Get("count")
+	if got, want := url.String(), "https://example.com/main.js"; got != want {
+		t.Errorf("url = %q, want %q", got, want)
+	}
+	if !same.Bool() {
+		t.Error("import.meta gave two different objects")
+	}
+	if count.Int() != 1 || asked != 1 {
+		t.Errorf("filled in %d times, want 1", asked)
+	}
+}
+
+// Without a host to fill it in, import.meta is an empty object rather than an
+// error: the specification puts nothing there.
+func TestImportMetaIsEmptyWithoutAHost(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+	ns, err := rt.EvalModule("main.js", `export const keys = Object.keys(import.meta).length`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys, _ := ns.Get("keys")
+	if keys.Int() != 0 {
+		t.Errorf("import.meta had %d keys, want none", keys.Int())
+	}
+}

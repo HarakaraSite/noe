@@ -9,7 +9,7 @@ const runJSTool = Object.freeze({
   type: "function",
   function: {
     name: "run_js",
-    description: "Execute an ES module with top-level await in a fresh owned JavaScript runtime. Each call has a new global scope and module cache. Relative imports from the virtual entry resolve from the configured working directory; file-backed modules resolve relative imports from their referrer. The result contains stdout, stderr, exitCode, and reason. Each output stream retains its first and last 32 KiB; truncated results report omitted bytes.",
+    description: "Execute a normal ES module in a fresh runtime. Import every API explicitly. Return structured data with export default; use export default await for asynchronous results. The result contains data when returned, stdout, stderr, exitCode, reason, phase, and structured diagnostics on failure. Large results include resultRef; read_tool_result from noe:agent reads the original JSON in the same active task. Relative imports use the configured working directory, or the importing file for file-backed modules. Consult noe:docs describe for exports and docs for details; noe:runtime check inspects code without evaluating module bodies.",
     parameters: {
       type: "object",
       properties: {
@@ -101,6 +101,10 @@ function requireRunnerResult(value) {
       !Number.isInteger(value.exitCode) || !["completed", "failed", "timeout", "cancelled"].includes(value.reason)) {
     throw new Error("runner returned an invalid tool result");
   }
+  if (value.phase !== undefined && typeof value.phase !== "string") throw new Error("runner returned invalid phase");
+  if (value.diagnostics !== undefined && (!Array.isArray(value.diagnostics) || value.diagnostics.some(item => !isRecord(item) || typeof item.code !== "string" || typeof item.message !== "string"))) {
+    throw new Error("runner returned invalid diagnostics");
+  }
   if (value.images !== undefined && value.images !== null) validateImageMetadata(value.images);
   return value;
 }
@@ -153,6 +157,26 @@ function parsedToolArguments(call) {
   try { return JSON.parse(call.function.arguments); } catch (_) { return null; }
 }
 
+// Hook snapshots are JSON copies, so equal values need not share identity.
+// Compare iteratively to avoid adding a recursion limit to valid JSON data.
+function jsonValuesEqual(left, right) {
+  if (left === right) return true;
+  const pending = [left, right];
+  while (pending.length) {
+    const b = pending.pop(), a = pending.pop();
+    if (a === b) continue;
+    if (a === null || b === null || typeof a !== "object" || typeof b !== "object" ||
+        Array.isArray(a) !== Array.isArray(b)) return false;
+    const keys = Object.keys(a);
+    if (keys.length !== Object.keys(b).length) return false;
+    for (const key of keys) {
+      if (!Object.hasOwn(b, key)) return false;
+      pending.push(a[key], b[key]);
+    }
+  }
+  return true;
+}
+
 // The wrapper is independent of the tool implementation. The model's full
 // original call remains in history; effective arguments and results are
 // recorded separately from actual execution facts.
@@ -163,16 +187,18 @@ export async function executeToolWithHooks(loaded, event, toolCall, execute, onI
   const fn = toolCall.function;
   const toolName = typeof fn.name === "string" && fn.name.trim() ? fn.name : "<invalid>";
   const originalArguments = fn.arguments === undefined ? null : fn.arguments;
+  const parsedArguments = parsedToolArguments(toolCall);
   const before = await callHooks(loaded, "beforeTool", {
     ...event, toolCallId: toolCall.id, toolName,
-    rawArguments: originalArguments, arguments: parsedToolArguments(toolCall),
+    rawArguments: originalArguments, arguments: parsedArguments,
   }, args => {
     if (!isRecord(args)) throw new TypeError("tool arguments must be an object");
     if (fn.name === "run_js" && (typeof args.code !== "string" || Object.keys(args).some(key => key !== "code"))) {
       throw new TypeError("run_js hook arguments must contain only code: string");
     }
   });
-  const effectiveCall = before.changed ? {
+  const argumentsChanged = before.changed && !jsonValuesEqual(parsedArguments, before.event.arguments);
+  const effectiveCall = argumentsChanged ? {
     ...toolCall, function: {...fn, arguments: JSON.stringify(before.event.arguments)},
   } : toolCall;
   const executedResult = await execute(effectiveCall);
@@ -186,7 +212,8 @@ export async function executeToolWithHooks(loaded, event, toolCall, execute, onI
   const report = {
     runId: event.runId, modelStepId: event.modelStepId,
     toolCallId: toolCall.id, toolName,
-    rawArguments: originalArguments, arguments: before.event.arguments,
+    rawArguments: originalArguments,
+    ...(argumentsChanged ? {arguments: before.event.arguments} : {argumentsUnchanged: true}),
     rawResult, rawImages,
   };
   let after;
@@ -208,7 +235,9 @@ export async function executeToolWithHooks(loaded, event, toolCall, execute, onI
   }
   const result = after.changed ? after.event.result : rawResult;
   const images = after.event.images === undefined ? rawImages : validateImageMetadata(after.event.images);
-  await rpc("tool_result", {...report, result, images, modelResultAvailable: true});
+  await rpc("tool_result", {...report,
+    ...(jsonValuesEqual(result, rawResult) ? {resultUnchanged: true} : {result}),
+    images, modelResultAvailable: true});
   if (onImages !== undefined) onImages(images);
   return result;
 }

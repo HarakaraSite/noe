@@ -96,5 +96,8 @@ func Profile(options ProfileOptions) (stdlib.Profile, error) {
 		}
 		return func() { l.Close(); a.Close() }, nil
 	}
+	// This initializer constructs fresh auth/log bindings on each view and
+	// owns no parent operation, so inspection can explicitly reuse the factory.
+	profile.InspectInitialize = profile.Initialize
 	return profile, nil
 }

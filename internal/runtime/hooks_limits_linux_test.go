@@ -26,6 +26,7 @@ const child=await spawn("/bin/sh",["-c","exec sleep 60"],{stdin:"ignore",stdout:
 writeFileSync(%q,String(child.pid));
 await child.exited;`, ready)
 	trip := fmt.Sprintf(`// Wait for the parallel child, then consume the shared model budget.
+import {run_agent} from "noe:agent";
 const {existsSync}=await import("node:fs");
 while(!existsSync(%q)) await new Promise(resolve=>setTimeout(resolve,5));
 await run_agent({name:"budget-child"},"request beyond group budget");`, ready)

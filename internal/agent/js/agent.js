@@ -9,6 +9,7 @@ export const observe_agent = api.observe_agent;
 export const queue_agent = api.queue_agent;
 export const wait_task = api.wait_task;
 export const read_task_result = api.read_task_result;
+export const read_tool_result = api.read_tool_result;
 export const steer_agent = api.steer_agent;
 export const cancel_task = api.cancel_task;
 export const stop_agent = api.stop_agent;

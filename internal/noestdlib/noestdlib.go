@@ -103,7 +103,7 @@ func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings,
 		closeAdapters()
 		return nil, err
 	}
-	if err := installDocs(rt); err != nil {
+	if err := installDocs(rt, cfg.Context); err != nil {
 		closeAdapters()
 		return nil, err
 	}
@@ -145,8 +145,27 @@ func validate(cfg stdlib.Config) error {
 	return nil
 }
 
-func installDocs(rt *quickjs.Runtime) error {
+func installDocs(rt *quickjs.Runtime, ctx context.Context) error {
+	if ctx == nil {
+		ctx = rt.Context()
+	}
 	return rt.SetModule("noe:docs", map[string]any{
+		"describe": func(args ...quickjs.Value) (map[string]any, error) {
+			if len(args) > 2 {
+				return nil, rt.ThrowTypeError("describe expects at most a topic and member")
+			}
+			values := [2]string{}
+			for i, arg := range args {
+				if arg.IsUndefined() {
+					continue
+				}
+				if !arg.IsString() {
+					return nil, rt.ThrowTypeError("describe topic and member must be strings")
+				}
+				values[i] = arg.String()
+			}
+			return describe(ctx, rt, values[0], values[1])
+		},
 		"docs": func(args ...quickjs.Value) (string, error) {
 			if len(args) > 2 {
 				return "", rt.ThrowTypeError("docs expects at most a topic and member")

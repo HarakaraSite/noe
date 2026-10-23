@@ -134,6 +134,7 @@ func TestHookModuleChildInheritanceAndExplicitClear(t *testing.T) {
 		mu.Unlock()
 		if input == "parent" && call == 1 {
 			arguments, _ := json.Marshal(map[string]string{"code": `// Check inherited and explicitly cleared hooks.
+import {run_agent} from "noe:agent";
 const inherited=await run_agent({name:"inherited"},"inherited");
 const cleared=await run_agent({name:"cleared",hooks:[]},"cleared");
 if(inherited.lastResult?.state!=="completed" || cleared.lastResult?.state!=="completed") throw Error("child failed");

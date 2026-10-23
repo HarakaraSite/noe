@@ -12,6 +12,8 @@ Directory listings return string arrays. The Node withFileTypes option and Diren
 
 ## readdir
 
+Signature: `readdir(path: string) -> Promise<string[]>`
+
 Syntax: readdir(path) -> Promise<string[]>. It returns sorted entry names without the parent path. It accepts only a path; withFileTypes, encoding, and recursive options are not implemented.
 
 ~~~js
@@ -31,6 +33,8 @@ Each name is a string, so use it directly instead of name.name. The promise reje
 
 ## stat
 
+Signature: `stat(path: string) -> Promise<object>`
+
 Syntax: stat(path) -> Promise<object>. It follows symbolic links. The result has size (bytes), mode (permission bits), mtimeMs (Unix epoch milliseconds), mtime (timestamp string), isFile(), isDirectory(), and isSymbolicLink(). It is the same shape as node:fs statSync, including the string mtime rather than a Date object. The Node options object is not implemented. The promise rejects on metadata-read errors.
 
 ~~~js
@@ -46,6 +50,8 @@ Syntax: lstat(path) -> Promise<object>. It has the same result shape as stat but
 
 ## readFile
 
+Signature: `readFile(path: string, encoding?: string) -> Promise<Uint8Array | string>`
+
 Syntax: readFile(path, encoding?) -> Promise<string | Uint8Array>. It resolves to bytes by default or decoded text when encoding is non-empty. It rejects if the file cannot be read.
 
 ~~~js
@@ -56,6 +62,8 @@ const text = await readFile("README.md", "utf8");
 ~~~
 
 ## writeFile
+
+Signature: `writeFile(path: string, data: string | Uint8Array) -> Promise<void>`
 
 Syntax: writeFile(path, data) -> Promise<void>. It creates or truncates the file; strings are UTF-8 and byte data is written unchanged.
 

@@ -200,6 +200,22 @@ export function createAgentAPI({ request, defaults }) {
     return rpc("read_task_result", query);
   }
 
+  // Read a retained raw tool result within this task's lifetime.
+  async function read_tool_result(resultRef, options = {}) {
+    const query = {resultRef: requireString(resultRef, "resultRef")};
+    if (!isRecord(options)) throw new TypeError("tool result options must be an object");
+    for (const key of Object.keys(options)) {
+      if (key !== "offset" && key !== "limit") throw new TypeError("unknown tool result option: " + key);
+      if (options[key] === undefined) continue;
+      if (!Number.isSafeInteger(options[key]) || options[key] < (key === "offset" ? 0 : 4) ||
+          (key === "limit" && options[key] > 65536)) {
+        throw new TypeError(key + " is outside the tool result byte range");
+      }
+      query[key] = options[key];
+    }
+    return rpc("read_tool_result", query);
+  }
+
   // Add an instruction to one active task without interrupting its current work.
   async function steer_agent(options = {}) {
     if (!isRecord(options)) throw new TypeError("steer options must be an object");
@@ -251,5 +267,5 @@ export function createAgentAPI({ request, defaults }) {
     return rpc("observe_agent", { agentId: requireString(options.agentId, "agentId"), includeAnswer: options.includeAnswer });
   }
 
-  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, read_task_result, steer_agent, cancel_task, stop_agent, list_models });
+  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, read_task_result, read_tool_result, steer_agent, cancel_task, stop_agent, list_models });
 }

@@ -5,7 +5,7 @@ per-execution profile. `stdlib` does not create a NOE CLI process and does not
 select model providers or agent behavior. The current release is v2.1.1; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
-The current checkout is checked with go-quickjs v0.28.0. Published NOE tags
+The current checkout is checked with the unpublished managed engine candidate v0.28.1-noe.1 (based on go-quickjs v0.28.0). Published NOE tags
 retain the engine dependency recorded in their own `go.mod`. Use Go 1.27.2
 or later. From the repository root, run the example with:
 
@@ -173,3 +173,27 @@ into the single `Environment`; select each native capability through
 with `agent.NewHost` and a Go `Client`, or call `agent.Attach` from the runtime
 initializer to expose the same host to JavaScript. Do not carry over the old
 executable, connection, or combined-IO settings.
+
+## Development execution contract
+
+The current checkout returns an ESM default export as detached JSON in
+`stdlib.Result.Data`. No export means nil; an explicit null is JSON `null`.
+Use `export default await operation()` for async values. A default Promise or
+unserializable value fails with `JS_RESULT` in the `serialize` phase after code
+may already have run. `Result.Diagnostics` contains structured facts and
+`Result.Phase` identifies the processing stage. `stdlib.Diagnostic(err)` remains
+available for human-readable stacks and native Go causes remain inspectable.
+
+`stdlib.Check(ctx, source, profile)` links a fresh static module graph without
+evaluating module bodies. Only `Profile.InspectInitialize` is used for inspection;
+normal `Initialize` is not replayed. Inspection callbacks own their resources
+and must not close a running execution's binding or operation. The matching
+JavaScript entry is `check(code)` from `noe:runtime`. The docs module's
+`describe(topic?, member?)` separates real exports from reference detail IDs.
+
+The engine candidate is a managed, independent module under
+`third_party/go-quickjs`. Local consumers of this development checkout need a
+second explicit replacement of `github.com/go-quickjs/go-quickjs` to that path;
+a dependency's replace directive is not inherited. The consumer validation
+script also verifies synthetic NOE and engine artifacts without downstream
+replace directives. This does not publish either candidate.

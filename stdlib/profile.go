@@ -59,11 +59,26 @@ type Runtime = jsexec.Runtime
 // Result is execution data that remains valid after the runtime closes.
 type Result = jsexec.Result
 
+// DiagnosticInfo contains structured error facts detached from the runtime.
+type DiagnosticInfo = jsexec.DiagnosticInfo
+
+// StackFrame is one structured JavaScript stack entry.
+type StackFrame = jsexec.StackFrame
+
+// CheckResult describes how far static module checking progressed.
+type CheckResult = jsexec.CheckResult
+
 func NewRuntime(ctx context.Context, profile Profile) (*Runtime, error) {
 	return jsexec.NewRuntime(ctx, profile)
 }
 func Execute(ctx context.Context, source Source, profile Profile) (Result, error) {
 	return jsexec.Execute(ctx, source, profile)
+}
+
+// Check compiles and links a source and its static dependencies in a fresh
+// runtime without evaluating any JavaScript module body.
+func Check(ctx context.Context, source Source, profile Profile) (CheckResult, error) {
+	return jsexec.Check(ctx, source, profile)
 }
 
 // Diagnostic includes detached JavaScript stacks and command error details.

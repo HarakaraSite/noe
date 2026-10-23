@@ -49,7 +49,8 @@ func TestExternalConsumerPortable(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	goMod := fmt.Sprintf("module example.com/noe-stdlib-consumer\n\ngo 1.27.2\n\nrequire (\n\t%s v2.0.0-dev.0\n\tgithub.com/go-quickjs/go-quickjs v0.27.0\n)\n\nreplace %s => %q\n", publicModule, publicModule, filepath.ToSlash(root))
+	goMod := fmt.Sprintf("module example.com/noe-stdlib-consumer\n\ngo 1.27.2\n\nrequire (\n\t%s v2.0.0-dev.0\n\tgithub.com/go-quickjs/go-quickjs v0.28.0\n)\n\nreplace %s => %q\n", publicModule, publicModule, filepath.ToSlash(root))
+	goMod += fmt.Sprintf("replace github.com/go-quickjs/go-quickjs => %q\n", filepath.ToSlash(filepath.Join(root, "third_party", "go-quickjs")))
 	if err := os.WriteFile(filepath.Join(consumerDir, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatal(err)
 	}

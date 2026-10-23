@@ -13,7 +13,18 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/stdlib"
 )
+
+func executeStructuredResult(t *testing.T, source Source) (stdlib.Result, error) {
+	t.Helper()
+	execution, err := newManagedExecution(context.Background(), Options{}, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, runErr := execution.runtime.Run(execution.source)
+	return result, errors.Join(runErr, execution.Close())
+}
 
 func TestExceptionDetailsSurviveRuntimeClose(t *testing.T) {
 	for _, source := range []string{
@@ -21,14 +32,31 @@ func TestExceptionDetailsSurviveRuntimeClose(t *testing.T) {
 		`Promise.resolve().then(() => {throw Object.assign(new Error("command failed"), {code:128, stdout:"partial output", stderr:"fatal: 日本語"});});`,
 		`setTimeout(() => {throw Object.assign(new Error("command failed"), {code:128, stdout:"partial output", stderr:"fatal: 日本語"});}, 1);`,
 	} {
-		code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "details.js"), source}, Options{})
-		if code != 1 || err == nil {
-			t.Fatalf("code=%d error=%v", code, err)
+		result, err := executeStructuredResult(t, Source{filepath.Join(t.TempDir(), "details.js"), source})
+		if result.Code != 1 || err == nil || len(result.Diagnostics) != 1 {
+			t.Fatalf("result=%+v error=%v", result, err)
 		}
-		diagnostic := Diagnostic(err)
-		for _, want := range []string{"command failed", "details.js", `"code":128`, `"stdout":"partial output"`, `"stderr":"fatal: 日本語"`} {
-			if !strings.Contains(diagnostic, want) {
-				t.Errorf("missing %q in diagnostic: %s", want, diagnostic)
+		diagnostic := result.Diagnostics[0]
+		if diagnostic.Code != "JS_EXCEPTION" || diagnostic.Phase != "evaluate" || !strings.Contains(diagnostic.Message, "command failed") {
+			t.Errorf("diagnostic classification/phase/message = %+v", diagnostic)
+		}
+		if !strings.Contains(diagnostic.Source, "details.js") || diagnostic.Line == 0 || diagnostic.Column == 0 {
+			t.Errorf("diagnostic location = %q:%d:%d, want details.js with line/column", diagnostic.Source, diagnostic.Line, diagnostic.Column)
+		}
+		if len(diagnostic.Stack) == 0 {
+			t.Errorf("diagnostic stack omitted engine frames: %+v", diagnostic)
+		}
+		for _, frame := range diagnostic.Stack {
+			if frame.Source == "" || !strings.Contains(frame.Source, "details.js") {
+				t.Errorf("diagnostic frame source = %q, want details.js when available", frame.Source)
+			}
+		}
+		if got, ok := diagnostic.Exception["code"].(float64); !ok || got != 128 {
+			t.Errorf("exception code = %#v, want 128", diagnostic.Exception["code"])
+		}
+		for key, want := range map[string]string{"stdout": "partial output", "stderr": "fatal: 日本語"} {
+			if got, ok := diagnostic.Exception[key].(string); !ok || got != want {
+				t.Errorf("exception %s = %#v, want %q", key, diagnostic.Exception[key], want)
 			}
 		}
 	}
@@ -41,9 +69,13 @@ error.code = cycle;
 error.stdout = {toJSON(){throw Error("must not serialize");}};
 Object.defineProperty(error, "stderr", {get(){throw Error("unreadable property");}});
 throw error;`
-	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "details.js"), source}, Options{})
-	if code != 1 || err == nil || !strings.Contains(Diagnostic(err), "original failure") || strings.Contains(Diagnostic(err), "exception details:") {
-		t.Fatalf("code=%d diagnostic=%s", code, Diagnostic(err))
+	result, err := executeStructuredResult(t, Source{filepath.Join(t.TempDir(), "details.js"), source})
+	if result.Code != 1 || err == nil || len(result.Diagnostics) != 1 {
+		t.Fatalf("result=%+v error=%v", result, err)
+	}
+	diagnostic := result.Diagnostics[0]
+	if !strings.Contains(diagnostic.Message, "original failure") || len(diagnostic.Exception) != 0 {
+		t.Fatalf("diagnostic unexpectedly retained non-scalar/unreadable properties: %+v", diagnostic)
 	}
 }
 
@@ -140,9 +172,19 @@ func testRunJSCommandFailureDetailsReachModelAndEvents(t *testing.T, call string
 	if tool.Role != "tool" || tool.ToolCallID != "call-failure" || result.ExitCode != 1 || result.Reason != "failed" {
 		t.Fatalf("tool=%+v result=%+v", tool, result)
 	}
-	for _, want := range []string{`"code":128`, `"stdout":"partial output\n"`, `"stderr":"fatal: 日本語\n"`} {
-		if !strings.Contains(result.Stderr, want) {
-			t.Errorf("model did not receive %q: %s", want, result.Stderr)
+	if len(result.Diagnostics) != 1 {
+		t.Fatalf("model did not receive structured failure diagnostic: %+v", result.Diagnostics)
+	}
+	diagnostic := result.Diagnostics[0]
+	if diagnostic.Code != "JS_EXCEPTION" || diagnostic.Phase != "evaluate" || !strings.Contains(diagnostic.Message, "exited with 128") {
+		t.Errorf("model received wrong diagnostic classification: %+v", diagnostic)
+	}
+	if got, ok := diagnostic.Exception["code"].(float64); !ok || got != 128 {
+		t.Errorf("model exception code = %#v, want 128", diagnostic.Exception["code"])
+	}
+	for key, want := range map[string]string{"stdout": "partial output\n", "stderr": "fatal: 日本語\n"} {
+		if got, ok := diagnostic.Exception[key].(string); !ok || got != want {
+			t.Errorf("model exception %s = %#v, want %q", key, diagnostic.Exception[key], want)
 		}
 	}
 	var foundCode, foundError bool
@@ -153,8 +195,12 @@ func testRunJSCommandFailureDetailsReachModelAndEvents(t *testing.T, call string
 		if event["type"] == "run_js.started" && event["code"] == js {
 			foundCode = true
 		}
-		if event["type"] == "stderr" && event["text"] == result.Stderr {
-			foundError = true
+		if event["type"] == "run_js.finished" && event["success"] == false {
+			eventDiagnostics, _ := json.Marshal(event["diagnostics"])
+			var finished []agent.ExecutionDiagnostic
+			if err := json.Unmarshal(eventDiagnostics, &finished); err == nil && len(finished) == 1 && finished[0].Code == diagnostic.Code && finished[0].Exception["stderr"] == diagnostic.Exception["stderr"] {
+				foundError = true
+			}
 		}
 	}
 	if !foundCode || !foundError {

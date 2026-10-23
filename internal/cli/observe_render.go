@@ -187,6 +187,9 @@ func (r *agentRenderer) render(event events.Event) error {
 		if reason := eventString(event, "reason"); reason != "" && reason != "completed" && reason != "failed" {
 			parts = append(parts, reason)
 		}
+		if summary := executionDiagnosticSummary(event["diagnostics"]); summary != "" {
+			parts = append(parts, summary)
+		}
 		return r.line(label, kind, strings.Join(parts, " / "))
 	case "model.started":
 		return r.line(label, "model", "waiting for response")
@@ -203,6 +206,35 @@ func (r *agentRenderer) render(event events.Event) error {
 		return r.line(label, "finished", fmt.Sprintf("exitCode=%v", event["exitCode"]))
 	}
 	return nil
+}
+
+// The renderer accepts live typed events and decoded JSONL events. Keep this
+// presentation conversion out of the execution and model-result paths.
+func executionDiagnosticSummary(value any) string {
+	if value == nil {
+		return ""
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	var diagnostics []struct {
+		Code, Phase, Message, Source string
+		Line, Column                 int
+	}
+	if json.Unmarshal(data, &diagnostics) != nil || len(diagnostics) == 0 {
+		return ""
+	}
+	diagnostic := diagnostics[0]
+	message, _, _ := strings.Cut(diagnostic.Message, "\n")
+	location := diagnostic.Source
+	if location != "" && diagnostic.Line > 0 {
+		location += fmt.Sprintf(":%d", diagnostic.Line)
+		if diagnostic.Column > 0 {
+			location += fmt.Sprintf(":%d", diagnostic.Column)
+		}
+	}
+	return strings.TrimSpace(strings.Join([]string{diagnostic.Code, diagnostic.Phase, location, message}, " "))
 }
 
 // The renderer accepts both live typed snapshots and decoded JSONL objects.

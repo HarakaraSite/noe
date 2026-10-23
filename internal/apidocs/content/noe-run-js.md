@@ -4,7 +4,7 @@
 
 Every call starts a new runtime. The supplied source is a virtual entry, so relative imports resolve from the execution's configured cwd; imports from ordinary files keep normal referrer-relative behavior. The selected loader factory handles imports. HTTP imports, npm discovery, and unmapped bare package imports are unavailable. Resources created during the call belong to its runtime; owned work is recovered when the task ends or is cancelled.
 
-Top-level await and ES module imports are supported. Print results with console.log; a final expression is not automatically returned to the model. Filesystem paths are relative to process.cwd(). Virtual-entry relative imports use the configured cwd; imports from loaded files resolve relative to their referrer. Use an absolute path for an unmapped local module.
+Top-level await and ES module imports are supported. Return structured data with `export default value`, or `export default await operation()`. Use console.log for progress text; a final expression is not returned. Filesystem paths are relative to process.cwd(). Virtual-entry relative imports use the configured cwd; imports from loaded files resolve relative to their referrer. Use an absolute path for an unmapped local module.
 
 Task recipes are available as details: files, commands, imports, http, agents, and failures. For example, docs("noe:run_js", "files") reads file-operation recipes directly. Each code block below is a separate run_js call; adapt input files, program names, and URLs to the task.
 
@@ -16,9 +16,9 @@ The input is an object with one required property:
 {"code":"// Read the embedded API reference.\nimport { docs } from 'noe:docs';\nconsole.log(docs('noe:process', 'spawn'));"}
 ```
 
-`code` must be a string. NOE's default Policy asks for a short English `//` comment describing the operation on the first line, before imports and executable statements, with no leading blank line. This is a NOE policy, not an API requirement; other hosts supply their own Policy. Do not import or redeclare the managed-agent helpers already bound by the tool, such as `run_agent` and `observe_agent`.
+`code` must be a string. NOE's default Policy asks for a short English `//` comment describing the operation on the first line, before imports and executable statements, with no leading blank line. This is a NOE policy, not an API requirement; other hosts supply their own Policy. Import all APIs explicitly, including helpers from `noe:agent`. No names are injected into the tool source.
 
-The result reports `stdout`, `stderr`, `exitCode`, and `reason`. A nonzero exit code is still a result and can include useful output. `reason` distinguishes ordinary completion from process failure, timeout, or cancellation.
+The result reports optional `data`, `stdout`, `stderr`, `exitCode`, `reason`, `phase`, and structured `diagnostics` on failure. No default export means no data; explicit null is returned as null. A nonzero exit code is still a result and can include useful output. `reason` distinguishes ordinary completion from process failure, timeout, or cancellation.
 
 Standard output and standard error are captured independently. Each stream retains at most 64 KiB: the first 32 KiB and last 32 KiB. If a stream is larger, its text contains a truncation marker and the result includes the corresponding `stdoutOmittedBytes` or `stderrOmittedBytes` count. These byte counts describe omitted captured output, not an exit status.
 
@@ -121,10 +121,11 @@ HTTP 4xx/5xx responses do not reject fetch by themselves; inspect response.ok/st
 
 ## agents
 
-Managed-agent helpers are already bound inside run_js. Do not import or redeclare them. A child inherits the current agent's provider, model, and effort when omitted. Use run_agent for a single task and inspect lastResult.state before accepting its answer:
+Import managed-agent helpers explicitly from `noe:agent`. A child inherits the current agent's provider, model, and effort when omitted. Use run_agent for a single task and inspect lastResult.state before accepting its answer:
 
 ~~~js
 // Ask a child to summarize the README.
+import {run_agent} from "noe:agent";
 const child = await run_agent({name: "reader", maxSteps: 4},
   "Read README.md and summarize its purpose in three lines.");
 const task = child.lastResult;
@@ -138,6 +139,7 @@ For a keep-alive worker, pass keepAlive in the third argument, queue the task, a
 
 ~~~js
 // Queue a task and wait for its specific outcome.
+import {spawn_agent, queue_agent, wait_task, stop_agent} from "noe:agent";
 const worker = await spawn_agent({name: "worker", maxSteps: 4},
   undefined, {keepAlive: true});
 try {
@@ -170,4 +172,57 @@ console.log(docs("node:fs", "readdirSync"));
 
 Common differences: readdirSync/readdir return strings, node:process exports only default, execFile is promise-based, and fs Streams are Web Streams. Refer directly to the relevant detail when the module is known; listing all docs topics again is unnecessary.
 
-Do not report an operation as successful merely because a catch block printed its error and the outer process exited with zero. Catch expected outcomes deliberately; rethrow unexpected errors. Independent tool calls can run concurrently, so put operations that depend on one another in a single ordered call or wait for their results before continuing. Keep printed output relevant; when a complete large result is needed later, save it explicitly to a known file before printing a summary.
+Do not report an operation as successful merely because a catch block printed its error and the outer process exited with zero. Catch expected outcomes deliberately; rethrow unexpected errors. Independent tool calls can run concurrently, so put operations that depend on one another in a single ordered call or wait for their results before continuing. Keep printed output relevant. Large results include resultRef; read_tool_result from noe:agent can retrieve the full original result during the same task. Save artifacts needed after task completion to a known file.
+
+## results
+
+Signature: `export default value`
+
+Use ordinary ESM to return JSON data. Default-exported Promises are rejected;
+write `export default await operation()` to await their value. Undefined,
+functions, symbols, BigInt and cycles cannot be top-level JSON results.
+JSON.stringify rules apply inside objects, including getters and toJSON.
+Serialization runs under the execution context after module evaluation.
+A `JS_RESULT` diagnostic with `phase: "serialize"` means code may already have
+changed files or other external state. Do not automatically execute it again.
+
+```js
+// Compute a structured result.
+const numbers = [1, 2, 3];
+export default {sum: numbers.reduce((sum, value) => sum + value, 0)};
+```
+
+Diagnostics carry a stable NOE `code`, `phase`, `message`, and available source
+positions and stack frames. User-defined exception `code` belongs to
+`exception.code`. Command exception stdout/stderr are exception details;
+ordinary captured output remains in the separate streams. An error caught and
+printed by the script is not automatically an uncaught execution failure.
+
+## check
+
+Inspect generated code without running module bodies when static validation
+answers a concrete question. Normal execution already compiles and links, so
+do not add a check before every small call merely as a ritual.
+
+```js
+// Inspect a module without executing it.
+import {check} from "noe:runtime";
+export default check('import {readFile} from "node:fs/promises"; export default 42;');
+```
+
+`ok: true, stage: "link"` covers the static dependency graph only. Dynamic
+imports, runtime values, external state, and source changes before a later
+execution are outside that guarantee. Use `describe` from `noe:docs` for API
+exports and `docs` for detailed usage and lifetimes.
+
+## large_results
+
+Data up to 64 KiB is inlined. Larger data is omitted from `data`, with
+`dataOmittedBytes` and `resultRef`; an invalid partial JSON value is never
+substituted. Stdout and stderr retain their existing first/last 32 KiB preview,
+and their complete captured text is retained in the same task artifact.
+Large diagnostics retain classification and source facts, with clipped text
+and stack previews plus `diagnosticsOmittedBytes` and the same reference.
+The full raw JSON remains available through `read_tool_result` until task end.
+A storage failure is reported as a result-collection failure, not hidden as
+successful retention. Execution may already have side effects.

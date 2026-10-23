@@ -105,6 +105,9 @@ func newManagedExecution(ctx context.Context, options Options, source Source) (*
 			}
 		}, nil
 	}
+	// Each attachment creates an independent client; a check must close only
+	// that client, while keeping the caller's host and client alive.
+	profile.InspectInitialize = profile.Initialize
 	runtime, err := stdlib.NewRuntime(ctx, profile)
 	if err != nil {
 		if controller != nil {

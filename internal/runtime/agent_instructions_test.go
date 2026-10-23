@@ -60,6 +60,7 @@ func TestAgentInstructionsFreezeParentAndReloadChild(t *testing.T) {
 		mu.Unlock()
 		if input == "parent" && n == 1 {
 			code := fmt.Sprintf(`// Change instruction files and start a child with its own snapshot.
+import {run_agent} from "noe:agent";
 import {writeFileSync} from "node:fs";
 writeFileSync(%q,"GLOBAL_VERSION_ONE");
 writeFileSync(%q,"WORKSPACE_VERSION_ONE");

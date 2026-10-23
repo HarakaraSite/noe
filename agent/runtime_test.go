@@ -191,7 +191,8 @@ func runtimeHasToolReply(request model.Request, callID string) bool {
 	return false
 }
 
-const markerImport = `import {loaderGeneration} from "fixture:runtime-marker";`
+const markerImport = `import {loaderGeneration} from "fixture:runtime-marker";
+import {spawn_agent, queue_agent, cancel_task, wait_task, stop_agent, observe_agent} from "noe:agent";`
 
 func parentChildrenCode() string {
 	return markerImport + `

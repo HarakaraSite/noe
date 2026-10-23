@@ -222,9 +222,9 @@ Control接続はローカルで稼働中のNOEに限られ、daemonや再起動�
 
 ### run_jsからの利用
 
-モデル向けの`run_js`では`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`read_task_result`・`steer_agent`・`cancel_task`・`stop_agent`が事前に束縛されています。importや再宣言をせず、そのまま呼び出してください。`run_js`呼出しごとに同じGoプロセス内で新しいstdlib runtimeが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
+モデル向けの`run_js`は通常のES moduleです。agent操作も`import {spawn_agent} from "noe:agent"`のように明示し、暗黙の束縛はありません。結果データは`export default value`、非同期処理は`export default await operation()`で返します。stdout・stderr・実行状態と、構造化された`data`・`diagnostics`・`phase`を区別します。`run_js`呼出しごとに同じGoプロセス内で新しいstdlib runtimeが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
 
-捕捉するstdout・stderrは、それぞれ元の出力の先頭32KiBと末尾32KiB、合計64KiBまでを保持します。上限以内の出力は変更しません。超過した場合は途中に`[NOE: output truncated; N bytes omitted]`を挿入し、結果に`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。UTF-8の切断位置は文字境界へ寄せるため、保持量が数バイト減る場合があります。超過分も読み捨て続けるため、上限到達で子プロセスを停止したり出力pipeを詰まらせたりしません。省略だけで`exitCode`や`reason`は変更しません。managed task runtimeの捕捉出力も同じ制限に従います。
+捕捉するstdout・stderrは、それぞれ元の出力の先頭32KiBと末尾32KiB、合計64KiBまでを保持します。上限以内の出力は変更しません。超過した場合は途中に`[NOE: output truncated; N bytes omitted]`を挿入し、結果に`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。UTF-8の切断位置は文字境界へ寄せるため、保持量が数バイト減る場合があります。超過分はtask所有の一時artifactへstream保存し、先頭末尾の抜粋を返します。メモリへ全量を保持しません。省略だけで`exitCode`や`reason`は変更しません。managed task runtimeの捕捉出力も同じ制限に従います。
 
 省略分は自動保存しません。完全なログが必要な処理は、実行するJSやコマンド側で既知のファイルへ書き出し、必要な部分だけを読み戻してください。afterToolが受け取る元の結果とJSONLも、この制限後の出力です。hookが独自に生成した置換結果、子プロセス内部のメモリ、通常のトップレベル`run`・`eval`の出力を制限する機能ではありません。
 
@@ -409,3 +409,23 @@ const answer = snapshot.lastResult?.answer;
 | `noe.serve(options, handler)` | グローバルの`serve(options, handler)` |
 
 標準APIでは、FetchのResponse本文は一度だけ読み取れます。`process.stdin.read()`はPromiseではなく、入力全体を同期的に一度だけ読みます。`readdir`は名前の配列を返し、`stat`と`lstat`は標準ライブラリの情報オブジェクトを返します。`readdir`で得た各項目の種別を知るには、名前をpathに連結して`lstat`または`stat`を呼びます。オプションや戻り値を標準APIに合わせて更新してください。
+
+### 実行前検査とAPIの発見
+
+`import {describe, docs} from "noe:docs"`で、実際のexport・署名と説明を問い合わせられます。
+`describe()`は全catalogと登録済みmodule、`describe(topic, member?)`は非評価で確認できたexport・可用性・説明有無を返します。
+説明や署名がないことと、APIが存在しないことは別です。未解決のcustom moduleはunknownとして扱います。
+`docs(topic, member?)`とCLIの`noe docs`は詳細なMarkdown説明を返します。
+
+`import {check} from "noe:runtime"`の`check(code)`は別VMで構文・静的依存をlinkまで検査し、
+`{ok, stage, entry, diagnostics?}`を返します。module本体は評価しません。
+通常の構文・link不合格はthrowではなく`ok:false`です。dynamic importや実行時の正しさは保証しません。
+Goの入口は`stdlib.Check(ctx, source, profile)`で、検査用module登録には`Profile.InspectInitialize`を使い、
+通常の`Initialize`を再実行しません。検査後も呼出し元の実行・agent操作を継続できます。
+
+大きいrun_js結果では`resultRef`を返します。`data`は64KiBを超えると省略し、`dataOmittedBytes`を示します。
+`import {read_tool_result} from "noe:agent"`で元結果JSONのUTF-8範囲を取得できます。
+既定24KiB、明示limitは4〜65536 bytesです。`nextOffset`を次のoffsetに使い、`truncated:false`まで取得できます。
+同じactive taskに限り利用でき、task終了・取消しで回収します。後続queueや子taskへ参照を持ち越せません。
+必要な成果は終了前に通常のfileへ保存してください。診断も大きい場合は分類・位置と抜粋を残し、
+`diagnosticsOmittedBytes`と全文参照を返します。保存失敗は診断へ明示し、実行済み操作を自動再試行しません。

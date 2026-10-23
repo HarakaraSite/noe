@@ -143,3 +143,11 @@ tail -f agent.jsonl | jq --unbuffered -c \
 人間向けの整形表示はGoの`noe observe`、live状態は`noe:agent`の`observe_agent`、保存ログの状態・差分・結果解析は`noe:agent-log`の`analyze_log`を利用できます。`--observe`と`noe observe`は1行目に`[name agent=<agentId8>]`や`[name run=<runId8> tool=<toolId8>]`、2行目に`agent idle`や`run_js started: 内容`を表示し、イベント間に空行を入れます。task開始時にはagent IDとrun IDの両方を示します。steerの受付・適用・取消しとinterruptの受付も人間向け表示に出します。`noe queue`・`noe steer`から送った指示（`origin.kind: "human"`）は受付時に本文を1回表示し、Markdownとして整形せず、改行も保持します。人間由来のqueueの完了・失敗・取消しと、steerの後続状態はcommand IDだけを表示します。初回タスクや内部queueは人間向け表示では引き続き省略します。`./noe run --events=- examples/agent/try-agent.js | ./noe observe`で逐次表示できます。使い方は[観察の入口](observe.md)を参照してください。steer・interrupt・人間用control CLIの受付と確認方法は[APIリファレンス](api.md#実行中taskへの指示と停止)にまとめています。外部JSによる表示とSQLite保存は、当初の[検討メモ](future-candidates.md#外部jsによるリアルタイム表示--2026-10-17)に残しています。設計と対象範囲は[control計画](development/agent-control-plan.md)を参照してください。
 
 従来の`NOE_AGENT_TRACE=1`はメタデータのみをstderrへ出す機能として維持しています。詳細本文やtool出力を含む`--events`とは独立しており、従来のtraceの内容は変わりません。
+
+## 構造化されたrun_js結果
+
+`run_js.finished`は`phase`、取得できた`diagnostics`（code/phase/message/source/line/column/stack/exception）を含みます。
+例外の利用者定義codeは`exception.code`であり、NOEの分類codeとは別です。
+大きい結果には`resultRef`と省略byte数を付け、`tool.finished`のrawResult/resultは原結果/加工結果の抜粋です。
+全文参照の寿命は同じactive taskまでで、JSONLへ保存した参照が再起動後にも読めるわけではありません。
+人間向けobserveは失敗診断の分類・位置・messageを表示します。

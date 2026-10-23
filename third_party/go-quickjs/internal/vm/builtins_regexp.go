@@ -1,0 +1,1138 @@
+package vm
+
+import (
+	"errors"
+	"math"
+	"sort"
+	"strings"
+	"unsafe"
+
+	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"github.com/go-quickjs/go-quickjs/internal/regexp"
+)
+
+// RegExp, and the String methods that delegate to it.
+//
+// A RegExp object holds a compiled pattern plus lastIndex, which is an ordinary
+// writable property rather than an internal slot because scripts assign to it
+// directly. The global and sticky flags are what make it meaningful: without
+// either, every call starts from zero.
+
+// regexpData is a RegExp's internal state.
+type regexpData struct {
+	re *regexp.Regexp
+	// legacy marks a RegExp made by the intrinsic constructor, whose matches
+	// update RegExp.$1 and the rest, and which compile may be used on. A
+	// subclass's instance is not one.
+	legacy bool
+	// realm is the realm the RegExp was made in, which compile has to be
+	// called from.
+	realm *Realm
+	// source is what the source getter answers, made when it is first read.
+	source *String
+}
+
+// regexpOf recovers the compiled pattern from a receiver.
+func (r *Runtime) regexpOf(this Value, name string) (*regexp.Regexp, error) {
+	if !this.IsObject() || this.Object().class != ClassRegExp {
+		return nil, r.throwTypeError("%s called on an incompatible receiver", name)
+	}
+	d, ok := this.Object().dataOf().(*regexpData)
+	if !ok {
+		return nil, r.throwTypeError("%s called on an uninitialized RegExp", name)
+	}
+	return d.re, nil
+}
+
+// newRegExp builds a RegExp object from a pattern and flags.
+func (r *Runtime) newRegExp(source, flags string) (Value, error) {
+	re, err := r.compileRegExp(source, flags)
+	if err != nil {
+		return Undefined, r.throwSyntaxError("%s", err.Error())
+	}
+	return r.newRegExpObject(re), nil
+}
+
+// regexpLiteral is a RegExp literal's constant and its pattern compiled, in a
+// runtime's table of them.
+type regexpLiteral struct {
+	c  *bytecode.Constant
+	re *regexp.Regexp
+}
+
+// newRegExpLiteral is the RegExp a literal evaluates to, its pattern found by
+// the constant that holds it: in the runtime's small table, by its address,
+// rather than in the cache by its text, which a literal in a loop would hash
+// each time round. An entry holds its constant, whose address is then not
+// another's.
+func (r *Runtime) newRegExpLiteral(c *bytecode.Constant) (Value, error) {
+	e := &r.regexpLits[uintptr(unsafe.Pointer(c))>>5%uintptr(len(r.regexpLits))]
+	if e.c != c {
+		re, err := r.compileRegExp(c.Str, c.Flags)
+		if err != nil {
+			return Undefined, r.throwSyntaxError("%s", err.Error())
+		}
+		*e = regexpLiteral{c: c, re: re}
+	}
+	return r.newRegExpObject(e.re), nil
+}
+
+// newRegExpObject is a RegExp object of a compiled pattern.
+func (r *Runtime) newRegExpObject(re *regexp.Regexp) Value {
+	// The object, its data, its clone of the pattern and its table are one
+	// allocation: a literal in a loop is a new RegExp each time round.
+	ro := &regexpObject{Object: Object{proto: r.proto.regexp, class: ClassRegExp, flags: objExtensible | objInlineProps}}
+	ro.vals = ro.inline[:0]
+	re.CloneInto(&ro.re)
+	ro.rd = regexpData{re: &ro.re, legacy: true, realm: r.Realm}
+	ro.embedExt(&ro.side)
+	ro.side.data = &ro.rd
+	// lastIndex is writable but neither enumerable nor configurable.
+	ro.setOwnRaw(atomLastIndex, Int(0), propWritable)
+	return Obj(&ro.Object)
+}
+
+// regexpObject is a RegExp with its data, its clone of the compiled pattern
+// and room for lastIndex, its one own property, in the same allocation.
+type regexpObject struct {
+	Object
+	side   objectExt
+	rd     regexpData
+	re     regexp.Regexp
+	inline [1]Value
+}
+
+// regexpKey is a pattern as it was written: its source and its flags.
+type regexpKey struct{ source, flags string }
+
+// maxRegExpCache bounds the patterns a runtime keeps compiled.
+const maxRegExpCache = 256
+
+// compileRegExp compiles a pattern, or finds it compiled already. A literal
+// in a loop is a new RegExp each time it is reached, and a program builds the
+// same pattern from a string over and over, but the pattern is the same one,
+// which need not be parsed and compiled again.
+//
+// What it returns is the cache's: each RegExp is given a clone, which shares
+// the compiled program and borrows the cached pattern's matcher while that
+// one stays small (see regexp.Regexp.CloneInto).
+func (r *Runtime) compileRegExp(source, flags string) (*regexp.Regexp, error) {
+	key := regexpKey{source, flags}
+	if re, ok := r.regexpCache[key]; ok {
+		return re, nil
+	}
+	re, err := regexp.Compile(source, flags)
+	if err != nil {
+		return nil, err
+	}
+	if r.regexpCache == nil || len(r.regexpCache) >= maxRegExpCache {
+		r.regexpCache = make(map[regexpKey]*regexp.Regexp)
+	}
+	r.regexpCache[key] = re
+	return re, nil
+}
+
+// isRegExpLike reports whether a value says it is a regular expression.
+//
+// Symbol.match is what says so: a plain object that defines it truthily stands
+// in for one wherever the specification asks, which is how a library can supply
+// its own matcher. An actual RegExp with the property deleted says no.
+func (r *Runtime) isRegExpLike(v Value) (bool, error) {
+	if !v.IsObject() {
+		return false, nil
+	}
+	m, err := r.getValueProp(v, r.atoms.internSymbol(r.wellKnown.match))
+	if err != nil {
+		return false, err
+	}
+	if !m.IsUndefined() {
+		return m.Truthy(), nil
+	}
+	return v.Object().class == ClassRegExp, nil
+}
+
+func (r *Runtime) initRegExpBuiltins() {
+	r.proto.regexp = newObject(r.proto.object, ClassObject)
+	p := r.proto.regexp
+
+	reCtor := r.newCtor("RegExp", 2, p, func(rt *Runtime, this Value, args []Value) (Value, error) {
+		pattern := arg(args, 0)
+		flagsArg := arg(args, 1)
+
+		// Anything that says it is a regular expression is treated as one,
+		// which is what Symbol.match is for: a plain object that defines it
+		// truthily can stand in for one, and its source and flags are read
+		// rather than its string form.
+		isRE, err := rt.isRegExpLike(pattern)
+		if err != nil {
+			return Undefined, err
+		}
+		if rt.newTarget().IsUndefined() && isRE && flagsArg.IsUndefined() {
+			// Called rather than constructed, and given a regular expression
+			// of this very constructor, RegExp hands it straight back.
+			c, err := rt.getValueProp(pattern, atomConstructor)
+			if err != nil {
+				return Undefined, err
+			}
+			if c.IsObject() && c.Object() == rt.proto.regexpCtor {
+				return pattern, nil
+			}
+		}
+
+		var source, flags string
+		switch {
+		case pattern.IsObject() && pattern.Object().class == ClassRegExp:
+			d := pattern.Object().dataOf().(*regexpData)
+			source, flags = d.re.Source(), d.re.Flags().String()
+			if !flagsArg.IsUndefined() {
+				s, err := rt.toString(flagsArg)
+				if err != nil {
+					return Undefined, err
+				}
+				flags = s.Go()
+			}
+		case isRE:
+			src, err := rt.getValueProp(pattern, r.atoms.intern("source"))
+			if err != nil {
+				return Undefined, err
+			}
+			s, err := rt.toString(src)
+			if err != nil {
+				return Undefined, err
+			}
+			source = s.Go()
+			fv := flagsArg
+			if fv.IsUndefined() {
+				if fv, err = rt.getValueProp(pattern, r.atoms.intern("flags")); err != nil {
+					return Undefined, err
+				}
+			}
+			if !fv.IsUndefined() {
+				f, err := rt.toString(fv)
+				if err != nil {
+					return Undefined, err
+				}
+				flags = f.Go()
+			}
+		default:
+			if !pattern.IsUndefined() {
+				s, err := rt.toString(pattern)
+				if err != nil {
+					return Undefined, err
+				}
+				source = s.Go()
+			}
+			if !flagsArg.IsUndefined() {
+				f, err := rt.toString(flagsArg)
+				if err != nil {
+					return Undefined, err
+				}
+				flags = f.Go()
+			}
+		}
+		v, err := rt.newRegExp(source, flags)
+		if err != nil {
+			return Undefined, err
+		}
+		if nt := rt.newTarget(); !nt.IsUndefined() && (!nt.IsObject() || nt.Object() != rt.proto.regexpCtor) {
+			v.Object().dataOf().(*regexpData).legacy = false
+		}
+		return v, nil
+	})
+	r.defSpecies(reCtor)
+	r.proto.regexpCtor = reCtor
+	r.initRegExpLegacyStatics(reCtor)
+	r.initRegExpSymbolMethods(p)
+
+	r.defGetter(p, "source", func(rt *Runtime, this Value, args []Value) (Value, error) {
+		if !this.IsObject() {
+			return Undefined, rt.throwTypeError("RegExp.prototype.source called on a non-object")
+		}
+		re, err := rt.regexpOf(this, "RegExp.prototype.source")
+		if err != nil {
+			// RegExp.prototype is itself not a RegExp, and reporting "(?:)"
+			// for it is what keeps String(RegExp.prototype) working.
+			if this.Object() == rt.proto.regexp {
+				return Str(NewString("(?:)")), nil
+			}
+			return Undefined, err
+		}
+		d := this.Object().dataOf().(*regexpData)
+		if d.source == nil {
+			// An empty pattern reports "(?:)" so that the result can be fed
+			// back to the constructor.
+			text := "(?:)"
+			if re.Source() != "" {
+				text = escapeRegExpSource(re.Source())
+			}
+			d.source = NewString(text)
+		}
+		return Str(d.source), nil
+	})
+
+	// flags is assembled from the individual getters rather than from the
+	// compiled pattern, so that overriding one of them is honoured by
+	// everything that reads flags -- which is every method that matches.
+	r.defGetter(p, "flags", func(rt *Runtime, this Value, args []Value) (Value, error) {
+		if !this.IsObject() {
+			return Undefined, rt.throwTypeError("RegExp.prototype.flags called on a non-object")
+		}
+		var sb strings.Builder
+		for i, fg := range regExpFlagNames {
+			v, err := rt.getValueProp(this, rt.regexpFlagAtoms[i])
+			if err != nil {
+				return Undefined, err
+			}
+			if v.Truthy() {
+				sb.WriteByte(fg.letter)
+			}
+		}
+		return Str(NewString(sb.String())), nil
+	})
+
+	// Each flag is exposed as its own getter. Read on RegExp.prototype itself,
+	// which carries no pattern, they answer undefined rather than throwing, so
+	// that feature detection does not have to guard every one.
+	for _, fg := range regExpFlagNames {
+		bit, name := fg.bit, fg.name
+		method := "RegExp.prototype." + name
+		r.defGetter(p, name, func(rt *Runtime, this Value, args []Value) (Value, error) {
+			re, err := rt.regexpOf(this, method)
+			if err != nil {
+				if this.IsObject() && this.Object() == rt.proto.regexp {
+					return Undefined, nil
+				}
+				return Undefined, err
+			}
+			// The v flag turns on the u behaviour internally, but the two
+			// are alternatives to a script: /a/v.unicode is false.
+			fl := re.Flags()
+			if fl&regexp.FlagUnicodeSets != 0 {
+				fl &^= regexp.FlagUnicode
+			}
+			return Bool(fl&bit != 0), nil
+		})
+	}
+
+	// toString is written against source and flags rather than the pattern, so
+	// that a subclass overriding either is reflected in what it prints.
+	r.defMethod(p, "toString", 0, func(rt *Runtime, this Value, args []Value) (Value, error) {
+		if !this.IsObject() {
+			return Undefined, rt.throwTypeError("RegExp.prototype.toString called on a non-object")
+		}
+		src, err := rt.getValueProp(this, atomSource)
+		if err != nil {
+			return Undefined, err
+		}
+		srcStr, err := rt.toString(src)
+		if err != nil {
+			return Undefined, err
+		}
+		flags, err := rt.getValueProp(this, atomFlags)
+		if err != nil {
+			return Undefined, err
+		}
+		flagStr, err := rt.toString(flags)
+		if err != nil {
+			return Undefined, err
+		}
+		return Str(NewString("/" + srcStr.Go() + "/" + flagStr.Go())), nil
+	})
+
+	r.regexpExecFn = r.defMethod(p, "exec", 1, func(rt *Runtime, this Value, args []Value) (Value, error) {
+		s, err := rt.toString(arg(args, 0))
+		if err != nil {
+			return Undefined, err
+		}
+		return rt.regexpExec(this, s)
+	})
+
+	r.defMethod(p, "test", 1, func(rt *Runtime, this Value, args []Value) (Value, error) {
+		if !this.IsObject() {
+			return Undefined, rt.throwTypeError("RegExp.prototype.test called on a non-object")
+		}
+		s, err := rt.toString(arg(args, 0))
+		if err != nil {
+			return Undefined, err
+		}
+		// An unmodified RegExp is matched directly, with lastIndex and the
+		// legacy statics as exec has them, but without the array exec
+		// would make for nobody to read.
+		if _, ok := rt.builtinFlagBits(this); ok && propsIntact(rt.proto.regexp, rt.regexpExecProps) {
+			caps, _, err := rt.regexpMatch(this, s)
+			if err != nil {
+				return Undefined, err
+			}
+			return Bool(caps != nil), nil
+		}
+		// Anything else goes through its exec, as RegExpExec has it: a
+		// subclass's, or one a script assigned.
+		res, err := rt.regExpExec(this, s)
+		if err != nil {
+			return Undefined, err
+		}
+		return Bool(!res.IsNull()), nil
+	})
+
+	names := []string{"flags"}
+	for i, fg := range regExpFlagNames {
+		r.regexpFlagAtoms[i] = r.atoms.intern(fg.name)
+		names = append(names, fg.name)
+	}
+	r.regexpFlagProps = r.snapshotProps(p, names...)
+	r.regexpExecProps = r.snapshotProps(p, "exec")
+	match := p.findOwn(r.atoms.internSymbol(r.wellKnown.match))
+	r.regexpSplitProps = append(r.snapshotProps(p, "constructor"),
+		builtinProp{i: int(match), p: p.propAt(match)})
+	species := reCtor.findOwn(r.atoms.internSymbol(r.wellKnown.species))
+	sp := reCtor.propAt(species)
+	r.regexpSpeciesProps = []builtinProp{{i: int(species), p: sp, getter: sp.getterSetter().getter}}
+}
+
+// regexpExec runs a pattern against a string, honouring and updating lastIndex.
+func (r *Runtime) regexpExec(this Value, s *String) (Value, error) {
+	caps, re, err := r.regexpMatch(this, s)
+	if err != nil || caps == nil {
+		if err == nil {
+			return Null, nil
+		}
+		return Undefined, err
+	}
+	return Obj(r.buildMatchResult(re, caps, s)), nil
+}
+
+// regexpMatch is exec but for the array it returns: it reads and writes
+// lastIndex and records the legacy statics as exec does, and returns the
+// match's indices, or nil for none. They are the runtime's buffer, good until
+// the next match.
+func (r *Runtime) regexpMatch(this Value, s *String) ([]int, *regexp.Regexp, error) {
+	re, err := r.regexpOf(this, "RegExp.prototype.exec")
+	if err != nil {
+		return nil, nil, err
+	}
+	o := this.Object()
+
+	// lastIndex is read whatever the flags say -- its valueOf runs either
+	// way -- but it only decides where the search starts, and is only written
+	// back, when the pattern is global or sticky.
+	li, err := r.toLength(o.vals[0])
+	if err != nil {
+		return nil, nil, err
+	}
+	stateful := re.Flags()&(regexp.FlagGlobal|regexp.FlagSticky) != 0
+	start := 0
+	if stateful {
+		// Anything past the longest string is past this one, and stays so
+		// in an int of 32 bits.
+		start = int(min(li, maxStringLength+1))
+	}
+
+	units := s.codeUnits()
+	if start < 0 || start > len(units) {
+		if stateful {
+			if err := r.setLastIndex(o, Int(0)); err != nil {
+				return nil, nil, err
+			}
+		}
+		return nil, re, nil
+	}
+	// A pattern that reads code points reads the one lastIndex falls in,
+	// which for an index between the halves of a pair begins at the first.
+	if re.Flags()&(regexp.FlagUnicode|regexp.FlagUnicodeSets) != 0 && start > 0 && start < len(units) &&
+		units[start]&0xFC00 == 0xDC00 && units[start-1]&0xFC00 == 0xD800 {
+		start--
+	}
+
+	// A match takes as long as it takes, as in V8, where the host can stop
+	// it. Where nothing can -- no deadline, no abort -- a catastrophic
+	// backtrack would hang the host for good, so the matcher's step budget
+	// bounds it instead.
+	var check func() error
+	if r.abort != nil || r.ctx != nil && r.ctx.Done() != nil {
+		check = r.checkInterruptNow
+	}
+	// The indices are read into a buffer the runtime keeps: they are done
+	// with -- copied into the result and the legacy statics -- before
+	// anything else can run, and so before the next match.
+	caps, err := re.MatchCheckedInto(r.capsBuf, units, start, check)
+	if caps != nil {
+		r.capsBuf = caps
+	}
+	if errors.Is(err, regexp.ErrComplexity) {
+		return nil, nil, r.throwError(errSyntax, "%s", err.Error())
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	if caps == nil {
+		if stateful {
+			if err := r.setLastIndex(o, Int(0)); err != nil {
+				return nil, nil, err
+			}
+		}
+		return nil, re, nil
+	}
+	if stateful {
+		if err := r.setLastIndex(o, Int(caps[1])); err != nil {
+			return nil, nil, err
+		}
+	}
+	r.recordLegacyMatch(o.dataOf().(*regexpData), s, caps)
+	return caps, re, nil
+}
+
+// setLastIndex writes a RegExp's lastIndex, which is its first property:
+// newRegExpObject makes it first, and it can be neither deleted nor made an
+// accessor, so it stays there and stays a value. One that cannot be written
+// is written through the object, for the error a script sees -- the whole
+// point of lastIndex being an ordinary property.
+func (r *Runtime) setLastIndex(o *Object, v Value) error {
+	if o.shape.keys[0].flags&propWritable != 0 {
+		o.vals[0] = v
+		return nil
+	}
+	_, err := r.setProp(o, atomLastIndex, v, Obj(o), true)
+	return err
+}
+
+// builtinExec reports whether exec, called on rx, would be the built-in
+// running on an unnamed-group pattern: rx's flags are the built-in's to read
+// (see builtinFlags), and so is exec, which the realm's prototype still holds.
+// Its caller can then match without the result array, which nothing but it
+// would see. Groups with names are left to the array, which has them.
+func (r *Runtime) builtinExec(rx Value) bool {
+	if _, ok := r.builtinFlagBits(rx); !ok {
+		return false
+	}
+	return r.builtinExecOf(rx)
+}
+
+// replaceDirect reports whether s.replace(rx, t), for strings s and t, may
+// call the built-in Symbol.replace itself rather than look it up and call
+// it: rx's Symbol.replace, flags and exec are the built-ins and its lastIndex
+// can be written, so that nothing the call does runs a script or throws, and
+// its frame could not be seen. It answers with rx's flags, which the call
+// is then given rather than asking again.
+func (r *Runtime) replaceDirect(rx Value) (regexp.Flags, bool) {
+	fl, ok := r.builtinFlagBits(rx)
+	if !ok || !propsIntact(r.proto.regexp, r.regexpReplaceProps) || !r.builtinExecOf(rx) {
+		return 0, false
+	}
+	return fl, rx.Object().shape.keys[0].flags&propWritable != 0
+}
+
+// splitDirect reports whether rx.[Symbol.split] may search with rx's own
+// pattern rather than with the sticky copy of it that it makes: rx's flags
+// and exec are the built-ins, and so are the constructor its prototype
+// names, that constructor's Symbol.species and the prototype's Symbol.match,
+// which making the copy reads -- so making it would run nothing a script
+// wrote, and nothing could see the copy but the search. It answers with
+// rx's flags.
+func (r *Runtime) splitDirect(rx Value) (regexp.Flags, bool) {
+	fl, ok := r.builtinFlagBits(rx)
+	if !ok || !propsIntact(r.proto.regexp, r.regexpSplitProps) ||
+		!propsIntact(r.proto.regexpCtor, r.regexpSpeciesProps) || !r.builtinExecOf(rx) {
+		return 0, false
+	}
+	return fl, true
+}
+
+// builtinExecOf is builtinExec for a RegExp builtinFlagBits has answered for.
+func (r *Runtime) builtinExecOf(rx Value) bool {
+	if !propsIntact(r.proto.regexp, r.regexpExecProps) {
+		return false
+	}
+	d, ok := rx.Object().dataOf().(*regexpData)
+	return ok && len(d.re.GroupNames()) == 0
+}
+
+// execMatchAll is what calling the built-in exec on a global rx, over and
+// over from a lastIndex of 0 until it finds nothing, does -- stepping past
+// an empty match as a global replace or match does -- for a caller that
+// wants the matches' indices, appended to spans. Nothing a script wrote can
+// run between the calls, so they are made as one: in one frame of exec,
+// with lastIndex written at the end, and the legacy statics for the last
+// match. Where one fails, lastIndex is left where that call found it.
+func (r *Runtime) execMatchAll(rx Value, s *String, fullUnicode bool, spans []int) ([]int, error) {
+	o := rx.Object()
+	d := o.dataOf().(*regexpData)
+	re := d.re
+	units := s.codeUnits()
+	i := len(r.argStack)
+	r.argStack = append(r.argStack, Str(s))
+	defer func() {
+		r.argStack[i] = Undefined
+		r.argStack = r.argStack[:i]
+	}()
+	if err := r.pushNativeFrame(r.regexpExecFn, rx, r.argStack[i:i+1:i+1], Undefined); err != nil {
+		return spans, err
+	}
+	defer func() { r.frameDepth-- }()
+	var check func() error
+	if r.abort != nil || r.ctx != nil && r.ctx.Done() != nil {
+		check = r.checkInterruptNow
+	}
+	unicode := re.Flags()&(regexp.FlagUnicode|regexp.FlagUnicodeSets) != 0
+	first := len(spans)
+	pos := 0
+	fail := func(err error) ([]int, error) {
+		if serr := r.setLastIndex(o, Int(pos)); serr != nil {
+			return spans, serr
+		}
+		if len(spans) > first {
+			r.recordLegacyMatch(d, s, spans[len(spans)-len(r.capsBuf):])
+		}
+		return spans, err
+	}
+	for pos <= len(units) {
+		if len(spans) > first {
+			// Each call after the first is a turn of the caller's loop, which
+			// counts it.
+			if err := r.tick(); err != nil {
+				return fail(err)
+			}
+		}
+		start := pos
+		if unicode && start > 0 && start < len(units) &&
+			units[start]&0xFC00 == 0xDC00 && units[start-1]&0xFC00 == 0xD800 {
+			start--
+		}
+		caps, err := re.MatchCheckedInto(r.capsBuf, units, start, check)
+		if caps != nil {
+			r.capsBuf = caps
+		}
+		if errors.Is(err, regexp.ErrComplexity) {
+			return fail(r.throwError(errSyntax, "%s", err.Error()))
+		}
+		if err != nil {
+			return fail(err)
+		}
+		if caps == nil {
+			break
+		}
+		spans = append(spans, caps...)
+		pos = caps[1]
+		if caps[0] == caps[1] {
+			pos = advanceStringIndex(units, pos, fullUnicode)
+		}
+	}
+	// The call that found nothing left lastIndex at 0.
+	if err := r.setLastIndex(o, Int(0)); err != nil {
+		return spans, err
+	}
+	if len(spans) > first {
+		r.recordLegacyMatch(d, s, spans[len(spans)-len(r.capsBuf):])
+	}
+	return spans, nil
+}
+
+// splitBuiltin is RegExp.prototype[Symbol.split]'s loop for a splitter whose
+// exec is the built-in, which split made and nothing else can reach, and d
+// is its data. The loop tries the sticky splitter at each position in turn;
+// the first position it succeeds at is where a search from the first finds
+// its match, so each piece is one search rather than a call of exec per
+// position. It runs in exec's frame, and the legacy statics are those of the
+// last match, as they would have been.
+func (r *Runtime) splitBuiltin(splitter Value, d *regexpData, s *String, units []uint16, limit int64, fullUnicode bool) (Value, error) {
+	re := d.re
+	size := len(units)
+	i := len(r.argStack)
+	r.argStack = append(r.argStack, Str(s))
+	defer func() {
+		r.argStack[i] = Undefined
+		r.argStack = r.argStack[:i]
+	}()
+	if err := r.pushNativeFrame(r.regexpExecFn, splitter, r.argStack[i:i+1:i+1], Undefined); err != nil {
+		return Undefined, err
+	}
+	defer func() { r.frameDepth-- }()
+	var check func() error
+	if r.abort != nil || r.ctx != nil && r.ctx.Done() != nil {
+		check = r.checkInterruptNow
+	}
+	var out []Value
+	var last []int
+	done := func(err error) (Value, error) {
+		if last != nil {
+			r.recordLegacyMatch(d, s, last)
+		}
+		if err != nil {
+			return Undefined, err
+		}
+		return Obj(r.newArrayFrom(out)), nil
+	}
+	p, q := 0, 0
+	for q < size {
+		if err := r.tick(); err != nil {
+			return done(err)
+		}
+		caps, err := re.SearchCheckedInto(r.capsBuf, units, q, check)
+		if caps != nil {
+			r.capsBuf = caps
+		}
+		if errors.Is(err, regexp.ErrComplexity) {
+			return done(r.throwError(errSyntax, "%s", err.Error()))
+		}
+		if err != nil {
+			return done(err)
+		}
+		if caps == nil || caps[0] >= size {
+			// No position left before the end matches.
+			break
+		}
+		at := caps[0]
+		last = append(last[:0], caps...)
+		e := min(caps[1], size)
+		if e == p {
+			// A separator that matched emptily where the last one ended
+			// would not make progress.
+			q = advanceStringIndex(units, at, fullUnicode)
+			continue
+		}
+		out = append(out, Str(s.Substring(p, at)))
+		if int64(len(out)) == limit {
+			return done(nil)
+		}
+		p = e
+		// A capturing separator contributes its groups to the result.
+		for g := 2; g < len(caps); g += 2 {
+			c := Undefined
+			if caps[g] >= 0 && caps[g+1] >= 0 {
+				c = Str(s.Substring(caps[g], caps[g+1]))
+			}
+			out = append(out, c)
+			if int64(len(out)) == limit {
+				return done(nil)
+			}
+		}
+		q = p
+	}
+	out = append(out, Str(s.Substring(p, size)))
+	return done(nil)
+}
+
+// execMatch is what calling the built-in exec on rx does -- its frame, the
+// match, lastIndex, the legacy statics -- but for making the array.
+func (r *Runtime) execMatch(rx Value, s *String) ([]int, error) {
+	i := len(r.argStack)
+	r.argStack = append(r.argStack, Str(s))
+	args := r.argStack[i : i+1 : i+1]
+	var caps []int
+	err := r.pushNativeFrame(r.regexpExecFn, rx, args, Undefined)
+	if err == nil {
+		caps, _, err = r.regexpMatch(rx, s)
+		r.frameDepth--
+	}
+	r.argStack[i] = Undefined
+	r.argStack = r.argStack[:i]
+	return caps, err
+}
+
+// buildMatchResult assembles the array exec returns: the matched text, then
+// each group, with index, input and groups attached as properties.
+func (r *Runtime) buildMatchResult(re *regexp.Regexp, caps []int, input *String) *Object {
+	n := len(caps) / 2
+	// The array is made first and filled in place, rather than built beside
+	// itself and copied in. Each piece is cut from the subject, which for text
+	// that is all ASCII -- most of it -- shares the bytes rather than encoding
+	// them again.
+	hasIndices := re.Flags()&regexp.FlagHasIndices != 0
+	arr, room := newMatchResult(r.proto.array, n, hasIndices)
+	elems := arr.elemsOf()
+	// What matched is always there, and is written in the room the array
+	// has for it.
+	elems[0] = Str(input.substringInto(room, caps[0], caps[1]))
+	for i := 1; i < n; i++ {
+		lo, hi := caps[2*i], caps[2*i+1]
+		if lo < 0 || hi < 0 {
+			// A group that did not participate reads as undefined, which is
+			// distinct from having matched the empty string.
+			elems[i] = Undefined
+			continue
+		}
+		elems[i] = Str(input.Substring(lo, hi))
+	}
+
+	// index, input and groups, and where the d flag asks for them the indices
+	// as well, go in the room the array was made with. Without the d flag,
+	// every result has the first's three properties, which are copied from
+	// it with values of its own.
+	names := orderedGroupNames(re)
+	groups := r.groupObject(names, re.GroupNames(), func(i int) Value {
+		return elems[i]
+	})
+	if t := r.matchLayout; t != nil && !hasIndices {
+		arr.vals = append(arr.vals, t.vals[:]...)
+		arr.shape = t.shape
+		arr.vals[0] = Int(caps[0])
+		arr.vals[1] = Str(input)
+		arr.vals[2] = groups
+		return arr
+	}
+	arr.setOwnRaw(atomIndex, Int(caps[0]), propDefault)
+	arr.setOwnRaw(atomInput, Str(input), propDefault)
+	arr.setOwnRaw(atomGroups, groups, propDefault)
+	if !hasIndices && r.matchLayout == nil {
+		r.matchLayout = layoutOf(arr)
+	}
+
+	// The d flag asks for where each group matched as well as what it matched,
+	// which a script would otherwise have to work out by searching the input.
+	if hasIndices {
+		pairs := make([]Value, n)
+		for i := 0; i < n; i++ {
+			pairs[i] = r.indexPair(caps[2*i], caps[2*i+1])
+		}
+		indices := r.newArrayFrom(pairs)
+		indices.setOwnRaw(atomGroups, r.groupObject(names, re.GroupNames(), func(i int) Value {
+			return pairs[i]
+		}), propDefault)
+		arr.setOwnRaw(r.atoms.intern("indices"), Obj(indices), propDefault)
+	}
+	return arr
+}
+
+// indexPair renders where a group matched, or undefined where it did not --
+// which is distinct from having matched the empty string.
+func (r *Runtime) indexPair(lo, hi int) Value {
+	if lo < 0 || hi < 0 {
+		return Undefined
+	}
+	return Obj(r.newArrayFrom([]Value{Int(lo), Int(hi)}))
+}
+
+// orderedGroupNames lists a pattern's named groups in the order they were
+// written, which is what Object.getOwnPropertyNames of the groups object
+// reports; a map's iteration order would be a different answer each time.
+func orderedGroupNames(re *regexp.Regexp) []string {
+	names := re.GroupNames()
+	if len(names) == 0 {
+		return nil
+	}
+	ordered := make([]string, 0, len(names))
+	for name := range names {
+		ordered = append(ordered, name)
+	}
+	// A name several groups share is ordered by the first of them.
+	sort.Slice(ordered, func(i, j int) bool {
+		return names[ordered[i]][0] < names[ordered[j]][0]
+	})
+	return ordered
+}
+
+// groupObject builds the object the named groups are read from, or undefined
+// when the pattern has none. A name several groups share reads as whichever of
+// them took part, and as undefined when none did.
+func (r *Runtime) groupObject(ordered []string, names map[string][]int, at func(int) Value) Value {
+	if len(ordered) == 0 {
+		return Undefined
+	}
+	groups := newObject(nil, ClassObject)
+	for _, name := range ordered {
+		v := Undefined
+		for _, i := range names[name] {
+			if v = at(i); !v.IsUndefined() {
+				break
+			}
+		}
+		groups.setOwnRaw(r.atoms.intern(name), v, propDefault)
+	}
+	return Obj(groups)
+}
+
+// ---------------------------------------------------------------------------
+// The String methods that take a pattern
+// ---------------------------------------------------------------------------
+
+// toRegExp coerces a value used as a pattern, compiling a string as a literal
+// would with the given extra flags.
+func (r *Runtime) toRegExp(v Value, extraFlags string) (Value, error) {
+	// A fresh regular expression every time, even from one: this is only
+	// reached when the argument had no symbol method of its own, and what the
+	// specification builds then is a new pattern from the argument's string
+	// form.
+	source := ""
+	if !v.IsUndefined() {
+		// The string is a pattern rather than text to find: `"a1".search("\\d")`
+		// looks for a digit. The methods that search for a literal -- replace
+		// and split with a string argument -- never come through here.
+		s, err := r.toString(v)
+		if err != nil {
+			return Undefined, err
+		}
+		source = s.Go()
+	}
+	return r.newRegExp(source, extraFlags)
+}
+
+func (r *Runtime) initStringRegExpMethods() {
+	p := r.proto.str
+
+	// Each of these dispatches through the corresponding symbol method, which
+	// is what lets a RegExp subclass -- or any object at all -- define how it
+	// matches. The regexp behaviour lives on RegExp.prototype under the symbol;
+	// only the fallback for a non-regexp argument is here.
+	r.defMethod(p, "match", 1, func(rt *Runtime, this Value, args []Value) (Value, error) {
+		return rt.dispatchStringRegExp(this, args, rt.wellKnown.match, "", nil)
+	})
+
+	r.defMethod(p, "matchAll", 1, func(rt *Runtime, this Value, args []Value) (Value, error) {
+		// matchAll is the one that insists on the global flag, and it checks
+		// before dispatching so that a non-global regexp is refused whatever
+		// its symbol method would have done.
+		if re := arg(args, 0); !re.IsNullish() {
+			isRe, err := rt.isRegExp(re)
+			if err != nil {
+				return Undefined, err
+			}
+			if isRe {
+				flags, err := rt.getValueProp(re, atomFlags)
+				if err != nil {
+					return Undefined, err
+				}
+				if flags.IsNullish() {
+					return Undefined, rt.throwTypeError("the pattern has no flags")
+				}
+				fs, err := rt.toString(flags)
+				if err != nil {
+					return Undefined, err
+				}
+				if !strings.Contains(fs.Go(), "g") {
+					return Undefined, rt.throwTypeError(
+						"matchAll requires a global regular expression")
+				}
+			}
+		}
+		return rt.dispatchStringRegExp(this, args, rt.wellKnown.matchAll, "g", nil)
+	})
+
+	r.defMethod(p, "search", 1, func(rt *Runtime, this Value, args []Value) (Value, error) {
+		return rt.dispatchStringRegExp(this, args, rt.wellKnown.search, "", nil)
+	})
+}
+
+// dispatchStringRegExp implements the shape every String method that takes a
+// pattern shares.
+//
+// The argument is asked for its symbol method first, so that anything can act
+// as a pattern; only when it has none is it coerced to a RegExp and the
+// intrinsic used. extra is appended to the arguments the symbol method
+// receives, which is how replace passes its replacement along.
+func (r *Runtime) dispatchStringRegExp(this Value, args []Value, sym *Symbol,
+	addFlags string, extra []Value) (Value, error) {
+	if this.IsNullish() {
+		return Undefined, r.throwTypeError("String.prototype method called on %s", this.Kind())
+	}
+	pattern := arg(args, 0)
+	// Only an object is asked for its symbol method. A primitive would find
+	// one on its own prototype, which is not a pattern the caller supplied.
+	if pattern.IsObject() {
+		method, err := r.getValueProp(pattern, r.atoms.internSymbol(sym))
+		if err != nil {
+			return Undefined, err
+		}
+		if !method.IsNullish() {
+			if !isCallable(method) {
+				return Undefined, r.throwTypeError("the pattern's method is not callable")
+			}
+			return r.call(method, pattern, append([]Value{this}, extra...))
+		}
+	}
+	s, err := r.toString(this)
+	if err != nil {
+		return Undefined, err
+	}
+	reVal, err := r.toRegExp(pattern, addFlags)
+	if err != nil {
+		return Undefined, err
+	}
+	method, err := r.getValueProp(reVal, r.atoms.internSymbol(sym))
+	if err != nil {
+		return Undefined, err
+	}
+	if !isCallable(method) {
+		return Undefined, r.throwTypeError("the pattern has no matching method")
+	}
+	return r.call(method, reVal, append([]Value{Str(s)}, extra...))
+}
+
+// initRegExpSymbolMethods defines the five symbol methods that carry the actual
+// regexp behaviour.
+//
+// They live on RegExp.prototype rather than inside the String methods because
+// that is where a subclass can override them, and because String.prototype
+// reaches them by lookup rather than by knowing what a RegExp is.
+func (r *Runtime) initRegExpSymbolMethods(p *Object) {
+	r.defSymbolMethod(p, r.wellKnown.match, "[Symbol.match]", 1,
+		func(rt *Runtime, this Value, args []Value) (Value, error) {
+			return rt.regExpSymbolMatch(this, args)
+		})
+	r.defSymbolMethod(p, r.wellKnown.matchAll, "[Symbol.matchAll]", 1,
+		func(rt *Runtime, this Value, args []Value) (Value, error) {
+			return rt.regExpSymbolMatchAll(this, args)
+		})
+	r.defSymbolMethod(p, r.wellKnown.search, "[Symbol.search]", 1,
+		func(rt *Runtime, this Value, args []Value) (Value, error) {
+			return rt.regExpSymbolSearch(this, args)
+		})
+	r.defSymbolMethod(p, r.wellKnown.split, "[Symbol.split]", 2,
+		func(rt *Runtime, this Value, args []Value) (Value, error) {
+			return rt.regExpSymbolSplit(this, args)
+		})
+	r.defSymbolMethod(p, r.wellKnown.replace, "[Symbol.replace]", 2,
+		func(rt *Runtime, this Value, args []Value) (Value, error) {
+			return rt.regExpSymbolReplace(this, args)
+		})
+	i := p.findOwn(r.atoms.internSymbol(r.wellKnown.replace))
+	r.regexpReplaceProps = []builtinProp{{i: int(i), p: p.propAt(i)}}
+
+	// The iterator matchAll returns has its own prototype, so that adding a
+	// method to it does not add one to every array iterator.
+	r.defToStringTag(r.proto.regexpStringIter, "RegExp String Iterator")
+}
+
+// builtinProp is a property as a realm made it, where in its object's table
+// it made it, and for an accessor the functions it made it with -- which a
+// redefinition changes in place.
+type builtinProp struct {
+	i              int
+	p              Property
+	getter, setter *Object
+}
+
+// snapshotProps records properties of o as they are now.
+func (r *Runtime) snapshotProps(o *Object, names ...string) []builtinProp {
+	out := make([]builtinProp, 0, len(names))
+	for _, name := range names {
+		i := o.findOwn(r.atoms.intern(name))
+		e := builtinProp{i: int(i), p: o.propAt(i)}
+		if a := e.p.getterSetter(); e.p.isAccessor() && a != nil {
+			e.getter, e.setter = a.getter, a.setter
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// propsIntact reports whether o's properties are still those recorded.
+func propsIntact(o *Object, want []builtinProp) bool {
+	keys, vals := o.keys(), o.vals
+	for k := range want {
+		e := &want[k]
+		// The value is compared by its bits: a boxed value's number is a
+		// NaN, which is equal to nothing.
+		if e.i >= len(vals) {
+			return false
+		}
+		p, v := keys[e.i], vals[e.i]
+		if p.key != e.p.key || p.flags != e.p.flags || v.ref != e.p.value.ref ||
+			math.Float64bits(v.num) != math.Float64bits(e.p.value.num) {
+			return false
+		}
+		if a := e.p.getterSetter(); e.p.isAccessor() && a != nil &&
+			(a.getter != e.getter || a.setter != e.setter) {
+			return false
+		}
+	}
+	return true
+}
+
+// builtinFlagBits is the pattern's flags, where builtinFlags would give them
+// as a string: for a caller that only asks which are set.
+func (r *Runtime) builtinFlagBits(rx Value) (regexp.Flags, bool) {
+	if !rx.IsObject() {
+		return 0, false
+	}
+	o := rx.Object()
+	if o.class != ClassRegExp || o.proto == nil || o.proto != r.proto.regexp ||
+		len(o.vals) != 1 || o.shape.keys[0].key != atomLastIndex ||
+		!propsIntact(o.proto, r.regexpFlagProps) {
+		return 0, false
+	}
+	d, ok := o.dataOf().(*regexpData)
+	if !ok {
+		return 0, false
+	}
+	return d.re.Flags(), true
+}
+
+// builtinFlags is the flags string a RegExp's flags property would read, when
+// reading it would run nothing but the built-in getters: the RegExp inherits
+// them from this realm's prototype, as the realm made them, and has no
+// property of its own but lastIndex to shadow them. The getters only read
+// the pattern, so asking the pattern is the same answer. ok is false for any
+// other object, whose flags are read the long way.
+func (r *Runtime) builtinFlags(rx Value) (flags string, ok bool) {
+	fl, ok := r.builtinFlagBits(rx)
+	if !ok {
+		return "", false
+	}
+	if fl&regexp.FlagUnicodeSets != 0 {
+		fl &^= regexp.FlagUnicode
+	}
+	var buf [len(regExpFlagNames)]byte
+	n := 0
+	for _, fg := range regExpFlagNames {
+		if fl&fg.bit != 0 {
+			buf[n] = fg.letter
+			n++
+		}
+	}
+	return string(buf[:n]), true
+}
+
+// regExpFlagNames pairs each flag's property name with the letter it
+// contributes to the flags string, in the order the string uses.
+var regExpFlagNames = [...]struct {
+	name   string
+	letter byte
+	bit    regexp.Flags
+}{
+	{"hasIndices", 'd', regexp.FlagHasIndices},
+	{"global", 'g', regexp.FlagGlobal},
+	{"ignoreCase", 'i', regexp.FlagIgnoreCase},
+	{"multiline", 'm', regexp.FlagMultiline},
+	{"dotAll", 's', regexp.FlagDotAll},
+	{"unicode", 'u', regexp.FlagUnicode},
+	{"unicodeSets", 'v', regexp.FlagUnicodeSets},
+	{"sticky", 'y', regexp.FlagSticky},
+}
+
+// escapeRegExpSource makes a pattern safe to sit between two slashes.
+//
+// A literal cannot contain an unescaped slash or line terminator, so a pattern
+// built by the constructor from a string that does has to be escaped before it
+// can be printed -- otherwise new RegExp("/") would print as /// and not parse
+// back.
+func escapeRegExpSource(src string) string {
+	if !strings.ContainsAny(src, "/\n\r\u2028\u2029") {
+		return src
+	}
+	var sb strings.Builder
+	escaped := false
+	for _, c := range src {
+		switch {
+		case escaped:
+			sb.WriteRune(c)
+			escaped = false
+			continue
+		case c == '\\':
+			sb.WriteRune(c)
+			escaped = true
+			continue
+		case c == '/':
+			sb.WriteString("\\/")
+		case c == '\n':
+			sb.WriteString("\\n")
+		case c == '\r':
+			sb.WriteString("\\r")
+		case c == '\u2028':
+			sb.WriteString("\\u2028")
+		case c == '\u2029':
+			sb.WriteString("\\u2029")
+		default:
+			sb.WriteRune(c)
+		}
+	}
+	return sb.String()
+}
