@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/commandenv"
 	"forge.harakara.site/littleisland/noe/v2/internal/process"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Run describes the programs a script may start.

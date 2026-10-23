@@ -10,10 +10,10 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/mir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ssa"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/mir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ssa"
 )
 
 // valueCode is the code of a function that returns v; a long one runs

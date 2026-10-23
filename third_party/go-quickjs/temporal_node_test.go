@@ -13,8 +13,8 @@ import (
 	"sync"
 	"testing"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	intl "github.com/go-quickjs/go-intl"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // TestTemporalMatchesNodeAcrossLocalesAndTimeZones compares every locale

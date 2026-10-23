@@ -3,7 +3,7 @@ package vm
 import (
 	"fmt"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // TreeReport says whether the tree tier builds fn and, where it does not,

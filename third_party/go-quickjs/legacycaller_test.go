@@ -3,7 +3,7 @@ package quickjs_test
 import (
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // legacyCallerCases are what a sloppy function's caller and arguments answer

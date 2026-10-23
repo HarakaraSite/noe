@@ -3,7 +3,7 @@ package quickjs_test
 import (
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // TestLeafFunctions covers the calls the VM answers without a frame: a body

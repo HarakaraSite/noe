@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // The protocol's methods, on the runtime's goroutine.

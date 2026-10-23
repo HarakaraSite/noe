@@ -1,6 +1,6 @@
 package vm
 
-import "github.com/go-quickjs/go-quickjs/internal/bytecode"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 
 // The tree tier's calls in tail position are built here, in the file the
 // package's code ends with -- the z puts it after with.go -- rather than

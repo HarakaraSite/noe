@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // TestSourceURL pins //# sourceURL= as V8 reads it: the code of an eval or

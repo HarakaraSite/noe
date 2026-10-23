@@ -3,7 +3,7 @@ package vm
 import (
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // An && or || whose y calls, and x ?? y, are one node too, and answer as

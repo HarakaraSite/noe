@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // `eval(src)` written as a plain call runs its code in the caller's scope: it

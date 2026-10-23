@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // A construction with a class whose constructor is the one a class without

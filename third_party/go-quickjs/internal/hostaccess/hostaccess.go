@@ -7,7 +7,7 @@
 // the package's, passed as any because this package cannot import it.
 package hostaccess
 
-import "github.com/go-quickjs/go-quickjs/internal/vm"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 
 var (
 	// VM is the VM runtime of a *quickjs.Runtime.

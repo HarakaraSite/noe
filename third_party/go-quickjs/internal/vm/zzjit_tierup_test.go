@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 // jitTierSetup has f read x off its receivers' prototypes, which a site that

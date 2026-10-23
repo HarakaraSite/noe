@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // evalString evaluates src and returns its value's string form.

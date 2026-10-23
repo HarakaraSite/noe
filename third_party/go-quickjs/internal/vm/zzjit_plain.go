@@ -5,8 +5,8 @@ package vm
 import (
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 // jitGoCallPlain makes a call of Go native code makes (ssa.GoCall), at its

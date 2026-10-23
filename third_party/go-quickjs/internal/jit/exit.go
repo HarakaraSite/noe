@@ -4,7 +4,7 @@ import (
 	"math"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 // ApplyExit writes the frame of an exit that left it to Go (abi.ExitTable)

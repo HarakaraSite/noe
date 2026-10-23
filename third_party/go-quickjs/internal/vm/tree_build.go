@@ -5,8 +5,8 @@ import (
 	"math/bits"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
 )
 
 // tentry is a value on the operand stack, as the builder follows it: a tree

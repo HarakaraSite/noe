@@ -3,7 +3,7 @@ package vm
 import (
 	"math"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // Updates in the tree tier: x op= y, x++ and x-- over a place -- a property,

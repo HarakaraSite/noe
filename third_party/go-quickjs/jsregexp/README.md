@@ -4,11 +4,11 @@ ECMAScript regular expressions for Go: the patterns and flags a JavaScript
 program writes, with an API shaped like Go's `regexp`.
 
 ```sh
-go get github.com/go-quickjs/go-quickjs/jsregexp
+go get forge.harakara.site/littleisland/noe/third_party/go-quickjs/jsregexp
 ```
 
 ```go
-import "github.com/go-quickjs/go-quickjs/jsregexp"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/jsregexp"
 
 re := jsregexp.MustCompile(`(?<user>\w+)@(\w+)\.com`, "i")
 m, err := re.FindStringSubmatch("Write to Someone@Example.com today")

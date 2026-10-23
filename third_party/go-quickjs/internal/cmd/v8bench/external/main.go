@@ -6,6 +6,6 @@
 //	go run ./internal/cmd/v8bench/external -engine qjs -cmd /path/to/qjs -dir /tmp/v8-v7
 package main
 
-import "github.com/go-quickjs/go-quickjs/internal/v8bench"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/v8bench"
 
 func main() { v8bench.MainExternal() }

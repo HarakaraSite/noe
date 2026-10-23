@@ -3,7 +3,7 @@ package vm
 import (
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // x && y and x || y as values, built as one node where y is an

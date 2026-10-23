@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/go-quickjs/go-quickjs/internal/ast"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/ast"
 
 // slab hands out pointers to elements of a pre-allocated block, turning N
 // individual heap allocations into one allocation per block.

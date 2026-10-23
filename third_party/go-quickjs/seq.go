@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // Go sequences as JavaScript iterators.

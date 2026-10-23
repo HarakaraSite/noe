@@ -15,7 +15,7 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/nativeio"
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // IOConfig selects the native I/O modules as a group. Stdin is borrowed and

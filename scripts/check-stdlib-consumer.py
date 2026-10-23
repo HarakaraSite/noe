@@ -13,7 +13,7 @@ import zipfile
 
 MODULE = "forge.harakara.site/littleisland/noe/v2"
 VERSION = "v2.0.0-dev.0"
-ENGINE = "github.com/go-quickjs/go-quickjs"
+ENGINE = "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 ENGINE_VERSION = "v0.28.1-noe.1"
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -52,7 +52,7 @@ def main():
         folder.mkdir()
         for source in (ROOT / package / "testdata/consumer").glob("*.go"):
             shutil.copyfile(source, folder / source.name)
-        text = f"module example.com/noe-{package}-consumer\n\ngo 1.27.2\n\nrequire (\n {MODULE} {VERSION}\n github.com/go-quickjs/go-quickjs v0.28.0\n)\n"
+        text = f"module example.com/noe-{package}-consumer\n\ngo 1.27.2\n\nrequire (\n {MODULE} {VERSION}\n {ENGINE} {ENGINE_VERSION}\n)\n"
         if replacement:
             text += f"\nreplace {MODULE} => {json.dumps(str(ROOT))}\n"
             engine_source = ROOT / "third_party/go-quickjs"
@@ -129,7 +129,7 @@ def main():
     command("local-build", ["go", "build", "-o", str(local / "consumer"), "."], local)
     for index, mode in enumerate(modes):
         command(f"local-run-{index}", [str(local / "consumer"), *mode], local)
-    command("local-versions", ["go", "list", "-m", MODULE, "github.com/go-quickjs/go-quickjs"], local)
+    command("local-versions", ["go", "list", "-m", MODULE, ENGINE], local)
     command("package-deps", ["go", "list", "-deps", MODULE + "/" + package], local)
     deps = (output / "package-deps.log").read_text().splitlines()
     forbidden_names = ["cli", "runtime"] if args.agent else ["cli", "runtime", "agent", "agentbridge", "credentials"]
@@ -148,7 +148,7 @@ def main():
                         GOPROXY=",".join([(output / "proxy").as_uri(), (Path(host["GOMODCACHE"]) / "cache/download").as_uri(), "https://proxy.golang.org", "direct"]))
     command("artifact-tidy", ["go", "mod", "tidy"], artifact, artifact_env)
     assert "replace" not in (artifact / "go.mod").read_text()
-    command("artifact-versions", ["go", "list", "-m", "-json", MODULE, "github.com/go-quickjs/go-quickjs"], artifact, artifact_env)
+    command("artifact-versions", ["go", "list", "-m", "-json", MODULE, ENGINE], artifact, artifact_env)
     decoder = json.JSONDecoder()
     versions_text = (output / "artifact-versions.log").read_text().strip()
     selected_modules = {}

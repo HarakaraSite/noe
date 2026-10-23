@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
-	"github.com/go-quickjs/go-quickjs/internal/jit/mir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/mir"
 )
 
 // The backend for this target is compiled in.

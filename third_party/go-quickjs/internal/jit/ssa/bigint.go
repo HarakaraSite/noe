@@ -1,6 +1,6 @@
 package ssa
 
-import "github.com/go-quickjs/go-quickjs/internal/jit/ir"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 
 // BigInts of 64 bits, made natively, as V8's code makes its BigInt64
 // values: an operator of BigInts held in their values, unboxed, Int64s

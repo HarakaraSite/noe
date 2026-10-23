@@ -7,10 +7,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/mir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ssa"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/mir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ssa"
 )
 
 // BigInts of 64 bits made natively (ssa's bigint.go): Uint64s from 2^63

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // A host's CommonJS require, built on the public API alone, as an embedder

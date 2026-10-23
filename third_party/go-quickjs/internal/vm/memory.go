@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-quickjs/go-intl/date"
 
-	"github.com/go-quickjs/go-quickjs/internal/regexp"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/regexp"
 )
 
 // Memory limits.

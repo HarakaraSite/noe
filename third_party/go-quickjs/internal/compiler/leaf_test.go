@@ -3,8 +3,8 @@ package compiler
 import (
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/parser"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/parser"
 )
 
 // TestArrowLeafKinds pins which arrows are marked pure: one whose body only

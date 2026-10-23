@@ -4,8 +4,8 @@ import (
 	"errors"
 	"sync/atomic"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
 )
 
 // Calls and frames: what a call from the interpreter's loop, from a tree or

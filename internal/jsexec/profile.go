@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
 	"forge.harakara.site/littleisland/noe/v2/internal/noestdlib"
 	lower "forge.harakara.site/littleisland/noe/v2/internal/stdlib"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Environment is the one snapshot shared by the modules installed on an

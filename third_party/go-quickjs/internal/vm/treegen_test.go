@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/vm/internal/treegen"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm/internal/treegen"
 )
 
 // TestTreeOperandsGenerated fails while tree_operand.go is not what its

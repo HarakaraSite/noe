@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/ast"
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/ast"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
 )
 
 // dump renders a program as a compact s-expression, so that tests can assert on

@@ -13,10 +13,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/agent"
 	"forge.harakara.site/littleisland/noe/v2/agent/model"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 type runtimeFlowModels struct {

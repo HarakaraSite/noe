@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // naturals is 0, 1, 2, ... and records what it gave and whether it was

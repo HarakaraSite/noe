@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // ModulePhase identifies the part of module processing that failed.

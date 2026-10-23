@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/internal/hostaccess"
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/hostaccess"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // The opt-in is valid in ordinary builds too, where it falls back. Pin its

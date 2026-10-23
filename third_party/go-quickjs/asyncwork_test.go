@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // runLoop is the event loop AsyncWork's documentation gives.

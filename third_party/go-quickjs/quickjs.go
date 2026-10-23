@@ -73,11 +73,11 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/compiler"
-	"github.com/go-quickjs/go-quickjs/internal/hostaccess"
-	"github.com/go-quickjs/go-quickjs/internal/parser"
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/compiler"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/hostaccess"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/parser"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // Runtime is an isolated JavaScript world: its own global object, intrinsics

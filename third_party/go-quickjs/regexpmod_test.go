@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // Inline modifiers let a pattern be case-insensitive, multiline or dot-all in

@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/go-quickjs/go-quickjs/internal/regexp/internal/asciigen"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/regexp/internal/asciigen"
 )
 
 func main() {

@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/regexp"
 	intl "github.com/go-quickjs/go-intl"
 	"github.com/go-quickjs/go-intl/date"
 	"github.com/go-quickjs/go-intl/temporal"
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/regexp"
 )
 
 // Runtime holds all state for one JavaScript world: the intern table, the

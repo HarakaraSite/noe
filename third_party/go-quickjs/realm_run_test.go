@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // A call made from inside a running script whose own context ends stops that

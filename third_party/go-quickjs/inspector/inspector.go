@@ -35,10 +35,10 @@ import (
 	"strings"
 	"sync"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/internal/hostaccess"
-	"github.com/go-quickjs/go-quickjs/internal/vm"
-	"github.com/go-quickjs/go-quickjs/internal/wsproto"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/hostaccess"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wsproto"
 )
 
 // DefaultAddr is where Node's inspector listens unless told otherwise.

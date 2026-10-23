@@ -1,6 +1,6 @@
 package compiler
 
-import "github.com/go-quickjs/go-quickjs/internal/ast"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/ast"
 
 // A function made anew at every iteration of a loop, and only ever called.
 //

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
 )
 
 // This file implements the abstract operations that define JavaScript's

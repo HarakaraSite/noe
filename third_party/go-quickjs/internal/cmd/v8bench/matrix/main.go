@@ -52,7 +52,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs/internal/cmd/v8bench/internal/cpuset"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/cmd/v8bench/internal/cpuset"
 )
 
 // An engine is a runner and what it runs.

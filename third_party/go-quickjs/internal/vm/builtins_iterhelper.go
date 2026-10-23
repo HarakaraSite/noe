@@ -3,7 +3,7 @@ package vm
 import (
 	"math"
 
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
 )
 
 // Iterator helpers.

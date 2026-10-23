@@ -43,8 +43,8 @@ func TestExternalPortableConsumer(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	goMod := "module example.com/noe-agent-consumer\n\ngo 1.27.2\n\nrequire (\n\tforge.harakara.site/littleisland/noe/v2 v2.0.0-dev.0\n\tgithub.com/go-quickjs/go-quickjs v0.28.0\n)\n\nreplace forge.harakara.site/littleisland/noe/v2 => " + strconv.Quote(root) + "\n"
-	goMod += "replace github.com/go-quickjs/go-quickjs => " + strconv.Quote(filepath.Join(root, "third_party", "go-quickjs")) + "\n"
+	goMod := "module example.com/noe-agent-consumer\n\ngo 1.27.2\n\nrequire (\n\tforge.harakara.site/littleisland/noe/v2 v2.0.0-dev.0\n\tforge.harakara.site/littleisland/noe/third_party/go-quickjs v0.28.1-noe.1\n)\n\nreplace forge.harakara.site/littleisland/noe/v2 => " + strconv.Quote(root) + "\n"
+	goMod += "replace forge.harakara.site/littleisland/noe/third_party/go-quickjs => " + strconv.Quote(filepath.Join(root, "third_party", "go-quickjs")) + "\n"
 	if err := os.WriteFile(filepath.Join(work, "go.mod"), []byte(goMod), 0600); err != nil {
 		t.Fatal(err)
 	}

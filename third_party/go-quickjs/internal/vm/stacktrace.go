@@ -4,7 +4,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // Stack traces, as V8 has them.

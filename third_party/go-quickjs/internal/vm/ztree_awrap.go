@@ -1,6 +1,6 @@
 package vm
 
-import "github.com/go-quickjs/go-quickjs/internal/bytecode"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 
 // BigInt.asUintN(64, x op y) and BigInt.asIntN's kind, made of x and y: a
 // 64-bit hash's or generator's arithmetic, wrapped to its width at every

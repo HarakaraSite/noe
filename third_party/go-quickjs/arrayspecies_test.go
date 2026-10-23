@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // slice, map, filter, concat and splice all build a new array, and all five ask

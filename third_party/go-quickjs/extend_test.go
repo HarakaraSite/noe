@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // A host extends the runtime by putting things in it: a global, or a module a

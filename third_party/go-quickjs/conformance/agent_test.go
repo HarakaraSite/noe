@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/internal/sharedmem"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/sharedmem"
 )
 
 // $262.agent: concurrent agents, each a runtime of its own on a goroutine of

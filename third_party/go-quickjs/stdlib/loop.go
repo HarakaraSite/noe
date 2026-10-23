@@ -44,7 +44,7 @@ import (
 	"sync"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // Loop runs the work a runtime has waiting: the microtasks a promise queues,

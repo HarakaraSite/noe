@@ -3,7 +3,7 @@ package quickjs_test
 import (
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 func TestTemporalInstantConstruction(t *testing.T) {

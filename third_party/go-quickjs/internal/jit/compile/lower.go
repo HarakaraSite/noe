@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 )
 
 // Compiler work and scratch size are bounded even for permanently refused

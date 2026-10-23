@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/sourcemap"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/sourcemap"
 )
 
 // SourceMapLoader reads the source map a script names with a

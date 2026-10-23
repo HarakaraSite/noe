@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/internal/hostaccess"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/hostaccess"
 )
 
 // Console installs the console object, writing to the given streams.

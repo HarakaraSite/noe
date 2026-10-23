@@ -7,9 +7,9 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/go-quickjs/go-quickjs/internal/compiler"
-	"github.com/go-quickjs/go-quickjs/internal/parser"
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/compiler"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/parser"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // Extending the runtime.

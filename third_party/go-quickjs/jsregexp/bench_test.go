@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/jsregexp"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/jsregexp"
 )
 
 // The benchmarks compare this package with Go's regexp on work both can do:

@@ -3,7 +3,7 @@ package stdlib
 import (
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // Timers installs setTimeout, setInterval, their clear counterparts and

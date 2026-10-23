@@ -3,10 +3,10 @@ package mir
 import (
 	"math"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
-	"github.com/go-quickjs/go-quickjs/internal/jit/asm/arm64"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ssa"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/asm/arm64"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ssa"
 )
 
 // BigInts of 64 bits, as amd64's (amd64_bigint.go).

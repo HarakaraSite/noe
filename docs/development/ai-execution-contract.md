@@ -117,3 +117,11 @@ examplesとfixtureの旧暗黙agent呼出しは明示importへ移す。旧instru
 その後でmodel/tool往復・転送・usage/cacheと時間を比較する。
 実providerはNOEの既存keyを使用し、少数の固定課題で比較する。
 エラーを直すための動作以外にcache率を上げる目的の反復はしない。
+
+## v2.2.0のengine配布
+
+管理engineは`forge.harakara.site/littleisland/noe/third_party/go-quickjs`として独立versionで配布する。
+元のupstream moduleのGo型とは別の型なので、独自bindingはimport pathを移行する。
+正式NOE moduleは公開済みengineをrequireし、公開時にcheckout専用replaceを残さない。
+ローカルengineを変更して検証するconsumerはNOEとengine両方のreplaceを明示する。
+engine submodule tagの実取得とsource照合後にNOEのtagを公開し、公開後のstdlib/agent/CLI取得も確認する。

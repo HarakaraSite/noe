@@ -3,8 +3,8 @@ package ssa
 import (
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/arena"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/arena"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 )
 
 // A Workspace is the memory a runtime's compiles share, as V8 compiles in a

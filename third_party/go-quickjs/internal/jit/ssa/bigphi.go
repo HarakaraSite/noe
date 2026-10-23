@@ -1,6 +1,6 @@
 package ssa
 
-import "github.com/go-quickjs/go-quickjs/internal/jit/ir"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 
 // unboxBigPhis gives a phi that only ever carries BigInts held in their
 // values an Int64 or Uint64 phi, as unboxPhis gives one of numbers a

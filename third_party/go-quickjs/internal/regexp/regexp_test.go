@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 )
 
 // find runs a pattern and returns the matched text, or "" with ok false.

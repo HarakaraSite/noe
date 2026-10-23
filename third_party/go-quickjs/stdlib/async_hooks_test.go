@@ -3,7 +3,7 @@ package stdlib_test
 import (
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/stdlib"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/stdlib"
 )
 
 // TestAsyncLocalStorageLikeNode pins AsyncLocalStorage as node 26 has it,

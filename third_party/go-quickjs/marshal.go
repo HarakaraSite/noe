@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // Conversion between Go and JavaScript values.

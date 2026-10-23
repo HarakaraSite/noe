@@ -11,7 +11,7 @@ import (
 	"unsafe"
 	"weak"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 // storeRefPairs is how many pointers storeRefProgram moves at an entry:

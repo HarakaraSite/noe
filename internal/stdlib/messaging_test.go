@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // TestStructuredCloneMatchesNode pins structuredClone to what node 26 does

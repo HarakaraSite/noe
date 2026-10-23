@@ -1,14 +1,14 @@
-module github.com/go-quickjs/go-quickjs/internal/cmd/v8bench/goja
+module forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/cmd/v8bench/goja
 
 go 1.25.0
 
 // The benchmark harness is go-quickjs's own, from the checkout this module
 // is in.
-replace github.com/go-quickjs/go-quickjs => ../../../..
+replace forge.harakara.site/littleisland/noe/third_party/go-quickjs => ../../../..
 
 require (
 	github.com/dop251/goja v0.0.0-20260917113740-793a2a65c13b
-	github.com/go-quickjs/go-quickjs v0.0.0-00010101000000-000000000000
+	forge.harakara.site/littleisland/noe/third_party/go-quickjs v0.0.0-00010101000000-000000000000
 )
 
 require (

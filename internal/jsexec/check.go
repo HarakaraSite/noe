@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	lower "forge.harakara.site/littleisland/noe/v2/internal/stdlib"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // CheckResult describes the result of parsing, compiling and linking a static

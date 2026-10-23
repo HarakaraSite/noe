@@ -3,7 +3,7 @@ package quickjs_test
 import (
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // Annex B is the legacy the specification keeps only because the web depends on

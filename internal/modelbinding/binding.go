@@ -9,11 +9,11 @@ import (
 	"strings"
 	"sync"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 	"forge.harakara.site/littleisland/noe/v2/internal/decision"
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 type Service interface {

@@ -1,6 +1,6 @@
 package vm
 
-import "github.com/go-quickjs/go-quickjs/internal/bytecode"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 
 // Realms.
 //

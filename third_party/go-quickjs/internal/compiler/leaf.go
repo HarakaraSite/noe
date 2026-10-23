@@ -1,6 +1,6 @@
 package compiler
 
-import "github.com/go-quickjs/go-quickjs/internal/bytecode"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 
 // leafKind is which of the bodies bytecode.LeafKind names fn's compiled code
 // is, or LeafNone. Only a function whose call does nothing before its body

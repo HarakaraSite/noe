@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
 )
 
 // Atom is an interned property key.

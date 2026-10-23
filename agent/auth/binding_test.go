@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/agent/auth"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 func TestInitializerInstallsHostFreeAuthAlongsideCustomLoader(t *testing.T) {

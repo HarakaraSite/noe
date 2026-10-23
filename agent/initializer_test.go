@@ -6,12 +6,12 @@ import (
 	"sync"
 	"testing"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/agent"
 	"forge.harakara.site/littleisland/noe/v2/agent/auth"
 	agentlog "forge.harakara.site/littleisland/noe/v2/agent/log"
 	"forge.harakara.site/littleisland/noe/v2/agent/model"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Verify the same independent initializer in root, task hooks, and tools.

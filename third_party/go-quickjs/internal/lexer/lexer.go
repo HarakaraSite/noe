@@ -8,7 +8,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 )
 
 // Error is a syntax error produced while scanning.

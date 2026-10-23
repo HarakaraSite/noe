@@ -10,7 +10,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 func mappingAt(t *testing.T, address uint64) string {

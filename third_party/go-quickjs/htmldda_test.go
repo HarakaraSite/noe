@@ -3,7 +3,7 @@ package quickjs_test
 import (
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // TestNewHTMLDDA pins what Annex B gives an object with [[IsHTMLDDA]]: typeof

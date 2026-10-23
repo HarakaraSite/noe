@@ -28,7 +28,7 @@ func TestExternalCommandConsumerExplicitHelper(t *testing.T) {
 		t.Fatal(err)
 	}
 	mod := fmt.Sprintf("module example.com/commandconsumer\n\ngo 1.27.2\nrequire %s v2.0.0-dev.0\nreplace %s => %q\n", publicModule, publicModule, filepath.ToSlash(root))
-	mod += fmt.Sprintf("replace github.com/go-quickjs/go-quickjs => %q\n", filepath.ToSlash(filepath.Join(root, "third_party", "go-quickjs")))
+	mod += fmt.Sprintf("replace forge.harakara.site/littleisland/noe/third_party/go-quickjs => %q\n", filepath.ToSlash(filepath.Join(root, "third_party", "go-quickjs")))
 	if err = os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0600); err != nil {
 		t.Fatal(err)
 	}

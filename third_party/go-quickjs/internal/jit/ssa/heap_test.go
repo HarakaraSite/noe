@@ -6,7 +6,7 @@ import (
 	"slices"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 )
 
 // testHeap is what handles 0 to 3 name in the differential tests: an array

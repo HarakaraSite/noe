@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // Resolver is what DNS asks names of. *net.Resolver is one -- the system's,

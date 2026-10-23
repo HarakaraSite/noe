@@ -16,8 +16,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-quickjs/go-quickjs/internal/ast"
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/ast"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // Error is a compile-time error.

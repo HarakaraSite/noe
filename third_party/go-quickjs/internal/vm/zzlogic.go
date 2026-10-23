@@ -1,6 +1,6 @@
 package vm
 
-import "github.com/go-quickjs/go-quickjs/internal/bytecode"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 
 // x && y and x || y as values -- return this.a[r] && this.b[c + r], the
 // test of Queens' getRowColumn -- were each a block for x, ended by the

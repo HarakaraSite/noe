@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 )
 
 // Recent additions to the standard: Promise.try, Error.isError, RegExp.escape

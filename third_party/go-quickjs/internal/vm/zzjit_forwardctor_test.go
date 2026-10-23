@@ -8,7 +8,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 // forwardingSetup's classes are made as Box2DWeb makes its own: each

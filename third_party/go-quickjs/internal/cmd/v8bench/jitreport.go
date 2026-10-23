@@ -9,9 +9,9 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/go-quickjs/go-quickjs/internal/hostaccess"
-	"github.com/go-quickjs/go-quickjs/internal/jit"
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/hostaccess"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // V8BENCH_JITPAD is where the JIT places its first code in its arena

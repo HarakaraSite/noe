@@ -43,8 +43,8 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	re "github.com/go-quickjs/go-quickjs/internal/regexp"
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
+	re "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/regexp"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 )
 
 // ErrComplexity reports that a match exhausted its step budget, which a pattern

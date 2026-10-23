@@ -3,8 +3,8 @@ package quickjs
 import (
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/ast"
-	"github.com/go-quickjs/go-quickjs/internal/parser"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/ast"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/parser"
 )
 
 // CommonJSExports reads CommonJS source for the names it exports, without

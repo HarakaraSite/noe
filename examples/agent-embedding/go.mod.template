@@ -8,4 +8,4 @@ require forge.harakara.site/littleisland/noe/v2 v2.0.0-dev.0
 replace forge.harakara.site/littleisland/noe/v2 => /absolute/path/to/noe
 
 // Development engine candidate; omit this when using a published NOE tag.
-replace github.com/go-quickjs/go-quickjs => /absolute/path/to/noe/third_party/go-quickjs
+replace forge.harakara.site/littleisland/noe/third_party/go-quickjs => /absolute/path/to/noe/third_party/go-quickjs

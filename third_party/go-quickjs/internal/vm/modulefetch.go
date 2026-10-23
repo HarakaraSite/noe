@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // Fetching modules through an asynchronous loader.

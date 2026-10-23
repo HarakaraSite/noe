@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // lineSource is where the prompt's lines come from: a terminal, edited as it

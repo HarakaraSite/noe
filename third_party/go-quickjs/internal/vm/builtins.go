@@ -1,7 +1,7 @@
 package vm
 
 import (
-	"github.com/go-quickjs/go-quickjs/internal/fdlibm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/fdlibm"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 )
 
 func nan() float64         { return math.NaN() }

@@ -5,7 +5,7 @@ package quickjs_test
 import (
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // TestNewTypedArrayMethod pins the method form Go 1.27 allows: the same typed

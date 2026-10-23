@@ -9,10 +9,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/compiler"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
-	"github.com/go-quickjs/go-quickjs/internal/parser"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/compiler"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/parser"
 )
 
 func compiledFunction(t *testing.T, source string) *bytecode.Function {

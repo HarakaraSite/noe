@@ -7,7 +7,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // TestShortOps pins shortOp and shortBits, the operators of BigInts held in

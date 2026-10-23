@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // Intl is held against a full ICU rather than against what it was written to

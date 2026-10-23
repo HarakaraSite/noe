@@ -9,9 +9,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 	intl "github.com/go-quickjs/go-intl"
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
 )
 
 // The remainder of the standard library.

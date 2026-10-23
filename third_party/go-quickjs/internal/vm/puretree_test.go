@@ -3,7 +3,7 @@ package vm
 import (
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // TestPureByTree pins which pure bodies a call from a tree runs as their

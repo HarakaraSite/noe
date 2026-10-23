@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib/internal/wsproto"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Serve describes the listeners a script may open.

@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/go-quickjs/go-quickjs/internal/vm/internal/treegen"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm/internal/treegen"
 )
 
 func main() {

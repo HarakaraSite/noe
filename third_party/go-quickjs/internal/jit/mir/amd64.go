@@ -6,10 +6,10 @@ import (
 	"slices"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
-	"github.com/go-quickjs/go-quickjs/internal/jit/asm/amd64"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ssa"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/asm/amd64"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ssa"
 )
 
 // The fixed registers. RSP, RBP and R14 (Go's g) are never touched.

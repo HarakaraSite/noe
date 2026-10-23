@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // ErrWorkDone is what a function posted to an AsyncWork is called with when

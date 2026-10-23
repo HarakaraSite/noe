@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/regexp"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/regexp"
 )
 
 // RegExp, and the String methods that delegate to it.

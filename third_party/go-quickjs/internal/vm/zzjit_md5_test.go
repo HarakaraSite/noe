@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/compiler"
-	"github.com/go-quickjs/go-quickjs/internal/parser"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/compiler"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/parser"
 )
 
 func TestJITStringPacking(t *testing.T) {

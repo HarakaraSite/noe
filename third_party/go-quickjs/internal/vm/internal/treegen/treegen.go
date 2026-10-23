@@ -75,7 +75,7 @@ func Generate() ([]byte, error) {
 	w("")
 	w("package vm")
 	w("")
-	w(`import "github.com/go-quickjs/go-quickjs/internal/bytecode"`)
+	w(`import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"`)
 
 	// Arithmetic. An upvalue is read through its tree: what an arithmetic
 	// loop reads is its own locals.

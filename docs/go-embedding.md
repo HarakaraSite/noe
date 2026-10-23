@@ -2,12 +2,12 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.1.1; see the
+select model providers or agent behavior. The current release is v2.2.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
-The current checkout is checked with the unpublished managed engine candidate v0.28.1-noe.1 (based on go-quickjs v0.28.0). Published NOE tags
-retain the engine dependency recorded in their own `go.mod`. Use Go 1.27.2
-or later. From the repository root, run the example with:
+NOE v2.2.0 uses the independently versioned managed engine module
+`forge.harakara.site/littleisland/noe/third_party/go-quickjs` v0.28.1-noe.1,
+based on upstream go-quickjs v0.28.0. Use Go 1.27.2 or later. From the repository root, run the example with:
 
 ```sh
 CGO_ENABLED=0 go run ./examples/embedding
@@ -15,11 +15,12 @@ CGO_ENABLED=0 go run ./examples/embedding
 
 For a separate module, copy [the example](../examples/embedding/main.go) and
 [module template](../examples/embedding/go.mod.template) outside the checkout,
-rename the template to `go.mod`, and set `replace` to the absolute checkout
-path. Then run `GOWORK=off go mod tidy` and
+rename the template to `go.mod`, and update both replacements: the NOE module
+to the absolute checkout path and the engine module to that path plus
+`/third_party/go-quickjs`. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
-replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.1.1`. Downloading that
+replacement. To use the published release, remove both replacement directives and use
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.2.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -174,7 +175,7 @@ with `agent.NewHost` and a Go `Client`, or call `agent.Attach` from the runtime
 initializer to expose the same host to JavaScript. Do not carry over the old
 executable, connection, or combined-IO settings.
 
-## Development execution contract
+## Execution contract in v2.2.0
 
 The current checkout returns an ESM default export as detached JSON in
 `stdlib.Result.Data`. No export means nil; an explicit null is JSON `null`.
@@ -191,9 +192,12 @@ and must not close a running execution's binding or operation. The matching
 JavaScript entry is `check(code)` from `noe:runtime`. The docs module's
 `describe(topic?, member?)` separates real exports from reference detail IDs.
 
-The engine candidate is a managed, independent module under
-`third_party/go-quickjs`. Local consumers of this development checkout need a
-second explicit replacement of `github.com/go-quickjs/go-quickjs` to that path;
-a dependency's replace directive is not inherited. The consumer validation
-script also verifies synthetic NOE and engine artifacts without downstream
-replace directives. This does not publish either candidate.
+The managed engine is an independent module under `third_party/go-quickjs`,
+with public path `forge.harakara.site/littleisland/noe/third_party/go-quickjs`.
+Custom Go bindings that name engine types must import this module instead of
+`github.com/go-quickjs/go-quickjs`; types from the two module paths are distinct.
+The alias `quickjs` can remain unchanged. For local checkout development, the
+example template replaces both NOE and the engine; dependency replacements are
+not inherited. Published consumers need neither replacement. Synthetic artifact
+checks precede publication; actual published-module retrieval is checked after
+the engine submodule tag and NOE tag are pushed.

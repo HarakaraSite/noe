@@ -8,7 +8,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 // grow recurses n frames of 1 KiB each, to make the goroutine's stack grow

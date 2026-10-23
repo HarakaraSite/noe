@@ -150,12 +150,12 @@ source生成byte/モデル向けtool結果JSON byte（wire総量ではない）�
 consumer自身のreplaceなしで `v0.28.1-noe.1` が選択されることを機械検証した。
 root checkoutのreplaceだけで成立させた検証ではない。
 
-examplesは[今回の検証記録](../../examples/VALIDATION.md)の範囲で49/51 filesを実行。
+examplesは初回に[今回の検証記録](../../examples/VALIDATION.md)の範囲で49/51 filesを実行し、コミット後の追加実行で全51 filesの確認を完了。
 ログ表示は候補の `observe` と `observe --json --run <runId>` で実際の修復課題ログを読み、
 構造化診断が人間向け表示へ出ることとrun別JSON取得を確認した。
 新契約の横断課題は上記実model probeと公開Host/CLI 4wireの結合testで確認した。
 
-未実施は、OpenAI OAuth専用exampleとtask-loop全workflow、実vision/画像生成/Exaの品質、
+初回未実施だったOpenAI OAuth専用exampleとtask-loop全workflowは、下記追加検証で完了。残る未実施は実vision/画像生成/Exaの品質、
 macOS/Windows/ARM実機での実行、長期常駐・統計的なcache/効率比較。
 未解消のP2以上のfindingはない。独立reviewの各指摘とTで親が発見した位置欠落は修正済み。
 managed engineは未公開候補であり、公開用の正式なengine依存・upstream公開は今回行っていない。
@@ -164,3 +164,38 @@ managed engineは未公開候補であり、公開用の正式なengine依存・
 ## コミット
 
 実装・検証完了後の利用者指示により、今回の変更をコミットする。既存未追跡実行ログ4件は含めず、配置・公開は行わない。
+
+## コミット後のOAuth例・全workflow追加実行
+
+利用者の追加実行指示を受け、コミット`af8c2a6e0ba2767c91a1d8734fdd018ce7cd22ff`から
+CGO無効でCLIをビルドし、既存NOE認証を使って実providerへ接続した。
+保存先は `/var/tmp/noe-oauth-workflow-20261023-165717`。
+`manifest.json`、`execution-results.json`、`verification.json`と各events/stdout/stderrを保存。
+設定は空の専用configと明示credential pathで、URLのfixture置換はない。credential内容は記録しない。
+
+- `agent-openai.js`: 元sourceの一時コピー、既定の`openai-chatgpt / gpt-6-luna / auto`。
+  OAuth自動refreshが成功して有効期限が更新され、11.827秒・exit 0、回答は`437`。
+  model 2回、run_js 1回、agent 1体。model/tool失敗0。
+- `task-loop-jev/workflow.js`: サンプル一式の一時コピーをcwdにして元sourceを実行。
+  `openai-chatgpt / gpt-6.1-sol / high`と`openrouter / typesafe/jev-1.14`。
+  意図されたbaseline失敗を確認後、計画reviewが`revise`、修正後reviewとコードreviewが`proceed`。
+  66.555秒・exit 0、report.outcome=completed、planRevisions=1、codeRevisions=0、waits=2、polls=0。
+- model 7回、Jev 3回、run_js 2回、agent instance 4体（worker 1体、計画review 2体、コードreview 1体）。
+  workerは同じinstanceで計画修正・実装の2 taskを処理。model/tool失敗0。
+- workflow.js・requirements.txt・test.jsが初期hashとrepository原本に一致することを確認し、
+  親が同じtest.jsをCLIで再実行して5項目すべて合格を独立確認した。
+  修正されたsolution.jsはNumber.isInteger(value)かつvalue>0を加算する。
+- 集計usageはOAuth例input/cached/output=3651/1536/39、workflow=18922/5248/1507（model分のみ、Jev除外）。
+  いずれも単発の動作確認でcache性能比較ではない。
+
+これにより有効なJS/MJS全51 filesが利用側を含む実行経路で確認済み。
+元サンプル・製品sourceに変更はなく、追加したのは検証記録のみ。追加記録は未コミット。
+
+## v2.2.0正式配布への調整
+
+利用者の2.2.0リリース指示に従い、未公開github候補を正式な依存として残さず、管理engineを
+`forge.harakara.site/littleisland/noe/third_party/go-quickjs` v0.28.1-noe.1へ移した。
+engineとNOE双方のmodule/import pathを整合させ、独自Go bindingの型移行をリリースノートへ明記。
+engine Goの変更はprefixのみで、333 filesの差分を機械確認。engine全suite・対象suite・外部consumerと
+独立packaging reviewが合格。公開用のroot replace除去・実取得と最終release gatesは
+[release checkpoints](../releases/release-checkpoints.md)へ記録する。

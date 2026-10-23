@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 // new Array(n) is made natively, as V8's code allocates a holey array of a

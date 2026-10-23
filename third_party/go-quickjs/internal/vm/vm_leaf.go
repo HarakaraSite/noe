@@ -1,6 +1,6 @@
 package vm
 
-import "github.com/go-quickjs/go-quickjs/internal/bytecode"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 
 // leafCall answers a call of a function whose body bytecode.LeafKind names,
 // with o as its `this`, without a frame. It does so only where nothing the

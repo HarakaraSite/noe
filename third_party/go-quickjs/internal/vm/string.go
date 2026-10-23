@@ -8,9 +8,9 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/bignum"
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bignum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 )
 
 // String is a JavaScript string.

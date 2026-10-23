@@ -6,10 +6,10 @@ import (
 	"slices"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
-	"github.com/go-quickjs/go-quickjs/internal/jit/asm/arm64"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ssa"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/asm/arm64"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ssa"
 )
 
 // arm64's fixed registers. SP, X18 (the platform's), X28 (Go's g), X29 (the

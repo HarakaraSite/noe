@@ -11,7 +11,7 @@ The `v1.0.0` evidence below refers to the listed release commits. It predates th
 The Forgejo workflow generated from this profile runs the following on the confirmed `ubuntu-latest` runner when a `v*` tag is pushed:
 
 1. Set up the Go version specified in `go.mod` (currently 1.27.2).
-2. Run `CGO_ENABLED=0 go test ./...` and `CGO_ENABLED=0 go vet ./...`.
+2. Run `CGO_ENABLED=0 go test ./...` and `CGO_ENABLED=0 go vet ./...` in the root and, since v2.2.0, in the independent `third_party/go-quickjs` module (`GOWORK=off`).
 3. Build `./cmd/noe` with CGO disabled, `-trimpath`, and the profile's ldflags. Embed the tag in `forge.harakara.site/littleisland/noe/v2/internal/cli.Version`.
 4. Produce `noe-linux-amd64`, `noe-linux-arm64`, `noe-darwin-amd64`, `noe-darwin-arm64`, `noe-windows-amd64.exe`, and `noe-windows-arm64.exe`, plus `SHA256SUMS`.
 5. Upload the binaries and checksums on success using `actions/forgejo-release@v2` and the automatic `forgejo.token`.
@@ -1459,3 +1459,44 @@ consumers and repeated Worker results are retained at
 `/var/tmp/noe-v2.1.1-release-4Q1KN0`. No paid provider calls were made. Other five
 targets have build/hash verification but no native execution on this host.
 This documentation-only publication record does not move the release tag.
+
+## v2.2.0 dependency publication preparation — 2026-10-23
+
+Implementation `af8c2a6` passed the full reference checks and real-provider
+examples recorded in the [implementation record](../development/ai-execution-implementation.md).
+OAuth and the complete workflow follow-up reached all 51 JS/MJS example files.
+
+The unpublished engine dependency is being made distributable as the independent
+nested module `forge.harakara.site/littleisland/noe/third_party/go-quickjs`
+v0.28.1-noe.1, tagged `third_party/go-quickjs/v0.28.1-noe.1` in this repository.
+This changes Go engine type identities; the explicit import migration is in the
+[v2.2.0 notes](v2.2.0.md) and [migration guide](../v2-migration.md).
+The JavaScript engine's processing logic and file layout are unchanged.
+
+The engine tag is published first and verified from a clean module. The final
+NOE go.mod then removes its development replace and records the published
+engine checksums. v2.2.0 is tagged only after the final reference gates pass.
+An engine tag does not trigger the `v*` binary workflow; if NOE publication is
+interrupted, the independently usable engine tag remains without changing older
+NOE releases. Published tags are not moved or replaced.
+
+Release evidence directory: `/var/tmp/noe-v2.2.0-release-20261023-171109`.
+Packaging checks, independent review, final reference results, published assets
+and actual module retrieval are recorded below as they complete.
+
+Dependency-packaging candidate checks completed before the engine tag:
+
+- Engine full suite passed after the module/self-import changes; generated
+  tree operand imports were regenerated from the updated generator template.
+- Root jsexec/agentexec/stdlib/agent targets passed (9.501s).
+- Both stdlib and agent local/synthetic-artifact consumers passed (12.499s and
+  21.341s), selecting the managed engine without downstream replacement.
+- All 333 changed engine Go files have identical added/removed line multisets
+  after canonicalizing the module prefix; no processing-logic delta was found.
+- Independent normal/critical packaging review completed. Its P2 about two
+  consumer-template replacements was fixed and rechecked; no findings remain.
+- Workflow/profile YAML, added engine test/vet gates, Bash syntax and actionlint
+  passed (equivalent github context used only in a temporary lint copy).
+
+These packaging checks do not substitute for the final v2.2.0 reference gates
+or actual published-module retrieval, which follow the engine tag.

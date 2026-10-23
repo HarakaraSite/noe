@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/stdlib"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/stdlib"
 )
 
 // TestHelperHeartbeat is not a test: it is the program TestCloseStopsHostWork

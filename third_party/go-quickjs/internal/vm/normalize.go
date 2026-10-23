@@ -3,8 +3,8 @@ package vm
 import (
 	"strings"
 
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 	intl "github.com/go-quickjs/go-intl"
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
 )
 
 // Unicode normalization, which String.prototype.normalize exposes and the

@@ -6,8 +6,8 @@ import (
 	"math"
 	"math/bits"
 
-	"github.com/go-quickjs/go-quickjs/internal/bignum"
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bignum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // BigInt.

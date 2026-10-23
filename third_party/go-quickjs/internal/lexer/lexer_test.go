@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 )
 
 // scanAll tokenizes src with Next only, which treats '/' as division. Tests

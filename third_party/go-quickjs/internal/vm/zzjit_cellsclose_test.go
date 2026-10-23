@@ -5,7 +5,7 @@ package vm
 import (
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 // cellsCloseSetup's loops make closures capturing their iteration's

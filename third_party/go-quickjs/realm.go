@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // Realm is a realm of a Runtime: a global object and a set of built-ins of its

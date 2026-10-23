@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/internal/sharedmem"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/sharedmem"
 )
 
 // sharedPair makes two runtimes that share the SharedArrayBuffer the first

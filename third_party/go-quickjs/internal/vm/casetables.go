@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/go-quickjs/go-quickjs/internal/wtf8"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wtf8"
 )
 
 // Unicode's full case mappings, for the characters whose upper- or lower-case

@@ -17,13 +17,13 @@ import (
 	"unsafe"
 	"weak"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/jit"
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
-	jitcompile "github.com/go-quickjs/go-quickjs/internal/jit/compile"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/mir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ssa"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
+	jitcompile "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/compile"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/mir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ssa"
 )
 
 // jitCacheBytes is the JIT's budget (jitBudget) in a runtime without a

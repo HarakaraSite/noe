@@ -8,7 +8,7 @@ import (
 	"unsafe"
 	"weak"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 )
 
 // Pool objects have the interpreter's allocation layout, including its

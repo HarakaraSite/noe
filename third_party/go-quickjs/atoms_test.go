@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // TestAtomsSharedAcrossRuntimes runs, in runtimes made at once, a script

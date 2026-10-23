@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // TestClosedRuntimeKeepsNoStack pins that a function kept from a runtime that

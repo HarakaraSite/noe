@@ -7,8 +7,8 @@ import (
 	"testing"
 	"weak"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	jitcompile "github.com/go-quickjs/go-quickjs/internal/jit/compile"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	jitcompile "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/compile"
 )
 
 // A callee's locals past its parameters are undefined when a native call

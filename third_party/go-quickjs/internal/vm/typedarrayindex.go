@@ -5,7 +5,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
 )
 
 // A typed array's indices are not properties.

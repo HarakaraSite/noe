@@ -6,9 +6,9 @@ import (
 	"slices"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	jitcompile "github.com/go-quickjs/go-quickjs/internal/jit/compile"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ssa"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	jitcompile "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/compile"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ssa"
 )
 
 // jitAccessorCase is an accessor a read or a write found on the prototypes

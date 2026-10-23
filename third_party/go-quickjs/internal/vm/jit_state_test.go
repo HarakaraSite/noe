@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	jitcompile "github.com/go-quickjs/go-quickjs/internal/jit/compile"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	jitcompile "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/compile"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 )
 
 func jitFunctionForTest(t *testing.T, source string) *bytecode.Function {

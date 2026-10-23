@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/go-quickjs/go-quickjs/internal/jit"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit"
 	"net/url"
 	"os"
 	"path/filepath"

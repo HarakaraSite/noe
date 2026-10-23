@@ -14,7 +14,7 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
 	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 //go:embed js/streams.js

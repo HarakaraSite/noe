@@ -1,4 +1,4 @@
-module github.com/go-quickjs/go-quickjs
+module forge.harakara.site/littleisland/noe/third_party/go-quickjs
 
 go 1.24.0
 

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	lower "forge.harakara.site/littleisland/noe/v2/internal/stdlib"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Result contains execution data and diagnostics detached from the VM.

@@ -4,8 +4,8 @@ package vm
 
 import (
 	"fmt"
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
 	"runtime"
 	"runtime/debug"
 	"strings"

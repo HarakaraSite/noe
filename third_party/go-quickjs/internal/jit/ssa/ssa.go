@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 )
 
 // Type is a value's representation.

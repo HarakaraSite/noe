@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/fdlibm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/fdlibm"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
 )
 
 // The interpreter.

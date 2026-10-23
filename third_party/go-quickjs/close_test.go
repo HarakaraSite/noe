@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // A script that closes its runtime ends at the call that closed it, as

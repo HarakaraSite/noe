@@ -3,7 +3,7 @@ package vm
 import (
 	"sync/atomic"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // Generators, async functions and async generators in the tree tier.

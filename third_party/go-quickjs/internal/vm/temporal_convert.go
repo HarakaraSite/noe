@@ -4,8 +4,8 @@ import (
 	"math"
 	"math/bits"
 
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bignum"
 	"github.com/go-quickjs/go-intl/temporal"
-	"github.com/go-quickjs/go-quickjs/internal/bignum"
 )
 
 // The ToTemporalX operations, as V8 has them: a Temporal object is taken

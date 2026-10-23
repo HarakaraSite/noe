@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // The target's side of the VM's DebugHandler: what it reports, and the

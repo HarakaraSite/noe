@@ -3,7 +3,7 @@ package vm
 import (
 	"math/bits"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // A BigInt a local holds alone, given back when the local is assigned the

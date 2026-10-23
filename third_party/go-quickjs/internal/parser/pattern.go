@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/go-quickjs/go-quickjs/internal/ast"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/ast"
 
 // toPattern reinterprets an expression as a destructuring pattern.
 //

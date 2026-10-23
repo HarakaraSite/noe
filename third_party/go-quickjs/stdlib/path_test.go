@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/stdlib"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/stdlib"
 )
 
 // TestPathMatchesNode runs the path corpus -- path.posix and path.win32 over

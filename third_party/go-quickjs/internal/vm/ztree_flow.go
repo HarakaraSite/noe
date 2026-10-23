@@ -1,10 +1,10 @@
 package vm
 
 import (
-	"github.com/go-quickjs/go-quickjs/internal/arena"
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/graph"
-	"github.com/go-quickjs/go-quickjs/internal/pool"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/arena"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/graph"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/pool"
 )
 
 // Structured control flow for the tree tier.

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/jsregexp"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/jsregexp"
 )
 
 // The point of the package is the patterns Go's own regexp refuses, so these

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // fetchCounter is an AsyncModuleLoader over a map of sources that answers

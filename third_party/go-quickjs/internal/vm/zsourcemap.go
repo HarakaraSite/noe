@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/sourcemap"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/sourcemap"
 )
 
 // Stack traces through source maps, as Node's --enable-source-maps writes

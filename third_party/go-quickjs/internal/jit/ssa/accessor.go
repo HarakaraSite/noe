@@ -1,6 +1,6 @@
 package ssa
 
-import "github.com/go-quickjs/go-quickjs/internal/jit/ir"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 
 // accessor is the accessor the property read or write at pc of the frame
 // being translated calls (AccessorFeedback), if any. The plan asks it of

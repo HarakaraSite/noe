@@ -5,7 +5,7 @@ package vm
 import (
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 )
 
 // An element read with its key updated, a[i++] or a[--i], whose value is

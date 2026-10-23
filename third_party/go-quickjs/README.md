@@ -21,9 +21,16 @@ Three things live here:
 | `jsregexp` | ECMAScript regular expressions for Go, which RE2 cannot express |
 
 ```
-go get github.com/go-quickjs/go-quickjs
-go install github.com/go-quickjs/go-quickjs/cmd/qjs@latest
+go get forge.harakara.site/littleisland/noe/third_party/go-quickjs
+go install forge.harakara.site/littleisland/noe/third_party/go-quickjs/cmd/qjs@latest
 ```
+
+This NOE-maintained distribution has its own Go module identity at
+`forge.harakara.site/littleisland/noe/third_party/go-quickjs`. Import engine
+packages from that path. Public Go types from this module are distinct from
+the upstream `github.com/go-quickjs/go-quickjs` module, so applications that
+pass engine types across package boundaries must migrate those imports
+together.
 
 ## Status
 

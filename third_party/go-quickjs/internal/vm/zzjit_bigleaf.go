@@ -7,11 +7,11 @@ import (
 	"math/bits"
 	"unsafe"
 
-	"github.com/go-quickjs/go-quickjs/internal/bignum"
-	"github.com/go-quickjs/go-quickjs/internal/jit"
-	"github.com/go-quickjs/go-quickjs/internal/jit/abi"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
-	"github.com/go-quickjs/go-quickjs/internal/jit/ssa"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bignum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/abi"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ssa"
 )
 
 // A BigInt's sum, difference, product, quotient or remainder that native

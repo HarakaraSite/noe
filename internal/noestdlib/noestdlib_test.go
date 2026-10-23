@@ -12,7 +12,7 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 func TestValidationHappensBeforeRegistration(t *testing.T) {

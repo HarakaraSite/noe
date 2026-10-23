@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"github.com/go-quickjs/go-quickjs/internal/ast"
-	"github.com/go-quickjs/go-quickjs/internal/lexer"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/ast"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/lexer"
 )
 
 // parseFunction parses a function expression or declaration, with the

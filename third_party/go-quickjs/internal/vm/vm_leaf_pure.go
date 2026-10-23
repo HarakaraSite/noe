@@ -1,6 +1,6 @@
 package vm
 
-import "github.com/go-quickjs/go-quickjs/internal/bytecode"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 
 // pureMissLimit is how many calls of a closure may find its body's fast
 // paths closed before pureCall stops trying them: a body whose property is

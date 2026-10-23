@@ -29,8 +29,8 @@ build:
     - windows/arm64
 
 quality:
-  test_command: CGO_ENABLED=0 go test ./...
-  vet_command: CGO_ENABLED=0 go vet ./...
+  test_command: CGO_ENABLED=0 go test ./... && (cd third_party/go-quickjs && GOWORK=off CGO_ENABLED=0 go test ./...)
+  vet_command: CGO_ENABLED=0 go vet ./... && (cd third_party/go-quickjs && GOWORK=off CGO_ENABLED=0 go vet ./...)
   checksums: true
 
 diagnostics:

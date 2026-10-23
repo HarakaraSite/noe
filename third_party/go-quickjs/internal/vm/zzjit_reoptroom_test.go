@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 )
 
 // A function compiled again whose code the cache found no room for once it

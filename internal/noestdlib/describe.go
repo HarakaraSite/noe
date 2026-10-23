@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/apidocs"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // describe separates the reference catalog from actual module exports. Linking

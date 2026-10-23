@@ -26,11 +26,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/bytecode"
-	"github.com/go-quickjs/go-quickjs/internal/compiler"
-	jitcompile "github.com/go-quickjs/go-quickjs/internal/jit/compile"
-	"github.com/go-quickjs/go-quickjs/internal/parser"
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/compiler"
+	jitcompile "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/compile"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/parser"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 func main() {

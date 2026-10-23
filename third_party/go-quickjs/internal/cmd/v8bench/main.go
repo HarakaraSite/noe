@@ -22,9 +22,9 @@ import (
 	"os"
 	"strconv"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/internal/jit"
-	"github.com/go-quickjs/go-quickjs/internal/v8bench"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/v8bench"
 )
 
 func main() { v8bench.Main("go-quickjs", engine{}) }

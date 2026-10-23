@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-quickjs/go-quickjs/internal/wsproto"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/wsproto"
 )
 
 // TestInspectBrk runs a program under --inspect-brk as a debugger attaches

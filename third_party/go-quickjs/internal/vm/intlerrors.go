@@ -3,7 +3,7 @@ package vm
 import (
 	"strings"
 
-	"github.com/go-quickjs/go-quickjs/internal/jsnum"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jsnum"
 )
 
 // Intl's errors, in V8's words, which is what a script sees from Node: the

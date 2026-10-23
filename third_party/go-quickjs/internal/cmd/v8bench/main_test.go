@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit"
-	"github.com/go-quickjs/go-quickjs/internal/v8bench"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/v8bench"
 )
 
 func TestJITBenchmarkRequiresNativeBuild(t *testing.T) {

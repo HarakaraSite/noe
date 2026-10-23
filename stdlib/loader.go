@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // FileLoader snapshots exact bare-specifier mappings and creates a fresh local

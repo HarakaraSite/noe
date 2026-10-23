@@ -13,8 +13,8 @@ import (
 	"strings"
 	"sync"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/internal/hostaccess"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/hostaccess"
 )
 
 // Node's module system, as qjs runs it: require and module for CommonJS,

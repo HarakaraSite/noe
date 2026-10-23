@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/go-quickjs/go-quickjs/internal/ast"
-	"github.com/go-quickjs/go-quickjs/internal/lexer"
-	"github.com/go-quickjs/go-quickjs/internal/regexp"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/ast"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/lexer"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/regexp"
 )
 
 // binaryPrec is a binary operator's precedence, and false for what is not

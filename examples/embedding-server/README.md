@@ -107,14 +107,14 @@ systemctl --user disable --now noe-embedding-server.service
 
 ## 別のGo moduleで使う
 
-`main.go` と `go.mod.template` をリポジトリ外のディレクトリへコピーし、テンプレートを `go.mod` に変更します。`replace` をNOEのcheckoutの絶対パスへ書き換えて、次を実行します。
+`main.go` と `go.mod.template` をリポジトリ外のディレクトリへコピーし、テンプレートを `go.mod` に変更します。2本の`replace`を、NOEはcheckoutの絶対パス、engineはその配下の`third_party/go-quickjs`への絶対パスへ書き換えて、次を実行します。
 
 ```sh
 GOWORK=off go mod tidy
 GOWORK=off CGO_ENABLED=0 go run .
 ```
 
-テンプレートの `v2.0.0-dev.0` はローカル置換専用です。公開タグを使う場合は `replace` を外して `v2.1.1` を指定します。詳しくは[v2移行ガイド](../../docs/v2-migration.md)を参照してください。
+テンプレートの `v2.0.0-dev.0` はローカル置換専用です。公開タグを使う場合は2本の `replace` を外して `v2.2.0` を指定します。詳しくは[v2移行ガイド](../../docs/v2-migration.md)を参照してください。
 
 ## 確認用テスト
 

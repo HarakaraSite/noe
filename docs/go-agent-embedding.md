@@ -4,15 +4,15 @@ The `/v2` `agent` package provides a Go `Host` and scoped `Client`. Agents run
 inside fresh in-process JavaScript executions; the embedding application does
 not need a separate NOE executable or the CLI. Import
 `forge.harakara.site/littleisland/noe/v2/agent`, `agent/model`, and
-`stdlib`. The current release is v2.1.1. For an unpublished checkout, use the
+`stdlib`. The current release is v2.2.0. For an unpublished checkout, use the
 local module setup in the [agent example](../examples/agent-embedding/README.md).
 To use the published release, use
-`go get forge.harakara.site/littleisland/noe/v2/agent@v2.1.1` without a local
+`go get forge.harakara.site/littleisland/noe/v2/agent@v2.2.0` without a local
 replacement. See the [v2 migration guide](v2-migration.md) for breaking changes.
 
-The package requires Go 1.27.2 or later. The current checkout is checked with
-the unpublished managed engine candidate v0.28.1-noe.1; published NOE tags retain the engine dependency recorded in
-their own `go.mod`. From the checkout root, run the deterministic example with:
+The package requires Go 1.27.2 or later and uses the independently versioned
+managed engine module `forge.harakara.site/littleisland/noe/third_party/go-quickjs`
+v0.28.1-noe.1, based on upstream go-quickjs v0.28.0. From the checkout root, run the deterministic example with:
 
 ```sh
 CGO_ENABLED=0 go run ./examples/agent-embedding
@@ -197,7 +197,7 @@ and `agent/log` parsing. Replace task/instance interruption with the separate
 `CancelTask` and `StopAgent` operations. Do not pass NOE control directories,
 executable paths, or internal connection tokens into the library API.
 
-## Development execution contract
+## Execution contract in v2.2.0
 
 The current checkout returns an ESM default export as detached JSON in
 `stdlib.Result.Data`. No export means nil; an explicit null is JSON `null`.
@@ -214,9 +214,12 @@ and must not close a running execution's binding or operation. The matching
 JavaScript entry is `check(code)` from `noe:runtime`. The docs module's
 `describe(topic?, member?)` separates real exports from reference detail IDs.
 
-The engine candidate is a managed, independent module under
-`third_party/go-quickjs`. Local consumers of this development checkout need a
-second explicit replacement of `github.com/go-quickjs/go-quickjs` to that path;
-a dependency's replace directive is not inherited. The consumer validation
-script also verifies synthetic NOE and engine artifacts without downstream
-replace directives. This does not publish either candidate.
+The managed engine is an independent module under `third_party/go-quickjs`,
+with public path `forge.harakara.site/littleisland/noe/third_party/go-quickjs`.
+Custom Go bindings that name engine types must import this module instead of
+`github.com/go-quickjs/go-quickjs`; types from the two module paths are distinct.
+The alias `quickjs` can remain unchanged. For local checkout development, the
+example template replaces both NOE and the engine; dependency replacements are
+not inherited. Published consumers need neither replacement. Synthetic artifact
+checks precede publication; actual published-module retrieval is checked after
+the engine submodule tag and NOE tag are pushed.

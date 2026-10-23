@@ -1,7 +1,7 @@
 package stdlib
 
 import (
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // asyncHooks installs node:async_hooks: AsyncLocalStorage and AsyncResource,

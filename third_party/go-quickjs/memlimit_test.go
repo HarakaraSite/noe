@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 // TestMemoryLimit pins that WithMemoryLimit stops a script that holds more

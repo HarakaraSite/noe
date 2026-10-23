@@ -13,7 +13,7 @@ import (
 	"sync"
 	"syscall"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 )
 
 //go:embed js/file.js

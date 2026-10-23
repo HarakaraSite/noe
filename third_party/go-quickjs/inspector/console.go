@@ -3,9 +3,9 @@ package inspector
 import (
 	"time"
 
-	quickjs "github.com/go-quickjs/go-quickjs"
-	"github.com/go-quickjs/go-quickjs/internal/hostaccess"
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/hostaccess"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // What the console writes, a client sees: the console's methods are

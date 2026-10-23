@@ -3,8 +3,8 @@ package quickjs
 import (
 	"errors"
 
-	"github.com/go-quickjs/go-quickjs/internal/sharedmem"
-	"github.com/go-quickjs/go-quickjs/internal/vm"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/sharedmem"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/vm"
 )
 
 // Agents share memory through sharedmem, which is filled in here.

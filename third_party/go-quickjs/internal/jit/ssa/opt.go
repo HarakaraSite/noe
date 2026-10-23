@@ -4,7 +4,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/go-quickjs/go-quickjs/internal/jit/ir"
+	"forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/jit/ir"
 )
 
 // Optimize runs the passes until nothing changes:

@@ -3,7 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
-	quickjs "github.com/go-quickjs/go-quickjs"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"testing"
 )
 

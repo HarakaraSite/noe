@@ -2,7 +2,7 @@
 
 package vm
 
-import "github.com/go-quickjs/go-quickjs/internal/bytecode"
+import "forge.harakara.site/littleisland/noe/third_party/go-quickjs/internal/bytecode"
 
 // arithOperands is an arithmetic operator over two entries, reading a local
 // or a number in place, or nil where there is no node for the pairing.

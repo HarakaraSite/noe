@@ -2,9 +2,9 @@ package stdlib
 
 import (
 	"context"
+	quickjs "forge.harakara.site/littleisland/noe/third_party/go-quickjs"
 	"forge.harakara.site/littleisland/noe/v2/internal/jsexec"
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
-	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 // Environment is the single runtime environment shared by all selected
