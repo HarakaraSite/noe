@@ -2,7 +2,7 @@
 
 [ドキュメント一覧](README.md) · [JS検査](javascript-checks.md) · [API説明](reference.md) · [イベント](events.md)
 
-基本の実行結果はv2.3.0以降の契約です。モデル向け3 KiB制限は次版向けの変更です。v2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
+基本の実行結果はv2.3.0以降の契約です。モデル向け3 KiB制限はv2.4.0以降の契約です。v2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
 
 ## run_jsのデータ返却
 
