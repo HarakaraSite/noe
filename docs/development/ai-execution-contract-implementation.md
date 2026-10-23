@@ -142,4 +142,34 @@ S3終了時点の次工程はS4だった。下記でその結果を記録する�
 
 両担当とも変更箇所と既存finding解消に限る一回の再レビューを行い、残るP1/P2/P3なし。親が最終接続と対象検証を確認した。レビューの静的確認と実行結果は区別し、未確認範囲を網羅検証済みとは扱わない。
 
-S4として完了。全体Tは未実施であり、これらの結果を引き継いで総合検証へ進む。リリース準備時に同じ重い検査を繰り返さず、CIにも同じ検査を追加しない。
+S4として完了。この時点で未実施だったTは、これらの結果を引き継いで下記で完了した。S2〜S4は`4389385`にコミット済み。リリース準備時に同じ重い検査を繰り返さず、CIにも同じ検査を追加しない。
+
+## T：総合検証
+
+2026-10-24完了。S4後の確認で、`examples/agent-server/test_server.py`の所有リソース検証用JSに`run_agent`の明示import漏れを発見した。現行ソースから作った一時バイナリでは`child.started`待ちが失敗し、importだけ補った場合は成功した。fixtureへimportを追加し、同じコードを共有するinterrupt・graceful shutdown・SIGINTの3テストを確認して合格した。
+
+S3/S4で合格した対象unit・型fixture・raceを引き継ぎ、未確認のpackageとCLI E2E、外部consumer、標準利用経路を追加確認した。成果物は`/var/tmp/noe-t-validation`へ保存した。
+
+| 確認範囲 | 結果・証拠 |
+| --- | --- |
+| agent-serverの修正 | `NOE_BIN=/var/tmp/noe-s4-audit-bin python3 examples/agent-server/test_server.py`の該当3テストが合格。`server-cleanup.log` |
+| 残りのunit | 既に確認済みの15 packageを除く30 packageを選択し、`CGO_ENABLED=0 go test -json ... -count=1 -timeout=5m`で確認。testのある22 package、top-level 389 testが合格。選択は`unit-selection.json`、結果は`remaining-unit.jsonl` |
+| CLI E2E | 通常E2E 99件のうち、S4で合格を記録済みの11件を再利用し、残る88件を実行。87件合格、任意MCP SDK bundleが未指定の1件はskip。`e2e-selection.json`・`remaining-e2e.jsonl`。実provider用build tagは付けていない |
+| 外部Go consumer | 既存`check-stdlib-consumer.py`をstdlib/agentそれぞれに実行。localと、ローカルfile proxyへ作ったmodule zipを別modcacheへ取得する経路で合格。後者のconsumerにはreplaceがなく、正式`go-quickjs v0.28.0`でstdlib、agent portable/gohostを実行。`stdlib-consumer/`・`agent-consumer/`の`results.json`と`artifact-versions.log` |
+| 公開Result契約 | zipから取得したstdlibの外部consumerで、defaultなし/null/Promise、VM終了後の構造化診断・native Go cause、JSON化失敗時の副作用一回を確認。`external-result.log`・`stdlib-consumer/artifact-consumer/resultprobe.go` |
+| 標準利用経路 | CLI docsからnode:path/noe:agentを参照→生成JSを保存→Biome/tsc→fixture providerのrun_js→実行時診断→修正→data/stdoutを次要求とJSONLで受領。型不一致はtscで検出し、静的検査を通る実行時失敗も区別。両ライブラリの型宣言を同時参照。`contract-flow.py`・`contract-flow/results.json`・`contract-flow/requests.json`・`contract-flow/events.json` |
+
+標準利用経路の一時検証では、空stderrがJSONL eventで省略される既存仕様を誤って必須fieldとしたため、最初のassertionだけ失敗した。runner結果は空文字、eventは空field省略を許す条件へ直し、同じ経路を再確認して合格。初回ログは`contract-flow-attempt1.log`、最終結果は`contract-flow.log`に分けた。製品のイベント仕様は変えていない。
+
+unitのskip 4件は実provider用3件と専用processから起動されるheartbeat helper 1件。通常E2Eの任意MCP確認は、事前に用意した`@modelcontextprotocol/sdk` bundleがないため未実施とした。静的ツールが両方/片方/どちらもない場合の扱いと両宣言の型fixtureはS2/S3の結果を再利用した。実provider・長時間待機の任意suite・他OS向けcross buildは追加実行していない。今回の失敗で必要になった再確認を除き、既に有効なrace等を繰り返していない。
+
+Tの確認で追加の製品不具合は検出していない。修正はテストfixtureの明示import 1行で、上流・依存・CI・配置済みバイナリは変更していない。この修正は本記録と同じコミットに含める。リリース・配置・公開は行っていない。
+
+## 次セッションへの引き継ぎ（2026-10-24）
+
+- 作業場所は`/home/agent/projects/noe`、branchは`main`。復旧基点`5781755`→S1設計`e5bbe1e`→S2〜S4実装`4389385`→本記録とagent-serverの修正、という状態。計画のS1〜S4・Tは完了し、実装・検証の残作業はない。次の作業は利用者の指示を受けて決める。
+- 範囲は「既存静的ツールの利用案内」「noestdlib/noeagentlibがそれぞれ供給するAPI説明・型宣言」「実行結果・実行時診断」の3本。[計画](ai-execution-contract-plan.md)と[S1設計](ai-execution-contract-design.md)が正本。利用契約は[実行結果・移行](../execution-results.md)と[JS検査](../javascript-checks.md)を参照する。
+- 上流への変更は事前に利用者へ明示して許可を求める。NOE側のnoestdlibを変更する許可と、go-quickjs等の上流変更の許可を混同しない。今回は正式`github.com/go-quickjs/go-quickjs v0.28.0`を使い、派生module・engine改造・独自の静的checkerは追加していない。撤回済みの旧設計を復活させない。
+- Tの結果と任意試験の未実施範囲は上記のとおり。集約結果は`/var/tmp/noe-t-validation/summary.json`、S3/S4の詳細は`/var/tmp/noe-s3-validation`・`/var/tmp/noe-s4-tests`。一時成果物を正本にせず、本記録を完了状態として使う。同じ製品ソース・依存なら有効な検証結果を再利用し、セッション変更だけを理由にunit/E2E/raceをやり直さない。
+- 配置は更新していない。引き継ぎ時にrepository直下の`./noe version`と`/home/agent/.local/bin/noe version`はどちらも`noe v2.1.1`と確認した。今回の検証用バイナリは`/var/tmp/noe-s4-audit-bin`。公開・push・tag・Release作成・配置はこのコミット依頼に含まれず、実施していない。リリース指示後も[AGENTS.md](../../AGENTS.md)の「ローカル修正→テスト→通常軽いリリース検証→軽いCI」に従う。
+- 利用者の未追跡イベントログ4件（20261021の203157/215119、20261023の110042/112051）は変更・削除・コミットしない。

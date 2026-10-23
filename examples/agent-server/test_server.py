@@ -545,6 +545,7 @@ class AgentServerTests(unittest.TestCase):
         # markers prove each in-process execution reached the owned work; only
         # the explicit subprocess has an independently reaped OS PID.
         parent_code = ('// Own a nested agent until this task is interrupted.\n'
+                       'import {run_agent} from "noe:agent";\n'
                        'import {writeFileSync} from "node:fs";\n'
                        'writeFileSync("parent.started","yes");\n'
                        'await run_agent({name:"owned-test-child"},"owned-child");')
