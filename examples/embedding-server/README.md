@@ -114,7 +114,7 @@ GOWORK=off go mod tidy
 GOWORK=off CGO_ENABLED=0 go run .
 ```
 
-テンプレートの `v2.0.0-dev.0` はローカル置換専用です。公開タグを使う場合は `replace` を外して `v2.1.0` を指定します。詳しくは[v2移行ガイド](../../docs/v2-migration.md)を参照してください。
+テンプレートの `v2.0.0-dev.0` はローカル置換専用です。公開タグを使う場合は `replace` を外して `v2.1.1` を指定します。詳しくは[v2移行ガイド](../../docs/v2-migration.md)を参照してください。
 
 ## 確認用テスト
 

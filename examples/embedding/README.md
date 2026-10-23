@@ -16,7 +16,7 @@ To use a separate module with a local checkout, copy `main.go` and
 set its replacement to the absolute checkout path. Then run
 `GOWORK=off go mod tidy` and `GOWORK=off CGO_ENABLED=0 go run .`.
 `v2.0.0-dev.0` is a local-development placeholder, not a published tag.
-For the published release, remove the replacement and require v2.1.0
+For the published release, remove the replacement and require v2.1.1
 instead; see the [v2 migration guide](../../docs/v2-migration.md).
 
 For a long-running Go HTTP host that creates a fresh runtime per request, see
