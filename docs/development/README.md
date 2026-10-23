@@ -39,7 +39,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 - 失敗しても後続の結果に影響しないベストエフォートの処理
 - 直後に`os.Exit`する経路
 
-無視する場合は、同じ行に理由をコメントで残します。機械的なlintゲートは設けず、上記3条件をコードレビューで判定します。CIの品質ゲート（`go test`・`go vet`）は現状のままです。
+無視する場合は、同じ行に理由をコメントで残します。機械的なlintゲートは設けず、上記3条件をコードレビューで判定します。検査はローカルで完了させ、CIは配布用ビルド・checksum作成・公開を担当します。同じ検査を両方で繰り返しません。
 
 ## 実装を変更するときの入口
 
@@ -62,6 +62,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 | テーマ | 計画・調査 | 実装・検証 |
 | --- | --- | --- |
+| AI向け実行改善：静的ツール・標準API情報・結果/診断 | [範囲見直し計画・レビュー](ai-execution-contract-plan.md)・[S1詳細設計・レビュー](ai-execution-contract-design.md) | S1完了。通常・批判的レビューの指摘修正・再確認済み。製品実装は未着手 |
 | v2：API再設計と3者の責務 | [構成案](v2-agent-runtime-plan.md)・[API/移行契約](v2-api-redesign.md)・[責務/経路](v2-responsibility-boundaries.md) | 破壊的変更採用・改訂レビュー完了 |
 | v2：実装と総合検証 | [11スライス実装計画](v2-agent-runtime-implementation-plan.md)・[計画レビュー](v2-api-redesign-review.md)・[実装記録](v2-implementation.md) | 承認済み計画に従い実装・スライス別検証中 |
 | agentの起動・待受・queue | [計画](agent-lifecycle-plan.md) | [実装記録](agent-lifecycle-implementation.md) |
