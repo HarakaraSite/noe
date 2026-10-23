@@ -1623,3 +1623,52 @@ SHA256SUMS and publishes the immutable tag. Native execution here is Linux
 amd64; other platforms receive CI build and checksum verification.
 Published artifacts and actual public-module retrieval are checked separately
 after publication. Installation of the new binary is a separate action.
+
+## v2.4.0 Release validation — 2026-10-24
+
+- Annotated tag `v2.4.0` points to
+  `a067a22164440d2e6f30cbc7c150bf042f0c21b3`. The peeled remote tag matches
+  the workflow revision. Its difference from checked source `f1b9921` is the
+  preparation evidence above only.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/35)
+  succeeded (API run ID 216, job ID 237). The saved log contains no repeated
+  source-test or vet command.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.4.0)
+  is published, neither draft nor prerelease (Release ID 148). Its description
+  matches the tagged English release notes.
+
+All seven assets were downloaded; all six binary hashes matched SHA256SUMS.
+The downloaded Linux amd64 binary reports `noe v2.4.0`, the tagged revision,
+`vcs.modified=false`, `CGO_ENABLED=0` and official go-quickjs v0.28.0 without
+JIT. Its SHA256 is
+`6515de3dd63334c908107a6b890c981676dd0df16a7aed405f04b949666c7997`.
+
+Local fixtures against that binary verified embedded docs, separated failure
+diagnostics, corrected structured results, next-request delivery and JSONL
+retention. An oversized successful result reached the next model request as
+an explicit 3 KiB preview, while a subsequent call with a 12 KiB pragma
+returned its complete 9,000-character data. Original captured stdout/data
+remained in `tool.finished.rawResult`.
+
+The initial artifact-only assertion looked for stdout in `run_js.finished`,
+which records completion/data/diagnostics rather than the stdout text. The
+fixture was corrected to inspect `tool.finished.rawResult`; both artifact
+cases then passed. No application change, tag movement or workflow rebuild
+was required. Initial and corrected evidence are retained.
+
+Clean external modules fetched `stdlib@v2.4.0` and `agent@v2.4.0` from the
+actual published module, with no local replacement or synthetic proxy.
+Both examples built, ran and passed `go mod verify`; the deterministic agent
+returned `The total is 31.`. MVS selected go-quickjs v0.28.0, and both
+declaration files match the tagged source.
+
+Evidence is retained at `/var/tmp/noe-v2.4.0-release-x4rfnar6`, including
+published assets, workflow log, artifact fixtures, module consumers,
+`published-verification.json` and `public-module-verification.json`.
+No external model calls were needed for release/artifact verification.
+Other five platforms have CI build/hash evidence without native execution
+here. Existing event logs are unchanged.
+
+This documentation-only publication record does not move the release tag.
+Repository-root `./noe` and `/home/agent/.local/bin/noe` remain the previously
+installed v2.3.0 binaries; this request publishes v2.4.0 without installing it.
