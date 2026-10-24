@@ -396,6 +396,65 @@ class AgentServerTests(unittest.TestCase):
             self.assertEqual(self.get(task)["answer"], result["answer"])
         self.shutdown()
 
+    def wait_new_agent(self, previous_id):
+        def ready():
+            data = self.request("GET", "/tasks")
+            self.assertIsNone(data.get("restartError"), data)
+            return data if (not data["restarting"] and
+                            data["agent"]["agentId"] != previous_id and
+                            data["agent"]["state"] == "idle") else None
+        return eventually(ready, "fresh idle agent")
+
+    def test_new_agent_starts_fresh_conversation_and_preserves_history(self):
+        self.start()
+        old_id = self.startup["agentId"]
+        old_task = self.submit("old-conversation")
+        self.finished(old_task, answer="answer:old-conversation")
+        before = eventually(lambda: history if "answer:old-conversation" in
+                            (history := self.request("GET", "/history"))["text"] else None,
+                            "old conversation in history")
+        self.request("GET", "/new-agent", expected=405)
+        self.request("POST", "/new-agent", expected=403,
+                     headers={"Origin": "https://elsewhere.invalid"})
+        receipt = self.request("POST", "/new-agent", expected=202)
+        self.assertEqual(receipt, {"status": "accepted", "previousAgentId": old_id})
+        current = self.wait_new_agent(old_id)
+        self.assertEqual([task["id"] for task in current["tasks"]], [old_task["id"]])
+        self.assertEqual(self.get(old_task)["answer"], "answer:old-conversation")
+        self.assertEqual(len(self.provider.captured()), 1, "replacement must not contact a model")
+        fresh = self.submit("fresh-conversation")
+        self.finished(fresh, answer="answer:fresh-conversation")
+        self.assertEqual(transcript(self.provider.captured()[-1]),
+                         [("user", "fresh-conversation")])
+        self.assertNotEqual(fresh["id"], old_task["id"])
+        after = eventually(lambda: history if "answer:fresh-conversation" in
+                           (history := self.request("GET", "/history"))["text"] else None,
+                           "fresh answer in retained history")
+        self.assertTrue(after["text"].startswith(before["text"]))
+        self.assertIn("answer:old-conversation", after["text"])
+        self.shutdown()
+
+    @unittest.skipUnless(os.name == "posix", "POSIX owned process assertions")
+    def test_new_agent_cancels_old_reservations_and_reaps_owned_work(self):
+        task = self.install_owned_work()
+        old_id = self.startup["agentId"]
+        pending = self.submit("must-not-enter-new-conversation")
+        self.request("POST", "/new-agent", expected=202)
+        current = self.wait_new_agent(old_id)
+        # A replacement is usable only after the old owned subprocess is gone.
+        self.assertTrue(self.pid_gone(int(self.wait_file("spawned.pid"))))
+        self.finished(task, "cancelled")
+        self.finished(pending, "cancelled")
+        self.assertEqual(len(current["tasks"]), 2)
+        self.assertNotIn("must-not-enter-new-conversation",
+                         [latest_user(r) for r in self.provider.captured()])
+        self.assertTrue(any(e.get("type") == "agent.cancelled" and
+                            e.get("name") == "owned-test-child" for e in self.event_records()))
+        self.finished(self.submit("after-new-agent"), answer="answer:after-new-agent")
+        self.assertEqual(transcript(self.provider.captured()[-1]),
+                         [("user", "after-new-agent")])
+        self.shutdown()
+
     def test_provider_failure_then_continuation(self):
         self.provider.reply = lambda r: ({"status": 400} if latest_user(r) == "fail-now"
                                          else {"content": "answer:" + latest_user(r)})

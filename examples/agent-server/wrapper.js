@@ -96,7 +96,7 @@ export async function startAgentWrapper(options, html) {
         setTimeout(() => { close().catch(error => { console.error(message(error)); process.exit(1); }); }, 25);
         return json({ status: "accepted" }, 202);
       }
-      if (path === "/tasks" || /^\/tasks\/[^/]+(?:\/(steer|interrupt))?$/.test(path)) return await proxy(request, path);
+      if (path === "/new-agent" || path === "/tasks" || /^\/tasks\/[^/]+(?:\/(steer|interrupt))?$/.test(path)) return await proxy(request, path);
       return json({ error: "Not found" }, 404);
     } catch (error) { return json({ error: message(error) }, 502); }
   });

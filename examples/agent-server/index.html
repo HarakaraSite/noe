@@ -17,7 +17,11 @@ button:disabled { cursor: default; opacity: .6; }
 button:focus-visible, textarea:focus-visible { outline: 3px solid #4b92dd; outline-offset: 2px; }
 #task-list { list-style: none; padding: 0; }
 #task-list li { margin: .5rem 0; }
-#task-list button { width: 100%; text-align: left; overflow-wrap: anywhere; }
+#task-list button { width: 100%; text-align: left; display: flex; gap: .5rem; align-items: baseline; white-space: nowrap; overflow: hidden; }
+.task-meta, .task-toggle { flex: none; }
+.task-preview { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-full { margin-top: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+#history, #history-stderr { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
 #task-list button[aria-current="true"] { border: 2px solid #4b92dd; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #8881; padding: .6rem; max-height: 32rem; overflow: auto; }
 .error { color: #b32323; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -30,6 +34,10 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #8881; padding
 <h1>NOE Agent Server</h1>
 <p class="notice">Local use only. No authentication. All users share one conversation. The agent runs with the same OS privileges as this process. Do not enter sensitive information.</p>
 <p id="agent-status">Connecting…</p>
+<button id="new-agent" type="button" aria-describedby="new-agent-help" disabled>New agent</button>
+<p id="new-agent-help" class="muted">Stops current work and starts a new conversation with the same model settings. History and Tasks are kept; unfinished tasks are cancelled.</p>
+<p id="restart-status" role="status"></p>
+<p id="restart-error" class="error" role="alert"></p>
 <details><summary>Agent context and execution details</summary><pre id="agent-context">Not yet available</pre></details>
 <p id="poll-status" class="muted" role="status"></p>
 <p id="poll-error" class="error" role="alert"></p>
@@ -83,6 +91,11 @@ let timer;
 let submitting = false;
 let steering = false;
 let interrupting = false;
+let restarting = false;
+let restartPosting = false;
+let restartRequestError = '';
+let restartAwaiting = null;
+let agentId = null;
 let taskData = new Map();
 const rows = new Map();
 function text(value) {
@@ -110,9 +123,11 @@ function postInstruction(path, instruction) {
   return api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({instruction}) });
 }
 function controls() {
-  el('submit-task').disabled = submitting;
-  el('submit-steer').disabled = steering || !selectedTask || selectedTask.state !== 'running' || !selectedTask.runId;
-  el('interrupt').disabled = interrupting || !selectedTask || !['queued', 'running'].includes(selectedTask.state);
+  const switching = restarting || restartPosting || restartAwaiting !== null;
+  el('new-agent').disabled = !agentId || switching || submitting || steering || interrupting;
+  el('submit-task').disabled = switching || submitting;
+  el('submit-steer').disabled = switching || steering || !selectedTask || selectedTask.state !== 'running' || !selectedTask.runId;
+  el('interrupt').disabled = switching || interrupting || !selectedTask || !['queued', 'running'].includes(selectedTask.state);
 }
 function renderSelection() {
   selectedTask = taskData.get(selectedId) || null;
@@ -128,6 +143,20 @@ function select(id) {
   renderSelection();
   for (const [key, row] of rows) row.button.setAttribute('aria-current', String(key === selectedId));
 }
+function updateExpansion(row) {
+  row.toggle.hidden = true;
+  const expandable = /[\r\n]/.test(row.instruction) || row.preview.scrollWidth > row.preview.clientWidth;
+  row.toggle.hidden = !expandable;
+  if (expandable) {
+    row.button.setAttribute('aria-expanded', String(row.expanded));
+    row.button.setAttribute('aria-controls', row.full.id);
+    row.toggle.textContent = row.expanded ? '▴ Collapse' : '▾ Expand';
+  } else {
+    row.button.removeAttribute('aria-expanded');
+    row.button.removeAttribute('aria-controls');
+  }
+  row.full.hidden = !expandable || !row.expanded;
+}
 function renderList(tasks) {
   taskData = new Map(tasks.map(task => [task.id, task]));
   const ids = new Set(tasks.map(task => task.id));
@@ -140,18 +169,44 @@ function renderList(tasks) {
       const li = document.createElement('li');
       const button = document.createElement('button');
       button.type = 'button';
-      button.addEventListener('click', () => select(task.id));
-      li.append(button);
+      const meta = document.createElement('span');
+      meta.className = 'task-meta';
+      const preview = document.createElement('span');
+      preview.className = 'task-preview';
+      const toggle = document.createElement('span');
+      toggle.className = 'task-toggle';
+      const full = document.createElement('pre');
+      full.className = 'task-full';
+      full.id = 'instruction-' + task.id;
+      full.hidden = true;
+      button.append(meta, preview, toggle);
+      li.append(button, full);
       el('task-list').append(li);
-      row = {li, button};
+      row = {li, button, meta, preview, toggle, full, expanded: false, instruction: ''};
+      const currentRow = row;
+      button.addEventListener('click', () => {
+        select(task.id);
+        if (button.hasAttribute('aria-expanded')) {
+          currentRow.expanded = !currentRow.expanded;
+          updateExpansion(currentRow);
+        }
+      });
       rows.set(task.id, row);
     }
-    row.button.textContent = task.id + ' · ' + stateLabel(task.state) + '\n' + text(task.instruction).slice(0, 140);
+    row.meta.textContent = task.id + ' · ' + stateLabel(task.state) + ' · ';
+    row.instruction = text(task.instruction);
+    row.preview.textContent = row.instruction.replace(/[\r\n]+/g, ' ');
+    row.full.textContent = row.instruction;
     row.button.setAttribute('aria-current', String(task.id === selectedId));
+    updateExpansion(row);
   }
   el('empty-list').hidden = tasks.length !== 0;
   renderSelection();
 }
+const taskResizeObserver = new ResizeObserver(() => {
+  for (const row of rows.values()) updateExpansion(row);
+});
+taskResizeObserver.observe(el('task-list'));
 function refreshSoon() {
   clearTimeout(timer);
   if (polling) { pollAgain = true; return; }
@@ -190,6 +245,19 @@ async function poll() {
     if (tasksResult.status === 'rejected') throw tasksResult.reason;
     const data = tasksResult.value;
     if (!data || !Array.isArray(data.tasks)) throw new Error('Invalid response format from the task list API.');
+    agentId = data.agent && data.agent.agentId;
+    const wasRestarting = restarting;
+    restarting = data.restarting === true;
+    el('restart-error').textContent = data.restartError ? 'New agent failed: ' + text(data.restartError) : restartRequestError;
+    if (data.restartError) {
+      restartAwaiting = null;
+      el('restart-status').textContent = '';
+    } else if (!restarting && agentId && (wasRestarting || (restartAwaiting && agentId !== restartAwaiting.previousAgentId))) {
+      restartAwaiting = null;
+      el('restart-status').textContent = 'New agent ready. A new conversation has started; History and Tasks are retained.';
+    } else if (restarting || restartAwaiting) {
+      el('restart-status').textContent = 'New agent request accepted. Stopping the previous agent and waiting for a new agent; not yet complete.';
+    }
     renderList(data.tasks);
     el('agent-status').textContent = 'Agent: ' + text(data.agent && data.agent.agentId) + ' / ' + text(data.agent && data.agent.state);
     el('supervisor-error').textContent = data.supervisorError ? 'Supervisor error: ' + text(data.supervisorError) : '';
@@ -207,7 +275,7 @@ async function poll() {
 function beginAction() { el('action-error').textContent = ''; el('action-status').textContent = ''; }
 el('task-form').addEventListener('submit', async event => {
   event.preventDefault();
-  if (submitting) return;
+  if (el('submit-task').disabled) return;
   const original = el('instruction').value;
   if (!original.trim()) { el('action-error').textContent = 'Please enter instructions.'; return; }
   submitting = true; controls(); beginAction();
@@ -242,6 +310,30 @@ el('interrupt').addEventListener('click', async () => {
     el('action-status').textContent = 'Stop / queue cancellation request accepted for task ' + id + '. Check the task state to confirm completion.';
   } catch (error) { el('action-error').textContent = 'Stop request error: ' + error.message; }
   finally { interrupting = false; controls(); refreshSoon(); }
+});
+el('new-agent').addEventListener('click', async () => {
+  if (el('new-agent').disabled) return;
+  restartPosting = true;
+  controls();
+  restartRequestError = '';
+  el('restart-error').textContent = '';
+  el('restart-status').textContent = 'Requesting a new agent…';
+  try {
+    const receipt = await api('/new-agent', {method: 'POST'});
+    if (!receipt || receipt.status !== 'accepted' || !receipt.previousAgentId) {
+      throw new Error('Invalid response format. Acceptance could not be confirmed.');
+    }
+    restartAwaiting = {previousAgentId: receipt.previousAgentId};
+    el('restart-status').textContent = 'New agent request accepted. Waiting for the new agent; not yet complete.';
+  } catch (error) {
+    el('restart-status').textContent = '';
+    restartRequestError = 'New agent request error: ' + error.message + ' No automatic retry was made. Check the agent status before trying again.';
+    el('restart-error').textContent = restartRequestError;
+  } finally {
+    restartPosting = false;
+    controls();
+    refreshSoon();
+  }
 });
 el('refresh').addEventListener('click', refreshSoon);
 refreshSoon();

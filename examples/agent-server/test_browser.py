@@ -110,7 +110,15 @@ def main():
                     const path = new URL(input, location.href).pathname;
                     const method = options.method || 'GET';
                     window.fixtureRequests.push([method, path]);
+                    if (method === 'POST' && path === '/new-agent' && window.fixtureRestartError) {
+                        return new Response(JSON.stringify({error: 'fixture restart rejected'}), {status: 409});
+                    }
                     const response = await realFetch(input, options);
+                    if (method === 'GET' && path === '/tasks' && window.fixtureTasksExtra) {
+                        const body = await response.json();
+                        return new Response(JSON.stringify({...body, ...window.fixtureTasksExtra}),
+                            {status: response.status, headers: {'Content-Type': 'application/json'}});
+                    }
                     if (path === '/history' && window.fixtureStderr !== null) {
                         const body = await response.json();
                         return new Response(JSON.stringify({...body, stderr: window.fixtureStderr, ...window.fixtureHistoryExtra}),
@@ -130,7 +138,7 @@ def main():
                 js('document.getElementById("instruction").value=' + json.dumps(instruction) + ';document.getElementById("task-form").requestSubmit();return true;')
 
             def selected(instruction, state):
-                wait('const b=document.querySelector(\'#task-list button[aria-current="true"]\');return b && b.textContent.includes(' + json.dumps(instruction) + ') && document.getElementById("selected-task").textContent.includes(' + json.dumps('(' + state + ')') + ');', 'selected ' + instruction + ' ' + state)
+                wait('const b=document.querySelector(\'#task-list button[aria-current="true"]\');return b && b.parentElement.querySelector(".task-full").textContent.includes(' + json.dumps(instruction) + ') && document.getElementById("selected-task").textContent.includes(' + json.dumps('(' + state + ')') + ');', 'selected ' + instruction + ' ' + state)
                 return js('return document.querySelector(\'#task-list button[aria-current="true"]\').textContent.split(" · ")[0];')
 
             def select_task(task_id):
@@ -172,12 +180,20 @@ def main():
             queue(bad)
             selected(bad, 'completed')
             wait('return document.getElementById("history").textContent.includes(' + json.dumps('answer:' + bad) + ');', 'safe history answer')
-            assert js('return !window.fixtureXSS && document.getElementById("history").children.length===0 && Array.from(document.querySelectorAll("#task-list button")).every(b=>b.children.length===0);')
+            assert js('return !window.fixtureXSS && document.getElementById("history").children.length===0 && !document.querySelector("#task-list img");')
             js('window.fixtureStderr=' + json.dumps('stderr: ' + bad) + ';document.getElementById("refresh").click();return true;')
             wait('return !document.getElementById("history-stderr-section").hidden && document.getElementById("history-stderr").textContent===' + json.dumps('stderr: ' + bad) + ';', 'distinct worker stderr')
             assert js('return !window.fixtureXSS && document.getElementById("history-stderr").children.length===0 && !document.getElementById("history").textContent.includes("stderr: ");')
             js('window.fixtureStderr=null;document.getElementById("refresh").click();return true;')
             wait('return !document.getElementById("history-stderr").textContent.includes("<img");', 'stderr diagnostic restored on refresh')
+
+            # Terminal-style output preserves ASCII columns rather than wrapping.
+            table = '+---+---+\n| ' + ('column ' * 80) + '|\n+---+---+'
+            js('window.fixtureHistoryExtra={text:' + json.dumps(table) + '};window.fixtureStderr=' + json.dumps(table) + ';document.getElementById("refresh").click();return true;')
+            wait('return document.getElementById("history").textContent===' + json.dumps(table) + ';', 'ASCII table fixture')
+            assert js('return ["history","history-stderr"].every(id=>{const e=document.getElementById(id),s=getComputedStyle(e);return s.fontFamily.includes("monospace") && s.whiteSpace==="pre" && s.overflowWrap==="normal" && e.scrollWidth>e.clientWidth;});')
+            js('window.fixtureHistoryExtra={};window.fixtureStderr=null;document.getElementById("refresh").click();return true;')
+            wait('return document.getElementById("history").textContent.includes("answer:browser-first");', 'real history restored')
 
             # Capture errors and a dead worker must not erase already captured history.
             js('window.fixtureHistoryExtra={error:"capture warning <unsafe>",workerStatus:{code:1,signal:null}};window.fixtureStderr="diagnostic";document.getElementById("refresh").click();return true;')
@@ -247,11 +263,62 @@ def main():
             assert js('return document.getElementById("submit-steer").disabled && document.getElementById("interrupt").disabled;')
             stop.set()
             assert js('return document.getElementById("task-list").children.length;') == 7
+            # Full instructions remain available without turning the list into paragraphs.
+            for instruction in ['browser-multiline\nsecond line\nlast line', 'browser-long ' + ('wide instruction ' * 90)]:
+                queue(instruction)
+                expanded_id = selected(instruction, 'completed')
+                assert js('const b=document.querySelector(\'#task-list button[aria-current="true"]\');return b.getAttribute("aria-expanded")==="false" && b.parentElement.querySelector(".task-full").hidden && getComputedStyle(b.querySelector(".task-preview")).textOverflow==="ellipsis" && getComputedStyle(b).whiteSpace==="nowrap";')
+                select_task(expanded_id)
+                assert js('const b=document.querySelector(\'#task-list button[aria-current="true"]\');return b.getAttribute("aria-expanded")==="true" && !b.parentElement.querySelector(".task-full").hidden && b.parentElement.querySelector(".task-full").textContent===' + json.dumps(instruction) + ';')
+                count = js('return window.fixtureRequests.filter(([method,path])=>method==="GET" && path==="/tasks").length;')
+                js('document.getElementById("instruction").value="draft-with-expanded-task";document.getElementById("poll-status").textContent="Waiting for task refresh";document.getElementById("refresh").click();return true;')
+                wait('return window.fixtureRequests.filter(([method,path])=>method==="GET" && path==="/tasks").length>' + str(count) + ' && document.getElementById("poll-status").textContent.startsWith("Last updated:");', 'expanded task subsequent poll')
+                assert selected(instruction, 'completed') == expanded_id
+                assert js('return document.getElementById("instruction").value==="draft-with-expanded-task" && document.querySelector(\'#task-list button[aria-current="true"]\').getAttribute("aria-expanded")==="true";')
+                # Native button keyboard activation must also collapse the instruction.
+                element = command('WebDriver:FindElement', {'using': 'css selector', 'value': '#task-list button[aria-current="true"]'})
+                element_id = element['value']['element-6066-11e4-a52e-4f735466cecf']
+                command('WebDriver:ElementSendKeys', {'id': element_id, 'text': '\ue007', 'value': ['\ue007']})
+                assert js('return document.querySelector(\'#task-list button[aria-current="true"]\').getAttribute("aria-expanded")==="false";')
+            select_task(first_id)
+            assert js('return !document.querySelector(\'#task-list button[aria-current="true"]\').hasAttribute("aria-expanded");')
+
+            # A rejected restart is visible and never automatically POSTed again.
+            js('window.fixtureRestartError=true;document.getElementById("new-agent").click();return true;')
+            wait('return document.getElementById("restart-error").textContent.includes("HTTP 409") && !document.getElementById("new-agent").disabled;', 'new-agent rejection')
+            js('document.getElementById("refresh").click();return true;')
+            assert js('return document.getElementById("restart-error").textContent.includes("No automatic retry");')
+            assert js('return window.fixtureRequests.filter(([m,p])=>m==="POST" && p==="/new-agent").length;') == 1
+
+            # A restart observed through polling also blocks actions and reports failure.
+            js('window.fixtureTasksExtra={restarting:true,restartError:null};document.getElementById("refresh").click();return true;')
+            wait('return ["new-agent","submit-task","submit-steer","interrupt"].every(id=>document.getElementById(id).disabled) && document.getElementById("restart-status").textContent.includes("not yet complete");', 'polled restart in progress')
+            js('window.fixtureTasksExtra={restarting:false,restartError:"fixture asynchronous restart failure"};document.getElementById("refresh").click();return true;')
+            wait('return document.getElementById("restart-error").textContent.includes("fixture asynchronous restart failure") && !document.getElementById("new-agent").disabled;', 'polled restart failure')
+            assert js('return document.getElementById("restart-status").textContent;') == ''
+            js('window.fixtureTasksExtra=null;return true;')
+
+            # Successful restart is only complete once polling reports the new ID.
+            old_agent = h.startup['agentId']
+            js('window.fixtureRestartError=false;window.fixtureDelayPath="/new-agent";document.getElementById("instruction").value="draft-across-restart";document.getElementById("new-agent").click();document.getElementById("new-agent").click();return true;')
+            wait('return typeof window.fixtureRelease==="function";', 'new-agent accepted receipt held')
+            assert js('return ["new-agent","submit-task","submit-steer","interrupt"].every(id=>document.getElementById(id).disabled);')
+            assert js('return window.fixtureRequests.filter(([m,p])=>m==="POST" && p==="/new-agent").length;') == 2
+            js('window.fixtureRelease();return true;')
+            wait('return document.getElementById("restart-status").textContent.includes("New agent ready") && !document.getElementById("new-agent").disabled;', 'new agent ready after polling')
+            assert not js('return document.getElementById("agent-status").textContent.includes(' + json.dumps(old_agent) + ');')
+            assert js('return document.getElementById("instruction").value==="draft-across-restart" && document.getElementById("history").textContent.includes("answer:browser-first") && document.getElementById("task-list").children.length===9;')
+            queue('browser-new-conversation')
+            selected('browser-new-conversation', 'completed')
+            wait('return document.getElementById("history").textContent.includes("answer:browser-new-conversation");', 'new-agent task answer')
+            new_request = next(r for r in h.provider.captured() if f.latest_user(r) == 'browser-new-conversation')
+            assert 'browser-first' not in json.dumps(new_request)
+            assert js('return document.getElementById("restart-error").textContent;') == ''
             assert js('return !window.fixtureRequests.some(([method,path])=>method==="GET" && path.startsWith("/tasks/"));')
             assert js('return document.getElementById("poll-error").textContent;') == ''
             assert js('return document.getElementById("history-error").textContent;') == ''
             assert js('return document.getElementById("action-error").textContent;') == ''
-            print('PASS: real Firefox observe history, shared queue/steer input, selected-task guards, safe text/stderr, queued cancel/running stop, refresh and draft retention, no detail UI or per-task GET')
+            print('PASS: real Firefox monospace history, expandable one-line tasks, new-agent restart/error, observe history, shared queue/steer input, selected-task guards, safe text/stderr, queued cancel/running stop, refresh and draft retention, no detail UI or per-task GET')
             command('Marionette:Quit', {'flags': ['eForceQuit']})
             browser.wait(10)
             browser = None

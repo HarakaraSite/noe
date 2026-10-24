@@ -1,4 +1,4 @@
-import { spawn_agent, queue_agent, observe_agent, steer_agent, cancel_task, stop_agent } from "noe:agent";
+import { spawn_agent, queue_agent, observe_agent, steer_agent, cancel_task, stop_agent, wait_task } from "noe:agent";
 import { analyze_log } from "noe:agent-log";
 import { readFile, stat } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -28,6 +28,7 @@ export async function startAgentServer(options, html) {
   let sequence = 0, steerSequence = 0, active = null, timer = null;
   let closing = false, closePromise = null, supervisorError = null, logError = null;
   let snapshot = null, server = null, logOffset = 0, executionId = null;
+  let restarting = false, restartError = null, restartPromise = null;
   // The wrapper supplies this invocation's automatically named event log.
   // It is used only for progress and exact steer lifecycle, never UI History.
   if (options.eventsPath) {
@@ -38,7 +39,7 @@ export async function startAgentServer(options, html) {
     }
     if (!executionId) throw new Error("--events-path must be this NOE invocation's --events JSONL file");
   }
-  const { agentId } = await spawn_agent(config, undefined, { keepAlive: true });
+  let { agentId } = await spawn_agent(config, undefined, { keepAlive: true });
   const view = task => JSON.parse(JSON.stringify(task));
   const unavailable = () => snapshot && ["stopping", "stopped", "failed"].includes(snapshot.state);
   function finish(task, result) {
@@ -115,7 +116,7 @@ export async function startAgentServer(options, html) {
       if (terminal.has(task.state) && ["idle", "stopped", "failed"].includes(snapshot.state)) active = null;
     }
     await readEvents();
-    if (unavailable()) {
+    if (unavailable() && !restarting) {
       for (const task of tasks.values()) {
         if (!terminal.has(task.state)) {
           task.state = "failed";
@@ -127,7 +128,7 @@ export async function startAgentServer(options, html) {
     }
   }
   async function dispatch() {
-    if (closing || active || snapshot?.state !== "idle") return;
+    if (closing || restarting || active || snapshot?.state !== "idle") return;
     const task = [...tasks.values()].find(item => item.state === "queued");
     if (!task) return;
     task.state = "starting";
@@ -164,12 +165,62 @@ export async function startAgentServer(options, html) {
     } catch (error) { supervisorError = message(error); }
     if (!closing) timer = setTimeout(poll, 100);
   }
+  function newAgent() {
+    if (closing) throw new HTTPError(503, "Server is shutting down");
+    if (restarting) throw new HTTPError(409, "A new agent is already being started");
+    const previousAgentId = agentId;
+    restarting = true;
+    restartError = null;
+    restartPromise = (async () => {
+      let previousTask;
+      await locked(async () => {
+        previousTask = active;
+        // Reservations belong to the old conversation, never the new agent.
+        for (const task of tasks.values()) {
+          if (task.state === "queued") {
+            task.state = "cancelled";
+            task.finishedAt = now();
+          }
+        }
+        if (active && !terminal.has(active.state)) active.state = "stopping";
+        await stop_agent({ agentId: previousAgentId });
+      });
+      // Acceptance is not cleanup. Do not create the replacement until the
+      // old instance and its owned work have actually settled.
+      while (true) {
+        const stopped = await locked(async () => {
+          await refresh();
+          return ["stopped", "failed"].includes(snapshot.state);
+        });
+        if (stopped) break;
+        await sleep(25);
+      }
+      await locked(async () => {
+        if (previousTask?.commandId) {
+          finish(previousTask, await wait_task({ agentId: previousAgentId, commandId: previousTask.commandId }));
+        }
+        active = null;
+        await readEvents();
+        if (closing) return;
+        ({ agentId } = await spawn_agent(config, undefined, { keepAlive: true }));
+        snapshot = null;
+        supervisorError = null;
+      });
+    })().catch(error => {
+      restartError = message(error);
+    }).finally(() => {
+      restarting = false;
+      restartPromise = null;
+    });
+    return { status: "accepted", previousAgentId };
+  }
   function close() {
     if (closePromise) return closePromise;
     closing = true;
     if (timer !== null) clearTimeout(timer);
     closePromise = (async () => {
       try {
+        if (restartPromise) await restartPromise;
         await locked(async () => {
           for (const task of tasks.values()) {
             if (task.state === "queued") {
@@ -229,6 +280,10 @@ export async function startAgentServer(options, html) {
           "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'",
         } });
       }
+      if (path === "/new-agent") {
+        method(request, ["POST"]);
+        return json(newAgent(), 202);
+      }
       if (path === "/shutdown") {
         method(request, ["POST"]);
         if (closing) throw new HTTPError(409, "Server is already shutting down");
@@ -241,11 +296,11 @@ export async function startAgentServer(options, html) {
         if (request.method === "GET") return locked(() => json({
           tasks: [...tasks.values()].map(view),
           agent: snapshot ? { agentId, state: snapshot.state, currentRunId: snapshot.currentRunId, context: snapshot.context, execution: snapshot.execution } : { agentId, state: "starting" },
-          supervisorError, logError, closing,
+          supervisorError, logError, closing, restarting, restartError,
         }));
         const text = await instruction(request);
         return locked(() => {
-          if (closing || unavailable()) throw new HTTPError(503, "Agent server unavailable");
+          if (closing || restarting || unavailable()) throw new HTTPError(503, "Agent server unavailable");
           const task = { id: "task-" + (++sequence), instruction: text, state: "queued", runId: null,
             commandId: null, answer: null, error: null, result: null, steers: [], progress: null,
             createdAt: now(), startedAt: null, finishedAt: null };
@@ -264,7 +319,7 @@ export async function startAgentServer(options, html) {
       method(request, ["POST"]);
       const text = match[2] === "steer" ? await instruction(request) : null;
       return locked(async () => {
-        if (closing) throw new HTTPError(503, "Server is shutting down");
+        if (closing || restarting) throw new HTTPError(503, "Agent server is shutting down or starting a new agent");
         await refresh();
         if (match[2] === "interrupt" && task.state === "queued") {
           task.state = "cancelled"; task.finishedAt = now();
@@ -295,7 +350,7 @@ export async function startAgentServer(options, html) {
       catch (error) { return json({ error: message(error) }, error.status || 500, error.allow ? { Allow: error.allow } : {}); }
     });
     timer = setTimeout(poll, 0);
-    return { url: server.url, agentId, close };
+    return { url: server.url, get agentId() { return agentId; }, close };
   } catch (error) {
     await stop_agent({ agentId });
     while (!["stopped", "failed"].includes((await observe_agent({ agentId })).state)) await sleep(25);
