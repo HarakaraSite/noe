@@ -98,7 +98,7 @@ consumerのv0.27.0要求は維持し、MVSがv0.28.0を選ぶことを確認す�
 
 ## 上流修正待ち：ES module内のブロック関数宣言 — 2026-10-24
 
-**状態：利用者の指示により上流修正待ち。** 正式go-quickjs v0.28.0を維持する。
+**状態：利用者の指示により上流修正待ち。** 正式go-quickjs v0.28.0を維持する。2026-10-24に独立再現を添えて[上流issue #4](https://github.com/go-quickjs/go-quickjs/issues/4)を英語で投稿した。
 発端は`noe-events-20261024-033909-c8ef146fa483f3ef.jsonl`のHTTP stream課題で、
 定義済みの`worker`が`ReferenceError: worker is not defined`になったこと。
 
@@ -135,10 +135,54 @@ NOEのwrapperや今回のdata/診断変更を介さずに再現しており、�
 ではブロック内の関数bindingを作成・初期化する。
 
 修正版を取り込む際は、最小再現と外側の同名関数を誤って呼ぶケースの解消を確認する。
-上流の最新branchでの修正有無・issue/PRの状況は未確認で、この調査からの提出は行っていない。
+初回調査では上流最新branch・issue/PRの確認と提出は行わなかった。その後の投稿準備で、当時のmainでも独立再現することを確認した。詳細は[独立再現と上流報告](#2件の独立再現と上流報告--2026-10-24)を参照。
 engine・module cache・依存・NOE製品コードは変更していない。
 
 調査用consumer、再現コード、ケース別結果、集約結果は
 `/var/tmp/noe-worker-scope-investigation-9dsr772r`（`summary.json`、`repro.mjs`、
 `quickjs-results.jsonl`、`shadow-results.jsonl`、`node-matched-results.json`）に保存。
 consumerにNOE依存やlocal replaceはなく、`go mod verify`も成功した。
+
+## 上流の不具合：colon付きmodule specifierのnamed re-export — 2026-10-24
+
+**状態：NOE側は等価な書き方で回避済み、上流へ報告済み。** 正式go-quickjs v0.28.0の再export解決処理に原因がある。上記のブロック関数宣言の不具合とは別件として追随する。2026-10-24に独立再現を添えて[上流issue #5](https://github.com/go-quickjs/go-quickjs/issues/5)を英語で投稿した。依存更新・上流PRの提出は行っていない。
+
+### 発生と回避
+
+agentのJS責務分離（S5）で、次のnamed re-exportを導入すると、実executor経由でtaskの起動が失敗した。
+
+```js
+export { executeToolWithHooks } from "noe:agent/tool-pipeline";
+```
+
+診断は `TypeError: cannot resolve "noe": stdlib: no module loader for "noe" from "noe:agent/task"`。NOEの `noe:agent/...` というmodule名に含まれるcolonで表面化したが、specifierを誤分割する処理はNOEのloaderではなく上流engine側にある。
+
+既存のimport済みbindingをlocal exportする形へ変更し、同じ関数identityを維持して回避した。engineや依存は変更していない。
+
+```js
+import { executeToolWithHooks } from "noe:agent/tool-pipeline";
+export { executeToolWithHooks };
+```
+
+### 原因と追随時の確認
+
+上流v0.28.0の `internal/compiler/module.go` は、再exportの隠しbinding名を `"*re*" + moduleSpecifier + ":" + importedName` として生成する。`internal/vm/moduleresolve.go:49` の `indirectSource` はprefixを除いた文字列を `strings.Cut(rest, ":")` で最初のcolonから分割するため、`noe:agent/tool-pipeline` のmodule部分を `noe` と誤認する。標準の再export構文に対するengine実装の不具合であり、NOE独自の構文制限として扱わない。
+
+初回調査ではNOE経由の失敗ログと固定版上流ソースを照合した。その後の投稿準備で、NOEを含まない独立したGo consumerによる再現と、当時のmainでも同じ結果になることを確認した。詳細は[独立再現と上流報告](#2件の独立再現と上流報告--2026-10-24)を参照。
+
+回避後はagentbridge／agentexecの関連テストとruntimeのhook・tool出力・画像・context・queue等の関連fixtureが成功し、task経由のexportとpipeline直接importの関数identityも確認済み。詳細は[S5の対応記録](responsibility-boundaries-refactor-implementation.md#s5-task-loopとtool処理の境界)を参照。
+
+証拠ログは `/var/tmp/noe-boundaries-KVDans/` の `s5-executor.log`（初回失敗）、`s5-executor-local-export.log`・`s5-runtime-local-export.log`（回避後成功）。修正版の取り込み時は、元のnamed re-exportがcolon付きspecifierを正しく解決し、同じbindingへ到達することを確認する。
+
+## 2件の独立再現と上流報告 — 2026-10-24
+
+利用者の明示指示に従い、`HarakaraSite`として次の2件を英語で投稿した。各issueには、そのまま実行できるGoコード、依存取得・実行手順、期待値と実測結果、原因候補、回避方法を記載した。投稿後にauthor・title・bodyを取得し、準備した内容との一致を確認した。
+
+| issue | 独立再現の結果 |
+| --- | --- |
+| [#4: Block-scoped function declarations are skipped in ES modules, causing ReferenceError or incorrect shadowing](https://github.com/go-quickjs/go-quickjs/issues/4) | moduleのブロック内宣言はReferenceError、外側の同名関数があると期待値7に対して99。scriptとfunction式による回避は7。宣言2ケースはNode.jsのmoduleでも7 |
+| [#5: Named re-exports misparse module specifiers containing a colon](https://github.com/go-quickjs/go-quickjs/issues/5) | `demo:dep`からの再exportが`demo`へ誤解決。colonなしの対照とimport＋local exportの回避はいずれも7 |
+
+検証環境はGo 1.27.2 / Linux amd64、JIT build tagなし。両方とも正式v0.28.0と、確認時のmain `92bd61dd7575e61f378ae65a5bbdfeca159459c1`（`v0.28.1-0.20261024003228-92bd61dd7575`）で同一結果。独立consumerは上流の公開Go APIだけを使い、NOE・NOE管理stdlib・local replaceを含まない。再export用loaderはGoコード内の文字列を返すだけの実装。両版で`go mod verify`成功。NOEのgo.mod・go.sumは変更していない。
+
+再現コード、版別modfile、英語本文、実測結果と投稿確認は `/var/tmp/go-quickjs-issues-MkRuD9/` に保存：`block/main.go`、`reexport/main.go`、`go.mod`・`main.mod`、`block-issue.txt`・`reexport-issue.txt`、`results.json`、`verified-issues.json`。issue本文にも再現コードを含めたため、このVMのファイルなしで再現できる。
