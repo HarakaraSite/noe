@@ -1,10 +1,10 @@
 # Agent内部の構成
 
-Agent機能を変更するときの入口。以下は開発版の `1bad24a`（2026-10-24照合）の構成を説明する。公開APIは[APIリファレンス](../api.md)を参照する。[配置整理の計画](agent-refactor-plan.md)と[実装記録](agent-refactor-implementation.md)は当時の構成・検証を残した過去記録であり、現行の実行方式や配置の正本ではない。
+Agent機能を変更するときの入口。以下は現行開発版の構成を説明する（2026-10-24更新）。今回の[責務境界整理の計画](responsibility-boundaries-refactor-plan.md)と[実装・検証記録](responsibility-boundaries-refactor-implementation.md)も参照する。公開APIは[APIリファレンス](../api.md)を参照する。[配置整理の計画](agent-refactor-plan.md)と[実装記録](agent-refactor-implementation.md)は当時の構成・検証を残した過去記録であり、現行の実行方式や配置の正本ではない。
 
 ## JSとGoの分担
 
-`noe:agent`の公開ESMは`internal/agent/js/agent.js`。公開APIの引数検証・設定継承とnative request呼出しは`js/api.js`、一つのtaskでモデル要求とtoolを繰り返すloopは`js/task.js`、会話の完全blockとtrim適用は`js/history.js`、hookの呼出しは`js/hooks.js`が担当する。
+`noe:agent`の公開ESMは`internal/agent/js/agent.js`。公開APIの引数検証・設定継承とnative request呼出しは`js/api.js`、一つのtaskのモデル反復・履歴/context/steerの調停は`js/task.js`、run_jsのschema・引数/結果検証・実行は`js/run_js.js`、hook付きtool実行と実行事実/モデル提示結果の記録は`js/tool_pipeline.js`が担当する。taskとtoolのJSON request境界は`js/task_protocol.js`、会話の完全blockとtrim適用は`js/history.js`、hookの呼出しは`js/hooks.js`に置く。
 
 公開Go APIの`agent.Host`はモデルサービスと実行用profileを受け取り、agent管理層とexecutorを組み立てる。`agent.Client`は一つの所有scopeであり、`agent.Attach`は既存runtimeに新しいClientを接続する。Goからの型付き操作とJSからのJSON要求は、同じ管理層の受付・所有確認・取消し規則を通る。JSの要求は`internal/agentbridge`から`Operation.Call`へ渡し、`internal/agent/direct.go`で同一プロセス内の操作へ振り分ける。
 
@@ -44,7 +44,7 @@ flowchart TD
 | 一つのClient／評価／子scopeの取消しとrequestの回収 | `internal/agent/operation.go`、`internal/agent/operation_request.go` |
 | JSON要求と型付きGo操作の受付・振分け | `internal/agent/direct.go`、`internal/agent/typed_direct.go` |
 | instanceの起動・観察・queue受付、要求/応答型 | `internal/agent/instance_operations.go`、`internal/agent/lifecycle_types.go` |
-| instance状態・queue処理、taskの実行と終了報告 | `internal/agent/instance.go`、`internal/agent/task.go`、`internal/agent/task_wait.go` |
+| instanceのスケジュール判断、task command状態遷移、実行と終了報告 | `internal/agent/instance.go`、`internal/agent/task_lifecycle.go`、`internal/agent/task.go`、`internal/agent/task_wait.go` |
 | 操作可能なowner/親子関係 | `internal/agent/ownership.go` |
 | steer・interrupt・task取消し | `internal/agent/steer.go`、`internal/agent/interrupt.go`、`internal/agent/cancel_task.go` |
 | 人間用CLIの接続先探索と通信 | `internal/app/control/`、`internal/cli/agent_control.go` |
@@ -58,10 +58,20 @@ flowchart TD
 | run_jsの子scope・実行要求 | `internal/agent/broker_tools.go`、`internal/agent/executor.go` |
 | task/toolのソース準備・bridge接続・stdout/stderr回収 | `internal/agentexec/executor.go`、`internal/agentexec/output.go` |
 | 汎用runtimeの作成・実行・終了、dataと診断 | `stdlib/profile.go`、`internal/jsexec/profile.go`、`internal/jsexec/runtime.go`、`internal/jsexec/diagnostic.go` |
+| Profile設定・snapshot/normalizeと下位設定変換 | `internal/jsexec/profile_options.go`、`internal/jsexec/profile_config.go` |
+| 実行ごとのloader・defined modules・entry準備 | `internal/jsexec/execution_loader.go`。Bindingsの寿命gateを共有し、QuickJS操作はruntime所有goroutineで行う |
+| run_js adapterとhook付きtool pipeline | `internal/agent/js/run_js.js`、`internal/agent/js/tool_pipeline.js`、`internal/agent/js/task_protocol.js` |
 | モデル向けtool結果の出力予算・省略表示 | `internal/agent/tool_output.go` |
 | 通知の共通metadataとtrace | `internal/agent/events.go`、`internal/agent/broker_events.go`。保存/整形は`internal/events/`・`internal/observation/`・CLI |
 
 `broker_*.go`というファイル名は残るが、そこにあるモデル・tool・会話・hook等の処理はdirect dispatchから呼ぶGoの管理処理であり、内部HTTPサーバーの入口を意味しない。
+
+### 汎用実行層の責務境界
+
+- `internal/jsexec/profile_options.go` は設定型とsnapshot/normalize、`profile_config.go` は下位stdlibへの変換、`profile.go` はattachと実行寿命を担当する。`execution_loader.go` のloader状態はBindingsと同じ寿命gateを使い、独立したclosed状態を持たない。
+- `internal/stdlib/worker.go` はWorker APIと親側handle・max/ref・終了待ちを担当する。子Configの生成とloop再bindは `worker_config.go`、VM生成・installer・評価・例外変換とcleanupは `worker_runtime.go` に置く。設定の共有/複製方針をWorker起動処理へ散らさない。
+- `internal/stdlib/messaging.go` はportの所有権・FIFO・配送・scope/refを担当する。`message_codec.go` はclone/transferとhost token、`broadcast.go` はBroadcastChannelの登録・解除・runtime watchを担当する。
+- Workerのonline/error/exit/port切断の解釈はWorker側が提供する非公開callbackに置く。messagingは具体的なworkerHandleを知らないが、dataと通知の共通FIFOとowner loopは維持する。port切断は実終了ではなく、cleanupと最終計数のjoin後にexitを公開する。
 
 ## 実行経路
 
@@ -75,7 +85,7 @@ flowchart TD
 ## 状態と同期の境界
 
 - 内部の`Host`はOperation・instance・run・実行groupを管理する。`agentId`はinstance、`commandId`はspawn/queueで受け付けたtask、`runId`は実行中taskのrunを識別する。
-- `Host.mu`がinstance/run/groupの共有状態を保護する。`*Locked`関数はこのmutexを保持した状態で呼ぶ。ファイルを分けてもmutexや所有関係は分割しない。
+- `Host.mu`がinstance/run/groupの共有状態を保護する。`*Locked`関数はこのmutexを保持した状態で呼ぶ。task commandの登録・選択・起動・取消受付・final/結果確定は`task_lifecycle.go`の操作へ集約し、呼出し側でfieldを直接書き換えない。ファイルを分けてもmutexや所有関係は分割しない。
 - 観察callbackを`Host.mu`保持中に呼ばない。状態更新後にunlockし、イベントを発行する。`accepted`・`settled`等のchannelは、受付・適用・終了イベントの順を保証するためのものなので、通知の直前/直後へ安易に移さない。
 - Client／Operationの終了は新規requestを閉じ、進行中のrequest、所有するagent・run・子scopeを取消して回収する。短いrequest contextによる待機の取消しは、所有するtask自体の取消しではない。`cancel_task`は一つのcommand、`stop_agent`はinstanceと残りの仕事を止める。
 - 所有確認はIDを知っているかではなくowner/親子関係に従う。task内toolから起動した子も所有元runに結び付く。`keepAlive`はその所有scopeを越えて子を存続させる権限ではない。Hostのtrusted Go管理操作と、JSに渡すClientのscopeを混同しない。

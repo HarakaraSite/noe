@@ -78,4 +78,29 @@
 
 ## 総合検証
 
-全5sliceの関連試験・独立レビューが完了し、未解消P2以上は0件。これからソース候補を固定し、計画の総合メニューを親が実行する。結果を追記する。
+全5sliceの関連試験・独立レビューが完了し、対象差分の未解消P2以上は0件。ソース候補 `20407ff27eb07c95335d4098def7df09ade42179` に対し、Linux amd64 / Go 1.27.2で次を実行した。以後の変更は構成説明とこの記録のみで、実装sourceは変更していない。
+
+| 確認 | 結果 |
+| --- | --- |
+| `CGO_ENABLED=0 go test -tags=e2e ./... -count=1 -timeout=4m` | 全体実行済み。E2Eの既存version期待値不一致1件でexit 1。それ以外に報告された失敗なし。**全成功とは扱わない** |
+| `CGO_ENABLED=1 GORACE=atexit_sleep_ms=0 go test -race ./internal/... ./stdlib/... ./agent/... -count=1 -timeout=4m` | 成功。共有状態・Worker・messagingを含む |
+| `go vet -tags=e2e ./...` | 成功 |
+| 変更4 JSの `biome lint` | 成功 |
+| 変更Goの `gofmt -l`、対象差分の `git diff --check` | 成功 |
+| `CGO_ENABLED=0 go list -export ./...`、Linux/Darwin/Windows × amd64/arm64 | 6対象すべて成功。compileのみ、非Linuxのnative実行ではない |
+| 公開 `agent/`・`stdlib/` facade、`go.mod` / `go.sum` の差分 | 変更なし。private JS moduleのembed/登録と既存export identityは実executorでも確認 |
+| 更新文書の新規相対リンク・最終文書差分 | 8参照すべて解決、差分チェック成功 |
+
+各コマンドにGo/OSの明示timeoutを付け、実行開始からログを保存した。全体unit/E2E・raceは最終候補に各一回。ログと結果ledgerは `/var/tmp/noe-boundaries-KVDans/final/`（`results.tsv`、`results.json`）。外部providerへの追加通信、負荷反復、slow/live opt-in試験、push/release、配布済みbinaryの置換は行っていない。
+
+### 総合検証で分離した既存別件
+
+`tests/cli_e2e_test.go:70` の `TestEvalAndCLICommands/version` は `noe v2.1.1\n` を期待するが、`internal/cli/cli.go` の既存Versionは `v2.5.0`。version commandはruntime/agentへ入らずVersionを表示するだけで、この二つのファイルに今回の差分はない。
+
+実装前の `7f25a49` を `git archive` した独立ディレクトリでも、versionサブテストだけを実行して同じ失敗を再現した。証拠は `final/baseline-version-only.log`。今回のリファクタの退行ではなく、以前から残る期待値更新漏れと判断し、依頼対象外として未修正で記録した。この失敗を隠すskipやassert緩和は行わず、同じ全体suiteの形式的な再実行もしない。
+
+### 完了判断
+
+対象1〜4の責務境界を5sliceで整理し、各sliceの実装・関連試験・独立コードレビューを完了した。通常/批判的の計画レビューと各code reviewの対象差分にP2以上の残件はない。総合検証では今回の退行を認めず、全体suiteに残る上記既存別件1件は全成功と区別して報告する。
+
+並行作業で生じた `docs/development/dependency-updates.md` と `docs/future-candidates.md` の差分、既存イベントログと `__pycache__` は本作業に含めず、そのまま保持する。
