@@ -2,7 +2,6 @@ package stdlib
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
@@ -75,14 +74,12 @@ type portEnd struct {
 	// reffed is whether a started port keeps the loop running, which it does
 	// until it is unref'd; holding, whether it is doing so.
 	reffed, holding bool
-	// worker is the worker this end is the starting runtime's port to, which
-	// hears the worker's word.
-	worker *workerHandle
-	// channel is a BroadcastChannel's name, for an end that is one.
-	channel   string
-	broadcast bool
-	// unwatch stops a BroadcastChannel's watch on its runtime's end.
-	unwatch func() bool
+	// notify is an optional peer-lifecycle handler supplied by Worker. It runs
+	// on this owner alongside data delivery and returns whether it consumed
+	// the notification. It may retain the end after the data channel closes.
+	notify func(portMsg) bool
+	// broadcast owns name registration for an end that is a BroadcastChannel.
+	broadcast *broadcastSubscription
 	// scopeUnhook removes its execution cleanup after an explicit close.
 	scopeUnhook func()
 	// work is how what arrives from other goroutines reaches the end's
@@ -109,19 +106,6 @@ type messaging struct {
 	makePort, newDOMException, hostKind, deliver, receive, makeBlob quickjs.Value
 }
 
-// domToken is a DOMException, serialized.
-type domToken struct{ name, message, stack string }
-
-// blobToken is a Blob, or a File, serialized: its bytes are copied, as a
-// Blob's never change.
-type blobToken struct {
-	bytes        []byte
-	typ          string
-	file         bool
-	name         string
-	lastModified float64
-}
-
 // messagingHost is the functions webAPIsJS reaches messaging through.
 func (m *messaging) host() map[string]any {
 	return map[string]any{
@@ -129,14 +113,7 @@ func (m *messaging) host() map[string]any {
 			m.makePort, m.newDOMException, m.hostKind, m.deliver = makePort, newDOMException, hostKind, deliver
 			m.receive, m.makeBlob = receive, makeBlob
 		},
-		"clone": func(v quickjs.Value, transfer []quickjs.Value) (quickjs.Value, error) {
-			data, ports, err := m.serialize(v, transfer, nil)
-			if err != nil {
-				return quickjs.Value{}, err
-			}
-			out, _, err := m.deserialize(data, ports)
-			return out, err
-		},
+		"clone": m.clone,
 		"channel": func() (quickjs.Value, error) {
 			a, b := &portCore{}, &portCore{}
 			a.peer, b.peer = b, a
@@ -226,19 +203,8 @@ func (m *messaging) host() map[string]any {
 			}
 			return m.rt.NewArray(v)
 		},
-		"broadcastOpen": func(name string, obj quickjs.Value) int {
-			return m.openBroadcast(name, obj)
-		},
-		"broadcastPost": func(id int, v quickjs.Value) error {
-			e := m.ports[id]
-			if e == nil || !e.broadcast {
-				return m.rt.Throw(m.newDOMExceptionOr("BroadcastChannel is closed.", "InvalidStateError"))
-			}
-			if m.isHalted() {
-				return nil
-			}
-			return e.broadcastMessage(v)
-		},
+		"broadcastOpen": m.openBroadcast,
+		"broadcastPost": m.postBroadcast,
 	}
 }
 
@@ -246,14 +212,6 @@ func (m *messaging) host() map[string]any {
 // terminated.
 func (m *messaging) isHalted() bool {
 	return m.halted != nil && m.halted.Err() != nil
-}
-
-// newDOMExceptionOr is a DOMException, or an Error if one cannot be made.
-func (m *messaging) newDOMExceptionOr(message, name string) quickjs.Value {
-	if e, err := m.newDOMException.Call(message, name); err == nil {
-		return e
-	}
-	return m.rt.NewError("Error", message)
 }
 
 // adopt makes core an end of this runtime's, and returns its object.
@@ -283,137 +241,6 @@ func (m *messaging) adoptEnd(core *portCore) (*portEnd, error) {
 		return nil, err
 	}
 	return e, nil
-}
-
-// serialize serializes v, transferring what transfer lists, for from --
-// the port posting it, or nil for structuredClone. The ports transferred are
-// this runtime's no longer.
-func (m *messaging) serialize(v quickjs.Value, transfer []quickjs.Value, from *portEnd) (any, []*portCore, error) {
-	var moved []*portEnd
-	codec := &quickjs.CloneCodec{
-		Serialize: func(x quickjs.Value) (any, bool, error) {
-			kind, err := m.hostKind.Call(x)
-			if err != nil || !kind.IsArray() {
-				return nil, false, err
-			}
-			tag, _ := kind.Index(0)
-			switch tag.String() {
-			case "port":
-				return nil, false, m.cloneError("Object that needs transfer was found in message but not listed in transferList")
-			case "dom":
-				name, _ := kind.Index(1)
-				message, _ := kind.Index(2)
-				stack, _ := kind.Index(3)
-				return domToken{name.String(), message.String(), stack.String()}, true, nil
-			case "blob":
-				field := func(i int) quickjs.Value { f, _ := kind.Index(i); return f }
-				b, _ := field(1).Bytes()
-				return blobToken{
-					bytes: append([]byte(nil), b...), typ: field(2).String(), file: field(3).Bool(),
-					name: field(4).String(), lastModified: field(5).Float(),
-				}, true, nil
-			}
-			return nil, false, nil
-		},
-		Transfer: func(x quickjs.Value) (any, bool, error) {
-			kind, err := m.hostKind.Call(x)
-			if err != nil || !kind.IsArray() {
-				return nil, false, err
-			}
-			if tag, _ := kind.Index(0); tag.String() != "port" {
-				return nil, false, nil
-			}
-			id, _ := kind.Index(1)
-			e := m.ports[id.Int()]
-			switch e {
-			case nil:
-				return nil, false, m.cloneError("MessagePort in transfer list is already detached")
-			case from:
-				return nil, false, m.cloneError("Transfer list contains source port")
-			}
-			for _, p := range moved {
-				if p == e {
-					return nil, false, m.cloneError("Transfer list contains duplicate MessagePort")
-				}
-			}
-			moved = append(moved, e)
-			return e.core, true, nil
-		},
-	}
-	data, err := m.rt.Serialize(v, &quickjs.CloneOptions{Transfer: transfer, Codec: codec})
-	if err != nil {
-		return nil, nil, m.cloneError(err)
-	}
-	// Only a clone that succeeded takes the ports: a failure leaves them.
-	ports := make([]*portCore, len(moved))
-	for i, e := range moved {
-		e.detach()
-		ports[i] = e.core
-	}
-	return data, ports, nil
-}
-
-// deserialize makes here the value serialize made, and the objects of the
-// ports that came with it, in the order they were listed.
-func (m *messaging) deserialize(data any, ports []*portCore) (quickjs.Value, []quickjs.Value, error) {
-	made := map[*portCore]quickjs.Value{}
-	codec := &quickjs.CloneCodec{
-		Revive: func(token any) (quickjs.Value, error) {
-			switch t := token.(type) {
-			case *portCore:
-				obj, err := m.adopt(t)
-				made[t] = obj
-				return obj, err
-			case domToken:
-				return m.newDOMException.Call(t.message, t.name, t.stack)
-			case blobToken:
-				return m.makeBlob.Call(m.rt.NewBytes(t.bytes), t.typ, t.file, t.name, t.lastModified)
-			}
-			return quickjs.Value{}, errors.New("stdlib: an object of an unknown kind was cloned")
-		},
-	}
-	s, ok := data.(*quickjs.Serialized)
-	if !ok {
-		return quickjs.Value{}, nil, errors.New("stdlib: not a serialized message")
-	}
-	v, err := m.rt.Deserialize(s, codec)
-	if err != nil {
-		return quickjs.Value{}, nil, m.cloneError(err)
-	}
-	objs := make([]quickjs.Value, len(ports))
-	for i, p := range ports {
-		obj, ok := made[p]
-		if !ok {
-			// A port posted without appearing in the message is still the
-			// receiver's, in the event's ports.
-			if obj, err = m.adopt(p); err != nil {
-				return quickjs.Value{}, nil, err
-			}
-		}
-		objs[i] = obj
-	}
-	return v, objs, nil
-}
-
-// cloneError is the exception an error from cloning becomes: a DataCloneError
-// is a DOMException.
-func (m *messaging) cloneError(err any) error {
-	var msg string
-	switch e := err.(type) {
-	case string:
-		msg = e
-	case error:
-		var dce *quickjs.DataCloneError
-		if !errors.As(e, &dce) {
-			return e
-		}
-		msg = dce.Message
-	}
-	exc, err2 := m.newDOMException.Call(msg, "DataCloneError")
-	if err2 != nil {
-		return err2
-	}
-	return m.rt.Throw(exc)
 }
 
 // --- Ends ----------------------------------------------------------------------
@@ -480,7 +307,7 @@ func (e *portEnd) closeForExecution() {
 	if e == nil {
 		return
 	}
-	if e.broadcast {
+	if e.broadcast != nil {
 		e.closeBroadcast()
 		return
 	}
@@ -552,24 +379,12 @@ func (e *portEnd) dispatchNext() {
 	c.mu.Unlock()
 	dropMessages(dropped...)
 
-	switch msg.kind {
-	case msgClose:
-		if e.worker == nil {
-			e.closed(msg.code)
+	if e.notify == nil || !e.notify(msg) {
+		if msg.kind == msgClose {
+			e.closed()
+		} else {
+			e.dispatch(msg)
 		}
-		// A Worker's hidden parent end stays alive for lifecycle events. Its
-		// data channel is already disentangled, but it still owns a live Worker.
-	case msgWorkerExit:
-		// Cleanup finished before this event was queued. Join the final Worker
-		// accounting before exposing exit or removing it from the owner's map.
-		<-e.worker.done
-		e.closed(msg.code)
-	case msgOnline:
-		e.worker.online()
-	case msgError:
-		e.worker.failed(msg.data)
-	default:
-		e.dispatch(msg)
 	}
 
 	c.mu.Lock()
@@ -635,7 +450,7 @@ func (e *portEnd) start() {
 // first and the other after what this one sent before. A BroadcastChannel
 // stops hearing its name.
 func (e *portEnd) close() {
-	if e.broadcast {
+	if e.broadcast != nil {
 		e.closeBroadcast()
 		return
 	}
@@ -675,9 +490,9 @@ func (c *portCore) send(msg portMsg) {
 	}
 }
 
-// closed releases an ordinary port on peer close, or a Worker's hidden port
-// after actual Worker completion. Port disconnection alone is not Worker exit.
-func (e *portEnd) closed(code int) {
+// finish closes the core, drops queued transfers and releases this end. It is
+// Go-only: the caller decides whether peer close or Worker exit is published.
+func (e *portEnd) finish() {
 	c := e.core
 	c.mu.Lock()
 	dropped := c.queue
@@ -685,10 +500,11 @@ func (e *portEnd) closed(code int) {
 	c.mu.Unlock()
 	dropMessages(dropped...)
 	e.release()
-	if e.worker != nil {
-		e.worker.exited(code)
-		return
-	}
+}
+
+// closed releases an ordinary port on peer close and notifies its listeners.
+func (e *portEnd) closed() {
+	e.finish()
 	e.m.raise(e.m.deliver.Call(e.obj, "close"))
 }
 
@@ -699,107 +515,13 @@ func (m *messaging) shutdown(keep *portCore) {
 	for _, e := range m.ports {
 		switch {
 		case e.core == keep:
-		case e.broadcast:
+		case e.broadcast != nil:
 			e.closeBroadcast()
 		default:
 			e.release()
 			e.core.disentangle(0)
 		}
 	}
-}
-
-// --- BroadcastChannel ----------------------------------------------------------
-
-// broadcasts is every BroadcastChannel open in the process, by name: those of
-// every runtime, which is what lets a worker hear its parent's.
-var broadcasts = struct {
-	sync.Mutex
-	byName map[string]map[*portCore]bool
-}{byName: map[string]map[*portCore]bool{}}
-
-// openBroadcast makes obj a BroadcastChannel of a name, returning its id. It
-// dispatches what it hears at once, and, as in node, holds the loop until it
-// is closed or unref'd.
-func (m *messaging) openBroadcast(name string, obj quickjs.Value) int {
-	m.next++
-	core := &portCore{started: true}
-	e := &portEnd{m: m, id: m.next, core: core, obj: obj, reffed: true, channel: name, broadcast: true, work: m.startWork()}
-	core.owner = e
-	m.ports[e.id] = e
-	broadcasts.Lock()
-	if broadcasts.byName[name] == nil {
-		broadcasts.byName[name] = map[*portCore]bool{}
-	}
-	broadcasts.byName[name][core] = true
-	broadcasts.Unlock()
-	// A channel the script never closes stops hearing its name when its
-	// runtime is closed: until then it kept the runtime reachable, and what
-	// was broadcast to it queued up without end.
-	e.unwatch = context.AfterFunc(loopContext(m.loop), func() { unregisterBroadcast(name, core) })
-	if err := e.watchExecution(); err != nil {
-		e.closeForExecution()
-		return e.id
-	}
-	e.hold()
-	return e.id
-}
-
-// broadcastMessage posts a clone of v to every other channel of the name.
-func (e *portEnd) broadcastMessage(v quickjs.Value) error {
-	broadcasts.Lock()
-	var to []*portCore
-	for c := range broadcasts.byName[e.channel] {
-		if c != e.core {
-			to = append(to, c)
-		}
-	}
-	broadcasts.Unlock()
-	// Serialized once, as the standard has it -- a getter in it runs once,
-	// however many hear it -- and copied for each: each deserializes its own.
-	// What nothing hears is serialized all the same, so what cannot be cloned
-	// is still refused.
-	data, _, err := e.m.serialize(v, nil, e)
-	if err != nil || len(to) == 0 {
-		return err
-	}
-	// Every copy is made before any is sent: one sent may be deserialized,
-	// and its bytes moved, while the next is being copied.
-	copies := make([]any, len(to))
-	copies[0] = data
-	for i := 1; i < len(to); i++ {
-		copies[i] = data.(*quickjs.Serialized).Copy()
-	}
-	for i, c := range to {
-		c.enqueue(portMsg{data: copies[i]})
-	}
-	return nil
-}
-
-// closeBroadcast stops a BroadcastChannel hearing its name.
-func (e *portEnd) closeBroadcast() {
-	if e.unwatch != nil {
-		e.unwatch()
-	}
-	unregisterBroadcast(e.channel, e.core)
-	e.release()
-}
-
-// unregisterBroadcast takes a BroadcastChannel out of those of its name and
-// drops what it has not dispatched. It is safe to call from any goroutine.
-func unregisterBroadcast(name string, core *portCore) {
-	broadcasts.Lock()
-	if set := broadcasts.byName[name]; set != nil {
-		delete(set, core)
-		if len(set) == 0 {
-			delete(broadcasts.byName, name)
-		}
-	}
-	broadcasts.Unlock()
-	core.mu.Lock()
-	dropped := core.queue
-	core.closed, core.queue = true, nil
-	core.mu.Unlock()
-	dropMessages(dropped...)
 }
 
 // dropMessages closes the ports inside messages that will never be

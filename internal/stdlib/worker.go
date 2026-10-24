@@ -315,7 +315,7 @@ func (h *workerHost) start(obj quickjs.Value, specifier string, data quickjs.Val
 
 	ctx, stop := context.WithCancel(loopContext(h.loop))
 	wh := &workerHandle{host: h, obj: obj, reffed: true, stop: stop, thread: int(threadIDs.Add(1)), done: make(chan struct{})}
-	end.worker = wh
+	end.notify = wh.portNotifications(end.finish)
 	// The port to a worker dispatches at once; the worker, not the port,
 	// is what holds the loop.
 	end.reffed = false
@@ -419,6 +419,32 @@ func (h *workerHost) endAll() {
 		case <-deadline.C:
 			return
 		}
+	}
+}
+
+// portNotifications interprets lifecycle messages on the hidden parent end.
+// Messaging owns their FIFO with data and invokes this only on the parent owner.
+// A port close is not Worker completion; only exit joins final accounting,
+// releases the hidden end and exposes the Worker's exit to JavaScript.
+func (wh *workerHandle) portNotifications(finish func()) func(portMsg) bool {
+	return func(msg portMsg) bool {
+		switch msg.kind {
+		case msgClose:
+			// Keep the hidden parent end for lifecycle events after parentPort.close.
+		case msgWorkerExit:
+			// Cleanup finished before enqueue. Join the remaining accounting before
+			// releasing the port or removing the handle from the owner's map.
+			<-wh.done
+			finish()
+			wh.exited(msg.code)
+		case msgOnline:
+			wh.online()
+		case msgError:
+			wh.failed(msg.data)
+		default:
+			return false
+		}
+		return true
 	}
 }
 

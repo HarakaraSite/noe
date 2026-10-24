@@ -9,7 +9,7 @@
 | S1 | command/task状態遷移 | 関連試験・独立レビュー完了、P2以上0 |
 | S2 | Profile設定・loader・実行寿命 | 関連試験・独立レビュー完了、P2以上0 |
 | S3 | Worker設定継承・VM起動停止 | 関連試験・独立レビュー完了、P2以上0 |
-| S4 | messaging codec/broadcast/Worker通知境界 | 実装中（S3の完了後に着手） |
+| S4 | messaging codec/broadcast/Worker通知境界 | 関連試験・独立レビュー完了、P2以上0 |
 | S5 | JS run_js adapter・tool pipeline | 関連試験・独立レビュー完了、P2以上0 |
 
 検証ログの親ディレクトリ：`/var/tmp/noe-boundaries-KVDans`。各担当の詳細ログは該当sliceへ追記する。実行ログ・既存の未追跡ファイル・配布済みバイナリは変更/コミットしない。
@@ -51,6 +51,16 @@
 - ログ：`/var/tmp/noe-boundaries-KVDans/s3/`。関連試験、operation-equivalence、最終format/diff checkの成功を記録した。
 - 独立code reviewerがsharing/copy、両installer、例外変換、cleanup→exit→wh.doneの接続と責務境界を照合し、P2以上0件。必須修正なし。
 
+## S4: messaging codec/broadcastとWorker通知
+
+- `message_codec.go` にstructuredClone、serialize/deserialize、transfer検証、DOMException/Blob tokenを分離した。`broadcast.go` にBroadcastChannelのregistry・登録解除・runtime watch・送信処理を集約し、name/watchはsubscriptionとして保持する。
+- `messaging.go` のportEndは具体的なworkerHandleを参照せず、Worker側が提供する非公開notify callbackを同じowner loopで呼ぶ。Worker側がonline/error/exit/port切断を解釈し、messagingはFIFO・配送・所有権・scope/ref・Go-onlyな解放を担当する。
+- dataと通知は同じqueue。port.closeではhidden parent endを残し、実終了は `wh.done` →port解放→exit公開という従来順を維持する。clone成功後のみtransfer確定、drop時のport回収、閉じたexecutionへのJS抑止、BCのunwatch/登録解除/releaseも維持した。
+- メッセージ/clone/transfer/drop/scope/BC/Workerの既存fixture、および `go test ./internal/jsexec ./stdlib -run 'Test.*Worker' -count=1 -timeout=120s -v`：成功。port.close後のdata/error/exitとinitializer cleanup待ちも確認した。
+- 変更境界に対応する決定的な既存試験があり、具体的な未確認の製品経路はなかったため、新しい試験は追加しなかった。独立reviewerもこの判断を実コードと既存試験から確認した。
+- ログ：`/var/tmp/noe-boundaries-KVDans/s4/{messaging-worker-tests,profile-worker-tests,operation-equivalence,final-checks}.log`。
+- 独立code reviewはP2以上0件。必須修正・関連残件なし。新queue/goroutine/eventbus/公開interfaceは導入していない。
+
 ## S5: task loopとtool処理の境界
 
 - `js/run_js.js` がモデル向けrun_js schema、引数/実行結果/diagnostics/画像metadataの検証とnative実行を担当する。
@@ -68,4 +78,4 @@
 
 ## 総合検証
 
-未実施。全sliceのレビュー修正が落ち着いた候補に対して計画の総合メニューを実行する。
+全5sliceの関連試験・独立レビューが完了し、未解消P2以上は0件。これからソース候補を固定し、計画の総合メニューを親が実行する。結果を追記する。
