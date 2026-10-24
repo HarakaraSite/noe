@@ -11,6 +11,10 @@ import (
 	"testing"
 )
 
+// The fixture's version is independent of the current release. Checking its
+// output also verifies that the build-time version override reaches the CLI.
+const cliTestVersion = "e2e-test-version"
+
 var cliPath string
 var repoRootPath string
 
@@ -33,7 +37,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	cliPath = filepath.Join(buildDir, "noe")
-	build := exec.Command("go", "build", "-o", cliPath, "./cmd/noe")
+	build := exec.Command("go", "build", "-ldflags", "-X forge.harakara.site/littleisland/noe/v2/internal/cli.Version="+cliTestVersion, "-o", cliPath, "./cmd/noe")
 	build.Dir = repoRoot
 	build.Env = envWith(os.Environ(), "CGO_ENABLED", "0")
 	if output, err := build.CombinedOutput(); err != nil {

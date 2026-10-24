@@ -6,7 +6,7 @@ These tests exercise a built NOE CLI. Package-level tests live beside their impl
 go test -tags=e2e ./tests -count=1
 ```
 
-The suite builds the CLI once with CGO disabled. Ordinary E2E tests use temporary files and local HTTP servers; they do not call real providers.
+The suite builds the CLI once with CGO disabled. The fixture uses a test-only version injected with `-ldflags`, so `--version` checks the configured build value without depending on the current release number. Release artifact versions are checked separately during release validation. Ordinary E2E tests use temporary files and local HTTP servers; they do not call real providers.
 
 - `main_test.go`: shared CLI build and cleanup.
 - `cli_helpers_test.go`: CLI execution, stream capture, environment, and file helpers.

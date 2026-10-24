@@ -17,7 +17,6 @@ func TestCLI(t *testing.T) {
 		out, err string
 	}{
 		{"help", []string{"--help"}, 0, "noe run", ""},
-		{"version", []string{"--version"}, 0, "noe v2.5.0\n", ""},
 		{"eval", []string{"eval", `console.log("hello"); console.warn("warning"); console.error("error");`}, 0, "hello\n", "warning\nerror\n"},
 		{"syntax", []string{"eval", `const broken = ;`}, 1, "", "<eval>.js:1:"},
 		{"exception", []string{"eval", `throw new Error("boom")`}, 1, "", "boom"},
@@ -33,6 +32,22 @@ func TestCLI(t *testing.T) {
 			}
 			if tc.code == 0 && tc.err == "" && stderr.Len() != 0 {
 				t.Fatalf("unexpected stderr: %s", &stderr)
+			}
+		})
+	}
+}
+
+func TestVersionCommandsUseConfiguredVersion(t *testing.T) {
+	original := Version
+	Version = "unit-test-version"
+	t.Cleanup(func() { Version = original })
+
+	for _, arg := range []string{"--version", "-v", "version"} {
+		t.Run(arg, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run(context.Background(), []string{arg}, strings.NewReader(""), &stdout, &stderr)
+			if code != 0 || stdout.String() != "noe unit-test-version\n" || stderr.Len() != 0 {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 			}
 		})
 	}

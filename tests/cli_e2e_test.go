@@ -59,6 +59,14 @@ func TestEvalAndCLICommands(t *testing.T) {
 		t.Fatalf("eval streams: stdout=%q stderr=%q", eval.stdout, eval.stderr)
 	}
 
+	t.Run("version", func(t *testing.T) {
+		got := runCLI(t, work, nil, "--version")
+		requireExit(t, got, 0)
+		if got.stdout != "noe "+cliTestVersion+"\n" || got.stderr != "" {
+			t.Fatalf("version streams: stdout=%q stderr=%q", got.stdout, got.stderr)
+		}
+	})
+
 	for _, tc := range []struct {
 		name       string
 		args       []string
@@ -67,7 +75,6 @@ func TestEvalAndCLICommands(t *testing.T) {
 		stderrPart string
 	}{
 		{name: "help", args: []string{"--help"}, code: 0, stdoutPart: "Usage:"},
-		{name: "version", args: []string{"--version"}, code: 0, stdoutPart: "noe v2.1.1\n"},
 		{name: "no command prints help", args: nil, code: 0, stdoutPart: "Usage:"},
 		{name: "run needs a script", args: []string{"run"}, code: 2, stderrPart: "Usage:"},
 		{name: "eval needs source", args: []string{"eval"}, code: 2, stderrPart: "Usage:"},

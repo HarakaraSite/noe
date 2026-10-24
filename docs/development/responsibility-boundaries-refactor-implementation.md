@@ -104,3 +104,15 @@
 対象1〜4の責務境界を5sliceで整理し、各sliceの実装・関連試験・独立コードレビューを完了した。通常/批判的の計画レビューと各code reviewの対象差分にP2以上の残件はない。総合検証では今回の退行を認めず、全体suiteに残る上記既存別件1件は全成功と区別して報告する。
 
 並行作業で生じた `docs/development/dependency-updates.md` と `docs/future-candidates.md` の差分、既存イベントログと `__pycache__` は本作業に含めず、そのまま保持する。
+
+## 後続対応: versionテストのリリース番号依存を除去
+
+前節の既存別件は、その後のユーザー依頼で対応した。期待値を現行リリース番号へ更新するのではなく、通常試験からリリース番号への依存を除いた。
+
+- E2E fixtureの共通ビルドで `-ldflags -X .../internal/cli.Version=e2e-test-version` を注入し、`--version` のstdoutがその値を含む所定の1行と完全一致し、exit 0・stderr空であることを確認する。ビルド時の値の受渡しも検証できる。
+- CLI単体試験は `Version` に試験用の値を設定し、`--version` / `-v` / `version` を検証する。元の値は `t.Cleanup` で戻す。並列にVersionへ触る試験はない。
+- 本体のVersionや製品コードは変更しない。リリース番号の正しさは引き続きリリース検証の責務とし、通常試験に実際の番号を直書きしない。
+- `CGO_ENABLED=0 go test ./internal/cli -count=1 -timeout=90s`：成功。
+- 共通E2Eビルドの変更の影響を確認するため、`CGO_ENABLED=0 go test -tags=e2e ./tests -count=1 -timeout=3m` を一回実行し、E2E全体が成功した。先の既存失敗1件は解消した。
+- gofmt・対象差分チェック：成功。ログは `/var/tmp/noe-version-tests-uI2vzf/`。
+- 製品source・依存は変えていないため、前節の他package/race/6対象compileの証拠を再利用し、それらの全メニューは再実行していない。
