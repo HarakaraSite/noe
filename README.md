@@ -6,7 +6,12 @@ A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://gi
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
-[v2.5.1 release notes](docs/releases/v2.5.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.5.1)
+[v2.6.0 release notes](docs/releases/v2.6.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.6.0)
+
+v2.6.0 adds `wait_tasks`: a grouped child-task wait that returns on completion
+or guidance to the parent, leaving children running. The parent can read the
+instruction and choose how to observe, steer or cancel its children. Existing
+`wait_task` completion-only behavior is unchanged. See the [agent API](docs/api.md#実行中taskへの指示と停止).
 
 v2.5.1 reorganizes agent lifecycle, runtime profiles, Workers and tool processing
 without changing the public APIs, and makes version tests release-independent.
@@ -32,7 +37,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.5.1
+# noe v2.6.0
 ```
 
 The examples below assume the repository root is your working directory.

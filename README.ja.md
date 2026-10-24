@@ -6,7 +6,9 @@ Just JavaScript. Until you need an agent.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.5.1リリースノート](docs/releases/v2.5.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.5.1)
+[v2.6.0リリースノート](docs/releases/v2.6.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.6.0)
+
+v2.6.0では複数の子をまとめて待つ`wait_tasks`を追加しました。全完了または親への追加指示で待機を終了し、子を動かしたまま親が観察・追加指示・取消し等を選べます。既存`wait_task`の完了専用契約は維持します。[agent API](docs/api.md#実行中taskへの指示と停止)を参照してください。
 
 v2.5.1では公開APIを維持したままagentの状態遷移・実行Profile・Worker・ツール処理の責務を整理し、バージョンテストをリリース番号から独立させました。
 
@@ -23,7 +25,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.5.1
+# noe v2.6.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
