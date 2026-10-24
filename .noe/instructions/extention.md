@@ -14,7 +14,9 @@ export default await repoMap();
 
 ## ローカルファイルの内容検索
 
-内容検索には`.noe/lib/search/search.js`の`grep(options)`を優先して使えます。既定は正規表現検索で、`foo|bar`で複数候補を検索できます。rgがなければGNU互換grepへ切り替わります。結果にはbackend・complete・limitedByが付きます。省略されたら対象pathやglobを絞ってください。
+ローカルファイルの内容検索は、原則として`.noe/lib/search/search.js`の`grep(options)`を使ってください。必要な機能がこのライブラリにない場合に、外部コマンドのrg・grepを使ってください。
+
+既定は正規表現検索で、`foo|bar`で複数候補を検索できます。rgがなければライブラリがGNU互換grepへ切り替わります。結果にはbackend・complete・limitedByが付きます。省略されたら対象pathやglobを絞ってください。
 
 ```js
 import {resolve} from "node:path";
