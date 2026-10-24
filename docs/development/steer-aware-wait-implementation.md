@@ -35,8 +35,8 @@
 - 証拠：core/affected-packages-final.log、integration/evidence.json、type-check.log（すべてログ親ディレクトリ配下）。
 - review担当：agentId 44c1b4caf9357068297cc38c6dd352148cb0149b92418d99、task 6de6cf0d8d66a3b5f5aa01b7a5d85ba4885ba7d77080bfd4。
 - review完了：P2以上0件。任意P3の型付きrecipeはcommandId確認と明示pair化で改善。completion通知の二経路は整合しており必須修正なしとの判断で維持する。
-- 次：完了。追加の実装・検証は不要。公開・コミット・常用binary置換は今回の依頼に含めない。
-- 公開・コミット・binary置換：未実施。今回push/release/binary置換は対象外。
+- 次：完了。追加承認によるコミット・公開・常用binary置換も完了（末尾参照）。
+- 公開・コミット・binary置換：実装依頼完了時点では未実施。その後の追加承認によりv2.6.0公開・常用binary更新済み（末尾参照）。
 
 ## コンテキスト管理の観測
 
@@ -71,8 +71,16 @@ trusted Hostと通常のGo Client（control=false、origin=script）の両方で
 - trim後、AGENTS・作業指示・この実装記録を再読し、目的、採用契約、担当、成功済み試験、残作業（静的差分チェックの末尾空行修正と最終記録）を復元した。成功済みの全体試験を再実行せず完了できた。
 - **履歴trimを観測したもので、モデルによる要約は観測していない。** contextWindow・入力予算・retainRatio・cache設定の変更、観測待ちや履歴を膨らませるための読込みは行っていない。
 
-作業はローカル未コミット差分として保持する。開始時の他の文書差分・events/cacheは保持し、push・release・常用binary置換は行っていない。
+実装依頼の完了時点ではローカル未コミット差分として保持し、push・release・常用binary置換は行っていなかった。開始時の他の文書差分・events/cacheは保持した。
 
 ## 追加承認：コミット・公開・常用binary更新
 
 2026-10-25、実装完了後に利用者がコミット・push・release・常用binary置換を明示承認した。上記「未実施／対象外」は実装依頼の完了時点の記録である。追加APIのminor releaseとしてv2.6.0を準備し、既成功の全体unit/E2E・関係race・独立reviewを再利用する。公開証拠は[release checkpoints](../releases/release-checkpoints.md)へ記録する。公開作業ログは`/var/tmp/noe-v2.6.0-release-T7lygk`。既存model-catalog差分、events、cacheは今回のcommit対象から除外する。
+
+## v2.6.0公開・常用binary更新の完了
+
+追加承認を実施した。実装commitは`f01351e`、release準備は`c2d6121`、tag `v2.6.0`は`9ae801f145b232e718b1fff74e3bcff9bfb1dfd2`。mainとtagをpushし、[CI run 38](https://forge.harakara.site/littleisland/noe/actions/runs/38)が成功、[Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.6.0)を公開した。
+
+全6配布binaryのchecksum、Linux amd64のversion/build metadata・新API/内蔵docs・local fixture、実際の公開moduleからのstdlib/agent consumerと新Go WaitTasks・保持結果の取得が成功した。公開済みassetを`./noe`と`~/.local/bin/noe`へ原子的に配置し、両方のversion/hashとPATH解決を確認した。旧v2.5.1のbackupは`/var/tmp/noe-v2.6.0-release-T7lygk/installation-tvx98f1a`。
+
+全体unit/E2E・raceは既成功結果を再利用し、再実行していない。既存model-catalog差分・events/cacheをcommit対象から除外し保持した。公開・導入の詳細は[release checkpoints](../releases/release-checkpoints.md#v260-release-validation-and-local-installation--2026-10-25)と`/var/tmp/noe-v2.6.0-release-T7lygk`に保存した。実行中processの再起動やtagの付け替えは行っていない。

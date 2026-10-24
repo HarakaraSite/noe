@@ -1881,3 +1881,55 @@ and actual module retrieval will be checked before installing the verified Linux
 amd64 asset with backups and atomic replacement. Other targets have CI build/hash
 verification, not native execution on this host. No paid model-provider request
 is required. Unrelated model-catalog edits, active events and caches are excluded.
+
+## v2.6.0 Release validation and local installation — 2026-10-25
+
+- Annotated tag `v2.6.0` points to
+  `9ae801f145b232e718b1fff74e3bcff9bfb1dfd2`. Its peeled remote tag matches
+  the successful workflow revision; its difference from checked source
+  `c2d6121` is the preparation evidence document only.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/38)
+  succeeded (API run ID 219, job ID 240), using the unchanged lightweight
+  build/checksum/upload workflow.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.6.0)
+  is published, neither draft nor prerelease (Release ID 151). Its description
+  matches the tagged [English release notes](v2.6.0.md).
+
+All seven assets were downloaded; all six binary hashes match SHA256SUMS.
+The Linux amd64 binary reports `noe v2.6.0`, the tagged source revision,
+`vcs.modified=false`, `CGO_ENABLED=0` and official go-quickjs v0.28.0 without
+JIT. Its SHA256 is
+`c6f171ca9d7c4476f3699d58c5a4aafa9735ea9f790db93895727c0cfb193c85`.
+
+Against the downloaded binary, arithmetic and bundled new/legacy wait exports,
+grouped-wait member docs and the parent-wait model recipe passed. A deterministic
+local-provider fixture also passed failure diagnostics, repaired structured
+results, next-request delivery and JSONL retention. The unrelated budget fixture
+was not repeated. No paid model-provider request was made.
+
+Clean external modules fetched `stdlib@v2.6.0` and `agent@v2.6.0` from the
+actual published module, without local replacement or a synthetic proxy.
+Both built, ran and passed `go mod verify`; MVS selected official go-quickjs
+v0.28.0. Both public declaration files match the tagged source. The agent
+consumer additionally exercised the new public `Client.WaitTasks` on a completed
+task with includeAnswer=false, checked the ordered metadata-only result, and
+confirmed the legacy WaitTask could still retrieve its retained answer.
+
+The user explicitly authorized local installation in the same request.
+The verified published Linux asset atomically replaced both repository-root
+`/home/agent/projects/noe/noe` and `/home/agent/.local/bin/noe`.
+Both match the published SHA256 and report `noe v2.6.0`; PATH resolves to the
+updated user binary. The previous v2.5.1 executables are backed up at
+`/var/tmp/noe-v2.6.0-release-T7lygk/installation-tvx98f1a`.
+Existing running processes are not restarted or interrupted.
+
+Evidence is retained at `/var/tmp/noe-v2.6.0-release-T7lygk`, including workflow
+metadata, seven published assets, native build metadata, artifact fixture logs,
+module consumers, published-verification.json, public-module-verification.json
+and installation.json. Other five platforms have CI build/hash verification
+without native execution here. Successful implementation source tests were not
+repeated for publication or installation.
+
+This documentation-only follow-up does not move or replace the release tag.
+The unrelated existing model-catalog edit, events and caches remain excluded
+from these commits and preserved in the working tree.
