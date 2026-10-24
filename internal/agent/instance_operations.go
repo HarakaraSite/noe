@@ -51,7 +51,7 @@ func (h *Host) spawn(requestContext context.Context, op *Operation, req spawnReq
 		if err != nil {
 			return spawnResponse{}, newOperationError(500, "broker", "could not allocate task activity")
 		}
-		initial = &command{id: commandID, activityID: commandActivityID, instruction: *req.Instruction, operation: "queue", status: "accepted", initial: true, accepted: make(chan struct{}), done: make(chan struct{})}
+		initial = newTaskCommand(commandID, commandActivityID, *req.Instruction)
 	}
 	modelWindow, modelMaxOutput := h.contextModelLimitsContext(requestCtx, req.Config.Provider, req.Config.Model)
 	if requestCtx.Err() != nil {
@@ -120,8 +120,7 @@ func (h *Host) spawn(requestContext context.Context, op *Operation, req spawnReq
 	if initial != nil {
 		initial.causedBy = []string{activityID}
 		initial.origin = activityOrigin{Kind: "script", RunID: origin.RunID, AgentID: id, CommandID: initial.id}
-		instance.queue = append(instance.queue, initial)
-		instance.commands[initial.id] = initial
+		instance.enqueueCommandLocked(initial)
 	}
 	h.instances[id] = instance
 	if parent != nil {
@@ -236,9 +235,9 @@ func (h *Host) queue(op *Operation, req queueRequest) (commandReceipt, error) {
 		code, message := executionLimitError(instance.group)
 		return commandReceipt{}, newOperationError(409, code, message)
 	}
-	cmd := &command{id: req.CommandID, activityID: activityID, causedBy: causedBy, origin: origin, instruction: req.Instruction, operation: "queue", status: "accepted", accepted: make(chan struct{}), done: make(chan struct{})}
-	instance.commands[cmd.id] = cmd
-	instance.queue = append(instance.queue, cmd)
+	cmd := newTaskCommand(req.CommandID, activityID, req.Instruction)
+	cmd.causedBy, cmd.origin = causedBy, origin
+	instance.enqueueCommandLocked(cmd)
 	h.mu.Unlock()
 	instance.commandEvent(cmd, "accepted", "")
 	close(cmd.accepted)

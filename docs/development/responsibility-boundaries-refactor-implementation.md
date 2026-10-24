@@ -6,9 +6,9 @@
 
 | slice | 内容 | 状態 |
 | --- | --- | --- |
-| S1 | command/task状態遷移 | 実装中 |
+| S1 | command/task状態遷移 | 関連試験・独立レビュー完了、P2以上0 |
 | S2 | Profile設定・loader・実行寿命 | 関連試験・独立レビュー完了、P2以上0 |
-| S3 | Worker設定継承・VM起動停止 | 未着手（S2後） |
+| S3 | Worker設定継承・VM起動停止 | 実装中（S2の完了後に着手） |
 | S4 | messaging codec/broadcast/Worker通知境界 | 未着手（S3後） |
 | S5 | JS run_js adapter・tool pipeline | 関連試験・独立レビュー完了、P2以上0 |
 
@@ -17,6 +17,18 @@
 ## 中断からの回復
 
 ユーザーが応答のないテストを停止した後、残留したgo/testプロセスがないことと、未コミット差分が保持されていることを確認した。以前の子agentは所有scopeの終了で回収済みで再利用できなかったため、担当を再割当てした。計画コミットは維持し、実装をやり直さず既存の差分と保存ログから継続した。以後のテストにはGoの `-timeout` と外側の `timeout --kill-after` を付け、出力を実行中からログへ保存する。
+
+## S1: command/taskの状態遷移
+
+- `task_lifecycle.go` がcommand登録、queue選択、selected→start、queued settlement、取消受付、run接続、final確定、結果確定と公開順を担当する。呼出し側は操作へ委譲し、instanceはスケジュール判断、taskは実行・joinに集中する。
+- commandのwrite-only `initial` / `executionStarted` と、instance.selectedを重複していたcommand.selectedを除いた。新しい保存状態やmutexは増やさない。finalCommittedはrun削除後の取消拒否境界として維持する。
+- `Host.mu` の範囲、group計数、owner/権限、cancel/final/outcomeの確定順、callback/待機/cancelがロック外という契約を維持した。
+- 新しい選択→起動の決定的試験は、cancel/stopが選択済みcommandの起動前に勝つ経路と、取消し受付公開前にwaiterを解放しないことを確認する。
+- 中断の直接原因はこの新テストの同期だった。取消observerが `Host.observeMu` を保持してchannel待ちする間に、test本体が同じobserverへcommand.acceptedを公開しようとしていた。`-timeout=15s` のstackで再現・確認し、accepted eventを先に公開し、そのchannel closeだけを取消受付後まで遅延するよう修正した。製品コードの同期や観察順は変更しない。
+- 修正後の対象試験：cancel/stopとも成功。`go test ./internal/agent ./agent -count=1 -timeout=120s` のinternal/agentは成功。公開agentの初回失敗はS5のmodule解決に到達していたため、S5修正後に公開agentだけ再確認して成功した。
+- runtimeのqueue/steer/cancel/wait/final結果保持/所有・上限fixtureも、S5修正後に成功した。
+- ログ：`/var/tmp/noe-boundaries-KVDans/s1-recovery/`。再現stackは `01-deadlock.log`、最終成功は `05-target-test.log`、`10-public-agent-after-s5-fix.log`、`11-runtime-after-s5-fix.log`。状態更新箇所の監査は `13-lifecycle-field-audit.json`。
+- 独立code reviewerは差分・呼出し元・所有/Close経路・修正後成功ログを照合し、P2以上0件。必須修正・関連残件なし。
 
 ## S2: Profile設定・ローダー・実行寿命
 

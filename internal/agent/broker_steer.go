@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-
-	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 type applySteersRequest struct {
@@ -213,33 +211,9 @@ func (h *Host) commitFinal(ctx context.Context, op *Operation, request commitFin
 		h.mu.Unlock()
 		return commitFinalResponse{Committed: false, Instructions: instructions}, nil
 	}
-	run.finalClosed = true
-	run.finalAnswer = request.Answer
-	if run.instance != nil && op.task != nil && op.task.run == run && op.task.command != nil {
-		// finish removes the run from h.runs before the task command is reaped.
-		// Preserve the final-answer boundary on the command so CancelTask cannot
-		// reopen cancellation during that cleanup window.
-		op.task.command.finalCommitted = true
-	}
-	settled := make([]<-chan struct{}, 0, len(run.steerOrder))
-	for _, command := range run.steerOrder {
-		if command.status == "applied" {
-			settled = append(settled, command.settled)
-		}
-	}
+	settled := run.commitFinalAnswerLocked(request.Answer)
 	h.mu.Unlock()
 
-	for _, eventDone := range settled {
-		<-eventDone
-	}
-	h.observeRun("agent.final", run.id, run, events.Event{
-		"status": "completed", "text": request.Answer,
-	})
-	h.mu.Lock()
-	if !run.finalEventDone {
-		run.finalEventDone = true
-		close(run.finalDone)
-	}
-	h.mu.Unlock()
+	h.publishCommittedFinal(run, request.Answer, settled)
 	return commitFinalResponse{Committed: true}, nil
 }

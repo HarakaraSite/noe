@@ -283,9 +283,7 @@ func (h *Host) start(requestContext context.Context, op *Operation, request star
 			}
 		}
 		run.context.restoreConversation(op.task.instance.conversationContext)
-		run.instance = op.task.instance
-		op.task.run = run
-		op.task.instance.currentRunID = id
+		op.task.bindRunLocked(run)
 		h.storeContextSnapshotLocked(run, time.Now())
 	}
 	h.mu.Unlock()
@@ -350,14 +348,8 @@ func (h *Host) finish(ctx context.Context, op *Operation, request finishRequest)
 					return nil, newOperationError(http.StatusConflict, "final", "pending steer commands must be applied before finishing")
 				}
 			}
-			run.finalClosed = true
-			run.finalAnswer = request.Answer
+			finalSettled = run.commitFinalAnswerLocked(request.Answer)
 			emitFinal = true
-			for _, command := range run.steerOrder {
-				if command.status == "applied" {
-					finalSettled = append(finalSettled, command.settled)
-				}
-			}
 		} else if run.instance != nil {
 			h.mu.Unlock()
 			return nil, newOperationError(http.StatusConflict, "final", "managed task completion requires a committed answer")
@@ -384,18 +376,7 @@ func (h *Host) finish(ctx context.Context, op *Operation, request finishRequest)
 	h.mu.Unlock()
 	h.emitSteerEvents(pending)
 	if emitFinal {
-		for _, eventDone := range finalSettled {
-			<-eventDone
-		}
-		h.observeRun("agent.final", run.id, run, events.Event{
-			"status": "completed", "text": request.Answer,
-		})
-		h.mu.Lock()
-		if !run.finalEventDone {
-			run.finalEventDone = true
-			close(run.finalDone)
-		}
-		h.mu.Unlock()
+		h.publishCommittedFinal(run, request.Answer, finalSettled)
 	} else if waitFinal != nil {
 		select {
 		case <-waitFinal:

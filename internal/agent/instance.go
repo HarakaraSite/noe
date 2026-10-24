@@ -10,26 +10,6 @@ import (
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
-type command struct {
-	id               string
-	activityID       string
-	causedBy         []string
-	origin           activityOrigin
-	instruction      string
-	operation        string
-	status           string
-	initial          bool
-	active           bool
-	selected         bool
-	cancelRequested  bool
-	cancelAccepted   chan struct{}
-	executionStarted bool
-	finalCommitted   bool // protected by Host.mu; survives removal of the run during finish cleanup
-	accepted         chan struct{}
-	done             chan struct{}
-	outcome          *taskOutcome // immutable after completion; protected by Host.mu
-}
-
 type TaskOutcome struct {
 	omitAnswer   bool            // Per-response projection; never set on the retained result.
 	RunID        string          `json:"runId"`
@@ -168,46 +148,6 @@ func (i *agentInstance) event(kind string, fields events.Event) {
 	}
 	i.host.observe(event)
 }
-func (i *agentInstance) commandEvent(cmd *command, status, runID string) {
-	fields := events.Event{"commandId": cmd.id, "status": status, "runId": runID}
-	addActivityFields(fields, cmd.activityID, cmd.causedBy, cmd.origin)
-	operation := cmd.operation
-	if operation == "" {
-		operation = "queue"
-	}
-	fields["operation"] = operation
-	if status == "accepted" {
-		fields["instruction"] = cmd.instruction
-	}
-	i.event("command."+status, fields)
-}
-
-func (i *agentInstance) settleCommandLocked(cmd *command, outcome taskOutcome) {
-	cmd.status = outcome.State
-	cmd.outcome = &outcome
-}
-
-// Publish the existing terminal event before waking result waiters. A command's
-// result remains available after later tasks overwrite the instance snapshot.
-func (i *agentInstance) publishCommandOutcome(cmd *command) {
-	<-cmd.accepted
-	if cmd.cancelAccepted != nil {
-		<-cmd.cancelAccepted
-	}
-	i.commandEvent(cmd, cmd.outcome.State, cmd.outcome.RunID)
-	close(cmd.done)
-}
-
-// publishCommandOutcomeAsync is for terminal events published outside serve.
-// Callers add while holding Host.mu so instance shutdown cannot race a zero
-// counter Wait with a new publisher.
-func (i *agentInstance) publishCommandOutcomeAsync(cmd *command) {
-	i.publishWG.Add(1)
-	go func() {
-		defer i.publishWG.Done()
-		i.publishCommandOutcome(cmd)
-	}()
-}
 
 func (i *agentInstance) serve() {
 	defer close(i.done)
@@ -227,11 +167,7 @@ func (i *agentInstance) serve() {
 				reason = "owner_cancelled"
 			}
 			i.state = "stopping"
-			queued := i.queue
-			i.queue = nil
-			for _, cmd := range queued {
-				i.settleCommandLocked(cmd, taskOutcome{CommandID: cmd.id, State: "cancelled", Error: reason})
-			}
+			queued := i.settleQueuedCommandsLocked(reason)
 			accepted, settled := i.interruptAccepted, i.interruptSettled
 			limitEventDone := i.executionLimitEventDone
 			if limitEventDone == nil && i.group != nil {
@@ -291,10 +227,7 @@ func (i *agentInstance) serve() {
 			}
 			continue
 		}
-		cmd := i.queue[0]
-		i.queue = i.queue[1:]
-		cmd.selected = true
-		i.selected = cmd
+		cmd := i.selectCommandLocked()
 		h.mu.Unlock()
 		<-cmd.accepted // Publish command acceptance before any execution event.
 		h.mu.Lock()
@@ -304,32 +237,14 @@ func (i *agentInstance) serve() {
 				i.reason = i.group.stop.Reason
 			}
 		}
-		if cmd.cancelRequested {
-			cmd.selected = false
-			i.selected = nil
-			i.settleCommandLocked(cmd, taskOutcome{CommandID: cmd.id, State: "cancelled", Error: "agent task cancelled"})
+		switch i.startSelectedCommandLocked(cmd) {
+		case commandCancelledBeforeStart:
 			h.mu.Unlock()
 			i.publishCommandOutcome(cmd)
 			continue
-		}
-		if i.state == "stopping" || i.ctx.Err() != nil {
-			// The command was already removed from queue when whole-instance
-			// interruption took its snapshot. Put it back so the stopping branch
-			// emits the accepted command's cancellation without starting a task.
-			cmd.status = "cancelled"
-			cmd.selected = false
-			i.selected = nil
-			i.queue = append([]*command{cmd}, i.queue...)
+		case commandReturnedToQueue:
 			h.mu.Unlock()
 			continue
-		}
-		cmd.status = "running"
-		cmd.active = true
-		cmd.selected = false
-		i.selected = nil
-		i.state = "running"
-		if i.group != nil {
-			i.group.counters.ActiveTasks++
 		}
 		h.mu.Unlock()
 		runningFields := events.Event{"commandId": cmd.id}
@@ -337,24 +252,7 @@ func (i *agentInstance) serve() {
 		i.event("instance.running", runningFields)
 		outcome, run, fatal := i.execute(cmd)
 		h.mu.Lock()
-		if cmd.active {
-			cmd.active = false
-			if i.group != nil && i.group.counters.ActiveTasks > 0 {
-				i.group.counters.ActiveTasks--
-			}
-			h.maybeCloseGroupLocked(i.group)
-		}
-		if cmd.outcome == nil {
-			if cmd.cancelRequested {
-				outcome = taskOutcome{CommandID: cmd.id, State: "cancelled", Error: "agent task cancelled"}
-				fatal = false
-			}
-			i.settleCommandLocked(cmd, outcome)
-		} else {
-			outcome = *cmd.outcome
-		}
-		i.lastResult = cmd.outcome
-		i.currentRunID = ""
+		outcome, fatal = i.finishCommandLocked(cmd, outcome, fatal)
 		if fatal {
 			if i.state == "stopping" || i.ctx.Err() != nil {
 				// An accepted stop takes precedence over supervision cleanup.
@@ -388,11 +286,7 @@ func (i *agentInstance) serve() {
 		if fatal {
 			h.mu.Lock()
 			i.state = "stopping"
-			queued := i.queue
-			i.queue = nil
-			for _, cmd := range queued {
-				i.settleCommandLocked(cmd, taskOutcome{CommandID: cmd.id, State: "cancelled", Error: "supervision_failed"})
-			}
+			queued := i.settleQueuedCommandsLocked("supervision_failed")
 			h.mu.Unlock()
 			for _, cmd := range queued {
 				i.publishCommandOutcome(cmd)

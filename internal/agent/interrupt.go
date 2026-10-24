@@ -33,11 +33,7 @@ func (h *Host) interruptInstance(op *Operation, agentID string) (StopAgentRespon
 
 	accepted := make(chan struct{})
 	settled := make(chan struct{})
-	queued := instance.queue
-	instance.queue = nil
-	for _, command := range queued {
-		instance.settleCommandLocked(command, taskOutcome{CommandID: command.id, State: "cancelled", Error: "interrupted"})
-	}
+	queued := instance.settleQueuedCommandsLocked("interrupted")
 	currentRunID := instance.currentRunID
 	if run := h.runs[currentRunID]; run != nil {
 		// Serialize whole-instance interruption with final-answer commitment.
