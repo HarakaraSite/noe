@@ -51,6 +51,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | agentへ渡す組込みの説明 | [facts.md](../../internal/agent/facts.md)（汎用の契約）・[policy.md](../../internal/noeprofile/policy.md)（NOEの既定方針） |
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
+| TS対応の議論・examplesの定性評価（未採用） | [TypeScriptの議論](typescript-discussion-20261024.md) |
 | 上流修正待ち：ES module内のブロック関数宣言が消える不具合 | [再現・原因・回避方法](dependency-updates.md#上流修正待ちes-module内のブロック関数宣言--2026-10-24) |
 | 単独noe observeの出力待機中の取消し | [修正・検証記録](observe-cancellation.md) |
 | JSによるExa MCPクライアントとソケットデーモンの利用例 | [実装・検証記録](mcp-daemon-examples.md) |
