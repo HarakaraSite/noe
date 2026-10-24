@@ -1839,3 +1839,45 @@ evidence without native execution here.
 This documentation-only follow-up does not move or replace the release tag.
 Repository-root `./noe`, the PATH binary and running processes are unchanged;
 installation remains separate. Existing event logs and caches are untouched.
+
+## v2.6.0 preparation — 2026-10-25
+
+The user authorized commit, push, release and replacement of the locally used
+binaries after the steer-aware wait implementation was complete. The latest
+remote tag was v2.5.1; this additive public API is a minor feature release.
+Implementation commit `f01351ee544f9822ab5230f0b298f243fa463da0` contains
+grouped waiting, its Go/JS/typed/hook connections, declarations, docs and tests.
+See the [implementation record](../development/steer-aware-wait-implementation.md)
+and [English release notes](v2.6.0.md).
+
+Checked clean source: `c2d6121ecdec5e0a6f5dd1a9bd6c1289f958d017`.
+Its only production-source difference from the verified implementation is the
+default CLI Version changing from v2.5.1 to v2.6.0. The tag-preparation follow-up
+changes this evidence document only.
+
+Implementation evidence is reused: full unit/E2E, related-package race tests,
+changed JavaScript lint, public declaration checking, formatting and diff checks
+passed. Independent code review has no unresolved P2-or-higher finding.
+A real executor with controlled model fixtures held two children unfinished and
+verified trusted-host and script-origin steer, wait/tool completion, delivery to
+the next parent model request and subsequent explicit child cancel/steer/result
+retrieval. No child was cancelled merely to return from the wait.
+Logs: `/var/tmp/noe-steer-aware-wait-Ekbh7s`.
+
+| Release verification | Result |
+| --- | --- |
+| Clean native release-flags build | PASS, CGO disabled, checked source above, vcs.modified=false |
+| Candidate version and arithmetic | PASS, noe v2.6.0 and 2, exact stdout and empty stderr |
+| Bundled new/legacy wait exports and grouped-wait docs/model recipe | PASS, no model request |
+| Current README/release relative links | PASS, 106 references resolve |
+| Production delta since implementation validation | Version string only; dependencies and release workflow unchanged |
+
+Evidence is retained at `/var/tmp/noe-v2.6.0-release-T7lygk`, including the
+clean detached source, native build metadata and preparation-verification.json.
+No full source suite, race, long wait or local six-binary distribution build is
+repeated for release preparation. The unchanged lightweight CI builds six
+binaries, creates SHA256SUMS and publishes the immutable tag. Published artifacts
+and actual module retrieval will be checked before installing the verified Linux
+amd64 asset with backups and atomic replacement. Other targets have CI build/hash
+verification, not native execution on this host. No paid model-provider request
+is required. Unrelated model-catalog edits, active events and caches are excluded.
