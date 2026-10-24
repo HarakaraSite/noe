@@ -37,10 +37,14 @@ Web検索が必要なときは、このworkspaceのExa検索ライブラリが�
 - ライブラリ本体: `.noe/lib/exa/exa.js`
 - 使い方・APIの説明: `.noe/lib/exa/exa.md`
 
-これらはNOE起動時の作業ディレクトリを基準とするパスです。使う前に、`run_js`のファイル読込みで`.noe/lib/exa/exa.md`を読んでください。
-`run_js`からライブラリを使うときは、作業ディレクトリから絶対パスを組み立ててimportできます。import mapは不要です。
+これらはNOE起動時の作業ディレクトリを基準とするパスです。import mapは不要です。
 
 ```js
 import {resolve} from "node:path";
-const {search} = await import(resolve(".noe/lib/exa/exa.js"));
+const {search, getContents} = await import(resolve(".noe/lib/exa/exa.js"));
+export default await search("Go microVM library");
 ```
+
+`search(query)`は既定5件のタイトル・URL・highlightsを返します。Exaへ1ページ1,000文字を指定しますが、実際の返却は超える場合があります。`numResults`は最大20件。タイトル・URLだけ必要なら`search(query, {mode: "links", numResults: 50})`で最大50件まで取得できます。件数上限は1クエリごとです。
+
+本文が必要ならURLを選び、`getContents(url)`で1件取得してください。タグなしMarkdownを最大20,000文字、`maxCharacters`でより短く指定できます。検索へ`contents`・本文・subpages等を直接指定する旧形式はエラーになります。基本の使い方はこの説明で足ります。検索フィルタ・戻り値・エラーの詳細は`.noe/lib/exa/exa.md`を参照してください。

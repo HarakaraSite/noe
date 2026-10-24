@@ -227,7 +227,7 @@ pathを知らせたagentが画像を見て判断でき、独立した生成API�
 | image kindの実装sliceが不足 | Go/JSのkind検証・列挙をS3へ移し、JSON登録より先に実装。同一registryでagent/decisionとの共存を確認 | S3 |
 | provider拒否理由の返却が未定義 | `ImageError`のcode/providerCode/providerMessage/statusCode/requestIdと、JS/JSONLでの返却を規定。Visionの明示的refusalも識別 | S2・S3・S4 |
 
-[開発記録へ戻る](../README.md) · [検討メモ](../future-candidates.md#完了-agentのvision対応--2026-10-17)
+[開発記録へ戻る](../README.md) · [検討メモ](../completed-features.md#完了-agentのvision対応--2026-10-17)
 
 ## 実装時の画像token推定方針（S2着手前、2026-10-18）
 

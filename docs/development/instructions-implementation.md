@@ -1,6 +1,6 @@
 # インストラクション自動読込みの実装・検証記録
 
-2026-10-18。要件は[検討メモ](../future-candidates.md#user-instructions)、公開仕様は[ガイド](../instructions.md)。
+2026-10-18。要件は[検討メモ](../completed-features.md#user-instructions)、公開仕様は[ガイド](../instructions.md)。
 状態：実装・テスト・独立コードレビューを完了。
 
 ## 実装

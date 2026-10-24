@@ -52,6 +52,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
 | TS対応の議論・examplesの定性評価（未採用） | [TypeScriptの議論](typescript-discussion-20261024.md) |
+| 長時間agent作業の隔離環境・VCS配送・外部ライブラリ（検討） | [Docker・microVM等の議論と調査](isolated-agent-workspaces-discussion.md) |
 | 上流修正待ち：ES module内のブロック関数宣言が消える不具合 | [再現・原因・回避方法](dependency-updates.md#上流修正待ちes-module内のブロック関数宣言--2026-10-24) |
 | 単独noe observeの出力待機中の取消し | [修正・検証記録](observe-cancellation.md) |
 | JSによるExa MCPクライアントとソケットデーモンの利用例 | [実装・検証記録](mcp-daemon-examples.md) |
@@ -127,7 +128,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 ## 配置と製品方針
 
-利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補と完了区分は[次の機能候補](../future-candidates.md)を更新します。
+利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補は[次の機能候補](../future-candidates.md)、完了項目の詳細は[完了した機能と実装記録](../completed-features.md)を更新します。
 
 [txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs) v0.28.0、汎用JavaScript APIにはv0.27.0のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleで公開済みです。現行リリースは[v2.5.0](../releases/v2.5.0.md)で、外部moduleからの利用は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドを参照してください。未公開のcheckoutを試す場合はローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
 

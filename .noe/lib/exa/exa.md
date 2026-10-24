@@ -1,105 +1,106 @@
-# exa — NOE向け小さなExa検索ライブラリ
+# Exa — 検索と選択したURLの本文取得
 
-NOE（go-quickjs）の標準APIだけで動くExa検索クライアントです。npm依存や公式SDKは
-使いません。REST API `POST https://api.exa.ai/search` をグローバルの`fetch`で
-呼びます。
-
-- ライブラリ本体: `<workspace>/.noe/lib/exa/exa.js`
-- この説明書: `<workspace>/.noe/lib/exa/exa.md`
-
-`<workspace>`はNOE起動時の作業ディレクトリです。この配置ではimport mapは不要です。
-
-## 起動と最小例
+NOEの標準APIだけで動く外部JSライブラリです。npmやSDKは不要です。
+検索で候補を絞り、必要なページだけ本文を取得します。
 
 ```js
-// task.js
 import {resolve} from "node:path";
-const {search} = await import(resolve(".noe/lib/exa/exa.js"));
-
-const result = await search("Exaの検索APIの概要", {
-  type: "auto",                         // Exaの検索モード
-  numResults: 5,                        // 取得件数
-  contents: { highlights: true },       // 結果に含める内容
-});
-
-console.log(result.requestId);
-console.log(result.costDollars);
-for (const item of result.results) {
-  console.log(item.title, item.url);
-}
+const {search, getContents} = await import(resolve(".noe/lib/exa/exa.js"));
+export default await search("Go microVM library");
 ```
 
-```sh
-# workspaceを作業ディレクトリとして実行
-noe run task.js
-```
+パスは起動時のcwd（通常はworkspace）基準です。import mapは不要です。
+`run_js`でも、上記のように絶対パスを組み立ててimportします。
 
-`run_js`からも上記と同じ方法で利用できます。`run_js`の生成JSは一時ディレクトリに置かれるため、
-`import "./.noe/lib/exa/exa.js"`ではなく、起動時の作業ディレクトリから絶対パスを組み立てて読み込みます。
+## 取得内容と上限
 
-## 公開API
+| 呼出し | 入力 | 返却内容 | 既定件数 | 最大件数 |
+| --- | --- | --- | ---: | ---: |
+| `search(query)` | 検索文字列 | タイトル・URL・highlights | 5 | 20 |
+| `search(query, {mode: "links"})` | 検索文字列 | タイトル・URLのみ | 5 | 50 |
+| `getContents(url)` | 選択したURLを1件 | タイトル・URL・本文 | 1 | 1 |
 
-### `search(query, options = {})`
+highlightsは1ページ1,000文字、本文は最大20,000文字をExaへ指定します。
+highlightsの文字数指定は厳密な返却上限ではなく、実測では超える抜粋も返っています。
+ライブラリ側では追加の切り詰めを行いません。
+本文は`includeHtmlTags: false`の**タグなしMarkdown**です。独自のMarkdown変換・
+平文化はせず、Exaの`text`をそのまま返します。整ったMarkdownであることには
+依存せず文字列として扱います。文字数上限があるため、ページ全文の取得は保証しません。
 
-Exa Searchを1回実行し、レスポンスJSONを返します。自動リトライやキャッシュは
-行いません。
+上限はライブラリ呼出し1回ごとです。複数クエリを呼ぶと件数・本文量は合算されます。
+返却JSON全体には、さらに`run_js`の共通出力予算（既定64 KiB・最大256 KiB）が適用されます。
+文字数とUTF-8 byte数は同じではありません。
 
-- `query`（必須）: 空でない文字列。空白だけの文字列は`TypeError`になります。
-  送信時はこの第1引数が常に使われます。
-- `options`（任意）: Exaの検索パラメータをそのまま指定します。`numResults`、
-  `type`、`category`、`contents`、`includeDomains`、`excludeDomains`、
-  `startPublishedDate` などを`query`と一緒にJSON bodyへ送ります。
-- `options.apiKeyFile`（任意・ライブラリ独自）: APIキーのファイルパス。
-  JSON bodyには含めません。省略時は
-  `~/.config/noe/credentials/exa-api-key`（`os.homedir()`と`path.join`で
-  解決）を使います。先頭の`~/`はホームディレクトリに展開します。
-  ファイル内容は前後の空白を`trim`してから使います。
+## search(query, options?)
 
-キーの読み込みは`search()`の実行時だけです。モジュールの`import`だけでは
-ファイル読み込みもネットワーク通信も起きません。
-
-認証は`x-api-key`ヘッダー、本文は`Content-Type: application/json`で送信します。
-APIキーの値はログや例外メッセージには含めません。
-
-## 戻り値
-
-Exaが返したJSONを加工せずそのまま返します（`requestId`、`resolvedSearchType`、
-`results`、`costDollars`などのフィールドをすべて保持）。
-
-## エラー
-
-| 状況 | 例外 |
-| --- | --- |
-| `query`が空・文字列以外、`options`がobject以外、`apiKeyFile`が不正 | `TypeError` |
-| キーファイルを読めない | `Error`（`name: "ExaSearchError"`、`.cause`に読取りエラー、メッセージにパス） |
-| キーファイルが空 | `Error`（`name: "ExaSearchError"`、メッセージにパス） |
-| 通信失敗（DNS・接続など） | `Error`（`name: "ExaSearchError"`、`.cause`に元の失敗） |
-| HTTP 4xx・5xx | `Error`（`name: "ExaSearchError"`、`.status`（HTTP status）、`.requestId`（取得できれば）、`.body`（パースできたエラーJSON）。メッセージにstatusとExaのエラー文） |
-
-HTTPエラーの例:
+`POST https://api.exa.ai/search`を1回呼びます。既定モードは`highlights`です。
 
 ```js
-try {
-  await search("...", { apiKeyFile: "~/.config/noe/credentials/exa-api-key" });
-} catch (error) {
-  if (error.name === "ExaSearchError") {
-    console.error(error.status, error.requestId, error.message);
-  }
-}
+export default await search("Go microVM library", {numResults: 10});
 ```
-
-## キーの置き場所
-
-既定では次のファイルを読みます（前後の空白は除去）。
-
-```text
-~/.config/noe/credentials/exa-api-key
-```
-
-別の場所を使う場合:
 
 ```js
-const result = await search("query", { apiKeyFile: "/path/to/exa-api-key" });
+export default await search("Go microVM library", {mode: "links", numResults: 50});
 ```
 
-キーをスクリプトへ埋め込んだり、リポジトリへcommitしたりしないでください。
+- `query`：必須の空でない文字列。`options.query`より第1引数を優先します。
+- `mode`：`"highlights"`（既定）、または`"links"`。
+- `numResults`：既定5。highlightsでは1〜20、linksでは1〜50の整数。
+- 検索フィルタ：`type`、`category`、`includeDomains`、`excludeDomains`、
+  `startPublishedDate`、`endPublishedDate`、`startCrawlDate`、`endCrawlDate`、
+  `includeText`、`excludeText`、`userLocation`をExaへ転送します。
+- highlightsの鮮度指定：`maxAgeHours`・`livecrawlTimeout`を指定できます。
+  Exaへの送信時には`contents`内へ置きます。linksでは本文を取得しないため指定できません。
+- `apiKeyFile`：任意のキーファイルパス。下記参照。
+
+返却値は`{mode, results, requestId?, resolvedSearchType?, searchTime?, costDollars?, statuses?}`。
+resultsの各項目は`{title, url, highlights}`、linksでは`{title, url}`です。
+Exaが要求件数より少ない結果を返す場合もあります。
+
+**旧版の`contents`直接指定は受け付けません。** 本文、summary、subpages等を検索へ
+混ぜず、モードを選んでください。件数超過・不正モード・未対応optionは、APIキーの
+読込みやHTTP送信より前にエラーになります。
+
+旧`search(query, {contents: {highlights: true}})`は、`search(query)`へ変更します。
+旧`search(query, {contents: {text: true}})`は、検索で候補URLを選び、次の本文取得へ分けます。
+
+## getContents(url, options?)
+
+`POST https://api.exa.ai/contents`へURLを1件だけ送ります。配列や追加ページの巡回は
+受け付けません。検索結果から必要なURLを選んで使います。
+
+```js
+export default await getContents("https://example.com/report", {maxCharacters: 10000});
+```
+
+- `url`：HTTP(S)のURL文字列を1件。
+- `maxCharacters`：既定20,000、1〜20,000の整数。小さい範囲も指定できます。
+- `maxAgeHours`・`livecrawlTimeout`：Exaの鮮度・クロール待ち時間指定。省略時はExa既定。
+- `apiKeyFile`：任意のキーファイルパス。
+
+返却値の形はsearchと共通で、`mode: "text"`、resultsは最大1項目の
+`{title, url, text}`です。`statuses`があればURLごとの成功・失敗も確認できます。
+HTMLタグ、summary、highlights、subpagesの追加指定は受け付けません。
+
+## 認証とエラー
+
+既定のキーファイルは`~/.config/noe/credentials/exa-api-key`です。
+`apiKeyFile: "/path/to/key"`で変更でき、先頭の`~/`も展開します。
+ファイル内容は前後の空白を除き、`x-api-key`ヘッダーへ設定します。
+キーをソースやリポジトリへ保存しないでください。
+
+importだけではキーの読込み・通信は起きません。ライブラリ独自の自動リトライ・
+キャッシュはありません（Exa側のキャッシュとは別です）。
+
+不正引数は`TypeError`または`RangeError`。キー読込み・通信・JSON解析・HTTPエラーは
+`ExaSearchError`です。HTTPエラーには`status`・`requestId`・`body`、元の失敗が
+ある場合は`cause`を保持します。APIキーの値は例外メッセージへ含めません。
+
+## 検証と公式資料
+
+`noe run .noe/lib/exa/test.js`で送信内容・上限・返却形式・エラーを検証します。
+HTTPを差し替えるため、実APIキー・ネットワーク通信・API課金は不要です。
+
+- [Exa Search](https://exa.ai/docs/reference/search)
+- [Exa Contents](https://exa.ai/docs/reference/get-contents)
+- [本文はMarkdown、highlightsは関連箇所の抜粋](https://exa.ai/docs/contents/quickstart)
