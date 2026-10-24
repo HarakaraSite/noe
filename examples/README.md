@@ -10,6 +10,7 @@
 | [embedding](embedding/README.md) | CLI・agentに依存しないGoホストへの公開stdlib API導入 | 不要 |
 | [embedding-server](embedding-server/README.md) | Goホストを常駐させ、リクエストごとにJS実行・停止処理・systemdユーザーサービス化 | 不要 |
 | [agent-embedding](agent-embedding/README.md) | 同じGoプロセス内にHost/Clientとagent実行を組み込む | 決定的なproviderを使う通常例は不要 |
+| [log-analysis](log-analysis/README.md) | JSONLイベントログのtoken・cache・tool出力超過をファイル別に比較 | 不要 |
 | [json](json/README.md) | JSONの加工、標準入力・ディレクトリ集計、処理済みファイルの移動 | 不要 |
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |
 | [http](http/README.md) | noe:httpでのローカル往復、stream upload、JSON・バイナリ取得、HTTPサーバー | ローカル例は不要、外部APIの例は接続先URLが必要 |

@@ -1,0 +1,7 @@
+{"type":"model.finished","usage":{"promptTokens":0,"cachedTokens":0}}
+{"type":"model.finished","usage":{"promptTokens":50}}
+{"type":"model.finished","usage":{"cachedTokens":5}}
+{"type":"model.finished","execution":{"usage":{"promptTokens":999,"cachedTokens":999}}}
+{"type":"tool.finished"}
+{"type":"tool.finished","modelResultAvailable":false,"result":{"outputLimit":{"complete":false}}}
+{"type":"tool.finished","result":""}

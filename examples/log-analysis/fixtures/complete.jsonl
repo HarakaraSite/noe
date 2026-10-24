@@ -1,0 +1,5 @@
+{"type":"model.finished","runId":"run-a","modelStepId":"step-1","model":"fixture","usage":{"promptTokens":100,"cachedTokens":0},"execution":{"usage":{"promptTokens":100,"cachedTokens":0}}}
+{"type":"model.finished","origin":{"runId":"run-a","modelStepId":"step-2"},"usage":{"inputTokens":300,"cachedTokens":240},"execution":{"usage":{"promptTokens":400,"cachedTokens":240}}}
+{"type":"execution.finished","execution":{"usage":{"promptTokens":400,"cachedTokens":240}}}
+{"type":"tool.finished","result":{"stdout":"first and last bytes; capture omitted 1000 bytes","stdoutTruncated":true},"rawResult":{"outputLimit":{"complete":false}}}
+{"type":"tool.finished","result":{"outputPreview":"short preview","outputLimit":{"complete":false}},"rawResult":{"stdout":"original output"}}
