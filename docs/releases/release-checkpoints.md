@@ -1672,3 +1672,43 @@ here. Existing event logs are unchanged.
 This documentation-only publication record does not move the release tag.
 Repository-root `./noe` and `/home/agent/.local/bin/noe` remain the previously
 installed v2.3.0 binaries; this request publishes v2.4.0 without installing it.
+
+## v2.5.0 preparation — 2026-10-24
+
+The user authorized committing and publishing the completed output-budget and
+workspace file-helper changes. The latest remote release was v2.4.0; v2.5.0 is
+the next feature release. Implementation commit `d451052` contains the unified
+stream/final JSON budget (64 KiB default, 256 KiB maximum), full-envelope byte
+accounting, and external `ls`, `read_file`, `write_file`, `edit_file` helpers.
+It also includes the already committed search/map libraries, agent-server and
+JSONL analysis examples since v2.4.0. See [release notes](v2.5.0.md).
+
+Checked release source: `0d9c13576d333b3044c838a8dfb1af3741b24f9f`.
+The tag-preparation follow-up changes this evidence document only. Dependencies,
+release profile and workflow are unchanged.
+
+Implementation evidence is reused for unchanged source: affected Go tests in
+`internal/agent`, `internal/agentexec`, `internal/apidocs`, `internal/runtime`;
+CLI output/hook/event and docs E2E; 34 file-helper filesystem checks; and Biome
+lint of the changed JavaScript. These passed before release preparation.
+The checks cover expanded console capture, encoded JSON including metadata and
+escaping at the 1/64/128/256 KiB budgets, invalid-budget rejection before
+execution, Unicode, exact replacements and failed edits leaving files unchanged.
+
+| Release verification | Result |
+| --- | --- |
+| CLI version subtest | PASS, `go test ./internal/cli -run '^TestCLI/version$' -count=1` |
+| Clean native release-flags build | PASS, checked source above, CGO disabled, `vcs.modified=false` |
+| Native version/arithmetic/embedded budget docs | PASS, `noe v2.5.0`; `noe:run_js results` has the current contract |
+| Current release/README/helper guide relative links | PASS |
+| Dependencies and existing event logs | Unchanged |
+
+Evidence is retained at `/var/tmp/noe-v2.5.0-release-j4edg63t`, including the
+clean detached source, native build information and preparation verification.
+The initial smoke assertion read the topic overview; it was corrected to read
+the `results` detail, where the output contract is documented. No source change
+was needed. No full source suite, race, six-target local distribution build or
+paid model call was repeated for release preparation. The existing light CI
+builds six binaries, creates SHA256SUMS and publishes the immutable tag.
+Published artifacts and module availability are checked after publication.
+Installation is separate from this publication request.
