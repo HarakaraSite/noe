@@ -10,7 +10,7 @@
 | S2 | Profile設定・loader・実行寿命 | 関連試験・独立レビュー完了、P2以上0 |
 | S3 | Worker設定継承・VM起動停止 | 未着手（S2後） |
 | S4 | messaging codec/broadcast/Worker通知境界 | 未着手（S3後） |
-| S5 | JS run_js adapter・tool pipeline | 実装済み、関連検証待ち |
+| S5 | JS run_js adapter・tool pipeline | 関連試験・独立レビュー完了、P2以上0 |
 
 検証ログの親ディレクトリ：`/var/tmp/noe-boundaries-KVDans`。各担当の詳細ログは該当sliceへ追記する。実行ログ・既存の未追跡ファイル・配布済みバイナリは変更/コミットしない。
 
@@ -33,10 +33,15 @@
 - `js/run_js.js` がモデル向けrun_js schema、引数/実行結果/diagnostics/画像metadataの検証とnative実行を担当する。
 - `js/tool_pipeline.js` がbefore/after hook、raw/effective・実行事実/提示結果、画像、tool_result報告を担当する。
 - `js/task_protocol.js` はtaskとtoolに共通のJSON request境界とrecord判定だけを持つ。task→pipeline→adapter/protocolの一方向依存とし、toolからtask loopへ依存しない。
-- `js/task.js` は設定・履歴/context・steer・モデル反復・最終確定の調停に残す。既存のprivate `executeToolWithHooks` exportはre-exportで維持する。
+- `js/task.js` は設定・履歴/context・steer・モデル反復・最終確定の調停に残す。既存のprivate `executeToolWithHooks` exportは、import済みbindingのlocal exportで同じ関数identityを維持する。
 - Go embedとagentbridgeの登録を同時に更新する。新しい公開agent APIは増やさない。
 - 実executorにprivate moduleのimport、compatibility export、invalid JSONが実行前のsetup診断になることを確認するケースを追加。これは分割後のmodule接続とadapterへの委譲が実際に解決されるかを確認するためで、既存のモデル反復・hook/画像/順序試験は再利用する。
-- 初回変更JSのBiome lint：成功。関連Go/fixtureと独立レビューは後述へ追記する。
+- 変更JSのBiome lint：成功。
+- 初回実executorで、固定go-quickjs v0.28.0のnamed re-exportがcolon付きmodule specifierを誤分解し `cannot resolve "noe"` となることを検出した。上流の `indirectSource` は隠しbinding名を最初のcolonで分割する。依存やengineは変更せず、既存import bindingをlocal exportする等価な形へ修正した。
+- 修正後 `CGO_ENABLED=0 go test ./internal/agentbridge ./internal/agentexec -count=1 -timeout=60s`：成功。compatibility exportのidentityと実task→tool→次モデル要求のdata/diagnosticsも確認。
+- 修正後 `CGO_ENABLED=0 go test ./internal/runtime -run 'Test(Hook|ToolOutput|Image|ContextTrimming|Queue|AgentRootRequires|Decision)' -count=1 -timeout=120s`：成功。hooksのraw/effective/失敗と並列順、画像、context/trim、queue継続とdecisionを現行fixtureで確認。
+- ログ：`/var/tmp/noe-boundaries-KVDans/s5-executor-local-export.log`、`s5-runtime-local-export.log`。初回失敗ログも同ディレクトリに保持し、成功扱いに混ぜない。
+- 独立code reviewはP2以上0件。上記export修正後、同じreviewerが一行と登録接続、成功ログを再確認し、P2以上0・必須修正なしを確認した。
 
 ## 総合検証
 

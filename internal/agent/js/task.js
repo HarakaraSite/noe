@@ -1,33 +1,15 @@
-import { request, defaults, instructions } from "noe:agent/internal";
-import { callHooks, hookErrorText, loadHookModules } from "noe:agent/hooks";
+import { defaults, instructions } from "noe:agent/internal";
+import { callHooks, loadHookModules } from "noe:agent/hooks";
 import { TaskHistory } from "noe:agent/history";
+import { rpc, isRecord } from "noe:agent/task-protocol";
+import { runJSTool, executeToolCall } from "noe:agent/run-js";
+import { executeToolWithHooks } from "noe:agent/tool-pipeline";
+
+// Preserve the existing private task-module entry point for direct consumers.
+export { executeToolWithHooks };
 
 const inherited = JSON.parse(defaults());
 const systemInstruction = instructions();
-
-const runJSTool = Object.freeze({
-  type: "function",
-  function: {
-    name: "run_js",
-    description: "Execute a JavaScript ES module with top-level await in a fresh owned runtime. Import agent operations explicitly, for example: import {spawn_agent} from 'noe:agent';. Export default to return JSON data. Results include stdout, stderr, exitCode, reason, and optional data/diagnostics. The complete model-facing result JSON has a shared 65536-byte budget, including metadata, JSON escaping, diagnostics, and hook results; larger results become explicitly incomplete outputPreview text with outputLimit metadata and original execution status. For oversized searches, narrow scope or return filenames/counts. When the required content itself is larger, add // @noe: {\"outputBytes\": 131072} in the initial line-comment block after the operation comment. outputBytes must be an integer from 1024 to 262144 bytes and also sets stdout/stderr capture size. Console output and default-export data use the same budget. Truncated streams retain their beginning and end. Do not blindly rerun side effects to retrieve output. On providers using raw JavaScript input, send the module source itself without JSON or code fences.",
-    parameters: {
-      type: "object",
-      properties: {
-        code: { type: "string", description: "An ES module containing the JavaScript to execute." },
-      },
-      required: ["code"],
-      additionalProperties: false,
-    },
-  },
-});
-
-async function rpc(method, payload) {
-  return JSON.parse(await request(method, JSON.stringify(payload)));
-}
-
-function isRecord(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 
 function requireString(value, label, allowEmpty = false) {
   if (typeof value !== "string" || (!allowEmpty && !value.trim())) {
@@ -90,162 +72,6 @@ function requireContextPolicy(value) {
     policy.responseReserveTokens = value.responseReserveTokens;
   }
   return policy;
-}
-
-function failedToolResult(message) {
-  return { stdout: "", stderr: "", exitCode: -1, reason: "failed",
-    diagnostics: [{code: "execution_error", stage: "setup", message}] };
-}
-
-function requireRunnerResult(value) {
-  if (!isRecord(value) || typeof value.stdout !== "string" || typeof value.stderr !== "string" ||
-      !Number.isInteger(value.exitCode) || !["completed", "failed", "timeout", "cancelled"].includes(value.reason)) {
-    throw new Error("runner returned an invalid tool result");
-  }
-  if (Object.hasOwn(value, "data")) {
-    const data = value.data;
-    const dataType = typeof data;
-    if (data === undefined || dataType === "function" || dataType === "symbol" ||
-        (dataType === "number" && !Number.isFinite(data))) {
-      throw new Error("runner returned invalid execution data");
-    }
-  }
-  if (value.diagnostics !== undefined) {
-    if (!Array.isArray(value.diagnostics)) throw new Error("runner returned invalid diagnostics");
-    for (const diagnostic of value.diagnostics) {
-      if (!isRecord(diagnostic) || typeof diagnostic.code !== "string" ||
-          typeof diagnostic.stage !== "string" || typeof diagnostic.message !== "string" ||
-          (diagnostic.stack !== undefined && typeof diagnostic.stack !== "string")) {
-        throw new Error("runner returned invalid diagnostics");
-      }
-      if (diagnostic.position !== undefined) {
-        const position = diagnostic.position;
-        if (!isRecord(position) ||
-            (position.source !== undefined && typeof position.source !== "string") ||
-            (position.line !== undefined && (!Number.isInteger(position.line) || position.line < 1)) ||
-            (position.column !== undefined && (!Number.isInteger(position.column) || position.column < 1))) {
-          throw new Error("runner returned invalid diagnostic position");
-        }
-      }
-      if (diagnostic.exception !== undefined && !isRecord(diagnostic.exception)) {
-        throw new Error("runner returned invalid exception details");
-      }
-    }
-  }
-  if (value.images !== undefined && value.images !== null) validateImageMetadata(value.images);
-  return value;
-}
-
-function validateImageMetadata(images) {
-  if (!Array.isArray(images)) throw new Error("runner returned invalid image metadata");
-  const seenIDs = new Set();
-  for (const image of images) {
-    if (!isRecord(image) || typeof image.imageId !== "string" || !image.imageId || seenIDs.has(image.imageId)) {
-      throw new Error("runner returned invalid image metadata");
-    }
-    seenIDs.add(image.imageId);
-  }
-  return images;
-}
-
-async function executeToolCall(runId, modelStepId, toolCall) {
-  if (!isRecord(toolCall.function)) {
-    return failedToolResult("tool call has no function object");
-  }
-  const fn = toolCall.function;
-  if (typeof fn.name !== "string" || !fn.name.trim()) {
-    return failedToolResult("tool call function name must be a nonempty string");
-  }
-  if (fn.name !== "run_js") {
-    return failedToolResult("unknown tool: " + fn.name);
-  }
-  if (typeof fn.arguments !== "string") {
-    return failedToolResult("run_js arguments must be a JSON string");
-  }
-
-  let args;
-  try {
-    args = JSON.parse(fn.arguments);
-  } catch (_) {
-    return failedToolResult("run_js arguments must contain valid JSON");
-  }
-  if (!isRecord(args)) {
-    return failedToolResult("run_js arguments must be an object");
-  }
-  if (typeof args.code !== "string") {
-    return failedToolResult("run_js code must be a string");
-  }
-
-  return requireRunnerResult(await rpc("run_js", { runId, modelStepId, toolCallId: toolCall.id, code: args.code }));
-}
-
-function parsedToolArguments(call) {
-  if (typeof call.function.arguments !== "string") return null;
-  try { return JSON.parse(call.function.arguments); } catch (_) { return null; }
-}
-
-// The wrapper is independent of the tool implementation. The model's full
-// original call remains in history; effective arguments and results are
-// recorded separately from actual execution facts.
-export async function executeToolWithHooks(loaded, event, toolCall, execute, onImages = undefined) {
-  if (onImages !== undefined && typeof onImages !== "function") {
-    throw new TypeError("onImages must be a function");
-  }
-  const fn = toolCall.function;
-  const toolName = typeof fn.name === "string" && fn.name.trim() ? fn.name : "<invalid>";
-  const originalArguments = typeof toolCall._noe_raw_input === "string"
-    ? toolCall._noe_raw_input : (fn.arguments === undefined ? null : fn.arguments);
-  const before = await callHooks(loaded, "beforeTool", {
-    ...event, toolCallId: toolCall.id, toolName,
-    rawArguments: originalArguments, arguments: parsedToolArguments(toolCall),
-  }, args => {
-    if (!isRecord(args)) throw new TypeError("tool arguments must be an object");
-    if (fn.name === "run_js" && (typeof args.code !== "string" || Object.keys(args).some(key => key !== "code"))) {
-      throw new TypeError("run_js hook arguments must contain only code: string");
-    }
-  });
-  const effectiveCall = before.changed ? {
-    ...toolCall, function: {...fn, arguments: JSON.stringify(before.event.arguments)},
-  } : toolCall;
-  const executedResult = await execute(effectiveCall);
-  let rawResult = executedResult;
-  let rawImages = [];
-  if (toolName === "run_js" && isRecord(executedResult) && Object.hasOwn(executedResult, "images")) {
-    rawImages = executedResult.images === null ? [] : validateImageMetadata(executedResult.images);
-    rawResult = {...executedResult};
-    delete rawResult.images;
-  }
-  const report = {
-    runId: event.runId, modelStepId: event.modelStepId,
-    toolCallId: toolCall.id, toolName,
-    rawArguments: originalArguments, arguments: before.event.arguments,
-    rawResult, rawImages,
-  };
-  let after;
-  try {
-    after = await callHooks(loaded, "afterTool", {
-      ...event, toolCallId: toolCall.id, toolName,
-      rawArguments: originalArguments, arguments: before.event.arguments,
-      result: rawResult, images: rawImages,
-    });
-  } catch (error) {
-    try {
-      await rpc("tool_result", {
-        ...report, result: null, images: [], modelResultAvailable: false, hookError: hookErrorText(error),
-      });
-    } catch (_) {
-      // Cancellation may already have closed admission. Keep the hook error.
-    }
-    throw error;
-  }
-  const result = after.changed ? after.event.result : rawResult;
-  const images = after.event.images === undefined ? rawImages : validateImageMetadata(after.event.images);
-  const recorded = await rpc("tool_result", {...report, result, images, modelResultAvailable: true});
-  if (!isRecord(recorded) || !Object.hasOwn(recorded, "result")) {
-    throw new Error("broker returned an invalid model tool output");
-  }
-  if (onImages !== undefined) onImages(images);
-  return recorded.result;
 }
 
 function validateToolCalls(message) {

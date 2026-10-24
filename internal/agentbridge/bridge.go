@@ -66,6 +66,12 @@ func moduleSource(specifier string) (string, bool) {
 		return decision.ModuleSource, true
 	case "noe:agent/task":
 		return core.TaskModuleSource, true
+	case "noe:agent/task-protocol":
+		return core.TaskProtocolModuleSource, true
+	case "noe:agent/run-js":
+		return core.RunJSModuleSource, true
+	case "noe:agent/tool-pipeline":
+		return core.ToolPipelineModuleSource, true
 	case "noe:agent/history":
 		return core.HistoryModuleSource, true
 	}

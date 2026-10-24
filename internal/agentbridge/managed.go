@@ -39,7 +39,10 @@ func attachOperation(ctx context.Context, view *stdlib.Bindings, host *core.Host
 	}
 	b := &Binding{rt: view.Runtime(), loop: view.Loop(), view: view, op: op, joinHostClose: joinHostClose,
 		closeDone: make(chan struct{}), hookScopes: make(map[string]hookScope)}
-	for _, id := range []string{"noe:agent", "noe:agent/api", "noe:agent/hooks", "noe:agent/task", "noe:agent/history", "noe:image", "noe:decision"} {
+	for _, id := range []string{
+		"noe:agent", "noe:agent/api", "noe:agent/hooks", "noe:agent/task", "noe:agent/history",
+		"noe:agent/task-protocol", "noe:agent/run-js", "noe:agent/tool-pipeline", "noe:image", "noe:decision",
+	} {
 		source, _ := moduleSource(id)
 		if err := view.DefineModule(id, source); err != nil {
 			b.Close()

@@ -61,6 +61,24 @@ func TestToolSourceRequiresExplicitAgentImport(t *testing.T) {
 			name: "explicit import",
 			code: `import {run_agent} from "noe:agent"; if (typeof run_agent !== "function") throw new Error("explicit agent import failed");`,
 		},
+		{
+			name: "private task tool modules",
+			code: `import {executeToolWithHooks as taskPipeline} from "noe:agent/task";
+import {executeToolWithHooks} from "noe:agent/tool-pipeline";
+import {runJSTool, executeToolCall} from "noe:agent/run-js";
+if (taskPipeline !== executeToolWithHooks) throw new Error("task pipeline compatibility export changed");
+if (runJSTool.function.name !== "run_js" || runJSTool.function.parameters.additionalProperties !== false) {
+  throw new Error("run_js tool schema changed");
+}
+const failed = await executeToolCall("unused", "unused", {
+  id: "bad-arguments", function: {name: "run_js", arguments: "{"},
+});
+if (failed.reason !== "failed" || failed.stderr !== "" ||
+    failed.diagnostics?.[0]?.stage !== "setup" ||
+    failed.diagnostics?.[0]?.message !== "run_js arguments must contain valid JSON") {
+  throw new Error("invalid run_js arguments no longer fail before execution");
+}`,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			operation := host.NewOperation(context.Background())

@@ -28,6 +28,15 @@ var HooksModuleSource string
 //go:embed js/task.js
 var TaskModuleSource string
 
+//go:embed js/task_protocol.js
+var TaskProtocolModuleSource string
+
+//go:embed js/run_js.js
+var RunJSModuleSource string
+
+//go:embed js/tool_pipeline.js
+var ToolPipelineModuleSource string
+
 //go:embed js/history.js
 var HistoryModuleSource string
 
