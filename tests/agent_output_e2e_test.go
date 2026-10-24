@@ -70,7 +70,7 @@ func checkModelOutputPreview(t *testing.T, result modelOutputPreview, exit int) 
 		reason = "failed"
 	}
 	limit := result.OutputLimit
-	if result.Execution.ExitCode != exit || result.Execution.Reason != reason || limit.LimitBytes != 3072 || limit.ReturnedBytes > 3072 || limit.OmittedBytes <= 0 || limit.Complete || limit.ShownBytes+limit.OmittedBytes != limit.SourceBytes {
+	if result.Execution.ExitCode != exit || result.Execution.Reason != reason || limit.LimitBytes != 10240 || limit.ReturnedBytes > 10240 || limit.OmittedBytes <= 0 || limit.Complete || limit.ShownBytes+limit.OmittedBytes != limit.SourceBytes {
 		t.Errorf("incorrect model projection: %+v", result)
 	}
 }

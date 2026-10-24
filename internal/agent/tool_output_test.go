@@ -13,20 +13,20 @@ func TestRunJSOutputBytes(t *testing.T) {
 		want       int64
 		invalid    bool
 	}{
-		{"default", "// Inspect files.\nexport default 1", 3072, false},
+		{"default", "// Inspect files.\nexport default 1", 10240, false},
 		{"operation and pragma", "// Inspect files.\n// @noe: {\"outputBytes\": 12288}\nexport default 1", 12288, false},
-		{"after code ignored", "export default 1\n// @noe: {\"outputBytes\": 1}", 3072, false},
+		{"after code ignored", "export default 1\n// @noe: {\"outputBytes\": 1}", 10240, false},
 		{"small", "// @noe: {\"outputBytes\": 1}", 1, false},
-		{"zero", "// @noe: {\"outputBytes\": 0}", 3072, true},
-		{"negative", "// @noe: {\"outputBytes\": -1}", 3072, true},
-		{"fraction", "// @noe: {\"outputBytes\": 1.5}", 3072, true},
-		{"unsafe", "// @noe: {\"outputBytes\": 9007199254740992}", 3072, true},
-		{"missing", "// @noe: {}", 3072, true},
-		{"null", "// @noe: null", 3072, true},
-		{"unknown", "// @noe: {\"outputBytes\": 99,\"other\": 1}", 3072, true},
-		{"malformed", "// @noe: {", 3072, true},
-		{"trailing", "// @noe: {\"outputBytes\": 99} {}", 3072, true},
-		{"duplicate", "// @noe: {\"outputBytes\": 99}\n// @noe: {\"outputBytes\": 90}", 3072, true},
+		{"zero", "// @noe: {\"outputBytes\": 0}", 10240, true},
+		{"negative", "// @noe: {\"outputBytes\": -1}", 10240, true},
+		{"fraction", "// @noe: {\"outputBytes\": 1.5}", 10240, true},
+		{"unsafe", "// @noe: {\"outputBytes\": 9007199254740992}", 10240, true},
+		{"missing", "// @noe: {}", 10240, true},
+		{"null", "// @noe: null", 10240, true},
+		{"unknown", "// @noe: {\"outputBytes\": 99,\"other\": 1}", 10240, true},
+		{"malformed", "// @noe: {", 10240, true},
+		{"trailing", "// @noe: {\"outputBytes\": 99} {}", 10240, true},
+		{"duplicate", "// @noe: {\"outputBytes\": 99}\n// @noe: {\"outputBytes\": 90}", 10240, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := runJSOutputBytes(tc.code)
@@ -34,6 +34,32 @@ func TestRunJSOutputBytes(t *testing.T) {
 				t.Fatalf("got %d,%v", got, err)
 			}
 		})
+	}
+}
+
+func TestProjectToolOutputDefaultBudget(t *testing.T) {
+	raw := json.RawMessage(`{"exitCode":0,"reason":"completed"}`)
+	for _, size := range []int{6000, 10240, 10241} {
+		source := json.RawMessage(`"` + strings.Repeat("x", size-2) + `"`)
+		for _, fallback := range []int64{0, -1} {
+			got, truncated, err := projectToolOutput(source, raw, fallback)
+			if err != nil || truncated != (size > 10240) {
+				t.Fatalf("size=%d fallback=%d truncated=%v err=%v", size, fallback, truncated, err)
+			}
+			if size <= 10240 {
+				if string(got) != string(source) {
+					t.Fatal("default budget changed a fitting result")
+				}
+				continue
+			}
+			var preview toolOutputPreview
+			if err := json.Unmarshal(got, &preview); err != nil {
+				t.Fatal(err)
+			}
+			if preview.OutputLimit.LimitBytes != 10240 || preview.OutputLimit.ReturnedBytes > 10240 || preview.OutputLimit.Complete {
+				t.Fatalf("incorrect default budget: %+v", preview.OutputLimit)
+			}
+		}
 	}
 }
 

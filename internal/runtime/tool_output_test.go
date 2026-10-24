@@ -21,10 +21,10 @@ func TestToolOutputProjectionAfterHooksAndIntoHistory(t *testing.T) {
  if (event.rawArguments !== "// Original raw JS.\nexport default 1;") throw Error("lost raw source");
  if (event.arguments.code !== event.rawArguments) throw Error("lost normalized code");
  const pragma=event.toolCallId === "expanded" ? '// @noe: {"outputBytes": 12288}\n' : '';
- return {arguments:{code:'// Execute effective code.\n'+pragma+'export default "actual".repeat(1000);'}};
+ return {arguments:{code:'// Execute effective code.\n'+pragma+'export default "actual".repeat(2000);'}};
 }
 export function afterTool(event) {
- if(event.result.data.length!==6000) throw Error("hook received limited result");
+ if(event.result.data.length!==12000) throw Error("hook received limited result");
  return {result:{hookValue:event.result.data,exitCode:99}};
 }`)
 	original := "// Original raw JS.\nexport default 1;"
@@ -100,14 +100,14 @@ console.log(result.lastResult.answer);`
 	if err := json.Unmarshal(modelResults["limited"], &limited); err != nil {
 		t.Fatal(err)
 	}
-	if limited.OutputLimit.LimitBytes != 3072 || limited.OutputLimit.ReturnedBytes > 3072 || limited.OutputLimit.OmittedBytes <= 0 || limited.OutputLimit.Complete || limited.Execution.ExitCode != 0 || limited.Execution.Reason != "completed" || !strings.Contains(limited.OutputPreview, `"hookValue"`) {
+	if limited.OutputLimit.LimitBytes != 10240 || limited.OutputLimit.ReturnedBytes > 10240 || limited.OutputLimit.OmittedBytes <= 0 || limited.OutputLimit.Complete || limited.Execution.ExitCode != 0 || limited.Execution.Reason != "completed" || !strings.Contains(limited.OutputPreview, `"hookValue"`) {
 		t.Fatalf("bad preview: %+v", limited)
 	}
 	var expanded struct {
 		HookValue string
 		ExitCode  int
 	}
-	if err := json.Unmarshal(modelResults["expanded"], &expanded); err != nil || len(expanded.HookValue) != 6000 || expanded.ExitCode != 99 {
+	if err := json.Unmarshal(modelResults["expanded"], &expanded); err != nil || len(expanded.HookValue) != 12000 || expanded.ExitCode != 99 {
 		t.Fatalf("per-call budget lost: %+v %v", expanded, err)
 	}
 	eventMu.Lock()
@@ -127,7 +127,7 @@ console.log(result.lastResult.answer);`
 			t.Fatalf("event differs from history: %s vs %s", result, modelResults[id])
 		}
 		raw, _ := json.Marshal(event["rawResult"])
-		if len(raw) < 6000 {
+		if len(raw) < 12000 {
 			t.Fatal("raw result truncated")
 		}
 		_, hookSaved := event["hookResult"]

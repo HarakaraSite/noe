@@ -2,7 +2,7 @@
 
 [ドキュメント一覧](README.md) · [JS検査](javascript-checks.md) · [API説明](reference.md) · [イベント](events.md)
 
-基本の実行結果はv2.3.0以降の契約です。モデル向け3 KiB制限はv2.4.0以降の契約です。v2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
+基本の実行結果はv2.3.0以降の契約です。モデル向け出力制限はv2.4.0で追加しました。v2.4.0の既定値は3 KiB、次版向けの現在の既定値は10 KiBです。v2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
 
 ## run_jsのデータ返却
 
@@ -33,15 +33,15 @@ defaultのPromise/thenableは待機します。default関数は自動で呼び�
 entry/defaultとLoop上の仕事が完了してからJSON化し、JSON化が追加した仕事も同じcontext/Loopで処理してから成功を確定します。JSON化を再実行しないため、その後の値の変更はsnapshotへ反映しません。後続仕事が失敗した場合はdataを破棄します。cleanupだけが失敗した場合は、確定済みdataとcleanup診断を返します。
 未処理例外や取消しによる後続失敗ではdataを破棄します。単にprocess.exitCodeが非zeroとなった場合は、その終了codeを返し、確定できたdataは保持します。dataを途中で切断して成功扱いにしたり、自動で全文artifactを保存したりはしません。大きな成果物はファイルへ保存して、小さな要約とpathを返せます。
 
-## モデル向け出力の3 KiB予算
+## モデル向け出力の10 KiB予算
 
-runnerの結果をafterToolへ渡した後、モデルへ送るJSON全体に既定3 KiB（3,072 UTF-8 bytes）の本文予算を適用します。stdout・stderr・data・diagnosticsと、hookが置換した任意JSONをまとめて数えます。例外内のcommand出力や長いstackも対象です。予算内なら返却形を変えません。超過時は次の専用envelopeになります。
+runnerの結果をafterToolへ渡した後、モデルへ送るJSON全体に既定10 KiB（10,240 UTF-8 bytes）の本文予算を適用します。stdout・stderr・data・diagnosticsと、hookが置換した任意JSONをまとめて数えます。例外内のcommand出力や長いstackも対象です。予算内なら返却形を変えません。超過時は次の専用envelopeになります。
 
 - `outputPreview`: 加工後JSON全体の先頭と末尾。不完全なJSONテキストなので完全なdataとしてparseしない。
 - `outputLimit`: `limitBytes`、`sourceBytes`、`shownBytes`、`omittedBytes`、`returnedBytes`、`complete:false`と絞込みの案内。
 - `execution`: 元runnerの`exitCode`・`reason`と短い`diagnosticSummary`。hookが作った任意fieldとは区別する。
 
-shown/omittedは元の加工後JSONの残したbytesと省いたbytesです。returnedはpreviewと診断summaryの本文bytesで、固定metadataとJSONエスケープは含みません。診断summaryは予算の最大1/4（既定768 bytes）、残りをpreviewに使います。stdout/stderrの既存64 KiB捕捉上限とは別です。JSONLの元結果や公開Go実行APIに、このモデル向け予算は適用しません。
+shown/omittedは元の加工後JSONの残したbytesと省いたbytesです。returnedはpreviewと診断summaryの本文bytesで、固定metadataとJSONエスケープは含みません。診断summaryの上限は予算の1/4と768 bytesの小さい方で、残りをpreviewに使います。stdout/stderrの既存64 KiB捕捉上限とは別です。JSONLの元結果や公開Go実行APIに、このモデル向け予算は適用しません。
 
 検索結果なら条件や対象を絞り、ファイル名や件数だけ返してから必要箇所を読みます。必要な本文自体が大きい場合は、呼出しごとに予算を明示できます。
 

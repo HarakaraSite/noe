@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 )
 
-const defaultToolOutputBytes int64 = 3 * 1024
+const defaultToolOutputBytes int64 = 10 * 1024
 
 // runJSOutputBytes reads only the initial line-comment block. The ordinary
 // operation comment can stay first, preserving its use in observation events.

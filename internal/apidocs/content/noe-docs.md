@@ -26,7 +26,7 @@ import { docs } from "noe:docs";
 
 `docs(topic?, member?) -> string` synchronously returns Markdown from the embedded catalog.
 
-- With no arguments, or an omitted/empty `topic`, it returns the topic index with kinds and summaries.
+- With no arguments, or an omitted/empty `topic`, it returns the topic index with kinds and short summaries, with CLI/JavaScript navigation.
 - With `topic`, it returns that topic's summary and its available detail member IDs.
 - With `topic` and `member`, it returns the shared summary and that member's detail.
 - `undefined` and an empty string are treated as omitted arguments. No more than two arguments are accepted.

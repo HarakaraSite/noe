@@ -1,10 +1,61 @@
 package apidocs
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"unicode/utf8"
 )
+
+// Use the real catalog and include console.log's newline plus the ordinary
+// run_js result envelope: the Markdown alone is not the model-facing size.
+func TestCatalogIndexFitsDefaultRunJSOutput(t *testing.T) {
+	index, err := Lookup("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	topics := Topics()
+	listed := 0
+	for _, line := range strings.Split(index, "\n") {
+		if strings.HasPrefix(line, "- `") {
+			listed++
+		}
+	}
+	if listed != len(topics) {
+		t.Fatalf("index lists %d topics; catalog has %d", listed, len(topics))
+	}
+	for _, topic := range topics {
+		if strings.Count(index, "- `"+topic.ID+"` (") != 1 {
+			t.Fatalf("canonical topic must appear exactly once: %s", topic.ID)
+		}
+		if !strings.Contains(index, "- `"+topic.ID+"` ("+topic.Kind+"): "+topic.Summary+"\n") {
+			t.Fatalf("index lost topic summary: %s", topic.ID)
+		}
+	}
+	for _, navigation := range []string{
+		"noe docs [topic [member]]",
+		"import { docs } from \"noe:docs\"",
+		"docs(topic, member)",
+	} {
+		if !strings.Contains(index, navigation) {
+			t.Fatalf("index lost navigation: %s", navigation)
+		}
+	}
+	result, err := json.Marshal(struct {
+		Stdout   string `json:"stdout"`
+		Stderr   string `json:"stderr"`
+		ExitCode int    `json:"exitCode"`
+		Reason   string `json:"reason"`
+	}{Stdout: index + "\n", Reason: "completed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const defaultOutputBytes = 10 * 1024
+	if len(result) > defaultOutputBytes {
+		t.Fatalf("docs() run_js result is %d bytes (index %d), exceeds %d", len(result), len(index), defaultOutputBytes)
+	}
+	t.Logf("topics: %d; index: %d UTF-8 bytes; run_js result JSON: %d bytes", len(topics), len(index), len(result))
+}
 
 func TestCatalogNavigationAndIsolation(t *testing.T) {
 	index, err := Lookup("", "")

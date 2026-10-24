@@ -10,7 +10,7 @@ noe docs node:child_process execFile
 noe docs noe:sockets connect
 ```
 
-引数なしで概要付きtopic一覧、topicを指定すると概要と詳細memberの一覧、memberも指定するとtopic名・短い概要・該当する型宣言/availabilityの条件と指定detailを表示します。member取得では全overviewや他memberの説明を繰り返しません。返却objectの操作も、表示されたIDで参照できます。
+引数なしで全canonical topic IDとkind・短い概要・CLI/JSの参照方法を載せた一覧、topicを指定すると概要と詳細memberの一覧、memberも指定するとtopic名・短い概要・該当する型宣言/availabilityの条件と指定detailを表示します。member取得では全overviewや他memberの説明を繰り返しません。返却objectの操作も、表示されたIDで参照できます。
 
 ```sh
 noe docs noe:fs-handle FileHandle.readAt
