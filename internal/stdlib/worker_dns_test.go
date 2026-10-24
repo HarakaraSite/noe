@@ -39,7 +39,7 @@ func TestBindLoopCopiesDNSAndDeliversOnChildLoop(t *testing.T) {
 
 	parentDNS := &DNS{Loop: parentLoop, Resolver: loopDNSResolver{}, Servers: []string{"192.0.2.53"}}
 	cfg := Config{DNS: parentDNS}
-	cfg.bindLoop(childLoop)
+	cfg.bindWorkerLoop(childLoop)
 	if cfg.DNS == parentDNS || cfg.DNS.Loop != childLoop {
 		t.Fatal("worker DNS was not copied and rebound to its loop")
 	}

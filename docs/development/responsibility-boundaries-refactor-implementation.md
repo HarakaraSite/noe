@@ -8,8 +8,8 @@
 | --- | --- | --- |
 | S1 | command/task状態遷移 | 関連試験・独立レビュー完了、P2以上0 |
 | S2 | Profile設定・loader・実行寿命 | 関連試験・独立レビュー完了、P2以上0 |
-| S3 | Worker設定継承・VM起動停止 | 実装中（S2の完了後に着手） |
-| S4 | messaging codec/broadcast/Worker通知境界 | 未着手（S3後） |
+| S3 | Worker設定継承・VM起動停止 | 関連試験・独立レビュー完了、P2以上0 |
+| S4 | messaging codec/broadcast/Worker通知境界 | 実装中（S3の完了後に着手） |
 | S5 | JS run_js adapter・tool pipeline | 関連試験・独立レビュー完了、P2以上0 |
 
 検証ログの親ディレクトリ：`/var/tmp/noe-boundaries-KVDans`。各担当の詳細ログは該当sliceへ追記する。実行ログ・既存の未追跡ファイル・配布済みバイナリは変更/コミットしない。
@@ -39,6 +39,17 @@
 - `go test ./internal/jsexec ./stdlib -count=1`：成功。保存済みログ `/var/tmp/noe-s2-profile-refactor/related-tests.log` を回復後に確認した。ソースが変わっていないため同じ全関連suiteを形式的に再実行しない。
 - 追加した `TestBindingsLoaderSharesCloseState` は、抽出したloaderがBindingsのCloseを共有し、Prepare後のmodule追加、二度目のPrepare拒否、Close後の登録/解決を既存契約どおり扱うことを確認する。
 - 回復後に独立code reviewerが追跡差分・新規ファイル・呼出し元・成功ログを照合し、P2以上0件。必須修正なし。
+
+## S3: Worker設定継承とVM起動停止
+
+- `Config.forWorker` が子設定を生成し、`Config.bindWorkerLoop` が子runtime所有goroutineでcapabilityをコピー/再bindする。`worker_config.go` に設定生成・再bind・worker状態継承・writer共有方針を集約した。
+- `worker_runtime.go` がVM生成、legacy/Profile installer選択、entry評価、例外のGo data化、終了・cleanupを担当する。`worker.go` はAPI登録、親側handle、max/ref、通知とjoinを担当する。
+- 元の処理本文と比較し、receiver/呼出し名の変更を除く等価性を確認。FS backend/workermax/writerは共有、argv/env/Process/DNS Servers等は従来粒度でコピーし、Serve upgradeとSocketsの子接続も維持する。
+- 設定入口の抽出に伴い、子のFS backend共有とServe/Socketsの分離・親upgrade callbackの保全を直接確認する試験を追加した。既存DNS/環境試験は新しいConfig側入口へ接続した。
+- `go test ./internal/stdlib -run 'TestWorker|TestWebWorker|TestWorkers|TestLoop|TestBindLoopCopiesDNSAndDeliversOnChildLoop|TestChildConfig|TestLegacyChildConfig' -count=1 -timeout=120s -v`：成功。
+- `go test ./internal/jsexec ./stdlib -run 'Test.*Worker' -count=1 -timeout=120s -v`：成功。両経路、nested、empty stdin、共有max、port.close後のイベントと実終了joinを既存fixtureで確認。
+- ログ：`/var/tmp/noe-boundaries-KVDans/s3/`。関連試験、operation-equivalence、最終format/diff checkの成功を記録した。
+- 独立code reviewerがsharing/copy、両installer、例外変換、cleanup→exit→wh.doneの接続と責務境界を照合し、P2以上0件。必須修正なし。
 
 ## S5: task loopとtool処理の境界
 

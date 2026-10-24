@@ -7,13 +7,13 @@ import (
 
 func TestChildConfigCarriesEnvironmentWithoutProcessInfo(t *testing.T) {
 	parentEnv := map[string]string{"PARENT": "yes"}
-	host := &workerHost{cfg: Config{
+	parent := Config{
 		environmentCwd:  "/virtual",
 		environmentArgs: []string{"node", "parent.mjs"},
 		environmentEnv:  parentEnv,
-	}}
+	}
 	workerEnv := map[string]string{"WORKER": "yes"}
-	child := host.childConfig(&workerContext{}, "ignored", workerOptions{
+	child := parent.forWorker(&workerContext{}, "ignored", workerOptions{
 		Eval: true, Argv: []string{"child-arg"}, Env: workerEnv, HasEnv: true,
 	})
 	cwd, args, env := ExecutionEnvironment(child)
@@ -37,12 +37,12 @@ func TestChildConfigCarriesEnvironmentWithoutProcessInfo(t *testing.T) {
 
 func TestLegacyChildConfigInheritsAndCopiesProcessEnvironment(t *testing.T) {
 	parentEnv := map[string]string{"PARENT": "yes"}
-	host := &workerHost{cfg: Config{Process: &Process{
+	parent := Config{Process: &Process{
 		Args: []string{"node", "parent.mjs"},
 		Env:  parentEnv,
-	}}}
+	}}
 
-	child := host.childConfig(&workerContext{}, "ignored", workerOptions{Eval: true})
+	child := parent.forWorker(&workerContext{}, "ignored", workerOptions{Eval: true})
 	if child.Process == nil || child.Process.Env["PARENT"] != "yes" {
 		t.Fatalf("omitted worker env did not inherit the parent: %#v", child.Process)
 	}
@@ -55,7 +55,7 @@ func TestLegacyChildConfigInheritsAndCopiesProcessEnvironment(t *testing.T) {
 	}
 
 	workerEnv := map[string]string{"WORKER": "override"}
-	overridden := host.childConfig(&workerContext{}, "ignored", workerOptions{Eval: true, Env: workerEnv, HasEnv: true})
+	overridden := parent.forWorker(&workerContext{}, "ignored", workerOptions{Eval: true, Env: workerEnv, HasEnv: true})
 	if len(overridden.Process.Env) != 1 || overridden.Process.Env["WORKER"] != "override" {
 		t.Fatalf("worker env override = %#v", overridden.Process.Env)
 	}
