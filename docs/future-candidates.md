@@ -1,9 +1,10 @@
 # NOE 次の機能候補
 
-2026-10-21、現行ソース（照合開始時 `0f07f2f`）・関連テスト・利用ガイド・v1.16.0までのリリース記録と照合して整理しました。
+2026-10-21にソース（照合開始時 `0f07f2f`）・関連テスト・利用ガイド・v1.16.0までのリリース記録を棚卸しし、その後の実装を追記しています。
+2026-10-24に `1bad24a` を基準として、公開Go API、agentの同一プロセス内実行、stdlibの公開状況、実行結果と出力予算を再照合しました。今回は関連コード・利用ガイド・v2.4.0までのリリース記録の選択的な確認であり、全候補や外部サービスの最新状況を再調査したものではありません。
 `<完了>`は合意した範囲を実装済み、`<一部完了>`は実装済み部分と残る候補がある状態、`<未完了>`は検討・未着手を表します。未完了は実装の決定や優先順位を意味しません。
 
-上記の棚卸し時点では、テストコードと既存の検証記録を読みましたが、テストの再実行・実プロバイダー接続・新しいリリースは行いませんでした。同日のv2実装と検証は、該当完了項目と実装記録へ別途反映しています。本文の過去の検証結果と、今回確認したコードの存在は区別します。実装済みの範囲、公開状況、保留中の拡張も分けて記載します。
+上記の棚卸し時点では、テストコードと既存の検証記録を読みましたが、テストの再実行・実プロバイダー接続・新しいリリースは行いませんでした。同日のv2実装と検証は、該当完了項目と実装記録へ別途反映しています。2026-10-24の再照合も文書整理であり、製品コード変更・テスト再実行・実プロバイダー接続・リリースは行っていません。本文の過去の検証結果と、今回確認したコードの存在は区別します。実装済みの範囲、公開状況、保留中の拡張も分けて記載します。
 
 現在の仕様は各利用ガイドを参照してください。実装前の案・旧API・当時の判断は[検討履歴](archive/future-candidates-history.md)へ保存しました。履歴にある未実装記述を現在の残件とは扱いません。
 
@@ -11,13 +12,15 @@
 
 | 分類 | 件数 | 状況 |
 | --- | ---: | --- |
-| [完了](#completed) | 22 | 合意した範囲のコード・利用経路あり。範囲外の拡張は別候補 |
-| [一部完了](#partially-completed) | 7 | 実装済み部分と、保留・未整備の範囲を本文で区別 |
+| [完了](#completed) | 23 | 合意した範囲のコード・利用経路あり。範囲外の拡張は別候補 |
+| [一部完了](#partially-completed) | 6 | 実装済み部分と、保留・未整備の範囲を本文で区別 |
 | [未完了](#not-completed) | 10 | 検討・未着手・意図的な保留。実装を決定した一覧ではない |
 
 第3階層の候補見出し単位で集計し、Jevの応用例を1件として含めます。観察機能の内訳である「外部JS案」は別件に数えません。旧REPLの判断は履歴1件として集計外です。主な更新は、Zed環境を未完了から一部完了へ変更、NOE側の同期コマンド改善を上流PRから分離、再委譲制限と結果取得のv1.16.0公開状況の反映です。
 
-同日の追加依頼で[TypeScript対応の検討メモ](#typescript)を未完了候補へ追記し、件数へ反映しました。2026-10-24にZedの型宣言追随と再利用ガイドを完了し、一部完了から完了へ移しました。
+2026-10-21の追加依頼で[TypeScript対応の検討メモ](#typescript)を未完了候補へ追記し、件数へ反映しました。2026-10-24にZedの型宣言追随と再利用ガイドを完了し、一部完了から完了へ移しました。同日の再照合で、v2公開済みの[NOE版stdlib](#noe-stdlib)も完了へ移し、旧実行方式を現行の残件から除きました。
+
+公開済み版は[v2.4.0](releases/v2.4.0.md)です。モデル向け出力予算はv2.4.0が既定3 KiB、このcheckoutの開発版が既定10 KiBであり、stdout/stderrの捕捉上限とは別です。[実行結果ガイド](execution-results.md)で版と契約を区別します。現行の責務・実行経路は[Agent内部の構成](development/agent-architecture.md)、過去の計画・検証は各実装記録を参照してください。
 
 <a id="completed"></a>
 
@@ -86,7 +89,7 @@ CLI単体テスト、観察とCLI入口の重点E2E、`go vet ./internal/cli`が
 | `observe_agent({agentId, includeAnswer?})` | live snapshotを即時取得。既定で完了結果も含む。`includeAnswer:false`で回答を省略。liveに`wait`・cursorは指定しない |
 | `observe_agent({logPath, runId, cursor?, ...})` | 保存JSONLから状態・差分・結果を取得。こちらは`wait`も指定可能 |
 | `steer_agent({runId, instruction, ...})` | 実行中taskへ追加指示を受領。次のモデル判断前に反映 |
-| `interrupt_agent({runId})` / `interrupt_agent({agentId})` | task単位の取消し、またはinstanceと予約の停止 |
+| `cancel_task({agentId, commandId})` / `stop_agent({agentId})` | 受理済みcommand一件の取消し、またはinstanceと残るqueueの停止。旧`interrupt_agent`はv2で置換 |
 | `queue_agent({agentId, instruction, ...})` | 待受instanceへ次taskを予約 |
 | `wait_task({agentId, commandId, includeAnswer?})` | 初期・queue taskの個別結果を待つ。再取得可能。`includeAnswer:false`で回答を省略し`answerBytes`を取得 |
 | `read_task_result({agentId, commandId, offset?, maxBytes?})` | 完了したtaskの保持済み原文をUTF-8 byte範囲で取得。`nextOffset`から続行 |
@@ -200,15 +203,15 @@ JS全文と利用可能な例外詳細をイベントへ保持します。`run_j
 
 ### <完了> internal/agentの責務整理
 
-provider、runner、観察、instanceとtask、JS側の公開API／loop／履歴／hookなどへ責務を整理しました。[構成ガイド](development/agent-architecture.md)・[実装記録](development/agent-refactor-implementation.md)を参照してください。今後の変更場所も構成ガイドを入口にします。
+公開Go APIの`agent.Host`／`Client`、内部の所有・instance/task管理、JS側の公開API／loop／履歴／hook、provider接続、同一プロセス内の実行層へ責務を分けています。現行の変更場所は[構成ガイド](development/agent-architecture.md)を入口にします。[旧配置整理の実装記録](development/agent-refactor-implementation.md)は当時の構成の履歴であり、現在のrunnerやHTTP brokerの存在を示すものではありません。
 
-照合根拠：[`internal/agent`](../internal/agent/)のprovider・runner・instance/task・JS各層と、公開接続を共用する[`internal/agentbridge/bridge.go`](../internal/agentbridge/bridge.go)。
+照合根拠：[`agent/host.go`](../agent/host.go)、[`internal/agent`](../internal/agent/)のprovider・instance/task・JS各層、[`internal/agentexec/executor.go`](../internal/agentexec/executor.go)と、公開接続を共用する[`internal/agentbridge/bridge.go`](../internal/agentbridge/bridge.go)。
 
 ### <完了> agentのアプリ内runtime実行 — 2026-10-20
 
-2026-10-21、利用者が破壊的API変更を含む分離案と[11スライスの実装計画](development/v2-agent-runtime-implementation-plan.md)を承認し、各sliceの実装・対象試験・独立review・修正を実施しました。公開`agent.Host`/`Client`が同じGoプロセス内のfreshなstdlib runtimeでtask/toolを動かし、別NOE実行ファイルは不要です。旧`agent.Install`・内部HTTP RPC・Connection・別NOE Runnerは撤去しました。v2の公開・releaseは行っていません。
+2026-10-21、利用者が破壊的API変更を含む分離案と[11スライスの実装計画](development/v2-agent-runtime-implementation-plan.md)を承認し、各sliceの実装・対象試験・独立review・修正を実施しました。公開`agent.Host`/`Client`が同じGoプロセス内のfreshなstdlib runtimeでtask/toolを動かし、別NOE実行ファイルは不要です。旧`agent.Install`・内部HTTP RPC・Connection・別NOE Runnerは撤去しました。この構成はv2.0.0で公開済みで、v2.4.0のCLI・公開Go moduleでも利用できます。[移行ガイド](v2-migration.md)・[公開検証記録](releases/release-checkpoints.md#v200-release-validation--2026-10-21)。
 
-stdlibはProfile・VM/Loop・loader・共通FS/I/Oと回収、agentは会話・session・所有・queue・hook・model/auth/log、NOEは既定場所・環境選択・Policy・instruction directory・人間用control・event保存を担当します。model/auth/logはHostなしでも利用できます。設計の正本は[API/移行契約](development/v2-api-redesign.md)と[責務台帳](development/v2-responsibility-boundaries.md)、進捗・検証・review採否は[実装記録](development/v2-implementation.md)を参照してください。
+stdlibはProfile・VM/Loop・loader・共通FS/I/Oと回収、agentは会話・session・所有・queue・hook・model/auth/log、NOEは既定場所・環境選択・Policy・instruction directory・人間用control・event保存を担当します。model/auth/logはHostなしでも利用できます。現行の利用契約は[Go agent組込みガイド](go-agent-embedding.md)と[stdlib組込みガイド](go-embedding.md)、内部の配置は[構成ガイド](development/agent-architecture.md)を参照してください。v2移行時の設計・責務分離の判断は[API/移行契約](development/v2-api-redesign.md)と[責務台帳](development/v2-responsibility-boundaries.md)、当時の進捗・検証・review採否は[実装記録](development/v2-implementation.md)に残します。
 
 初期の別process方式を選択可能にする案、8slice、内部RPC維持は採用しませんでした。承認後の新構成を[Go agent組込みガイド](go-agent-embedding.md)と[stdlib組込みガイド](go-embedding.md)へ反映しました。
 
@@ -234,31 +237,28 @@ TypeScript 5.9.3で既存runnerとガイドから作った単発/keepAlive runne
 
 Linux amd64でローカルMCPの初期化/一覧/並列呼出し、Exaエントリのfixture、実Exaの初期化と一覧、デーモンの分割/並行/不正要求・SIGTERMを確認。実Exaの検索や有料要求は行っていない。[実装・検証記録](development/mcp-daemon-examples.md)を参照。Go製品コード・go.mod/go.sum・上流は変更していない。
 
-<a id="partially-completed"></a>
+<a id="noe-stdlib"></a>
+<a id="一部完了-noe版stdlibの実装--2026-10-19"></a>
 
-## 一部完了（実装済み範囲と残件）
+### <完了> NOE版stdlibの実装・公開 — 2026-10-24
 
-### <一部完了> タスクループの完了待ちと観察 — 2026-10-20
+「go-quickjsエンジン＋NOE管理のライブラリ群＋それらを組み立てるNOE実行コマンド」という構成を実装済みです。ステップ1〜7.2の取り込み・API組立・Go公開入口に加え、v2で同一プロセス内のagent実行へ移行し、`/v2` Go moduleを公開しました。v1系での常用判断とv2公開を、現在の未完了作業として残しません。[v2.0.0](releases/v2.0.0.md)・[v2.4.0の公開検証](releases/release-checkpoints.md#v240-release-validation--2026-10-24)。
 
-利用者の当面の運用方針として、親NOEを`--events`付きで起動する。親・子・孫・同じinstanceのqueue taskは共通のJSONLへ記録し、必要なrunを`runId`で選んで読む。通常の状態確認には`observe_agent({agentId})`、thinking等の詳細確認には`observe_agent({logPath, runId, includeThinking: true, cursor?})`を併用する。単独`--events`での自動保存先は、起動時のcwdの`.noe/events/*.jsonl`として実装済み。保存は引き続き`--events`で選択し、常時保存へ変更する方針ではない。[イベント記録](events.md)・[観察API](observe.md)。
+公開`forge.harakara.site/littleisland/noe/v2/stdlib`は汎用runtime・Profile・VM/Loop・loader・I/Oと回収を提供し、公開`agent`はHost／Clientとagent機能を追加します。同じrepository/root moduleの入口であり、別repositoryへの分離や別NOE実行ファイルは不要です。task／toolは同じGoプロセス内の新しいstdlib runtimeで実行します。[stdlib組込み](go-embedding.md)・[agent組込み](go-agent-embedding.md)。
 
-**完了待ち・保持結果の取得は完了。残る候補は、JSONL保存なしの実行途中の詳細ログ保持・live取得であり、当面保留する。**完了結果については2026-10-21の追加合意で、`wait_task`・live `observe_agent`の`includeAnswer:false`と、保持済み原文の範囲取得`read_task_result`を実装し、v1.16.0で公開した。原文の保持・寿命は維持し、追加モデルによる要約は行わない。`wait_task({agentId, commandId})`は実装済み。queueの受付・FIFO・人間向けCLIを維持し、特定タスクの保持済み結果を完了通知で待つ。初期タスクのIDも`spawn_agent`から返し、通常のJS・run_js・hookから利用できる。待機専用イベントは追加しない。[API](api.md)。
+エンジンは正式go-quickjs v0.28.0を固定し、汎用APIはv0.27.0のstdlibを原型とするNOE管理実装です。エンジン依存とstdlibの出自を区別し、上流stdlibの全面追随を前提にしません。`internal/noestdlib`が汎用APIを組み立て、`internal/noeprofile`と`internal/runtime`がNOE固有の設定・実行経路を接続します。
 
-照合根拠：[`task_wait.go`](../internal/agent/task_wait.go)・[`task_wait_direct_test.go`](../internal/agent/task_wait_direct_test.go)・[`Go Host検証`](../agent/host_test.go)。自動保存先は[`internal/cli/events.go`](../internal/cli/events.go)。
-
-### <一部完了> NOE版stdlibの実装 — 2026-10-19
-
-利用者が進めたい方向として、「go-quickjsエンジン＋NOEのライブラリ群＋それらを組み立てるNOE実行コマンド」という構成を目指す。NOE版stdlibとagent拡張を、NOE自身も利用するライブラリ群として育てる。将来は他のGoプロジェクトがimportし、go-quickjsのruntimeに汎用APIとagent機能を選択して組み込める構成にする。**実装面はステップ1〜7.2まで完了**し、汎用Go入口を7.1、agent拡張の接続を7.2で実装・検証済み。残るのはv1系での常用・安定性判断とv2公開であり、未決定のAPI改名を実装の必須残件にはしない。7.1/7.2を含むCLIはv1.14.0以降で公開済みだが、v2 Go moduleの公開とは区別する。
-
-現行はgo-quickjsをJavaScriptエンジンに使い、Goの公開`forge.harakara.site/littleisland/noe/v2/stdlib`から内部composerを通じてJSの汎用APIとNOE独自APIを登録する構成へ切り替えた。NOE独自機能もGoとJSで実装され、`internal/nativeio`・`internal/agent`などの内部packageと`internal/runtime`の登録・実行制御に分かれている。外部Go向け入口は同じrepository/root moduleで実装し、別repository・別Go moduleへ分離しない。
-
-実装の土台は、固定版go-quickjsのstdlibを取り込み、NOE側で拡張・保守するforkとする。既存のWeb型、Streams、HTTP・WebSocket連携、loopとテストを活用し、上流への変更や新機能の全面追随を前提にしない。エンジンは引き続きgo-quickjsを利用する。ステップ1でstdlibと`internal/wsproto`を取り込み、非公開の`internal/hostaccess`への依存は公開評価APIへ適合させた。全機能の自前実装や既存機能の一括移動は決定していない。
-
-通常のHTTP用途と要求・応答のストリーミングは`noe:http`を推奨入口とし、既存の`fetch`・`serve`・`node:http`も維持する。入口の共有をステップ3、要求送信・受信のストリーミングを4・5、API登録と資源管理の境界を6で実装した。Web型・Streams・WebSocket・loopは共通実装を利用し、上流版とNOE版を別々に導入する構成ではない。
+通常のHTTP用途と要求・応答のストリーミングは`noe:http`を推奨入口とし、既存の`fetch`・`serve`・`node:http`も維持します。Web型・Streams・WebSocket・loopは共通実装を利用します。後続の低レベルAPI拡張は[別候補](#一部完了-汎用の低レベルapi拡張と優先順位--2026-10-18)です。
 
 公開名は実装の出自と分けて考える。Web標準の型・共通機能は標準名を維持し、NOEが設計するAPIは`noe:`を正式な入口にする。`node:fs`は当面維持し、NOEとして仕様を整える段階で`noe:fs`を正式名、`node:fs`を同じ実装を参照する互換エイリアスにする案を持つ。将来は`noe:fs-handle`を`noe:fs`へ統合することも検討し、ハンドルの表現・読み書き・closeの契約と旧入口の互換性を整理する。エイリアスなら振る舞いも共通になり、互換動作に差が必要な部分だけ別途扱う。一律の改名は行わず、具体的な範囲・時期は未決定。
 
-汎用stdlibとagent拡張は公開`stdlib`・`agent` packageで選択して利用できる。agent拡張は明示した別NOE実行ファイルと、認証・観察・終了管理を持つbindingへ接続する。アプリ内だけでagent taskを実行する方式は、この完了範囲に含めず別候補とする。次のステップ1〜6と7.1・7.2は実装・検証完了し、v2公開と常用の安定性判断は後続。
+上記のAPI改名・統合案は未採用の後続候補であり、実装・公開済みのstdlibを未完了へ戻す条件ではありません。
+
+照合根拠：[`stdlib/stdlib.go`](../stdlib/stdlib.go)・[`agent/host.go`](../agent/host.go)・[`internal/noestdlib`](../internal/noestdlib/noestdlib.go)・[`internal/agentexec/executor.go`](../internal/agentexec/executor.go)。外部consumerのコードは[`stdlib/consumer_test.go`](../stdlib/consumer_test.go)・[`agent/consumer_test.go`](../agent/consumer_test.go)、実際の公開module検証は[リリース記録](releases/release-checkpoints.md)にあります。
+
+#### v1系での段階記録（履歴）
+
+以下は2026-10-19〜21の段階案と当時の検証結果です。「v2公開は後続」「次のステップへ残す」等は当時の状態であり、現在の未完了事項や実行方式ではありません。元の計画・実装・検証記録は変更せず残します。現在の構成・公開状況は上記の要約と利用ガイドを参照してください。
 
 利用者の追加方針（2026-10-19）：まずv1.13.0を常用し、見つかった小さなバグを修正して問題なさそうと判断できてからv2.0.0にする。公開済みv1.13.0はステップ6までの実装とステップ7の計画を含む。その後の追加依頼で7.1と7.2の実装・テスト・コードレビュー・総合テストを完了した。v2公開や常用確認完了は今回の実装完了と区別する。
 
@@ -292,9 +292,17 @@ Linux amd64でローカルMCPの初期化/一覧/並列呼出し、Exaエント�
 
 ステップ7は[外部Goライブラリ提供計画](development/stdlib-step7-library-plan.md)を作成し、[独立した通常の計画レビュー](development/stdlib-step7-library-review.md)を完了。初回のP0〜P3は0件。7.1をmodule移行・公開facade・外部consumer/artifact・NOE切替/英文ガイド・総合確認の5スライスに分割し、7.2のagent接続は汎用公開の成立後に別計画とする。その後の追加依頼で7.1の5スライスを実装し、独立コードレビューのP2以上は0件、全体unit/race/E2E/vet・外部consumer/local artifact・6対象compile・実プロバイダ基本フローが成功。[実装・検証記録](development/stdlib-step7-library-implementation.md)と[構造化結果](development/stdlib-step7-library-results.json)へ保存。7.2は[agent外部接続計画](development/stdlib-step72-agent-plan.md)を6スライスで作成し、[独立した通常レビューと限定再レビュー](development/stdlib-step72-agent-review.md)を完了。公開設定にregistryで無視されるProfileを含めたP2を解消し、最終P0〜P3は0件。利用者の追加依頼により7.2の6スライスも実装・検証完了。独立コードレビューでlive consumerの完了判定に関するP2を修正し、限定再レビューでP0〜P3は0件。全体unit/race/E2E/vet・外部consumer/local artifact・6対象compile・実provider基本フローが成功。[実装記録](development/stdlib-step72-agent-implementation.md)と[構造化結果](development/stdlib-step72-agent-results.json)に保存した。v2公開・常用の安定性判断は未実施。
 
-`noe:fs`への正式名変更や`noe:fs-handle`の統合は、HTTP整備・ライブラリ公開とは独立した後続作業とする。汎用stdlibの外部利用が成立してからagent拡張の接続を段階的に整え、全APIの改名や統合をv2.0.0の必須条件にはしない。
+<a id="partially-completed"></a>
 
-照合根拠：[`stdlib/stdlib.go`](../stdlib/stdlib.go)・[`agent/agent.go`](../agent/agent.go)・[`internal/noestdlib`](../internal/noestdlib/noestdlib.go)。外部consumerの確認は[`stdlib/consumer_test.go`](../stdlib/consumer_test.go)・[`agent/consumer_test.go`](../agent/consumer_test.go)、HTTP逐次送受信は[`http_upload_test.go`](../internal/runtime/http_upload_test.go)・[`http_receive_test.go`](../internal/runtime/http_receive_test.go)。CLI公開とv2未公開の区別は[リリース記録](releases/release-checkpoints.md)にも記録。
+## 一部完了（実装済み範囲と残件）
+
+### <一部完了> タスクループの完了待ちと観察 — 2026-10-20
+
+利用者の当面の運用方針として、親NOEを`--events`付きで起動する。親・子・孫・同じinstanceのqueue taskは共通のJSONLへ記録し、必要なrunを`runId`で選んで読む。通常の状態確認には`observe_agent({agentId})`、thinking等の詳細確認には`observe_agent({logPath, runId, includeThinking: true, cursor?})`を併用する。単独`--events`での自動保存先は、起動時のcwdの`.noe/events/*.jsonl`として実装済み。保存は引き続き`--events`で選択し、常時保存へ変更する方針ではない。[イベント記録](events.md)・[観察API](observe.md)。
+
+**完了待ち・保持結果の取得は完了。残る候補は、JSONL保存なしの実行途中の詳細ログ保持・live取得であり、当面保留する。**完了結果については2026-10-21の追加合意で、`wait_task`・live `observe_agent`の`includeAnswer:false`と、保持済み原文の範囲取得`read_task_result`を実装し、v1.16.0で公開した。原文の保持・寿命は維持し、追加モデルによる要約は行わない。`wait_task({agentId, commandId})`は実装済み。queueの受付・FIFO・人間向けCLIを維持し、特定タスクの保持済み結果を完了通知で待つ。初期タスクのIDも`spawn_agent`から返し、通常のJS・run_js・hookから利用できる。待機専用イベントは追加しない。[API](api.md)。
+
+照合根拠：[`task_wait.go`](../internal/agent/task_wait.go)・[`task_wait_direct_test.go`](../internal/agent/task_wait_direct_test.go)・[`Go Host検証`](../agent/host_test.go)。自動保存先は[`internal/cli/events.go`](../internal/cli/events.go)。
 
 <a id="一部完了-汎用の低レベルapi拡張と優先順位--2026-10-18"></a>
 
@@ -394,11 +402,11 @@ TS 7.0は公式コンパイラのGo移植が中心で、版番号だけを理由
 
 変換成功だけでNOE上の動作保証にはならない。対象engineの実装済み構文は活かし、必要な機能を変換する設定を決める。esbuildにはQuickJS専用targetがなく、`target`・`supported`は構文互換性の指定であり、不足するWeb/Node APIを自動追加しない。TS対応によりnpm探索やNode/Deno完全互換が付くわけではない。[targetの仕様](https://esbuild.github.io/api/#target)。
 
-QuickJS-NGは最新のECMAScript仕様への追随を目指し、test262への適合状況を案内している。NOEが固定するgo-quickjs v0.27.0は、class/private field・async/await・ES modules/top-level await・`using`、Intl、Temporal等の実装を記載し、decoratorを未実装としている。同版docsのtest262報告は、指定commitの対象99,979 variants中99,637成功・失敗0・342 skip。これは上流の対象範囲付き報告であり、今回NOEで試験を再実行した結果や、全Web/Node API互換の証明ではない。QuickJS-NGのIntl非対応方針と、go-quickjsのIntl実装も区別する。[QuickJS-NGの方針](https://quickjs-ng.github.io/quickjs/es_features/)・[go-quickjs v0.27.0の対応状況](https://github.com/go-quickjs/go-quickjs/blob/v0.27.0/docs/status.md)。
+QuickJS-NGは最新のECMAScript仕様への追随を目指し、test262への適合状況を案内している。2026-10-21の検討時に参照したgo-quickjs v0.27.0は、class/private field・async/await・ES modules/top-level await・`using`、Intl、Temporal等の実装を記載し、decoratorを未実装としている。同版docsのtest262報告は、指定commitの対象99,979 variants中99,637成功・失敗0・342 skip。これは上流の対象範囲付き報告であり、今回NOEで試験を再実行した結果や、全Web/Node API互換の証明ではない。QuickJS-NGのIntl非対応方針と、go-quickjsのIntl実装も区別する。[QuickJS-NGの方針](https://quickjs-ng.github.io/quickjs/es_features/)・[go-quickjs v0.27.0の対応状況](https://github.com/go-quickjs/go-quickjs/blob/v0.27.0/docs/status.md)。
 
 具体的な接続課題は、入口だけでなくimport先の`.ts`を変換するloader、ESM/import mapとmodule IDの整合、class field/decorator等の変換設定、および元のTS位置を返す診断。go-quickjs v0.27.0には`WithSourceMaps`があるため、変換結果のmapと組み合わせる案を考える。main・eval・Worker・agentの実行経路をどこまで同時に対応させるか、変換中の取消しや既存の資源所有との接続も実装範囲の決定時に整理する。[source mapの説明](https://github.com/go-quickjs/go-quickjs/blob/v0.27.0/docs/debugging.md#source-maps)。
 
-現時点の根拠：[`go.mod`](../go.mod)はgo-quickjs v0.27.0を固定し、[`modulemap/loader.go`](../internal/modulemap/loader.go)はローカルJS本文を読み込む。今回の調査は文書・ソースの確認までであり、TS変換とNOE実行を接続した実測・互換性検証は未実施。既存のesbuild利用は[MCP SDK bundleの事前作成](../scripts/spikes/process-io-mcp/README.md)で、製品のTS実行対応ではない。
+2026-10-24の照合：[`go.mod`](../go.mod)の現在の固定版は正式go-quickjs v0.28.0です。上記のv0.27.0の機能・source map情報は検討当時の参照であり、現在のengineでのTS互換性確認ではありません。[`modulemap/snapshot.go`](../internal/modulemap/snapshot.go)は`.js`／`.mjs`のみを受け付け、[`modulemap/loader.go`](../internal/modulemap/loader.go)はローカルJS本文を読み込みます。[段階導入の提案](development/noe-improvement-proposals-20261024.md#3-typescript対応を段階的に検討する)も検討用であり、対応経路・診断・tool移行の範囲は着手前に決めます。今回の調査は文書・ソースの確認までであり、TS変換とNOE実行を接続した実測・互換性検証は未実施。既存のesbuild利用は[MCP SDK bundleの事前作成](../scripts/spikes/process-io-mcp/README.md)で、製品のTS実行対応ではない。
 
 ### <未完了> JSでのhook登録と、実行前評価・親agentへの問い合わせ — 2026-10-20
 
@@ -446,7 +454,7 @@ Workerのloaderは`noe:agent`を受け付けません。通常JSからのagent�
 
 `keepAlive:true`は同じNOE内の待受であり、呼出し元の終了後も続く独立実行ではありません。現在の子agentは親runに所有され、親終了・取消しで回収します。
 
-独立したNOEプロセスが自分の認証・broker・loop・回収を持ち、起動元は終了できる構成を候補にします。端末から離れて続けるだけなら、既存のOSのバックグラウンド実行・tmuxも利用できます。組込みAPIの必要性、ログ・結果・停止方法を検討し、会話の永続化・daemon・再起動後の復旧まで一括で必須にはしません。
+独立したNOEプロセスが自分の認証・Host／Client・実行runtime・回収を持ち、起動元は終了できる構成を候補にします。内部HTTP brokerを復活させる前提ではありません。端末から離れて続けるだけなら、既存のOSのバックグラウンド実行・tmuxも利用できます。組込みAPIの必要性、ログ・結果・停止方法を検討し、会話の永続化・daemon・再起動後の復旧まで一括で必須にはしません。
 
 照合根拠：[`Host.spawn`](../internal/agent/instance_operations.go)と[`Operation.Close`](../internal/agent/operation.go)の所有関係、[`agent/runtime_test.go`](../agent/runtime_test.go)の親終了時回収テスト。
 
@@ -492,4 +500,4 @@ MiMo・GLMの組込み候補、優先度項目、providerをまたいだ本体�
 
 外部コマンド、ファイル・HTTPのストリーミング、暗号・ハッシュは既にstdlibから利用できます。v1.0.0時点の未対応候補とは区別します。TypeScriptは引き続き未実装で、v2.5またはv3.0の候補として[検討メモ](#typescript)に整理しました。npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。元QuickJSの`std`・`os`の提供を前提にしません。
 
-[開発記録へ戻る](README.md) · [検討履歴](archive/future-candidates-history.md) · [現在のAPI](api.md)
+[開発記録へ戻る](development/README.md) · [検討履歴](archive/future-candidates-history.md) · [現在のAPI](api.md)

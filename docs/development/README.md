@@ -48,7 +48,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 採用した小規模改善5件の範囲・実装・検証 | [対応記録](small-improvements-20261020.md) |
 | 処理の重複・履歴転送・Go Client JSON往復の整理 | [8スライスの実装・検証記録](processing-simplification.md) |
 | agent内部の責務・JSとGoの分担・所有関係・同期 | [agentの構成](agent-architecture.md) |
-| agentへ渡す組込みの説明 | [instructions.md](../../internal/agent/instructions.md) |
+| agentへ渡す組込みの説明 | [facts.md](../../internal/agent/facts.md)（汎用の契約）・[policy.md](../../internal/noeprofile/policy.md)（NOEの既定方針） |
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
 | 上流修正待ち：ES module内のブロック関数宣言が消える不具合 | [再現・原因・回避方法](dependency-updates.md#上流修正待ちes-module内のブロック関数宣言--2026-10-24) |
@@ -128,6 +128,6 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補と完了区分は[次の機能候補](../future-candidates.md)を更新します。
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs) v0.28.0、汎用JavaScript APIにはv0.27.0のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleで公開済みです。現行リリースはv2.3.0で、外部moduleからの利用は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドを参照してください。未公開のcheckoutを試す場合はローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs) v0.28.0、汎用JavaScript APIにはv0.27.0のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleで公開済みです。現行リリースは[v2.4.0](../releases/v2.4.0.md)で、外部moduleからの利用は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドを参照してください。未公開のcheckoutを試す場合はローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
 
 `_refs/`はローカル専用の未追跡の参考資料で、ビルド・テスト依存に含めません。リリースの配布対象・品質確認は[プロファイル](../../.forgejo/release-profile.yml)と[ワークフロー](../../.forgejo/workflows/release.yml)に定義されています。
