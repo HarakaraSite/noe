@@ -28,8 +28,8 @@ export async function startAgentServer(options, html) {
   let sequence = 0, steerSequence = 0, active = null, timer = null;
   let closing = false, closePromise = null, supervisorError = null, logError = null;
   let snapshot = null, server = null, logOffset = 0, executionId = null;
-  // Logs are optional: live instance snapshots always provide task results.
-  // The current log is used only for extra progress and exact steer lifecycle.
+  // The wrapper supplies this invocation's automatically named event log.
+  // It is used only for progress and exact steer lifecycle, never UI History.
   if (options.eventsPath) {
     await stat(options.eventsPath);
     const initial = await readFile(options.eventsPath, "utf8");

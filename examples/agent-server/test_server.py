@@ -202,12 +202,8 @@ class AgentServerTests(unittest.TestCase):
 
     def start(self, events=True):
         args = [str(NOE), "run"]
-        if events:
-            args.append("--events=" + str(self.events))
         args.extend([str(SERVER), "--port", "0", "--provider", "openrouter",
                      "--model", "fixture/model", "--effort", "auto"])
-        if events:
-            args.extend(["--events-path", str(self.events)])
         with self.stdout.open("wb") as out, self.stderr.open("wb") as err:
             self.proc = subprocess.Popen(args, cwd=self.work, env=self.env,
                                          stdin=subprocess.DEVNULL, stdout=out, stderr=err,
@@ -226,6 +222,10 @@ class AgentServerTests(unittest.TestCase):
             return None
 
         self.startup = eventually(startup, "JSON startup line")
+        logs = list((self.work / ".noe" / "events").glob("*.jsonl"))
+        self.assertEqual(len(logs), 1, "worker must use --events default destination")
+        self.events = logs[0]
+        self.assertIn("noe: events: " + str(self.events), self.stderr.read_text())
         self.assertTrue(self.startup.get("agentId"), self.startup)
         parsed = urlsplit(self.startup["url"])
         self.assertIn(parsed.hostname, ("127.0.0.1", "localhost", "::1"))
@@ -233,6 +233,10 @@ class AgentServerTests(unittest.TestCase):
         self.assertTrue(parsed.port)
         self.assertEqual(self.provider.captured(), [], "idle agent contacted provider")
         eventually(lambda: bool(list(self.runtime.iterdir())), "independent runtime registration")
+        registrations = [json.loads(path.read_text()) for path in self.runtime.glob("*.json")]
+        self.assertEqual(len(registrations), 1)
+        self.worker_pid = registrations[0]["pid"]
+        self.assertNotEqual(self.worker_pid, self.proc.pid, "agent must run in a separate NOE process")
 
     def request(self, method, path, value=None, raw=None, expected=200, headers=None):
         conn = http.client.HTTPConnection(*self.address, timeout=3)
@@ -290,12 +294,15 @@ class AgentServerTests(unittest.TestCase):
                 pass  # Writer may still be appending the last line.
         return records
 
-    def clean_registry(self):
-        eventually(lambda: not list(self.runtime.iterdir()), "empty runtime registry")
+    def clean_registry(self, forced=False):
         listing = subprocess.run([str(NOE), "agents"], cwd=self.work, env=self.env,
                                  capture_output=True, text=True, timeout=5)
         self.assertEqual(listing.returncode, 0, listing.stderr)
         self.assertEqual(listing.stdout.strip(), "No active agents.")
+        if not forced:
+            eventually(lambda: not list(self.runtime.iterdir()), "empty runtime registry")
+        # Owned process cancellation uses SIGKILL, so a killed NOE may leave
+        # inactive registry metadata. Its PID and agents must still be gone.
 
     @staticmethod
     def pid_gone(pid):
@@ -330,6 +337,7 @@ class AgentServerTests(unittest.TestCase):
     def shutdown(self):
         self.request("POST", "/shutdown", expected=202)
         self.assertEqual(self.proc.wait(TIMEOUT), 0, self.stderr.read_text())
+        eventually(lambda: self.pid_gone(self.worker_pid), "worker process reaped")
         self.clean_registry()
         self.assertEqual(self.provider.errors, [])
 
@@ -353,6 +361,13 @@ class AgentServerTests(unittest.TestCase):
                                 cwd=self.work, env=self.env, capture_output=True,
                                 text=True, timeout=5)
         self.assertEqual(failed.returncode, 1, failed.stderr)
+        self.clean_registry()
+        child_failed = subprocess.run([str(NOE), "run", str(SERVER), "--port", "0",
+                                       "--provider", "missing-fixture-provider", "--model", "missing",
+                                       "--effort", "auto"], cwd=self.work, env=self.env,
+                                      capture_output=True, text=True, timeout=5)
+        self.assertEqual(child_failed.returncode, 1, child_failed.stderr)
+        self.assertIn("Worker exited during startup", child_failed.stderr)
         self.clean_registry()
         self.assertEqual(self.provider.captured(), [])
 
@@ -622,30 +637,111 @@ class AgentServerTests(unittest.TestCase):
         if code == 1:
             self.assertIn("context canceled", self.stderr.read_text())
         self.owned_pids_gone()
-        self.clean_registry()
+        eventually(lambda: self.pid_gone(self.worker_pid), "interrupted worker reaped")
+        self.clean_registry(forced=True)
         self.assertEqual(self.provider.errors, [])
 
+    def test_history_matches_observe_and_includes_tool_history(self):
+        code = ('// Inspect history fixture.\n'
+                'console.log("hidden-tool-stdout");')
+        def reply(request):
+            if not any(m["role"] == "tool" for m in request["messages"]):
+                return {"deltas": [
+                    {"reasoning": "history thinking 日本語", "reasoning_details": [
+                        {"type": "reasoning.summary", "id": "summary-fixture", "summary": "history summary"}]},
+                    {"content": "history intermediate message"}, tool(code)], "finish": "tool_calls"}
+            return {"content": "history-final-answer"}
+        self.provider.reply = reply
+        self.start()
+        self.request("POST", "/history", expected=405)
+        self.request("GET", "/history", headers={"Origin": "https://evil.invalid"}, expected=403)
+        task = self.submit("history-task")
+        self.finished(task, answer="history-final-answer")
+        eventually(lambda: any(e.get("type") == "instance.idle" and
+                               e.get("seq", 0) > next((r.get("seq", 0) for r in self.event_records()
+                                                      if r.get("type") == "agent.completed"), float("inf"))
+                               for e in self.event_records()), "idle event after task")
+        history = self.request("GET", "/history")
+        self.assertTrue(history["available"])
+        self.assertEqual(history["mode"], "observe")
+        rendered = subprocess.run([str(NOE), "observe", str(self.events)],
+                                  cwd=self.work, env=self.env, capture_output=True,
+                                  text=True, timeout=5)
+        self.assertEqual(rendered.returncode, 0, rendered.stderr)
+        self.assertEqual(history["text"], rendered.stdout)
+        terminal = "\n".join(line for line in self.stdout.read_text().split("\n")
+                             if not line.startswith('{"url":'))
+        self.assertEqual(history["text"], terminal, "History must capture actual child stdout")
+        self.assertEqual(history["stderr"], self.stderr.read_text())
+        self.assertIn("context:", history["text"])
+        for fragment in ("history thinking 日本語", "history summary", "history intermediate message"):
+            self.assertIn(fragment, history["text"])
+        self.assertIn("run_js started: Inspect history fixture.", history["text"])
+        self.assertIn("run_js succeeded:", history["text"])
+        self.assertIn("final answer:\nhistory-final-answer", history["text"])
+        self.assertNotIn("hidden-tool-stdout", history["text"])
+        self.assertEqual(len(self.provider.captured()), 2, "history must not call a model")
+        self.shutdown()
+
+    @unittest.skipUnless(os.name == "posix", "POSIX worker signal assertion")
+    def test_worker_exit_keeps_captured_history_and_reports_unavailable(self):
+        self.start()
+        self.finished(self.submit("before-worker-exit"), answer="answer:before-worker-exit")
+        before = eventually(lambda: history if "answer:before-worker-exit" in
+                            (history := self.request("GET", "/history"))["text"] else None,
+                            "captured answer before worker exit")
+        os.kill(self.worker_pid, signal.SIGINT)
+        def worker_stopped():
+            history = self.request("GET", "/history")
+            return history if history.get("workerStatus") is not None else None
+        stopped = eventually(worker_stopped, "worker exit reported in history")
+        self.assertTrue(stopped["text"].startswith(before["text"]))
+        self.assertIn("answer:before-worker-exit", stopped["text"])
+        self.assertIn("noe: events:", stopped["stderr"])
+        self.assertIsNone(self.proc.poll(), "wrapper must keep history available")
+        self.request("GET", "/tasks", expected=503)
+        self.request("POST", "/tasks", {"instruction": "must-not-start"}, expected=503)
+        self.assertIsInstance(self.request("GET", "/"), str)
+        self.assertEqual(len(self.provider.captured()), 1)
+        self.shutdown()
+
     def test_without_events_still_runs_and_retains_results(self):
+        """No outer --events is needed: wrapper always observes and saves worker."""
         gate = self.provider.gate()
         started = threading.Event()
         def reply(request):
-            if latest_user(request) == "no-events":
+            if latest_user(request) == "default-start":
                 started.set()
                 self.provider.wait(gate)
-                return {"content": "candidate without events"}
+                return {"content": "candidate default answer"}
             return {"content": "answer:" + latest_user(request)}
         self.provider.reply = reply
         self.start(events=False)
-        task = self.submit("no-events")
+        initial = self.request("GET", "/history")
+        self.assertEqual(initial["mode"], "observe")
+        self.assertIn("agent idle", initial["text"])
+        self.assertEqual(self.provider.captured(), [], "reading history must not call a model")
+        task = self.submit("default-start")
         self.assertTrue(started.wait(TIMEOUT))
+        pending = self.submit("cancelled-default")
+        self.request("POST", "/tasks/" + pending["id"] + "/interrupt", expected=202)
+        self.finished(pending, "cancelled")
         receipt = self.request("POST", "/tasks/" + task["id"] + "/steer",
-                               {"instruction": "no-events correction"}, expected=202)
-        self.assertIn(receipt.get("status"), {"accepted", "delivered", "applied", "unknown"})
+                               {"instruction": "default correction"}, expected=202)
+        self.assert_pending_steer(task, receipt)
         gate.set()
-        result = self.finished(task, answer="answer:no-events correction")
+        result = self.finished(task, answer="answer:default correction")
         self.assertEqual(result["steers"][0]["commandId"], receipt["commandId"])
         self.assertEqual(result["steers"][0]["status"], "applied")
-        self.assertFalse(self.events.exists())
+        eventually(lambda: "answer:default correction" in self.request("GET", "/history")["text"],
+                   "default stdout history answer")
+        self.assertEqual(len(self.provider.captured()), 2, "history must not call a model")
+        self.provider.reply = lambda r: {"status": 400}
+        self.finished(self.submit("failed-default"), "failed")
+        eventually(lambda: "invalid provider response (HTTP 400)" in self.request("GET", "/history")["text"],
+                   "provider error in observed stdout")
+        self.assertTrue(self.events.is_file())
+        self.assertTrue(any(e.get("type") == "agent.completed" for e in self.event_records()))
         self.shutdown()
 
 

@@ -2,7 +2,7 @@
 
 [examples 一覧へ](../README.md)
 
-NOE 上で動くローカル専用の小さな UI / JSON API です。一体の keepAlive agent に依頼を順番に渡し、結果を依頼 ID 別にメモリへ保持します。ブラウザでは指示の送信、一覧・詳細・進捗・回答の確認、追加指示、停止ができます。外部の UI ライブラリや CDN は使いません。
+NOE 上で動くローカル専用の小さな UI / JSON API です。一体の keepAlive agent に依頼を順番に渡し、結果を依頼 ID 別にメモリへ保持します。ブラウザでは指示の送信、History・依頼一覧の確認、追加指示、停止ができます。外部の UI ライブラリや CDN は使いません。
 
 ## 起動
 
@@ -19,27 +19,39 @@ NOE 上で動くローカル専用の小さな UI / JSON API です。一体の 
 ./noe run examples/agent-server/server.js --port 0
 ```
 
-待受先は **127.0.0.1 のみ**です。起動時に `{"url":"http://127.0.0.1:...","agentId":"...",...}` の JSON が出ます。その `url` をブラウザで開いてください。以下の curl の `BASE` も実際の URL に置き換えます。ブラウザは GET を約 1.5 秒おきに直列実行し、更新中も入力欄を保持します。追加指示の下書きは依頼ごとに保持します（ページを閉じると消えます）。
+待受先は **127.0.0.1 のみ**です。起動時に `{"url":"http://127.0.0.1:...","agentId":"...",...}` の JSON が出ます。その `url` をブラウザで開いてください。以下の curl の `BASE` も実際の URL に置き換えます。
 
-### 詳細な進捗を表示する場合
+### ラッパーとHistory
+
+`server.js` は Web UI と API 転送を担当するラッパーです。内部で同じ NOE バイナリを使い、子プロセスとして次を起動します。provider・model・effort は子へ引き継ぎます。
 
 ```sh
-# この起動専用の新しいログを使う（相対パスの基準は作業ディレクトリ）
-EVENTS_DIR=$(mktemp -d)
-EVENTS="$EVENTS_DIR/agent-server.jsonl"
-./noe run --events="$EVENTS" examples/agent-server/server.js \
-  --events-path "$EVENTS" --port 8080
+./noe run --observe --events examples/agent-server/worker.js
 ```
 
-`--events-path PATH` は、この **同じ CLI プロセス**が `--events=PATH` に書く既存の JSONL イベントログを読みます。二つのオプションは同じファイルを指定してください。別プロセスのログや過去の実行のログを流用しないでください。サーバー自身が別の agent 実行やログ書込み用プロセスを起動する設定ではありません。
+※ `worker.js`は内部用で、起動設定はラッパーがstdinで渡します。直接実行するためのコマンドではありません。
 
-ログがあれば、詳細な進捗と `command.applied` / `command.cancelled` の正確な記録を反映できます。ログなしでも live snapshot の状態・コンテキスト情報を表示し、実行中は同一 commandId の冪等な受付照会で steer の状況を追跡します。ただし、受付や配送は適用の証拠ではありません。イベントや観察間隔によっては中間状態が見えないこともあります。
+子の **stdoutを逐次取得し、そのままHistoryへ表示**します。ターミナルにも同じ内容を出します。thinking・thinking summary（providerが返す場合）、run_jsなどのツール開始/終了、途中の発言、最終回答、エラー、コンテキスト使用率は、CLIの `--observe` と同じ表示です。CLIが表示しない通常のtool stdoutやJS全文を独自に追加することはありません。子のstderrは区別した診断欄に表示します。初期の保存先案内も診断欄に含まれます。
+
+JSONLは子の `--events` により、起動時の作業ディレクトリの `.noe/events/` へ自動命名で保存します。利用者が外側に `--observe` や `--events` を付けたり、`--events-path` を二重指定したりする必要はありません。History取得のたびにログを再整形する処理やモデル呼出しはありません。バックエンドのprogress・正確なsteer適用/取消し記録だけは、この子のJSONLを参照します。
+
+Historyはこの起動全体の出力をメモリに保持します。ブラウザを再読み込みしても取得できますが、サーバー再起動後の復元はしません。JSONLは別途ディスクに残ります。履歴・モデル出力はHTMLとして実行せず、テキストとして表示します。
+
+### 操作画面
+
+Historyの下にTasks一覧、その下にCreate a taskとInstructions入力欄を配置します。入力欄の下には **Queue task / Steer / Stop・Cancel task / Refresh now** を配置し、重複するTask detailsは表示しません。
+
+- InstructionsはQueue taskとSteerで共用します。Queue taskは新規依頼を予約して選択し、Steerは選択中の実行中依頼へ追加指示を送ります。
+- Tasks一覧から操作対象を選択します。選択中のID・状態はボタン付近で確認できます。実行中ならStop、未開始ならCancelになり、それ以外では停止操作を無効にします。
+- 入力中の内容はタスクの選択変更や更新では消しません。送信成功時だけ、その送信時の内容が変わっていなければ消します。
+- 約5秒おきにHistoryと一覧を自動更新します。Refresh nowでも即時更新できます。回答トークン単位のストリーミングではありません。
 
 ## API と状態
 
 | メソッド・パス | 内容 |
 | --- | --- |
-| `GET /` | 日本語の操作画面 |
+| `GET /` | 英語の操作画面 |
+| `GET /history` | `{available:true,mode:"observe",text,stderr,error,workerStatus}`。子のstdout・stderrと取得エラー・終了状態 |
 | `GET /tasks` | `{tasks:[...], agent:{agentId,state}, supervisorError?}` |
 | `POST /tasks` | JSON `{instruction:"..."}` を予約し、202 で受付 ID を返す |
 | `GET /tasks/:id` | 依頼の全情報（下記） |
@@ -47,7 +59,7 @@ EVENTS="$EVENTS_DIR/agent-server.jsonl"
 | `POST /tasks/:id/interrupt` | body なし。依頼単位の停止 / 未開始予約の取消しを202で受け付ける |
 | `POST /shutdown` | body なし。202 の応答後、サーバーと所有 agent を正常停止する |
 
-依頼詳細は `{id,instruction,state,runId,answer,error,result,steers:[{commandId,instruction,status}],progress?:{phase,action,lastMessage,...}}` です。開始前の runId や未取得の結果などは未設定 / null の場合があります。一覧だけではなく詳細 API で結果を取得してください。progress は利用可能な情報のみを含みます。UI はその内容をテキスト表示し、モデルが返した HTML は実行しません。
+依頼詳細は `{id,instruction,state,runId,answer,error,result,steers:[{commandId,instruction,status}],progress?:{phase,action,lastMessage,...}}` です。開始前の runId や未取得の結果などは未設定 / null の場合があります。一覧だけではなく詳細 API で結果を取得してください。progress は利用可能な情報のみを含みます。APIの詳細情報は引き続き取得できますが、UIには重複する詳細パネルを設けません。
 
 依頼の状態は `queued`（予約）、`starting`（開始中）、`running`（実行中）、`stopping`（停止処理中）、`completed`（正常完了）、`failed`（失敗）、`cancelled`（取消し）です。停止の受付から完了までは時間がかかることがあります。
 
@@ -95,7 +107,7 @@ curl -fsS "$BASE/tasks/$TASK_ID" | python3 -c \
   'import sys,json; t=json.load(sys.stdin); print(t["state"]); print(json.dumps(t["steers"],ensure_ascii=False,indent=2))'
 ```
 
-`status: applied` が適用確認です。accepted / delivered の間は待ってから同じ GET を繰り返してください。詳細ログを使わない場合は中間の適用確認を得られず、正常完了時に applied へ更新される場合もあります。失敗・停止後の unknown を applied と読み替えないでください。
+`status: applied` が適用確認です。accepted / delivered の間は待ってから同じ GET を繰り返してください。イベントの反映前には中間の適用確認が得られず、正常完了時に applied へ更新される場合もあります。失敗・停止後の unknown を applied と読み替えないでください。
 
 実行中の依頼を停止する場合は次のとおりです。
 
@@ -119,7 +131,7 @@ curl -i -X POST "$BASE/shutdown"
 
 サーバーは実行中の依頼を `cancel_task({agentId, commandId})` で取り消します。agent instance と他の予約は残ります。キュー待ちの依頼はまだNOEへ渡していないため、サーバー内で取り消します。CLI の対応操作は `./noe interrupt --run <run-id>` ですが、通常はこの例では実行せず HTTP を使ってください。**管理対象 agent を外部の CLI から queue / interrupt して同時操作しないでください**。サーバーの順序制御・結果保存と競合します。
 
-起動した端末の Ctrl+C（SIGINT）でも NOE の通常の所有リソース回収で終了します。`/shutdown` は HTTP ハンドラ内で終了を待たず、応答後に別途停止処理をスケジュールする経路です。
+起動した端末の Ctrl+C（SIGINT）でも NOE の所有プロセス回収により子workerとその所有プロセスを終了します。強制回収ではworkerが正常終了処理を実行できず、非アクティブなruntime registryメタデータが残る場合があります（稼働中agentとしては表示されません）。正常終了には `/shutdown` を使ってください。`/shutdown` は HTTP ハンドラ内で終了を待たず、応答後に別途停止処理をスケジュールする経路です。
 
 ## 動作確認
 
@@ -135,11 +147,9 @@ python3 examples/agent-server/test_browser.py
 
 テストは既定でリポジトリの `./noe` を使い、Python 3 標準ライブラリのローカル SSE fixture でモデル応答を再現します。継承した `NOE_*` 接続設定を除去し、設定・鍵・runtime registry・ログ・作業ディレクトリを一時領域に隔離します。外部 provider の認証・モデル品質は検証しません。
 
-HTTP統合テスト9件で、同時受付した12依頼すべての結果保存・会話継続、HTTP400失敗後の継続、steer の受付／実行中の適用／取消し、予約取消し、実行中停止後の後続処理、正常終了・SIGINT・起動失敗時の回収を確認します。停止テストは子agentと実OS子プロセスを起動し、PID消滅・空のregistryを確認します。`/shutdown` の正常終了コードは0、SIGINTはNOEの中断終了規約に従います。
+HTTP統合テストで、別NOE子プロセスの起動と既定場所へのJSONL保存、Historyと実際のstdoutおよびCLI observeとの一致、ツール・回答・コンテキスト・失敗表示、会話継続、steerの受付/適用/取消し、待機中の取消し、実行中停止後の継続を確認します。正常終了・SIGINTではworkerと所有OSプロセスの消滅を確認し、起動失敗の伝達も確認します。
 
-任意のブラウザテストはFirefoxのMarionetteを直接使い、UIからの送信・一覧・回答、HTMLの非実行、追加指示の accepted → applied、停止、ポーリング中の入力保持を確認します。WebDriver等の追加Pythonパッケージは不要です。`FIREFOX_BIN` でFirefox実行ファイルを変更できます。
-
-実装時には新規ビルドしたNOEで統合テスト9件、Firefox headlessテスト、既存の `go test ./...` の成功を確認しました。
+Firefoxテストは、共有入力欄からのQueue/Steer、Tasksの対象選択・取消し・停止、Historyでの回答とHTML非実行、5秒ごとの自動更新・手動更新、入力保持、Task details削除を確認します。WebDriver等の追加Pythonパッケージは不要です。`FIREFOX_BIN` でFirefox実行ファイルを変更できます。
 
 ## 安全性・制約
 
@@ -149,7 +159,7 @@ HTTP統合テスト9件で、同時受付した12依頼すべての結果保存�
 - 予約・依頼・結果・追加指示はメモリ内だけです。永続化、再起動後の復元、ログからの依頼リロードはありません。ブラウザの再読込みは生きているサーバーから再取得するだけです。キューや結果保存の件数上限・保持期間・利用者別の予算制限もありません。長時間の無制限運用向けではありません。
 - サーバー側で一件ずつ queue し、結果を保存してから次へ進むため、snapshot の lastResult が最新一件でも過去の結果を依頼 ID 別に保持できます。失敗・task 停止後も後続の依頼を処理します。
 - 同じ会話を継続しますが、コンテキストの自動 trim により古い履歴が削除されます。既定の保持比率は 0.1。trim された履歴は次の依頼で復元されません。モデルのコンテキスト・出力上限もあり、会話の完全保持は保証しません。[hook / コンテキストガイド](../../docs/hooks.md)も参照してください。
-- 詳細ログの読取りはこの小規模な例ではファイル全体を走査します。ログのローテーション・削除・他プロセスとの共有はせず、長時間運用ではログの読取り方式やメモリ保持上限を別途設計してください。
+- Historyは子の出力をメモリへ蓄積し、保持上限は設けていません。バックエンド用JSONL読取りはこの小規模な例ではファイル全体を走査します。ログのローテーション・削除・他プロセスとの共有はせず、長時間運用ではメモリ保持・ログの読取り方式を別途設計してください。
 - task失敗では待受を維持しますが、instance自体の致命的停止時には自動再生成しません。保存済み結果は取得でき、新規依頼は503になります。サーバーを再起動するとメモリの依頼・会話は失われます。
-- UI はスナップショットのポーリングであり、回答トークンのストリーミングではありません。詳細な進捗や正確な command 適用 / 取消し記録は、上記の同一プロセスのオプションログが必要です。停止要求は完了通知ではなく、回収中は stopping のままになることがあります。
+- UI は5秒間隔のポーリングです。停止要求は完了通知ではなく、回収中は stopping のままになることがあります。workerが予期せず終了してもラッパーはHistoryを保持しますが、新たなタスク操作は503になります。会話を自動で再起動しません。
 - 指示・回答・tool 出力・進捗・JSONL ログには機密情報が含まれえます。ログを共有・公開しないでください。events ログは API のメモリ内データとは別にファイルとして残るため、適切な権限で管理し、不要になったら削除してください。
