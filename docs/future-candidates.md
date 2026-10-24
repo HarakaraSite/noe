@@ -20,7 +20,7 @@
 
 2026-10-21の追加依頼で[TypeScript対応の検討メモ](#typescript)を未完了候補へ追記し、件数へ反映しました。2026-10-24にZedの型宣言追随と再利用ガイドを完了し、一部完了から完了へ移しました。同日の再照合で、v2公開済みの[NOE版stdlib](#noe-stdlib)も完了へ移し、旧実行方式を現行の残件から除きました。
 
-公開済み版は[v2.4.0](releases/v2.4.0.md)です。モデル向け出力予算はv2.4.0が既定3 KiB、このcheckoutの開発版が既定64 KiBです。開発版のoutputBytesはstdout/stderrの捕捉にも連動し、最大256 KiB。最終返却JSONはmetadata・JSONエスケープも含めて予算内に収めます。[実行結果ガイド](execution-results.md)で版と契約を区別します。現行の責務・実行経路は[Agent内部の構成](development/agent-architecture.md)、過去の計画・検証は各実装記録を参照してください。
+公開済み版は[v2.5.0](releases/v2.5.0.md)です。モデル向け出力予算はv2.4.0が既定3 KiB、v2.5.0が既定64 KiBです。v2.5.0のoutputBytesはstdout/stderrの捕捉にも連動し、最大256 KiB。最終返却JSONはmetadata・JSONエスケープも含めて予算内に収めます。[実行結果ガイド](execution-results.md)で版と契約を区別します。現行の責務・実行経路は[Agent内部の構成](development/agent-architecture.md)、過去の計画・検証は各実装記録を参照してください。
 
 <a id="completed"></a>
 

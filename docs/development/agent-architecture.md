@@ -86,7 +86,7 @@ flowchart TD
 
 `internal/agentexec/output.go`はstdout/stderrをそれぞれoutputBytes分保持し、超過時は先頭・末尾と省略量を返す。既定64 KiBでは32 KiBずつ保持する。`internal/jsexec`はmoduleのdefault exportを`data`として直列化し、実行や直列化の失敗を診断へ分離する。直列化失敗後に副作用を再実行しない。
 
-捕捉後、`internal/agent/tool_output.go`はhook後のモデル向けtool結果全体にUTF-8 byte予算を適用し、超過分を省略表示する。照合対象の開発版では既定値は**64 KiB**。公開済みv2.4.0で導入された**3 KiB**というリリース説明とは時点が異なる。開発版はoutputBytes（最大256 KiB）をstream捕捉と最終返却の双方へ渡し、最終JSONはmetadata・JSONエスケープも含めて予算内へ収める。
+捕捉後、`internal/agent/tool_output.go`はhook後のモデル向けtool結果全体にUTF-8 byte予算を適用し、超過分を省略表示する。v2.5.0では既定値は**64 KiB**。公開済みv2.4.0で導入された**3 KiB**というリリース説明とは時点が異なる。v2.5.0はoutputBytes（最大256 KiB）をstream捕捉と最終返却の双方へ渡し、最終JSONはmetadata・JSONエスケープも含めて予算内へ収める。
 
 ## 変更に応じて確認する試験
 

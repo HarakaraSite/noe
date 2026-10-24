@@ -6,9 +6,9 @@ Just JavaScript. Until you need an agent.
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.4.0リリースノート](docs/releases/v2.4.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.4.0)
+[v2.5.0リリースノート](docs/releases/v2.5.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.5.0)
 
-v2.4.0ではAPI資料の重複を減らし、モデル向け出力に既定3 KiBの本文予算を追加しました。openai-chatgptのtool入力は生JSになりました。previewと呼出しごとの増量指定は[実行結果ガイド](docs/execution-results.md)を参照してください。v2.3.0より前の暗黙agent bindingやstderr内の診断を使うコードの移行も同ページで説明しています。
+v2.5.0ではstream捕捉とモデル向け結果に共通の出力予算を使います。既定64 KiB、個別指定は最大256 KiBです。一覧・読込み・書込み・部分編集のworkspace用JSライブラリも追加しました。[実行結果ガイド](docs/execution-results.md)と[ファイル操作ガイド](.noe/lib/files/files.md)を参照してください。v2.3.0より前の暗黙agent bindingやstderr内の診断を使うコードの移行も実行結果ガイドで説明しています。
 
 v2ではGoアプリ内でagentを直接実行できます。Go組み込みとJS APIの破壊的変更は[v2移行ガイド](docs/v2-migration.md)を参照してください。
 
@@ -21,7 +21,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.4.0
+# noe v2.5.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。

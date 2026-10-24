@@ -6,13 +6,15 @@ A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://gi
 
 This English README is the canonical version. [日本語版](README.ja.md)
 
-[v2.4.0 release notes](docs/releases/v2.4.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.4.0)
+[v2.5.0 release notes](docs/releases/v2.5.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.5.0)
 
-v2.4.0 reduces repeated API documentation, adds a default 3 KiB model-facing
-output budget, and accepts raw JavaScript tools with openai-chatgpt. See the
-[execution guide](docs/execution-results.md) for incomplete previews and per-call
-budgets. Code predating v2.3.0 that uses implicit agent bindings or stderr
-diagnostics needs the migration guidance on that page.
+v2.5.0 uses one output-budget setting for stream capture and model-facing
+results: 64 KiB by default, with explicit increases up to 256 KiB. It also adds
+workspace file helpers for listing, reading, writing and exact partial edits.
+See the [execution guide](docs/execution-results.md) for budgets and previews,
+and the [file helper guide](.noe/lib/files/files.md) for the external JS library.
+Code predating v2.3.0 that uses implicit agent bindings or stderr diagnostics
+needs the migration guidance in the execution guide.
 
 v2 embeds managed agents directly in Go applications. See the
 [v2 migration guide](docs/v2-migration.md) for breaking Go embedding and
@@ -27,7 +29,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.4.0
+# noe v2.5.0
 ```
 
 The examples below assume the repository root is your working directory.
