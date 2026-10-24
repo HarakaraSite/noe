@@ -1798,3 +1798,44 @@ targets, creates SHA256SUMS and publishes the immutable tag. Artifact download,
 checksums, release body and actual published module retrieval are checked after
 publication. No paid model call or installed-binary replacement is part of this
 release request. Existing event logs and caches are excluded.
+
+## v2.5.1 Release validation — 2026-10-25
+
+- Annotated tag `v2.5.1` points to
+  `8bf7ea4640993f49a9eacb151b4588bfc106fd4d`. The remote peeled tag matches
+  the successful workflow revision. Its difference from checked clean source
+  `e4b4c23` is the preparation evidence document only.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/37)
+  succeeded (API run ID 218, job ID 239), using the unchanged lightweight
+  build/checksum/upload workflow.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.5.1)
+  is published, neither draft nor prerelease (Release ID 150). Its description
+  matches the tagged English release notes.
+
+All seven assets were downloaded; all six binary hashes match SHA256SUMS.
+The Linux amd64 binary reports `noe v2.5.1`, the tagged source revision,
+`vcs.modified=false`, `CGO_ENABLED=0` and official go-quickjs v0.28.0.
+Its SHA256 is `85389792da12c11678b1d834c8a5933a4e81553801b91cb3743c518d126a2fb6`.
+
+The downloaded-binary local-provider contract fixture passed result/diagnostic
+delivery, next-request history and JSONL retention, including the private task
+and tool modules affected by the refactoring. Budget fixtures also passed.
+These checks make no paid model-provider calls.
+
+Clean modules outside the checkout fetched
+`forge.harakara.site/littleisland/noe/v2/stdlib@v2.5.1` and
+`forge.harakara.site/littleisland/noe/v2/agent@v2.5.1` from the actual public
+module, without local replace or a synthetic proxy. Both examples built,
+ran and passed `go mod verify`. The agent returned `The total is 31.`;
+MVS selected official go-quickjs v0.28.0. Both public type-declaration files
+match the tagged source.
+
+Evidence is retained at `/var/tmp/noe-v2.5.1-release-8ZOiqB`, including the
+workflow metadata, seven downloaded assets, contract-flow requests/events,
+consumer builds, `published-verification.json` and
+`public-module-verification.json`. Other five platforms have CI build/hash
+evidence without native execution here.
+
+This documentation-only follow-up does not move or replace the release tag.
+Repository-root `./noe`, the PATH binary and running processes are unchanged;
+installation remains separate. Existing event logs and caches are untouched.

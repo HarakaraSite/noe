@@ -116,3 +116,10 @@
 - 共通E2Eビルドの変更の影響を確認するため、`CGO_ENABLED=0 go test -tags=e2e ./tests -count=1 -timeout=3m` を一回実行し、E2E全体が成功した。先の既存失敗1件は解消した。
 - gofmt・対象差分チェック：成功。ログは `/var/tmp/noe-version-tests-uI2vzf/`。
 - 製品source・依存は変えていないため、前節の他package/race/6対象compileの証拠を再利用し、それらの全メニューは再実行していない。
+
+## 後続のコミット・公開
+
+ユーザーのリリース指示に従い、本変更とversion試験の修正をv2.5.1として公開した。
+準備・配布物checksum・ダウンロードしたbinaryのfixture・実公開Go moduleの取得確認は
+[リリースチェックポイント](../releases/release-checkpoints.md#v251-release-validation--2026-10-25)に記録した。
+タグは `8bf7ea4640993f49a9eacb151b4588bfc106fd4d` を固定し、常用binaryへの配置は行っていない。
