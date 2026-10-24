@@ -1755,3 +1755,46 @@ evidence without native execution here.
 This publication record does not move the release tag. Repository-root `./noe`,
 the PATH binary and running NOE processes are unchanged; installation remains
 a separate action. Existing event logs remain untouched.
+
+## v2.5.1 preparation — 2026-10-25
+
+The user authorized committing and releasing the completed responsibility-boundary
+refactoring and release-independent version tests. The latest remote release was
+v2.5.0; this is a maintenance patch with no public API or dependency change.
+The pending upstream-issue reports and parent-wait proposal were committed as
+documentation only in `519f1a7`; no proposed interruptible-wait behavior is included.
+See the [release notes](v2.5.1.md).
+
+Checked clean source: `e4b4c2332acc47e6e9322865e135aa72e600337d`.
+Its only production-source difference from the tested implementation/test head
+`66343d1` is the default CLI Version changing from v2.5.0 to v2.5.1.
+The tag-preparation follow-up changes this evidence document only.
+
+Implementation evidence is reused rather than repeating source suites:
+the five slices passed related tests and independent reviews; normal and critical
+plan reviews and every code review had no unresolved P2-or-higher finding.
+Full local unit/E2E execution reported only the pre-existing fixed-version test
+failure. Commit `66343d1` removes that release-number dependency, after which
+the affected CLI package and entire E2E package passed. The production source
+and dependencies did not change with the test correction. Full race, vet,
+changed-JS lint, formatting and six-target compilation had already passed.
+Evidence: [implementation record](../development/responsibility-boundaries-refactor-implementation.md),
+`/var/tmp/noe-boundaries-KVDans/final/` and
+`/var/tmp/noe-version-tests-uI2vzf/`.
+
+| Release verification | Result |
+| --- | --- |
+| Clean native release-flags build | PASS, CGO disabled, checked source above, vcs.modified=false |
+| Native version and arithmetic | PASS, noe v2.5.1 and 2, exact stdout and empty stderr |
+| Repository Exa stub fixture against the candidate | PASS, 43 checks, no real API request |
+| Updated release/README relative links | PASS, 11 references resolve |
+| Production delta since implementation verification | Version string only; go.mod/go.sum and public facades unchanged |
+
+Evidence is retained at `/var/tmp/noe-v2.5.1-release-8ZOiqB`, including the
+clean detached worktree, native binary/build metadata and preparation verification.
+No full source suite, race, long wait or local six-binary distribution build was
+repeated for release preparation. Existing lightweight CI builds the six profile
+targets, creates SHA256SUMS and publishes the immutable tag. Artifact download,
+checksums, release body and actual published module retrieval are checked after
+publication. No paid model call or installed-binary replacement is part of this
+release request. Existing event logs and caches are excluded.
