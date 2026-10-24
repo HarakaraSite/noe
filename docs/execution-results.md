@@ -2,7 +2,7 @@
 
 [ドキュメント一覧](README.md) · [JS検査](javascript-checks.md) · [API説明](reference.md) · [イベント](events.md)
 
-基本の実行結果はv2.3.0以降の契約です。モデル向け出力制限はv2.4.0で追加しました。v2.4.0の既定値は3 KiB、次版向けの現在の既定値は10 KiBです。v2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
+基本の実行結果はv2.3.0以降の契約です。モデル向け出力制限はv2.4.0で追加しました。v2.4.0の既定値は3 KiB、次版向けの現在の既定値は64 KiBです。v2.1.1から、run_jsの暗黙agent importを廃止し、返却dataと診断を標準出力から分けています。
 
 ## run_jsのデータ返却
 
@@ -24,7 +24,7 @@ export default models.map(({provider, model}) => ({provider, model}));
 | `stdout` / `stderr` | 実際に書き込んだ出力。診断を合成しない |
 | `exitCode` / `reason` | 実行状態。reasonはcompleted/failed/timeout/cancelled |
 | `diagnostics?` | NOEが観測した失敗情報。出力とは別に保持 |
-| `stdoutOmittedBytes?` / `stderrOmittedBytes?` | 各streamの既存64 KiB捕捉上限で省いたbyte数 |
+| `stdoutOmittedBytes?` / `stderrOmittedBytes?` | 各streamの捕捉で省いたbyte数（既定64 KiB、outputBytesに連動） |
 
 成功例は`{"stdout":"","stderr":"","exitCode":0,"reason":"completed","data":[...]}`です。最後の式だけではdataになりません。`console.log`を使った既存コードは引き続きstdoutを返します。
 
@@ -33,26 +33,28 @@ defaultのPromise/thenableは待機します。default関数は自動で呼び�
 entry/defaultとLoop上の仕事が完了してからJSON化し、JSON化が追加した仕事も同じcontext/Loopで処理してから成功を確定します。JSON化を再実行しないため、その後の値の変更はsnapshotへ反映しません。後続仕事が失敗した場合はdataを破棄します。cleanupだけが失敗した場合は、確定済みdataとcleanup診断を返します。
 未処理例外や取消しによる後続失敗ではdataを破棄します。単にprocess.exitCodeが非zeroとなった場合は、その終了codeを返し、確定できたdataは保持します。dataを途中で切断して成功扱いにしたり、自動で全文artifactを保存したりはしません。大きな成果物はファイルへ保存して、小さな要約とpathを返せます。
 
-## モデル向け出力の10 KiB予算
+## モデル向け出力の64 KiB予算
 
-runnerの結果をafterToolへ渡した後、モデルへ送るJSON全体に既定10 KiB（10,240 UTF-8 bytes）の本文予算を適用します。stdout・stderr・data・diagnosticsと、hookが置換した任意JSONをまとめて数えます。例外内のcommand出力や長いstackも対象です。予算内なら返却形を変えません。超過時は次の専用envelopeになります。
+runnerの結果をafterToolへ渡した後、モデルへ送るJSON全体に既定64 KiB（65,536 UTF-8 bytes）の予算を適用します。metadata・JSONエスケープを含め、stdout・stderr・data・diagnosticsと、hookが置換した任意JSONをまとめて数えます。例外内のcommand出力や長いstackも対象です。予算内なら返却形を変えません。超過時は次の専用envelopeになります。
 
 - `outputPreview`: 加工後JSON全体の先頭と末尾。不完全なJSONテキストなので完全なdataとしてparseしない。
 - `outputLimit`: `limitBytes`、`sourceBytes`、`shownBytes`、`omittedBytes`、`returnedBytes`、`complete:false`と絞込みの案内。
 - `execution`: 元runnerの`exitCode`・`reason`と短い`diagnosticSummary`。hookが作った任意fieldとは区別する。
 
-shown/omittedは元の加工後JSONの残したbytesと省いたbytesです。returnedはpreviewと診断summaryの本文bytesで、固定metadataとJSONエスケープは含みません。診断summaryの上限は予算の1/4と768 bytesの小さい方で、残りをpreviewに使います。stdout/stderrの既存64 KiB捕捉上限とは別です。JSONLの元結果や公開Go実行APIに、このモデル向け予算は適用しません。
+shown/omittedは元の加工後JSONの残したbytesと省いたbytesです。returnedBytesはmetadataとJSONエスケープを含む返却envelope全体のUTF-8 byte数で、limitBytes以内に収まります。短い診断summaryと元の実行状態も、この予算内に保持します。
+
+同じoutputBytesをstdout・stderrの捕捉にも使います。各streamは既定64 KiB、超過時は先頭・末尾を保持します（既定では32 KiBずつ）。128 KiBを指定すると各streamの捕捉も128 KiBへ増え、最終的にstdout・stderr・data等を合わせたモデル向けJSON全体を128 KiB以内へ収めます。console.logとexport defaultで別の設定を覚える必要はありません。JSONLの元結果は捕捉した範囲を保存し、最終JSONの予算は適用しません。公開Go実行APIの結果にも、このモデル向け予算は適用しません。
 
 検索結果なら条件や対象を絞り、ファイル名や件数だけ返してから必要箇所を読みます。必要な本文自体が大きい場合は、呼出しごとに予算を明示できます。
 
 ```js
 // Read the required HTTP detail.
-// @noe: {"outputBytes": 12288}
+// @noe: {"outputBytes": 131072}
 import {docs} from "noe:docs";
 console.log(docs("noe:http", "serve"));
 ```
 
-先頭の行コメント群で指定します。操作説明を1行目に残せます。`outputBytes`は正のsafe integerとし、未知field・不正値・重複指定は実行前のsetup診断になります。beforeToolで変更した場合は実効コードの指定を使います。捕捉上限で失った出力は増量しても復元できません。ソースを自動再実行せず、全文artifactも自動保存しません。副作用を確認し、必要なら明示保存したファイルの該当箇所を読みます。
+先頭の行コメント群で指定します。操作説明を1行目に残せます。`outputBytes`は1024〜262144 bytes（1〜256 KiB）の整数です。最小値は省略情報をJSONに収めるためのものです。範囲外・未知field・不正値・重複指定は実行前のsetup診断になり、ソースを実行しません。beforeToolで変更した場合は実効コードの指定を使います。後の呼出しで増量しても、前回の捕捉で失った出力は復元できません。ソースを自動再実行せず、全文artifactも自動保存しません。副作用を確認し、必要なら明示保存したファイルの該当箇所を読みます。
 
 ## 診断の読み方
 

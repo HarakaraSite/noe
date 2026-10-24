@@ -1,16 +1,20 @@
 # 拡張ライブラリの案内
 
-## リポジトリの見取り図
+## ファイルの一覧・読込み・編集
 
-配置を把握したいときは`.noe/lib/repo-map/repo-map.js`の`repoMap(options?)`を使えます。言語に依存せず、ファイル本文を読まずにtreeと配下件数を返します。
+ファイルの一覧・読込み・作成・部分編集には、原則として`.noe/lib/files/files.js`の`ls()`・`read_file()`・`write_file()`・`edit_file()`を使ってください。
 
 ```js
 import {resolve} from "node:path";
-const {repoMap} = await import(resolve(".noe/lib/repo-map/repo-map.js"));
-export default await repoMap();
+const {ls, read_file, write_file, edit_file} = await import(resolve(".noe/lib/files/files.js"));
+export default await ls();
 ```
 
-既定は深さ2・表示120項目・返却JSON全体8,000 bytes。必要な枝は`repoMap({path: "src", depth: 3})`のように展開します。Git管理下ではignore設定を使い、Gitなしでは通常走査へ切り替えます。`complete`・`scanComplete`・`limitedBy`で省略を確認できます。詳細は`.noe/lib/repo-map/repo-map.md`へ。構造を把握してから、必要な場所を下記の`grep()`で検索できます。
+`ls()`はcwd（通常はworkspace）の直下を最大100項目表示します。`ls("internal", {tree: true, depth: 2})`でtree相当の一覧、`nextOffset`を`offset`へ渡すと続きが取得できます。隠しファイル・ignore対象も含み、symlinkの先は辿りません。
+
+`read_file("README.md")`は全文、`read_file("README.md", {offset: 101, limit: 80})`は1始まりの行範囲を返します。結果の`text`が本文です。必要な本文が大きければrun_jsの`outputBytes`を増やせます（既定65536・最大262144 bytes）。
+
+`write_file("path/to/new.txt", "本文")`は親directoryを作り全文を書き込みます。既存ファイルは上書きします。部分編集は`edit_file("app.js", "変更前の文字列", "変更後の文字列")`。一致が1か所のときだけ置換し、0件・複数件なら書き込まずthrowします。複数件を全置換したい場合だけ第4引数に`{all: true}`を指定します。正規表現ではなく完全一致なので、必要な前後の文脈と改行を含めて指定してください。返すのはpath・bytes・置換件数などの要約で、全文の再出力は不要です。詳細は`.noe/lib/files/files.md`へ。内容検索は下記の`grep()`で絞れます。
 
 ## ローカルファイルの内容検索
 

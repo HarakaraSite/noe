@@ -42,18 +42,18 @@ Diagnostics contain code, stage, message, and available stack/position/exception
 
 Serialization occurs after the entry/default and its owned work complete. Jobs created by successful JSON conversion are checked before final success; the value is not serialized twice. A serialize failure or later job failure may follow completed file writes or external effects. NOE does not replay the source to repair it. If cleanup alone fails after data is finalized, data remains available together with a failure diagnostic.
 
-The runner preserves its captured result for hooks and execution events. After afterTool, the model-facing JSON value has a shared default budget of 10 KiB (10240 UTF-8 bytes), including stdout, stderr, data, diagnostics, command exception output, and arbitrary hook results. Values within budget retain their existing shape. Overflow returns an envelope with outputPreview, outputLimit, and original execution status in execution. The preview keeps the beginning and end of the serialized hook result, is incomplete JSON text, and must not be parsed as complete data. outputLimit reports limitBytes, sourceBytes, shownBytes, omittedBytes, returnedBytes, and complete:false. shown/omitted count source JSON bytes; returned counts preview plus diagnostic summary text, excluding fixed metadata and JSON escaping. Capture omissions are separate.
+The runner preserves its captured result for hooks and execution events. After afterTool, the model-facing JSON value has a shared default budget of 64 KiB (65536 UTF-8 bytes), including metadata, JSON escaping, stdout, stderr, data, diagnostics, command exception output, and arbitrary hook results. Values within budget retain their existing shape. Overflow returns an envelope with outputPreview, outputLimit, and original execution status in execution. The preview keeps the beginning and end of the serialized hook result, is incomplete JSON text, and must not be parsed as complete data. outputLimit reports limitBytes, sourceBytes, shownBytes, omittedBytes, returnedBytes, and complete:false. shown/omitted count source JSON bytes; returnedBytes is the encoded envelope size, including all metadata and JSON escaping, and stays within limitBytes. The same outputBytes setting also controls stream capture; capture omission counts describe source stream bytes, separately from model-preview omissions.
 
 For oversized searches, narrow the query/scope or return filenames/counts, then read relevant parts. When the required content itself is larger, request a per-call budget in the initial line-comment block. Keep the operation comment first:
 
 ~~~js
 // Read the required HTTP detail.
-// @noe: {"outputBytes": 12288}
+// @noe: {"outputBytes": 131072}
 import {docs} from "noe:docs";
 console.log(docs("noe:http", "serve"));
 ~~~
 
-Only outputBytes is accepted, as a positive safe integer. Invalid or duplicate pragmas return a setup diagnostic before execution. Effective code after beforeTool controls this setting. A larger budget does not recover output already omitted by the independent capture limit. NOE does not replay the source or automatically save a full artifact. Check side effects before repeating work. Save large artifacts explicitly with the filesystem APIs and return a useful summary/path. Caught exceptions stay caught; printing an error does not make NOE infer an uncaught failure.
+Only outputBytes is accepted, as an integer from 1024 to 262144 bytes (1–256 KiB). The minimum reserves room for omission metadata. It sets both each stream’s capture size and the shared final JSON budget. Console output and default-export data follow the same setting. Invalid or duplicate pragmas return a setup diagnostic before execution. Effective code after beforeTool controls this setting. Streams over the selected budget retain their beginning and end. Changing the setting in a later call does not recover previously omitted output. NOE does not replay the source or automatically save a full artifact. Check side effects before repeating work. Save large artifacts explicitly with the filesystem APIs and return a useful summary/path. Caught exceptions stay caught; printing an error does not make NOE infer an uncaught failure.
 
 ## files
 

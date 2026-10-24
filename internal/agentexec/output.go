@@ -11,20 +11,28 @@ import (
 const capturedOutputLimit = 64 * 1024
 
 type capturedOutput struct {
+	maxBytes  int
 	head      []byte
 	tail      []byte
 	tailStart int
 	total     int64
 }
 
+func (c *capturedOutput) limit() int {
+	if c.maxBytes > 0 {
+		return c.maxBytes
+	}
+	return capturedOutputLimit
+}
+
 func (c *capturedOutput) Write(p []byte) (int, error) {
 	n := len(p)
 	c.total += int64(n)
-	const half = capturedOutputLimit / 2
-	if len(c.head) < half {
-		count := min(len(p), half-len(c.head))
+	headLimit, tailLimit := (c.limit()+1)/2, c.limit()/2
+	if len(c.head) < headLimit {
+		count := min(len(p), headLimit-len(c.head))
 		if c.head == nil && count > 0 {
-			c.head = make([]byte, 0, half)
+			c.head = make([]byte, 0, headLimit)
 		}
 		c.head = append(c.head, p[:count]...)
 		p = p[count:]
@@ -33,22 +41,22 @@ func (c *capturedOutput) Write(p []byte) (int, error) {
 		return n, nil
 	}
 	if c.tail == nil {
-		c.tail = make([]byte, 0, half)
+		c.tail = make([]byte, 0, tailLimit)
 	}
-	if len(p) >= half {
-		c.tail = c.tail[:half]
-		copy(c.tail, p[len(p)-half:])
+	if len(p) >= tailLimit {
+		c.tail = c.tail[:tailLimit]
+		copy(c.tail, p[len(p)-tailLimit:])
 		c.tailStart = 0
 		return n, nil
 	}
-	if len(c.tail) < half {
-		count := min(len(p), half-len(c.tail))
+	if len(c.tail) < tailLimit {
+		count := min(len(p), tailLimit-len(c.tail))
 		c.tail = append(c.tail, p[:count]...)
 		p = p[count:]
 	}
 	for len(p) > 0 {
 		count := copy(c.tail[c.tailStart:], p)
-		c.tailStart = (c.tailStart + count) % half
+		c.tailStart = (c.tailStart + count) % tailLimit
 		p = p[count:]
 	}
 	return n, nil
@@ -62,7 +70,7 @@ func (c *capturedOutput) result() (string, int64) {
 	tail := make([]byte, 0, len(c.tail))
 	tail = append(tail, c.tail[c.tailStart:]...)
 	tail = append(tail, c.tail[:c.tailStart]...)
-	if c.total <= capturedOutputLimit {
+	if c.total <= int64(c.limit()) {
 		return string(head) + string(tail), 0
 	}
 	for i := len(head) - 1; i >= max(0, len(head)-utf8.UTFMax); i-- {

@@ -20,11 +20,14 @@ func TestToolOutputProjectionAfterHooksAndIntoHistory(t *testing.T) {
 	writePhaseHook(t, cwd, "output.mjs", `export function beforeTool(event) {
  if (event.rawArguments !== "// Original raw JS.\nexport default 1;") throw Error("lost raw source");
  if (event.arguments.code !== event.rawArguments) throw Error("lost normalized code");
- const pragma=event.toolCallId === "expanded" ? '// @noe: {"outputBytes": 12288}\n' : '';
- return {arguments:{code:'// Execute effective code.\n'+pragma+'export default "actual".repeat(2000);'}};
+ const pragma=event.toolCallId === "expanded" ? '// @noe: {"outputBytes": 131072}\n' : '';
+ return {arguments:{code:'// Execute effective code.\n'+pragma+'const text="actual".repeat(14000); console.log(text); export default text;'}};
 }
 export function afterTool(event) {
- if(event.result.data.length!==12000) throw Error("hook received limited result");
+ if(event.result.data.length!==84000) throw Error("hook received limited result");
+ if(event.toolCallId === "expanded") {
+  if(event.result.stdout.length!==84001 || event.result.stdoutOmittedBytes) throw Error("stream budget did not expand");
+ } else if(!(event.result.stdoutOmittedBytes>0)) throw Error("default stream budget was not applied");
  return {result:{hookValue:event.result.data,exitCode:99}};
 }`)
 	original := "// Original raw JS.\nexport default 1;"
@@ -100,14 +103,17 @@ console.log(result.lastResult.answer);`
 	if err := json.Unmarshal(modelResults["limited"], &limited); err != nil {
 		t.Fatal(err)
 	}
-	if limited.OutputLimit.LimitBytes != 10240 || limited.OutputLimit.ReturnedBytes > 10240 || limited.OutputLimit.OmittedBytes <= 0 || limited.OutputLimit.Complete || limited.Execution.ExitCode != 0 || limited.Execution.Reason != "completed" || !strings.Contains(limited.OutputPreview, `"hookValue"`) {
+	if len(modelResults["limited"]) > 65536 || limited.OutputLimit.ReturnedBytes != len(modelResults["limited"]) {
+		t.Fatal("envelope or escaping bypassed model budget")
+	}
+	if limited.OutputLimit.LimitBytes != 65536 || limited.OutputLimit.ReturnedBytes > 65536 || limited.OutputLimit.OmittedBytes <= 0 || limited.OutputLimit.Complete || limited.Execution.ExitCode != 0 || limited.Execution.Reason != "completed" || !strings.Contains(limited.OutputPreview, `"hookValue"`) {
 		t.Fatalf("bad preview: %+v", limited)
 	}
 	var expanded struct {
 		HookValue string
 		ExitCode  int
 	}
-	if err := json.Unmarshal(modelResults["expanded"], &expanded); err != nil || len(expanded.HookValue) != 12000 || expanded.ExitCode != 99 {
+	if err := json.Unmarshal(modelResults["expanded"], &expanded); err != nil || len(expanded.HookValue) != 84000 || expanded.ExitCode != 99 {
 		t.Fatalf("per-call budget lost: %+v %v", expanded, err)
 	}
 	eventMu.Lock()
@@ -127,7 +133,7 @@ console.log(result.lastResult.answer);`
 			t.Fatalf("event differs from history: %s vs %s", result, modelResults[id])
 		}
 		raw, _ := json.Marshal(event["rawResult"])
-		if len(raw) < 12000 {
+		if len(raw) < 84000 {
 			t.Fatal("raw result truncated")
 		}
 		_, hookSaved := event["hookResult"]

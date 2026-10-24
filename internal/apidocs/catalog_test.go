@@ -50,7 +50,7 @@ func TestCatalogIndexFitsDefaultRunJSOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const defaultOutputBytes = 10 * 1024
+	const defaultOutputBytes = 64 * 1024
 	if len(result) > defaultOutputBytes {
 		t.Fatalf("docs() run_js result is %d bytes (index %d), exceeds %d", len(result), len(index), defaultOutputBytes)
 	}

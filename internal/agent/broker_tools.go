@@ -189,7 +189,7 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 		config, _ := json.Marshal(hookDefaults(run))
 		result, err = h.opts.Execute(childOperation.ctx, Execution{
 			Operation: childOperation, Kind: ExecutionTool,
-			Config: config, Code: *request.Code,
+			Config: config, Code: *request.Code, OutputBytes: outputBytes,
 		})
 	}
 	contextErr := ctx.Err()

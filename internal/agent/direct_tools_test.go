@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"forge.harakara.site/littleisland/noe/v2/agent/model"
@@ -172,19 +173,23 @@ func TestDirectRunJSUsesHostExecutorAndRunScope(t *testing.T) {
 }
 
 func TestInvalidRunJSPragmaDoesNotExecute(t *testing.T) {
-	called := false
-	host := NewHost(Options{Models: modelsWithChat(&fixtureProvider{}), Execute: func(context.Context, Execution) (Result, error) { called = true; return Result{}, nil }})
-	t.Cleanup(host.Close)
-	op := host.NewOperation(context.Background())
-	t.Cleanup(op.Close)
-	runID := startFixtureRun(t, op)
-	code := "// Perform a write.\n// @noe: {\"outputBytes\": 0}\nthrow Error('must not run')"
-	responseJSON := lifecycleCall(t, op, "run_js", runJSRequest{RunID: runID, Code: &code})
-	var response runJSResponse
-	if err := json.Unmarshal([]byte(responseJSON), &response); err != nil {
-		t.Fatal(err)
-	}
-	if called || response.Reason != "failed" || response.ExitCode == 0 || len(response.Diagnostics) != 1 || response.Diagnostics[0].Stage != "setup" {
-		t.Fatalf("called=%v response=%+v", called, response)
+	for _, limit := range []int{0, 1023, 262145} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			called := false
+			host := NewHost(Options{Models: modelsWithChat(&fixtureProvider{}), Execute: func(context.Context, Execution) (Result, error) { called = true; return Result{}, nil }})
+			t.Cleanup(host.Close)
+			op := host.NewOperation(context.Background())
+			t.Cleanup(op.Close)
+			runID := startFixtureRun(t, op)
+			code := fmt.Sprintf("// Perform a write.\n// @noe: {\"outputBytes\": %d}\nthrow Error('must not run')", limit)
+			responseJSON := lifecycleCall(t, op, "run_js", runJSRequest{RunID: runID, Code: &code})
+			var response runJSResponse
+			if err := json.Unmarshal([]byte(responseJSON), &response); err != nil {
+				t.Fatal(err)
+			}
+			if called || response.Reason != "failed" || response.ExitCode == 0 || len(response.Diagnostics) != 1 || response.Diagnostics[0].Stage != "setup" {
+				t.Fatalf("called=%v response=%+v", called, response)
+			}
+		})
 	}
 }

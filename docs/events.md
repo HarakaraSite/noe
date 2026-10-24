@@ -118,7 +118,7 @@ thinking・summary・messageの断片はストリーム受信時に出ます。p
 
 `run_js.started.code`は実行開始時に記録するため、失敗・取消しの場合も呼出し方を確認できます。元sourceをそのまま記録します。agent helperは利用者が明示importし、内部wrapperや接続情報をcodeへ合成しません。人間向けの`--observe`と`noe observe`は従来どおり先頭コメントを表示し、JS全文は表示しません。コードの記録は`--events`に含まれ、従来のメタデータtraceには含まれません。
 
-`run_js`のstdout・stderrは各64KiB（先頭32KiB＋末尾32KiB）までの捕捉出力と省略マーカーを記録します。省略があるstreamの出力イベントには`omittedBytes`、`run_js.finished`には`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。`tool.finished.rawResult`にも同じ省略情報が入り、`result`はhook変換後にモデル向け10 KiB予算を適用した値です。超過時は`outputPreview`・`outputLimit`・元の実行状態を返します。加工値が元結果と異なりpreview化で失われる場合だけ、`hookResult`へ制限前の加工値を保存します。[実行結果](execution-results.md)を参照してください。JSONLは省略された出力の完全ログではありません。通常のトップレベルJS出力の記録は変更しません。
+`run_js`のstdout・stderrは各streamについてoutputBytes分（既定64 KiB、最大256 KiB）の捕捉出力と省略マーカーを記録します。超過時は先頭・末尾を保持します（既定では32 KiBずつ）。省略があるstreamの出力イベントには`omittedBytes`、`run_js.finished`には`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。`tool.finished.rawResult`にも同じ省略情報が入り、`result`はhook変換後にモデル向けの同じoutputBytes予算（既定64 KiB）を適用した値です。metadataとJSONエスケープを含む返却JSON全体を数えます。超過時は`outputPreview`・`outputLimit`・元の実行状態を返します。加工値が元結果と異なりpreview化で失われる場合だけ、`hookResult`へ制限前の加工値を保存します。[実行結果](execution-results.md)を参照してください。JSONLは省略された出力の完全ログではありません。通常のトップレベルJS出力の記録は変更しません。
 
 v2.3.0以降では、未処理例外を`diagnostics`のcode/stage/messageと、取得できたstack/position/exceptionとして返します。診断をtoolのstderrやJSONLの`stderr`イベントへ合成しません。commandのstdout/stderrは例外詳細内で区別し、byte出力はencoding付きで保存します。`run_js.finished.exitCode`はNOEの実行終了コードであり、`diagnostics[].exception.code`は内部コマンドや利用者例外の別の値です。agent task自体の診断は`execution.diagnostic`へ残します。詳細は[実行結果と診断](execution-results.md)を参照してください。
 

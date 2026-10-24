@@ -183,7 +183,7 @@ afterから追加されたsteerは最終確定前の確認で扱う。
 `beforeTool` / `afterTool`は個々のtool callに対応する。並列実行しても履歴への
 結果追加はモデルが返したcall順。現在のtoolは`run_js`。
 
-`afterTool`はモデル向け予算を適用する前の結果を受け取ります。加工後の値に既定10 KiBの予算を適用し、超過時は不完全なpreviewへ変換します。詳細は[実行結果](execution-results.md)を参照してください。
+`afterTool`はモデル向け予算を適用する前の結果を受け取ります。加工後のJSON全体（metadata・JSONエスケープを含む）に既定64 KiBの予算を適用し、超過時は不完全なpreviewへ変換します。outputBytesはstream捕捉にも連動し、最大256 KiBです。詳細は[実行結果](execution-results.md)を参照してください。
 
 `tool.finished`には元の`rawArguments` / `rawResult`、実行用の`arguments`と
 モデル向け`result`を分けて記録する。`run_js`の画像候補は`rawImages`、hook選択後は`images`へ

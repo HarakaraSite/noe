@@ -10,7 +10,11 @@ import (
 	"unicode/utf8"
 )
 
-const defaultToolOutputBytes int64 = 10 * 1024
+const (
+	minToolOutputBytes     int64 = 1024
+	defaultToolOutputBytes int64 = 64 * 1024
+	maxToolOutputBytes     int64 = 256 * 1024
+)
 
 // runJSOutputBytes reads only the initial line-comment block. The ordinary
 // operation comment can stay first, preserving its use in observation events.
@@ -45,8 +49,8 @@ func runJSOutputBytes(source string) (int64, error) {
 		if err := decoder.Decode(&extra); err != io.EOF {
 			return defaultToolOutputBytes, errors.New("run_js @noe pragma must contain one JSON object")
 		}
-		if options.OutputBytes == nil || *options.OutputBytes <= 0 || *options.OutputBytes > 9007199254740991 {
-			return defaultToolOutputBytes, errors.New("run_js outputBytes must be a positive safe integer")
+		if options.OutputBytes == nil || *options.OutputBytes < minToolOutputBytes || *options.OutputBytes > maxToolOutputBytes {
+			return defaultToolOutputBytes, fmt.Errorf("run_js outputBytes must be an integer between %d and %d bytes", minToolOutputBytes, maxToolOutputBytes)
 		}
 		limit = *options.OutputBytes
 	}
@@ -105,21 +109,61 @@ func projectToolOutput(result, rawResult json.RawMessage, limit int64) (json.Raw
 			execution = &toolOutputExecution{ExitCode: raw.ExitCode, Reason: raw.Reason, DiagnosticSummary: summary}
 		}
 	}
-	preview, shown := previewUTF8(string(result), int(limit)-len(summary))
 	value := toolOutputPreview{
-		OutputPreview: preview,
 		OutputLimit: toolOutputLimit{
-			LimitBytes: limit, SourceBytes: len(result), ShownBytes: shown,
-			OmittedBytes: len(result) - shown, ReturnedBytes: len(preview) + len(summary), Complete: false,
-			Notice: "Incomplete JSON text preview; do not parse it as complete data. For search results, narrow the query or scope, return matching filenames/counts, or read a relevant part. Increase outputBytes explicitly only when the required content itself is larger. The source was not rerun. Original captured output remains in execution logs when enabled.",
+			LimitBytes: limit, SourceBytes: len(result), Complete: false,
+			Notice: "Incomplete JSON text preview; do not parse as complete data. Narrow the search, return filenames/counts, or read relevant lines. For necessary larger output, increase outputBytes up to 262144. The source was not rerun. Logs retain captured output, not bytes omitted during capture.",
 		},
 		Execution: execution,
 	}
-	encoded, err := json.Marshal(value)
+	source := string(result)
+	// returnedBytes includes this envelope and JSON escaping. Its own decimal
+	// width is part of the encoding, so settle the count before measuring it.
+	encode := func(budget int) ([]byte, error) {
+		var shown int
+		value.OutputPreview, shown = previewUTF8(source, budget)
+		value.OutputLimit.ShownBytes = shown
+		value.OutputLimit.OmittedBytes = len(result) - shown
+		value.OutputLimit.ReturnedBytes = 0
+		for {
+			encoded, err := json.Marshal(value)
+			if err != nil || len(encoded) == value.OutputLimit.ReturnedBytes {
+				return encoded, err
+			}
+			value.OutputLimit.ReturnedBytes = len(encoded)
+		}
+	}
+	encoded, err := encode(0)
 	if err != nil {
 		return nil, false, err
 	}
-	return encoded, true, nil
+	// Diagnostic text is escaped too; shorten it if it consumes the envelope.
+	for int64(len(encoded)) > limit && execution != nil && execution.DiagnosticSummary != "" {
+		execution.DiagnosticSummary, _ = previewUTF8(execution.DiagnosticSummary, len(execution.DiagnosticSummary)/2)
+		encoded, err = encode(0)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+	if int64(len(encoded)) > limit {
+		return nil, false, errors.New("run_js outputBytes cannot fit the output metadata")
+	}
+	best := encoded
+	low, high := 1, int(limit)
+	for low <= high {
+		budget := low + (high-low)/2
+		encoded, err = encode(budget)
+		if err != nil {
+			return nil, false, err
+		}
+		if int64(len(encoded)) <= limit {
+			best = encoded
+			low = budget + 1
+		} else {
+			high = budget - 1
+		}
+	}
+	return best, true, nil
 }
 
 // previewUTF8 returns valid head/tail slices and counts retained source bytes.

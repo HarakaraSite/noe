@@ -22,6 +22,8 @@ type Execution struct {
 	Config      json.RawMessage
 	Instruction string
 	Code        string
+	// OutputBytes sets the tool's stream capture budget. Zero uses the default.
+	OutputBytes int64
 }
 
 // Result is the observable result of a task or tool execution, independent of

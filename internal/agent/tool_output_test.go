@@ -13,20 +13,23 @@ func TestRunJSOutputBytes(t *testing.T) {
 		want       int64
 		invalid    bool
 	}{
-		{"default", "// Inspect files.\nexport default 1", 10240, false},
-		{"operation and pragma", "// Inspect files.\n// @noe: {\"outputBytes\": 12288}\nexport default 1", 12288, false},
-		{"after code ignored", "export default 1\n// @noe: {\"outputBytes\": 1}", 10240, false},
-		{"small", "// @noe: {\"outputBytes\": 1}", 1, false},
-		{"zero", "// @noe: {\"outputBytes\": 0}", 10240, true},
-		{"negative", "// @noe: {\"outputBytes\": -1}", 10240, true},
-		{"fraction", "// @noe: {\"outputBytes\": 1.5}", 10240, true},
-		{"unsafe", "// @noe: {\"outputBytes\": 9007199254740992}", 10240, true},
-		{"missing", "// @noe: {}", 10240, true},
-		{"null", "// @noe: null", 10240, true},
-		{"unknown", "// @noe: {\"outputBytes\": 99,\"other\": 1}", 10240, true},
-		{"malformed", "// @noe: {", 10240, true},
-		{"trailing", "// @noe: {\"outputBytes\": 99} {}", 10240, true},
-		{"duplicate", "// @noe: {\"outputBytes\": 99}\n// @noe: {\"outputBytes\": 90}", 10240, true},
+		{"default", "// Inspect files.\nexport default 1", 65536, false},
+		{"operation and pragma", "// Inspect files.\n// @noe: {\"outputBytes\": 131072}\nexport default 1", 131072, false},
+		{"after code ignored", "export default 1\n// @noe: {\"outputBytes\": 1}", 65536, false},
+		{"minimum", "// @noe: {\"outputBytes\": 1024}", 1024, false},
+		{"too small", "// @noe: {\"outputBytes\": 1023}", 65536, true},
+		{"maximum", "// @noe: {\"outputBytes\": 262144}", 262144, false},
+		{"too large", "// @noe: {\"outputBytes\": 262145}", 65536, true},
+		{"zero", "// @noe: {\"outputBytes\": 0}", 65536, true},
+		{"negative", "// @noe: {\"outputBytes\": -1}", 65536, true},
+		{"fraction", "// @noe: {\"outputBytes\": 1.5}", 65536, true},
+		{"unsafe", "// @noe: {\"outputBytes\": 9007199254740992}", 65536, true},
+		{"missing", "// @noe: {}", 65536, true},
+		{"null", "// @noe: null", 65536, true},
+		{"unknown", "// @noe: {\"outputBytes\": 99,\"other\": 1}", 65536, true},
+		{"malformed", "// @noe: {", 65536, true},
+		{"trailing", "// @noe: {\"outputBytes\": 99} {}", 65536, true},
+		{"duplicate", "// @noe: {\"outputBytes\": 99}\n// @noe: {\"outputBytes\": 90}", 65536, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := runJSOutputBytes(tc.code)
@@ -39,14 +42,14 @@ func TestRunJSOutputBytes(t *testing.T) {
 
 func TestProjectToolOutputDefaultBudget(t *testing.T) {
 	raw := json.RawMessage(`{"exitCode":0,"reason":"completed"}`)
-	for _, size := range []int{6000, 10240, 10241} {
+	for _, size := range []int{12000, 51200, 65536, 65537} {
 		source := json.RawMessage(`"` + strings.Repeat("x", size-2) + `"`)
 		for _, fallback := range []int64{0, -1} {
 			got, truncated, err := projectToolOutput(source, raw, fallback)
-			if err != nil || truncated != (size > 10240) {
+			if err != nil || truncated != (size > 65536) {
 				t.Fatalf("size=%d fallback=%d truncated=%v err=%v", size, fallback, truncated, err)
 			}
-			if size <= 10240 {
+			if size <= 65536 {
 				if string(got) != string(source) {
 					t.Fatal("default budget changed a fitting result")
 				}
@@ -56,7 +59,7 @@ func TestProjectToolOutputDefaultBudget(t *testing.T) {
 			if err := json.Unmarshal(got, &preview); err != nil {
 				t.Fatal(err)
 			}
-			if preview.OutputLimit.LimitBytes != 10240 || preview.OutputLimit.ReturnedBytes > 10240 || preview.OutputLimit.Complete {
+			if preview.OutputLimit.LimitBytes != 65536 || preview.OutputLimit.ReturnedBytes > 65536 || preview.OutputLimit.Complete {
 				t.Fatalf("incorrect default budget: %+v", preview.OutputLimit)
 			}
 		}
@@ -92,7 +95,7 @@ func TestProjectToolOutputBoundariesAndUTF8(t *testing.T) {
 		t.Fatalf("lost UTF8 head/tail: %q", preview.OutputPreview)
 	}
 	limits := preview.OutputLimit
-	if limits.Complete || limits.LimitBytes != 3072 || limits.SourceBytes != len(source) || limits.ShownBytes+limits.OmittedBytes != len(source) || limits.OmittedBytes <= 0 || limits.ReturnedBytes != len(preview.OutputPreview) || limits.ReturnedBytes > 3072 {
+	if limits.Complete || limits.LimitBytes != 3072 || limits.SourceBytes != len(source) || limits.ShownBytes+limits.OmittedBytes != len(source) || limits.OmittedBytes <= 0 || limits.ReturnedBytes != len(got) || limits.ReturnedBytes > 3072 {
 		t.Fatalf("incorrect byte accounting: %+v", limits)
 	}
 	if preview.Execution == nil || preview.Execution.ExitCode == nil || *preview.Execution.ExitCode != 0 || preview.Execution.Reason != "completed" {
@@ -122,7 +125,7 @@ func TestProjectToolOutputDiagnosticAndHookShareBudget(t *testing.T) {
 		if ex == nil || ex.ExitCode == nil || *ex.ExitCode != 7 || ex.Reason != "failed" || !strings.Contains(ex.DiagnosticSummary, "execution_error (execute)") || len(ex.DiagnosticSummary) > 768 {
 			t.Fatalf("raw diagnostic/status lost: %+v", ex)
 		}
-		if n := len(preview.OutputPreview) + len(ex.DiagnosticSummary); n > 3072 || n != preview.OutputLimit.ReturnedBytes {
+		if n := len(got); n > 3072 || n != preview.OutputLimit.ReturnedBytes {
 			t.Fatalf("budget bypass: %d %+v", n, preview.OutputLimit)
 		}
 	}
@@ -130,6 +133,29 @@ func TestProjectToolOutputDiagnosticAndHookShareBudget(t *testing.T) {
 		got, shown := previewUTF8(strings.Repeat("日本語", 30), budget)
 		if len(got) > budget || shown > len(got) || !utf8.ValidString(got) {
 			t.Fatalf("small budget %d invalid: %q %d", budget, got, shown)
+		}
+	}
+}
+
+func TestProjectToolOutputIncludesEnvelopeAndEscaping(t *testing.T) {
+	for _, limit := range []int64{1024, 65536, 131072, 262144} {
+		raw, _ := json.Marshal(map[string]any{
+			"exitCode": 7, "reason": "failed",
+			"diagnostics": []any{map[string]any{"code": "execution_error", "stage": "execute", "message": strings.Repeat("\x00\"\\<日本語", 2000)}},
+		})
+		for _, data := range []string{strings.Repeat("\x00\"\\<>&\n", 70000), strings.Repeat("日本語😀", 70000)} {
+			source, _ := json.Marshal(map[string]any{"data": data})
+			got, cut, err := projectToolOutput(source, raw, limit)
+			if err != nil || !cut || int64(len(got)) > limit || !json.Valid(got) {
+				t.Fatalf("limit=%d size=%d cut=%v err=%v", limit, len(got), cut, err)
+			}
+			var preview toolOutputPreview
+			if err := json.Unmarshal(got, &preview); err != nil {
+				t.Fatal(err)
+			}
+			if preview.OutputLimit.ReturnedBytes != len(got) || preview.OutputLimit.ShownBytes+preview.OutputLimit.OmittedBytes != len(source) || !utf8.ValidString(preview.OutputPreview) || preview.Execution.ExitCode == nil || *preview.Execution.ExitCode != 7 {
+				t.Fatalf("incorrect envelope: %+v", preview.OutputLimit)
+			}
 		}
 	}
 }

@@ -46,7 +46,8 @@ func (c *capture) result() (string, int64) {
 // callbacks and scope stay in Go; no source file or capability is serialized.
 func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.Result, error) {
 	profile := e.Profile
-	stdout, stderr := new(capture), new(capture)
+	stdout := &capture{capturedOutput: capturedOutput{maxBytes: int(execution.OutputBytes)}}
+	stderr := &capture{capturedOutput: capturedOutput{maxBytes: int(execution.OutputBytes)}}
 	profile.Environment.Stdin = strings.NewReader("")
 	profile.Environment.Stdout, profile.Environment.Stderr = stdout, stderr
 	initialize := profile.Initialize
