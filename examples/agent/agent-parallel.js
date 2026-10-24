@@ -13,9 +13,10 @@ const result = await run_agent({
 },
   `run_jsでspawn_agentを2回呼び、${JSON.stringify(left)}を読む子と${JSON.stringify(right)}を読む子を起動してください。` +
   `子はkeepAliveにせず、それぞれ数値配列の合計を計算します。spawn_agentは起動受領後に戻るので、` +
-  `observe_agent({agentId})を使って両方の状態を確認してください。live観察はすぐ戻るため、` +
-  `各子のstateがstoppedまたはfailedになるまで短く待って再観察してください。` +
-  `各snapshot.lastResult.answerを使って結果をまとめ、最後はleft、right、totalを持つJSONで回答してください。`);
+  `両方のagentId/commandIdを一つのwait_tasks({tasks:[...],includeAnswer:false})へ渡してください。` +
+  `reasonがsteerなら結果をexportしてそのrun_jsを終了し、追加指示を読んで必要な対処を選んでください。` +
+  `同じtool内で即座に待ち直したり、wait_taskをPromise.allで束ねたり、状態を定期ポーリングしたりしないでください。` +
+  `完了したtaskの回答はwait_taskまたはread_task_resultで取得し、最後はleft、right、totalを持つJSONで回答してください。`);
 
 if (result.lastResult?.state !== "completed") {
   throw new Error(result.lastResult?.error ?? `agent ended with ${result.reason}`);

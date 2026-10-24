@@ -117,6 +117,15 @@ func (h *Host) steer(op *Operation, request steerRequest) (commandReceipt, error
 
 	h.observeRun("command.accepted", run.id, run, steerEventFields(command, "accepted"))
 	close(command.accepted)
+	// Notify only after the observer has returned and acceptance is public.
+	// Waiters also scan pending commands under this lock, covering receipts
+	// published before they register. This notification never delivers a steer.
+	h.mu.Lock()
+	if run.steerWake != nil {
+		close(run.steerWake)
+		run.steerWake = nil
+	}
+	h.mu.Unlock()
 	return commandReceipt{CommandID: command.id, Status: "accepted"}, nil
 }
 

@@ -31,6 +31,32 @@ type TaskRequest struct {
 
 type taskRequest = TaskRequest
 
+// TaskReference identifies one accepted task without changing its lifetime.
+type TaskReference struct {
+	AgentID   string `json:"agentId"`
+	CommandID string `json:"commandId"`
+}
+
+// WaitTasksRequest waits for a nonempty, unique set in input order.
+type WaitTasksRequest struct {
+	Tasks         []TaskReference `json:"tasks"`
+	IncludeAnswer *bool           `json:"includeAnswer,omitempty"`
+}
+
+type CompletedTask struct {
+	AgentID string      `json:"agentId"`
+	Outcome TaskOutcome `json:"outcome"`
+}
+
+// WaitTasksResult is observational: pending tasks are not cancelled, and
+// completed outcomes remain available through WaitTask and ReadTaskResult.
+type WaitTasksResult struct {
+	Reason    string          `json:"reason"`
+	RunID     string          `json:"runId,omitempty"`
+	Completed []CompletedTask `json:"completed"`
+	Pending   []TaskReference `json:"pending"`
+}
+
 type QueueRequest struct {
 	AgentID     string `json:"agentId"`
 	Instruction string `json:"instruction"`

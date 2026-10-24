@@ -111,6 +111,10 @@ type InstanceSnapshot = core.InstanceSnapshot
 type QueueRequest = core.QueueRequest
 type CommandReceipt = core.CommandReceipt
 type TaskRequest = core.TaskRequest
+type TaskReference = core.TaskReference
+type WaitTasksRequest = core.WaitTasksRequest
+type CompletedTask = core.CompletedTask
+type WaitTasksResult = core.WaitTasksResult
 type TaskOutcome = core.TaskOutcome
 type TaskResultRequest = core.TaskResultRequest
 type TaskResult = core.TaskResult
@@ -155,6 +159,12 @@ func (c *Client) Wait(ctx context.Context, q InstanceRequest) (InstanceSnapshot,
 }
 func (c *Client) WaitTask(ctx context.Context, q TaskRequest) (TaskOutcome, error) {
 	return clientCall[TaskOutcome](ctx, c, "wait_task", q)
+}
+
+// WaitTasks waits for the whole set or a pending steer of the calling owner
+// run. A standalone Client has no owner run and waits only for completion.
+func (c *Client) WaitTasks(ctx context.Context, q WaitTasksRequest) (WaitTasksResult, error) {
+	return clientCall[WaitTasksResult](ctx, c, "wait_tasks", q)
 }
 func (c *Client) ReadTaskResult(ctx context.Context, q TaskResultRequest) (TaskResult, error) {
 	return clientCall[TaskResult](ctx, c, "read_task_result", q)

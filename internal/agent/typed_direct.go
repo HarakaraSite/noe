@@ -89,6 +89,16 @@ func (h *Host) dispatchTypedDirect(ctx context.Context, op *Operation, method st
 			return nil, err
 		}
 		return cloneTaskOutcome(outcome), nil
+	case "wait_tasks":
+		req, ok := request.(WaitTasksRequest)
+		if !ok {
+			return nil, newOperationError(400, "request", "invalid tasks wait request")
+		}
+		result, err := h.waitTasks(op, req, ctx)
+		if err != nil {
+			return nil, err
+		}
+		return cloneWaitTasksResult(result), nil
 	case "read_task_result":
 		req, ok := request.(TaskResultRequest)
 		if !ok {
@@ -167,6 +177,18 @@ func snapshotTypedRequest(method string, request any) (any, error) {
 		}
 		req.AgentID = normalizeJSONText(req.AgentID)
 		req.CommandID = normalizeJSONText(req.CommandID)
+		req.IncludeAnswer = cloneBool(req.IncludeAnswer)
+		return req, nil
+	case "wait_tasks":
+		req, ok := request.(WaitTasksRequest)
+		if !ok {
+			return nil, errors.New("agent: invalid typed tasks-wait request")
+		}
+		req.Tasks = append([]TaskReference(nil), req.Tasks...)
+		for index := range req.Tasks {
+			req.Tasks[index].AgentID = normalizeJSONText(req.Tasks[index].AgentID)
+			req.Tasks[index].CommandID = normalizeJSONText(req.Tasks[index].CommandID)
+		}
 		req.IncludeAnswer = cloneBool(req.IncludeAnswer)
 		return req, nil
 	case "read_task_result":
@@ -400,6 +422,27 @@ func cloneInstanceSnapshot(snapshot InstanceSnapshot) InstanceSnapshot {
 		contextCopy.RemainingTokens = cloneInt64(contextCopy.RemainingTokens)
 		contextCopy.UsedPercent = cloneFloat64(contextCopy.UsedPercent)
 		copy.Context = &contextCopy
+	}
+	return copy
+}
+
+func cloneWaitTasksResult(result WaitTasksResult) WaitTasksResult {
+	copy := result
+	copy.Reason = normalizeJSONText(copy.Reason)
+	copy.RunID = normalizeJSONText(copy.RunID)
+	copy.Completed = make([]CompletedTask, len(result.Completed))
+	for index, completed := range result.Completed {
+		copy.Completed[index] = CompletedTask{
+			AgentID: normalizeJSONText(completed.AgentID),
+			Outcome: cloneTaskOutcome(completed.Outcome),
+		}
+	}
+	copy.Pending = make([]TaskReference, len(result.Pending))
+	for index, pending := range result.Pending {
+		copy.Pending[index] = TaskReference{
+			AgentID:   normalizeJSONText(pending.AgentID),
+			CommandID: normalizeJSONText(pending.CommandID),
+		}
 	}
 	return copy
 }

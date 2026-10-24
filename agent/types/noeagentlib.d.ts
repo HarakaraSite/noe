@@ -115,12 +115,36 @@ declare namespace NOEAgent {
     runId: string;
     commandId: string;
     state: TaskState;
-    /** Omitted when wait_task/observe_agent requests includeAnswer: false. */
+    /** Omitted when wait_task/wait_tasks/observe_agent requests includeAnswer: false. */
     answer?: string;
     /** UTF-8 byte length when answer is omitted. */
     answerBytes?: number;
     error?: string;
     errorDetails?: ImageErrorDetails;
+  }
+
+  interface TaskReference {
+    agentId: string;
+    commandId: string;
+  }
+
+  interface WaitTasksOptions {
+    tasks: readonly TaskReference[];
+    includeAnswer?: boolean;
+  }
+
+  interface CompletedTask {
+    agentId: string;
+    outcome: TaskOutcome;
+  }
+
+  interface WaitTasksResult {
+    /** A steer return does not consume guidance or cancel any task. */
+    reason: "completed" | "steer";
+    /** The caller's owner run, when the caller belongs to an active run. */
+    runId?: string;
+    completed: CompletedTask[];
+    pending: TaskReference[];
   }
 
   interface ReadTaskResult {
@@ -492,6 +516,9 @@ declare module "noe:agent" {
     commandId: string;
     includeAnswer?: boolean;
   }): Promise<NOEAgent.TaskOutcome>;
+
+  /** Wait for a whole task set, or return control on guidance to the owner run. */
+  export function wait_tasks(options: NOEAgent.WaitTasksOptions): Promise<NOEAgent.WaitTasksResult>;
 
   export function read_task_result(options: {
     agentId: string;

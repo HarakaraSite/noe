@@ -24,7 +24,8 @@ type command struct {
 	finalCommitted  bool // protected by Host.mu; survives removal of the run during finish cleanup
 	accepted        chan struct{}
 	done            chan struct{}
-	outcome         *taskOutcome // immutable after completion; protected by Host.mu
+	doneWaiters     map[*taskCompletionWake]struct{} // Host.mu; only dynamic-select overflow registrations
+	outcome         *taskOutcome                     // immutable after completion; protected by Host.mu
 }
 
 func newTaskCommand(id, activityID, instruction string) *command {
@@ -327,7 +328,22 @@ func (i *agentInstance) publishCommandOutcome(cmd *command) {
 		<-cmd.cancelAccepted
 	}
 	i.commandEvent(cmd, cmd.outcome.State, cmd.outcome.RunID)
+	i.host.mu.Lock()
+	cmd.publishDoneLocked()
+	i.host.mu.Unlock()
+}
+
+// publishDoneLocked publishes existing completion readiness and any overflow
+// registrations atomically. Event publication must already have finished.
+func (cmd *command) publishDoneLocked() {
 	close(cmd.done)
+	for waiter := range cmd.doneWaiters {
+		if !waiter.notified {
+			close(waiter.done)
+			waiter.notified = true
+		}
+	}
+	cmd.doneWaiters = nil
 }
 
 // publishCommandOutcomeAsync is for terminal events published outside serve.

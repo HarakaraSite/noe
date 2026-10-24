@@ -87,13 +87,19 @@ Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動�
 
 照合根拠：[`agent-route-model.js`](../examples/agent/agent-route-model.js)の`effort:"auto"`と[`catalog_test.go`](../internal/cli/catalog_test.go)のfixtureによる経路確認。
 
-<a id="not-completed"></a>
+### <実装済み> 子の完了待ち中にsteerで親agentへ制御を戻す — 2026-10-25
 
-## 未完了（検討・保留）
+<a id="未完了-子の完了待ち中にsteerで親agentへ制御を戻す--2026-10-24"></a>
 
-### <未完了> 子の完了待ち中にsteerで親agentへ制御を戻す — 2026-10-24
+v2.6.0で新しい`wait_tasks`を追加した。集合全体の完了または親owner runへの未適用steerで返り、子は継続する。既存`wait_task`の完了専用契約は維持する。戻ったtoolを終了して既存checkpoint/applyから親の次モデル判断へ進める。実executorで二子を未完了に保持し、trusted host／script-origin双方について親次要求への指示配送、その後の子の明示cancel／steerと結果再取得まで確認済み。Web UI拡張や任意JSの強制中断は含めない。
+
+[実装・検証記録](development/steer-aware-wait-implementation.md)・[API](api.md#実行中taskへの指示と停止)。
+
+#### 実装前の検討記録
 
 利用者の要望：親agentが子の完了待ちに入っていても、人の追加指示を受けて待機を抜け、子の状態確認・追加指示・必要な停止などへ介入できるようにしたい。`examples/agent-server`のWeb UIはexampleとして作ったものであり、子を選んで停止するUI等の拡張は対応対象外。今回は要望と検討案の記録のみで、実装・API名・実装時期は未決定。
+
+2026-10-25、NOEへ渡す[実装指示書](development/steer-aware-wait-implementation-task.md)を作成した。成功条件、維持契約、複数の子の待機解除、関連検証、自然な履歴trimの観測方法を記載した。指示書の保存時点では製品実装は未着手で、API名・返却形式は実装設計時に決める。
 
 発端は`.noe/events/noe-events-20261024-224429-946e65d4bb5b6f10.jsonl`の確認。子が追加したテストには、観察callbackがイベント用mutexを保持して解除待ちする間に、解除する側も別イベントの同期発行で同じmutexを待つ循環待ちがあった。親は`run_js`内の`Promise.all([wait_task(...), wait_task(...)])`で子の完了を待ち、23:11:27に受け付けた「テストがデッドロックしている」というsteerも確認時点では未適用だった。テスト側の不備と、待機中の親へ制御を戻せない問題を分けて扱う。
 
@@ -102,6 +108,10 @@ Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動�
 検討案は、子の完了と親へのsteer受付を待ち合わせる専用の待機APIまたはtoolを設けること。追加指示が来たら子を動かしたまま親の待機だけを終了し、その理由をtool結果へ記録して、既存のsteer適用処理から親のモデル判断へ戻す。親がその後の観察・子への指示・取消し等を選ぶ。複数の子をまとめて待つ場合も、一部の待機だけが戻って残りの`Promise.all`に留まらない形にする。
 
 既存の`wait_task`が返す完了結果と、追加指示による待機終了は区別する。待機解除を子の完了・失敗・取消しとして扱わず、親run/所有scopeの取消しによる子の一括回収も起こさない。任意の実行中JSの強制中断へ広げず、待機専用の経路で制御を返す方向を候補とする。通知と受付・適用イベントの順序、同時に子が完了した場合の結果保持は実装設計時に整理する。
+
+<a id="not-completed"></a>
+
+## 未完了（検討・保留）
 
 <a id="microvm"></a>
 

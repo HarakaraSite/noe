@@ -277,6 +277,12 @@ func (h *Host) dispatchDirect(ctx context.Context, op *Operation, method, payloa
 			return nil, newOperationError(400, "request", "agentId and commandId are required")
 		}
 		return h.waitTask(op, request, ctx)
+	case "wait_tasks":
+		var request WaitTasksRequest
+		if err := decode(&request); err != nil {
+			return nil, newOperationError(400, "request", "invalid tasks wait request")
+		}
+		return h.waitTasks(op, request, ctx)
 	case "read_task_result":
 		var request TaskResultRequest
 		if err := decode(&request); err != nil {
@@ -306,7 +312,7 @@ func validOperationMethod(method string) bool {
 		"context_prepare", "context_get", "context_set_runtime_info", "begin_hook_scope", "end_hook_scope",
 		"execution_get", "run_js", "tool_result", "conversation_checkpoint", "discard_images", "apply_steers",
 		"commit_final", "steer_agent", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "wait_task",
-		"read_task_result", "cancel_task", "stop_agent":
+		"wait_tasks", "read_task_result", "cancel_task", "stop_agent":
 		return true
 	}
 	return false

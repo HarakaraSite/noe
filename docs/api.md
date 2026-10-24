@@ -75,7 +75,7 @@ OpenAIのSol・LunaはResponsesを使います。[OpenAIガイド](openai.md)に
 
 `list_models({provider?, kind?})`は、認証や外部API要求なしで内蔵デフォルトと外部上書きを統合した候補一覧を返します。詳細とJevでの選択例は[モデルカタログ](model-catalog.md)を参照してください。
 
-`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`read_task_result`・`steer_agent`・`cancel_task`・`stop_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
+`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`wait_tasks`・`read_task_result`・`steer_agent`・`cancel_task`・`stop_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
 
 ```js
 import { run_agent } from "noe:agent";
@@ -127,6 +127,18 @@ console.log(result);
 `wait_task({agentId, commandId})`は初期タスクまたはqueueで受領された特定のタスクが終わるまで待ち、`{runId, commandId, state, answer, error?, errorDetails?}`を返します。`state`は`completed`・`failed`・`cancelled`です。失敗・取消しも結果としてresolveし、不正・不明・所有範囲外のIDはrejectします。開始前に取り消されたタスクでは`runId`と`answer`が空です。steerの`commandId`は指定できません。
 
 `wait_task`とlive `observe_agent`は`includeAnswer`を指定でき、既定は`true`です。`false`なら`answer`（observeでは`lastResult.answer`）を省略し、代わりに`answerBytes`としてUTF-8のbyte数を返します。状態・ID・error等は受け取れ、保存された原文は変わりません。
+
+親agentが委譲した子を待つ場合は、`wait_tasks({tasks: [{agentId, commandId}, ...], includeAnswer?})`を推奨します。集合の全完了なら`reason:"completed"`、呼出しscopeのowner runへ未適用steerがあれば`reason:"steer"`で集合全体を返します。`completed:[{agentId,outcome}]`と`pending:[{agentId,commandId}]`は入力順で、ownerがあれば`runId`も返します。task集合は非空・pair重複なしで、全対象に既存の所有確認を行います。owner runのない通常のClientでは全完了だけを待ちます。
+
+`reason:"steer"`では待機RPCだけが終了し、子も親も取り消しません。指示は既存の履歴checkpoint・steer適用を経て親モデルへ届きます。**結果をexport/returnしてrun_jsを終了し、同じtool内で即座に待ち直さないでください。** 次のモデル判断が必要な対処を選びます。完了とsteerを同時に観測した場合はsteer理由を優先し、完了結果も保持します。`includeAnswer:false`は各outcomeのanswerを省略しanswerBytesを返します。request/ownerの取消しはrejectで区別し、旧`wait_task`の完了専用契約は変えません。ポーリングや一定間隔のモデル要求は不要です。他の任意JS/無期限toolの強制中断ではありません。
+
+```js
+// Wait for the whole delegated task set, then return control to the parent.
+import { wait_tasks } from "noe:agent";
+export default await wait_tasks({tasks, includeAnswer: false});
+```
+
+`tasks`にはspawn/queueの受領で得たagentId/commandIdの組をまとめます。steerの後に再待機する場合は、次のtoolでpendingのIDを使います。
 
 `read_task_result({agentId, commandId, offset?, maxBytes?})`は完了済みタスクの原文を範囲取得し、`{runId, commandId, state, text, offset, nextOffset, totalBytes, eof}`を返します。`offset`は既定0のUTF-8 byte位置で、文字境界かつ原文末尾までの非負safe integer、`maxBytes`は既定4096の正のsafe integerです。続きは`nextOffset`から取得します。文字の途中で切らず、指定byte数に一文字も収まらない場合だけ、その一文字を返すため最大3bytes超えます。末尾では空文字と`eof:true`です。未完了ならrejectするので先に`wait_task`で待ちます。所有範囲・結果保持期間は`wait_task`と同じで、追加モデル呼出しや自動要約・原文の切り捨ては行いません。
 
@@ -222,7 +234,7 @@ Control接続はローカルで稼働中のNOEに限られ、daemonや再起動�
 
 ### run_jsからの利用
 
-モデル向けの`run_js`では`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`read_task_result`・`steer_agent`・`cancel_task`・`stop_agent`が事前に束縛されています。importや再宣言をせず、そのまま呼び出してください。`run_js`呼出しごとに同じGoプロセス内で新しいstdlib runtimeが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
+モデル向けの`run_js`でも必要なagent操作を`noe:agent`から明示importします。暗黙の事前束縛はありません。親が委譲先を待つ際は`wait_tasks`で集合全体を待ち、steer理由ならtoolを終了して親へ判断を返します。`run_js`呼出しごとに同じGoプロセス内で新しいstdlib runtimeが動き、通常のJavaScript変数は呼出し間で保持されません。子はprovider・model・effort・maxTokensを省略時に親runから継承し、name・system・maxSteps・cacheKey・履歴は継承しません。
 
 捕捉するstdout・stderrは、それぞれ元の出力の先頭32KiBと末尾32KiB、合計64KiBまでを保持します。上限以内の出力は変更しません。超過した場合は途中に`[NOE: output truncated; N bytes omitted]`を挿入し、結果に`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。UTF-8の切断位置は文字境界へ寄せるため、保持量が数バイト減る場合があります。超過分も読み捨て続けるため、上限到達で子プロセスを停止したり出力pipeを詰まらせたりしません。省略だけで`exitCode`や`reason`は変更しません。managed task runtimeの捕捉出力も同じ制限に従います。
 

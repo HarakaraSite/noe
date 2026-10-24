@@ -29,6 +29,7 @@ type agentRun struct {
 	instance                *agentInstance
 	steerByID               map[string]*steerCommand
 	steerOrder              []*steerCommand
+	steerWake               chan struct{} // Host.mu; closed/replaced only after acceptance publication
 	pendingSteerActivityIDs []string
 	finalAnswer             string
 	finalDone               chan struct{}

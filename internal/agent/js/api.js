@@ -178,6 +178,38 @@ export function createAgentAPI({ request, defaults }) {
     });
   }
 
+  // Wait as one request so a pending owner steer returns the entire set.
+  async function wait_tasks(options = {}) {
+    if (!isRecord(options)) throw new TypeError("tasks wait options must be an object");
+    for (const key of Object.keys(options)) {
+      if (key !== "tasks" && key !== "includeAnswer") {
+        throw new TypeError("unknown tasks wait option: " + key);
+      }
+    }
+    if (!Array.isArray(options.tasks) || options.tasks.length === 0) {
+      throw new TypeError("tasks must be a nonempty array");
+    }
+    if (options.includeAnswer !== undefined && typeof options.includeAnswer !== "boolean") {
+      throw new TypeError("includeAnswer must be a boolean");
+    }
+    const seen = new Set();
+    const tasks = options.tasks.map((task) => {
+      if (!isRecord(task)) throw new TypeError("task reference must be an object");
+      for (const key of Object.keys(task)) {
+        if (key !== "agentId" && key !== "commandId") throw new TypeError("unknown task reference option: " + key);
+      }
+      const ref = {
+        agentId: requireString(task.agentId, "agentId"),
+        commandId: requireString(task.commandId, "commandId"),
+      };
+      const key = JSON.stringify([ref.agentId, ref.commandId]);
+      if (seen.has(key)) throw new TypeError("tasks must be unique");
+      seen.add(key);
+      return ref;
+    });
+    return rpc("wait_tasks", { tasks, includeAnswer: options.includeAnswer });
+  }
+
   // Read the retained answer without consuming it or requesting another model.
   async function read_task_result(options = {}) {
     if (!isRecord(options)) throw new TypeError("task result options must be an object");
@@ -251,5 +283,5 @@ export function createAgentAPI({ request, defaults }) {
     return rpc("observe_agent", { agentId: requireString(options.agentId, "agentId"), includeAnswer: options.includeAnswer });
   }
 
-  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, read_task_result, steer_agent, cancel_task, stop_agent, list_models });
+  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, wait_tasks, read_task_result, steer_agent, cancel_task, stop_agent, list_models });
 }

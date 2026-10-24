@@ -150,40 +150,39 @@ HTTP 4xx/5xx responses do not reject fetch by themselves; inspect response.ok/st
 
 ## agents
 
-Import managed-agent helpers explicitly from noe:agent; the tool does not add bindings to your source. A child inherits the current agent's provider, model, and effort when omitted. Use run_agent for a single task and inspect lastResult.state before accepting its answer:
+Import managed-agent helpers explicitly from noe:agent; the tool adds no implicit bindings. A child inherits the current agent's provider, model and effort when omitted.
+
+For a parent waiting on delegated work, prefer spawn_agent and one wait_tasks call for the entire set. This lets guidance to the parent end the wait without ending its children:
 
 ~~~js
-// Ask a child to summarize the README.
-import {run_agent} from "noe:agent";
-const child = await run_agent({name: "reader", maxSteps: 4},
+// Delegate work and return on completion or added guidance to the parent.
+import {spawn_agent, wait_tasks} from "noe:agent";
+const child = await spawn_agent({name: "reader", maxSteps: 4},
   "Read README.md and summarize its purpose in three lines.");
-const task = child.lastResult;
-if (task?.state !== "completed") {
-  throw Error(task?.error || JSON.stringify(child));
-}
-console.log(task.answer);
+if (!child.commandId) throw Error("spawn did not return a task command");
+export default await wait_tasks({tasks: [{agentId: child.agentId,
+  commandId: child.commandId}], includeAnswer: false});
 ~~~
 
-For a keep-alive worker, pass keepAlive in the third argument, queue the task, and await its receipt's commandId. wait_task waits for that task's outcome without polling; a failed or cancelled task resolves as data. Request instance shutdown when finished:
+On reason:steer, finish run_js and let the parent model read the instruction and decide what to do. Do not loop, immediately re-wait, stop children in a finally block, or use Promise.all of completion-only waits to simulate this. For several children, pass all agentId/commandId pairs to the same wait_tasks call. completed contains retained outcomes and pending contains unfinished IDs; use wait_task/read_task_result later to read answers. Task failure/cancellation remains outcome data, not a fake successful task.
+
+For a keep-alive worker, queue the task and wait for its accepted commandId. Stop it when work is complete, not merely because guidance ended the wait:
 
 ~~~js
-// Queue a task and wait for its specific outcome.
-import {spawn_agent, queue_agent, wait_task, stop_agent} from "noe:agent";
+// Queue work and keep its instance alive if guidance returns control early.
+import {spawn_agent, queue_agent, wait_tasks, stop_agent} from "noe:agent";
 const worker = await spawn_agent({name: "worker", maxSteps: 4},
   undefined, {keepAlive: true});
-try {
-  const receipt = await queue_agent({agentId: worker.agentId,
-    instruction: "Read README.md and summarize its purpose in three lines."});
-  const task = await wait_task({agentId: worker.agentId,
-    commandId: receipt.commandId});
-  if (task.state !== "completed") throw Error(task.error || JSON.stringify(task));
-  console.log(task.answer);
-} finally {
-  await stop_agent({agentId: worker.agentId});
-}
+const receipt = await queue_agent({agentId: worker.agentId,
+  instruction: "Read README.md and summarize its purpose in three lines."});
+const waited = await wait_tasks({tasks: [{
+  agentId: worker.agentId, commandId: receipt.commandId,
+}], includeAnswer: false});
+if (waited.reason === "completed") await stop_agent({agentId: worker.agentId});
+export default {workerAgentId: worker.agentId, ...waited};
 ~~~
 
-Child agents remain owned by the parent task across run_js calls; local variables do not. Save returned IDs to a known file if another call needs them. This managed-agent lifetime differs from ordinary subprocess handles created inside run_js, which end with that tool runtime. Use wait_task for a particular task, observe_agent for a live snapshot, steer_agent with runId for active-task guidance, and queue_agent with agentId for future work. Read docs("noe:agent") for the complete contracts.
+Child agents remain owned by the parent task across run_js calls; local variables do not. Return IDs in the tool result or save them to a known file for later calls. This differs from ordinary subprocess handles, which end with the tool runtime. With no owner run, wait_tasks waits for all selected tasks; it does not listen to arbitrary run IDs. Use run_agent/wait_task when completion-only waiting is intentional, observe_agent for snapshots, steer_agent with runId for guidance, and queue_agent with agentId for future work. Read docs("noe:agent", "wait_tasks") for the complete contract.
 
 ## failures
 

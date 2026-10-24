@@ -2,7 +2,7 @@
 
 ### API information
 
-Public exports: `cancel_task`, `list_models`, `observe_agent`, `queue_agent`, `read_task_result`, `run_agent`, `spawn_agent`, `steer_agent`, `stop_agent`, `wait_task`.
+Public exports: `cancel_task`, `list_models`, `observe_agent`, `queue_agent`, `read_task_result`, `run_agent`, `spawn_agent`, `steer_agent`, `stop_agent`, `wait_task`, `wait_tasks`.
 
 Reference: `noe:agent`. Owner: noeagentlib.
 
@@ -12,7 +12,7 @@ Availability: Requires an agent client/operation binding in the main runtime. Th
 
 Public-definition source: internal/agent/js/agent.js, internal/agent/js/api.js, internal/agentbridge/managed.go. Reading this reference evaluates no target module and makes no provider request.
 
-`noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `read_task_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
+`noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `wait_tasks`, `read_task_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
 
 A managed agent owns its task runtime and descendants. A returned snapshot is a point-in-time plain object, not a live handle. Use `observe_agent` to refresh it. Accepted task failures are represented in the result or snapshot; ordinary task failure does not make `run_agent` reject. Input, configuration, or acceptance failures reject. Cancellation follows ownership and recovers work owned by the current evaluation.
 
@@ -25,6 +25,7 @@ A managed agent owns its task runtime and descendants. A returned snapshot is a 
 | `observe_agent` | Read a live snapshot. |
 | `queue_agent` | Submit a future task to a keep-alive instance. |
 | `wait_task` | Wait for the retained outcome of one accepted task; optionally omit its answer. |
+| `wait_tasks` | Wait for a task set, returning early on guidance to the caller's owner run without cancelling children. |
 | `read_task_result` | Read a UTF-8 byte range from a retained answer. |
 | `steer_agent` | Add guidance to an active task. |
 | `cancel_task` | Cancel one accepted task without stopping the instance or its queue. |
@@ -116,6 +117,35 @@ const result = await wait_task({agentId: worker.agentId, commandId: task.command
 if (result.state === "completed") console.log(result.answer);
 ```
 
+## wait_tasks
+
+`wait_tasks({tasks: [{agentId, commandId}, ...], includeAnswer?}) -> Promise<WaitTasksResult>` waits for all selected tasks, or returns the whole set early when unapplied guidance reaches the caller's owner run. Prefer this entry point for a parent waiting on delegated work; do not poll or wrap completion-only waits in Promise.all if the parent must remain responsive to steer.
+
+The task list must be nonempty with unique agent/command pairs. Every target must be owned and valid before waiting begins. The result is:
+
+```js
+{
+  reason: "completed" | "steer",
+  runId: "...", // present when this caller belongs to an owner run
+  completed: [{agentId: "...", outcome: {/* TaskOutcome */}}],
+  pending: [{agentId: "...", commandId: "..."}],
+}
+```
+
+Both arrays preserve input order. Completed outcomes remain retained and repeatable, including failed/cancelled tasks. includeAnswer defaults to true; false omits each outcome.answer and adds answerBytes. pending does not change the target's state. If completion and guidance are both observed, reason is steer and available completion results are still included.
+
+The owner run is derived from the caller's scope, not supplied as an arbitrary run ID. With no owner run, this is an all-tasks-completed wait. Guidance is not consumed, applied or returned as a fake TaskOutcome; accepted guidance is delivered through the existing checkpoint/steer-application path. Script-origin guidance also wakes the wait. Already applied guidance does not wake a later wait.
+
+On reason:steer, export/return the result and finish run_js so its model can read the guidance and decide whether to observe, steer, cancel or stop a child. Do not immediately re-wait in the same tool. This return cancels neither the parent nor children. Ordinary request/owner cancellation rejects; ending the owner scope still reclaims owned work. No periodic polling/model calls are needed, and no outstanding wait RPC is abandoned.
+
+```js
+// Wait for delegated tasks while allowing the parent to receive guidance.
+import { wait_tasks } from "noe:agent";
+export default await wait_tasks({tasks, includeAnswer: false});
+```
+
+Here tasks is the full list of accepted agent/command pairs held by the caller. To wait again after processing guidance, make a later tool call using pending IDs. This API does not interrupt arbitrary JavaScript or another unrelated blocking tool; all outstanding tool calls must finish before the model can continue.
+
 ## read_task_result
 
 `read_task_result({agentId, commandId, offset?, maxBytes?})` reads a completed task's retained answer without consuming it. The result is `{runId, commandId, state, text, offset, nextOffset, totalBytes, eof}`. Pass `nextOffset` to continue. `offset` defaults to `0` and must be a nonnegative safe integer at a UTF-8 character boundary within the answer, including its end. `maxBytes` defaults to `4096` and must be a positive safe integer. The slice ends at a character boundary; when one character alone exceeds the requested limit, that character is returned (up to three extra bytes) so reading makes progress.
@@ -176,7 +206,7 @@ export async function beforeTool(event) {
 
 ## HookAPI.agents
 
-The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `read_task_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models` with the same argument and return contracts as this module. It is bound to that hook invocation, preserving its ownership and cause information. Requests made through the callback API are cancelled when the callback returns; an agent started by a hook remains owned by the run and is recovered with it. Prefer `api.agents` when the action should be attributed to that hook invocation.
+The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `wait_tasks`, `read_task_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models` with the same argument and return contracts as this module. It is bound to that hook invocation, preserving its ownership and cause information. Requests made through the callback API are cancelled when the callback returns; an agent started by a hook remains owned by the run and is recovered with it. Prefer `api.agents` when the action should be attributed to that hook invocation.
 
 ## HookAPI.context.get
 
