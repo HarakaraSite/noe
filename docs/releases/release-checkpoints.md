@@ -1712,3 +1712,46 @@ paid model call was repeated for release preparation. The existing light CI
 builds six binaries, creates SHA256SUMS and publishes the immutable tag.
 Published artifacts and module availability are checked after publication.
 Installation is separate from this publication request.
+
+## v2.5.0 Release validation — 2026-10-24
+
+- Annotated tag `v2.5.0` points to
+  `1ba92915c21b9b5efc3d1804edd9b1fb617af83f`. The remote peeled tag matches
+  the workflow revision; its difference from checked source `0d9c135` is
+  preparation evidence only.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/36)
+  succeeded (API run ID 217, job ID 238). The saved native log has no repeated
+  source test or vet command.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.5.0)
+  is published, neither draft nor prerelease (Release ID 149). Its description
+  matches the tagged English release notes.
+
+All seven assets were downloaded, and all six binary hashes matched SHA256SUMS.
+The Linux amd64 binary reports `noe v2.5.0`, the tagged source revision,
+`vcs.modified=false`, `CGO_ENABLED=0` and official go-quickjs v0.28.0. Its SHA256
+is `316b0ec2fb7195face6ee1d2b2b4bcb1816aafbedbe28d227564ca008b108979`.
+
+Deterministic local-provider fixtures against the downloaded binary verified
+failure diagnostics, repaired structured results, next-request delivery and
+JSONL retention. Default-budget overflow reached the model within 65,536 bytes.
+A 131,072-byte pragma captured and delivered 90,001 stdout bytes completely,
+demonstrating that capture grows past the previous fixed 64 KiB ceiling.
+Heavily escaped oversized data stayed within the maximum 262,144-byte result
+budget. A 262,145-byte setting produced a setup failure without writing its
+marker file. All 34 external file-helper checks also passed with that binary.
+
+Clean external modules fetched `stdlib@v2.5.0` and `agent@v2.5.0` from the actual
+published module without local replacement or a synthetic proxy. Both examples
+built, ran and passed `go mod verify`. The agent returned `The total is 31.`;
+MVS selected official go-quickjs v0.28.0, and both declaration files match the
+tagged source. No paid provider calls were made.
+
+Evidence is retained at `/var/tmp/noe-v2.5.0-release-j4edg63t`, including the
+workflow log, published assets, contract-flow requests/events, helper output,
+consumer builds, `published-verification.json` and
+`public-module-verification.json`. Other five platforms have CI build/hash
+evidence without native execution here.
+
+This publication record does not move the release tag. Repository-root `./noe`,
+the PATH binary and running NOE processes are unchanged; installation remains
+a separate action. Existing event logs remain untouched.
