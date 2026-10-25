@@ -47,6 +47,8 @@ export async function executeToolWithHooks(loaded, event, toolCall, execute, onI
       result: rawResult, images: rawImages,
     });
   } catch (error) {
+    // Ordinary handler failures have already recovered inside callHooks. Only
+    // cancellation or infrastructure failure makes this output unavailable.
     try {
       await rpc("tool_result", {
         ...report, result: null, images: [], modelResultAvailable: false, hookError: hookErrorText(error),

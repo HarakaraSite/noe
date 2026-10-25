@@ -85,7 +85,7 @@ func TestValidateTypedTaskConfigMatchesStructuredJSONValidation(t *testing.T) {
 
 func TestTypedResponseSnapshotsCopyStateAndProjectOmittedAnswers(t *testing.T) {
 	usageTotal, answerBytes, contextBudget := int64(14), 6, int64(100)
-	answer := TaskOutcome{omitAnswer: true, Answer: "secret", AnswerBytes: &answerBytes}
+	answer := TaskOutcome{omitAnswer: true, Answer: "secret", AnswerBytes: &answerBytes, HookFailures: []HookFailure{{Error: "kept"}}}
 	snapshot := InstanceSnapshot{
 		CausedBy:   []string{"activity"},
 		Execution:  &executionSnapshot{Usage: &usageTotals{TotalTokens: &usageTotal}},
@@ -100,6 +100,10 @@ func TestTypedResponseSnapshotsCopyStateAndProjectOmittedAnswers(t *testing.T) {
 	*copy.Context.Budget.InputTokens = 200
 	*copy.LastResult.AnswerBytes = 1
 	copy.CausedBy[0] = "changed"
+	copy.LastResult.HookFailures[0].Error = "changed"
+	if answer.HookFailures[0].Error != "kept" {
+		t.Fatal("hook failures alias retained outcome")
+	}
 	if usageTotal != 14 || contextBudget != 100 || answerBytes != 6 || snapshot.CausedBy[0] != "activity" {
 		t.Fatalf("typed result aliases retained state: original=%+v", snapshot)
 	}

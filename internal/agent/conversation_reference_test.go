@@ -58,6 +58,14 @@ func TestManagedModelUsesCommittedRevisionAndOwnsProviderBuffers(t *testing.T) {
 		t.Fatal("stale prepare was accepted")
 	}
 	controlCall(t, op, "context_prepare", prepare)
+	if _, err := op.Call("model", mustJSON(t, request)); err == nil {
+		t.Fatal("unprepared notification text was accepted")
+	}
+	var prepared contextGetResponse
+	if err := json.Unmarshal([]byte(controlCall(t, op, "context_get", contextAccessRequest{RunID: run.id, ModelStepID: step.ModelStepID})), &prepared); err != nil {
+		t.Fatal(err)
+	}
+	note = prepared.Notification
 	staleRequest := request
 	staleRequest.HistoryRevision--
 	if _, err := op.Call("model", mustJSON(t, staleRequest)); err == nil {

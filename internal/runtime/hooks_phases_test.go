@@ -395,49 +395,74 @@ console.log(result.lastResult.answer);`
 	}
 }
 
-func TestHooksFailurePreservesExecutedResultAndCancelsParallelTool(t *testing.T) {
+func TestHooksFailurePreservesExecutedResultAndCompletesParallelTool(t *testing.T) {
 	cwd := t.TempDir()
 	ready := filepath.Join(cwd, "waiting-tool-ready")
+	release := filepath.Join(cwd, "waiting-tool-release")
 	ran := filepath.Join(cwd, "executed-once")
-	writePhaseHook(t, cwd, "fails.mjs", fmt.Sprintf(`import {existsSync} from "node:fs";
+	writePhaseHook(t, cwd, "fails.mjs", fmt.Sprintf(`import {existsSync,writeFileSync} from "node:fs";
 export async function afterTool(event) {
  if(event.toolCallId!=="fails") return;
  while(!existsSync(%q)) await new Promise(resolve=>setTimeout(resolve,5));
+ writeFileSync(%q,"release");
  throw Error("after hook fixture failed");
-}`, ready))
+}`, ready, release))
 	failureCode := fmt.Sprintf(`// Record completed execution exactly once.
 import {existsSync,readFileSync,writeFileSync} from "node:fs";
 const path=%q;writeFileSync(path,(existsSync(path)?readFileSync(path,"utf8"):"")+"x");console.log("actual success");`, ran)
-	waitCode := fmt.Sprintf(`// Wait until the task cancels this parallel tool.
-import {writeFileSync} from "node:fs";
-writeFileSync(%q,"ready");while(true) await new Promise(resolve=>setTimeout(resolve,1000));`, ready)
+	waitCode := fmt.Sprintf(`// Complete after the sibling hook releases this parallel tool.
+import {existsSync,writeFileSync} from "node:fs";
+writeFileSync(%q,"ready");while(!existsSync(%q)) await new Promise(resolve=>setTimeout(resolve,5));
+console.log("sibling success");`, ready, release)
 	var mu sync.Mutex
 	calls := 0
-	p := agentProviderFunc(func(context.Context, provider.Request) (provider.Response, error) {
+	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
 		mu.Lock()
+		defer mu.Unlock()
 		calls++
-		mu.Unlock()
-		return hookToolReply(map[string]string{"fails": failureCode, "waits": waitCode}, "fails", "waits"), nil
+		if calls == 1 {
+			return hookToolReply(map[string]string{"fails": failureCode, "waits": waitCode}, "fails", "waits"), nil
+		}
+		tools := 0
+		for _, raw := range req.Messages {
+			var message struct{ Role, Content string }
+			if json.Unmarshal(raw, &message) == nil && message.Role == "tool" {
+				tools++
+				if !strings.Contains(message.Content, "success") {
+					t.Errorf("effective tool result lost: %s", raw)
+				}
+			}
+		}
+		if tools != 2 {
+			t.Errorf("tool results=%d, want 2", tools)
+		}
+		return agentAnswer("recovered parallel tools"), nil
 	})
 	var eventMu sync.Mutex
 	var observed []events.Event
 	settings := agentTestOptions(p)
 	settings.Observe = func(event events.Event) { eventMu.Lock(); observed = append(observed, event); eventMu.Unlock() }
 	source := `import {run_agent} from "noe:agent";
-console.log(JSON.stringify(await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:3,hooks:["./fails.mjs"]},"fail after execution")));`
+console.log(JSON.stringify(await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:2,hooks:["./fails.mjs"]},"recover after execution")));`
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	var out, stderr bytes.Buffer
 	code, err := Execute(ctx, Source{Name: filepath.Join(cwd, "main.js"), Code: source}, Options{Cwd: cwd, Agent: settings, Stdout: &out, Stderr: &stderr})
 	var result struct {
 		LastResult struct {
-			State string `json:"state"`
-			Error string `json:"error"`
-		} `json:"lastResult"`
+			State        string
+			Answer       string
+			Error        string
+			HookFailures []struct{ InvocationID, Phase, ToolCallID, Error string }
+		}
 	}
 	decode := json.Unmarshal(out.Bytes(), &result)
-	if code != 0 || err != nil || decode != nil || result.LastResult.State != "failed" || !strings.Contains(result.LastResult.Error, "after hook fixture failed") {
+	if code != 0 || err != nil || decode != nil || result.LastResult.State != "completed" || result.LastResult.Answer != "recovered parallel tools" || result.LastResult.Error != "" || len(result.LastResult.HookFailures) != 1 {
 		t.Fatalf("code=%d err=%v decode=%v result=%+v out=%q stderr=%q", code, err, decode, result, &out, &stderr)
+	}
+	failure := result.LastResult.HookFailures[0]
+	if failure.Phase != "afterTool" || failure.ToolCallID != "fails" || failure.Error != "after hook fixture failed" {
+		t.Fatalf("failure=%+v", failure)
 	}
 	data, err := os.ReadFile(ran)
 	if err != nil || string(data) != "x" {
@@ -446,18 +471,24 @@ console.log(JSON.stringify(await run_agent({provider:"openrouter",model:"fixture
 	mu.Lock()
 	count := calls
 	mu.Unlock()
-	if count != 1 {
-		t.Fatalf("hook error triggered %d model calls", count)
+	if count != 2 {
+		t.Fatalf("model calls=%d want 2", count)
 	}
 	eventMu.Lock()
 	defer eventMu.Unlock()
-	failedHooks, rawRecorded, waitCancelled := 0, false, false
+	failedHooks, rawRecorded, waitCompleted := 0, false, false
 	for _, event := range observed {
 		if event["type"] == "hook.failed" {
 			failedHooks++
+			if event["invocationId"] != failure.InvocationID {
+				t.Fatalf("wrong failure ID: %+v", event)
+			}
 		}
-		if event["type"] == "run_js.finished" && event["toolCallId"] == "waits" && event["reason"] == "cancelled" {
-			waitCancelled = true
+		if event["type"] == "run_js.finished" && event["toolCallId"] == "waits" && event["reason"] == "completed" {
+			waitCompleted = true
+		}
+		if event["type"] == "run_js.finished" && event["reason"] == "cancelled" {
+			t.Fatalf("parallel tool cancelled: %+v", event)
 		}
 		if event["type"] == "tool.finished" && event["toolCallId"] == "fails" {
 			encoded, err := json.Marshal(event)
@@ -466,25 +497,29 @@ console.log(JSON.stringify(await run_agent({provider:"openrouter",model:"fixture
 			}
 			var saved struct {
 				RawResult struct {
-					Stdout   string `json:"stdout"`
-					ExitCode int    `json:"exitCode"`
-					Reason   string `json:"reason"`
-				} `json:"rawResult"`
-				Available *bool           `json:"modelResultAvailable"`
-				HookError string          `json:"hookError"`
-				Result    json.RawMessage `json:"result"`
+					Stdout   string
+					ExitCode int
+					Reason   string
+				}
+				Available *bool `json:"modelResultAvailable"`
+				HookError string
+				Result    struct {
+					Stdout   string
+					ExitCode int
+					Reason   string
+				}
 			}
 			if err := json.Unmarshal(encoded, &saved); err != nil {
 				t.Fatal(err)
 			}
-			if saved.RawResult.Stdout != "actual success\n" || saved.RawResult.ExitCode != 0 || saved.RawResult.Reason != "completed" || saved.Available == nil || *saved.Available || !strings.Contains(saved.HookError, "after hook fixture failed") || string(saved.Result) != "null" {
+			if saved.RawResult.Stdout != "actual success\n" || saved.RawResult.ExitCode != 0 || saved.RawResult.Reason != "completed" || saved.Available == nil || !*saved.Available || saved.HookError != "" || saved.Result.Stdout != saved.RawResult.Stdout {
 				t.Fatalf("executed facts lost on hook failure: %s", encoded)
 			}
 			rawRecorded = true
 		}
 	}
-	if failedHooks != 1 || !rawRecorded || !waitCancelled {
-		t.Fatalf("failure cleanup: hookFailures=%d rawRecorded=%v waitCancelled=%v", failedHooks, rawRecorded, waitCancelled)
+	if failedHooks != 1 || !rawRecorded || !waitCompleted {
+		t.Fatalf("recovery: hookFailures=%d rawRecorded=%v waitCompleted=%v", failedHooks, rawRecorded, waitCompleted)
 	}
 }
 
@@ -493,6 +528,7 @@ func TestHooksInterruptReapsStuckCallbackAndOwnedChild(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			cwd := t.TempDir()
 			ready := filepath.Join(cwd, "hook-ready.json")
+			writePhaseHook(t, cwd, "recovered.mjs", `export function beforeModelRequest(){throw Error("recover before cancellation");}`)
 			writePhaseHook(t, cwd, "stuck.mjs", fmt.Sprintf(`import {writeFileSync} from "node:fs";
 export async function beforeModelRequest(event,api) {
  const {agentId}=await api.agents.spawn_agent({name:"hung-hook-child",hooks:[]},undefined,{keepAlive:true});
@@ -513,7 +549,7 @@ export async function beforeModelRequest(event,api) {
 			settings.Observe = func(event events.Event) { eventMu.Lock(); observed = append(observed, event); eventMu.Unlock() }
 			source := fmt.Sprintf(`import {spawn_agent,observe_agent,stop_agent,cancel_task} from "noe:agent";
 import {existsSync,readFileSync} from "node:fs";
-const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",hooks:["./stuck.mjs"]},"interrupt stuck hook");
+const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",hooks:["./recovered.mjs","./stuck.mjs"]},"interrupt stuck hook");
 while(!existsSync(%q)) await new Promise(resolve=>setTimeout(resolve,5));
 const ready=JSON.parse(readFileSync(%q,"utf8"));
 const receipt=await cancel_task({agentId,commandId:ready.commandId});
@@ -536,7 +572,8 @@ console.log(JSON.stringify({receipt,state,child}));`, ready, ready)
 				State struct {
 					Reason     string `json:"reason"`
 					LastResult struct {
-						State string `json:"state"`
+						State        string                   `json:"state"`
+						HookFailures []struct{ Error string } `json:"hookFailures"`
 					} `json:"lastResult"`
 				} `json:"state"`
 				Child struct {
@@ -544,7 +581,7 @@ console.log(JSON.stringify({receipt,state,child}));`, ready, ready)
 				} `json:"child"`
 			}
 			decode := json.Unmarshal(out.Bytes(), &result)
-			if code != 0 || err != nil || decode != nil || result.Receipt.Status != "accepted" || result.State.Reason != "task_interrupted" || result.State.LastResult.State != "cancelled" || result.Child.State != "stopped" {
+			if code != 0 || err != nil || decode != nil || result.Receipt.Status != "accepted" || result.State.Reason != "task_interrupted" || result.State.LastResult.State != "cancelled" || result.Child.State != "stopped" || len(result.State.LastResult.HookFailures) != 1 || result.State.LastResult.HookFailures[0].Error != "recover before cancellation" {
 				t.Fatalf("code=%d err=%v decode=%v result=%+v out=%q stderr=%q", code, err, decode, result, &out, &stderr)
 			}
 			mu.Lock()

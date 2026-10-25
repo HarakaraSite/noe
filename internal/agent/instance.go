@@ -10,6 +10,23 @@ import (
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
+// HookFailure describes one recovered registered-handler failure. RequestID is
+// the source request; NotifiedRequestID is the admitted provider request carrying
+// its notification, and is empty while pending. Admission does not guarantee that
+// the model read or resolved the failure. A final-response failure need not be sent.
+type HookFailure struct {
+	InvocationID      string `json:"invocationId"`
+	HookIndex         int    `json:"hookIndex"`
+	Module            string `json:"module"`
+	Phase             string `json:"phase"`
+	ModelStepID       string `json:"modelStepId"`
+	RequestID         string `json:"requestId,omitempty"`
+	ToolCallID        string `json:"toolCallId,omitempty"`
+	ToolName          string `json:"toolName,omitempty"`
+	Error             string `json:"error"`
+	NotifiedRequestID string `json:"notifiedRequestId,omitempty"`
+}
+
 type TaskOutcome struct {
 	omitAnswer   bool            // Per-response projection; never set on the retained result.
 	RunID        string          `json:"runId"`
@@ -19,6 +36,9 @@ type TaskOutcome struct {
 	AnswerBytes  *int            `json:"answerBytes,omitempty"`
 	Error        string          `json:"error,omitempty"`
 	ErrorDetails *imageapi.Error `json:"errorDetails,omitempty"`
+	// HookFailures can coexist with completed and survive omission of Answer.
+	// They never change Answer or replace the main Error.
+	HookFailures []HookFailure `json:"hookFailures,omitempty"`
 }
 
 type taskOutcome = TaskOutcome

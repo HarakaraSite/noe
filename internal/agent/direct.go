@@ -65,10 +65,16 @@ func (h *Host) withDirectRequest(ctx context.Context, caller *Operation, scope s
 		return nil, caller.initErr
 	}
 	if target.initErr != nil {
+		h.mu.Lock()
+		if target.hookScope && target.hookFatalError == nil {
+			target.hookFatalError = target.initErr
+		}
+		h.mu.Unlock()
 		return nil, target.initErr
 	}
 	value, err := work(merged, target)
 	if err != nil {
+		h.recordHookRequestError(target, err)
 		var encodingErr *directResponseEncodingError
 		if errors.As(err, &encodingErr) {
 			return nil, encodingErr.err

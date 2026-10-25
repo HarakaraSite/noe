@@ -54,6 +54,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
 | TS対応の議論・examplesの定性評価（未採用） | [TypeScriptの議論](typescript-discussion-20261024.md) |
 | 長時間agent作業の隔離環境・VCS配送・外部ライブラリ（検討） | [Docker・microVM等の議論と調査](isolated-agent-workspaces-discussion.md) |
+| hookの例外局所化・task通知と、トリム外部化・コンテキスト操作API（議論） | [議論メモ](hook-isolation-context-api-discussion-20261025.md)・[機能計画](hook-failure-isolation-plan-20261025.md)・[スライス](hook-failure-isolation-slices-20261025.md)・[実装/検証記録](hook-failure-isolation-implementation-20261025.md) |
 | 上流修正待ち：ES module内のブロック関数宣言が消える不具合 | [再現・原因・回避方法](dependency-updates.md#上流修正待ちes-module内のブロック関数宣言--2026-10-24) |
 | 単独noe observeの出力待機中の取消し | [修正・検証記録](observe-cancellation.md) |
 | 子の完了待ち中にsteerで親へ制御を戻す | [実装・検証記録](steer-aware-wait-implementation.md) · [実装指示書](steer-aware-wait-implementation-task.md) |

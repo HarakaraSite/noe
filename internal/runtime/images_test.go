@@ -127,7 +127,7 @@ await stop_agent({agentId});`
 	}
 }
 func TestImageHookSelectionAndPhysicalFailure(t *testing.T) {
-	for _, mode := range []string{"keep", "drop", "invalid", "throw", "physical_failure", "sibling_failure"} {
+	for _, mode := range []string{"keep", "drop", "invalid", "throw", "selected_then_invalid", "dropped_then_throw", "physical_failure", "sibling_failure"} {
 		t.Run(mode, func(t *testing.T) {
 			path, _ := runtimeImage(t)
 			cwd := t.TempDir()
@@ -141,6 +141,17 @@ func TestImageHookSelectionAndPhysicalFailure(t *testing.T) {
 			case "throw":
 				hook = `export function afterTool(e){throw Error("hook failed");}`
 			}
+			hooks := []string{"./hook.js"}
+			if mode == "selected_then_invalid" || mode == "dropped_then_throw" {
+				hook = `export function afterTool(e){return {result:"selected",imageIds:[e.images[0].imageId]};}`
+				failure := `export function afterTool(){return {result:"invalid",imageIds:["foreign"]};}`
+				if mode == "dropped_then_throw" {
+					hook = `export function afterTool(){return {result:"selected",imageIds:[]};}`
+					failure = `export function afterTool(){throw Error("hook failed after selection");}`
+				}
+				writePhaseHook(t, cwd, "failure.js", failure)
+				hooks = append(hooks, "./failure.js")
+			}
 			if err := os.WriteFile(filepath.Join(cwd, "hook.js"), []byte(hook), 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -153,6 +164,9 @@ func TestImageHookSelectionAndPhysicalFailure(t *testing.T) {
 				if calls == 1 {
 					code := `// Read the fixture image
 const {read_image}=await import("noe:image");await read_image(` + string(encodedPath) + `);`
+					if mode == "selected_then_invalid" {
+						code += `await read_image(` + string(encodedPath) + `);`
+					}
 					if mode == "physical_failure" {
 						code += `throw Error("after read");`
 					}
@@ -164,21 +178,38 @@ throw Error("ordinary tool failure");`}, "a", "b"), nil
 				}
 				urls := runtimeImageParts(r.Messages)
 				want := 1
-				if mode == "drop" || mode == "physical_failure" {
+				if mode == "drop" || mode == "dropped_then_throw" || mode == "physical_failure" {
 					want = 0
 				}
 				if len(urls) != want {
 					t.Errorf("image count=%d want%d history=%s", len(urls), want, r.Messages)
 				}
+				if mode == "selected_then_invalid" || mode == "dropped_then_throw" {
+					found := false
+					for _, raw := range r.Messages {
+						var msg struct{ Role, Content string }
+						if json.Unmarshal(raw, &msg) == nil && msg.Role == "tool" {
+							found = true
+							if msg.Content != "\"selected\"" {
+								t.Errorf("prior result replacement lost: %s", raw)
+							}
+						}
+					}
+					if !found {
+						t.Error("selected tool result absent")
+					}
+				}
 				return agentAnswer("done"), nil
 			})
 			opts := agentTestOptions(p)
-			source := `import {run_agent} from "noe:agent";const s=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:2,hooks:["./hook.js"]},"image");`
-			if mode == "invalid" || mode == "throw" {
-				source += `if(s.lastResult.state!=="failed")throw Error(JSON.stringify(s));`
-			} else {
-				source += `if(s.lastResult.state!=="completed")throw Error(JSON.stringify(s));`
+			encodedHooks, _ := json.Marshal(hooks)
+			source := `import {run_agent} from "noe:agent";const s=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:2,hooks:` + string(encodedHooks) + `},"image");
+if(s.lastResult.state!=="completed")throw Error(JSON.stringify(s));`
+			wantFailures := 0
+			if mode == "invalid" || mode == "throw" || mode == "selected_then_invalid" || mode == "dropped_then_throw" {
+				wantFailures = 1
 			}
+			source += fmt.Sprintf(`if((s.lastResult.hookFailures?.length||0)!==%d)throw Error(JSON.stringify(s));`, wantFailures)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			code, err := Execute(ctx, Source{filepath.Join(cwd, "main.js"), source}, Options{Cwd: cwd, Agent: opts})
@@ -188,9 +219,6 @@ throw Error("ordinary tool failure");`}, "a", "b"), nil
 			mu.Lock()
 			defer mu.Unlock()
 			want := 2
-			if mode == "invalid" || mode == "throw" {
-				want = 1
-			}
 			if calls != want {
 				t.Fatalf("calls=%d want%d", calls, want)
 			}

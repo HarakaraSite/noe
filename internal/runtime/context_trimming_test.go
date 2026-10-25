@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 	"forge.harakara.site/littleisland/noe/v2/internal/decision"
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
@@ -27,7 +28,9 @@ export async function beforeModelRequest(event,api) {
  before++;
  await api.context.setRuntimeInfo({key:"step",text:"current runtime info"});
  if(before===3)await api.agents.steer_agent({runId:event.runId,instruction:"protected extra direction",commandId:"trim-steer"});
+ throw Error("before model hook failed");
 }
+export function afterModelResponse(){throw Error("post-response hook failed");}
 
 export async function afterTool(event) {
  return {result:{stdout:"PAYLOAD-"+event.toolCallId+"-"+"x".repeat(18000),stderr:"",exitCode:0,reason:"completed"}};
@@ -62,7 +65,7 @@ export async function afterTool(event) {
 			}
 			source := fmt.Sprintf(`import {run_agent} from "noe:agent";
 const r=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:5,contextBudget:{inputTokens:6000},contextPolicy:%s,hooks:["./trim.mjs"]},"original immutable task");
-if(r.lastResult.answer!=="continued successfully")throw Error(JSON.stringify(r));`, policy)
+if(r.lastResult.answer!=="continued successfully")throw Error(JSON.stringify(r));console.log(JSON.stringify(r.lastResult));`, policy)
 			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 			defer cancel()
 			var out, stderr bytes.Buffer
@@ -70,13 +73,44 @@ if(r.lastResult.answer!=="continued successfully")throw Error(JSON.stringify(r))
 			if code != 0 || err != nil {
 				t.Fatalf("code=%d err=%v stdout=%s stderr=%s", code, err, &out, &stderr)
 			}
+			var outcome agent.TaskOutcome
+			if err := json.Unmarshal(out.Bytes(), &outcome); err != nil || outcome.State != "completed" || len(outcome.HookFailures) != 10 {
+				t.Fatalf("outcome=%+v err=%v", outcome, err)
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			if len(requests) != 5 {
 				t.Fatalf("requests=%d", len(requests))
 			}
+			var modelIDs []string
+			for _, e := range observed {
+				if e["type"] == "model.started" {
+					modelIDs = append(modelIDs, fmt.Sprint(e["requestId"]))
+				}
+			}
+			if len(modelIDs) != 5 {
+				t.Fatalf("model IDs=%v", modelIDs)
+			}
+			delivered := map[string]string{}
 			for i, req := range requests {
 				body, _ := json.Marshal(req.Messages)
+				_, failures, err := parseHookNotification(req.Messages)
+				wantFailures := 2
+				if i == 0 {
+					wantFailures = 1
+				}
+				if err != nil || len(failures) != wantFailures {
+					t.Fatalf("request %d failures=%+v err=%v", i, failures, err)
+				}
+				for _, failure := range failures {
+					if delivered[failure.InvocationID] != "" {
+						t.Fatalf("notification repeated as new: %+v", failure)
+					}
+					delivered[failure.InvocationID] = modelIDs[i]
+				}
+				if !disabled && i >= 2 && bytes.Contains(body, []byte(outcome.HookFailures[0].InvocationID)) {
+					t.Fatalf("sent notice was not trimmed with its old response block: %s", body)
+				}
 				messages := decodeRuntimeProviderMessages(t, req.Messages)
 				statuses := runtimeContextStatusMessages(messages)
 				if len(statuses) == 0 || statuses[len(statuses)-1].Role != "user" || !strings.HasPrefix(messages[len(messages)-1].Content, "NOE_CONTEXT_STATUS\n") || !runtimeMessageContains(messages, "user", "original immutable task") {
@@ -129,6 +163,17 @@ if(r.lastResult.answer!=="continued successfully")throw Error(JSON.stringify(r))
 					if len(toolIDs) < 2 || toolIDs[len(toolIDs)-2] != want[0] || toolIDs[len(toolIDs)-1] != want[1] {
 						t.Fatalf("parallel tool order changed %v", toolIDs)
 					}
+				}
+			}
+			if len(delivered) != 9 {
+				t.Fatalf("delivered failures=%d", len(delivered))
+			}
+			for _, failure := range outcome.HookFailures {
+				if failure.NotifiedRequestID != delivered[failure.InvocationID] {
+					t.Fatalf("delivery state=%+v", failure)
+				}
+				if failure.NotifiedRequestID == "" && (failure.Phase != "afterModelResponse" || failure.RequestID != modelIDs[4]) {
+					t.Fatalf("unexpected pending failure: %+v", failure)
 				}
 			}
 			trims, hooks := 0, 0

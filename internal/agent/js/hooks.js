@@ -14,32 +14,49 @@ export function hookErrorText(error) {
   try { return String(error); } catch (_) { return "unprintable hook error"; }
 }
 
+function hookErrorMessage(error) {
+  try { if (typeof error?.message === "string") return error.message; } catch (_) {}
+  try { return String(error); } catch (_) { return "unprintable hook error"; }
+}
+
 // Bind each callback to a separate Go operation. Its requests are cancelled
 // when the callback returns, while child instances remain owned by the run.
-export async function withHookAPI(callback, metadata = {}) {
+async function invokeHook(callback, metadata) {
   if (typeof callback !== "function") throw new TypeError("hook callback must be a function");
   const scope = requireScope(JSON.parse(await beginHookScope(JSON.stringify(metadata))));
   const scopeId = scope.scopeId;
   let active = true;
-  const request = (method, payload) => {
-    if (!active) return Promise.reject(new Error("hook API scope has ended"));
-    return requestHook(scopeId, method, payload);
+  // A malformed broker response is not a callback failure, even if the
+  // callback catches the rejection. Keep it outside the recovery result.
+  let brokerError;
+  const decode = (text, validate = () => true) => {
+    try {
+      const value = JSON.parse(text);
+      if (!validate(value)) throw new Error("agent broker returned an invalid hook response");
+      return value;
+    } catch (error) {
+      brokerError = error;
+      throw error;
+    }
+  };
+  const request = async (method, payload) => {
+    if (!active) throw new Error("hook API scope has ended");
+    const response = await requestHook(scopeId, method, payload);
+    decode(response);
+    return response;
   };
   const agents = createAgentAPI({ request, defaults: () => JSON.stringify(scope.defaults) });
   const event = scope.event || {};
   const api = Object.freeze({
     agents,
     execution: Object.freeze({
-      get: async () => JSON.parse(await request("execution_get", "{}")),
+      get: async () => decode(await request("execution_get", "{}"), isRecord),
     }),
     context: Object.freeze({
       get: async () => {
-        const result = JSON.parse(await request("context_get", JSON.stringify({
+        const result = decode(await request("context_get", JSON.stringify({
           runId: event.runId, modelStepId: event.modelStepId,
-        })));
-        if (!result || typeof result !== "object" || !result.context) {
-          throw new Error("agent broker returned an invalid context snapshot");
-        }
+        })), value => isRecord(value) && isRecord(value.context));
         return result.context;
       },
       setRuntimeInfo: async (value) => {
@@ -71,18 +88,25 @@ export async function withHookAPI(callback, metadata = {}) {
     callbackError = error;
   }
   active = false;
-  let closeError;
-  let closeFailed = false;
-  try {
-    await endHookScope(scopeId, callbackFailed ? "failed" : "completed",
-      callbackFailed ? hookErrorText(callbackError) : "");
-  } catch (error) {
-    closeFailed = true;
-    closeError = error;
+  // Scope close (including Go's sticky RPC/owner failure) always wins over
+  // a callback exception. Never catch it as a recoverable hook failure.
+  const status = brokerError ? "cancelled" : (callbackFailed ? "failed" : "completed");
+  const closed = JSON.parse(await endHookScope(scopeId, status,
+    callbackFailed ? hookErrorText(callbackError) : "",
+    callbackFailed ? hookErrorMessage(callbackError) : ""));
+  if (!isRecord(closed) || closed.closed !== true) {
+    throw new Error("agent broker returned an invalid hook scope close");
   }
-  if (callbackFailed) throw callbackError;
-  if (closeFailed) throw closeError;
-  return result;
+  if (brokerError) throw brokerError;
+  return {failed: callbackFailed, error: callbackError, value: result};
+}
+
+// Unregistered preparation callbacks keep their existing throwing contract.
+// Only callHooks consumes the recoverable result of a registered handler.
+export async function withHookAPI(callback, metadata = {}) {
+  const result = await invokeHook(callback, metadata);
+  if (result.failed) throw result.error;
+  return result.value;
 }
 
 const phases = ["beforeModelRequest", "afterModelResponse", "beforeTool", "afterTool"];
@@ -126,7 +150,7 @@ export async function callHooks(loaded, phase, event, validateReplacement) {
   for (const registration of loaded) {
     const handler = registration.handlers[phase];
     if (handler === undefined) continue;
-    const replacement = await withHookAPI(async (api, authoritative) => {
+    const outcome = await invokeHook(async (api, authoritative) => {
       const value = await handler(copyJSON({...current, ...authoritative}), api);
       if (phase !== "beforeTool" && phase !== "afterTool") return undefined;
       if (value === undefined) return undefined;
@@ -167,6 +191,7 @@ export async function callHooks(loaded, phase, event, validateReplacement) {
       phase, hookIndex: registration.index, module: registration.module,
       requestId: event.requestId, toolCallId: event.toolCallId, toolName: event.toolName,
     });
+    const replacement = outcome.failed ? undefined : outcome.value;
     if (replacement !== undefined) {
       const field = phase === "beforeTool" ? "arguments" : "result";
       current[field] = replacement.value;

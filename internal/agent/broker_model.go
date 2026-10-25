@@ -104,6 +104,15 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 			h.mu.Unlock()
 			return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "model transcript differs from prepared context")
 		}
+		if notice := run.context.preparedNotification; notice != nil {
+			if !notice.matches(request.Messages) {
+				h.mu.Unlock()
+				return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "model notification differs from prepared context")
+			}
+		} else if len(pendingHookFailures(run)) != 0 {
+			h.mu.Unlock()
+			return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "hook failure notification has not been prepared")
+		}
 		if run.config.MaxSteps > 0 && run.providerCalls >= run.config.MaxSteps {
 			limit := run.config.MaxSteps
 			h.mu.Unlock()
@@ -146,6 +155,8 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		// queued steer batch does not consume the task's model-call budget.
 		run.providerCalls++
 		h.markContextSentLocked(run, request, requestID, time.Now())
+		markHookFailuresNotified(run, run.context.preparedNotification, requestID)
+		run.context.preparedNotification = nil
 		run.context.pendingNotice = nil
 		run.context.pendingTrimActivityIDs = nil
 		// markContextSentLocked stores the request snapshot before the notice is

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -20,6 +21,7 @@ type hookScopeRequest struct {
 	ToolName    string `json:"toolName,omitempty"`
 	Status      string `json:"status,omitempty"`
 	Error       string `json:"error,omitempty"`
+	Message     string `json:"message,omitempty"`
 }
 
 type hookScopeResponse struct {
@@ -86,6 +88,10 @@ func (h *Host) beginHookScope(parent *Operation, request hookScopeRequest) (hook
 	h.mu.Unlock()
 
 	child := h.NewOperation(ownerCtx)
+	if child.initErr != nil {
+		child.Close()
+		return hookScopeResponse{}, newOperationError(http.StatusInternalServerError, "broker", "could not allocate hook scope")
+	}
 	var activityID string
 	var err error
 	if registered {
@@ -342,23 +348,108 @@ func (h *Host) endHookScope(parent *Operation, request hookScopeRequest) (map[st
 			break
 		}
 	}
-	if child != nil && child.hookInvocation != nil && child.hookInvocation.state == "active" {
-		child.hookInvocation.state = request.Status
-		terminalEvent = terminalHookEventLocked(child.hookInvocation, request.Status, request.Error, child.group)
+	if child == nil || (child.hookInvocation != nil && child.hookInvocation.state != "active") {
+		h.mu.Unlock()
+		return nil, newOperationError(http.StatusConflict, "scope", "unknown or unowned hook scope")
+	}
+	if child.hookInvocation != nil {
+		// Claim finalization before Close; Close must not emit a second terminal.
+		child.hookInvocation.state = "ending"
 		startEventDone = child.hookInvocation.startEventDone
 	}
 	h.mu.Unlock()
-	if child == nil {
-		return nil, newOperationError(http.StatusConflict, "scope", "unknown or unowned hook scope")
-	}
+
+	// Cancel unawaited scoped work and join it before deciding recoverability.
+	// A request can fail internally while the callback itself is returning.
 	child.Close()
+	h.mu.Lock()
+	closeErr := child.hookFatalError
+	status, errorText := request.Status, request.Error
+	if h.closed || parent.closed || h.runs[owner.id] != owner || owner.ctx.Err() != nil || owner.interrupting {
+		closeErr = newOperationError(http.StatusConflict, "scope", "hook owner run has ended")
+		status = "cancelled"
+	} else if !h.executionGroupOpenLocked(owner.group) {
+		code, message := executionLimitError(owner.group)
+		closeErr = newOperationError(http.StatusConflict, code, message)
+		status = "cancelled"
+	} else if closeErr != nil {
+		status = "failed"
+		errorText = closeErr.Error()
+	}
+	if invocation := child.hookInvocation; invocation != nil {
+		invocation.state = status
+		terminalEvent = terminalHookEventLocked(invocation, status, errorText, child.group)
+		if closeErr == nil && status == "failed" {
+			message := request.Message
+			if message == "" {
+				message = request.Error
+			}
+			// Only the active -> ending winner records this invocation.
+			owner.hookFailures = append(owner.hookFailures, hookFailureFromEvent(invocation.event, message))
+		}
+	}
+	h.mu.Unlock()
 	if terminalEvent != nil {
 		if startEventDone != nil {
 			<-startEventDone
 		}
 		h.observe(terminalEvent)
 	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
 	return map[string]bool{"closed": true}, nil
+}
+
+// recordHookRequestError preserves infrastructure failures even if JS catches
+// the RPC rejection and the owner run remains alive. Ordinary API misuse and
+// service/IO errors are callback failures, not Host failures.
+func (h *Host) recordHookRequestError(op *Operation, err error) {
+	if op == nil || !op.hookScope || err == nil {
+		return
+	}
+	var operationErr *operationError
+	var encodingErr *directResponseEncodingError
+	fatal := errors.As(err, &encodingErr) ||
+		(errors.As(err, &operationErr) && operationErr.status >= 500 && operationErr.code == "broker")
+	if !fatal {
+		return
+	}
+	h.mu.Lock()
+	if op.hookFatalError == nil {
+		op.hookFatalError = err
+	}
+	h.mu.Unlock()
+}
+
+func hookFailureFromEvent(event events.Event, message string) HookFailure {
+	text := func(key string) string { value, _ := event[key].(string); return value }
+	index, _ := event["hookIndex"].(int)
+	return HookFailure{
+		InvocationID: text("invocationId"), HookIndex: index,
+		Module: text("module"), Phase: text("phase"), ModelStepID: text("modelStepId"),
+		RequestID: text("requestId"), ToolCallID: text("toolCallId"), ToolName: text("toolName"), Error: message,
+	}
+}
+
+func cloneHookFailures(failures []HookFailure) []HookFailure {
+	if failures == nil {
+		return nil
+	}
+	result := append([]HookFailure{}, failures...)
+	for index := range result {
+		failure := &result[index]
+		failure.InvocationID = normalizeJSONText(failure.InvocationID)
+		failure.Module = normalizeJSONText(failure.Module)
+		failure.Phase = normalizeJSONText(failure.Phase)
+		failure.ModelStepID = normalizeJSONText(failure.ModelStepID)
+		failure.RequestID = normalizeJSONText(failure.RequestID)
+		failure.ToolCallID = normalizeJSONText(failure.ToolCallID)
+		failure.ToolName = normalizeJSONText(failure.ToolName)
+		failure.Error = normalizeJSONText(failure.Error)
+		failure.NotifiedRequestID = normalizeJSONText(failure.NotifiedRequestID)
+	}
+	return result
 }
 
 func terminalHookEventLocked(invocation *hookInvocation, status, errorText string, group *executionGroup) events.Event {

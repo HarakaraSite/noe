@@ -215,6 +215,9 @@ export async function executeTask(config, instruction) {
       if (!isRecord(context) || typeof context.notification !== "string") {
         throw new Error("agent broker returned an invalid context notification");
       }
+      // The Host freezes this exact text with its hook-failure ID batch during
+      // final preparation; reads do not consume it. Admission validates the
+      // sent text before marking only that batch as notified.
       // Preserve each sent status with its response as ordinary, trimmable history.
       const contextMessage = {role: "user", content: context.notification};
       const response = await rpc("model", {

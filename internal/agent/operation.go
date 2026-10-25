@@ -23,6 +23,7 @@ type Operation struct {
 	ownerRun         *agentRun
 	hookScope        bool
 	hookInvocation   *hookInvocation
+	hookFatalError   error // sticky hook-scoped infrastructure failure; host.mu
 	group            *executionGroup
 	causeActivityIDs []string
 	activityOrigin   activityOrigin

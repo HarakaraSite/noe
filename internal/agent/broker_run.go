@@ -42,6 +42,7 @@ type agentRun struct {
 	resolvedHooks           map[int]resolvedHook
 	images                  map[string]*imageapi.Data
 	refusal                 *imageapi.Error
+	hookFailures            []HookFailure // Host.mu; pending when NotifiedRequestID is empty
 }
 
 // modelStepState retains only the current logical judgment and the IDs needed

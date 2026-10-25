@@ -124,9 +124,9 @@ console.log(result);
 
 `queue_agent({agentId, instruction, commandId?})`は受領後に`{commandId, status}`を返します。タスクはFIFOで処理され、新しいrun IDを持ちますが、同じkeepAlive instanceに確定済みの会話を引き継ぎます。過去のuser・assistant・tool往復と最終回答のうち、context trimming後も残っている内容が続きます。実行開始時に新しい指示を時系列どおりuser messageとして追加し、元のtask指示・適用済みsteerと同様に以後の切り捨てから保護します。既に切り捨てた履歴は戻りません。trim回数と直近のtrim情報もinstance内で続きます。`starting`・`running`・`idle`の`keepAlive` instanceで受け付けます。終了済みinstanceや`keepAlive:false`のinstanceは受け付けません。同じ`commandId`と同じ指示の再送は再実行せず現在statusを返し、異なる指示での再利用はエラーになります。既定では`commandId`が自動発行されます。
 
-`wait_task({agentId, commandId})`は初期タスクまたはqueueで受領された特定のタスクが終わるまで待ち、`{runId, commandId, state, answer, error?, errorDetails?}`を返します。`state`は`completed`・`failed`・`cancelled`です。失敗・取消しも結果としてresolveし、不正・不明・所有範囲外のIDはrejectします。開始前に取り消されたタスクでは`runId`と`answer`が空です。steerの`commandId`は指定できません。
+`wait_task({agentId, commandId})`は初期タスクまたはqueueで受領された特定のタスクが終わるまで待ち、`{runId, commandId, state, answer, error?, errorDetails?, hookFailures?}`を返します。`state`は`completed`・`failed`・`cancelled`です。失敗・取消しも結果としてresolveし、不正・不明・所有範囲外のIDはrejectします。開始前に取り消されたタスクでは`runId`と`answer`が空です。steerの`commandId`は指定できません。
 
-`wait_task`とlive `observe_agent`は`includeAnswer`を指定でき、既定は`true`です。`false`なら`answer`（observeでは`lastResult.answer`）を省略し、代わりに`answerBytes`としてUTF-8のbyte数を返します。状態・ID・error等は受け取れ、保存された原文は変わりません。
+`wait_task`とlive `observe_agent`は`includeAnswer`を指定でき、既定は`true`です。`false`なら`answer`（observeでは`lastResult.answer`）を省略し、代わりに`answerBytes`としてUTF-8のbyte数を返します。状態・ID・error・`hookFailures`等は受け取れ、保存された原文は変わりません。
 
 親agentが委譲した子を待つ場合は、`wait_tasks({tasks: [{agentId, commandId}, ...], includeAnswer?})`を推奨します。集合の全完了なら`reason:"completed"`、呼出しscopeのowner runへ未適用steerがあれば`reason:"steer"`で集合全体を返します。`completed:[{agentId,outcome}]`と`pending:[{agentId,commandId}]`は入力順で、ownerがあれば`runId`も返します。task集合は非空・pair重複なしで、全対象に既存の所有確認を行います。owner runのない通常のClientでは全完了だけを待ちます。
 
@@ -158,6 +158,14 @@ instanceがidle・停止になるまで待つ必要はなく、後続タスク�
 組込み指示 → 共通 → workspace → 明示した`system`の順で追記し、同じinstanceのqueue taskにも固定します。子など新しいinstanceは独立して読み込みます。
 探索場所・読込み失敗・子やqueueの扱いは[インストラクションガイド](instructions.md)を参照してください。
 
+### hook失敗の保持結果
+
+登録済み4handlerの通常例外・返却値エラーは各hookに局所化し、後続hookと本体を直前の有効値で続行します。特に`beforeTool`のthrowは実行見送りにはなりません。以前の「throwでtaskを止める」契約とは異なります。設定・module読込み等の準備失敗、取消し・既存上限・scope/Host継続不能は別の終了経路です。
+
+`TaskOutcome`の任意`hookFailures`配列は回復した失敗を表し、失敗がなければ省略します。`completed`と両立し、回答や本体エラーを上書きしません。各要素は`{invocationId, hookIndex, module, phase, modelStepId, requestId?, toolCallId?, toolName?, error, notifiedRequestId?}`です。発生元`requestId`と通知先`notifiedRequestId`は別で、通知先の未設定は未送付を意味します。fieldの意味は[hook失敗の通知と保持](hooks.md#モデルへの同送と保持結果)を参照してください。
+
+失敗は次の通常モデル要求の`NOE_CONTEXT_STATUS`へ同送します。モデル前hookの失敗はその要求へ載せますが、最終応答後は通知だけの追加要求を出さず、モデルが読む保証はありません。未送付分もoutcomeに残し、次queue taskへ自動移送しません。`run_agent` / `observe_agent`の`lastResult`、`wait_task`、`wait_tasks`で同じ情報を取得でき、`includeAnswer:false`でも残ります。`read_task_result`は警告を混ぜない回答原文の範囲取得です。JSONL保存は不要です。エラー説明がモデル・保持結果・診断ログに含まれることを踏まえて機密情報を扱ってください。
+
 `hooks`・`contextBudget`・`contextPolicy`・`executionLimits`の契約、4種のhandlerとhook用操作API、
 context snapshotは[hook・実行groupガイド](hooks.md)を参照してください。
 `hooks:[]`と`contextBudget:null`は子の継承を解除します。`contextPolicy:null`は自動切り捨てを無効化し、子にも継承されます。
@@ -177,7 +185,7 @@ runのsnapshotに`groupId`・`execution`・`context`が加わります。
 
 `options.allowDelegation`は、そのinstanceがさらに子を起動できるかを所有元が決めるbooleanです。省略時はrootで`true`、子で`false`です。子へ再委譲を許可する場合、親が起動時の第三引数へ`{allowDelegation:true}`を指定します。許可は子へ自動継承せず、次の階層でも個別の明示指定が必要です。Go側の起動受付で起動元の権限を検査するため、許可のない子が自分の起動要求へ`allowDelegation:true`を書いても起動できません。`spawn_agent`・`run_agent`とhookからの起動へ共通に適用し、拒否はその要求をrejectします。group全体は停止せず、拒否したinstanceの起動枠も消費しません。
 
-run snapshotは`{agentId, parentRunId, name, state, reason, keepAlive, currentRunId, queueLength, lastResult}`です。instance stateは`starting`・`idle`・`running`・`stopping`・`stopped`・`failed`です。起動直後やidleでは`currentRunId`が空です。`lastResult`は最後のtaskの`{runId, commandId, state, answer, error?}`で、まだtaskを実行していなければ`null`です。
+run snapshotは`{agentId, parentRunId, name, state, reason, keepAlive, currentRunId, queueLength, lastResult}`です。instance stateは`starting`・`idle`・`running`・`stopping`・`stopped`・`failed`です。起動直後やidleでは`currentRunId`が空です。`lastResult`は最後のtaskの`{runId, commandId, state, answer, error?, errorDetails?, hookFailures?}`で、まだtaskを実行していなければ`null`です。
 
 `keepAlive`の既定値は`false`です。`false`なら一つのtaskの後に停止し、instructionは必須です。`true`ならtask完了・失敗後も待受を続け、通常のtask失敗後も次のqueue taskを受け付けます。instructionを省略するとidleから開始します。idle中にモデルは呼び出しません。同じinstanceのqueue taskは確定済み会話とtrim状態を続けますが、各taskのrun ID・`maxSteps`・task単位interrupt scopeは独立し、実行runtimeとhook moduleの状態は新しくなります。`run_agent(config, instruction, {keepAlive:true})`はinstance停止まで戻りません。
 

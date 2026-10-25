@@ -27,6 +27,9 @@ catalog window不明かつ明示予算なしの場合に使う1,000,000-token fa
 cached入力は実測promptの一部で、group累積tokenや応答上限とは別。
 概算方式・snapshotの型・hook APIは[hookガイド](hooks.md)を参照。
 標準通知は観察無効時もモデルに届き、JSONL記録自体は従来どおり`--events`で選ぶ。
+回復したhandler失敗は同じ`hook.failed`として残り、その後に`agent.completed` / `command.completed`が続くことがあります。`hook.failed`だけでtask失敗や並列tool取消しとは判定しないでください。取消し・上限・Host継続不能は別です。`hook.failed`は発生診断であり、モデルへの通知配送の完了イベントではありません。
+
+失敗の`invocationId`・`hookIndex`・`module`・`phase`・`modelStepId`と、該当時の発生元`requestId` / `toolCallId` / `toolName`で処理を対応付けます。エラー詳細は`error`に残ります。配送状態はtaskの保持結果`hookFailures[].notifiedRequestId`で確認します（未設定は未送付）。JSONLを保存しなくても記録・通常要求への通知・保持結果取得は成立します。[通知の時点と結果型](hooks.md#モデルへの同送と保持結果)を参照してください。
 
 再計算・切り捨て・通知の発火は独立しています。準備時と送信時にも内部状態とlive snapshotを
 更新しますが、`context.updated`は発火しません。応答または失敗・取消しの結果が出た時点で、
@@ -103,6 +106,8 @@ agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等�
 | `tool.finished` | `run_js`では`rawImages`（hook前の読取り候補）と`images`（採用後）を`rawResult`・`result`と分けて記録。画像項目はmetadataのみ |
 | `decision.started` | `requestId`・`provider`・要求モデルの`decisionModel` |
 | `decision.completed` / `decision.failed` / `decision.cancelled` | 同じ要求IDと`duration`。取得できる`statusCode`・`responseModel`・`usage`、失敗時の`reason`・`error` |
+
+hookのエラー説明にもpath・出力・利用者の値などが含まれ得ます。`hook.failed.error`だけでなく、モデルへ同送する事実通知と`TaskOutcome.hookFailures`にも内容が含まれます。自動redactionは行わないため、hookで扱う秘密値、保存先のアクセス権、外部送信・共有範囲を確認してください。
 
 `command.accepted.instruction`は受け付けた指示の元の文字列です。CLIからの操作だけでなく、初回タスク・JS/Go API由来のqueueやsteerも記録対象です。指示本文には機密情報が含まれうるため、画面共有やJSONLの保存・共有時は内容とアクセス権を確認してください。古いログにはこの項目がない場合があり、その本文は復元しません。
 

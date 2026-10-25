@@ -16,6 +16,7 @@ JSONLと構造化snapshotに引き続き保持します。
 概算はtokenizerによる実測ではなく、JSONLの`preparing`/`sent`は算出した段階を示します。
 画像を含む要求では`context.estimate.imageTokens`に画像分の概算を分けて記録し、`method`に`image_32px_patches_x1.2_fallback`を含めます。これはtokenizerや請求額の実測ではありません。式と`low` detailの寸法扱いは[画像ガイド](agent-images.md)を参照してください。
 `hook started`は実行中のphase/moduleを表示し、失敗・取消しも確認できる。
+`hook failed`は個々のhandler失敗で、task全体の失敗とは限りません。回復後に`completed`となることがあります。後続hook・元toolを直前の有効値で続ける契約と、取消し等の非回復経路は[hookガイド](hooks.md#失敗の局所化と通知)を参照してください。
 JSONLと観察snapshotには`groupId`、group累計の`execution`、要求単位の`context`を残す。
 保存ログのsnapshotはcursorで差分を絞ってもこれらを全履歴から復元する。
 hookが待機中なら`phase: "hook"`と実行中のhandlerを`action`に返す。
@@ -163,11 +164,15 @@ while (true) {
 console.log(snapshot.lastResult);
 ```
 
-snapshotにはinstanceの`agentId`・`parentRunId`・`name`・`state`・`reason`・`keepAlive`・`currentRunId`・`queueLength`・`lastResult`が含まれます。`lastResult`は直近taskの`{runId, commandId, state, answer, error?}`で、taskがまだなければ`null`です。`state`は`starting`・`idle`・`running`・`stopping`・`stopped`・`failed`です。idleでは`currentRunId`は空で、次のtaskを待っています。
+snapshotにはinstanceの`agentId`・`parentRunId`・`name`・`state`・`reason`・`keepAlive`・`currentRunId`・`queueLength`・`lastResult`が含まれます。`lastResult`は直近taskの`{runId, commandId, state, answer, error?, errorDetails?, hookFailures?}`で、taskがまだなければ`null`です。`state`は`starting`・`idle`・`running`・`stopping`・`stopped`・`failed`です。idleでは`currentRunId`は空で、次のtaskを待っています。
 
 上の例は結果表示後もrootのNOEをidleで維持します。本文の終了では待受は終わらず、現在はCtrl+C・timeout等で終了させます。親run_js内で起動した場合は、tool本文終了後も親runが子を所有します。
 
 live snapshotの取得はモデルを呼びません。live観察には`agentId`と任意の`includeAnswer`を渡します。ファイル観察で使う`logPath`・`runId`・`cursor`等を混ぜることはできません。live agentは所有するNOE runとともに終了・回収されます。
+
+hook失敗の保持・取得はJSONLの有無に依存しません。live `lastResult`と`wait_task` / `wait_tasks`のoutcomeには任意の`hookFailures`があり、`includeAnswer:false`でも省略しません。`invocationId`で診断イベントと対応付け、`notifiedRequestId`で通知先のprovider要求を確認します（発生元`requestId`とは別、未設定は未送付）。最終応答後は追加要求を強制せず未送付のまま残り得ます。`read_task_result`は警告を加えない回答原文の範囲取得です。詳しいfieldとqueue寿命は[API](api.md#hook失敗の保持結果)を参照してください。
+
+保存ログの解析は記録された出来事の観察であり、liveの保持結果そのものを読むAPIではありません。ログの`hook.failed`だけから通知先IDやモデルが読んだかどうかを推定しないでください。エラー説明が通知・保持結果・診断ログに含まれるため、機密情報の保存・共有にも注意してください。
 
 ### 保存済みJSONL
 

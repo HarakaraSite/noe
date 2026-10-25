@@ -296,7 +296,7 @@ func hookAPIMethod(method string) bool {
 	return false
 }
 
-func (b *Binding) agentEndHookScope(scopeID, status, errorText string) *quickjs.Promise {
+func (b *Binding) agentEndHookScope(scopeID, status, errorText, message string) *quickjs.Promise {
 	promise := b.rt.NewPromise()
 	b.hookMu.Lock()
 	scope, ok := b.hookScopes[scopeID]
@@ -306,10 +306,10 @@ func (b *Binding) agentEndHookScope(scopeID, status, errorText string) *quickjs.
 	}
 	b.hookMu.Unlock()
 	if !ok {
-		promise.Resolve(`{"closed":false}`)
+		promise.RejectError(errors.New("hook API scope has ended"))
 		return promise
 	}
-	encoded, _ := json.Marshal(map[string]string{"scopeId": scopeID, "status": status, "error": errorText})
+	encoded, _ := json.Marshal(map[string]string{"scopeId": scopeID, "status": status, "error": errorText, "message": message})
 	b.start(promise, func() (string, error) {
 		return b.op.Call("end_hook_scope", string(encoded))
 	})

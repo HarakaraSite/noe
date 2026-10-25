@@ -455,6 +455,7 @@ func cloneTaskOutcome(outcome TaskOutcome) TaskOutcome {
 	copy.Answer = normalizeJSONText(copy.Answer)
 	copy.Error = normalizeJSONText(copy.Error)
 	copy.AnswerBytes = cloneInt(outcome.AnswerBytes)
+	copy.HookFailures = cloneHookFailures(outcome.HookFailures)
 	if outcome.ErrorDetails != nil {
 		details := *outcome.ErrorDetails
 		details.Code = normalizeJSONText(details.Code)

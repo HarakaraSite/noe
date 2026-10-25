@@ -119,6 +119,9 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 	if request.AppliedPlanID != "" {
 		reconcileImagesLocked(run, request.Messages)
 	}
+	failures := pendingHookFailures(run)
+	run.context.hookFailureNotice = hookFailureNotice(failures)
+	run.context.preparedNotification = nil
 	snapshot := prepareContextEstimateFromStats(&run.context, run.id, stats)
 	var err error
 	var plan *contextTrimPlan
@@ -132,6 +135,16 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 	run.context.finalPrepared = request.Final && plan == nil
 	if run.context.finalPrepared {
 		run.context.preparedDigest = contextHistoryDigest(request.Messages, request.Tools)
+		// Planning can change the diagnostic budget flags. Freeze the final
+		// text only after planning/acknowledgement, and estimate that same text.
+		snapshot = recalculatePreparedContext(&run.context, run.id, time.Now())
+		notice := &preparedContextNotification{
+			text: contextMessage(snapshot, run.context.runtimeInfo, run.context.hookFailureNotice),
+		}
+		for _, failure := range failures {
+			notice.hookFailureIDs = append(notice.hookFailureIDs, failure.InvocationID)
+		}
+		run.context.preparedNotification = notice
 	}
 	snapshot = h.storeContextSnapshotLocked(run, time.Now())
 	stepActivityID := run.modelStep.activityID
@@ -151,7 +164,12 @@ func (h *Host) contextGet(op *Operation, request contextAccessRequest) (contextG
 		return contextGetResponse{}, err
 	}
 	snapshot := run.context.snapshot(run.id, time.Now())
-	notification := contextMessage(snapshot, run.context.runtimeInfo)
+	notification := ""
+	if notice := run.context.preparedNotification; notice != nil {
+		notification = notice.text
+	} else {
+		notification = contextMessage(snapshot, run.context.runtimeInfo, hookFailureNotice(pendingHookFailures(run)))
+	}
 	h.mu.Unlock()
 	return contextGetResponse{Context: snapshot, Notification: notification}, nil
 }
@@ -176,6 +194,9 @@ func (h *Host) contextSetRuntimeInfo(op *Operation, request contextSetRequest) (
 		run.context.runtimeInfo = make(map[string]string)
 	}
 	run.context.runtimeInfo[key] = text
+	run.context.finalPrepared = false
+	run.context.preparedNotification = nil
+	run.context.hookFailureNotice = hookFailureNotice(pendingHookFailures(run))
 	var snapshot contextSnapshot
 	if run.context.prepared {
 		snapshot = recalculatePreparedContext(&run.context, run.id, time.Now())

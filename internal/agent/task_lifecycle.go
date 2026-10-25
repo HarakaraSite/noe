@@ -257,6 +257,7 @@ func (task *managedTask) commitOutcomeLocked(result Result, err error) (taskOutc
 	if run != nil {
 		outcome.RunID = run.id
 		outcome.ErrorDetails = run.refusal
+		outcome.HookFailures = cloneHookFailures(run.hookFailures)
 	}
 	fatal := false
 	switch {

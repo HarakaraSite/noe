@@ -177,9 +177,11 @@ QuickJS-NGは最新のECMAScript仕様への追随を目指し、test262への�
 
 ### <未完了> JSでのhook登録と、実行前評価・親agentへの問い合わせ — 2026-10-20
 
+2026-10-25の追加議論は[hookの例外局所化・task通知とコンテキスト操作APIのメモ](development/hook-isolation-context-api-discussion-20261025.md)へ保存した。今回の中心は、検査に限定しない任意のhook処理について、例外をhookに閉じ込めてtaskへ通知する方向。同日の[実装計画](development/hook-failure-isolation-plan-20261025.md)と[スライス手順](development/hook-failure-isolation-slices-20261025.md)に沿って、登録済み4handlerの失敗局所化・通常モデル要求への通知・完了結果への保持を実装した。レビュー・検証状況は[実施記録](development/hook-failure-isolation-implementation-20261025.md)を参照。トリム外部化・コンテキスト操作APIは同実装の対象外で、引き続き検討のみ。承認機能の要望ではなく、以下の過去のcallback登録・実行前評価・親問い合わせの案とは区別する。
+
 利用者の検討メモ。今は記録のみとし、実装・API名・優先順位は決定しない。ユーザーのJSで`hook("after_toolcall", handler)`のように処理を登録したり、`run_js`実行前にコードを評価したり、親agentが子の実行へ介入できる使い方を検討する。評価・承認を全実行に必須化する依頼ではない。
 
-現在はconfigの`hooks: ["./hooks.js"]`とESM exportの`beforeTool`・`afterTool`等で登録する。`beforeTool`は実行予定のコードを受け取り、非同期の評価が終わるまで実行を待たせ、引数を置換できる。hook内から評価用agentを呼ぶ構成も可能で、評価用agentには`hooks: []`を指定して同じhookの継承を解除できる。例外を投げた場合は対象task全体が失敗する。[現行hook仕様](hooks.md)。
+現在はconfigの`hooks: ["./hooks.js"]`とESM exportの`beforeTool`・`afterTool`等で登録する。`beforeTool`は実行予定のコードを受け取り、非同期の評価が終わるまで実行を待たせ、引数を置換できる。hook内から評価用agentを呼ぶ構成も可能で、評価用agentには`hooks: []`を指定して同じhookの継承を解除できる。登録済みhandlerの処理例外・返却値検証失敗はhookごとに局所化し、直前の有効値で後続hookと本体を継続する。`beforeTool`のthrowは対象toolの実行見送りにはならない。失敗は次の通常モデル要求へ通知し、最終応答後などの未送付分も`TaskOutcome.hookFailures`へ保持する。設定・module読込みの準備エラー、取消し・既存実行上限・Host等の継続不能は別扱い。[現行hook仕様](hooks.md)。
 
 残る検討点は、同じJS内でのcallback登録と別runtimeへの受け渡し・外側の変数の扱い、task全体を失敗させずに今回のtool実行を見送って理由をモデルへ返す契約、子の実行前に親モデルへ判断を問い合わせて回答まで待つ仕組み。実行許可・引数変更・実行見送り・親への問い合わせをどう表現するか、待機中の取消しと親子の所有関係も含めて整理する。現状でも親が子へhookを指定・継承できるが、親モデル自身への同期的な問い合わせとは区別する。
 

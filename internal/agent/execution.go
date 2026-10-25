@@ -150,7 +150,7 @@ type activityOrigin struct {
 type hookInvocation struct {
 	activityID     string
 	event          events.Event // immutable after admission; Host.mu protects state
-	state          string       // active, completed, failed, or cancelled; Host.mu
+	state          string       // active, ending, completed, failed, or cancelled; Host.mu
 	started        time.Time
 	startEventDone chan struct{}
 }

@@ -1,6 +1,6 @@
 # agent hookと実行状況
 
-実装済みのhook APIとコンテキスト通知の使い方。総合テスト・実接続の確認結果は[実装記録](development/execution-hooks-implementation.md)、範囲は[計画](development/execution-hooks-plan.md)を参照。
+現行のhook APIとコンテキスト通知の使い方。初期導入時の[実装記録](development/execution-hooks-implementation.md)・[計画](development/execution-hooks-plan.md)は当時の検証履歴であり、例外の扱いは以下の現行契約を参照してください。
 
 ## 登録
 
@@ -13,7 +13,7 @@ module本文と依存moduleは各task開始時に読み込み、そのtask中は
 
 ## handler
 
-ESMの名前付きexportで次のasync関数を定義する。必要なものだけexportできる。
+ESMの名前付きexportで次の関数を定義する（asyncも可）。必要なものだけexportできる。
 同じphaseのmoduleは登録順にawaitし、異なるtool callは並行して処理できる。
 
 ```js
@@ -52,7 +52,7 @@ export async function afterTool(event) {
 モデル前後handlerの戻り値は使わず、今回の状態情報は`setRuntimeInfo`で設定する。
 tool handlerは`undefined`で変更なし、上記objectで置換する。
 tool名・call IDは変更できない。tool完了後の置換は実際の終了状態を書き換えない。
-例外はtaskの失敗とし、完了済みtoolやhookを再実行しない。
+登録済みhandlerの通常の例外・reject・返却値検証エラーは、その呼出しだけの失敗として扱う。後続hookと本体は直前の有効値で続行する。詳細は[失敗の局所化と通知](#失敗の局所化と通知)を参照。
 
 `beforeTool`の`rawArguments`はモデルが返した原文です。JSON toolではJSON文字列、openai-chatgptの生JS toolではJSソース文字列になります。`arguments`はどちらも解析・正規化した`{code: string}`です。
 解析できない場合は`null`を渡し、hookが置換しなければ通常のtool入力エラーとして扱う。
@@ -68,9 +68,67 @@ handlerへ渡すJSON snapshotの直接変更は、元のprovider応答や他hand
 `role`はroot/child、`agentDepth`はrootが0、子が1、孫が2となる。
 snapshotは取得時点の情報であり、hook実行中に新しいsteerが届く場合がある。
 
+## 失敗の局所化と通知
+
+**以前の「handlerのthrowでtaskを止める」挙動からの意図的な変更です。hookは検査・承認や実行見送りの機構ではありません。**
+
+| 失敗したhandler | 継続する処理 | 失敗通知を載せる通常モデル要求 |
+| --- | --- | --- |
+| `beforeModelRequest` | 後続hook、コンテキスト最終準備、元のモデル要求 | その要求 |
+| `afterModelResponse`（tool付き応答） | 後続hook、応答内toolの実行 | 次の通常要求 |
+| `beforeTool` | 後続hook、直前の有効な引数で元のtoolを実行 | 次の通常要求 |
+| `afterTool` | 後続hook、直前の有効な結果・画像で確定 | 次の通常要求 |
+| `afterModelResponse`（最終応答） | 後続hook、既存の最終確定処理 | 次の通常要求がある場合だけ |
+
+- 捕捉対象は登録handler本体と返却値検証です。ファイルI/O・コマンドの失敗、JSON化できない置換値、不正な引数・画像選択なども、handlerから外へ出た場合はそのhookの失敗になります。handler自身が捕捉して処理した例外を追加のhook失敗とは推定しません。
+- 失敗したhookの未成立の置換だけを不採用とし、先行hookの有効な引数・結果・画像選択を保ちます。`beforeTool`失敗でtoolをskipしません。先行置換がなければ元の引数で実行し、その引数自体が不正なら通常のtool入力エラーです。
+- 完了したファイル変更、`setRuntimeInfo`、子agent起動等の副作用を巻き戻しません。子の所有・回収規則も変えません。完了済みhookやtoolの自動再実行はせず、並列toolの他方をhook失敗だけで取り消しません。
+- hook設定の形式、module解決・読込み・export定義の準備失敗は従来どおり開始時エラーです。取消し、既存実行上限、scope/Hostの継続不能も通常のhook失敗には変換せず、本体の終了経路へ伝えます。scope終了障害はhandler例外と重なっても隠しません。
+
+### モデルへの同送と保持結果
+
+失敗は`hook.failed`イベントに残し、run所有の記録から既存の`NOE_CONTEXT_STATUS` user message内の独立した事実通知として同送します。JSONL保存・人間向け観察が無効でも動作します。人間のsteerや修復命令ではなく、`wait_tasks`を起こすsteerにもなりません。
+
+通知本文も最終概算・準備に含め、実provider要求の受付時にその本文に含まれたinvocationだけを送付済みにします。`api.context.get()`・観察・準備では消費せず、steer-onlyの再準備でも保持します。同じ失敗を新規通知として二重挿入しません。送付済み本文は対応する応答・tool結果と同じ通常blockで保存・trimされ、未送付記録はtrim対象の履歴だけには置きません。
+
+**hook失敗だけを理由に最終確定を拒否したり、モデル要求を追加したりしません。** 最終応答後など、次の通常要求がなければモデルが通知を読む保証はありません。その場合も失敗はtaskの保持結果に残ります。実際のsteerで次の判断へ進む場合は、その通常要求へ同送します。
+
+`TaskOutcome.hookFailures`は回復した失敗の任意配列で、失敗がなければ省略します。`state: "completed"`と両立し、`answer`・本体の`error`とは別です。`run_agent` / `observe_agent`の`lastResult`、`wait_task`、`wait_tasks`のoutcomeで取得できます。
+
+| HookFailureのfield | 意味 |
+| --- | --- |
+| `invocationId` | `hook.failed`と対応する呼出しID |
+| `hookIndex` / `module` / `phase` | 登録一覧の0始まりindex、解決済みmodule、4phaseのいずれか |
+| `modelStepId` | 発生した論理判断 |
+| `requestId?` | 発生元のprovider要求。モデル前hookでは未設定 |
+| `toolCallId?` / `toolName?` | tool hookの場合の発生元 |
+| `error` | printableなエラー説明。stack等の詳細は診断イベントを参照 |
+| `notifiedRequestId?` | 通知を載せたprovider要求ID。未設定は未送付。発生元`requestId`とは別 |
+
+「送付済み」は要求へ載せたことを表し、モデルが理解・解決した保証ではありません。要求自体が失敗した場合も、その受付済み要求IDを保持します。
+
+`includeAnswer: false`でも`hookFailures`は取得できます。`read_task_result`は回答原文の範囲取得のままで、警告を回答へ追記しません。確定後のoutcomeは後続taskにより書き換えません。同じkeepAlive instanceの次queue taskは通常の会話prefixを継続しますが、旧taskの未送付失敗を新規通知として自動移送しません。取消しや別の本体エラーで終わった場合も、すでに確定した回復済み失敗は可能な範囲で元taskのoutcomeに残します。
+
+```js
+import { run_agent } from "noe:agent";
+
+const snapshot = await run_agent({
+  provider: "openrouter", model: "provider/model-id", effort: "auto",
+  hooks: ["./hooks.js"],
+}, "依頼本文");
+const outcome = snapshot.lastResult;
+console.log(outcome?.state, outcome?.answer);
+for (const failure of outcome?.hookFailures ?? []) {
+  console.log(failure.phase, failure.error,
+    failure.notifiedRequestId ?? "未送付");
+}
+```
+
+エラー説明にはpath・コマンド出力・利用者の値などが含まれ得ます。hookの診断ログだけでなく、モデルへの通知・保持結果にも含まれるため、外部送信や保存・共有に適した内容か確認してください。自動redaction機能ではありません。
+
 ## hook用API
 
-`api.agents`は`run_agent`、`spawn_agent`、`observe_agent`、`queue_agent`、`wait_task`、`read_task_result`、
+`api.agents`は`run_agent`、`spawn_agent`、`observe_agent`、`queue_agent`、`wait_task`、`wait_tasks`、`read_task_result`、
 `steer_agent`、`cancel_task`、`stop_agent`、`list_models`を持つ。
 引数・戻り値・受付と完了の区別は[通常のagent API](api.md)と同じ。
 各hookの呼出元へ束縛され、同時実行中の別hookの原因情報と混ざらない。
@@ -187,8 +245,7 @@ afterから追加されたsteerは最終確定前の確認で扱う。
 
 `tool.finished`には元の`rawArguments` / `rawResult`、実行用の`arguments`と
 モデル向け`result`を分けて記録する。`run_js`の画像候補は`rawImages`、hook選択後は`images`へ
-metadataのみを記録する。加工値が元結果と異なり、preview化で失われる場合だけ`hookResult`にも制限前の加工値を保存する。`afterTool`で例外が起きた場合も取得済みの実行結果を保持し、
-`modelResultAvailable: false`と`hookError`を記録する。hookが除外した画像は`images`に含めない。
+metadataのみを記録する。加工値が元結果と異なり、preview化で失われる場合だけ`hookResult`にも制限前の加工値を保存する。回復した`afterTool`失敗は直前の有効な結果・画像で通常の`tool.finished`を確定し、`modelResultAvailable: true`を保つため、`hookError`を立てて画像を破棄しない。失敗の事実は`hook.failed`と`hookFailures`で区別する。継続不能により結果を確定できない場合の`modelResultAvailable: false` / `hookError`や、過去ログの同項目とは別である。hookが明示的に除外した画像は`images`に含めない。
 既存の`run_js.started` / `run_js.finished`は、実際の実行ソースと成功・失敗を示す。
 
 interruptはhandlerの完了を待たずに取消しを開始する。終了しないJSやPromiseも

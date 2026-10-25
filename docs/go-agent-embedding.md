@@ -116,6 +116,32 @@ the instance, active task, and remaining queue. `Observe` returns a live
 snapshot; it does not read a saved event file. `ReadTaskResult` reads a
 completed answer in UTF-8 byte ranges without consuming it.
 
+`agent.TaskOutcome.HookFailures` is an optional `[]agent.HookFailure` for
+recovered registered-handler failures; it can coexist with `State == "completed"`
+and does not modify `Answer` or replace the task's `Error`. It is omitted from
+JSON when empty. Each entry has `InvocationID`, zero-based `HookIndex`, resolved
+`Module`, `Phase`, `ModelStepID`, printable `Error`, and applicable source
+`RequestID` / `ToolCallID` / `ToolName`. `NotifiedRequestID` identifies the
+provider request carrying the fact notification, not the source request;
+an empty value means pending. Admission is not a guarantee that the model
+understood or resolved the failure.
+
+Registered handler exceptions and invalid replacements continue with the last
+valid values; a `beforeTool` failure still executes the original tool.
+Preparation/loading failures, cancellation, existing limits and scope/Host
+failures remain separate termination paths. See the [hook guide](hooks.md).
+Notifications ride the next normal model request. A final response's failure
+does not force another request and remains in the retained outcome. Pending
+failures are not transferred to the next queued task.
+
+`WaitTask`, `WaitTasks` and snapshot `LastResult` expose the same records
+without requiring an event log. `IncludeAnswer: &falseValue` keeps
+`HookFailures`; typed Go results return an empty `Answer` and `AnswerBytes`
+under that projection. `ReadTaskResult` still reads only the original answer,
+without appended warnings. Returned failure slices do not alias retained
+state. Error text may contain paths, output or sensitive values and is also
+sent to the model; no automatic redaction is performed.
+
 Go `Host` management methods (`ListAgents`, `Queue`, `Steer`, `CancelTask`, and
 `StopAgent`) are trusted host operations. A scoped Client and JavaScript
 binding can act only within their ownership. `Client.Models()` provides

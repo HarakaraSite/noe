@@ -116,6 +116,9 @@ type WaitTasksRequest = core.WaitTasksRequest
 type CompletedTask = core.CompletedTask
 type WaitTasksResult = core.WaitTasksResult
 type TaskOutcome = core.TaskOutcome
+
+// HookFailure is a recovered registered-handler failure retained by its task.
+type HookFailure = core.HookFailure
 type TaskResultRequest = core.TaskResultRequest
 type TaskResult = core.TaskResult
 type SteerRequest = core.SteerRequest

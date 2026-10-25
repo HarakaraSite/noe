@@ -88,7 +88,7 @@ The new instance belongs to the current owner. A fresh instance has its own conv
 
 ## observe_agent
 
-`observe_agent({agentId, includeAnswer?}) -> Promise<AgentSnapshot>` returns the current live snapshot immediately. `includeAnswer` defaults to `true`; `false` omits `lastResult.answer` and adds `lastResult.answerBytes`, retaining the original result. This API does not read saved event files or wait for a terminal run. Use `wait_task` for one accepted task, or read a saved event snapshot and pass it to `analyze_log` from `noe:agent-log`.
+`observe_agent({agentId, includeAnswer?}) -> Promise<AgentSnapshot>` returns the current live snapshot immediately. `includeAnswer` defaults to `true`; `false` omits `lastResult.answer` and adds `lastResult.answerBytes`, retaining the original result and any optional hookFailures. This API does not read saved event files or wait for a terminal run. Use `wait_task` for one accepted task, or read a saved event snapshot and pass it to `analyze_log` from `noe:agent-log`.
 
 ## queue_agent
 
@@ -100,9 +100,9 @@ If omitted, `commandId` is generated. Repeating the same ID with the same instru
 
 `wait_task({agentId, commandId, includeAnswer?}) -> Promise<TaskOutcome>` waits for one accepted initial or queued task. Obtain `commandId` from `spawn_agent` with an instruction or from `queue_agent`. It does not wait for the instance to become idle or stop; a later task may already be running when the Promise resolves.
 
-The result is `{runId, commandId, state, answer, error?, errorDetails?}`, with `state` equal to `completed`, `failed`, or `cancelled`. Task failures and cancellations resolve as data. A task cancelled before it starts has an empty `runId` and `answer`. Invalid, unknown, or unowned IDs reject. Steer command IDs are not task IDs.
+The result is `{runId, commandId, state, answer, error?, errorDetails?, hookFailures?}`, with `state` equal to `completed`, `failed`, or `cancelled`. Task failures and cancellations resolve as data. A task cancelled before it starts has an empty `runId` and `answer`. Invalid, unknown, or unowned IDs reject. Steer command IDs are not task IDs.
 
-`includeAnswer` defaults to `true`. With `false`, the result omits `answer` and adds `answerBytes` (UTF-8 byte length); errors and other metadata remain available. This does not alter the retained answer.
+`includeAnswer` defaults to `true`. With `false`, the result omits `answer` and adds `answerBytes` (UTF-8 byte length); errors, optional `hookFailures` and other metadata remain available. Recovered hook failures can coexist with `state: "completed"`; see [TaskOutcome.hookFailures](#taskoutcomehookfailures). This does not alter the retained answer.
 
 Completed outcomes remain available within the owning evaluation for its NOE host lifetime, including after the instance stops. Repeated or concurrent waits receive the same outcome without consuming it, and later tasks cannot overwrite it. The usual ownership scope still applies after the owner ends; there is no persistence across host shutdown. Waiting uses completion notifications without polling, additional model requests, or wait-specific observe/JSONL events. Cancelling a wait does not itself cancel the target; owner cancellation retains the usual cleanup of owned agents.
 
@@ -132,7 +132,7 @@ The task list must be nonempty with unique agent/command pairs. Every target mus
 }
 ```
 
-Both arrays preserve input order. Completed outcomes remain retained and repeatable, including failed/cancelled tasks. includeAnswer defaults to true; false omits each outcome.answer and adds answerBytes. pending does not change the target's state. If completion and guidance are both observed, reason is steer and available completion results are still included.
+Both arrays preserve input order. Completed outcomes remain retained and repeatable, including failed/cancelled tasks. includeAnswer defaults to true; false omits each outcome.answer and adds answerBytes, preserving optional hookFailures. pending does not change the target's state. If completion and guidance are both observed, reason is steer and available completion results are still included.
 
 The owner run is derived from the caller's scope, not supplied as an arbitrary run ID. With no owner run, this is an all-tasks-completed wait. Guidance is not consumed, applied or returned as a fake TaskOutcome; accepted guidance is delivered through the existing checkpoint/steer-application path. Script-origin guidance also wakes the wait. Already applied guidance does not wake a later wait.
 
@@ -150,7 +150,7 @@ Here tasks is the full list of accepted agent/command pairs held by the caller. 
 
 `read_task_result({agentId, commandId, offset?, maxBytes?})` reads a completed task's retained answer without consuming it. The result is `{runId, commandId, state, text, offset, nextOffset, totalBytes, eof}`. Pass `nextOffset` to continue. `offset` defaults to `0` and must be a nonnegative safe integer at a UTF-8 character boundary within the answer, including its end. `maxBytes` defaults to `4096` and must be a positive safe integer. The slice ends at a character boundary; when one character alone exceeds the requested limit, that character is returned (up to three extra bytes) so reading makes progress.
 
-Use `wait_task` first: unfinished tasks reject rather than wait. Ownership and result lifetime match `wait_task`, including results of failed or cancelled tasks and results retained after later queue work. Reads make no provider calls and do not truncate or summarize the stored answer. For an empty answer or an offset at its end, `text` is empty and `eof` is true.
+Use `wait_task` first: unfinished tasks reject rather than wait. Ownership and result lifetime match `wait_task`, including results of failed or cancelled tasks and results retained after later queue work. Reads make no provider calls and do not truncate or summarize the stored answer. Hook-failure notices are not appended to the answer; read optional hookFailures from the outcome, not from these text ranges. For an empty answer or an offset at its end, `text` is empty and `eof` is true.
 
 ```js
 const meta = await wait_task({agentId, commandId, includeAnswer: false});
@@ -180,7 +180,27 @@ Live calls return a point-in-time object with `agentId`, `parentRunId`, `name`, 
 
 ## AgentSnapshot.lastResult
 
-The latest task outcome contains `runId`, `commandId`, `state`, and `answer`; `error` and `errorDetails` may be present. Successful task answer text is in `answer`. A normal task failure is reported as `state: "failed"`, and cancellation as `state: "cancelled"`; inspect the error fields instead of assuming every accepted task completes successfully.
+The latest task outcome contains `runId`, `commandId`, `state`, and `answer`; `error`, `errorDetails`, and `hookFailures` may be present. Recovered hook failures do not change the state or answer and can coexist with successful completion; see [TaskOutcome.hookFailures](#taskoutcomehookfailures). Successful task answer text is in `answer`. A normal task failure is reported as `state: "failed"`, and cancellation as `state: "cancelled"`; inspect the error fields instead of assuming every accepted task completes successfully.
+
+## TaskOutcome.hookFailures
+
+An optional array of recovered registered-handler failures. It is omitted when there are none and can coexist with `state: "completed"`. It does not overwrite the task's `answer` or main `error`. The same records are available in `run_agent` / `observe_agent`'s `lastResult`, `wait_task`, and `wait_tasks`' completed outcomes, even with `includeAnswer:false`. `read_task_result` still reads only the unchanged original answer.
+
+| Field | Meaning |
+| --- | --- |
+| `invocationId` | Invocation ID matching the `hook.failed` diagnostic event. |
+| `hookIndex`, `module`, `phase` | Zero-based registration index, resolved module, and one of the four hook phases. |
+| `modelStepId` | Logical model step in which the failure occurred. |
+| `requestId?` | Source provider request, if applicable; absent for a before-model failure. |
+| `toolCallId?`, `toolName?` | Source tool call for tool hooks. |
+| `error` | Printable failure description; diagnostic events retain details such as stack text. |
+| `notifiedRequestId?` | Provider request carrying the notification; absent while pending. This is separate from the source `requestId`. |
+
+Failures ride an independent factual section of the existing `NOE_CONTEXT_STATUS` user message, without requiring JSONL or observation. A `beforeModelRequest` failure is sent on that request; response/tool-hook failures ride the next normal request. Reading snapshots or context, preparation and steer-only returns do not consume pending notifications. Admission marks only the IDs included in the actual prepared text. Sent means included in an admitted request, even if that request later fails; it does not guarantee model understanding or resolution.
+
+A final `afterModelResponse` failure does not block final commitment or force an extra request. If there is no next request, the model may never read that failure, but the record remains in the outcome. Sent notification text is ordinary history saved/trimmed with its response block. Pending records belong to the originating run and are not automatically transferred to the next queued task. Committed outcomes remain unchanged by later tasks or projections. If a task is later cancelled or fails for another reason, already confirmed recovered failures are retained where possible without replacing that termination reason.
+
+Hook failure text may contain paths, command output or sensitive values. It can appear in model requests, retained outcomes and diagnostic logs; no automatic redaction is performed.
 
 ## hooks
 
@@ -188,7 +208,9 @@ The latest task outcome contains `runId`, `commandId`, `state`, and `answer`; `e
 
 Each module may export any subset of `beforeModelRequest(event, api)`, `afterModelResponse(event, api)`, `beforeTool(event, api)`, and `afterTool(event, api)`. Handlers run in registration order for a phase. `beforeModelRequest` runs once per logical model step; `afterModelResponse` runs once for each completed model response; tool hooks run for each tool call. Event objects are JSON snapshots; mutating them does not change the original provider request, tool result, or another callback.
 
-Model hooks' return values are ignored. A tool hook returns `undefined` for no change. `beforeTool` may return `{arguments}` and `afterTool` may return `{result}`. For `run_js`, `afterTool` may also return `{result, imageIds}` to select a unique subset of the current `event.images` IDs. It cannot change tool identity or success state. Hook exceptions fail the task; completed work is not replayed. `cancel_task` can stop a handler before it finishes.
+Model hooks' return values are ignored. A tool hook returns `undefined` for no change. `beforeTool` may return `{arguments}` and `afterTool` may return `{result}`. For `run_js`, `afterTool` may also return `{result, imageIds}` to select a unique subset of the current `event.images` IDs. It cannot change tool identity or success state. Ordinary handler exceptions/rejections and return-value validation failures are isolated to that registration; later hooks and the main operation continue with the last valid values. A `beforeTool` failure does not skip the original tool: it runs with the last valid arguments, or yields its normal input error if those arguments are invalid. Earlier argument/result replacements and image selection remain valid. A failed `afterTool` replacement does not discard those images or turn the tool into a failure. Completed hook/tool work is not replayed and sibling tools are not cancelled just for a recovered failure. Earlier filesystem, runtime-info or child-launch side effects are not rolled back; ownership/cleanup rules still apply.
+
+This intentionally changes the old behavior in which a handler throw stopped the task; hooks are not an approval or execution-skip API. Hook configuration, module resolution/loading and invalid export definitions still fail during preparation. Cancellation, existing limits and scope/Host failures remain termination paths, including a scope-close failure concurrent with a callback exception. `cancel_task` can stop a handler before it finishes. See [TaskOutcome.hookFailures](#taskoutcomehookfailures) for notification delivery and retained results. `hook.failed` diagnostics can be followed by task completion.
 
 ```js
 // hooks.js
@@ -214,7 +236,7 @@ The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_
 
 ## HookAPI.context.setRuntimeInfo
 
-`await api.context.setRuntimeInfo({key, text})` adds request-only text during `beforeModelRequest`. Both values must be strings and `key` must be nonempty. Setting the same key replaces its prior value for the logical step. This does not append to conversation history and is unavailable in other hook phases.
+`await api.context.setRuntimeInfo({key, text})` adds request-only text during `beforeModelRequest`. Both values must be strings and `key` must be nonempty. Setting the same key replaces its prior value for the logical step. The text joins the current status notification, which is saved with its response as ordinary history; it does not directly append a separate message or rewrite earlier notifications. It is unavailable in other hook phases. A later failure in that handler does not roll back a successful runtime-info update.
 
 ## HookAPI.execution.get
 

@@ -74,7 +74,7 @@ stageがserializeの場合は、ファイル変更や外部処理を済ませた
 
 ## hook・履歴・観察
 
-runner結果のdata/diagnosticsはafterToolの入力へ渡ります。afterToolによる任意のresult加工は維持し、モデルには加工後の結果に上記予算を適用した値を渡します。JSONLの`tool.finished`に`rawResult`と実際のモデル向け`result`を別々に保存します。hookが結果を変更し、超過でその加工値が失われる場合だけ、制限前の値を`hookResult`へ追加保存します。hook自体が失敗した場合は既存のhookError/modelResultAvailable経路を使います。
+runner結果のdata/diagnosticsはafterToolの入力へ渡ります。afterToolによる任意のresult加工は維持し、モデルには加工後の結果に上記予算を適用した値を渡します。JSONLの`tool.finished`に`rawResult`と実際のモデル向け`result`を別々に保存します。hookが結果を変更し、超過でその加工値が失われる場合だけ、制限前の値を`hookResult`へ追加保存します。通常のhandler例外・返却値エラーはそのhookに局所化し、先行hookで成立した結果・画像を保って続けます。回復済み失敗では`hookError`や`modelResultAvailable:false`を立てません。失敗は`hook.failed`とtaskの任意`hookFailures`へ記録し、通常要求へ事実通知を同送します。継続不能で結果を確定できない場合の同項目や、旧契約時の保存ログとは区別してください。[hook失敗の契約](hooks.md#失敗の局所化と通知)を参照してください。
 
 `run_js.finished`は元のdata/diagnosticsを記録します。agent task自体のsetup/VM/cleanup診断は`execution.diagnostic`へ記録し、agentId・commandIdと、判明している場合だけrunIdを付けます。まだ存在しないrunIdは補いません。
 CLIの観察では診断を別項目に表示します。ログ解析の`includeOutput`はstdout/stderrと返却dataに適用し、diagnosticsは省略しません。起動前の診断などrunIdがないeventは、runIdで絞ったsnapshotには属さず、全体ログ・CLI観察から確認します。

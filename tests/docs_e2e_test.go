@@ -35,7 +35,7 @@ func TestDocsStandaloneBinaryAndManagedEval(t *testing.T) {
 	writeFixture(t, filepath.Join(dir, "invalid.json"), "invalid configuration")
 	writeFixture(t, filepath.Join(dir, "config.json"), "{}")
 	t.Setenv("NOE_CONFIG_FILE", filepath.Join(dir, "config.json"))
-	for _, tc := range []struct{ topic, member string }{{"noe:sockets", "connect"}, {"noe:http", "fetch"}, {"noe:http", "serve"}} {
+	for _, tc := range []struct{ topic, member string }{{"noe:sockets", "connect"}, {"noe:http", "fetch"}, {"noe:http", "serve"}, {"noe:agent", "hooks"}, {"noe:agent", "TaskOutcome.hookFailures"}} {
 		t.Run(tc.topic+"/"+tc.member, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
@@ -49,6 +49,20 @@ func TestDocsStandaloneBinaryAndManagedEval(t *testing.T) {
 			}
 			if !strings.Contains(stdout.String(), "## "+tc.member) {
 				t.Fatal("missing API reference detail")
+			}
+			if tc.topic == "noe:agent" {
+				if strings.Contains(stdout.String(), "Hook exceptions fail the task") {
+					t.Fatal("obsolete hook failure contract")
+				}
+				required := []string{"does not skip the original tool", "scope/Host failures"}
+				if tc.member == "TaskOutcome.hookFailures" {
+					required = []string{"notifiedRequestId", "includeAnswer:false", "force an extra request"}
+				}
+				for _, text := range required {
+					if !strings.Contains(stdout.String(), text) {
+						t.Errorf("agent detail missing %q", text)
+					}
+				}
 			}
 			code := fmt.Sprintf("// Read the bundled API contract.\nconst {docs}=await import(\"noe:docs\");console.log(docs(%q,%q));", tc.topic, tc.member)
 			result := runCLIExecutable(t, binary, dir, nil, strings.NewReader(""), "eval", code)

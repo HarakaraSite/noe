@@ -111,6 +111,26 @@ declare namespace NOEAgent {
     usage?: JSONValue;
   }
 
+  /** One recovered registered-handler failure; independent of task state/answer. */
+  interface HookFailure {
+    invocationId: string;
+    /** Zero-based index in the configured hook list. */
+    hookIndex: number;
+    /** Resolved module identifier. */
+    module: string;
+    phase: "beforeModelRequest" | "afterModelResponse" | "beforeTool" | "afterTool";
+    modelStepId: string;
+    /** Provider request where the failure originated, if applicable. */
+    requestId?: string;
+    toolCallId?: string;
+    toolName?: string;
+    error: string;
+    /** Admitted provider request carrying this fact; absent while pending.
+     * This does not guarantee the model read/resolved it. Final-response failures
+     * do not force another request and may remain pending in the outcome. */
+    notifiedRequestId?: string;
+  }
+
   interface TaskOutcome {
     runId: string;
     commandId: string;
@@ -121,6 +141,10 @@ declare namespace NOEAgent {
     answerBytes?: number;
     error?: string;
     errorDetails?: ImageErrorDetails;
+    /** Recovered hook failures; omitted when none. Kept with includeAnswer:false.
+     * Can coexist with completed; never appended to answer/read_task_result text.
+     * Pending records are not automatically transferred to the next queued task. */
+    hookFailures?: HookFailure[];
   }
 
   interface TaskReference {

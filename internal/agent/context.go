@@ -97,6 +97,8 @@ type contextRunState struct {
 	pendingTrimActivityIDs []string
 	preparedDigest         string
 	finalPrepared          bool
+	preparedNotification   *preparedContextNotification
+	hookFailureNotice      string // transient estimate input; durable pending records belong to the run
 	budget                 *ContextBudget
 	modelWindow            *int64
 	previous               *contextPrevious
@@ -202,6 +204,8 @@ func (s *contextRunState) resetStep(modelStepID string) {
 	s.prepared = false
 	s.finalPrepared = false
 	s.preparedDigest = ""
+	s.preparedNotification = nil
+	s.hookFailureNotice = ""
 	s.pendingPlan = nil
 	s.targetUnreachable = false
 }
@@ -301,7 +305,7 @@ func (h *Host) emitContextUpdated(run *agentRun, snapshot contextSnapshot, statu
 	h.observeRun("context.updated", run.id, run, fields)
 }
 
-func contextMessage(snapshot contextSnapshot, runtimeInfo map[string]string) string {
+func contextMessage(snapshot contextSnapshot, runtimeInfo map[string]string, hookNotice ...string) string {
 	var out strings.Builder
 	out.WriteString("NOE_CONTEXT_STATUS\n")
 	out.WriteString("Estimated messages/tools UTF-8 JSON bytes divided by 4; not a hard execution limit.\n")
@@ -389,6 +393,9 @@ func contextMessage(snapshot contextSnapshot, runtimeInfo map[string]string) str
 			fmt.Fprintf(&out, "- %s: %s\n", key, runtimeInfo[key])
 		}
 	}
+	if len(hookNotice) != 0 {
+		out.WriteString(hookNotice[0])
+	}
 	return out.String()
 }
 
@@ -453,7 +460,7 @@ func recalculatePreparedContext(state *contextRunState, runID string, now time.T
 		}
 		state.estimate = estimate
 		snapshot := state.snapshot(runID, now)
-		note = contextMessage(snapshot, state.runtimeInfo)
+		note = contextMessage(snapshot, state.runtimeInfo, state.hookFailureNotice)
 		noteMessage, _ := json.Marshal(map[string]string{"role": "user", "content": note})
 		messagesBytes := state.baseMessagesBytes
 		if state.baseMessageCount > 0 {

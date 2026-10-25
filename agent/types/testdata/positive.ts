@@ -26,6 +26,12 @@ async function publicAPIExamples(): Promise<void> {
   const idle = await spawn_agent(undefined, undefined, {keepAlive: true});
   const outcome = await wait_task({agentId: idle.agentId, commandId: "command-id", includeAnswer: false});
   const state: NOEAgent.TaskState = outcome.state;
+  const failures: NOEAgent.HookFailure[] | undefined = outcome.hookFailures;
+  const notifiedRequest: string | undefined = failures?.[0]?.notifiedRequestId;
+  const sourceRequest: string | undefined = failures?.[0]?.requestId;
+  const phase: NOEAgent.HookFailure["phase"] | undefined = failures?.[0]?.phase;
+  // A completed outcome may still contain pending failures; answer text is unchanged.
+  void [notifiedRequest, sourceRequest, phase];
 
   const decision = await decide({
     provider: "openrouter",

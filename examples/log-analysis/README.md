@@ -24,7 +24,7 @@ noe run examples/log-analysis/test.js
 - 非cache tokensは、同一要求で入力・cachedが両方既知の場合だけ`input - cached`で求めます。cacheヒット率は同じ両方既知の要求集合で`sum(cached) / sum(input)`を計算します。要求ごとの比率の平均ではありません。
 - metricは`{ value, knownRequests, totalRequests }`で表現します。欠落・null・非数値・負値は不明扱い。既知値が一つもなければ`value: null`、一部だけならその部分合計とcoverageを表示します。`0`は既知の0です。入力とcachedの独立した部分合計を割って比率を捏造しません。cachedが入力より大きい要求も非cache・比率は不明とします。
 - cache比率の`value`は0〜1の小数（Markdownでは%）、分母0では`null` / `unknown / n/a`です。比率metricには計算に使った`inputTokens`と`cachedTokens`もあります。要求行の`rateStatus`は`known` / `unknown` / `zero-input`です。
-- tool数は`tool.finished`の件数。出力超過は**モデル向けの`result.outputLimit.complete === false`**の件数です。`rawResult`やstdoutの既存capture省略・省略を示す文章は数えません。resultが存在しoutputLimitがない場合は「超過なし」。正常なJSON結果の`result: null`も既知の「超過なし」です。result field自体の欠落、またはhook失敗等の`modelResultAvailable: false`の場合は不明としてcoverageに反映します。
+- tool数は`tool.finished`の件数。出力超過は**モデル向けの`result.outputLimit.complete === false`**の件数です。`rawResult`やstdoutの既存capture省略・省略を示す文章は数えません。resultが存在しoutputLimitがない場合は「超過なし」。正常なJSON結果の`result: null`も既知の「超過なし」です。result field自体の欠落、または過去ログ・継続不能時の`modelResultAvailable: false`の場合は不明としてcoverageに反映します。
 - `requests`には閾値未満と不明の要求だけを載せます。入力・cached・非cache・比率に加えてファイル内行番号、execution/run/model-step/request ID、modelを記録します。完全なtool入力・出力本文は出力しません。IDがない場合も行番号で元ログに戻れます。
 
 ## ライブラリ

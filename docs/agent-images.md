@@ -75,6 +75,8 @@ export async function afterTool(event) {
 
 `imageIds: []`はそのtoolの添付をすべて除外します。部分選択は元の順序を保ちます。重複ID、他toolやrunのID、未知のID、前のhookで除外したIDの再追加はエラーになります。画像を除外する場合も通常の`result`は個別に維持・置換できます。
 
+通常の`afterTool`例外や不正な`imageIds`は、その登録の置換だけを不採用にして後続hookと本体を続けます。元の画像、または先行hookで成立した画像選択・結果を維持し、回復したhook失敗だけを理由に画像を破棄しません。すでに除外した画像を復活させるわけではありません。tool自身の実行失敗・取消しや、checkpointを確定できない障害による破棄とは別です。[失敗通知と保持結果](hooks.md#失敗の局所化と通知)を参照してください。
+
 ## 履歴・queue・context
 
 モデルへ渡した画像は、tool結果をすべて確定した後のuser image messageとして履歴に記録されます。履歴にはimage IDを置き、画像bytesはhostが保持します。同じagent instanceの`queue_agent`は、確定し履歴に残っている画像を含む会話を引き継ぎます。新しいchild agentは独立した履歴を持つため、画像bytesは暗黙に共有されません。必要なchildにはpathを伝え、そのchild自身に`read_image`させてください。
