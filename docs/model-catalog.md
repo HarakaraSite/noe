@@ -90,6 +90,23 @@ console.log(JSON.stringify(imageModels, null, 2));
 
 **意思決定モデル:** `kind: decision`の3件はwindowだけを記録し、生成モデル用の出力予約は設定しない。`noe:decision`へのstateは引き続き切り捨て・圧縮せず、一度の要求として渡す。ClefのWorkers AI経路が長いtext stateの先頭約2,000 tokensだけを扱う制約は、window値とは別に[意思決定ガイド](decision.md)を参照すること。
 
+### ChatGPT経路のSol長文入力の実測 — 2026-10-25
+
+利用者の許可を受け、NOEと同じ公開Go model API・provider変換・OAuth credential・接続先・User-Agentで独立probeを実行した。対象ソースは `525a96ada1073a5f863ceee7a738ddff2b0170c5`。providerは `openai-chatgpt`、modelは `gpt-6.1-sol`、接続先は `https://api.openai.com/v1/responses`、User-Agentは `noe/v2.5.0`。自動履歴trimを介さず、合成テキストをそのまま送信した。モデル枠を拡張する要求パラメータは加えていない。
+
+| 段階 | サーバー実測input_tokens | output_tokens | 所要時間 | 結果 |
+| --- | ---: | ---: | ---: | --- |
+| 約52万入力 | 520,101 | 18 | 11.012秒 | HTTP 200、response.completed、3つのmarker一致 |
+| 約68万入力 | 680,101 | 18 | 13.009秒 | HTTP 200、response.completed、3つのmarker一致 |
+
+入力は ` x` の反復と、先頭・中央・末尾のmarkerで構成した。反復数は目安にとどめ、結果はサーバーの `usage.input_tokens` で判定し、adapter返却usageとの一致も確認した。3つのmarkerを順に返す短い課題で、`effort: low`・`max_output_tokens: 512`。両要求のcached_tokens・cache_write_tokens・reasoning_tokensは0。推論要求は各段階1回、合計2回で再送なし。入力計1,200,202・出力計36 tokens。
+
+この接続条件では50万は入力の絶対上限ではなく、少なくとも680,101入力tokensを受け付けて処理できた。現在のNOEの総入力目安約67万を上回る入力の受付根拠になる。一方、872,000ちょうどまでの受付、最大入力と最大出力の同時利用、複雑な長文作業の品質、他アカウント・provider・modelのcapacityはこの試験では確認していない。
+
+Codexの公開実装でも、`max_context_window`は設定overrideで許される最大枠と[定義](https://github.com/openai/codex/blob/970111f6cb62cc02fe36a82ea7d71b37a2889c97/codex-rs/protocol/src/openai_models.rs)され、[0.164.0の設定処理](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/models-manager/src/model_info.rs#L19-L28)は `min(model_context_window, max_context_window)` を採用する。既定の `context_window` と、明示的に拡張できる最大枠は区別する。今回NOEのcatalogや製品コードは変更せず、最大枠を使う既存設定に実測根拠を追加した。
+
+probeソース、独立modfile、合成入力の生成規則・hash、要求metadata（認証headerを除く）、逐次event・生usage・集計結果は `/var/tmp/noe-context-window-probe-bHGR3n/` に保存した。入口は `main.go`、集計は `summary.json`、各段階は `520k/result.json`・`680k/result.json` と `events.jsonl`、実行ログは `probe-520k.log`・`probe-680k.log`。入力全文とcredentialのコピーは保存していない。
+
 ## Jevによる起動前の選択
 
 [agent-route-model.js](../examples/agent/agent-route-model.js)は、次の順で処理します。
