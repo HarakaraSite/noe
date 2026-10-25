@@ -1,8 +1,37 @@
 # NOE — No Ordinary Engine
 
-Just JavaScript. Until you need an agent.
+あなたとagentのためのJavaScript。
 
-[go-quickjs](https://github.com/go-quickjs/go-quickjs)を使った、純Go製の小さなJavaScriptランタイムです。小さなスクリプト、ファイル加工、HTTPサーバー、自律agentのタスクを実行できます。agentはファイル操作・JSやコマンドの実行・修正・回答まで、人間の承認を待たずに進めます。NOEの標準ライブラリは他のアプリにも組み込めるため、自作のGoプログラムから同じJavaScript APIとagent APIを利用できます。
+NOEは、自律型AI agentを組み込んだ純Go製のJavaScriptランタイムです。
+自分でスクリプトを書くことも、agentにタスクを渡し、作業に必要な
+JavaScriptの作成と実行を任せることもできます。
+
+agentはJavaScriptを使い、ファイルの読込み・編集、HTTP APIの呼出し、
+コマンドの実行、他のagentへのタスク委譲を行います。自分のスクリプトからも
+同じagent APIを使い、作業の調整、結果の確認、次の処理の判断ができます。
+
+NOEはコマンドラインから実行できるほか、ランタイムとagentをGoアプリケーションへ
+直接組み込めます。go-quickjsを通じてQuickJSを利用しています。
+Cのツールチェーンは不要です。
+
+## できること
+
+- **JavaScriptで自動化する。** ES modulesとasync/awaitを使い、ファイル、HTTP、
+  ストリーム、プロセスを扱えます。
+- **agentに実行可能なツールを渡す。** agentはランタイムAPI、自作モジュール、
+  既存のコマンドラインツールを組み合わせたJavaScriptを書いて実行します。
+- **agentのワークフローを作る。** 異なるモデルのagentを連携させ、結果を組み合わせ、
+  分岐や繰返しをコードで表現できます。
+- **agentの動作を制御する。** 実行中のタスクを観察し、追加指示や取消しを行えます。
+  JavaScriptのhookでモデル呼出しやツール実行をカスタマイズできます。
+- **Goに組み込む。** 公開Go APIを使い、スクリプト実行と管理されたagentを
+  アプリケーションへ追加できます。
+
+[はじめる](#はじめる)
+· [agentガイド](docs/agents.md)
+· [Goへの組み込み](docs/go-agent-embedding.md)
+· [実行例](examples/README.md)
+· [English](README.md)
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
@@ -10,13 +39,10 @@ Just JavaScript. Until you need an agent.
 
 v2.6.0では複数の子をまとめて待つ`wait_tasks`を追加しました。全完了または親への追加指示で待機を終了し、子を動かしたまま親が観察・追加指示・取消し等を選べます。既存`wait_task`の完了専用契約は維持します。[agent API](docs/api.md#実行中taskへの指示と停止)を参照してください。
 
-v2.5.1では公開APIを維持したままagentの状態遷移・実行Profile・Worker・ツール処理の責務を整理し、バージョンテストをリリース番号から独立させました。
+過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
+[v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
 
-v2.5.0ではstream捕捉とモデル向け結果に共通の出力予算を使います。既定64 KiB、個別指定は最大256 KiBです。一覧・読込み・書込み・部分編集のworkspace用JSライブラリも追加しました。[実行結果ガイド](docs/execution-results.md)と[ファイル操作ガイド](.noe/lib/files/files.md)を参照してください。v2.3.0より前の暗黙agent bindingやstderr内の診断を使うコードの移行も実行結果ガイドで説明しています。
-
-v2ではGoアプリ内でagentを直接実行できます。Go組み込みとJS APIの破壊的変更は[v2移行ガイド](docs/v2-migration.md)を参照してください。
-
-## ビルドと実行
+## はじめる
 
 上のリンクからバイナリを取得するか、Go 1.27.2以降でビルドします。Cのツールチェーンは不要です。
 

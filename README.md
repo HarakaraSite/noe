@@ -1,10 +1,38 @@
 # NOE — No Ordinary Engine
 
-Just JavaScript. Until you need an agent.
+JavaScript for you and your agents.
 
-A tiny JavaScript runtime written in pure Go, powered by [go-quickjs](https://github.com/go-quickjs/go-quickjs). Use it for small scripts, file processing, HTTP servers, and autonomous agent tasks. An agent can read files, execute JavaScript and commands, revise its work, and return an answer without interactive approval. The NOE standard library can also be embedded in other applications, letting your own Go programs build on the same JavaScript and agent APIs.
+NOE is a pure-Go JavaScript runtime with built-in autonomous AI agents.
+Write scripts yourself, or give an agent a task and let it write and
+execute JavaScript to carry out the work.
 
-This English README is the canonical version. [日本語版](README.ja.md)
+Agents use JavaScript to read and edit files, call HTTP APIs, run commands,
+and delegate tasks to other agents. Your scripts can use the same agent
+APIs to coordinate work, inspect results, and decide what happens next.
+
+Run NOE from the command line, or embed its runtime and agents directly
+in your Go application. Powered by QuickJS through go-quickjs.
+No C toolchain required.
+
+## What you can do
+
+- **Automate with JavaScript.** Work with files, HTTP, streams, and
+  processes using ES modules and async/await.
+- **Give agents executable tools.** Agents write JavaScript that combines
+  runtime APIs, your modules, and existing command-line tools.
+- **Build agent workflows.** Coordinate agents with different models,
+  combine their results, and express branching and repetition in code.
+- **Control agent behavior.** Observe running tasks, send additional
+  instructions, cancel work, and customize model and tool interactions
+  with JavaScript hooks.
+- **Embed in Go.** Add scripting and managed agents to your application
+  through the public Go APIs.
+
+[Get started](#get-started)
+· [Agent guide](docs/agents.md)
+· [Go embedding](docs/go-agent-embedding.md)
+· [Examples](examples/README.md)
+· [日本語](README.ja.md)
 
 [v2.6.0 release notes](docs/releases/v2.6.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.6.0)
 
@@ -13,22 +41,11 @@ or guidance to the parent, leaving children running. The parent can read the
 instruction and choose how to observe, steer or cancel its children. Existing
 `wait_task` completion-only behavior is unchanged. See the [agent API](docs/api.md#実行中taskへの指示と停止).
 
-v2.5.1 reorganizes agent lifecycle, runtime profiles, Workers and tool processing
-without changing the public APIs, and makes version tests release-independent.
+For earlier changes and migration guidance, see the
+[release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
+and [execution guide](docs/execution-results.md).
 
-v2.5.0 uses one output-budget setting for stream capture and model-facing
-results: 64 KiB by default, with explicit increases up to 256 KiB. It also adds
-workspace file helpers for listing, reading, writing and exact partial edits.
-See the [execution guide](docs/execution-results.md) for budgets and previews,
-and the [file helper guide](.noe/lib/files/files.md) for the external JS library.
-Code predating v2.3.0 that uses implicit agent bindings or stderr diagnostics
-needs the migration guidance in the execution guide.
-
-v2 embeds managed agents directly in Go applications. See the
-[v2 migration guide](docs/v2-migration.md) for breaking Go embedding and
-JavaScript API changes.
-
-## Build and run
+## Get started
 
 Download a binary above, or build from source with Go 1.27.2 or later. No C toolchain is needed:
 
