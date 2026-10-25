@@ -34,12 +34,12 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.6.0 release notes](docs/releases/v2.6.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.6.0)
+[v2.7.0 release notes](docs/releases/v2.7.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.0)
 
-v2.6.0 adds `wait_tasks`: a grouped child-task wait that returns on completion
-or guidance to the parent, leaving children running. The parent can read the
-instruction and choose how to observe, steer or cancel its children. Existing
-`wait_task` completion-only behavior is unchanged. See the [agent API](docs/api.md#実行中taskへの指示と停止).
+v2.7.0 isolates registered hook failures, continues the task with the last valid
+values, and reports failures through normal model requests and retained task
+results. **Throwing from a hook no longer stops the task; a failed `beforeTool`
+does not skip the tool.** See the [hook guide](docs/hooks.md#失敗の局所化と通知).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -54,7 +54,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.6.0
+# noe v2.7.0
 ```
 
 The examples below assume the repository root is your working directory.

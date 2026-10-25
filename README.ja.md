@@ -35,9 +35,9 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.6.0リリースノート](docs/releases/v2.6.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.6.0)
+[v2.7.0リリースノート](docs/releases/v2.7.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.0)
 
-v2.6.0では複数の子をまとめて待つ`wait_tasks`を追加しました。全完了または親への追加指示で待機を終了し、子を動かしたまま親が観察・追加指示・取消し等を選べます。既存`wait_task`の完了専用契約は維持します。[agent API](docs/api.md#実行中taskへの指示と停止)を参照してください。
+v2.7.0では登録済みhookの失敗を局所化し、直前の有効値でtaskを継続します。失敗は通常のモデル要求とtaskの保持結果へ通知します。**hookのthrowではtaskを停止せず、`beforeTool`が失敗してもtoolをskipしません。** [hookガイド](docs/hooks.md#失敗の局所化と通知)を参照してください。
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
@@ -51,7 +51,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.6.0
+# noe v2.7.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
