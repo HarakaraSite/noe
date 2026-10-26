@@ -1933,3 +1933,50 @@ repeated for publication or installation.
 This documentation-only follow-up does not move or replace the release tag.
 The unrelated existing model-catalog edit, events and caches remain excluded
 from these commits and preserved in the working tree.
+
+## v2.7.0 preparation — 2026-10-26
+
+The user authorized release of the completed hook-failure isolation changes.
+The latest remote release and tag were v2.6.0. Implementation commit
+`ab5c0a1dbcf8c3dddc9087d67304155fa87b371e` contains the complete feature,
+public Go/JS contracts, docs and tests. See the
+[implementation record](../development/hook-failure-isolation-implementation-20261025.md)
+and [English release notes](v2.7.0.md). Both READMEs and the release notes
+explicitly warn that handler throw no longer stops a task and beforeTool
+failure does not skip the tool.
+
+Checked clean release source: `5fac70acbf4303e3514589363880f0a71ab3daca`.
+Its only production-source difference from the validated implementation is the
+default CLI Version changing from v2.6.0 to v2.7.0; the remaining changes are
+release notes and links. This preparation follow-up changes this evidence
+document only. Dependencies, feature source/tests, release profile and workflow
+are unchanged.
+
+Existing implementation results are reused: full unit and local E2E suites,
+race checks for internal/agent, internal/agentbridge, internal/runtime and agent,
+vet, changed-JavaScript lint, declaration/fixture types, Go formatting and diff
+checks all passed. Normal and critical reviews have no unresolved P2-or-higher
+finding. The original machine-readable report remains at
+`/var/tmp/noe-hook-isolation-final-1792941850015/report.json`.
+
+| Release verification | Result |
+| --- | --- |
+| Clean native release-flags build | PASS, CGO disabled, checked source above, vcs.modified=false |
+| Candidate version and arithmetic | PASS, noe v2.7.0 and 2, exact stdout and empty stderr |
+| Candidate hook recovery through actual CLI | PASS, one local provider request, completed outcome, one delivered before-model failure and one retained final-response failure |
+| Metadata-only and original-answer retrieval without event file | PASS, both hook records preserved, answer unchanged, no additional model request |
+| Current README/release relative links | PASS, 115 references resolve |
+| Production delta and whitespace | Version string only; unchanged dependencies/feature/workflow; diff check passed |
+
+Evidence is retained at `/var/tmp/noe-v2.7.0-release-eXLsEk`, including clean
+detached source, native build metadata, candidate-hook requests/results and
+preparation-verification.json. No paid model call, full source-suite rerun,
+race rerun, long wait or local six-binary distribution build was needed.
+The unchanged lightweight CI builds all six profile targets, creates
+SHA256SUMS and publishes the immutable tag. Actual artifacts and published Go
+module retrieval are checked after publication. Native execution here is
+Linux amd64 only.
+
+This request is publication, not local installation. Repository-root noe,
+the PATH binary, running processes, user event logs and caches remain
+unchanged and excluded from release commits.
