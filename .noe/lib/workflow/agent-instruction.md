@@ -4,8 +4,9 @@ Use this when an existing agent receives a user request to implement settled req
 
 ## Requester / outer agent
 
-1. Confirm the user wants implementation now and the requirements are settled. Identify the actual target repository root, the copied workflow run.js path, the requirements path, and any optional role config. Do not invent requirements or launch the workflow from the NOE source checkout when another repository is the target.
-2. Start one awaited standalone NOE subprocess from the actual target root. For example:
+1. Confirm the user wants implementation now and the requirements are settled. Identify the actual target repository root, the copied workflow run.js path, the requirements path, and any optional config. Do not invent requirements or launch the workflow from the NOE source checkout when another repository is the target.
+2. Explain that ordinary execution uses ChatGPT agent calls and the workflow parent also calls the native Jev Decisions API through OpenRouter (default model typesafe/jev-1.14). Both configured OpenRouter and agent-provider access are needed with defaults. Optional `decision.provider` / `decision.model` settings in `.noe/workflow.json` override the Jev settings independently from role settings; an existing role-only config remains valid. `--help` is offline and does not require credentials.
+3. Start one awaited standalone NOE subprocess from the actual target root. For example:
 
 ~~~js
 // Await the workflow from the target repository root.
@@ -22,8 +23,8 @@ console.log(result.stdout);
 ~~~
 
 Keep the owning command/tool alive until it completes. Do not detach it or import the launcher into a managed run_js call as though it were a resumable workflow API. If the subprocess fails, reports native failure/cancellation, or ends without completing, report that fact rather than treating an agent ending as successful delivery.
-3. The workflow parent owns the plan, reviews, implementation coordination, validation judgments, Git commits and final push decision. Do not become a second coordinator, duplicate the parent's reviews, or independently repeat the same task stages. The requester may relay concise user-facing progress or a blocker but should let the parent make its judgments.
-4. Return the parent's natural-language answer to the user with its achieved behavior, evidence, local commits, actual push state, and remaining issues. If push failed or did not occur, describe delivery as incomplete.
+4. The workflow parent owns the plan, reviews, implementation coordination, validation judgments, Git commits and final push decision. Do not become a second coordinator, duplicate the parent's reviews, or independently repeat the same task stages. The requester may relay concise user-facing progress or a blocker but should let the parent make its judgments.
+5. Return the parent's natural-language answer to the user with its achieved behavior, evidence, local commits, actual push state, and remaining issues. If push failed or did not occur, describe delivery as incomplete.
 
 ## Actual workflow parent
 
