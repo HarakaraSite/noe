@@ -2166,3 +2166,50 @@ build/checksum verification, not native execution. No paid model-provider
 call is made. This request authorizes publication, not installation:
 repository-root/PATH binaries and running processes remain unchanged.
 Existing user event logs and caches are preserved and excluded from commits.
+
+## v2.8.0 Release validation — 2026-10-26
+
+- Annotated tag `v2.8.0` points to
+  `9aa185018773c30ee0e10082f7e12b8759299a9e`. The peeled remote tag matches the successful
+  workflow revision. Its difference from checked source `4260b6a` is the
+  preparation evidence document only.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/41) succeeded (API run ID
+  222) with the unchanged lightweight build/checksum/upload job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.0) is published, neither draft nor prerelease
+  (Release ID 154). Its body matches the tagged English
+  [release notes](v2.8.0.md).
+
+All seven assets were downloaded. All six binary hashes match SHA256SUMS.
+The downloaded Linux amd64 asset reports `noe v2.8.0`, the tagged source
+revision, `vcs.modified=false`, `CGO_ENABLED=0`, go-quickjs v0.29.0 and
+go-intl v0.8.0. Its SHA256 is
+`a1ef5c013aacb812779425aef2ef6ae5b200f03c62e5acd0b85effe2a9f5e600`.
+
+Against the actual distributed binary, version/arithmetic and the focused
+URL fixture passed: extensionless URL redirects to a .data module, relative
+.txt dependencies, text/plain and JavaScript MIME, static/re-export/dynamic
+imports, alias/final-URL namespace identity, and fresh source in separate
+run/eval runtimes. The downloaded binary also fetched public
+lodash-es@4.17.21 from esm.sh and chunk returned `[[1,2],[3,4],[5]]`
+with exit 0 and empty stderr.
+
+Clean external Go modules fetched stdlib@v2.8.0 and agent@v2.8.0 from the
+actual published module, without local replacements or synthetic proxies.
+Both consumer fixtures built, ran and passed go mod verify. The stdlib
+consumer exercises the new explicit URL provider, public capability helper,
+independent-runtime source and fetch/FS separation. MVS selected go-quickjs
+v0.29.0 and go-intl v0.8.0. The downloaded loader/HTTP/Host source files and both
+public declaration files match the tagged source. No paid model-provider
+request was made.
+
+Evidence is retained at `/var/tmp/noe-v2.8.0-release-cXWw0u`: workflow metadata/log archive,
+seven downloaded assets, build metadata, URL fixture results, live public-ESM
+output, public-module consumers, published-verification.json and
+public-module-verification.json. Native execution is Linux amd64; other five
+targets have CI build/hash verification without native execution on this host.
+Successful implementation suites were reused rather than rerun for tagging.
+
+This documentation-only follow-up does not move or replace the release tag.
+Repository-root and PATH binary hashes match their pre-release baseline;
+running processes are unchanged and installation remains separate. Existing
+event logs and caches are preserved and excluded from these commits.
