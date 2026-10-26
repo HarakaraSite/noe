@@ -1,0 +1,34 @@
+{
+  "roles": {
+    "parent": {
+      "provider": "openai-chatgpt",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    "general": {
+      "provider": "openai-chatgpt",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    "planning": {
+      "provider": "openai-chatgpt",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    "review": {
+      "provider": "openai-chatgpt",
+      "model": "gpt-6.1-sol",
+      "effort": "xhigh"
+    },
+    "routine": {
+      "provider": "openai-chatgpt",
+      "model": "gpt-6-luna",
+      "effort": "max"
+    },
+    "difficult": {
+      "provider": "openai-chatgpt",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    }
+  }
+}

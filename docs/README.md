@@ -24,6 +24,7 @@
 | JSONLイベントを保存・処理する | [イベント](events.md) |
 | 画像を読み、画像を生成する | [画像](agent-images.md) |
 | Jevなどで構造化された判断を得る | [意思決定](decision.md) |
+| Implement settled requirements through reviewed slices, commits and a final push | [Portable development workflow](../.noe/lib/workflow/README.md) |
 | 外部Goアプリへ汎用APIを組み込む | [stdlib](go-embedding.md) · [agent](go-agent-embedding.md)（英文） |
 | 子プロセスの逐次I/O・ホスト標準I/Oを使う | [プロセスとストリーム](process-io.md) |
 | ファイルの位置指定I/O・TCP/Unix通信・OSシグナルを使う | [ファイル・ソケット・シグナル](low-level-io.md) |

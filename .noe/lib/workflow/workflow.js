@@ -1,142 +1,172 @@
-// Standalone composition API. Slice 1 ends in "planned", never claims implementation completion.
-import {DOCUMENT_REQUIREMENT_ID, WorkflowError, parseResult, requirementInventory, validateConfig, validatePlan, validateReview} from "./protocol.js";
-import {createAgentPool, createArtifactStore, createRuntime, git, prepareRepository} from "./runtime.js";
+// Thin launcher: filesystem context and role settings go to one native workflow parent.
+import {existsSync, readFileSync} from "node:fs";
+import {dirname, resolve} from "node:path";
+import process from "node:process";
+import {fileURLToPath} from "node:url";
+import {run_agent} from "noe:agent";
 
-export const PLAN_CONTRACT = {
-  type: "plan", version: 1, revision: 1,
-  requirements: [{id: "R1", acceptance: [{behavior: "Observable required behavior", usagePath: "Actual user/API execution path"}], slices: ["S1"]}],
-  slices: [{
-    id: "S1", title: "Vertical slice", dependsOn: [], requirementIds: ["R1"], ownedPaths: ["src/feature.js"],
-    difficulty: "routine", difficultyReason: "Concrete reason for routine or difficult selection",
-    verification: [{argv: ["test-program", "argument"], cwd: ".", purpose: "Required behavior this verifies"}],
-  }],
-  integration: {
-    commands: [{argv: ["integration-program"], cwd: ".", purpose: "Requirement-level and cross-slice user paths"}],
-    regression: {rationale: "Impact-based reason to run or omit product-wide checks", commands: []},
-    liveChecks: [],
-  },
+export const DEFAULT_ROLES = {
+  parent: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "high"},
+  general: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "high"},
+  planning: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "high"},
+  review: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "xhigh"},
+  routine: {provider: "openai-chatgpt", model: "gpt-6-luna", effort: "max"},
+  difficult: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "high"},
 };
-export function reviewContract(mode, revision) {
-  return {type: "review", version: 1, revision, mode, findings: []};
-}
-const JSON_ONLY = 'Return exactly one JSON object, no Markdown or surrounding prose. No unknown fields. If genuinely blocked, return {"type":"blocked","version":1,"reason":"...","evidence":"..."}. Failed commands and valid findings require repair, not waiver.';
-function context(requirements, rules, ids) {
-  const coverage = ids.length === 1 && ids[0] === DOCUMENT_REQUIREMENT_ID
-    ? {mode: "whole-document", rule: "DOCUMENT anchors the entire original requirements source, not a summary. Enumerate every required behavior as a separate acceptance entry with its source section or quoted wording and actual usage path. Both reviewers must compare every source behavior with these entries; a generic implement-the-document entry cannot approve."}
-    : {mode: "explicit-ids", rule: "IDs are an index, not a substitute for the full original source. Both reviewers must audit all required behaviors, including prose outside numbered declarations, against acceptance entries."};
-  return JSON.stringify({authoritativeRequirementIds: ids, coverage, requirements, repositoryRules: rules}, null, 2);
-}
-export async function planWorkflow({config, requirements, rules, ids, pool, store}) {
-  const basis = context(requirements, rules, ids);
-  let revision = 1;
-  let priorPlan = null;
-  let priorReviews = [];
-  for (;;) {
-    const instruction = [
-      "Create or repair the implementation plan. Planning is read-only; do not modify any repository files.",
-      "Cover every authoritative requirement exactly once in requirements and map each to acceptance behavior, actual usage paths and implementing slices. Follow the authoritative coverage rule; preserve every behavior in the full original source.",
-      "Use ordered dependency-respecting slices (one is allowed), explicit literal owned paths, and command argv arrays without shell interpolation.",
-      "Select routine/difficult difficulty per slice with a reason. Routine uses Luna/max; difficult uses Sol/high unless configured otherwise. Escalation later needs concrete evidence.",
-      "Provide final requirement-level/cross-slice verification, impact-based regression rationale, and optional explicit live checks only when needed.",
-      "Do not omit, weaken, reinterpret away or change requirements. Resolve every valid finding; reviewers must verify the revision independently.",
-      JSON_ONLY, "Exact plan shape (replace sample values; revision must be " + revision + "):",
-      JSON.stringify({...PLAN_CONTRACT, revision}, null, 2), "Authoritative context:", basis,
-      "Previous plan and review findings:", JSON.stringify({priorPlan, priorReviews}, null, 2),
-    ].join("\n");
-    const answer = await pool.task("planner", config.roles.planning, instruction, "You plan read-only. No implementation, staging, commits, pushing or requirement changes.");
-    const plan = validatePlan(parseResult(answer), ids, revision);
-    store.json("plan-" + revision + ".json", plan);
-    store.event("plan-created", {revision});
-    const modes = ["normal", "critical"];
-    // Both reviewers see the same immutable revision; no fresh reviewer output is shared.
-    // Await every completion even if its peer fails, avoiding orphan launch/cleanup races.
-    const outcomes = await Promise.all(modes.map(async mode => {
-      try {
-        const reviewAnswer = await pool.task("plan-review-" + mode, config.roles.review, [
-          "Independently review this plan. Read-only: do not modify any files.",
-          mode === "normal" ? "Check explicit requirement coverage, viable execution paths, ownership, dependencies and verification." :
-            "Challenge assumptions, omitted usage paths, integration gaps and unsafe contracts. No objection quota or hypothetical scope expansion.",
-          "Audit full original-source coverage using the authoritative coverage rule, not just whether every ID is present. Any omitted behavior needs a finding anchored to its source section or quoted wording.",
-          "Only unresolved concrete findings belong in findings. Each needs requirement IDs, path/requirement evidence and a corrective action.",
-          "Approval is ONLY an empty validated findings list. Re-review your prior findings against this exact new revision.",
-          JSON_ONLY, "Exact approval shape:", JSON.stringify(reviewContract(mode, revision)),
-          'Finding shape: {"id":"F1","requirementIds":["R1"],"evidence":"Requirement/path evidence","action":"Concrete corrective action"}',
-          "Authoritative context:", basis, "Plan revision:", JSON.stringify(plan, null, 2),
-          "Your prior review:", JSON.stringify(priorReviews.find(r => r.mode === mode) ?? null),
-        ].join("\n"), "Independent " + mode + " plan reviewer. Read-only; do not implement or change requirements.");
-        const review = validateReview(parseResult(reviewAnswer), ids, revision, mode);
-        store.json("review-" + revision + "-" + mode + ".json", review);
-        return {review};
-      } catch (error) { return {error}; }
-    }));
-    const failed = outcomes.find(o => o.error);
-    if (failed) throw failed.error;
-    const reviews = outcomes.map(o => o.review);
-    store.event("plan-reviewed", {revision, findings: reviews.map(r => ({mode: r.mode, count: r.findings.length}))});
-    if (reviews.every(r => r.findings.length === 0)) {
-      store.event("plan-approved", {revision});
-      return {plan, reviews};
+
+const moduleMeta = /** @type {{url: string}} */ (/** @type {any} */ (import.meta));
+const PACKAGE_DIR = dirname(fileURLToPath(moduleMeta.url));
+const INSTRUCTIONS_PATH = resolve(PACKAGE_DIR, "workflow.md");
+const DEFAULT_CONFIG_PATH = ".noe/workflow.json";
+const ROLE_FIELDS = new Set(["provider", "model", "effort"]);
+
+export const HELP = [
+  "Usage:",
+  "  noe run /path/to/workflow/run.js --requirements PATH [--config PATH]",
+  "  noe run /path/to/workflow/run.js --help",
+  "",
+  "Run from the target repository root. Requirements and config paths are relative to the current working directory.",
+  "If --config is omitted, .noe/workflow.json is loaded when present; otherwise built-in role defaults are used.",
+  "The workflow parent owns planning, delegated work, Git decisions, and the final natural-language report.",
+  "There is no --repo option or automatic resume.",
+].join("\n");
+
+export function parseArgs(argv) {
+  const seen = new Set();
+  let requirementsPath;
+  let configPath;
+  let help = false;
+
+  for (let index = 0; index < argv.length; index++) {
+    const flag = argv[index];
+    if (flag === "--help") {
+      if (seen.has(flag)) throw new Error("Duplicate argument: " + flag);
+      seen.add(flag);
+      help = true;
+      continue;
     }
-    priorPlan = plan;
-    priorReviews = reviews;
-    revision++;
+    if (flag !== "--requirements" && flag !== "--config") {
+      throw new Error("Unknown argument: " + flag);
+    }
+    if (seen.has(flag)) throw new Error("Duplicate argument: " + flag);
+    seen.add(flag);
+    const value = argv[++index];
+    if (value === undefined || value.length === 0 || value.startsWith("--")) {
+      throw new Error("Missing value for " + flag);
+    }
+    if (flag === "--requirements") requirementsPath = value;
+    else configPath = value;
   }
+
+  if (!help && requirementsPath === undefined) {
+    throw new Error("Missing required --requirements PATH");
+  }
+  return {help, requirementsPath, configPath};
 }
-/**
- * Standalone only: await in a NOE subprocess launched from the Git root.
- * Not a managed run_js continuation/steer API. No automatic interrupted-run resume.
- * @param {*} input
- * @param {{runtime?: Awaited<ReturnType<typeof createRuntime>>, stopAfter?: string}} options
- * Future phases reuse config, runtime.command, pool.task, store, repository baseline.
- * Slice 2 adds implementation -> focused checks/review -> scoped commits ->
- * requirement integration/repair commits -> one explicit safe branch push.
- */
-export async function runWorkflow(input, {runtime, stopAfter = "planning"} = {}) {
-  if (stopAfter !== "planning") throw new WorkflowError("not-implemented", "Bootstrap slice 1 supports planning only");
-  const config = validateConfig(input);
-  const execution = runtime ?? await createRuntime();
-  const repository = await prepareRepository(execution, config);
-  const store = createArtifactStore(repository.artifactBase);
-  let pool;
-  let result;
-  let failure;
+
+function defaultRoles() {
+  return Object.fromEntries(Object.entries(DEFAULT_ROLES).map(([name, role]) => [name, {...role}]));
+}
+
+function readRoles(configPath, cwd) {
+  const resolvedConfig = resolve(cwd, configPath ?? DEFAULT_CONFIG_PATH);
+  if (configPath === undefined && !existsSync(resolvedConfig)) {
+    return {roles: defaultRoles(), source: null};
+  }
+
+  let settings;
   try {
-    store.json("configuration.json", config);
-    store.json("baseline.json", repository);
-    store.event("started", {cwd: execution.cwd, stopAfter});
-    const requirements = execution.read(config.requirementsFile);
-    const ids = requirementInventory(requirements, config.requirementIds);
-    const rules = [];
-    for (const path of config.rulesFiles ?? ["AGENTS.md"]) {
-      if (config.rulesFiles === undefined && !execution.exists(path)) {
-        store.event("default-rules-absent", {path});
-      } else {
-        rules.push({path, text: execution.read(path)});
+    settings = JSON.parse(readFileSync(resolvedConfig, "utf8"));
+  } catch (error) {
+    throw new Error("Cannot read workflow settings " + resolvedConfig + ": " + String(error?.message ?? error));
+  }
+  if (settings === null || typeof settings !== "object" || Array.isArray(settings)) {
+    throw new Error("Workflow settings must be an object with optional role overrides.");
+  }
+  const overrides = settings.roles ?? {};
+  if (overrides === null || typeof overrides !== "object" || Array.isArray(overrides)) {
+    throw new Error("Workflow settings roles must be an object.");
+  }
+
+  const roles = defaultRoles();
+  for (const [name, override] of Object.entries(overrides)) {
+    if (!Object.prototype.hasOwnProperty.call(roles, name)) {
+      throw new Error("Unknown workflow role: " + name);
+    }
+    if (override === null || typeof override !== "object" || Array.isArray(override)) {
+      throw new Error("Role override for " + name + " must be an object.");
+    }
+    for (const [field, value] of Object.entries(override)) {
+      if (!ROLE_FIELDS.has(field)) throw new Error("Unknown setting for role " + name + ": " + field);
+      if (typeof value !== "string" || value.trim().length === 0) {
+        throw new Error("Role setting " + name + "." + field + " must be a nonempty string.");
       }
     }
-    store.json("inputs.json", {requirements, ids, rules});
-    pool = createAgentPool(execution, store);
-    const approved = await planWorkflow({config, requirements, rules, ids, pool, store});
-    // Planning/review workers are read-only. Never promote a revision after Git mutation.
-    if ((await git(execution, ["rev-parse", "HEAD"])).trim() !== repository.head ||
-        (await git(execution, ["diff", "--name-only", "-z", "--"])) ||
-        (await git(execution, ["diff", "--cached", "--name-only", "-z", "--"]))) {
-      throw new WorkflowError("planning-mutation", "Planning workers changed tracked/index state or HEAD");
-    }
-    result = {status: "planned", ...approved, artifactDirectory: store.directory, baseline: repository};
-  } catch (error) { failure = error; }
-  try { if (pool) await pool.close(); }
-  catch (error) {
-    store.event("cleanup-failed", {error: String(error)});
-    if (!failure) failure = error;
+    roles[name] = {...roles[name], ...override};
   }
-  if (failure || !result) {
-    failure = failure || new WorkflowError("execution", "No successful planning result was produced");
-    const status = failure.code === "cancelled" ? "cancelled" : failure.code === "blocked" ? "blocked" : "failed";
-    store.json("outcome.json", {status, code: failure.code ?? "execution", error: String(failure), artifactDirectory: store.directory});
-    failure.artifactDirectory = store.directory;
-    throw failure; // Preserve cancellation/error identity; never report failed work as completion.
+  return {roles, source: resolvedConfig};
+}
+
+function buildPrompt({cwd, requirementsPath, requirementsFile, requirements, settings, instructions}) {
+  return [
+    "You are the dedicated workflow parent for a settled requirements task. The launcher/requester is not a second coordinator; you own planning, judgment, workers, validation, Git and the completion report.",
+    "Actual target repository working directory: " + cwd,
+    "Requirements path supplied relative to that working directory: " + requirementsPath,
+    "Resolved requirements file: " + requirementsFile,
+    "The launcher has read the source below. Re-read the file and confirm it remains unchanged before planning; treat the original file and applicable repository work rules as authoritative.",
+    "----- BEGIN SETTLED REQUIREMENTS -----",
+    requirements,
+    "----- END SETTLED REQUIREMENTS -----",
+    "Role settings source: " + (settings.source ?? "built-in defaults (no config file present)"),
+    "Role settings (ordinary provider/model/effort values):",
+    JSON.stringify(settings.roles, null, 2),
+    "Follow the complete fixed procedure below. It defines responsibilities and judgment criteria, not a machine-enforced decision protocol.",
+    "----- BEGIN WORKFLOW PARENT INSTRUCTIONS -----",
+    instructions,
+    "----- END WORKFLOW PARENT INSTRUCTIONS -----",
+  ].join("\n\n");
+}
+
+/** Launch one parent and return its natural-language answer; tests may replace only run_agent. */
+export async function launch({requirementsPath, configPath}, {runAgent = run_agent} = {}) {
+  if (typeof requirementsPath !== "string" || requirementsPath.length === 0) {
+    throw new Error("A requirements path is required.");
   }
-  store.json("outcome.json", result);
-  return result;
+  const cwd = process.cwd();
+  const requirementsFile = resolve(cwd, requirementsPath);
+  const requirements = readFileSync(requirementsFile, "utf8");
+  const settings = readRoles(configPath, cwd);
+  const instructions = readFileSync(INSTRUCTIONS_PATH, "utf8");
+  const prompt = buildPrompt({cwd, requirementsPath, requirementsFile, requirements, settings, instructions});
+  const parentConfig = /** @type {Parameters<typeof run_agent>[0]} */ (settings.roles.parent);
+  const snapshot = await runAgent(parentConfig, prompt, {allowDelegation: true});
+  const outcome = snapshot?.lastResult;
+
+  if (!outcome || outcome.state !== "completed") {
+    const state = outcome?.state ?? "no task outcome";
+    const detail = outcome?.error ? ": " + outcome.error : "";
+    throw new Error("Workflow parent did not complete (state: " + state + ")" + detail);
+  }
+  if (typeof outcome.answer !== "string") {
+    throw new Error("Workflow parent completed without an answer.");
+  }
+  return outcome.answer;
+}
+
+export async function runCli(argv, dependencies = {}) {
+  const args = parseArgs(argv);
+  if (args.help) return HELP;
+  return launch(args, dependencies);
+}
+
+export async function main(argv = process.argv.slice(2), dependencies = {}) {
+  try {
+    const answer = await runCli(argv, dependencies);
+    console.log(answer);
+    return answer;
+  } catch (error) {
+    console.error("workflow: " + String(error?.message ?? error));
+    process.exitCode = 1;
+    return undefined;
+  }
 }

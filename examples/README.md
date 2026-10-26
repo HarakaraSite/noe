@@ -28,6 +28,8 @@
 
 任意の指示を試す入口は`agent/try-agent.js`です。
 
+For settled requirements through slice implementation, reviews, local commits and one final push, use the [portable development workflow](../.noe/lib/workflow/README.md). Version 1 does not use a Decision API or perform releases.
+
 計画・レビュー・修正・実装・テストをJavaScriptで組み立てる例は、[Jevをゲートに使うタスクループ](agent/task-loop-jev/README.md)を参照してください。`queue_agent`と`wait_task`で作業担当を制御します。
 
 ```sh

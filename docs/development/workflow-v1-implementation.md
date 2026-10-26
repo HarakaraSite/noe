@@ -1,3 +1,5 @@
+> Historical record of the paused machine-gated implementation. Its technical contracts are superseded by [the agent-first redesign](workflow-agent-first-design.md) and [current implementation record](workflow-agent-first-implementation.md); do not use it to launch or constrain the current workflow.
+
 # Reusable development workflow v1 implementation record
 
 ## Scope
