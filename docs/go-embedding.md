@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.8.0; see the
+select model providers or agent behavior. The current release is v2.8.1; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.29.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.8.0`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.8.1`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -126,7 +126,7 @@ called concurrently and must not share QuickJS values between runtimes.
 
 ## Module metadata
 
-The current development version supplies `import.meta.url` for each module.
+NOE v2.8.1 and later supply `import.meta.url` for each module.
 File modules use encoded file URLs; URL modules retain their final canonical
 URL. A `Source.Virtual` entry uses a synthetic `<virtual-entry>.mjs` file URL
 under the profile cwd, without changing its diagnostic name or requiring that

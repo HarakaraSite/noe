@@ -34,13 +34,13 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.8.0 release notes](docs/releases/v2.8.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.0)
+[v2.8.1 release notes](docs/releases/v2.8.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.1)
 
-v2.8.0 adds HTTP/HTTPS ESM URL imports, including dynamic import and import-map
-URL targets. The CLI enables them by default; Go hosts opt in explicitly.
-JavaScript MIME types and text/plain are accepted without a URL extension
-requirement. There is no cross-runtime download cache, TypeScript transform,
-or npm discovery. See the [release notes](docs/releases/v2.8.0.md).
+v2.8.1 supplies `import.meta.url` for local and HTTP/HTTPS modules, Workers,
+and virtual entries so modules can compute their own relative asset URLs.
+The existing URL-import resolution, capabilities, and engine dependencies
+remain unchanged. See the [metadata guide](docs/import-meta.md) and
+[release notes](docs/releases/v2.8.1.md).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -55,7 +55,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.8.0
+# noe v2.8.1
 ```
 
 The examples below assume the repository root is your working directory.

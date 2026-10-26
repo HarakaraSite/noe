@@ -1,6 +1,6 @@
 # import.meta.urlでmodule自身の場所を知る
 
-この機能は現行開発版に追加したものです。未対応の既存配布版では`import.meta.url`がundefinedになります。
+NOE v2.8.1以降で利用できます。v2.8.0以前では`import.meta.url`がundefinedになります。
 
 ES Module内の`import.meta.url`は、そのmodule自身のURLを返します。
 entryだけでなく、static/dynamic importされた各moduleとmodule Workerでも利用できます。

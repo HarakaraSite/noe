@@ -53,7 +53,7 @@ mapは起動時に読み、対応表をWorker・親子agent・各run_jsへ継承
 
 ## module自身を基準にasset URLを計算する
 
-現行開発版では、URL moduleの`import.meta.url`にredirect後のcanonical URLが入ります。
+v2.8.1以降では、URL moduleの`import.meta.url`にredirect後のcanonical URLが入ります。
 `new URL("./asset.txt", import.meta.url)`で、そのmoduleと同じ場所のasset URLを計算できます。
 query/fragmentを含むmodule identityや、assetを取得するための権限は変わりません。
 ローカル・仮想entry・Workerの値は[import.meta.urlガイド](import-meta.md)を参照してください。

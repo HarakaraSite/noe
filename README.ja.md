@@ -35,9 +35,9 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.8.0リリースノート](docs/releases/v2.8.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.0)
+[v2.8.1リリースノート](docs/releases/v2.8.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.1)
 
-v2.8.0ではHTTP/HTTPSのESM import、dynamic import、import mapのURL targetに対応します。CLIは既定有効、Go組込みは明示的に選択します。JavaScript MIMEとtext/plainを受理し、URL拡張子は不問です。ダウンロードキャッシュ・TypeScript変換・npm探索は追加しません。詳細は[リリースノート](docs/releases/v2.8.0.md)を参照してください。
+v2.8.1ではローカル・HTTP/HTTPS module、Worker、仮想entryに`import.meta.url`を設定し、module自身を基準にasset URLを計算できるようにします。既存のURL import解決・権限・engine依存は変更しません。詳細は[metadataガイド](docs/import-meta.md)と[リリースノート](docs/releases/v2.8.1.md)を参照してください。
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
@@ -51,7 +51,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.8.0
+# noe v2.8.1
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
