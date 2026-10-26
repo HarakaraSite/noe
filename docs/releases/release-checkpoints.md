@@ -2414,3 +2414,44 @@ Local installation was not requested: repository-root/PATH executables and
 running processes remain unchanged. Existing user logs, caches and the
 separately edited development instruction file remain preserved and
 excluded from these commits.
+
+## v2.8.3 preparation — 2026-10-26
+
+The user authorized release of the instruction changes made in another session.
+Implementation commit `1b84390db3414bd4b7e9805fd4a53f25e262bc1d` separates
+runtime/API facts from editable behavioral guidance, removes the CLI's embedded
+policy injection, and updates external guidance, notices and related tests.
+
+Checked clean release source:
+`122272c32983419445c1e8c903cc592a06d16044`.
+Only CLI version/release documentation changed after the checked implementation.
+Dependencies and the six-target lightweight release workflow are unchanged.
+This preparation follow-up changes only this evidence document.
+
+Implementation verification passed:
+- `go test ./internal/agent ./internal/noeprofile ./internal/runtime ./internal/apidocs ./internal/agentexec -count=1`.
+- CLI instruction-file run/eval E2E:
+  `go test -tags=e2e ./tests -run '^TestAgentInstructionFilesRunAndEval$' -count=1`.
+- Instruction absence, replacement/removal, instance snapshots, child loading,
+  no-comment run_js data, and retained context-history behavior are covered.
+- Development Staticcheck, changed-JavaScript Biome lint, gofmt and diff checks.
+- No remaining live references to the removed internal Policy function/file.
+
+Light release verification passed the configured version test, 302 current
+documentation links, and a clean CGO-free native release-flags build.
+The candidate reports `noe v2.8.3`, evaluates arithmetic to `2`, and its
+`noe docs noe:run_js run_js` detail contains the updated optional-comment
+contract. Provenance is the checked source with `vcs.modified=false`,
+go-quickjs v0.29.0 and go-intl v0.8.0.
+
+No unrelated full suite, race, long-duration check, or six-binary local
+distribution build was repeated. CI builds/checksums/uploads the immutable
+tag without duplicating local source tests. Published assets and public-module
+availability are checked afterward. Native execution is Linux amd64; other
+targets receive build/hash verification.
+
+Evidence and clean source: `/tmp/noe-v2.8.3-release-23267156`.
+[Release notes](v2.8.3.md) explain the intended CLI guidance change and the
+unchanged public Go host policy option. External files are not installed or
+recreated by the binary. Local installation and process restarts are not
+part of this request. User event logs and caches are preserved/excluded.
