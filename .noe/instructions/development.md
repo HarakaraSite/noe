@@ -9,6 +9,12 @@ This policy applies to parent and delegated agents developing, investigating, te
 - Tie each test to concrete product behavior or a confirmed regression. Do not add a test whose purpose and evidence you cannot explain. Test counts are neither a goal nor a cap.
 - Uncertainty alone does not justify adding feature restrictions, safeguards, input limits, fallbacks, or cleanup. Limit these decisions to explicit requirements or concrete failure paths and user impact in the current environment.
 
+## Narrow broad investigations in stages
+
+For broad investigations, narrow the scope in stages: inspect structure, counts, or search results, then read the relevant details. Select returned information according to the next decision it must support. A summary should reduce the amount of information, not merely remove fields while retaining every item. Preserve material exceptions and supporting evidence. Follow up on omitted information when it could change the conclusion.
+
+Save useful information to a known file when needed for later work. Context-budget notices alone do not require archival work.
+
 ## When to repeat validation
 
 - During implementation, use tests for the changed behavior and the necessary type, formatting, lint, and diff checks. Do not repeatedly use the full suite for intermediate checks.

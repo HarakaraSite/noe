@@ -18,7 +18,7 @@ The internal input is an object with one required property. JSON tool providers 
 
 The built-in openai-chatgpt provider instead accepts the JavaScript module source directly as a custom tool input, without JSON wrapping or code fences. Hooks still receive parsed `arguments: {code}`; `rawArguments` is the original source on that transport, and the original JSON string on JSON tool transports.
 
-`code` must be a string. NOE's default Policy asks for a short English `//` comment describing the operation on the first line, before imports and executable statements, with no leading blank line. This is a NOE policy, not an API requirement; other hosts supply their own Policy. Agent helpers are not implicitly bound: import them explicitly from noe:agent, just like other ES module APIs.
+`code` must be a string. Comment style, explanation language, and work procedures can be set by external instructions; the runtime does not require an operation comment. The source repository includes editable examples of these preferences in `.noe/instructions/`. Agent helpers are not implicitly bound: import them explicitly from noe:agent, just like other ES module APIs.
 
 The result reports `stdout`, `stderr`, `exitCode`, and `reason`, plus optional `data` and `diagnostics`. A nonzero exit code is still a result and can include useful output. `reason` distinguishes ordinary completion from process failure, timeout, or cancellation. stdout/stderr contain actual writes only; NOE exception diagnostics are separate.
 
@@ -44,7 +44,7 @@ Serialization occurs after the entry/default and its owned work complete. Jobs c
 
 The runner preserves its captured result for hooks and execution events. After afterTool, the model-facing JSON value has a shared default budget of 64 KiB (65536 UTF-8 bytes), including metadata, JSON escaping, stdout, stderr, data, diagnostics, command exception output, and arbitrary hook results. Values within budget retain their existing shape. Overflow returns an envelope with outputPreview, outputLimit, and original execution status in execution. The preview keeps the beginning and end of the serialized hook result, is incomplete JSON text, and must not be parsed as complete data. outputLimit reports limitBytes, sourceBytes, shownBytes, omittedBytes, returnedBytes, and complete:false. shown/omitted count source JSON bytes; returnedBytes is the encoded envelope size, including all metadata and JSON escaping, and stays within limitBytes. The same outputBytes setting also controls stream capture; capture omission counts describe source stream bytes, separately from model-preview omissions.
 
-For oversized searches, narrow the query/scope or return filenames/counts, then read relevant parts. When the required content itself is larger, request a per-call budget in the initial line-comment block. Keep the operation comment first:
+For oversized searches, narrowing the query/scope or returning filenames/counts can reduce the result. When the required content itself is larger, a per-call budget can be set in the initial line-comment block. This example includes an optional operation comment:
 
 ~~~js
 // Read the required HTTP detail.

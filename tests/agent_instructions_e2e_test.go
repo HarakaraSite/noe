@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	coreagent "forge.harakara.site/littleisland/noe/v2/internal/agent"
-	"forge.harakara.site/littleisland/noe/v2/internal/noeprofile"
 )
 
 func TestAgentInstructionFilesRunAndEval(t *testing.T) {
@@ -22,10 +21,10 @@ func TestAgentInstructionFilesRunAndEval(t *testing.T) {
 		if err := json.Unmarshal(request.Messages[0].Content, &system); err != nil {
 			t.Errorf("invalid system message: %v", err)
 		}
-		builtIn := coreagent.Facts() + "\n\n" + coreagent.URLImportFacts("enabled") + "\n\n" + noeprofile.Policy()
+		builtIn := coreagent.Facts() + "\n\n" + coreagent.URLImportFacts("enabled")
 		previous := len(builtIn)
 		if !strings.HasPrefix(system, builtIn) {
-			t.Error("generic facts or NOE policy lost")
+			t.Error("generic runtime facts lost")
 		}
 		for _, marker := range []string{"COMMON_FIRST", "COMMON_SECOND", "PROJECT_FIRST", "PROJECT_SECOND", "EXPLICIT_SYSTEM"} {
 			position := strings.Index(system, marker)

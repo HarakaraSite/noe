@@ -112,7 +112,7 @@ func projectToolOutput(result, rawResult json.RawMessage, limit int64) (json.Raw
 	value := toolOutputPreview{
 		OutputLimit: toolOutputLimit{
 			LimitBytes: limit, SourceBytes: len(result), Complete: false,
-			Notice: "Incomplete JSON text preview; do not parse as complete data. Narrow the search, return filenames/counts, or read relevant lines. For necessary larger output, increase outputBytes up to 262144. The source was not rerun. Logs retain captured output, not bytes omitted during capture.",
+			Notice: "This preview is incomplete JSON text. The outputBytes pragma supports per-call budgets up to 262144 bytes. The source was not rerun. Logs retain captured output, not bytes omitted during capture.",
 		},
 		Execution: execution,
 	}

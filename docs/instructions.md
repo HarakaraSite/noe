@@ -1,68 +1,61 @@
-# agentのインストラクション
+# Agent instructions
 
-組込み説明は、NOE上で管理されていること、`run_js`が毎回新しいNOEプロセスで動くこと、必要なAPI契約を`noe:docs`で調べる方法を含みます。APIリファレンスもバイナリに内蔵され、[CLIとJSの双方から参照](reference.md)できます。
+NOE embeds execution and API facts, such as run_js runtime isolation, result serialization, resource ownership, and available documentation. The version-matched [API reference](reference.md) is bundled with the executable.
 
-agent instanceの最初のtask開始時に、次の順でinstructionを一度構成します。
+Behavioral choices belong to users: autonomy and approval preferences, language and comment style, tool and model selection, delegation, investigation procedures, validation scope, and reporting. The CLI reads these choices from external instruction files. It injects no built-in behavioral policy and has no hidden fallback when those files are absent or removed.
 
-1. NOE組込みの実行環境・toolの説明。
-2. 共通ディレクトリの`*.md`。
-3. workspaceディレクトリの`*.md`。
-4. 呼出し時に明示した`config.system`。
+## Composition and locations
 
-本文を追記する方式です。同名ファイルでも両方を読み、明示した`system`で自動読込み分を置き換えません。
+An agent instance composes its system message once when its first task starts:
 
-組込み指示のうち、実行環境とAPIの説明は実際の機能・制約を表します。自律性、作業手順、出力形式、
-検証範囲、モデル選択の案内は既定の方針であり、taskや追加のsystem指示に異なる明示指定があれば
-それに従うようagentへ指示しています。これは本文の削除や実行時の権限制御ではなく、モデルへの指示です。
-詳細な開発・検証手順や報告方針は、共通またはworkspaceのinstruction fileへ置けます。
+1. Built-in runtime and API facts, including the selected profile's capabilities.
+2. Markdown from the common instruction directory.
+3. Markdown from the workspace instruction directory.
+4. The explicitly supplied `config.system` string.
 
-## 委譲方針の試行
-
-2026-10-21の利用者指示により、委譲の粒度、担当再利用、背景伝達、結果の受け渡しの方針は、まずworkspaceの外部instruction [delegation.md](../.noe/instructions/delegation.md)で試します。子の起動状況とキャッシュ利用量を実接続で観測し、結果が良好な場合に組込みinstructionへ移します。API契約・Go側の再委譲受付制御は組込みに残します。
-
-[実接続の観測結果](development/agent-efficiency-observation.md#2026-10-21の観測結果)では、小作業の子0体・分担の子2体・review担当の再利用を確認しました。親のcached tokensは全14要求で0で、cache改善は確認できていないため、現在も外部instructionに維持しています。
-
-## 送信ごとに追加される実行状態
-
-上記の固定instructionとは別に、モデル要求の末尾へ`NOE_CONTEXT_STATUS`で始まるuser messageを毎回追加します。直前のrequest ID・入力量・キャッシュ量、次の入力推定、残量・割合、trim通知、hookで設定したruntime information等を含むため、本文は要求ごとに変わります。`beforeModelRequest` hookの`api.context.setRuntimeInfo()`もこの通知へ反映されます。
-
-生成は[context.go](../internal/agent/context.go)の`contextMessage`、追加は[task.js](../internal/agent/js/task.js)のモデル要求直前です。この通知は、対応するassistant応答・tool結果と同じ完了blockとして会話履歴へ保存します。次の要求や同じinstanceのqueue taskでも過去の通知をそのまま送り、新しい通知だけを末尾へ追加します。自動trim時は対応する応答・tool結果とまとめて削除します。[Responses変換](../internal/agent/provider/responses.go)も入力順序を保って送信します。状態通知をinstructionとして送らず、過去の通知も書き換えません。
-
-2026-10-21の低キャッシュ率調査で、従来は要求限定のsystem通知だった経路を確認し、履歴へ保持する方式に変更しました。指定ログの親には自動trimも外部hook呼出しも記録されていませんでした。動的通知によるprovider側の実際のキャッシュ境界への影響は未確定で、原因と断定していません。
-
-## 探索場所
-
-| 区分 | ディレクトリ |
+| Scope | Directory |
 | --- | --- |
-| 共通 | `$XDG_CONFIG_HOME/noe/instructions/`。変数が空・未設定なら`~/.config/noe/instructions/` |
-| workspace | `<NOE起動時の作業ディレクトリ>/.noe/instructions/` |
+| Common | `$XDG_CONFIG_HOME/noe/instructions/`, or `~/.config/noe/instructions/` when the variable is empty or unset |
+| Workspace | `<NOE starting working directory>/.noe/instructions/` |
 
-共通側の設定ディレクトリは、既存のクレデンシャルと同じ規則で解決します。
-workspaceはscriptの場所や一時生成されたagent JSの場所ではなく、ホストNOEの作業ディレクトリです。
-Git rootや祖先ディレクトリの探索は行いません。子agentも同じworkspaceを使います。
+The workspace is the host's configured working directory, not the script directory or a temporary agent-script location. There is no Git-root or ancestor-directory discovery. Children use the same workspace locations.
 
-各ディレクトリの直下にある、小文字の拡張子`.md`のファイルをファイル名の昇順で読みます。
-文字列順なので、順序を明示したい場合は`10-tools.md`、`20-project.md`のように名前を付けます。
-サブディレクトリは再帰しません。通常ファイルを指すシンボリックリンクも読めます。
-ディレクトリが存在しない場合は追加指示なしとして進みます。既存の読込み対象や
-探索ディレクトリを読めない場合は、対象パスを含むtask失敗として報告し、モデルは呼びません。
+Files with the lowercase extension `.md` are read from each directory's immediate children in filename order. Names such as `10-tools.md` and `20-project.md` can make that order explicit. Subdirectories are not traversed. Symbolic links to regular files are supported.
 
-## ライブラリの利用案内
+Contents are appended. Files with the same name in common and workspace directories are both read; one does not replace the other. Likewise, config.system is appended rather than replacing loaded files. To remove an instruction from the composed text, edit or remove the source file before creating a new agent instance.
 
-例えば、共通の`10-exa.md`へ次のように書けます。
+Missing directories add no instructions. An unreadable directory or instruction file fails the task before a model request, with the affected path reported.
+
+Go applications control their own `HostConfig.Instructions` and optional `HostConfig.Policy`. Neither a NOE behavioral policy nor filesystem instruction discovery is automatically added to a custom Go host. See [Go agent embedding](go-agent-embedding.md).
+
+## Editable workspace preferences
+
+The source repository contains ordinary external instructions:
+
+- [behavior.md](../.noe/instructions/behavior.md): autonomy and interaction preferences.
+- [tool-use.md](../.noe/instructions/tool-use.md): comment style, API discovery, concurrent work, and model-backed decisions.
+- [delegation.md](../.noe/instructions/delegation.md): task splitting, waiting, reuse, and handoff.
+- [development.md](../.noe/instructions/development.md): investigation, validation, review, and completion.
+- [extention.md](../.noe/instructions/extention.md): local extension-library discovery and usage.
+- [js-tools.md](../.noe/instructions/js-tools.md): this workspace's lint and type-checking workflow.
+
+Edit, replace, or remove these files to choose the workspace's behavior. To use selected preferences across workspaces, place copies in the common directory. NOE does not install, recreate, or restore these files automatically. Keeping them external is a user-control boundary, not a trial before embedding them into the binary.
+
+## Library guidance
+
+An instruction file can advertise a library without making it part of NOE's built-in policy:
 
 ```md
-Web検索には、run_jsから利用できるExaライブラリがあります。
-使う前に /home/agent/.config/noe/lib/exa.md を読んでください。
-import {search} from "exa" で利用できます。
+For web search, use the local Exa helper described in
+/path/to/workspace/.noe/lib/exa/exa.md.
+Import its JavaScript module by resolving its absolute path from cwd.
 ```
 
-import mapは別に起動時の`--import-map`で指定します。Markdownを置くだけで
-ライブラリのインストールやimport mapの自動探索が行われるわけではありません。
+An import map is separate and can be selected with `--import-map`. Adding Markdown does not install a library or discover an import map.
 
-## 任意のファイルもsystemへ追加する
+## Adding explicit system text
 
-`system`は文字列です。複数ファイルは呼出し元のJSで指定順に結合できます。
+`system` is a string. The caller can read and concatenate selected files in a chosen order:
 
 ```js
 import {readFile} from "node:fs/promises";
@@ -78,30 +71,26 @@ const result = await run_agent({
   model: "deepseek-v4.1-flash",
   effort: "auto",
   system,
-}, "README.mdを3点に要約してください。");
+}, "Summarize README.md in three points.");
 console.log(result.lastResult);
 ```
 
-`AGENTS.md`自体の自動探索は行いません。ファイルパスの配列を`system`へ直接渡すこともできません。
+AGENTS.md is not discovered automatically. A file-path array cannot be passed directly as system.
 
-## 読込みのタイミング
+## Snapshot lifetime
 
-最初の実task開始時に一度だけ、hookとモデル要求より前に自動読込みします。
-idle起動では読みません。読込み前にtaskが開始されずに終わった場合も読みません。
-同じinstanceでqueueされた次taskは、instruction fileを再読込みせず最初に構成したsystemを使います。
-そのinstanceの最初のtask開始後にファイルを書き換えても、queue taskへ反映しません。
+Instruction files are read once per instance, before its first actual task's hooks or model request. Idle startup does not read them. Later queued tasks reuse the same composed system message, even if the files have changed.
 
-新しいchild agentなど別instanceは、自分の最初のtask開始時に最新ファイルを読みます。
-親の自動読込み済み本文や会話は子へ継承しません。明示した`system`はinstance単位で固定され、
-queue taskでは維持しますが、新しいchildへは明示した場合だけ適用されます。
+A new instance, including a new child, reads the current files at its own first task. It does not inherit the parent's loaded instruction text or conversation. Explicit config.system is fixed for its instance and reaches a new child only when explicitly supplied.
 
-結合した本文は不変のsystemメッセージとして保持します。動的な予算・使用量通知は
-[hook・contextガイド](hooks.md)の要求限定情報として別に扱い、元の指示へ蓄積しません。
-自動管理時は、予算に達すると古い完了済みの実行履歴がまとめて切り捨てられる場合があります。
-system、元のtask指示、適用済みsteer、開始した各queue taskの指示は保持します。queue指示は、
-実行開始時に会話の順序どおりuser messageとして追加されます。直近の完了blockも残ります。
-同じinstanceの次queue taskへはtrim後の有効な会話とtrim回数・直近のtrim情報を引き継ぎます。
-一度切り捨てたblockは復活しません。別instanceの会話は独立しています。
-それより古いblockは削除対象となり、削除時もassistantのtool callと対応する全tool結果を一体として扱います。
-必要な情報が後でも役立つ場合だけ、通常のtask作業として既知のファイルへ保存できます。保存は任意で、
-保存しなくても処理は続きます。設定と予算の意味は[hook・contextガイド](hooks.md)を参照してください。
+The composed system message remains immutable. Changing external files takes effect for new instances without rebuilding the executable; updating the binary is required to change built-in runtime facts. Existing instances need to be replaced to use changed files.
+
+## Runtime status and conversation history
+
+NOE adds a user message beginning with `NOE_CONTEXT_STATUS` before each model request. It contains request and usage information, estimates, trimming notices, and runtime information supplied through `api.context.setRuntimeInfo()`. This is runtime status, not a behavioral instruction.
+
+Each status message is retained with its assistant response and tool results. The next request, including a queued task in the same instance, preserves prior status messages and appends the new one. Transport conversion preserves message order. The status generator is `contextMessage` in [context.go](../internal/agent/context.go), and the task loop inserts it in [task.js](../internal/agent/js/task.js).
+
+Automatic context management may remove older completed execution blocks when the budget is reached. It preserves the system message, original task, applied steering, started queue-task instructions in conversation order, and the most recent completed block. Tool calls and their results are removed together. The next queued task inherits the effective conversation and trimming state. Removed blocks do not return; separate instances have independent conversations.
+
+Save useful information to a known file when needed for later work; this is optional. See the [hooks and context guide](hooks.md) for configuration and budget semantics. Earlier context-status and cache investigations remain historical evidence in the [efficiency observation record](development/agent-efficiency-observation.md).

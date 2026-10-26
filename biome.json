@@ -26,30 +26,5 @@
 			"Float16Array",
 			"SuppressedError"
 		]
-	},
-	"overrides": [
-		{
-			"includes": ["**/run-js-snippet.js"],
-			"javascript": {
-				"globals": [
-					"serve",
-					"upgradeWebSocket",
-					"ShadowRealm",
-					"Temporal",
-					"run_agent",
-					"spawn_agent",
-					"observe_agent",
-					"queue_agent",
-					"wait_task",
-					"read_task_result",
-					"steer_agent",
-					"interrupt_agent",
-					"AsyncDisposableStack",
-					"DisposableStack",
-					"Float16Array",
-					"SuppressedError"
-				]
-			}
-		}
-	]
+	}
 }

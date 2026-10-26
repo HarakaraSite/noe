@@ -4,7 +4,6 @@ package noeprofile
 import (
 	"bytes"
 	"context"
-	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -131,8 +130,3 @@ func (r instructionReader) Read(p []byte) (int, error) {
 	}
 	return r.reader.Read(p)
 }
-
-//go:embed policy.md
-var policy string
-
-func Policy() string { return strings.TrimSuffix(policy, "\n") }

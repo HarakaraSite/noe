@@ -155,7 +155,7 @@ instanceがidle・停止になるまで待つ必要はなく、後続タスク�
 ### 設定
 
 各instanceの最初の実行開始時に、共通設定とworkspaceの`instructions/*.md`をファイル名順で読み込みます。
-組込み指示 → 共通 → workspace → 明示した`system`の順で追記し、同じinstanceのqueue taskにも固定します。子など新しいinstanceは独立して読み込みます。
+Instructions are appended in this order: built-in runtime/API facts, common files, workspace files, then explicit `system`. Behavioral preferences are external; the CLI injects no built-in behavioral policy. Queued tasks reuse their instance's snapshot; new instances, including children, load independently.
 探索場所・読込み失敗・子やqueueの扱いは[インストラクションガイド](instructions.md)を参照してください。
 
 ### hook失敗の保持結果

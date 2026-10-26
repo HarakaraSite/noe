@@ -297,9 +297,9 @@ func contextMessage(snapshot contextSnapshot, runtimeInfo map[string]string, hoo
 		fmt.Fprintf(&out, "Execution context: ~%d / %d tokens (%s); source=%s; total input allowance=%d.\n", execution.EstimatedTokens, execution.BudgetTokens, percent, execution.BudgetSource, execution.TotalInputBudgetTokens)
 		out.WriteString("The Execution context denominator is the history budget and trimming threshold when enabled. Input budget is the computed total allowance, including fixed instructions; it remains available when Model context window is unknown.\n")
 		if execution.Policy == "auto" {
-			out.WriteString("Older completed history may be discarded at the budget threshold. Save information only if useful for the task; saving is optional.\n")
+			out.WriteString("Older completed history may be discarded at the budget threshold.\n")
 			if execution.NearBudget {
-				out.WriteString("Context budget is near or exceeded; avoid unnecessary archival work.\n")
+				out.WriteString("Context budget is near or exceeded.\n")
 			}
 		} else {
 			out.WriteString("Automatic context trimming is disabled; conversation history is unchanged.\n")

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 )
 
@@ -97,7 +98,7 @@ console.log(JSON.stringify(await run_agent({provider:"openrouter",model:"fixture
 			t.Fatalf("prior status should retain step info without carrying it into the current notice: %s", body)
 		}
 		messages := decodeRuntimeProviderMessages(t, req.Messages)
-		if bytes.Count(body, []byte("steer must remain once")) != 1 || !runtimeMessageContains(messages, "system", "autonomous") {
+		if bytes.Count(body, []byte("steer must remain once")) != 1 || !runtimeMessageContains(messages, "system", agent.Facts()) || messages[0].Content != firstMessages[0].Content {
 			t.Fatalf("history changed: %s", body)
 		}
 	}

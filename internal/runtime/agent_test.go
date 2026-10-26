@@ -65,7 +65,7 @@ console.log(JSON.stringify([first.lastResult.answer,second.lastResult.answer,[le
 			t.Fatalf("settings/history not isolated: %+v", req)
 		}
 		messages := decodeRuntimeProviderMessages(t, req.Messages)
-		if !runtimeMessageContains(messages, "system", agent.Facts()+"\n\n"+agent.URLImportFacts("enabled")+"\n\n"+noeprofile.Policy()+"\n\nadditional") {
+		if !runtimeMessageContains(messages, "system", agent.Facts()+"\n\n"+agent.URLImportFacts("enabled")+"\n\nadditional") {
 			t.Fatalf("embedded Markdown and custom instructions were not composed: %+v", messages)
 		}
 		instruction := interruptUserPrompt(req)

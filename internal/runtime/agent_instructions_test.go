@@ -14,7 +14,6 @@ import (
 
 	"forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
-	"forge.harakara.site/littleisland/noe/v2/internal/noeprofile"
 )
 
 func writeAgentInstructionFixture(t *testing.T, path, text string) {
@@ -24,6 +23,100 @@ func writeAgentInstructionFixture(t *testing.T, path, text string) {
 	}
 	if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAgentBehaviorInstructionsCanBeReplacedAndRemoved(t *testing.T) {
+	cwd, config := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	path := filepath.Join(cwd, ".noe", "instructions", "behavior.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	behaviors := map[string]string{
+		"without":  "",
+		"custom":   "USER_BEHAVIOR: ask questions and explain in Japanese.",
+		"replaced": "USER_REPLACEMENT: proceed autonomously and use terse English.",
+		"removed":  "",
+	}
+	var mu sync.Mutex
+	calls := map[string]int{}
+	p := agentProviderFunc(func(_ context.Context, req provider.Request) (provider.Response, error) {
+		input := interruptUserPrompt(req)
+		behavior, exists := behaviors[input]
+		if !exists {
+			return provider.Response{}, fmt.Errorf("unexpected instruction %q", input)
+		}
+		want := agent.Facts() + "\n\n" + agent.URLImportFacts("enabled")
+		if behavior != "" {
+			want += "\n\n" + behavior
+		}
+		want += "\n\nUSER_SYSTEM"
+		var system string
+		var toolResult bool
+		for _, raw := range req.Messages {
+			var message runtimeProviderMessage
+			if err := json.Unmarshal(raw, &message); err != nil {
+				return provider.Response{}, err
+			}
+			if message.Role == "system" {
+				system = message.Content
+			}
+			if message.Role == "tool" && strings.Contains(message.Content, `"exitCode":0`) && strings.Contains(message.Content, `"value":7`) {
+				toolResult = true
+			}
+		}
+		if system != want {
+			return provider.Response{}, fmt.Errorf("%s includes an unexpected policy or lost external instructions:\ngot: %q\nwant: %q", input, system, want)
+		}
+		mu.Lock()
+		calls[input]++
+		n := calls[input]
+		mu.Unlock()
+		if input == "without" {
+			if n == 1 {
+				return hookToolReply(map[string]string{"plain": `export default {value:7};`}, "plain"), nil
+			}
+			if !toolResult {
+				return provider.Response{}, fmt.Errorf("run_js without an operation comment did not return its data")
+			}
+		}
+		return agentAnswer(input + " done"), nil
+	})
+	source := fmt.Sprintf(`import {run_agent} from "noe:agent";
+import {writeFileSync,unlinkSync} from "node:fs";
+const config={provider:"openrouter",model:"fixture/model",effort:"auto",system:"USER_SYSTEM"};
+async function run(instruction) {
+ const result=await run_agent(config,instruction);
+ if(result.lastResult?.state!=="completed") throw Error(JSON.stringify(result));
+ console.log(result.lastResult.answer);
+}
+await run("without");
+writeFileSync(%q,%q);
+await run("custom");
+writeFileSync(%q,%q);
+await run("replaced");
+unlinkSync(%q);
+await run("removed");`, path, behaviors["custom"], path, behaviors["replaced"], path)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	var stdout, stderr bytes.Buffer
+	code, err := Execute(ctx, Source{Name: filepath.Join(cwd, "main.js"), Code: source}, Options{
+		Cwd: cwd, Agent: agentTestOptions(p), Stdout: &stdout, Stderr: &stderr,
+	})
+	if want := "without done\ncustom done\nreplaced done\nremoved done\n"; err != nil || code != 0 || stdout.String() != want {
+		t.Fatalf("code=%d err=%v stdout=%q stderr=%q", code, err, &stdout, &stderr)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for input := range behaviors {
+		want := 1
+		if input == "without" {
+			want = 2
+		}
+		if calls[input] != want {
+			t.Errorf("%s model requests=%d, want %d", input, calls[input], want)
+		}
 	}
 }
 
@@ -99,10 +192,10 @@ console.log(result.lastResult.answer);`, filepath.Join(cwd, "first.md"), filepat
 		"child":  {"GLOBAL_VERSION_ONE", "WORKSPACE_VERSION_ONE", "CHILD_EXPLICIT"},
 	} {
 		text := seen[task][0]
-		if !strings.HasPrefix(text, (agent.Facts() + "\n\n" + agent.URLImportFacts("enabled") + "\n\n" + noeprofile.Policy())) {
+		if !strings.HasPrefix(text, (agent.Facts() + "\n\n" + agent.URLImportFacts("enabled"))) {
 			t.Fatalf("%s lost built-in instructions", task)
 		}
-		position := len((agent.Facts() + "\n\n" + agent.URLImportFacts("enabled") + "\n\n" + noeprofile.Policy()))
+		position := len((agent.Facts() + "\n\n" + agent.URLImportFacts("enabled")))
 		for _, marker := range markers {
 			next := strings.Index(text, marker)
 			if next < position || strings.Count(text, marker) != 1 {

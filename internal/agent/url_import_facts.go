@@ -9,6 +9,6 @@ func URLImportFacts(support string) string {
 	case "disabled":
 		return "HTTP/HTTPS ESM URL imports: disabled by the selected execution profile."
 	default:
-		return "HTTP/HTTPS ESM URL imports: unknown for the selected custom or legacy module loader. Do not infer availability from the API catalog or from fetch being enabled."
+		return "HTTP/HTTPS ESM URL imports: unknown for the selected custom or legacy module loader. Availability is independent of the API catalog and of fetch being enabled."
 	}
 }

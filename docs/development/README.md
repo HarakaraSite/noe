@@ -49,8 +49,8 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 処理の重複・履歴転送・Go Client JSON往復の整理 | [8スライスの実装・検証記録](processing-simplification.md) |
 | agent/実行Profile/Worker/messaging/JS toolの責務境界 | [計画と通常・批判的レビュー](responsibility-boundaries-refactor-plan.md)・[実装・検証記録](responsibility-boundaries-refactor-implementation.md) |
 | agent内部の責務・JSとGoの分担・所有関係・同期 | [agentの構成](agent-architecture.md) |
-| agentへ渡す組込みの説明 | [facts.md](../../internal/agent/facts.md)（汎用の契約）・[policy.md](../../internal/noeprofile/policy.md)（NOEの既定方針） |
-| 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
+| Built-in runtime and API contracts | [facts.md](../../internal/agent/facts.md) |
+| User-controlled behavior and workspace guidance | [Instruction guide](../instructions.md) · [External instructions](../../.noe/instructions/) |
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
 | TS対応の議論・examplesの定性評価（未採用） | [TypeScriptの議論](typescript-discussion-20261024.md) |
 | esbuildのNOE適合性・公開APIとforkの判断（調査） | [ソース調査・実行検証・サイズ比較](esbuild-noe-fit.md) |
