@@ -2118,3 +2118,51 @@ This documentation-only follow-up does not move or replace the release tag.
 Repository-root noe, the PATH binary and running processes are unchanged;
 installation remains separate. User event logs and caches are preserved and
 excluded from these commits.
+
+## v2.8.0 preparation — 2026-10-26
+
+The user authorized release of the completed HTTP/HTTPS ESM URL import feature.
+Latest remote release is v2.7.1. Feature commit
+`c1f4690ae864063b44c210db49eb8cc92378622c` contains the four implementation
+slices, tests, independent code reviews and usage documentation.
+See the [implementation evidence](../development/url-import-implementation.md)
+and [English release notes](v2.8.0.md).
+
+Checked clean release source:
+`4260b6a9bd0f513bc1f3f32fcc76a326a35c997e`.
+Its only production-source change from the verified feature is the CLI
+Version string changing from v2.7.1 to v2.8.0. Other changes are current-version
+links, release notes and source-only wording. This preparation follow-up
+changes this evidence document only.
+
+Implementation results are reused: four slice-specific test/review passes,
+the full unit/local-E2E execution with one obsolete docs phrase assertion
+corrected and its affected package rechecked, whole-tree vet, five affected
+package race passes, external Go consumers, saved-JS lint and live public
+lodash-es export use through direct and alias/dynamic imports. There is no
+remaining implementation finding. Source suites, race, long-client waits and
+six distribution artifact builds are not repeated for publication.
+
+| Release verification | Result |
+| --- | --- |
+| CLI configured-version test | PASS |
+| Clean native release-flags build | PASS, CGO disabled, checked revision above, vcs.modified=false |
+| Native version/arithmetic | PASS, noe v2.8.0 and 2 |
+| URL artifact fixture | PASS, extensionless redirect to .data module, relative .txt dependency, text/plain/JS MIME, static/re-export/dynamic aliases and canonical namespace |
+| Independent runtime source | PASS, fixture changes 42 to 43 and new run/eval sees new source while each namespace evaluates once |
+| Embedded dependencies / go mod verify | go-quickjs v0.29.0, go-intl v0.8.0, all modules verified |
+| Current README/release/Go-guide links and diff checks | PASS, 278 relative references resolve |
+
+Evidence and clean detached source:
+`/var/tmp/noe-v2.8.0-release-cXWw0u`.
+Go 1.27.2, all selected dependencies, NOE-managed stdlib origin v0.27.0,
+the no-JIT configuration and lightweight workflow are unchanged.
+CI builds the six distribution targets, creates SHA256SUMS and uploads the
+immutable tag, without repeating local source tests. Published assets and
+actual public-module retrieval are checked after publication.
+
+Native execution here is Linux amd64; other five targets receive CI
+build/checksum verification, not native execution. No paid model-provider
+call is made. This request authorizes publication, not installation:
+repository-root/PATH binaries and running processes remain unchanged.
+Existing user event logs and caches are preserved and excluded from commits.
