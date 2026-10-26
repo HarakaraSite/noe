@@ -2455,3 +2455,46 @@ Evidence and clean source: `/tmp/noe-v2.8.3-release-23267156`.
 unchanged public Go host policy option. External files are not installed or
 recreated by the binary. Local installation and process restarts are not
 part of this request. User event logs and caches are preserved/excluded.
+
+## v2.8.3 Release validation — 2026-10-26
+
+- Annotated tag `v2.8.3` points to
+  `4e527ffe7dc489bf53cd3359e2408a4cf8e5e89a`, matching the successful
+  workflow revision. Only preparation evidence differs from checked source
+  `122272c3`.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/44)
+  succeeded (API run ID 225) using the unchanged lightweight job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.3)
+  is published, neither draft nor prerelease (Release ID 157), with a body
+  matching the tagged [English release notes](v2.8.3.md).
+
+All seven assets were downloaded and all six binary hashes match SHA256SUMS.
+The actual distributed Linux amd64 binary reports `noe v2.8.3`, evaluates
+arithmetic to `2`, and its detailed run_js documentation contains the updated
+optional-comment contract, not the former default-policy wording.
+Provenance is the tagged source with `vcs.modified=false`,
+`CGO_ENABLED=0`, go-quickjs v0.29.0 and go-intl v0.8.0.
+Its SHA256 is
+`07099800b5f94d0cc3357dccaf0f43efa7a5177e379bde96c9546194816b4886`.
+
+Clean external modules fetched `stdlib@v2.8.3` and `agent@v2.8.3`
+without local replacements or a synthetic proxy. The stdlib consumer and
+agent portable/gohost modes built and ran; both modules passed
+`go mod verify`. Selected engine/intl versions match those above.
+Published runtime facts, run_js description, instruction-reader/CLI
+composition and embedded reference sources match the checked source.
+The removed internal policy.md is absent from the published module.
+
+Implementation instruction-composition and CLI run/eval evidence is reused;
+source suites were not repeated for publication. No paid model-provider
+request was made. Evidence is retained at
+`/tmp/noe-v2.8.3-release-23267156`, including seven published assets,
+workflow/release metadata, candidate and published verification records,
+embedded contract output and public-module consumers.
+
+Native runtime verification is Linux amd64; other targets have CI build/hash
+verification, not native execution here. This documentation-only follow-up
+does not move the release tag. Local executable installation/process restarts
+were not requested and were not performed. External instruction files remain
+user-controlled; the binary does not install or restore them. Existing user
+logs and caches are preserved and excluded from commits.
