@@ -179,11 +179,7 @@ func (a *listenAttempt) start(run func()) bool {
 func (a *listenAttempt) finishListen(listener *boundNetListener, err error) {
 	a.mu.Lock()
 	discard := a.closed || a.canceled || a.ctx.Err() != nil
-	if discard {
-		if err == nil {
-			err = a.ctx.Err()
-		}
-	} else {
+	if !discard {
 		a.listener = listener
 		a.listenErr = err
 		listener = nil

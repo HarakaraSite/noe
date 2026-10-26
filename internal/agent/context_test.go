@@ -256,29 +256,3 @@ func TestContextUpdatesOnlyAfterProviderRequest(t *testing.T) {
 		})
 	}
 }
-
-func transcriptWithoutContextStatus(t testing.TB, messages []json.RawMessage) []json.RawMessage {
-	t.Helper()
-	if len(messages) == 0 {
-		t.Fatal("provider request is missing the context status tail")
-	}
-	var tail struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	}
-	if err := json.Unmarshal(messages[len(messages)-1], &tail); err != nil || tail.Role != "user" || !strings.HasPrefix(tail.Content, "NOE_CONTEXT_STATUS\n") {
-		t.Fatalf("provider request has no tagged context status tail: %s (%v)", messages[len(messages)-1], err)
-	}
-	var transcript []json.RawMessage
-	for _, raw := range messages {
-		var message struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
-		}
-		if json.Unmarshal(raw, &message) == nil && message.Role == "user" && strings.HasPrefix(message.Content, "NOE_CONTEXT_STATUS\n") {
-			continue
-		}
-		transcript = append(transcript, raw)
-	}
-	return transcript
-}

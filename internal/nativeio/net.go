@@ -246,11 +246,7 @@ func (a *connectAttempt) start(run func()) bool {
 func (a *connectAttempt) finishDial(conn net.Conn, err error) {
 	a.mu.Lock()
 	discard := a.closed || a.canceled || a.ctx.Err() != nil
-	if discard {
-		if err == nil {
-			err = a.ctx.Err()
-		}
-	} else {
+	if !discard {
 		a.conn = conn
 		a.dialErr = err
 		conn = nil

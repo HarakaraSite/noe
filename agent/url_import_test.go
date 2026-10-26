@@ -82,7 +82,7 @@ func TestGoHostTaskCancellationStopsURLBodyRead(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	if _, err := client.CancelTask(ctx, agent.CancelTaskRequest{AgentID: started.AgentID, CommandID: started.CommandID}); err != nil {
+	if _, err := client.CancelTask(ctx, agent.CancelTaskRequest(started)); err != nil {
 		t.Fatal(err)
 	}
 	outcome, err := client.WaitTask(ctx, agent.TaskRequest{AgentID: started.AgentID, CommandID: started.CommandID})

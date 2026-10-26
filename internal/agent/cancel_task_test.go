@@ -162,8 +162,7 @@ func TestCancelAfterRunRemovalPublishesAcceptanceBeforeTerminals(t *testing.T) {
 			var releaseOnce sync.Once
 			var mu sync.Mutex
 			var order []string
-			var h *Host
-			h = NewHost(Options{Context: ctx, Models: reviewModelsWithProviderCheck{}, Observe: func(event events.Event) {
+			h := NewHost(Options{Context: ctx, Models: reviewModelsWithProviderCheck{}, Observe: func(event events.Event) {
 				kind, _ := event["type"].(string)
 				if kind == "interrupt.accepted" || kind == "agent.cancelled" || kind == "command.cancelled" {
 					mu.Lock()
@@ -198,7 +197,7 @@ func TestCancelAfterRunRemovalPublishesAcceptanceBeforeTerminals(t *testing.T) {
 			h.mu.Lock()
 			instance := h.instances[accepted.AgentID]
 			h.mu.Unlock()
-			if _, err := h.cancelTask(owner, CancelTaskRequest{AgentID: accepted.AgentID, CommandID: accepted.CommandID}); err != nil {
+			if _, err := h.cancelTask(owner, CancelTaskRequest(accepted)); err != nil {
 				t.Fatal(err)
 			}
 			releaseOnce.Do(func() { close(release) })

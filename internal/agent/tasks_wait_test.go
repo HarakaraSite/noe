@@ -120,6 +120,7 @@ func startGroupedWait(t *testing.T, f *groupedWaitFixture, request WaitTasksRequ
 		t.Fatal("wait did not register")
 	}
 	f.host.mu.Lock()
+	//lint:ignore SA2001 This lock/unlock pair waits for waitTasks to release Host.mu after registration before the test proceeds.
 	f.host.mu.Unlock()
 	return reply, scanCtx.scans
 }

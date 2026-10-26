@@ -429,9 +429,7 @@ func TestGoRuntimeRunsParentToolChildQueueAndFreshScopes(t *testing.T) {
 			boundedStderr = omitted > 0 && utf8.ValidString(text) && strings.Contains(text, "stderr-tail") && strings.Contains(text, "NOE: output truncated")
 		}
 		if kind == "stdout" {
-			for _, marker := range runtimeMarkerPattern.FindAllString(text, -1) {
-				toolMarkers = append(toolMarkers, marker)
-			}
+			toolMarkers = append(toolMarkers, runtimeMarkerPattern.FindAllString(text, -1)...)
 		}
 	}
 	if !taskCapture || !toolCapture {

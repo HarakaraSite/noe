@@ -14,7 +14,7 @@ func canonicalPath(path, base string) (string, error) {
 		return "", fmt.Errorf("drive-relative paths are unsupported: %q", path)
 	}
 	if isWindowsAbsolutePath(path) && !filepath.IsAbs(path) && !isWindowsHost() {
-		return "", fmt.Errorf("Windows absolute paths are not native on this platform: %q", path)
+		return "", fmt.Errorf("absolute Windows paths are not native on this platform: %q", path)
 	}
 	path = filepath.FromSlash(path)
 	if !filepath.IsAbs(path) {

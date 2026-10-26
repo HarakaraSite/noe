@@ -1063,12 +1063,8 @@ func validTable(lines []tableLine) bool {
 
 func parseCells(line string) []string {
 	line = strings.TrimSpace(line)
-	if strings.HasPrefix(line, "|") {
-		line = line[1:]
-	}
-	if strings.HasSuffix(line, "|") {
-		line = line[:len(line)-1]
-	}
+	line = strings.TrimPrefix(line, "|")
+	line = strings.TrimSuffix(line, "|")
 	parts := strings.Split(line, "|")
 	for i := range parts {
 		parts[i] = strings.TrimSpace(parts[i])

@@ -314,7 +314,7 @@ func TestGoHostInstructionSourceCancellationJoinsBeforeTaskCompletes(t *testing.
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	if _, err := client.CancelTask(ctx, agent.CancelTaskRequest{AgentID: started.AgentID, CommandID: started.CommandID}); err != nil {
+	if _, err := client.CancelTask(ctx, agent.CancelTaskRequest(started)); err != nil {
 		t.Fatal(err)
 	}
 	select {

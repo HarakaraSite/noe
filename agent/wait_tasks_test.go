@@ -43,7 +43,7 @@ func TestGoClientWaitTasksStandaloneCancellationAndRetainedResults(t *testing.T)
 		if err != nil {
 			t.Fatal(err)
 		}
-		tasks = append(tasks, agent.TaskReference{AgentID: spawned.AgentID, CommandID: spawned.CommandID})
+		tasks = append(tasks, agent.TaskReference(spawned))
 		select {
 		case <-entered:
 		case <-ctx.Done():

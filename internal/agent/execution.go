@@ -78,14 +78,6 @@ func cloneExecutionLimits(limits *ExecutionLimits) ExecutionLimits {
 	}
 }
 
-func (l ExecutionLimits) pointerCopy() *ExecutionLimits {
-	copy := cloneExecutionLimits(&l)
-	if copy.ProviderCalls == nil && copy.AgentStarts == nil && copy.QueuedTasks == nil && copy.HookCalls == nil {
-		return nil
-	}
-	return &copy
-}
-
 type executionLimitSource struct {
 	ActivityID string          `json:"activityId,omitempty"`
 	Origin     *activityOrigin `json:"origin,omitempty"`

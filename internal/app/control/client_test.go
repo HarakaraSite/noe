@@ -51,7 +51,7 @@ func TestDiscoverControlHostsAndResolveUnambiguousIDs(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/control/agents" || r.Header.Get("Authorization") != "Bearer "+secret {
 			t.Error("wrong control endpoint or capability")
-			http.Error(w, "unauthorized", 401)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(listing)

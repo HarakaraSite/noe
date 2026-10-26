@@ -18,7 +18,6 @@ type ExecutionScope struct {
 
 	mu        sync.Mutex
 	closing   bool
-	closed    bool
 	cleanups  []*executionCleanup
 	workers   sync.WaitGroup
 	closeDone chan struct{}
@@ -158,7 +157,6 @@ func (s *ExecutionScope) Close() {
 	s.workers.Wait()
 
 	s.mu.Lock()
-	s.closed = true
 	close(s.closeDone)
 	s.mu.Unlock()
 }
@@ -170,15 +168,6 @@ func (s *ExecutionScope) isClosing() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.closing || s.ctx.Err() != nil
-}
-
-func (s *ExecutionScope) isClosed() bool {
-	if s == nil {
-		return true
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.closed
 }
 
 // FailExecution records an uncaught host-side execution error for the loop to

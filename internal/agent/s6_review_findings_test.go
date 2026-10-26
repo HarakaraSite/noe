@@ -162,7 +162,7 @@ func TestCancelTaskRejectsAfterTerminalOutcomeCommit(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("task did not reach the terminal-output observer")
 	}
-	if _, err := h.cancelTask(op, CancelTaskRequest{AgentID: spawned.AgentID, CommandID: spawned.CommandID}); err == nil {
+	if _, err := h.cancelTask(op, CancelTaskRequest(spawned)); err == nil {
 		t.Fatal("CancelTask accepted after the command outcome had been committed")
 	}
 	releaseOnce.Do(func() { close(releaseStdout) })

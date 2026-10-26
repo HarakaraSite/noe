@@ -57,7 +57,7 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 		"btoa": func(s string) (string, error) {
 			// btoa works on bytes, spelled as a string of code units below 256.
 			b := make([]byte, 0, len(s))
-			for _, r := range []rune(s) {
+			for _, r := range s {
 				if r > 0xFF {
 					return "", errors.New(
 						"the string contains a character outside the byte range")

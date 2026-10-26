@@ -20,7 +20,7 @@ func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testin
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+capability {
 			t.Error("control capability missing")
-			http.Error(w, "unauthorized", 401)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		if r.URL.Path == "/control/agents" {

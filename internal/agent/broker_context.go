@@ -122,7 +122,7 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 	failures := pendingHookFailures(run)
 	run.context.hookFailureNotice = hookFailureNotice(failures)
 	run.context.preparedNotification = nil
-	snapshot := prepareContextEstimateFromStats(&run.context, run.id, stats)
+	prepareContextEstimateFromStats(&run.context, run.id, stats)
 	var err error
 	var plan *contextTrimPlan
 	if request.Final && request.AppliedPlanID == "" {
@@ -137,7 +137,7 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		run.context.preparedDigest = contextHistoryDigest(request.Messages, request.Tools)
 		// Planning can change the diagnostic budget flags. Freeze the final
 		// text only after planning/acknowledgement, and estimate that same text.
-		snapshot = recalculatePreparedContext(&run.context, run.id, time.Now())
+		snapshot := recalculatePreparedContext(&run.context, run.id, time.Now())
 		notice := &preparedContextNotification{
 			text: contextMessage(snapshot, run.context.runtimeInfo, run.context.hookFailureNotice),
 		}
@@ -146,7 +146,7 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		}
 		run.context.preparedNotification = notice
 	}
-	snapshot = h.storeContextSnapshotLocked(run, time.Now())
+	snapshot := h.storeContextSnapshotLocked(run, time.Now())
 	stepActivityID := run.modelStep.activityID
 	causes := append([]string(nil), run.modelStep.predecessorActivityIDs...)
 	h.mu.Unlock()
@@ -197,13 +197,10 @@ func (h *Host) contextSetRuntimeInfo(op *Operation, request contextSetRequest) (
 	run.context.finalPrepared = false
 	run.context.preparedNotification = nil
 	run.context.hookFailureNotice = hookFailureNotice(pendingHookFailures(run))
-	var snapshot contextSnapshot
 	if run.context.prepared {
-		snapshot = recalculatePreparedContext(&run.context, run.id, time.Now())
-	} else {
-		snapshot = run.context.snapshot(run.id, time.Now())
+		recalculatePreparedContext(&run.context, run.id, time.Now())
 	}
-	snapshot = h.storeContextSnapshotLocked(run, time.Now())
+	snapshot := h.storeContextSnapshotLocked(run, time.Now())
 	h.mu.Unlock()
 	return map[string]any{"context": snapshot}, nil
 }

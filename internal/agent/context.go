@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
@@ -173,25 +172,6 @@ func cloneContextBudget(budget *ContextBudget) *ContextBudget {
 	}
 	copy := *budget
 	return &copy
-}
-
-func contextWindowForModel(catalog interface {
-	ListModels(provider.ModelQuery) ([]provider.Model, error)
-}, providerName, modelName string) *int64 {
-	if catalog == nil {
-		return nil
-	}
-	models, err := catalog.ListModels(provider.ModelQuery{Provider: providerName, Kind: "agent"})
-	if err != nil {
-		return nil
-	}
-	for _, model := range models {
-		if model.Model == modelName && model.ContextWindow > 0 {
-			value := model.ContextWindow
-			return &value
-		}
-	}
-	return nil
 }
 
 func (s *contextRunState) resetStep(modelStepID string) {
@@ -479,9 +459,4 @@ func recalculatePreparedContext(state *contextRunState, runID string, now time.T
 	}
 	snapshot := state.snapshot(runID, now)
 	return snapshot
-}
-
-func contextBudgetFromRaw(raw json.RawMessage) (*ContextBudget, error) {
-	budget, _, err := parseContextBudget(raw)
-	return budget, err
 }

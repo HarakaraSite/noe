@@ -55,7 +55,6 @@ type generation struct {
 	channel   chan os.Signal
 	done      chan struct{}
 	stopped   chan struct{}
-	nextID    uint64
 	callbacks map[uint64]func()
 }
 

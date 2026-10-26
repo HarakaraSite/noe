@@ -337,7 +337,7 @@ func TestImageProviderSpike(t *testing.T) {
 					err = json.Unmarshal(answer.Message, &message)
 					out.Text = message.Content
 					out.Usage = answer.Usage
-					matches := strings.Index(strings.ToLower(out.Text), "red") >= 0 && strings.Index(strings.ToLower(out.Text), "red") < strings.Index(strings.ToLower(out.Text), "blue")
+					matches := strings.Contains(strings.ToLower(out.Text), "red") && strings.Index(strings.ToLower(out.Text), "red") < strings.Index(strings.ToLower(out.Text), "blue")
 					out.ImageMatch = &matches
 					if !strings.Contains(strings.ToLower(out.Text), "red") || !strings.Contains(strings.ToLower(out.Text), "blue") {
 						err = errors.New("image colors were not identified")

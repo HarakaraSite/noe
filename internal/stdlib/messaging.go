@@ -480,16 +480,6 @@ func (c *portCore) disentangle(code int) {
 	}
 }
 
-// send queues word on the other end of a port, if it has one.
-func (c *portCore) send(msg portMsg) {
-	c.mu.Lock()
-	peer := c.peer
-	c.mu.Unlock()
-	if peer != nil {
-		peer.enqueue(msg)
-	}
-}
-
 // finish closes the core, drops queued transfers and releases this end. It is
 // Go-only: the caller decides whether peer close or Worker exit is published.
 func (e *portEnd) finish() {

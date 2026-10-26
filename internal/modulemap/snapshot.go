@@ -134,7 +134,7 @@ func (s *Snapshot) Resolve(specifier, referrer string) (string, error) {
 		return "", fmt.Errorf("drive-relative paths are unsupported: %q", specifier)
 	}
 	if isWindowsAbsolutePath(specifier) && !filepath.IsAbs(specifier) && !isWindowsHost() {
-		return "", fmt.Errorf("Windows absolute paths are not native on this platform: %q", specifier)
+		return "", fmt.Errorf("absolute Windows paths are not native on this platform: %q", specifier)
 	}
 	if filepath.IsAbs(specifier) {
 		return canonicalPath(specifier, "")
@@ -224,7 +224,7 @@ func resolveTarget(target, base string) (string, error) {
 			return "", fmt.Errorf("drive-relative paths are unsupported")
 		}
 		if isWindowsAbsolutePath(target) && !filepath.IsAbs(target) && !isWindowsHost() {
-			return "", fmt.Errorf("Windows absolute paths are not native on this platform")
+			return "", fmt.Errorf("absolute Windows paths are not native on this platform")
 		}
 		if filepath.IsAbs(target) {
 			path = target

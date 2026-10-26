@@ -76,7 +76,3 @@ func modelsWithChat(p provider.Provider) model.Service {
 func modelsWithDecision(p decision.Provider) model.Service {
 	return agentTestModelService{decider: p}
 }
-
-func modelsWithImage(p imageapi.Provider) model.Service {
-	return agentTestModelService{imager: p}
-}
