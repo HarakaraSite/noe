@@ -2213,3 +2213,53 @@ This documentation-only follow-up does not move or replace the release tag.
 Repository-root and PATH binary hashes match their pre-release baseline;
 running processes are unchanged and installation remains separate. Existing
 event logs and caches are preserved and excluded from these commits.
+
+## v2.8.1 preparation — 2026-10-26
+
+The user authorized release and local installation of the completed
+import.meta.url compatibility correction. Latest remote release: v2.8.0.
+Implementation commit `b8dad18e9500db6cb201c6dcd120cd3da1a75883` contains
+the runtime metadata hook, public/CLI/agent/Worker tests and documentation,
+plus the external find helper, ls default-page update, URL-import example
+and esbuild investigation requested in the same work. esbuild is not added
+as a dependency and TypeScript is not implemented.
+
+Checked clean release source:
+`4ba2e8ec9c6dc07845828ab43e2346338d8b7df4`.
+Its only production-Go-source difference from the verified implementation
+is the CLI Version changing from v2.8.0 to v2.8.1. Other changes are release
+notes and current-version links. This preparation follow-up changes only
+this evidence document. Go dependencies and release workflow are unchanged.
+
+Implementation evidence is reused: the full local unit suite, focused
+CLI/agent URL-import E2E, public local/HTTP/HTTPS/Worker/embedding metadata
+paths, encoding unit tests and independent review passed. The external
+find helper passed 46 fd/find/fallback/error/limit checks, the file helper
+passed 37 checks, and the small external-library example ran with lint
+success. See the [metadata record](../development/import-meta-url-implementation.md)
+and [release notes](v2.8.1.md). No full suite, race, long wait or six-binary
+local distribution build is repeated for release preparation.
+
+| Release verification | Result |
+| --- | --- |
+| Configured CLI version test | PASS |
+| Clean native release-flags build | PASS, CGO disabled, checked source above, vcs.modified=false |
+| Candidate version/arithmetic | PASS, noe v2.8.1 and 2 |
+| Candidate metadata fixture | PASS, encoded local module path, module-relative asset read, redirected remote URL/query/fragment and asset fetch, file/eval Worker, CLI virtual entry |
+| Current release/README/guide links | PASS, 138 relative references resolve |
+| Source/formatting/dependency delta | Version only in production Go; unchanged dependencies and workflow |
+
+Evidence and detached source:
+`/var/tmp/noe-v2.8.1-release-161635626`.
+This includes native build information, candidate fixture output, reused
+implementation-validation.json and implementation-review.md, and
+preparation-verification.json.
+
+The unchanged lightweight CI builds six distribution targets, creates
+SHA256SUMS and publishes the immutable tag. Published checksums, native
+metadata behavior and actual module retrieval will be checked before
+installing the verified Linux amd64 asset with backups and atomic
+replacement. Native runtime verification here is Linux amd64; the other
+targets have build/hash verification, not native execution. Existing
+running processes will not be restarted. User logs, caches and the
+Git-excluded reference checkouts are preserved and excluded from commits.
