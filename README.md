@@ -34,12 +34,13 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.7.1 release notes](docs/releases/v2.7.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.1)
+[v2.8.0 release notes](docs/releases/v2.8.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.0)
 
-v2.7.1 updates go-quickjs to v0.29.0 and go-intl to v0.8.0, fixing block-scoped
-function declarations in modules and named re-exports from colon-containing
-specifiers. Intl/date output can change; see the [release notes](docs/releases/v2.7.1.md).
-The v2.7.0 [hook failure behavior](docs/hooks.md#失敗の局所化と通知) is retained.
+v2.8.0 adds HTTP/HTTPS ESM URL imports, including dynamic import and import-map
+URL targets. The CLI enables them by default; Go hosts opt in explicitly.
+JavaScript MIME types and text/plain are accepted without a URL extension
+requirement. There is no cross-runtime download cache, TypeScript transform,
+or npm discovery. See the [release notes](docs/releases/v2.8.0.md).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -54,7 +55,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.7.1
+# noe v2.8.0
 ```
 
 The examples below assume the repository root is your working directory.
@@ -121,7 +122,7 @@ Most linked guides are currently in Japanese. For older scripts, see the [API mi
 
 **NOE is not a sandbox. Scripts and agents run with the OS privileges of the user who starts NOE**, including filesystem, environment, command, and network access.
 
-NOE uses the pinned go-quickjs engine and a NOE-maintained standard library, based on go-quickjs v0.27.0, for supported Web and Node-style APIs. The current source supports HTTP/HTTPS ESM URL imports, enabled by default in the CLI and explicitly selected by Go hosts; see [URL imports](docs/url-import.md). Full Node.js/Deno compatibility, npm/package management, and the original QuickJS `std` module are outside its scope. See the [API reference](docs/api.md#利用できる機能と権限) for supported behavior.
+NOE uses the pinned go-quickjs engine and a NOE-maintained standard library, based on go-quickjs v0.27.0, for supported Web and Node-style APIs. NOE supports HTTP/HTTPS ESM URL imports, enabled by default in the CLI and explicitly selected by Go hosts; see [URL imports](docs/url-import.md). Full Node.js/Deno compatibility, npm/package management, and the original QuickJS `std` module are outside its scope. See the [API reference](docs/api.md#利用できる機能と権限) for supported behavior.
 
 ## License
 

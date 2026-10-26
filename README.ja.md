@@ -35,9 +35,9 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.7.1リリースノート](docs/releases/v2.7.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.1)
+[v2.8.0リリースノート](docs/releases/v2.8.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.0)
 
-v2.7.1ではgo-quickjsをv0.29.0、go-intlをv0.8.0へ更新し、module内のブロック関数宣言とcolon付きspecifierのnamed re-exportの不具合を解消します。Intl・日時の出力差は[リリースノート](docs/releases/v2.7.1.md)を参照してください。v2.7.0の[hook失敗時の契約](docs/hooks.md#失敗の局所化と通知)は維持します。
+v2.8.0ではHTTP/HTTPSのESM import、dynamic import、import mapのURL targetに対応します。CLIは既定有効、Go組込みは明示的に選択します。JavaScript MIMEとtext/plainを受理し、URL拡張子は不問です。ダウンロードキャッシュ・TypeScript変換・npm探索は追加しません。詳細は[リリースノート](docs/releases/v2.8.0.md)を参照してください。
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
@@ -51,7 +51,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.7.1
+# noe v2.8.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
@@ -118,7 +118,7 @@ root agentには`provider`・`model`・`effort`の明示指定が必要です。
 
 **NOEはsandboxではなく、スクリプトとagentは起動ユーザーのOS権限で動作します。** ファイル・環境変数・コマンド・ネットワークへアクセスできます。
 
-固定したgo-quickjsをJavaScriptエンジンに使い、go-quickjs v0.27.0を原型とするNOE管理の標準ライブラリでWeb API・Node形式APIを提供します。現在のソースではHTTP/HTTPSのESM importをCLIで既定有効、Go組込みで明示選択として提供します（[URL import](docs/url-import.md)）。Node.js/Denoの完全互換、npm・パッケージ管理、QuickJS本来の`std`モジュールは対象外です。対応範囲は[APIリファレンス](docs/api.md#利用できる機能と権限)を参照してください。
+固定したgo-quickjsをJavaScriptエンジンに使い、go-quickjs v0.27.0を原型とするNOE管理の標準ライブラリでWeb API・Node形式APIを提供します。HTTP/HTTPSのESM importをCLIで既定有効、Go組込みで明示選択として提供します（[URL import](docs/url-import.md)）。Node.js/Denoの完全互換、npm・パッケージ管理、QuickJS本来の`std`モジュールは対象外です。対応範囲は[APIリファレンス](docs/api.md#利用できる機能と権限)を参照してください。
 
 ## ライセンス
 

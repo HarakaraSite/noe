@@ -1,6 +1,6 @@
 # 公開ESMをURLからimportする
 
-URL importを含む現在のソースからビルドしたNOEを使います。リポジトリのルートで実行してください。実行にはesm.shへのHTTPS接続が必要です。Node/npmによる事前準備やAPIキーは不要です。
+NOE v2.8.0以降を使います。リポジトリのルートで実行してください。実行にはesm.shへのHTTPS接続が必要です。Node/npmによる事前準備やAPIキーは不要です。
 
 ```sh
 ./noe run examples/url-import/main.js

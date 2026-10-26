@@ -1,6 +1,6 @@
 # HTTP/HTTPSのESMをimportする
 
-URL importを含む現在のソースからビルドしたNOEで利用できます。既存の配布版へ機能が遡って追加されるわけではありません。
+NOE v2.8.0以降で利用できます。既存のv2.7.1以前の配布版には含まれません。
 
 CLIのrun/eval、agentのrun_js、ローカル入口のmodule Workerで、HTTP/HTTPS URLをESMの依存としてimportできます。CLIは既定で有効、Goへ組み込む場合はホストが明示的に選びます。
 
