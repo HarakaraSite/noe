@@ -99,10 +99,10 @@ console.log(result.lastResult.answer);`, filepath.Join(cwd, "first.md"), filepat
 		"child":  {"GLOBAL_VERSION_ONE", "WORKSPACE_VERSION_ONE", "CHILD_EXPLICIT"},
 	} {
 		text := seen[task][0]
-		if !strings.HasPrefix(text, (agent.Facts() + "\n\n" + noeprofile.Policy())) {
+		if !strings.HasPrefix(text, (agent.Facts() + "\n\n" + agent.URLImportFacts("enabled") + "\n\n" + noeprofile.Policy())) {
 			t.Fatalf("%s lost built-in instructions", task)
 		}
-		position := len((agent.Facts() + "\n\n" + noeprofile.Policy()))
+		position := len((agent.Facts() + "\n\n" + agent.URLImportFacts("enabled") + "\n\n" + noeprofile.Policy()))
 		for _, marker := range markers {
 			next := strings.Index(text, marker)
 			if next < position || strings.Count(text, marker) != 1 {

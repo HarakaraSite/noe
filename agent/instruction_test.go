@@ -118,13 +118,13 @@ func TestGoHostInstructionSnapshotIsPerInstanceAndComposedInOrder(t *testing.T) 
 	if len(requests) != 3 {
 		t.Fatalf("model requests=%d, want first, queued, and new-instance calls", len(requests))
 	}
-	wantFirst := strings.Join([]string{core.Facts(), "policy-marker", "source-body-one", "instance-system"}, "\n\n")
+	wantFirst := strings.Join([]string{core.Facts(), core.URLImportFacts("disabled"), "policy-marker", "source-body-one", "instance-system"}, "\n\n")
 	for index, request := range requests[:2] {
 		if got := instructionSystem(request); got != wantFirst {
 			t.Fatalf("instance system message %d changed across queue:\n got: %q\nwant: %q", index, got, wantFirst)
 		}
 	}
-	wantSecond := strings.Join([]string{core.Facts(), "policy-marker", "source-body-two", "second-system"}, "\n\n")
+	wantSecond := strings.Join([]string{core.Facts(), core.URLImportFacts("disabled"), "policy-marker", "source-body-two", "second-system"}, "\n\n")
 	if got := instructionSystem(requests[2]); got != wantSecond {
 		t.Fatalf("new instance system message:\n got: %q\nwant: %q", got, wantSecond)
 	}
@@ -149,7 +149,7 @@ func TestGoHostEmptyPolicyAddsOnlyGenericFacts(t *testing.T) {
 	if len(requests) != 1 {
 		t.Fatalf("model requests=%d", len(requests))
 	}
-	want := core.Facts() + "\n\ninstance-system"
+	want := core.Facts() + "\n\n" + core.URLImportFacts("disabled") + "\n\ninstance-system"
 	if got := instructionSystem(requests[0]); got != want {
 		t.Fatalf("system message includes content beyond facts and explicit system:\n got: %q\nwant: %q", got, want)
 	}

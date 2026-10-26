@@ -80,7 +80,10 @@ func Profile(options ProfileOptions) (stdlib.Profile, error) {
 			Workers: &stdlib.WorkerOptions{Max: -1}, OS: &stdlib.OSOptions{Real: true}, Random: rand.Reader, WindowsPaths: runtime.GOOS == "windows",
 		},
 	}
-	profile.NewLoader = stdlib.FileLoader(options.ImportMap.Imports())
+	profile.Loader = stdlib.ModuleLoader(stdlib.LoaderOptions{
+		Imports: options.ImportMap.Imports(),
+		HTTP:    &stdlib.ModuleHTTPOptions{},
+	})
 	profile.Initialize = func(ctx context.Context, view *stdlib.Bindings) (func(), error) {
 		if view.Worker() {
 			return nil, nil

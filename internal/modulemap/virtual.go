@@ -31,9 +31,12 @@ func virtualCanonical(value, base string) (string, error) {
 	return path.Clean("/" + strings.TrimPrefix(value, "/")), nil
 }
 func virtualTarget(value, base string) (string, error) {
+	if IsHTTPURL(value) {
+		return CanonicalHTTPURL(value)
+	}
 	normalized := strings.ReplaceAll(value, "\\", "/")
 	if !strings.HasPrefix(normalized, "/") && !isFileURL(value) && !strings.HasPrefix(normalized, "./") && !strings.HasPrefix(normalized, "../") {
-		return "", fmt.Errorf("target must be a relative path, absolute path, or local file URL")
+		return "", fmt.Errorf("target must be a relative path, absolute path, local file URL, or HTTP/HTTPS URL")
 	}
 	resolved, err := virtualCanonical(value, base)
 	if err != nil {

@@ -28,7 +28,7 @@ Workersにも同じNOE管理の標準ライブラリのホスト機能を渡し�
 
 原型であるgo-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
-npm、パッケージ導入、HTTP/HTTPS URLからのモジュールimport、暗黙のbare importによる外部パッケージ探索はありません。裸の組み込みモジュール名と対応する`node:`名で標準ライブラリをimportできます。`run/eval --import-map path`で完全一致のbare名をローカルESMに対応付けられ、Worker・agent生成JSへ同じ対応表を継承します。ローカルモジュールは拡張子付きの相対/絶対`.js`・`.mjs`パスとlocal file URLを使えます。詳細は[import mapガイド](import-map.md)を参照してください。相対importはimport元のファイルを基準に解決し、`eval`内ではカレントディレクトリが基準です。QuickJS本来の`std`モジュールは提供しません。
+npm、パッケージ導入、暗黙のbare importによる外部パッケージ探索はありません。裸の組み込みモジュール名と対応する`node:`名で標準ライブラリをimportできます。CLIではHTTP/HTTPSのESMを通常のimport・re-export・dynamic importで利用でき、`run/eval --import-map path`で完全一致のbare名をローカルESMまたは絶対URLへ対応付けられます。同じ対応表をWorker・agent生成JSへ継承します。URLの拡張子は不問で、JavaScript MIMEとtext/plainを受理します。Go組込みではURL対応providerを明示的に選びます。ダウンロードキャッシュ、TypeScript変換、URLの実行入口は提供しません。詳細は[URL import](url-import.md)を参照してください。ローカルモジュールは拡張子付きの相対/絶対`.js`・`.mjs`パスとlocal file URLを使えます。相対importはimport元のファイル/URLが基準で、`eval`の仮想入口からはカレントディレクトリが基準です。[import mapガイド](import-map.md)も参照してください。QuickJS本来の`std`モジュールは提供しません。
 
 ## CLI
 

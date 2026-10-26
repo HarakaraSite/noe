@@ -14,7 +14,7 @@
 | Zedで正式な型宣言を参照し、指示ファイルを実行する | [Zedの設定](zed.md) |
 | run_jsのdata・診断・明示importへ移行する | [実行結果と診断](execution-results.md) |
 | API引数・CLIオプション・実行制御・終了コードを調べる | [APIリファレンス](api.md) |
-| 自作JS・検証済みESMを再利用する | [import map](import-map.md) |
+| 自作JS・検証済みESMを再利用する | [import map](import-map.md) · [HTTP/HTTPS URL import](url-import.md) |
 | 接続先・認証・要求形式を設定する | [provider設定](providers.md) |
 | ChatGPTサインイン・OpenAI API・ローカル互換接続を使う | [OpenAI](openai.md) |
 | モデル候補・window・選択情報を管理する | [モデルカタログ](model-catalog.md) |

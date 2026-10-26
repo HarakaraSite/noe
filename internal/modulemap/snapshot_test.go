@@ -117,7 +117,7 @@ func TestResolveReferrerAndFileURLNormalization(t *testing.T) {
 		"file:///tmp/module.js?x=1",
 		"file:///tmp/module.js#part",
 		"file://remote-host/tmp/module.js",
-		"https://example.invalid/module.js",
+		"ftp://example.invalid/module.js",
 	} {
 		if _, err := (*Snapshot)(nil).Resolve(spec, ""); err == nil {
 			t.Errorf("Resolve(%q) unexpectedly succeeded", spec)
@@ -181,7 +181,7 @@ func TestParseRejectsInvalidMapsWithContext(t *testing.T) {
 		{"noe key", `{"imports":{"noe:agent":"./agent.js"}}`, `noe: module names are reserved`},
 		{"bare target", `{"imports":{"x":"y"}}`, `target must be a relative path`},
 		{"extension", `{"imports":{"x":"./x.ts"}}`, `must end in .js or .mjs`},
-		{"unsupported target URL", `{"imports":{"x":"https://example.invalid/x.js"}}`, `unsupported target URL scheme`},
+		{"unsupported target URL", `{"imports":{"x":"ftp://example.invalid/x.js"}}`, `unsupported target URL scheme`},
 		{"trailing value", `{} {}`, `trailing JSON value`},
 	}
 	for _, test := range tests {

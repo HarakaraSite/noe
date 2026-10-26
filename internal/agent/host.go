@@ -22,6 +22,8 @@ type Options struct {
 	Execute      Executor
 	Instructions func(context.Context) (string, error)
 	Policy       string
+	// RuntimeFacts describes the execution profile, not application policy.
+	RuntimeFacts string
 	Trace        io.Writer
 	// Observe receives structured agent events. Calls are serialized and never
 	// made while Host.mu is held.
@@ -90,7 +92,11 @@ func (h *Host) loadInstanceInstructions(ctx context.Context, instance *agentInst
 }
 
 func (h *Host) instructionFacts() string {
-	return Facts()
+	facts := Facts()
+	if h.opts.RuntimeFacts != "" {
+		facts += "\n\n" + h.opts.RuntimeFacts
+	}
+	return facts
 }
 
 // Host owns agent state. It is safe to close concurrently with

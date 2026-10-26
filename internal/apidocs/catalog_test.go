@@ -143,7 +143,14 @@ func TestMemberDetailsKeepRunJSExecutionAndImportContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, condition := range []string{"configured import-map alias", "local file without an alias", "HTTP imports", "fresh in each run_js call"} {
+	for _, condition := range []string{
+		"configured import-map alias", "local file without an alias",
+		"HTTP/HTTPS ESM URL imports are enabled in the CLI profile",
+		"optional in embedded profiles, independently of fetch",
+		"JavaScript MIME types and text/plain",
+		"no TypeScript transformation, npm lookup, or cross-runtime download caching",
+		"fresh in each run_js call",
+	} {
 		if !strings.Contains(imports, condition) {
 			t.Errorf("run_js imports detail omits %q", condition)
 		}

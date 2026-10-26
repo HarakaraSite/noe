@@ -54,8 +54,10 @@ func NewHost(ctx context.Context, cfg HostConfig) (*Host, error) {
 		executor = &agentexec.Executor{Profile: profile}
 	}
 	options := core.Options{Models: cfg.Models, Context: ctx, Observe: cfg.Observe, Trace: cfg.Trace, Instructions: cfg.Instructions, Policy: cfg.Policy}
+	options.RuntimeFacts = core.URLImportFacts(string(stdlib.URLImportsDisabled))
 	if executor != nil {
 		options.Execute = executor.Execute
+		options.RuntimeFacts = core.URLImportFacts(string(stdlib.URLImportCapability(executor.Profile)))
 	}
 	host := core.NewHost(options)
 	if executor != nil {

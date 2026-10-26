@@ -31,8 +31,10 @@ type Environment struct {
 type Profile struct {
 	Environment Environment
 	Modules     Modules
-	NewLoader   LoaderFactory
-	Initialize  RuntimeInitializer
+	// Loader is borrowed; it must not be set together with NewLoader.
+	Loader     ModuleLoaderProvider
+	NewLoader  LoaderFactory
+	Initialize RuntimeInitializer
 }
 
 // Modules selects capabilities independently. A nil option pointer disables
@@ -116,6 +118,9 @@ type OSOptions struct {
 }
 
 func normalize(profile Profile) (Profile, Environment, *filesystem.Backend, error) {
+	if profile.Loader != nil && profile.NewLoader != nil {
+		return Profile{}, Environment{}, nil, fmt.Errorf("stdlib: Profile.Loader and Profile.NewLoader cannot both be set")
+	}
 	profile = cloneProfile(profile)
 	env := profile.Environment
 	if env.Env == nil {

@@ -126,3 +126,61 @@ func TestLoaderInstancesHaveIndependentSourceCaches(t *testing.T) {
 		t.Fatalf("independent loader source = %q, first = %q", second, first)
 	}
 }
+
+func TestLocalLoaderRejectsHTTPWithoutFilesystemRead(t *testing.T) {
+	for _, virtual := range []bool{false, true} {
+		parse := Parse
+		base := t.TempDir()
+		localID := filepath.Join(base, "local.mjs")
+		if virtual {
+			parse = ParseVirtual
+			base = "/workspace"
+			localID = "/workspace/local.mjs"
+		}
+		snapshot, err := parse([]byte(`{"imports":{"remote":"https://example.invalid/module","local":"./local.mjs"}}`), base)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var reads []string
+		loader := NewReaderLoader(snapshot, "", "", func(name string) ([]byte, error) {
+			reads = append(reads, name)
+			return []byte("export const value = 1;"), nil
+		})
+		for _, spec := range []string{"https://example.invalid/module.js", "http://example.invalid/no-extension", "remote", "./dep.js", "/dep.js"} {
+			_, _, err := loader.Load(spec, "https://example.invalid/main.js")
+			if err == nil || !strings.Contains(err.Error(), "HTTP/HTTPS module loading is unsupported") {
+				t.Fatalf("virtual=%v Load(%q) error = %v", virtual, spec, err)
+			}
+		}
+		if len(reads) != 0 {
+			t.Fatalf("virtual=%v URL IDs reached filesystem: %v", virtual, reads)
+		}
+		// A remote referrer does not remove the selected filesystem's local
+		// capability; explicit file URLs and local map targets still use it.
+		for _, spec := range []string{fileURL(t, localID), "local"} {
+			_, id, err := loader.Load(spec, "https://example.invalid/main.js")
+			if err != nil || id != localID {
+				t.Fatalf("virtual=%v Load(%q) = %q, %v; want %q", virtual, spec, id, err, localID)
+			}
+		}
+		if len(reads) != 1 || reads[0] != localID {
+			t.Fatalf("local reads = %v; want [%s]", reads, localID)
+		}
+		// Local extension validation still applies when the importer is remote.
+		if _, _, err := loader.Load(fileURL(t, strings.TrimSuffix(localID, ".mjs")+".ts"), "https://example.invalid/main.js"); err == nil || !strings.Contains(err.Error(), ".js or .mjs") {
+			t.Fatalf("remote to local extension error = %v", err)
+		}
+	}
+}
+
+func TestLocalLoaderRejectsHTTPEntryName(t *testing.T) {
+	for _, snapshot := range []*Snapshot{nil, {virtual: true}} {
+		loader := NewReaderLoader(snapshot, "https://example.invalid/entry.js", "export {};", func(name string) ([]byte, error) {
+			t.Fatalf("HTTP entry reached filesystem as %q", name)
+			return nil, nil
+		})
+		if id, err := loader.EntryID(); err == nil || id != "" || !strings.Contains(err.Error(), "HTTP/HTTPS entry URLs are unsupported") {
+			t.Fatalf("EntryID = %q, %v", id, err)
+		}
+	}
+}

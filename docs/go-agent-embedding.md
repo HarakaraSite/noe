@@ -60,6 +60,29 @@ if err != nil {
 defer host.Close()
 ```
 
+To allow HTTP/HTTPS ESM dependencies, replace the `taskProfile` initializer
+above **before calling NewHost** with an explicit provider:
+
+```go
+taskProfile := &stdlib.Profile{
+    Environment: stdlib.Environment{Cwd: cwd, Env: map[string]string{}},
+    Modules: stdlib.Modules{FS: &stdlib.FileSystemOptions{ReadOnly: true}},
+    Loader: stdlib.ModuleLoader(stdlib.LoaderOptions{
+        HTTP: &stdlib.ModuleHTTPOptions{},
+    }),
+}
+```
+
+Do not retain `NewLoader` alongside `Loader`; selecting both is an error.
+The current source supports URL imports, while the legacy FileLoader is
+unchanged. The Host snapshots the profile and automatically reports URL
+import enabled/disabled/unknown facts to parent and child agents. Instructions
+do not enable the capability, and the notification does not expose mappings,
+secret URLs, headers, or clients. Each run_js creates a fresh loader and
+re-fetches sources; an imported module is evaluated only once in its runtime.
+Task cancellation also cancels an in-progress module response read. See
+[URL import](url-import.md) for MIME, synchronous loading, and trust limits.
+
 `HostConfig.Runtime` is a template for fresh task and tool executions. Its
 `Environment.Stdin`, `Stdout`, and `Stderr` must be nil; the executor supplies
 empty input and bounded, owned capture streams. Set `Runtime` to nil only for

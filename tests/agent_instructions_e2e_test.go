@@ -22,7 +22,7 @@ func TestAgentInstructionFilesRunAndEval(t *testing.T) {
 		if err := json.Unmarshal(request.Messages[0].Content, &system); err != nil {
 			t.Errorf("invalid system message: %v", err)
 		}
-		builtIn := coreagent.Facts() + "\n\n" + noeprofile.Policy()
+		builtIn := coreagent.Facts() + "\n\n" + coreagent.URLImportFacts("enabled") + "\n\n" + noeprofile.Policy()
 		previous := len(builtIn)
 		if !strings.HasPrefix(system, builtIn) {
 			t.Error("generic facts or NOE policy lost")

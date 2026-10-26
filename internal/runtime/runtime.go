@@ -29,7 +29,7 @@ type Options struct {
 	// Auth supplies HTTP/discovery settings for native sign-in verification.
 	Auth *auth.Options
 
-	// ImportMap is an immutable, absolute-target local module map.
+	// ImportMap is an immutable map of absolute file or HTTP/HTTPS targets.
 	ImportMap *modulemap.Snapshot
 }
 

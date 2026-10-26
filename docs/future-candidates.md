@@ -235,13 +235,13 @@ OpenAI SDKは追加済みですが、Anthropic公式SDK・ネイティブMessage
 
 照合根拠：[`provider/config.go`](../internal/agent/provider/config.go)のSDK/API形式の受付はOpenRouter・OpenAIとChat Completions・Responses。Messages adapterはない。
 
-### <未完了> HTTP URLからのimportとimport mapの拡張
+### <一部完了> URL importの後続拡張とimport map
 
-ローカルの完全一致import mapは実装済みです。HTTP/HTTPS URLの直接import、永続ダウンロードcache、prefix mapping、scopes、npmのパッケージ探索は提供していません。必要性は個別に判断し、ローカルmapの完了条件へ追加しません。
+現在のソースではHTTP/HTTPS URLの直接/dynamic importと、完全一致bare名のURL targetを利用できます。JavaScript MIMEとtext/plainを受理し、CLIは既定有効、Goホストは明示有効化です（[利用ガイド](url-import.md)・[実装記録](development/url-import-implementation.md)）。
 
-ESMでもgo-quickjsでの動作保証にはならないため、自作JSと動作確認済みライブラリを再利用する方針です。対応済みの範囲は[import mapガイド](import-map.md)を参照してください。
+ダウンロードcache、hash/lock、prefix mapping、scopes、npmのパッケージ探索は提供していません。必要性は個別に判断し、今回の完了条件へ追加しません。ESMの取得と任意ライブラリのホストAPI互換は別です。[import mapガイド](import-map.md)も参照してください。
 
-照合根拠：[`modulemap/snapshot.go`](../internal/modulemap/snapshot.go)と[`snapshot_test.go`](../internal/modulemap/snapshot_test.go)。[`loader.go`](../internal/modulemap/loader.go)にはruntime内のローカルsource cacheはあるが、HTTP取得・永続cacheとは別。
+照合根拠：[`modulemap/snapshot.go`](../internal/modulemap/snapshot.go)、[`loader.go`](../internal/modulemap/loader.go)、[`stdlib/loader_http.go`](../stdlib/loader_http.go)。保持するsource/moduleはruntime内だけで、永続またはruntime間のダウンロードcacheとは別です。
 
 ### <未完了> 観察イベントのSQLite保存
 

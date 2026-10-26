@@ -100,9 +100,13 @@ func attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile, worker bool,
 		fsview = filesystem.WithContext(ctx, backend)
 	}
 	b := &Bindings{rt: rt, loop: loop, ctx: ctx, env: env, fs: fsview, worker: worker, cancel: cancel}
+	factory := profile.NewLoader
+	if profile.Loader != nil {
+		factory = profile.Loader.NewLoader
+	}
 	b.loader = executionLoader{
 		state: &b.state, rt: rt, ctx: ctx, cwd: env.Cwd, backend: backend,
-		fs: fsview, worker: worker, factory: profile.NewLoader, modules: make(map[string]string),
+		fs: fsview, worker: worker, factory: factory, modules: make(map[string]string),
 	}
 	b.stopParent = context.AfterFunc(loop.Context(), cancel)
 	defer func() {

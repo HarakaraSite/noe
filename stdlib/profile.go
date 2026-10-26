@@ -36,6 +36,20 @@ type Source = jsexec.Source
 type Origin = jsexec.Origin
 
 type LoaderFactory = jsexec.LoaderFactory
+type ModuleLoaderProvider = jsexec.ModuleLoaderProvider
+type URLImportSupport = jsexec.URLImportSupport
+
+const (
+	URLImportsEnabled  = jsexec.URLImportsEnabled
+	URLImportsDisabled = jsexec.URLImportsDisabled
+	URLImportsUnknown  = jsexec.URLImportsUnknown
+)
+
+// URLImportCapability reads provider metadata; legacy factories report unknown.
+func URLImportCapability(profile Profile) URLImportSupport {
+	return jsexec.URLImportCapability(profile)
+}
+
 type RuntimeInitializer = jsexec.RuntimeInitializer
 
 // FileSystem is the borrowed Go view of the selected execution filesystem.

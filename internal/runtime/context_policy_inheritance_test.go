@@ -49,7 +49,7 @@ func TestContextPolicyAndModelBudgetInheritAcrossRunJSProcesses(t *testing.T) {
 	// grows. The parent threshold distinguishes its one recent block from the
 	// 0.1 default; the child budget waits for two recent blocks so 0.2 retains
 	// both while the default 0.1 retains only one.
-	encodedInstructions, err := json.Marshal((agent.Facts() + "\n\n" + noeprofile.Policy()))
+	encodedInstructions, err := json.Marshal((agent.Facts() + "\n\n" + agent.URLImportFacts("enabled") + "\n\n" + noeprofile.Policy()))
 	if err != nil {
 		t.Fatal(err)
 	}

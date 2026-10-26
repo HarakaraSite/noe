@@ -68,7 +68,8 @@ indicate which optional capabilities this profile selected.
 ## Select capabilities and one environment
 
 `Profile` combines one `Environment`, independent `Modules`, an optional
-`LoaderFactory`, and an optional runtime `Initialize` callback. A nil
+structured `Loader` provider or legacy `NewLoader` factory, and an optional
+runtime `Initialize` callback. Selecting both loader fields is an error. A nil
 capability option disables that capability. The profile snapshots `Args`,
 `Env`, and option values when attached; caller-owned readers, writers,
 resolvers, clients, providers, and callbacks remain borrowed.
@@ -122,6 +123,61 @@ The loader and module cache are execution-local. File entry imports resolve
 relative to their referrer. A virtual entry's relative import uses the profile
 cwd. Root and Worker executions receive fresh loaders; the factory can be
 called concurrently and must not share QuickJS values between runtimes.
+
+## Opt in to HTTP/HTTPS module imports
+
+The current source adds `Profile.Loader` and `stdlib.ModuleLoader`. Existing
+`NewLoader: stdlib.FileLoader(...)` remains local-only; selecting Fetch does
+not implicitly grant URL import, and selecting a URL loader does not grant
+FS or JavaScript fetch.
+
+```go
+profile := stdlib.Profile{
+    Environment: stdlib.Environment{Cwd: projectDir},
+    Modules: stdlib.Modules{FS: &stdlib.FileSystemOptions{ReadOnly: true}},
+    Loader: stdlib.ModuleLoader(stdlib.LoaderOptions{
+        Imports: map[string]string{
+            "app/local": "./lib/local.mjs",
+            "lodash": "https://esm.sh/lodash-es@4.17.21",
+        },
+        HTTP: &stdlib.ModuleHTTPOptions{
+            Client: &http.Client{Timeout: 30 * time.Second},
+        },
+    }),
+}
+```
+
+`HTTP == nil` disables URL imports; a non-nil HTTP option enables HTTP/HTTPS.
+With no client, the standard provider uses a 30-second timeout.
+`ModuleHTTPOptions.Allow` checks the initial request and each redirect;
+the borrowed client's CheckRedirect is also respected. `MaxBodyBytes == 0`
+means 32 MiB of decoded response body, a negative value means unlimited.
+Clients and callbacks remain borrowed and must support the intended
+concurrency. Maps and option values are copied; module sources are retained
+only within each runtime. No cross-runtime download cache is added.
+
+The standard loader accepts JavaScript MIME types and text/plain, including
+parameterized Content-Type. URL extensions are not restricted. Source is
+UTF-8, with a leading UTF-8 BOM removed; this is not TypeScript/JSX conversion
+or npm lookup. Remote relative dependencies use the final response URL.
+Standard Worker entries remain local, including URL aliases being rejected
+before an entry request. See [URL import](url-import.md) for identity,
+redirect, response validation, and trust details.
+
+`ModuleLoaderProvider` supplies both `NewLoader(context.Context, Origin)`
+and `URLImports() URLImportSupport`. Providers are borrowed by Profile
+snapshots. `stdlib.URLImportCapability(profile)` returns enabled, disabled,
+or unknown from explicit metadata: legacy NewLoader functions are unknown,
+without inspecting their identity, and no loader is disabled. The legacy
+FileLoader still rejects HTTP even though an opaque function cannot report
+that fact through this metadata API. Custom providers own their metadata's
+accuracy and any I/O they implement.
+
+Module downloads are synchronous: JavaScript jobs and timers in the same
+runtime do not progress until a load returns. Cancellation must come through
+the host execution context or Runtime.Cancel rather than a timer in that
+runtime. The selected code executes with the profile's capabilities, not in
+an origin sandbox.
 
 ## Runtime ownership and cancellation
 

@@ -30,6 +30,9 @@ func run() error {
 	if err := advanced(ctx); err != nil {
 		return err
 	}
+	if err := urlImports(ctx); err != nil {
+		return err
+	}
 	root, err := os.MkdirTemp("", "noe-public-stdlib-")
 	if err != nil {
 		return err

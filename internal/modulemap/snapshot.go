@@ -1,5 +1,5 @@
-// Package modulemap resolves local ECMAScript modules and immutable import-map
-// snapshots. It deliberately implements only exact bare-specifier mappings.
+// Package modulemap resolves local and HTTP/HTTPS ECMAScript modules using
+// immutable import-map snapshots. It implements only exact bare mappings.
 package modulemap
 
 import (
@@ -105,8 +105,8 @@ func parse(data []byte, baseDir string, virtual bool) (*Snapshot, error) {
 	return &Snapshot{imports: imports, virtual: virtual}, nil
 }
 
-// Resolve turns an import specifier into its canonical local module ID. A
-// bare specifier must have an exact entry in this snapshot.
+// Resolve turns an import specifier into its canonical local path or HTTP/HTTPS
+// module ID. A bare specifier must have an exact entry in this snapshot.
 func (s *Snapshot) Resolve(specifier, referrer string) (string, error) {
 	if specifier == "" {
 		return "", fmt.Errorf("module specifier is empty")
@@ -117,6 +117,9 @@ func (s *Snapshot) Resolve(specifier, referrer string) (string, error) {
 		}
 	}
 
+	if id, handled, err := resolveHTTPReference(specifier, referrer); handled {
+		return id, err
+	}
 	if s != nil && s.virtual {
 		return virtualResolve(specifier, referrer)
 	}
@@ -206,6 +209,9 @@ func resolveTarget(target, base string) (string, error) {
 	if target == "" {
 		return "", fmt.Errorf("target must not be empty")
 	}
+	if IsHTTPURL(target) {
+		return CanonicalHTTPURL(target)
+	}
 	var path string
 	if isFileURL(target) {
 		var err error
@@ -227,7 +233,7 @@ func resolveTarget(target, base string) (string, error) {
 		} else if scheme, ok := urlScheme(target); ok {
 			return "", fmt.Errorf("unsupported target URL scheme %q", scheme)
 		} else {
-			return "", fmt.Errorf("target must be a relative path, absolute path, or local file URL")
+			return "", fmt.Errorf("target must be a relative path, absolute path, local file URL, or HTTP/HTTPS URL")
 		}
 	}
 	resolved, err := canonicalPath(path, "")
@@ -319,7 +325,7 @@ func decodeJSONValue(decoder *json.Decoder, location string) (any, error) {
 	}
 }
 
-// Imports returns an independent copy of the normalized local mappings.
+// Imports returns an independent copy of the normalized mappings.
 func (s *Snapshot) Imports() map[string]string {
 	if s == nil {
 		return nil

@@ -102,7 +102,7 @@ root agentには`provider`・`model`・`effort`の明示指定が必要です。
 | --- | --- |
 | 認証を登録し、agentを起動・観察する | [agent起動ガイド](docs/agents.md) |
 | API引数・CLIオプション・実行制御・終了コードを調べる | [APIリファレンス](docs/api.md) |
-| 自作JSや検証済みESMを再利用する | [import map](docs/import-map.md) |
+| 自作JSや検証済みESMを再利用する | [import map](docs/import-map.md) · [URL import](docs/url-import.md) |
 | provider設定やモデルを選ぶ | [provider設定](docs/providers.md) · [モデルカタログ](docs/model-catalog.md) |
 | 指示・hook・コンテキスト方針を設定する | [インストラクション](docs/instructions.md) · [hookとcontext](docs/hooks.md) |
 | 実行中の様子やログを読む | [観察の入口](docs/observe.md) · [JSONLイベント](docs/events.md) |
@@ -118,7 +118,7 @@ root agentには`provider`・`model`・`effort`の明示指定が必要です。
 
 **NOEはsandboxではなく、スクリプトとagentは起動ユーザーのOS権限で動作します。** ファイル・環境変数・コマンド・ネットワークへアクセスできます。
 
-固定したgo-quickjsをJavaScriptエンジンに使い、go-quickjs v0.27.0を原型とするNOE管理の標準ライブラリでWeb API・Node形式APIを提供します。Node.js/Denoの完全互換、npm・パッケージ管理、HTTP import、QuickJS本来の`std`モジュールは対象外です。対応範囲は[APIリファレンス](docs/api.md#利用できる機能と権限)を参照してください。
+固定したgo-quickjsをJavaScriptエンジンに使い、go-quickjs v0.27.0を原型とするNOE管理の標準ライブラリでWeb API・Node形式APIを提供します。現在のソースではHTTP/HTTPSのESM importをCLIで既定有効、Go組込みで明示選択として提供します（[URL import](docs/url-import.md)）。Node.js/Denoの完全互換、npm・パッケージ管理、QuickJS本来の`std`モジュールは対象外です。対応範囲は[APIリファレンス](docs/api.md#利用できる機能と権限)を参照してください。
 
 ## ライセンス
 

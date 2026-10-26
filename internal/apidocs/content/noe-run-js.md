@@ -2,7 +2,7 @@
 
 `noe:run_js` is a tool available to managed agents. It is a tool name and documentation topic, not an importable module or an additional tool for ordinary JavaScript. It runs supplied code in a fresh, owned NOE runtime; variables, module state, and open runtime resources do not persist to the next call. The runtime uses the current working directory and the configured loader factory.
 
-Every call starts a new runtime. The supplied source is a virtual entry, so relative imports resolve from the execution's configured cwd; imports from ordinary files keep normal referrer-relative behavior. The selected loader factory handles imports. HTTP imports, npm discovery, and unmapped bare package imports are unavailable. Resources created during the call belong to its runtime; owned work is recovered when the task ends or is cancelled.
+Every call starts a new runtime. The supplied source is a virtual entry, so relative imports resolve from the execution's configured cwd; imports from ordinary files keep normal referrer-relative behavior. The selected loader factory handles imports. HTTP/HTTPS ESM imports depend on the selected loader; the NOE CLI enables them by default, while Go hosts opt in explicitly. npm discovery and unmapped bare package imports are unavailable. Resources created during the call belong to its runtime; owned work is recovered when the task ends or is cancelled.
 
 Top-level await and ES module imports are supported. Return structured data with export default value or export default await operation(); console.log remains captured stdout. A final expression is not automatically returned to the model. Filesystem paths are relative to process.cwd(). Virtual-entry relative imports use the configured cwd; imports from loaded files resolve relative to their referrer. Use an absolute path for an unmapped local module.
 
@@ -129,7 +129,7 @@ const {format} = await import(resolve(process.cwd(), "lib/helper.js"));
 console.log(format("ready"));
 ~~~
 
-process.cwd() is global; alternatively import process from "node:process". The module has no named cwd export. Local file paths work without an import map, and supported built-in modules have both bare and node: names. HTTP imports, npm lookup, and other unmapped bare package imports are unavailable. Imported module state is fresh in each run_js call. Files explicitly written to a known path can be read by later calls.
+process.cwd() is global; alternatively import process from "node:process". The module has no named cwd export. Local file paths work without an import map, and supported built-in modules have both bare and node: names. HTTP/HTTPS ESM URL imports are enabled in the CLI profile and optional in embedded profiles, independently of fetch. The standard URL loader accepts JavaScript MIME types and text/plain without requiring a .js/.mjs URL suffix. It performs no TypeScript transformation, npm lookup, or cross-runtime download caching; unmapped bare package imports are unavailable. Synchronous module downloads pause that runtime's JavaScript jobs and use the host execution context for cancellation. Imported module state is fresh in each run_js call. Files explicitly written to a known path can be read by later calls.
 
 ## http
 

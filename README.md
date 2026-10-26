@@ -105,7 +105,7 @@ Roots require explicit `provider`, `model`, and `effort`. `--observe` displays p
 | --- | --- |
 | Set up credentials, run an agent, and observe progress | [Agent guide](docs/agents.md) |
 | Find API arguments, CLI options, lifecycle controls, and exit codes | [API reference](docs/api.md) |
-| Reuse local JS and verified ESM libraries | [Import maps](docs/import-map.md) |
+| Reuse local JS and verified ESM libraries | [Import maps](docs/import-map.md) · [HTTP/HTTPS URL imports](docs/url-import.md) |
 | Configure providers and choose models | [Provider configuration](docs/providers.md) · [Model catalog](docs/model-catalog.md) |
 | Add instructions, hooks, or context policies | [Instructions](docs/instructions.md) · [Hooks and context](docs/hooks.md) |
 | Inspect running work and process logs | [Observation](docs/observe.md) · [JSONL events](docs/events.md) |
@@ -121,7 +121,7 @@ Most linked guides are currently in Japanese. For older scripts, see the [API mi
 
 **NOE is not a sandbox. Scripts and agents run with the OS privileges of the user who starts NOE**, including filesystem, environment, command, and network access.
 
-NOE uses the pinned go-quickjs engine and a NOE-maintained standard library, based on go-quickjs v0.27.0, for supported Web and Node-style APIs. Full Node.js/Deno compatibility, npm/package management, HTTP imports, and the original QuickJS `std` module are outside its scope. See the [API reference](docs/api.md#利用できる機能と権限) for supported behavior.
+NOE uses the pinned go-quickjs engine and a NOE-maintained standard library, based on go-quickjs v0.27.0, for supported Web and Node-style APIs. The current source supports HTTP/HTTPS ESM URL imports, enabled by default in the CLI and explicitly selected by Go hosts; see [URL imports](docs/url-import.md). Full Node.js/Deno compatibility, npm/package management, and the original QuickJS `std` module are outside its scope. See the [API reference](docs/api.md#利用できる機能と権限) for supported behavior.
 
 ## License
 
