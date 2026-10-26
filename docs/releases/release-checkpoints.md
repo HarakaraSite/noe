@@ -2027,3 +2027,50 @@ This documentation-only follow-up does not move or replace the release tag.
 Repository-root noe, the PATH binary and running processes are unchanged;
 installation remains separate. Existing event logs and caches are preserved
 and excluded from these commits.
+
+## v2.7.1 preparation — 2026-10-26
+
+The user authorized commit and release of the completed go-quickjs v0.29.0
+upgrade and direct named re-export restoration. Latest remote release: v2.7.0.
+Implementation commit `591b7621c6e6495be6286a2148b58bc3a575ed08` contains
+the dependency update, regression test, direct re-export and current docs.
+See the [impact and implementation record](../development/go-quickjs-v0.29.0-impact.md)
+and [English release notes](v2.7.1.md).
+
+Checked clean release source: `a7b3dfddfba157374b21ad4523f24e4e839ac720`.
+Its only production-source difference from the verified implementation is
+the CLI Version changing from v2.7.0 to v2.7.1. Other changes are release
+notes/current-version links and the follow-up record. This preparation
+commit changes this evidence document only.
+
+Successful implementation results are reused: dependency-candidate full unit
+and local E2E, public Go consumer fixtures and six-target compilation; after
+the direct re-export change, affected executor/runtime unit tests, actual CLI
+hook run/eval routes, four-package runtime/Worker race checks, related vet,
+lint, formatting and diff checks. The applied module graph exactly matches
+the dependency candidate. Independent review accepted implementation and test
+changes; its documentation finding was corrected. Evidence:
+`/var/tmp/noe-q290-impact-PqTX81`.
+
+| Release verification | Result |
+| --- | --- |
+| Clean native release-flags build | PASS, CGO disabled, checked revision above, vcs.modified=false |
+| Native version/arithmetic | PASS, noe v2.7.1 and 2 |
+| NOE module regressions | PASS, block declarations/shadowing yield 7/7; node:path named re-export resolves |
+| Intl/date changes | PASS, corrected Telugu year, historical Abidjan seconds and Korean locale fallback |
+| Normal task/direct re-export path | PASS, real local-provider CLI completes; hook notification/retention and original answer remain valid |
+| Embedded dependencies | go-quickjs v0.29.0 and go-intl v0.8.0 confirmed; go mod verify passes |
+| Current release/README/Go-guide links | PASS, 125 relative references resolve |
+
+Release evidence and clean detached source:
+`/var/tmp/noe-v2.7.1-release-EI1leu`. All other selected dependencies, Go 1.27.2,
+NOE-managed stdlib origin v0.27.0, no-JIT configuration and lightweight release
+workflow are unchanged. The latter builds six binaries, creates SHA256SUMS
+and uploads the immutable tag; no local full-suite/race/long-wait rerun or
+six-binary distribution build is repeated for release preparation.
+
+Published assets, checksums and actual public-module retrieval are verified
+after publication. Native execution here is Linux amd64 only; no paid model
+call is made. Local installation and process restarts are not authorized by
+this release request. Repository-root/PATH binaries, user event logs and
+caches remain untouched and excluded from commits.
