@@ -2313,3 +2313,59 @@ Previously successful source tests were reused rather than rerun for release.
 
 This documentation-only follow-up does not move or replace the release tag.
 User event logs, caches and Git-excluded reference checkouts remain preserved.
+
+## v2.8.2 preparation — 2026-10-26
+
+The user authorized committing and releasing the completed maintenance work.
+Latest published release is v2.8.1. Implementation commit
+`2cbb7beed0af523e3f364f27db00eb61aa2f6c20` removes obsolete image I/O and
+unused internal wrappers, preserves live image-output safety tests, avoids
+duplicate context normalization, and adds image-only rejection of
+non-regular files. The release also includes the earlier Staticcheck
+cleanup commit `f2a49db`.
+
+Checked clean release source:
+`9cff990b5bdd3087e6080e10c796fd910faa849a`.
+Its only production-source difference from the verified implementation is
+the CLI Version changing from v2.8.1 to v2.8.2. Dependencies and release
+workflow are unchanged. This preparation follow-up changes only this
+evidence document.
+
+Implementation evidence is reused:
+
+- The cleanup passed `go test ./... -count=1` and independent review.
+- The subsequent FIFO fix passed `go test ./internal/modelbinding ./internal/agent ./agent/model ./internal/filesystem -count=1`
+  and managed runtime `TestImage*` tests.
+- The image-binding tests cover selected read-only/rooted filesystems,
+  regular images, symlinks, non-regular inputs and cancellation.
+- The FIFO test rejects without a writer. A temporary Go overlay restoring
+  the previous reader fails that same test by blocking in open/read.
+- Development Staticcheck (8371db75e9da), changed-JavaScript Biome lint,
+  gofmt and diff checks passed. No unreviewed broad commonization was added.
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test | PASS |
+| Current README/release relative links | PASS, 120 references resolve |
+| Clean native release-flags build | PASS, CGO disabled, checked source above, vcs.modified=false |
+| Candidate version/arithmetic | PASS, noe v2.8.2 and 2 |
+| Engine dependencies | Unchanged: go-quickjs v0.29.0, go-intl v0.8.0 |
+| Source delta after implementation | CLI version and release documentation only |
+
+No full suite, race, long-duration check or six-binary local distribution
+build was repeated for release preparation. The unchanged lightweight CI
+will build six distribution targets, create SHA256SUMS and publish the
+immutable tag. Published assets, native smoke behavior and actual Go-module
+retrieval are verified after publication. Native execution is Linux amd64;
+other targets receive build/hash verification, not native execution here.
+
+The image guard is a pre-read type check, not atomic protection against
+concurrent path replacement. Generic filesystem APIs remain unchanged.
+See the [release notes](v2.8.2.md).
+
+Evidence and detached source:
+`/tmp/noe-v2.8.2-release-3336898421`.
+This request authorizes publication, not local installation; repository-root
+and PATH executables and existing processes remain unchanged. Existing user
+logs/caches and the separately modified development instruction file are
+preserved and excluded from release commits.
