@@ -203,7 +203,16 @@ func (b *Binding) call(ctx context.Context, method, payload string) (any, error)
 		}
 		var read func(context.Context, string) ([]byte, error)
 		if fs := b.view.FileSystem(); fs != nil {
-			read = fs.ReadFile
+			read = func(ctx context.Context, path string) ([]byte, error) {
+				info, err := fs.Stat(ctx, path)
+				if err != nil {
+					return nil, err
+				}
+				if !info.Mode().IsRegular() {
+					return nil, &imageapi.Error{Code: "input", Message: "image input must be a regular file"}
+				}
+				return fs.ReadFile(ctx, path)
+			}
 		}
 		value, err := b.options.ReadImage(ctx, q.Path, q.Detail, q.Ordinal, read)
 		if err != nil {

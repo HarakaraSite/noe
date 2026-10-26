@@ -117,10 +117,10 @@ function normalizeConfig(config) {
     : requireHooks(config.hooks);
   const contextBudget = config.contextBudget === undefined
     ? inherited.contextBudget
-    : requireContextBudget(config.contextBudget);
+    : config.contextBudget;
   const contextPolicy = config.contextPolicy === undefined
     ? inherited.contextPolicy
-    : requireContextPolicy(config.contextPolicy);
+    : config.contextPolicy;
   return {
     provider, model, name, system, effort, maxTokens, maxSteps, cacheKey, hooks,
     contextBudget: contextBudget === undefined ? undefined : requireContextBudget(contextBudget),

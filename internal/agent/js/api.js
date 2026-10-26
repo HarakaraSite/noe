@@ -91,13 +91,13 @@ export function createAgentAPI({ request, defaults }) {
       : hookModules(options.hooks, "hooks");
     const budget = options.contextBudget === undefined
       ? inherited.contextBudget
-      : contextBudget(options.contextBudget);
+      : options.contextBudget;
     const policy = options.contextPolicy === undefined
       ? inherited.contextPolicy
-      : contextPolicy(options.contextPolicy);
+      : options.contextPolicy;
     const limits = options.executionLimits === undefined
       ? inherited.executionLimits
-      : executionLimits(options.executionLimits);
+      : options.executionLimits;
     const config = {
       provider, model, effort, hooks,
       name: options.name === undefined ? "agent" : requireString(options.name, "name"),

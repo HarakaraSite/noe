@@ -4,7 +4,7 @@ import (
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
-// Path installs the "path" module, which is pure computation: it works on the
+// installPathEnvironment installs the "path" module, which is pure computation: it works on the
 // text of a path and never asks the filesystem anything, so a runtime with no
 // filesystem at all can still use it.
 //
@@ -17,17 +17,8 @@ import (
 // path.resolve and path.relative resolve a relative path against
 // process.cwd(), read when they are called, as node's do; with no process,
 // against the root.
-func Path(rt *quickjs.Runtime) error {
-	return installPath(rt, false)
-}
-
-// installPath installs path, as path.win32 if windows is set.
-func installPath(rt *quickjs.Runtime, windows bool) error {
-	return installPathEnvironment(rt, windows, "", nil)
-}
-
-// installPathEnvironment supplies the shared Profile environment when the
-// process metadata module has not been selected.
+// The shared Profile environment is used when the process metadata module
+// has not been selected.
 func installPathEnvironment(rt *quickjs.Runtime, windows bool, cwd string, env map[string]string) error {
 	f, err := evalInternal(rt, "<eval>", pathJS)
 	if err != nil {

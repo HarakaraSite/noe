@@ -18,10 +18,11 @@ import (
 )
 
 type bindingService struct {
-	mu       sync.Mutex
-	images   int
-	content  []byte
-	generate func(context.Context, model.Request) (model.Response, error)
+	mu            sync.Mutex
+	images        int
+	content       []byte
+	generate      func(context.Context, model.Request) (model.Response, error)
+	generateImage func(context.Context, model.ImageRequest) (model.GeneratedImage, error)
 }
 
 func (s *bindingService) ListModels(context.Context, model.ModelQuery) ([]model.Model, error) {
@@ -40,6 +41,9 @@ func (s *bindingService) GenerateImage(ctx context.Context, q model.ImageRequest
 	s.mu.Lock()
 	s.images++
 	s.mu.Unlock()
+	if s.generateImage != nil {
+		return s.generateImage(ctx, q)
+	}
 	return model.GeneratedImage{Content: append([]byte(nil), s.content...), RequestID: "image-request", Usage: json.RawMessage(`{"total_tokens":5}`)}, nil
 }
 func tinyPNG(t *testing.T) []byte {
@@ -67,6 +71,13 @@ func executeBinding(t *testing.T, service model.Service, modules stdlib.Modules,
 }
 func TestStandaloneModelBindingUsesActualRootFilesystem(t *testing.T) {
 	root := t.TempDir()
+	var previous bytes.Buffer
+	if err := png.Encode(&previous, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "out.png"), previous.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	service := &bindingService{content: tinyPNG(t)}
 	err := executeBinding(t, service, stdlib.Modules{FS: &stdlib.FileSystemOptions{Root: root}}, `
   import {generate,list_models,decide,generate_image} from "noe:model";
@@ -74,7 +85,7 @@ func TestStandaloneModelBindingUsesActualRootFilesystem(t *testing.T) {
   if(!Array.isArray(await list_models()))throw Error("catalog");
   if((await decide({provider:"openrouter",model:"fixture",state:"state",questions:{q:{type:"choice"}}})).answers.q.choice!=="yes")throw Error("decision");
   const result=await generate_image({provider:"fixture",model:"image",prompt:"draw",output:"/out.png"});
-  if(result.path!=="/out.png"||result.width!==2||result.height!==3||result.requestId!=="image-request"||"content" in result)throw Error("image metadata");
+  if(result.path!=="/out.png"||result.width!==2||result.height!==3||result.mimeType!=="image/png"||result.requestId!=="image-request"||"content" in result)throw Error("image metadata");
  `)
 	if err != nil {
 		t.Fatal(stdlib.Diagnostic(err))
@@ -112,6 +123,10 @@ func TestStandaloneImageSaveFailurePreservesBillableUsageAndDestination(t *testi
 	if err := os.Mkdir(filepath.Join(root, "existing-directory"), 0700); err != nil {
 		t.Fatal(err)
 	}
+	marker := filepath.Join(root, "existing-directory", "keep")
+	if err := os.WriteFile(marker, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	service := &bindingService{content: tinyPNG(t)}
 	err := executeBinding(t, service, stdlib.Modules{FS: &stdlib.FileSystemOptions{Root: root}}, `
   import {generate_image} from "noe:image";
@@ -127,6 +142,9 @@ func TestStandaloneImageSaveFailurePreservesBillableUsageAndDestination(t *testi
 	info, err := os.Stat(filepath.Join(root, "existing-directory"))
 	if err != nil || !info.IsDir() {
 		t.Fatalf("destination changed: %v", err)
+	}
+	if got, err := os.ReadFile(marker); err != nil || string(got) != "keep" {
+		t.Fatalf("destination content changed: %q, %v", got, err)
 	}
 	entries, err := os.ReadDir(root)
 	if err != nil || len(entries) != 1 {
@@ -176,5 +194,81 @@ func TestModelBindingRequestCancellationRejectsWhileViewRemainsLive(t *testing.T
 	}})
 	if err != nil {
 		t.Fatal(stdlib.Diagnostic(err))
+	}
+}
+
+func TestStandaloneInvalidGeneratedImagePreservesExistingOutput(t *testing.T) {
+	valid := tinyPNG(t)
+	for _, test := range []struct {
+		name    string
+		content []byte
+	}{
+		{"unknown format", []byte("not an image")},
+		{"truncated image", valid[:len(valid)-8]},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "out.png")
+			if err := os.WriteFile(path, valid, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			service := &bindingService{content: test.content}
+			err := executeBinding(t, service, stdlib.Modules{FS: &stdlib.FileSystemOptions{Root: root}}, `
+import {generate_image} from "noe:image";
+try{await generate_image({provider:"fixture",model:"image",prompt:"draw",output:"/out.png"});throw Error("invalid image saved")}
+catch(e){if(e.name!=="ImageError"||e.code!=="response"||e.requestId!=="image-request"||e.usage?.total_tokens!==5)throw e}
+`)
+			if err != nil {
+				t.Fatal(stdlib.Diagnostic(err))
+			}
+			if got, err := os.ReadFile(path); err != nil || !bytes.Equal(got, valid) {
+				t.Fatalf("invalid generation damaged destination: %v", err)
+			}
+			if service.images != 1 {
+				t.Fatalf("image calls=%d", service.images)
+			}
+		})
+	}
+}
+
+func TestStandaloneImageCancellationPreservesExistingOutput(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "out.png")
+	original := []byte("previous output")
+	if err := os.WriteFile(path, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	requestCtx, cancelRequest := context.WithCancel(ctx)
+	defer cancelRequest()
+	content := tinyPNG(t)
+	service := &bindingService{generateImage: func(ctx context.Context, _ model.ImageRequest) (model.GeneratedImage, error) {
+		cancelRequest()
+		<-ctx.Done()
+		// Even a late valid provider result must not replace the output.
+		return model.GeneratedImage{Content: content}, nil
+	}}
+	_, err := stdlib.Execute(ctx, stdlib.Source{Name: "[image cancellation]", Virtual: true, Module: true, Code: `
+import {generate_image} from "noe:image";
+let rejected=false;
+try{await generate_image({provider:"fixture",model:"image",prompt:"draw",output:"/out.png"})}
+catch(e){rejected=e.message.includes("canceled")}
+if(!rejected)throw Error("image cancellation did not reject");
+`}, stdlib.Profile{Modules: stdlib.Modules{FS: &stdlib.FileSystemOptions{Root: root}}, Initialize: func(ctx context.Context, b *stdlib.Bindings) (func(), error) {
+		binding, err := model.Bind(requestCtx, b, service)
+		if err != nil {
+			return nil, err
+		}
+		return binding.Close, nil
+	}})
+	if err != nil {
+		t.Fatal(stdlib.Diagnostic(err))
+	}
+	if got, err := os.ReadFile(path); err != nil || !bytes.Equal(got, original) {
+		t.Fatalf("canceled generation damaged destination: %v", err)
+	}
+	if service.images != 1 {
+		t.Fatalf("image calls=%d", service.images)
 	}
 }

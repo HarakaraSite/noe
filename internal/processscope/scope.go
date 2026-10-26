@@ -24,10 +24,6 @@ func New(cmd *exec.Cmd) (Scope, error) { return newScope(cmd) }
 // ValidateSignal reports whether signal is supported by the current platform.
 func ValidateSignal(signal string) error { return validateSignal(signal) }
 
-// KillGroup sends a signal to a POSIX process group. Windows process scopes
-// use their Job Object handle instead.
-func KillGroup(pid int, signal string) error { return killGroup(pid, signal) }
-
 // WaitExit waits until process exits while leaving it unreaped. This lets the
 // caller clean up the rest of its process group before the PID can be reused.
 func WaitExit(process *os.Process) error { return waitExit(process) }
