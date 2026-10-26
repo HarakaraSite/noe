@@ -2074,3 +2074,47 @@ after publication. Native execution here is Linux amd64 only; no paid model
 call is made. Local installation and process restarts are not authorized by
 this release request. Repository-root/PATH binaries, user event logs and
 caches remain untouched and excluded from commits.
+
+## v2.7.1 Release validation — 2026-10-26
+
+- Annotated tag `v2.7.1` points to
+  `e4e297a32faac7f19bb8094fa436760072163352`. Its peeled remote tag matches
+  the successful workflow revision. Its difference from checked source
+  `a7b3dfd` is the preparation evidence document only.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/40)
+  succeeded (API run ID 221) with the unchanged lightweight workflow.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.1)
+  is published, neither draft nor prerelease (Release ID 153).
+  Its body matches the tagged [English release notes](v2.7.1.md).
+
+All seven assets were downloaded; all six binary hashes match SHA256SUMS.
+The Linux amd64 asset reports `noe v2.7.1`, the tagged source revision,
+`vcs.modified=false`, `CGO_ENABLED=0`, go-quickjs v0.29.0 and go-intl v0.8.0.
+Its SHA256 is
+`5f60d2eb4f040383d14e4ec0c08c558a97f49ab169ce36f61fa739b8a255b4cf`.
+
+Against the actual downloaded binary, arithmetic, module block declarations
+and shadowing, node:path direct named re-export, corrected Intl year/locale
+fallback and historical timezone seconds all passed. A deterministic
+local-provider task also completed normally through the restored task
+re-export, retained the before/final hook failures and returned the unchanged
+original answer without an event file or extra model request.
+
+Clean external modules fetched `stdlib@v2.7.1` and `agent@v2.7.1` from the
+actual published module without a local replacement or synthetic proxy.
+Both built, ran and passed `go mod verify`. MVS selected go-quickjs v0.29.0
+and go-intl v0.8.0 in both consumers, and both public declaration files match
+the tagged source. The agent returned `The total is 31.` and passed public
+HookFailure wire/retained-result checks.
+
+Evidence is retained at `/var/tmp/noe-v2.7.1-release-EI1leu`: workflow
+metadata/log archive, published assets, build metadata, engine/hook probe
+outputs, module consumers, published-verification.json and
+public-module-verification.json. No paid model calls were made. Other five
+targets have build/hash verification without native execution on this host.
+Valid implementation source-test results were reused, not repeated for tagging.
+
+This documentation-only follow-up does not move or replace the release tag.
+Repository-root noe, the PATH binary and running processes are unchanged;
+installation remains separate. User event logs and caches are preserved and
+excluded from these commits.
