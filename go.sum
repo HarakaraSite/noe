@@ -2,10 +2,10 @@ github.com/OpenRouterTeam/go-sdk v0.9.61 h1:iMb7Ml41OSnuHkMNYqEXQFUPiSdk9bKDcNCS
 github.com/OpenRouterTeam/go-sdk v0.9.61/go.mod h1:8vFtUZ9I2YiDntYbck42wQhrx9DsJN5PHbViaHwTkXc=
 github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
-github.com/go-quickjs/go-intl v0.6.1 h1:rDYd3PoxL1B4Die+xnooyRFqMKefjDKnb4Tma9CKgHg=
-github.com/go-quickjs/go-intl v0.6.1/go.mod h1:/Kn3soBxkmtIHevMspxdnTc5Br6+wHbzxM312CdeupM=
-github.com/go-quickjs/go-quickjs v0.28.0 h1:FWZ3BX1T1U+SK7v7hSMVPcLj791/AD27Y6WVNMjq6ek=
-github.com/go-quickjs/go-quickjs v0.28.0/go.mod h1:FJ8EJrJDGeJzZFYT20ft7iu17egGueuDloWbvwl5Hvc=
+github.com/go-quickjs/go-intl v0.8.0 h1:X/3oO8wSPPpbCj3GlUHBS9Q1pJUq089UjZrLQPEB4es=
+github.com/go-quickjs/go-intl v0.8.0/go.mod h1:/Kn3soBxkmtIHevMspxdnTc5Br6+wHbzxM312CdeupM=
+github.com/go-quickjs/go-quickjs v0.29.0 h1:oyhW8n67CkgfwV+8vq0P6zMc9SYzKr8CX/dGPGInGEE=
+github.com/go-quickjs/go-quickjs v0.29.0/go.mod h1:mDsUP9yb32kOcJm9sRMpPjhPGWZDVGx/hCWJNkfCQP0=
 github.com/openai/openai-go/v3 v3.79.0 h1:r9Oe7tjXsez39TtsA6lCzF+SLXuVh9AYoJ/hmwiM41c=
 github.com/openai/openai-go/v3 v3.79.0/go.mod h1:i+lM+NFmWP+Yd+fYKEaPxUINBx+vZtRmY5gaszSfsiQ=
 github.com/spyzhov/ajson v0.9.6 h1:iJRDaLa+GjhCDAt1yFtU/LKMtLtsNVKkxqlpvrHHlpQ=

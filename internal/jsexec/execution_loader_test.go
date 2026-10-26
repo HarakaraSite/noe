@@ -1,6 +1,7 @@
 package jsexec
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -65,5 +66,34 @@ func TestBindingsLoaderSharesCloseState(t *testing.T) {
 	}
 	if _, _, err := bindings.LoadModule("owner:after", entry.Name); !errors.Is(err, context.Canceled) {
 		t.Errorf("LoadModule after Close = %v, want execution cancellation", err)
+	}
+}
+
+// Modules run through the same dynamic-import wrapper as CLI and agent tools.
+// Keep the reported upstream block-declaration regression covered here, rather
+// than relying only on direct engine evaluation.
+func TestModuleBlockFunctionDeclarationsAndShadowing(t *testing.T) {
+	for _, tc := range []struct {
+		name, code string
+	}{
+		{"async declaration", `try {
+  async function worker() { return 7; }
+  console.log(await worker());
+} catch (error) { throw error; }`},
+		{"shadowing", `function worker() { return 99; }
+try {
+  function worker() { return 7; }
+  console.log(worker());
+} catch (error) { throw error; }`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var output bytes.Buffer
+			result, err := Execute(context.Background(), Source{
+				Name: "memory:block-functions", Module: true, Virtual: true, Code: tc.code,
+			}, Profile{Environment: Environment{Stdout: &output}})
+			if err != nil || result.Code != 0 || output.String() != "7\n" {
+				t.Fatalf("block declaration: result=%+v output=%q err=%v", result, output.String(), err)
+			}
+		})
 	}
 }

@@ -5,7 +5,7 @@ per-execution profile. `stdlib` does not create a NOE CLI process and does not
 select model providers or agent behavior. The current release is v2.6.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
-The current checkout is checked with go-quickjs v0.28.0. Published NOE tags
+The current checkout is checked with go-quickjs v0.29.0. Published NOE tags
 retain the engine dependency recorded in their own `go.mod`. Use Go 1.27.2
 or later. From the repository root, run the example with:
 

@@ -55,12 +55,13 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | TS対応の議論・examplesの定性評価（未採用） | [TypeScriptの議論](typescript-discussion-20261024.md) |
 | 長時間agent作業の隔離環境・VCS配送・外部ライブラリ（検討） | [Docker・microVM等の議論と調査](isolated-agent-workspaces-discussion.md) |
 | hookの例外局所化・task通知と、トリム外部化・コンテキスト操作API（議論） | [議論メモ](hook-isolation-context-api-discussion-20261025.md)・[機能計画](hook-failure-isolation-plan-20261025.md)・[スライス](hook-failure-isolation-slices-20261025.md)・[実装/検証記録](hook-failure-isolation-implementation-20261025.md) |
-| 上流修正待ち：ES module内のブロック関数宣言が消える不具合 | [再現・原因・回避方法](dependency-updates.md#上流修正待ちes-module内のブロック関数宣言--2026-10-24) |
+| 解消済み：module内のblock関数宣言・colon付きnamed re-export | [v0.29.0の取り込み・検証](go-quickjs-v0.29.0-impact.md#6-取り込み実施--2026-10-26) |
 | 単独noe observeの出力待機中の取消し | [修正・検証記録](observe-cancellation.md) |
 | 子の完了待ち中にsteerで親へ制御を戻す | [実装・検証記録](steer-aware-wait-implementation.md) · [実装指示書](steer-aware-wait-implementation-task.md) |
 | JSによるExa MCPクライアントとソケットデーモンの利用例 | [実装・検証記録](mcp-daemon-examples.md) |
 | txiki.jsとの機能差と今後の改善の参考 | [比較調査（2026-10-24）](txikijs-comparison-20261024.md) |
 | go-quickjs v0.28.0の取り込み | [計画・レビュー・検証記録](go-quickjs-v0.28.0-plan.md) |
+| go-quickjs v0.29.0の影響調査・取り込み | [API・既報修正・Intl・検証記録](go-quickjs-v0.29.0-impact.md) |
 | 配布対象・品質確認・公開手順 | [リリースチェックポイント](../releases/release-checkpoints.md) |
 
 組込みinstructionはGoのembedでバイナリへ含めるため、変更の反映には再ビルドします。公開`noe:agent`は起動・観察・操作を提供し、モデルのtask loopはprivate moduleで実行します。
@@ -133,6 +134,6 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 利用ガイドは`docs/`、機能別の計画・レビュー・実装と検証はこのディレクトリ、初期の旧API・インクリメントは`docs/archive/`、リリース記録は`docs/releases/`へ置きます。残る候補は[次の機能候補](../future-candidates.md)、完了項目の詳細は[完了した機能と実装記録](../completed-features.md)を更新します。
 
-[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs) v0.28.0、汎用JavaScript APIにはv0.27.0のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleで公開済みです。現行リリースは[v2.5.1](../releases/v2.5.1.md)で、外部moduleからの利用は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドを参照してください。未公開のcheckoutを試す場合はローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
+[txiki.js](https://txikijs.org/)の小さなランタイムという方向を参考にし、エンジンには固定した[go-quickjs](https://github.com/go-quickjs/go-quickjs) v0.29.0、汎用JavaScript APIにはv0.27.0のstdlibを原型とするNOE管理の`internal/stdlib`を使います。`internal/noestdlib`がstdlib・nativeio・docsの導入と共有出力を組み立て、`internal/runtime`がCLI・agent固有の設定と実行制御を接続します。[Goホストの利用例](../../examples/embedding/README.md)は公開`stdlib` packageを使い、[agentの組み込み例](../../examples/agent-embedding/README.md)は公開`agent` packageを追加します。Go向けの入口は同じ`/v2` moduleで公開済みです。現行リリースは[v2.5.1](../releases/v2.5.1.md)で、外部moduleからの利用は[stdlib](../go-embedding.md)・[agent](../go-agent-embedding.md)のガイドを参照してください。未公開のcheckoutを試す場合はローカル置換を使います。現在の対象はJavaScriptで、npm・パッケージ管理とNode.js/Denoの完全互換は対象外です。
 
 `_refs/`はローカル専用の未追跡の参考資料で、ビルド・テスト依存に含めません。リリースの配布対象・品質確認は[プロファイル](../../.forgejo/release-profile.yml)と[ワークフロー](../../.forgejo/workflows/release.yml)に定義されています。

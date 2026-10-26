@@ -173,7 +173,7 @@ QuickJS-NGは最新のECMAScript仕様への追随を目指し、test262への�
 
 具体的な接続課題は、入口だけでなくimport先の`.ts`を変換するloader、ESM/import mapとmodule IDの整合、class field/decorator等の変換設定、および元のTS位置を返す診断。go-quickjs v0.27.0には`WithSourceMaps`があるため、変換結果のmapと組み合わせる案を考える。main・eval・Worker・agentの実行経路をどこまで同時に対応させるか、変換中の取消しや既存の資源所有との接続も実装範囲の決定時に整理する。[source mapの説明](https://github.com/go-quickjs/go-quickjs/blob/v0.27.0/docs/debugging.md#source-maps)。
 
-2026-10-24の照合：[`go.mod`](../go.mod)の現在の固定版は正式go-quickjs v0.28.0です。上記のv0.27.0の機能・source map情報は検討当時の参照であり、現在のengineでのTS互換性確認ではありません。[`modulemap/snapshot.go`](../internal/modulemap/snapshot.go)は`.js`／`.mjs`のみを受け付け、[`modulemap/loader.go`](../internal/modulemap/loader.go)はローカルJS本文を読み込みます。[段階導入の提案](development/noe-improvement-proposals-20261024.md#3-typescript対応を段階的に検討する)も検討用であり、対応経路・診断・tool移行の範囲は着手前に決めます。今回の調査は文書・ソースの確認までであり、TS変換とNOE実行を接続した実測・互換性検証は未実施。既存のesbuild利用は[MCP SDK bundleの事前作成](../scripts/spikes/process-io-mcp/README.md)で、製品のTS実行対応ではない。
+2026-10-26の照合：[`go.mod`](../go.mod)の現在の固定版は正式go-quickjs v0.29.0です。上記のv0.27.0の機能・source map情報は検討当時の参照であり、現在のengineでのTS互換性確認ではありません。[`modulemap/snapshot.go`](../internal/modulemap/snapshot.go)は`.js`／`.mjs`のみを受け付け、[`modulemap/loader.go`](../internal/modulemap/loader.go)はローカルJS本文を読み込みます。[段階導入の提案](development/noe-improvement-proposals-20261024.md#3-typescript対応を段階的に検討する)も検討用であり、対応経路・診断・tool移行の範囲は着手前に決めます。今回の調査は文書・ソースの確認までであり、TS変換とNOE実行を接続した実測・互換性検証は未実施。既存のesbuild利用は[MCP SDK bundleの事前作成](../scripts/spikes/process-io-mcp/README.md)で、製品のTS実行対応ではない。
 
 ### <未完了> JSでのhook登録と、実行前評価・親agentへの問い合わせ — 2026-10-20
 

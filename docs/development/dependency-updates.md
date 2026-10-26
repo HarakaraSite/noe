@@ -96,9 +96,9 @@ consumerのv0.27.0要求は維持し、MVSがv0.28.0を選ぶことを確認す�
 最終変更は依存・説明/記録と、この既存テストの最小修正のみ。
 初回の失敗も含む作業ログ・結果は`/var/tmp/noe-q280-XrXP1S`に保存している。
 
-## 上流修正待ち：ES module内のブロック関数宣言 — 2026-10-24
+## 上流不具合の報告と修正：ES module内のブロック関数宣言 — 2026-10-24
 
-**状態：利用者の指示により上流修正待ち。** 正式go-quickjs v0.28.0を維持する。2026-10-24に独立再現を添えて[上流issue #4](https://github.com/go-quickjs/go-quickjs/issues/4)を英語で投稿した。
+**現状（2026-10-26）：正式v0.29.0で解消し、NOEへ取り込み済み。** [影響調査・取り込み記録](go-quickjs-v0.29.0-impact.md#6-取り込み実施--2026-10-26)を参照。以下はv0.28.0を維持して上流修正を待っていた当時の調査記録。2026-10-24に独立再現を添えて[上流issue #4](https://github.com/go-quickjs/go-quickjs/issues/4)を英語で投稿した。
 発端は`noe-events-20261024-033909-c8ef146fa483f3ef.jsonl`のHTTP stream課題で、
 定義済みの`worker`が`ReferenceError: worker is not defined`になったこと。
 
@@ -145,7 +145,7 @@ consumerにNOE依存やlocal replaceはなく、`go mod verify`も成功した�
 
 ## 上流の不具合：colon付きmodule specifierのnamed re-export — 2026-10-24
 
-**状態：NOE側は等価な書き方で回避済み、上流へ報告済み。** 正式go-quickjs v0.28.0の再export解決処理に原因がある。上記のブロック関数宣言の不具合とは別件として追随する。2026-10-24に独立再現を添えて[上流issue #5](https://github.com/go-quickjs/go-quickjs/issues/5)を英語で投稿した。依存更新・上流PRの提出は行っていない。
+**現状（2026-10-26）：正式v0.29.0で解消し、NOEのtask moduleも直接named re-exportへ戻した。** [影響調査・取り込み記録](go-quickjs-v0.29.0-impact.md#6-取り込み実施--2026-10-26)を参照。以下は初回報告・回避時点の記録。正式go-quickjs v0.28.0の再export解決処理に原因がある。上記のブロック関数宣言の不具合とは別件として追随する。2026-10-24に独立再現を添えて[上流issue #5](https://github.com/go-quickjs/go-quickjs/issues/5)を英語で投稿した。依存更新・上流PRの提出は行っていない。
 
 ### 発生と回避
 

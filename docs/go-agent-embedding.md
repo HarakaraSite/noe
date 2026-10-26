@@ -11,7 +11,7 @@ To use the published release, use
 replacement. See the [v2 migration guide](v2-migration.md) for breaking changes.
 
 The package requires Go 1.27.2 or later. The current checkout is checked with
-go-quickjs v0.28.0; published NOE tags retain the engine dependency recorded in
+go-quickjs v0.29.0; published NOE tags retain the engine dependency recorded in
 their own `go.mod`. From the checkout root, run the deterministic example with:
 
 ```sh

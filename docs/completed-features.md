@@ -230,7 +230,7 @@ Linux amd64でローカルMCPの初期化/一覧/並列呼出し、Exaエント�
 
 公開`forge.harakara.site/littleisland/noe/v2/stdlib`は汎用runtime・Profile・VM/Loop・loader・I/Oと回収を提供し、公開`agent`はHost／Clientとagent機能を追加します。同じrepository/root moduleの入口であり、別repositoryへの分離や別NOE実行ファイルは不要です。task／toolは同じGoプロセス内の新しいstdlib runtimeで実行します。[stdlib組込み](go-embedding.md)・[agent組込み](go-agent-embedding.md)。
 
-エンジンは正式go-quickjs v0.28.0を固定し、汎用APIはv0.27.0のstdlibを原型とするNOE管理実装です。エンジン依存とstdlibの出自を区別し、上流stdlibの全面追随を前提にしません。`internal/noestdlib`が汎用APIを組み立て、`internal/noeprofile`と`internal/runtime`がNOE固有の設定・実行経路を接続します。
+エンジンは正式go-quickjs v0.29.0を固定し、汎用APIはv0.27.0のstdlibを原型とするNOE管理実装です。エンジン依存とstdlibの出自を区別し、上流stdlibの全面追随を前提にしません。`internal/noestdlib`が汎用APIを組み立て、`internal/noeprofile`と`internal/runtime`がNOE固有の設定・実行経路を接続します。
 
 通常のHTTP用途と要求・応答のストリーミングは`noe:http`を推奨入口とし、既存の`fetch`・`serve`・`node:http`も維持します。Web型・Streams・WebSocket・loopは共通実装を利用します。後続の低レベルAPI拡張は[別候補](future-candidates.md#一部完了-汎用の低レベルapi拡張と優先順位--2026-10-18)です。
 

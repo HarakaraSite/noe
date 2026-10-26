@@ -6,7 +6,7 @@ import { runJSTool, executeToolCall } from "noe:agent/run-js";
 import { executeToolWithHooks } from "noe:agent/tool-pipeline";
 
 // Preserve the existing private task-module entry point for direct consumers.
-export { executeToolWithHooks };
+export { executeToolWithHooks } from "noe:agent/tool-pipeline";
 
 const inherited = JSON.parse(defaults());
 const systemInstruction = instructions();
