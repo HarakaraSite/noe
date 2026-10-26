@@ -35,9 +35,9 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.7.0リリースノート](docs/releases/v2.7.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.0)
+[v2.7.1リリースノート](docs/releases/v2.7.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.1)
 
-v2.7.0では登録済みhookの失敗を局所化し、直前の有効値でtaskを継続します。失敗は通常のモデル要求とtaskの保持結果へ通知します。**hookのthrowではtaskを停止せず、`beforeTool`が失敗してもtoolをskipしません。** [hookガイド](docs/hooks.md#失敗の局所化と通知)を参照してください。
+v2.7.1ではgo-quickjsをv0.29.0、go-intlをv0.8.0へ更新し、module内のブロック関数宣言とcolon付きspecifierのnamed re-exportの不具合を解消します。Intl・日時の出力差は[リリースノート](docs/releases/v2.7.1.md)を参照してください。v2.7.0の[hook失敗時の契約](docs/hooks.md#失敗の局所化と通知)は維持します。
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
@@ -51,7 +51,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.7.0
+# noe v2.7.1
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。

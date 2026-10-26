@@ -17,7 +17,7 @@ import (
 )
 
 // Version can be set at build time using -ldflags '-X forge.harakara.site/littleisland/noe/v2/internal/cli.Version=...'.
-var Version = "v2.7.0"
+var Version = "v2.7.1"
 
 const usage = `Usage:
   noe run [--timeout duration] [--import-map path] [--observe] [--events[=path|-]] script.js [args...]

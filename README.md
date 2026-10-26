@@ -34,12 +34,12 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.7.0 release notes](docs/releases/v2.7.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.0)
+[v2.7.1 release notes](docs/releases/v2.7.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.1)
 
-v2.7.0 isolates registered hook failures, continues the task with the last valid
-values, and reports failures through normal model requests and retained task
-results. **Throwing from a hook no longer stops the task; a failed `beforeTool`
-does not skip the tool.** See the [hook guide](docs/hooks.md#失敗の局所化と通知).
+v2.7.1 updates go-quickjs to v0.29.0 and go-intl to v0.8.0, fixing block-scoped
+function declarations in modules and named re-exports from colon-containing
+specifiers. Intl/date output can change; see the [release notes](docs/releases/v2.7.1.md).
+The v2.7.0 [hook failure behavior](docs/hooks.md#失敗の局所化と通知) is retained.
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -54,7 +54,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.7.0
+# noe v2.7.1
 ```
 
 The examples below assume the repository root is your working directory.

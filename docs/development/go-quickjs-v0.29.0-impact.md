@@ -162,3 +162,11 @@ apply-cli-e2e.log、apply-runtime-race.log、apply-affected-vet.log等へ保存�
 review原文はapply-review.md。全体unit/E2E/6対象compileは
 依存graphと該当製品sourceが同じ範囲の既存成功結果を再利用し、追加変更だけを検証した。
 適用完了。実行バイナリとCLI版は変更せず、commit/push/releaseは未実施。
+
+### 後続のcommit・リリース指示
+
+上記の取り込み完了後、利用者からcommit・リリース指示を受けた。
+実装は `591b7621c6e6495be6286a2148b58bc3a575ed08` としてcommitし、
+[v2.7.1リリースノート](../releases/v2.7.1.md)と
+[公開検証記録](../releases/release-checkpoints.md)へ公開状況を記録する。
+前節の「commit/push/release未実施」は取り込み作業完了時点の記録。
