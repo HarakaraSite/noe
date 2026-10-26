@@ -53,6 +53,8 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 利用者が追加する共通・workspace指示 | [インストラクションガイド](../instructions.md) |
 | 依存の互換性確認と追随 | [依存更新の記録](dependency-updates.md) |
 | TS対応の議論・examplesの定性評価（未採用） | [TypeScriptの議論](typescript-discussion-20261024.md) |
+| esbuildのNOE適合性・公開APIとforkの判断（調査） | [ソース調査・実行検証・サイズ比較](esbuild-noe-fit.md) |
+| module自身のURL・相対asset参照 | [import.meta.urlの実装・検証](import-meta-url-implementation.md) |
 | 長時間agent作業の隔離環境・VCS配送・外部ライブラリ（検討） | [Docker・microVM等の議論と調査](isolated-agent-workspaces-discussion.md) |
 | hookの例外局所化・task通知と、トリム外部化・コンテキスト操作API（議論） | [議論メモ](hook-isolation-context-api-discussion-20261025.md)・[機能計画](hook-failure-isolation-plan-20261025.md)・[スライス](hook-failure-isolation-slices-20261025.md)・[実装/検証記録](hook-failure-isolation-implementation-20261025.md) |
 | 解消済み：module内のblock関数宣言・colon付きnamed re-export | [v0.29.0の取り込み・検証](go-quickjs-v0.29.0-impact.md#6-取り込み実施--2026-10-26) |

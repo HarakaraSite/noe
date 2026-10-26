@@ -129,6 +129,8 @@ const {format} = await import(resolve(process.cwd(), "lib/helper.js"));
 console.log(format("ready"));
 ~~~
 
+import.meta.url gives each file-backed module its encoded file URL and each HTTP/HTTPS module its final canonical URL. The virtual run_js entry uses a synthetic <virtual-entry>.mjs file URL under its configured cwd; the file need not exist. new URL("./asset.txt", import.meta.url) computes a module-relative asset URL without reading it. Ordinary filesystem-relative paths still use cwd.
+
 process.cwd() is global; alternatively import process from "node:process". The module has no named cwd export. Local file paths work without an import map, and supported built-in modules have both bare and node: names. HTTP/HTTPS ESM URL imports are enabled in the CLI profile and optional in embedded profiles, independently of fetch. The standard URL loader accepts JavaScript MIME types and text/plain without requiring a .js/.mjs URL suffix. It performs no TypeScript transformation, npm lookup, or cross-runtime download caching; unmapped bare package imports are unavailable. Synchronous module downloads pause that runtime's JavaScript jobs and use the host execution context for cancellation. Imported module state is fresh in each run_js call. Files explicitly written to a known path can be read by later calls.
 
 ## http

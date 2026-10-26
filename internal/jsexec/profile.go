@@ -165,6 +165,7 @@ func attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile, worker bool,
 		return nil, installErr
 	}
 	b.adapter = installed.Close
+	b.installImportMeta()
 	if core.Process == nil {
 		rt.OnUnhandledRejection(b.unhandled)
 	}

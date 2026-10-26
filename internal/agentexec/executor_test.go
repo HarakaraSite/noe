@@ -58,6 +58,16 @@ func TestToolSourceRequiresExplicitAgentImport(t *testing.T) {
 			code: `if (typeof run_agent !== "undefined") throw new Error("agent helper was implicitly imported");`,
 		},
 		{
+			name: "module-relative URL in run_js",
+			code: `const base = new URL(import.meta.url);
+if (base.protocol !== "file:" || !decodeURIComponent(base.pathname).endsWith("/<virtual-entry>.mjs")) {
+  throw new Error("virtual entry metadata is not a synthetic cwd file URL");
+}
+if (!new URL("./asset.json", import.meta.url).pathname.endsWith("/asset.json")) {
+  throw new Error("module-relative asset URL failed");
+}`,
+		},
+		{
 			name: "explicit import",
 			code: `import {run_agent} from "noe:agent"; if (typeof run_agent !== "function") throw new Error("explicit agent import failed");`,
 		},

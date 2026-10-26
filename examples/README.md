@@ -19,7 +19,7 @@
 | [daemon](daemon/README.md) | JSでTCP待受、JSONL要求、SIGTERM終了と外部からの起動停止 | 不要 |
 | [low-level](low-level/README.md) | 位置指定ファイルI/O、TCP/Unix通信、OSシグナル | 不要 |
 | [import-map](import-map/README.md) | ローカルESMへの名前付け | 不要 |
-| [url-import](url-import/README.md) | 公開ESMの直接・dynamic・URL alias import | esm.shへのHTTPS接続 |
+| [url-import](url-import/README.md) | 小さな時間変換ライブラリ、公開ESMの直接・dynamic・URL alias import | jsDelivrまたはesm.shへのHTTPS接続 |
 | [agent](agent/README.md) | 任意タスク、要約、並列委譲、provider選択、hook、steer・queue・interrupt | 各providerの認証 |
 | [image](image/README.md) | agentによる画像読取り、JavaScriptからの画像生成 | 読取りはagent用provider認証、生成は対応provider認証と利用料 |
 | [decision](decision/README.md) | Jev等による単発の構造化判断 | OpenRouter認証 |

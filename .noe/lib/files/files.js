@@ -8,7 +8,7 @@ function integer(value, minimum, name) {
 }
 
 // Paths in entries are relative to the returned absolute root path.
-export async function ls(path = ".", {tree = false, depth = 2, offset = 0, limit = 100} = {}) {
+export async function ls(path = ".", {tree = false, depth = 2, offset = 0, limit = 200} = {}) {
   integer(depth, 1, "depth");
   integer(offset, 0, "offset");
   integer(limit, 1, "limit");

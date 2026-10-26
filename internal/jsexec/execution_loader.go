@@ -41,17 +41,18 @@ type LoaderFactory func(context.Context, Origin) (quickjs.ModuleLoader, error)
 // runtime owner. Module registration and preparation share the binding's
 // lifetime mutex with Close; there is no separate loader closed state.
 type executionLoader struct {
-	state    *bindingsState
-	rt       *quickjs.Runtime
-	ctx      context.Context
-	cwd      string
-	backend  *filesystem.Backend
-	fs       FileSystem
-	worker   bool
-	factory  LoaderFactory
-	modules  map[string]string
-	load     quickjs.ModuleLoader
-	prepared bool
+	state        *bindingsState
+	rt           *quickjs.Runtime
+	ctx          context.Context
+	cwd          string
+	backend      *filesystem.Backend
+	fs           FileSystem
+	worker       bool
+	factory      LoaderFactory
+	modules      map[string]string
+	load         quickjs.ModuleLoader
+	prepared     bool
+	virtualEntry string
 }
 
 // defineModule registers owner-provided JavaScript source without replacing
@@ -135,6 +136,10 @@ func (l *executionLoader) installLoader(origin Origin, entry *Source) error {
 			return errors.New("stdlib: loader factory returned nil")
 		}
 	}
+	l.virtualEntry = ""
+	if origin.Virtual {
+		l.virtualEntry = origin.Entry
+	}
 	l.load = func(specifier, referrer string) (string, string, error) {
 		if err := l.ctx.Err(); err != nil {
 			return "", "", err
@@ -154,7 +159,7 @@ func (l *executionLoader) installLoader(origin Origin, entry *Source) error {
 		// Virtual entry IDs are kept in stacks; their imports use the fixed
 		// environment cwd instead of pretending the ID is a disk file.
 		if origin.Virtual && referrer == origin.Entry {
-			referrer = filepath.Join(origin.Cwd, "<virtual-entry>.mjs")
+			referrer = virtualEntryPath(origin.Cwd)
 		}
 		return loader(specifier, referrer)
 	}

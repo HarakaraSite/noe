@@ -32,7 +32,7 @@ export default await grep({
 ```
 
 - `lines`の各要素は`{path,line,text}`。lineは1始まり。行末のLFだけを除きます。同じ行に複数一致しても1件です。
-- `files`の各要素はpath文字列。**内容に一致があるファイル**の一覧で、ファイル名そのものの検索ではありません。
+- `files`の各要素はpath文字列。**内容に一致があるファイル**の一覧で、ファイル名そのものの検索ではありません。名前で探す場合は[find()](../find/find.md)を使います。
 - `count`の各要素は`{path,count}`。countは一致**行**数で、一致箇所の数ではありません。0件のファイルは含めません。
 - 一致なしは`results: []`, `complete: true`です。終了コード1を例外にしません。
 - `pattern: "foo|bar"`は既定で正規表現のORです。ドットや括弧等をそのまま探す場合は`regex: false`を指定してください（例：`{pattern: "a.b", regex: false}`）。不正な正規表現はthrowし、文字列一致へ自動変更しません。

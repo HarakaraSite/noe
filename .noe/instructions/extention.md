@@ -10,11 +10,25 @@ const {ls, read_file, write_file, edit_file} = await import(resolve(".noe/lib/fi
 export default await ls();
 ```
 
-`ls()`はcwd（通常はworkspace）の直下を最大100項目表示します。`ls("internal", {tree: true, depth: 2})`でtree相当の一覧、`nextOffset`を`offset`へ渡すと続きが取得できます。隠しファイル・ignore対象も含み、symlinkの先は辿りません。
+`ls()`はcwd（通常はworkspace）の直下を既定で最大200項目表示します。`limit`で返す項目数を変更できます。`ls("internal", {tree: true, depth: 2})`でtree相当の一覧、`nextOffset`を`offset`へ渡すと続きが取得できます。隠しファイル・ignore対象も含み、symlinkの先は辿りません。
 
 `read_file("README.md")`は全文、`read_file("README.md", {offset: 101, limit: 80})`は1始まりの行範囲を返します。結果の`text`が本文です。必要な本文が大きければrun_jsの`outputBytes`を増やせます（既定65536・最大262144 bytes）。
 
 `write_file("path/to/new.txt", "本文")`は親directoryを作り全文を書き込みます。既存ファイルは上書きします。部分編集は`edit_file("app.js", "変更前の文字列", "変更後の文字列")`。一致が1か所のときだけ置換し、0件・複数件なら書き込まずthrowします。複数件を全置換したい場合だけ第4引数に`{all: true}`を指定します。正規表現ではなく完全一致なので、必要な前後の文脈と改行を含めて指定してください。返すのはpath・bytes・置換件数などの要約で、全文の再出力は不要です。詳細は`.noe/lib/files/files.md`へ。内容検索は下記の`grep()`で絞れます。
+
+## ファイル名・ディレクトリ名の検索
+
+名前でファイルやディレクトリを探すときは、原則として`.noe/lib/find/find.js`の`find(path?, options?)`を使ってください。構成の確認は`ls()`、本文の検索は下記の`grep()`です。
+
+`fd`を優先し、実行ファイルが見つからない場合だけGNU互換`find`へ切り替えます。
+
+```js
+import {resolve} from "node:path";
+const {find} = await import(resolve(".noe/lib/find/find.js"));
+export default await find("examples", {name: "*import*", type: "directory"});
+```
+
+`name`はbasename全体に対するglob（`*`・`?`・`[]`）です。部分一致には`"*import*"`を使います。`type`は`all`（既定）・`file`・`directory`・`symlink`、`maxDepth`で深さを指定できます。結果の`results`はrootからの相対パス文字列で、`backend`・`complete`・`limitedBy`が付きます。既定上限は300件・返却JSON全体32,000 bytesです。両backendとも隠しファイル・ignore対象を含み、`.git`は除外し、symlinkの先は辿りません。未完了ならrootや条件を絞ってください。詳細は`.noe/lib/find/find.md`へ。
 
 ## ローカルファイルの内容検索
 

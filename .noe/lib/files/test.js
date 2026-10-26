@@ -52,6 +52,15 @@ try {
   check(empty.total === 0 && empty.entries.length === 0 && empty.nextOffset === undefined, "empty directory");
   check((await ls(root, {offset: 999})).entries.length === 0, "directory offset beyond EOF");
 
+  const pagedRoot = join(root, "paged");
+  mkdirSync(pagedRoot);
+  for (let i = 0; i < 201; i++) writeFileSync(join(pagedRoot, `${String(i).padStart(3, "0")}.txt`), "");
+  const defaultPage = await ls(pagedRoot);
+  check(defaultPage.entries.length === 200 && defaultPage.total === 201 && defaultPage.nextOffset === 200, "default page size is 200");
+  const lastPage = await ls(pagedRoot, {offset: defaultPage.nextOffset});
+  check(lastPage.entries.length === 1 && lastPage.entries[0].path === "200.txt" && lastPage.nextOffset === undefined, "default pagination retrieves remaining entries");
+  check((await ls(pagedRoot, {limit: 100})).entries.length === 100, "explicit limit overrides new default");
+
   const full = await read_file(join(root, "a.txt"));
   check(full.text === content && full.lines === 4 && full.totalLines === 4 && full.nextOffset === undefined, "full read preserves CRLF and missing final newline");
   const first = await read_file(join(root, "a.txt"), {limit: 2});

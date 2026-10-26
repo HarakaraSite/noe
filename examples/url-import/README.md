@@ -1,6 +1,45 @@
 # 公開ESMをURLからimportする
 
-NOE v2.8.0以降を使います。リポジトリのルートで実行してください。実行にはesm.shへのHTTPS接続が必要です。Node/npmによる事前準備やAPIキーは不要です。
+[実行例一覧へ戻る](../README.md)
+
+NOE v2.8.0以降を使います。リポジトリのルートで実行してください。実行には配信元CDNへのHTTPS接続が必要です。Node/npmによる事前準備やAPIキーは不要です。
+
+## 小さな外部ライブラリを実際に使う
+
+[durations.js](durations.js)は、時間文字列とミリ秒を相互変換する
+[`@lukeed/ms`](https://github.com/lukeed/ms)をjsDelivrから直接importします。
+
+```sh
+./noe run examples/url-import/durations.js
+```
+
+出力：
+
+```text
+5s => 5000 ms => 5s (5 seconds)
+2 minutes => 120000 ms => 2m (2 minutes)
+2h => 7200000 ms => 2h (2 hours)
+1 day => 86400000 ms => 1d (1 day)
+```
+
+使用するURLは次のとおりです。最新版を追従せず、`2.0.2`に固定しています。
+
+```js
+import { parse, format } from "https://cdn.jsdelivr.net/npm/@lukeed/ms@2.0.2/dist/index.mjs";
+```
+
+### 選定理由とWebで確認した情報
+
+- **小さい**：公式READMEでは414Bと紹介されているユーティリティです。この数値はCDNから取得する非圧縮ESMファイルのサイズではありません。
+- **依存なし・ESM配布あり**：依存パッケージがなく、公式配布物の`dist/index.mjs`をそのまま使えます。CDNでの変換やbundleは不要です。
+- **利用実績**：[npmの公開ページ](https://www.npmjs.com/package/@lukeed/ms)で週あたり数百万回以上のダウンロードが確認できる、2020年公開のライブラリです。ダウンロード数は変動します。
+- **MITライセンス**：[公式リポジトリ](https://github.com/lukeed/ms)でAPI・配布形式・ライセンスを確認できます。
+
+`parse()`の入力単位は英語です。`format()`は整数に丸めて表示するため、厳密な時間計算には変換後のミリ秒値を使ってください。
+
+## static・dynamic importとURL alias
+
+以下の例はesm.shへのHTTPS接続を使います。
 
 ```sh
 ./noe run examples/url-import/main.js

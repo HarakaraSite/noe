@@ -124,6 +124,19 @@ relative to their referrer. A virtual entry's relative import uses the profile
 cwd. Root and Worker executions receive fresh loaders; the factory can be
 called concurrently and must not share QuickJS values between runtimes.
 
+## Module metadata
+
+The current development version supplies `import.meta.url` for each module.
+File modules use encoded file URLs; URL modules retain their final canonical
+URL. A `Source.Virtual` entry uses a synthetic `<virtual-entry>.mjs` file URL
+under the profile cwd, without changing its diagnostic name or requiring that
+file to exist. Rooted filesystems expose their execution paths, not host roots.
+
+The default `OnImportMeta` hook is installed before `Profile.Initialize`.
+Hosts may replace it in Initialize or after Attach; Prepare does not overwrite
+the host hook. See the [metadata contract](import-meta.md), including custom
+loader IDs and Worker behavior.
+
 ## Opt in to HTTP/HTTPS module imports
 
 v2.8.0 adds `Profile.Loader` and `stdlib.ModuleLoader`. Existing

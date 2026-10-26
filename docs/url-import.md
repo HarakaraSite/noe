@@ -51,6 +51,13 @@ mapは起動時に読み、対応表をWorker・親子agent・各run_jsへ継承
 
 **ダウンロードキャッシュ・依存固定はありません。** 別run_js、Worker、runtimeでは再取得します。URL中のバージョン指定やmapのsnapshotは、リモート本文のハッシュ固定ではありません。依存graph全体を同時snapshotする機能もありません。配信内容の変更・停止に影響されます。
 
+## module自身を基準にasset URLを計算する
+
+現行開発版では、URL moduleの`import.meta.url`にredirect後のcanonical URLが入ります。
+`new URL("./asset.txt", import.meta.url)`で、そのmoduleと同じ場所のasset URLを計算できます。
+query/fragmentを含むmodule identityや、assetを取得するための権限は変わりません。
+ローカル・仮想entry・Workerの値は[import.meta.urlガイド](import-meta.md)を参照してください。
+
 ## HTTPとソース形式
 
 GETの2xxレスポンスを扱い、JavaScript MIMEとtext/plainを受理します。Content-Typeは大小文字を区別せず、text/plain; charset=utf-8等のパラメータを扱います。JavaScript MIMEはHTMLのJavaScript MIME essence集合です。

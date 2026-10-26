@@ -1,6 +1,6 @@
 # ファイルの一覧・読込み・編集
 
-`files.js`はNOEで動く外部JSライブラリです。`ls()`で配置を確認し、`read_file()`で本文を読み、`write_file()`・`edit_file()`で作成・編集します。
+`files.js`はNOEで動く外部JSライブラリです。`ls()`で配置を確認し、`read_file()`で本文を読み、`write_file()`・`edit_file()`で作成・編集します。名前で対象を絞って探す場合は[find()](../find/find.md)、本文を検索する場合は[grep()](../search/search.md)を使います。
 
 ```js
 import {resolve} from "node:path";
@@ -15,7 +15,7 @@ export default await ls();
 ```js
 export default await ls("internal", {tree: true, depth: 2});
 // 続きがあれば、同じpath・tree・depthでnextOffsetをoffsetに渡す。
-export default await ls("internal", {tree: true, depth: 2, offset: 100, limit: 100});
+export default await ls("internal", {tree: true, depth: 2, offset: 200, limit: 200});
 ```
 
 | option | 既定 | 内容 |
@@ -23,7 +23,7 @@ export default await ls("internal", {tree: true, depth: 2, offset: 100, limit: 1
 | `tree` | `false` | サブディレクトリも辿る |
 | `depth` | `2` | treeで辿る深さ。直下が1 |
 | `offset` | `0` | 先頭から飛ばす項目数 |
-| `limit` | `100` | 返す項目数 |
+| `limit` | `200` | 返す項目数 |
 
 返却値は`{path, entries, total, nextOffset?}`。`path`はrootの絶対パス、各entryは`{path, type, bytes, depth}`です。entryのpathはrootからの相対パス、typeは`file`・`directory`・`symlink`・`other`、bytesはlstatのサイズです。directoryのbytesは配下の合計ではありません。
 
