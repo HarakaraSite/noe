@@ -2263,3 +2263,53 @@ replacement. Native runtime verification here is Linux amd64; the other
 targets have build/hash verification, not native execution. Existing
 running processes will not be restarted. User logs, caches and the
 Git-excluded reference checkouts are preserved and excluded from commits.
+
+## v2.8.1 Release validation and local installation — 2026-10-26
+
+- Annotated tag `v2.8.1` points to
+  `416a9c8d12faad061069f4021a3fb593f00cf8e5`. The remote peeled tag
+  matches the successful workflow revision. Its difference from checked
+  source `4ba2e8e` is the preparation evidence document only.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/42)
+  succeeded (API run ID 223) using the unchanged lightweight job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.1)
+  is published, neither draft nor prerelease (Release ID 155).
+  Its body matches the tagged [English release notes](v2.8.1.md).
+
+All seven assets were downloaded; all six binary hashes match SHA256SUMS.
+The downloaded Linux amd64 asset reports `noe v2.8.1`, the tagged source
+revision, `vcs.modified=false`, `CGO_ENABLED=0`, go-quickjs v0.29.0 and
+go-intl v0.8.0. Its SHA256 is
+`4d7a3fdab0a5e17273ab2800cfde5f39f9b1940bab9db70ffd90b060e2219bf6`.
+
+The actual distributed binary passed version/arithmetic and the metadata
+fixture: encoded local module paths, module-relative asset read, remote
+redirect/query/fragment identity, remote asset fetch, file/eval Workers
+and the synthetic CLI eval URL. No paid model-provider request was made.
+
+Clean external modules fetched `stdlib@v2.8.1` and `agent@v2.8.1` from
+the actual public module, without local replacements or a synthetic proxy.
+Both consumer examples built, ran and passed `go mod verify`. The stdlib
+consumer additionally checked the new virtual-entry import.meta.url and
+relative asset URL, printing `PUBLISHED_IMPORT_META_PASS`.
+MVS selected official go-quickjs v0.29.0 and go-intl v0.8.0. Metadata/loader/
+Host source files and both public declaration files match the tagged source.
+
+The user's request also authorized local installation. The verified
+published Linux amd64 asset atomically replaced both
+`/home/agent/projects/noe/noe` and `/home/agent/.local/bin/noe`.
+Both hashes match the published checksum and both report `noe v2.8.1`.
+PATH resolves to the updated user binary. Previous executables are backed
+up at `/var/tmp/noe-v2.8.1-release-161635626/installation-ly5qadev`.
+Existing running processes are not restarted or interrupted; they pick up
+the new implementation after restart.
+
+Evidence is retained at `/var/tmp/noe-v2.8.1-release-161635626`, including workflow metadata/logs,
+seven downloaded assets, native build information, metadata fixture results,
+public-module consumers, published-verification.json,
+public-module-verification.json and installation.json.
+Other five targets have CI build/hash evidence without native execution here.
+Previously successful source tests were reused rather than rerun for release.
+
+This documentation-only follow-up does not move or replace the release tag.
+User event logs, caches and Git-excluded reference checkouts remain preserved.
