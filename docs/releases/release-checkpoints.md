@@ -2369,3 +2369,48 @@ This request authorizes publication, not local installation; repository-root
 and PATH executables and existing processes remain unchanged. Existing user
 logs/caches and the separately modified development instruction file are
 preserved and excluded from release commits.
+
+## v2.8.2 Release validation — 2026-10-26
+
+- Annotated tag `v2.8.2` points to
+  `3cd4d996e31df553206839924005bf001e92a61f`. The remote peeled tag and
+  successful workflow revision agree. Its difference from checked source
+  `9cff990b` is the preparation evidence document only.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/43)
+  succeeded (API run ID 224) using the unchanged lightweight
+  build/checksum/upload job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.2)
+  is published, neither draft nor prerelease (Release ID 156).
+  Its body matches the tagged [English release notes](v2.8.2.md).
+
+All seven assets were downloaded. All six binary hashes match SHA256SUMS.
+The actual distributed Linux amd64 binary passed version/arithmetic smoke
+checks, reporting `noe v2.8.2` and `2`, the tagged source revision,
+`vcs.modified=false`, `CGO_ENABLED=0`, go-quickjs v0.29.0 and go-intl
+v0.8.0. Its SHA256 is
+`4fc82d25a5794304b0c7b5e5037c4e24b17fce229dbdd84d3666cd543133f160`.
+
+Clean external modules fetched `stdlib@v2.8.2` and `agent@v2.8.2`
+from the actual published Go module, without local replacements or a
+synthetic proxy. Both consumers built and passed `go mod verify`;
+the stdlib consumer and the agent portable/gohost modes ran successfully.
+MVS selected official go-quickjs v0.29.0 and go-intl v0.8.0.
+
+The downloaded module's image binding/codec and agent API/task module
+sources match the checked source, including the image-only regular-file
+guard and single normalization. Both public declaration files also match.
+The implementation's FIFO regression and managed image behavior evidence
+are reused; source suites were not repeated merely for publication.
+No paid model-provider request was made.
+
+Evidence is retained at `/tmp/noe-v2.8.2-release-3336898421`, including the
+clean native candidate, seven published assets, build metadata,
+published-verification.json, public-module-verification.json and both
+external consumers. Native runtime verification is Linux amd64; other five
+targets have CI build/hash verification without native execution here.
+
+This documentation-only follow-up does not move or replace the release tag.
+Local installation was not requested: repository-root/PATH executables and
+running processes remain unchanged. Existing user logs, caches and the
+separately edited development instruction file remain preserved and
+excluded from these commits.
