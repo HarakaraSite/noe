@@ -1980,3 +1980,50 @@ Linux amd64 only.
 This request is publication, not local installation. Repository-root noe,
 the PATH binary, running processes, user event logs and caches remain
 unchanged and excluded from release commits.
+
+## v2.7.0 Release validation — 2026-10-26
+
+- Annotated tag `v2.7.0` points to
+  `c9d70b1753235960d4ae8e2dbee12d2dd409fa21`. The peeled remote tag matches
+  the successful workflow revision; its difference from checked source
+  `5fac70a` is the preparation evidence document only.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/39)
+  succeeded (API run ID 220), using the unchanged lightweight
+  build/checksum/upload workflow.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.7.0)
+  is published, neither draft nor prerelease (Release ID 152).
+  Its description matches the tagged [English release notes](v2.7.0.md).
+
+All seven assets were downloaded. All six binary hashes match SHA256SUMS.
+The downloaded Linux amd64 binary reports `noe v2.7.0`, the tagged source
+revision, `vcs.modified=false`, `CGO_ENABLED=0` and official go-quickjs
+v0.28.0. Its SHA256 is
+`8c3762993afc7c7858a0d98f3a7e41a434568d09275351b4336a780b2ce25858`.
+
+Against that actual distributed binary, arithmetic and the deterministic
+hook CLI fixture passed. One ordinary model request carried the before-model
+hook failure, the task completed, and the final-response hook failure remained
+in the retained outcome without an extra request. Metadata-only retrieval
+preserved both failures, original-answer retrieval was unchanged and no event
+file was created. No paid model-provider call was made.
+
+Clean external modules fetched `stdlib@v2.7.0` and `agent@v2.7.0` from the
+actual published module, without a local replacement or synthetic proxy.
+Both examples built, ran and passed `go mod verify`; MVS selected official
+go-quickjs v0.28.0. Both public declaration files match the tagged source.
+The agent consumer additionally compiled and round-tripped the new public
+`HookFailure`/`TaskOutcome.HookFailures` wire fields and retrieved a normal
+retained result without its answer. It returned `The total is 31.` and
+`PUBLISHED_HOOK_API_PASS`.
+
+Evidence is retained at `/var/tmp/noe-v2.7.0-release-eXLsEk`, including workflow
+metadata/log archive, seven downloaded assets, build information, published
+hook requests/results, public-module consumers, published-verification.json and
+public-module-verification.json. Other five targets have CI build/hash
+verification without native execution on this host. Successful source test
+suites were not repeated for publication.
+
+This documentation-only follow-up does not move or replace the release tag.
+Repository-root noe, the PATH binary and running processes are unchanged;
+installation remains separate. Existing event logs and caches are preserved
+and excluded from these commits.
