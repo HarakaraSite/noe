@@ -34,12 +34,13 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.8.2 release notes](docs/releases/v2.8.2.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.2)
+[v2.8.3 release notes](docs/releases/v2.8.3.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.3)
 
-v2.8.2 rejects non-regular image inputs before reading, removes unused
-internal adapters, and avoids repeated configuration normalization.
-Public APIs, generic filesystem behavior, and engine dependencies remain
-unchanged. See the [release notes](docs/releases/v2.8.2.md).
+v2.8.3 separates built-in runtime/API facts from editable behavioral
+instructions. The CLI no longer injects a fixed behavioral policy; common
+and workspace instruction files control those preferences. Public APIs and
+engine dependencies remain unchanged. See the [instruction guide](docs/instructions.md)
+and [release notes](docs/releases/v2.8.3.md).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -54,7 +55,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.8.2
+# noe v2.8.3
 ```
 
 The examples below assume the repository root is your working directory.

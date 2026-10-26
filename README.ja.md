@@ -35,12 +35,13 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.8.2リリースノート](docs/releases/v2.8.2.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.2)
+[v2.8.3リリースノート](docs/releases/v2.8.3.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.3)
 
-v2.8.2 rejects non-regular image inputs before reading, removes unused
-internal adapters, and avoids repeated configuration normalization.
-Public APIs, generic filesystem behavior, and engine dependencies remain
-unchanged. See the [release notes](docs/releases/v2.8.2.md).
+v2.8.3 separates built-in runtime/API facts from editable behavioral
+instructions. The CLI no longer injects a fixed behavioral policy; common
+and workspace instruction files control those preferences. Public APIs and
+engine dependencies remain unchanged. See the [instruction guide](docs/instructions.md)
+and [release notes](docs/releases/v2.8.3.md).
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
@@ -54,7 +55,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.8.2
+# noe v2.8.3
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
