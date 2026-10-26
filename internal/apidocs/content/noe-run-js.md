@@ -98,6 +98,21 @@ console.log(stdout);
 if (stderr) console.error(stderr);
 ~~~
 
+Omit env to use the host-configured command environment. Supplying env replaces the whole environment, including PATH; it does not merge variables. To add or override variables while keeping the runtime's visible environment, copy process.env first. For example, with Go installed:
+
+~~~js
+// Disable CGO while preserving PATH and the other environment variables.
+import {execFile} from "node:child_process";
+import process from "node:process";
+
+const {stdout} = await execFile("go", ["env", "CGO_ENABLED"], {
+  env: {...process.env, CGO_ENABLED: "0"},
+});
+console.log(stdout.trim()); // 0
+~~~
+
+Using only env: {CGO_ENABLED: "0"} removes PATH too, so go may no longer be found.
+
 When installed, rg can handle file discovery (rg --files) and text search without a custom directory walker. Interpret its no-match status separately from an actual command failure:
 
 ~~~js

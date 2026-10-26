@@ -1,5 +1,9 @@
 # NOEの作業指示
 
+## Language
+
+Write explanatory text, including documentation, external instructions, and tool descriptions, in English unless the user explicitly requests another language. Replies to the user are exempt from this rule.
+
 ## 検証とリリースの進め方
 
 - 作業順は「ローカル修正 → テスト → リリース検証 → 軽いCI」とする。

@@ -31,6 +31,20 @@ console.log(stdout.trim());
 
 execFile already returns a promise; do not wrap it with promisify or pass a Node-style callback. Closing the NOE runtime stops a running child.
 
+Omitting env uses the host-configured command environment. Supplying env replaces that environment; it does not merge individual variables. Executable lookup also uses the selected environment's PATH. To add or override a variable while preserving the runtime's visible environment, copy process.env first. For example, with Go installed:
+
+~~~js
+import {execFile} from "node:child_process";
+import process from "node:process";
+
+const {stdout} = await execFile("go", ["env", "CGO_ENABLED"], {
+  env: {...process.env, CGO_ENABLED: "0"},
+});
+console.log(stdout.trim()); // 0
+~~~
+
+Using only env: {CGO_ENABLED: "0"} also removes PATH and the other inherited variables, so a command such as go may no longer be found.
+
 ## execFileSync
 
 Syntax: execFileSync(file, args = [], options = {}) -> string. It waits for the program and returns stdout as text. Supported options are cwd, env, and input. A non-zero exit, start failure, or host-configured timeout throws an Error with code, stdout, and stderr, using the existing error message. Unlike spawnSync, this form does not return a status object.

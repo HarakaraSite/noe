@@ -1,6 +1,6 @@
-# ローカルファイルの内容検索
+# Searching local file content
 
-`.noe/lib/search/search.js`はNOEから使える`grep(options)`を提供します。追加のnpm依存はなく、PATH上の`rg`を使い、実行ファイルが見つからない場合だけGNU互換`grep`へフォールバックします。検索条件や実行のエラーでは切り替えません。import自体はコマンドを起動しません。
+`.noe/lib/search/search.js` provides `grep(options)` for NOE. It has no additional npm dependency, uses `rg` on PATH, and falls back to GNU-compatible `grep` only when the executable is unavailable. Search-condition errors and execution errors do not trigger fallback. Importing the library starts no command.
 
 ```js
 import {resolve} from "node:path";
@@ -13,44 +13,44 @@ export default await grep({
 });
 ```
 
-| 引数 | 既定 | 意味 |
+| Argument | Default | Meaning |
 | --- | --- | --- |
-| `pattern` | 必須 | 検索文字列。改行・NULは不可。空文字列は全行に一致 |
-| `paths` | `["."]` | ファイルまたはディレクトリの配列。cwd基準 |
-| `mode` | `"lines"` | `lines`: 一致行、`files`: 一致するファイル名、`count`: ファイルごとの一致行数 |
-| `regex` | `true` | 既定は正規表現。`foo|bar`で複数候補を検索。文字列一致は`false`を指定 |
-| `ignoreCase` | `false` | 大文字・小文字を区別しない |
-| `glob` | `[]` | ファイルの絞込み。例`["*.js", "!*.test.js"]`。rgのglob構文 |
-| `maxResults` | `50` | 返す行数またはファイル数の上限。正の整数 |
-| `maxBytes` | `8000` | **返却objectをJSON化した全体**のUTF-8 bytes上限。正の整数。metadataすら収まらなければエラー |
-| `backend` | `"auto"` | 通常は指定不要。検証等で`"rg"`、`"grep"`へ固定可能 |
+| `pattern` | Required | Search string; newlines and NUL are rejected; an empty string matches every line |
+| `paths` | `["."]` | Array of files or directories, relative to cwd |
+| `mode` | `"lines"` | `lines`: matching lines; `files`: matching filenames; `count`: matching line counts per file |
+| `regex` | `true` | Regular expressions by default; `foo|bar` searches alternatives; use `false` for literal matching |
+| `ignoreCase` | `false` | Match without case sensitivity |
+| `glob` | `[]` | File filters, such as `["*.js", "!*.test.js"]`; rg glob syntax |
+| `maxResults` | `50` | Maximum number of returned lines or files; positive integer |
+| `maxBytes` | `8000` | UTF-8 byte limit for the **entire JSON-encoded return object**; positive integer; too little room for metadata is an error |
+| `backend` | `"auto"` | Normally automatic; can be fixed to `"rg"` or `"grep"` for validation |
 
-結果例：
+Example result:
 
 ```json
 {"backend":"rg","mode":"lines","results":[{"path":"src/main.js","line":12,"text":"const answer = 42;"}],"complete":true,"limitedBy":null,"warnings":[]}
 ```
 
-- `lines`の各要素は`{path,line,text}`。lineは1始まり。行末のLFだけを除きます。同じ行に複数一致しても1件です。
-- `files`の各要素はpath文字列。**内容に一致があるファイル**の一覧で、ファイル名そのものの検索ではありません。名前で探す場合は[find()](../find/find.md)を使います。
-- `count`の各要素は`{path,count}`。countは一致**行**数で、一致箇所の数ではありません。0件のファイルは含めません。
-- 一致なしは`results: []`, `complete: true`です。終了コード1を例外にしません。
-- `pattern: "foo|bar"`は既定で正規表現のORです。ドットや括弧等をそのまま探す場合は`regex: false`を指定してください（例：`{pattern: "a.b", regex: false}`）。不正な正規表現はthrowし、文字列一致へ自動変更しません。
-- 上限を超える結果があれば`complete: false`、`limitedBy: "maxResults" | "maxBytes"`を返して検索を停止します。総件数は未確定です。ちょうど件数上限までで検索が完了した場合は`complete: true`です。
-- 長い一致行は、path・lineと収まる先頭本文に`textTruncated: true`を付けて返し、その時点で`complete: false`になります。path等すら収まらない場合はその要素を含めません。途中までのJSON文字列は返しません。
-- stdoutをstream処理し、上限で子processを回収します。複数検索の結果をまとめる場合は、合計がrun_jsの出力予算内に収まるよう調整してください。上限停止後に発生するはずだった走査エラーまでは確認できません。
-- 通常の終了コード2以上や起動失敗はthrowします。診断本文は短く制限します。結果の順序は固定しません。出力はUTF-8としてdecodeします。
-- `lines`でrgがバイナリ一致の通知を返した場合は、一致行に混ぜず`warnings`へ記録します。
+- Each `lines` entry is `{path,line,text}`. Line numbers are one-based. Only the trailing LF is removed. Several matches on one line still count as one result.
+- Each `files` entry is a path string. These are **files with matching content**, not a search of filenames themselves. Use [find()](../find/find.md) to search by name.
+- Each `count` entry is `{path,count}`. Count means matching **lines**, not individual matches. Files with no matches are excluded.
+- No matches returns `results: [], complete: true`. Exit code 1 is not an exception.
+- `pattern: "foo|bar"` is regex OR by default. Use `regex: false` for literal punctuation such as dots or parentheses (for example, `{pattern: "a.b", regex: false}`). Invalid regexes throw; the library does not silently switch to literal matching.
+- Results beyond a limit return `complete: false` and `limitedBy: "maxResults" | "maxBytes"`, then stop the search. The total count is unknown. If the search finishes with exactly the maximum number of entries, `complete: true` is returned.
+- A long matching line returns its path, line number, and the leading text that fits, with `textTruncated: true` and `complete: false`. If even the path and other fields cannot fit, that entry is omitted. The library never returns an incomplete JSON string.
+- stdout is processed as a stream, and the child process is stopped and reaped at a limit. When combining searches, keep their total within run_js's output budget. Traversal errors that would occur after a limit stops the search cannot be checked.
+- Normal exit codes of 2 or higher and launch failures throw. Diagnostic text is kept short. Result order is unspecified. Output is decoded as UTF-8.
+- In `lines` mode, an rg binary-match notice is recorded in `warnings` instead of being mixed into matching lines.
 
-## grepフォールバックの差
+## Differences in the grep fallback
 
-この環境のGNU grep 3.11で確認しています。`--null`、`--include`等を使うため、最小機能のgrepすべてを対象にするものではありません。
+Validated with GNU grep 3.11 in this environment. Options such as `--null` and `--include` mean this does not target every minimal grep implementation.
 
-- `backend: "grep"`と`warnings`で使用を明示します。`.git`ディレクトリは除外しますが、`.gitignore`等のignore fileは読まず、隠しファイルも検索対象です。
-- 既定の正規表現検索はgrepの拡張POSIX正規表現になります。rgの正規表現との完全互換ではありません。backendをまたぐ検索では共通構文か`regex: false`の文字列一致を使ってください。
-- `glob`はbasenameの`*`、`?`、`[]`と先頭`!`による除外のみです。パスglob、`**`、brace展開は明示的にエラーにします。include/excludeが競合するときの厳密な優先順もbackend依存です。
-- 両backendとも通常はバイナリを検索対象から外し、ディレクトリ走査でsymlinkを辿りません。明示したファイル等の扱いは各コマンドに従います。
+- `backend: "grep"` and `warnings` identify fallback. `.git` directories are excluded, but `.gitignore` and other ignore files are not read; hidden files are searched.
+- The default regex search uses grep's extended POSIX regular expressions, which are not fully compatible with rg's regexes. Use shared syntax across backends, or `regex: false` for literal matching.
+- `glob` supports basename `*`, `?`, `[]`, and a leading `!` for exclusion. Path globs, `**`, and brace expansion are explicitly rejected. Exact precedence when includes and excludes conflict also depends on the backend.
+- Both backends normally skip binary files and do not follow symbolic links during directory traversal. Explicitly supplied files and similar cases follow each command's behavior.
 
-まず`mode: "files"`で対象を見つけ、対象pathと`glob`を絞って`mode: "lines"`で読むと出力を抑えられます。件数だけ必要なら`mode: "count"`を使います。
+To reduce output, first locate files with `mode: "files"`, then narrow paths and globs and read matching lines with `mode: "lines"`. Use `mode: "count"` when only counts are needed.
 
-検証：`noe run .noe/lib/search/test.js`（rgとGNU互換grepが必要）。
+Validation: `noe run .noe/lib/search/test.js` (requires rg and GNU-compatible grep).

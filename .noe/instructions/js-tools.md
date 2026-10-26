@@ -1,31 +1,31 @@
-# JavaScriptの静的検査と整形
+# JavaScript static checks and formatting
 
-この環境ではBiome 2.5.15をユーザー共通の`~/.local/bin/biome`へ導入済みで、`biome`で呼べます。Node.jsやnpmは不要です。このworkspaceの設定はルートの`biome.json`にあります。
+Biome 2.5.15 is installed for the user at `~/.local/bin/biome` and is available as `biome`. It requires neither Node.js nor npm. This workspace's configuration is in the root `biome.json`.
 
-保存するJSを作成・修正したときは、対象ファイルを検査してください。
+When creating or changing saved JavaScript, check the affected files:
 
 ```sh
 biome lint task.js
 ```
 
-設定は構文エラー、未定義変数、constへの再代入、到達不能コード、重複したキー・引数・宣言などの検出に絞っています。`serve`などのNOE固有グローバルも登録しています。
+The configuration focuses on syntax errors, undefined variables, reassignment to const, unreachable code, and duplicate keys, arguments, or declarations. NOE globals such as `serve` are registered.
 
-長いrun_jsなど、実行前に検査したいスニペットは一時ディレクトリの`run-js-snippet.js`へ保存し、workspaceの作業ディレクトリから`biome lint /その一時ディレクトリ/run-js-snippet.js`で検査できます。このファイル名に限り、run_jsの事前束縛（run_agent、wait_taskなど）も認識します。通常のtask.jsではagent APIを`noe:agent`からimportしてください。短いファイル読込みや検査用の呼出し自体を再帰的に検査する必要はありません。
+To check a snippet such as a long run_js call before execution, save it as `run-js-snippet.js` in a temporary directory and run `biome lint /that-temporary-directory/run-js-snippet.js` from the workspace working directory. Only this filename also recognizes run_js prebindings such as run_agent and wait_task. In ordinary task.js files, import agent APIs from `noe:agent`. Short file reads and check invocations do not themselves need recursive checking.
 
-run_jsからは、`node:child_process`の`execFile("biome", ["lint", path])`で実行できます。非ゼロ終了時の例外に含まれる`stdout`・`stderr`を確認して修正してください。
+From run_js, use `node:child_process` with `execFile("biome", ["lint", path])`. On a nonzero exit, inspect the exception's `stdout` and `stderr` and fix the reported problems.
 
-整形したい場合だけ、対象ファイルへ`biome format --write task.js`を使えます。検査には`lint`を使い、整形の差だけを理由に修正範囲を広げないでください。
+Use `biome format --write task.js` on the affected files only when formatting is wanted. Use `lint` for checks, and do not expand the change solely to fix formatting differences.
 
-TypeScript 5.9.3もユーザー共通の`~/.local/bin/tsc`へ導入済みです。Zedが使うTypeScriptと同じバージョンに揃えています。`tsc`はNode.jsで実行するCLIで、NOEのJS自体をTypeScriptへ書き換える必要はありません。
+TypeScript 5.9.3 is also installed for the user at `~/.local/bin/tsc`, matching the version Zed uses. `tsc` is a CLI that runs on Node.js; NOE's JavaScript does not need to be rewritten in TypeScript.
 
-NOEの型定義は`.zed/noe.d.ts`、共有する型検査設定は`.zed/jsconfig.json`です。workspaceのルートから次を実行すると、`.zed/`内のJSについてAPI名・引数・戻り値の型を検査します。JSは実行せず、生成ファイルも作りません。
+NOE's type declarations are in `.zed/noe.d.ts`, and the shared type-checking configuration is `.zed/jsconfig.json`. From the workspace root, this checks API names, arguments, and return types in JavaScript under `.zed/`. It neither executes JavaScript nor generates files.
 
 ```sh
 tsc --noEmit --project .zed/jsconfig.json
 ```
 
-この設定の対象は`.zed/`内だけです。他の場所のJSを検査する場合は、`.zed/jsconfig.json`をextendsし、`files`へ対象JSと`.zed/noe.d.ts`の絶対パス、`include: []`を指定した一時設定を作って`tsc --noEmit --project /その一時設定.json`で検査できます。元の設定のincludeが相対パスのまま継承されるため、対象を限定する一時設定ではincludeも明示的に上書きしてください。run_jsの事前束縛はこの型定義のグローバルには含めていません。
+This configuration covers only `.zed/`. To check JavaScript elsewhere, create a temporary configuration extending `.zed/jsconfig.json`, set `files` to the absolute paths of the target JavaScript and `.zed/noe.d.ts`, and set `include: []`. Run `tsc --noEmit --project /that-temporary-config.json`. The original include paths are inherited as relative paths, so explicitly override include when limiting the temporary configuration's scope. These declarations do not include run_js prebindings as globals.
 
-run_jsからは`execFile("tsc", ["--noEmit", "--project", ".zed/jsconfig.json"])`で呼べます。非ゼロ終了時は例外の`stdout`・`stderr`の両方を確認してください。Biomeのlintとtscの型検査は別の検査です。
+From run_js, use `execFile("tsc", ["--noEmit", "--project", ".zed/jsconfig.json"])`. On a nonzero exit, inspect both `stdout` and `stderr` in the exception. Biome lint and tsc type checking are separate checks.
 
-型定義はNOE固有の公開11モジュールとfs/path/process/child_processの主要な標準APIを対象とし、すべてのstdlibモジュールを宣言しているわけではありません。型定義がないモジュールの診断だけで「NOEでは未対応」と判断せず、`noe docs`または`noe:docs`でAPI契約を確認し、必要な動作確認も行ってください。Web APIにはTypeScript標準のDOM型を利用しているため、補完されるすべてのブラウザAPIがNOEで動くことも保証しません。
+The declarations cover NOE's 11 public modules and the main standard APIs from fs/path/process/child_process; they do not declare every stdlib module. A missing declaration alone does not establish that NOE lacks an API: check its contract with `noe docs` or `noe:docs` and verify the required behavior as needed. Web APIs use TypeScript's standard DOM types, so completion suggestions do not guarantee that every browser API runs in NOE.

@@ -1,16 +1,16 @@
-# 委譲の粒度と結果の受け渡し
+# Delegation scope and result handoff
 
-子agentへの委譲は、作業の分離や判断の独立性による利益と、背景の伝達・結果の読取り・各agentの入力処理にかかるコストを比較して決めてください。単に工程や役割が変わったことを理由に、新しいagentを起動しないでください。
+Decide whether to delegate by weighing the benefit of separating work or obtaining independent judgment against the cost of transferring context, reading results, and processing input in each agent. Do not start a new agent merely because the phase or role has changed.
 
-委譲の利益には、独立した作業を並行して進めることによる完了時間の短縮も含みます。分担が有効と判断した独立作業は並行して開始し、依存関係のある作業は順序を守って進めてください。
+Delegation can also shorten completion time by running independent work concurrently. Start independent tasks in parallel when splitting the work is useful, and keep dependent tasks in order.
 
-- 担当範囲と成果物が明確で、途中の説明や調整が少なく済む、まとまった実装を分担してください。小さな修正や密接につながった作業は自分で続けてください。
-- reviewは、実装者の思い込みを独立して検証する価値がある対象をまとめて渡してください。工程ごと・ファイルごとに担当を増やさないでください。
-- 同じ所有task内で修正や再確認が見込まれる場合は、keepAliveで担当を保持し、修正は元の実装担当へ、再reviewは元のreview担当へqueueで戻してください。仕事が残っていなければ停止し、単発の仕事では通常の寿命を使ってください。所有元taskを越えて子を保持できるとは扱わないでください。
-- 依頼には目的、担当範囲と成果物、変更権限、維持する契約、完了条件を明記してください。詳しい背景は正本のファイルを参照させ、短さのために必要な条件を省かないでください。
-- 子の返答は、結論、変更箇所、判断の根拠、未解決事項に絞ってください。詳しい検査出力やログが必要なら既知のファイルへ保存してpathを返し、親は判断に必要な部分を読んでください。
-- 結果本文をまだ必要としない完了待ち・live状態確認ではincludeAnswer:falseを使い、必要な原文だけread_task_resultで読んでください。単なる取得のために新しい要約agentを起動しないでください。
-- コマンドの実行と結果収集だけの検査はスクリプトへまとめてください。それだけのために新しいagentを起動しないでください。
-- 子による追加の委譲が必要なら、起動元がその必要性を判断し、起動時にallowDelegation:trueを明示してください。再委譲が拒否された場合は、自分の担当範囲で作業を続けるか依頼元へ不足を返してください。
+- Delegate substantial implementation tasks with clear ownership and deliverables that need little intermediate explanation or coordination. Handle small fixes and tightly coupled work yourself.
+- Group review work where an independent check of the implementer's assumptions has value. Do not add a reviewer for every phase or file.
+- When fixes or rechecks are likely within the same owning task, retain the agent with keepAlive. Queue fixes to the original implementer and re-review to the original reviewer. Stop agents with no remaining work; use the normal lifetime for one-off tasks. Do not assume a child can be retained beyond its owning task.
+- State the objective, ownership and deliverables, modification authority, contracts to preserve, and completion criteria. Refer children to authoritative files for detailed background; do not omit necessary conditions just to shorten the request.
+- Keep child replies to conclusions, changed areas, reasons for decisions, and unresolved issues. Save detailed check output or logs to a known file when needed and return its path. The parent reads the parts needed for its decision.
+- Use includeAnswer:false when waiting for completion or checking live status without needing the answer yet. Read only the required original text with read_task_result. Do not start a new summarizer agent just to retrieve results.
+- Put checks that only execute commands and collect results into a script. Do not start a new agent solely for those operations.
+- If a child needs further delegation, the caller decides whether it is necessary and explicitly sets allowDelegation:true at startup. If further delegation is refused, continue within the assigned scope or report the missing capability to the caller.
 
-これらは既定の運用方針です。利用者が明示した分担、独立review、検証範囲、権限と停止条件に従ってください。
+These are default operating guidelines. Follow the user's explicit task split, independent review, validation scope, authority, and stop conditions.

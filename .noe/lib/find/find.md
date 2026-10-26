@@ -1,64 +1,64 @@
-# ファイル名・ディレクトリ名の検索
+# Finding files and directories by name
 
-`.noe/lib/find/find.js`はNOEから使える`find(path?, options?)`を提供します。
-PATH上の`fd`を優先し、実行ファイルが見つからない場合だけGNU互換`find`へフォールバックします。
-実行エラーや不正な検索条件では切り替えません。npm依存・シェル実行はなく、importだけではコマンドを起動しません。
+`.noe/lib/find/find.js` provides `find(path?, options?)` for NOE.
+It prefers `fd` on PATH and falls back to GNU-compatible `find` only when the executable is unavailable.
+Execution errors and invalid search conditions do not trigger fallback. There is no npm dependency or shell execution, and importing the library starts no command.
 
 ```js
 import {resolve} from "node:path";
 const {find} = await import(resolve(".noe/lib/find/find.js"));
 export default await find("examples", {name: "*import*", type: "directory"});
-// results: ["import-map", "url-import"]（順序は不定）
+// results: ["import-map", "url-import"] (order is unspecified)
 ```
 
-`ls()`は構成を眺めるとき、`find()`は名前で対象を探すとき、
-`grep()`はファイル本文を検索するときに使います。`find()`は本文を読みません。
+Use `ls()` to inspect structure, `find()` to locate entries by name,
+and `grep()` to search file content. `find()` does not read file content.
 
-## 引数
+## Arguments
 
-`path`はcwd基準の探索rootで、既定は`"."`です。ディレクトリを指定してください。
-ファイルやsymlinkをrootに指定するとエラーになります。
+`path` is the search root relative to cwd and defaults to `"."`. It must be a directory.
+A file or symbolic link as the root is an error.
 
-| option | 既定 | 意味 |
+| Option | Default | Meaning |
 | --- | --- | --- |
-| `name` | `"*"` | ファイル名・ディレクトリ名全体に一致させるglob。正規表現や単なる部分文字列ではない |
-| `type` | `"all"` | `all`・`file`・`directory`・`symlink`。fileは通常ファイルのみ |
-| `ignoreCase` | `false` | 大文字・小文字を区別しない |
-| `maxDepth` | 制限なし | 探索深さ。直下が1。正の整数 |
-| `maxResults` | `300` | 返す項目数の上限。正の整数 |
-| `maxBytes` | `32000` | 返却objectをJSON化した全体のUTF-8 bytes上限。正の整数 |
-| `backend` | `"auto"` | 通常は指定不要。検証用に`"fd"`・`"find"`へ固定可能 |
+| `name` | `"*"` | Glob matching the entire file or directory basename, not a regex or plain substring |
+| `type` | `"all"` | `all`, `file`, `directory`, or `symlink`; file means regular files only |
+| `ignoreCase` | `false` | Match without case sensitivity |
+| `maxDepth` | Unlimited | Traversal depth; immediate children are at depth 1; positive integer |
+| `maxResults` | `300` | Maximum number of returned entries; positive integer |
+| `maxBytes` | `32000` | UTF-8 byte limit for the entire JSON-encoded return object; positive integer |
+| `backend` | `"auto"` | Normally automatic; can be fixed to `"fd"` or `"find"` for validation |
 
-`name`にはbasenameのglob（`*`・`?`・`[]`）を使います。
-部分一致なら`"*import*"`、JSなら`"*.js"`、完全一致なら`"README.md"`です。
-パスglob、`**`、brace展開、backslash、NUL、改行は受理しません。
-階層を絞るには`path`・`maxDepth`を使います。
-文字クラスや非ASCII文字の大小比較などの細部はbackend/locale依存です。
-両backendで共通する単純なglobを推奨します。
+`name` accepts basename globs (`*`, `?`, `[]`).
+Use `"*import*"` for a substring match, `"*.js"` for JavaScript, or `"README.md"` for an exact name.
+Path globs, `**`, brace expansion, backslashes, NUL, and newlines are rejected.
+Use `path` and `maxDepth` to narrow the hierarchy.
+Details such as character classes and non-ASCII case matching depend on the backend and locale.
+Prefer simple globs shared by both backends.
 
 ```js
 export default await find(".noe/lib", {name: "*.js", type: "file", maxDepth: 2});
 ```
 
-## 結果と走査範囲
+## Results and traversal scope
 
 ```json
 {"backend":"fd","path":"/workspace/examples","results":["import-map","url-import"],"complete":true,"limitedBy":null,"warnings":[]}
 ```
 
-- `path`はrootの絶対パス、`results`は**rootからの相対パス文字列**です。root自身は結果に含みません。順序は固定しません。
-- **両backendとも隠しファイル・ignore対象を含みます。** fd本来の既定とは異なり、`--hidden --no-ignore`を指定します。
-- 名前が`.git`の項目は結果から除外し、配下も走査しません。その他のignore fileは適用しません。大きなtreeではrootを絞ってください。
-- symlink自体は検索できますが、その先は辿りません。`all`には通常ファイル・directory・symlink以外の種類も含みます。
-- 一致なしは`results: [], complete: true`です。
-- 上限を**超える一致**を見つけると`complete: false`、`limitedBy: "maxResults" | "maxBytes"`を返して子processを回収します。ちょうど件数上限までで検索が完了すれば`complete: true`です。
-- パスは途中で切りません。上限に収まらなかった項目は含めず、総件数や継続offsetは返しません。未完了ならrootや条件を絞ってください。
-- 完了状態のmetadata用にもbyte予算を予約します。metadataすら収まらない`maxBytes`はエラーです。複数の結果や本文をまとめて返す場合は、別途run_jsの出力予算に注意してください。
-- stdoutはNUL区切りでstream処理するため、空白・改行を含むファイル名も扱えます。UTF-8としてdecodeします。
-- 通常終了以外の終了code、起動失敗、stderrの診断はthrowします。fdには`--show-errors`を指定します。上限停止後に発生するはずだった走査エラーまでは確認できません。
-- fallback時は`backend: "find"`で分かります。共通の走査方針なのでfallbackだけを理由とするwarningは付きません。
+- `path` is the absolute root path; `results` contains **path strings relative to the root**. The root itself is excluded. Order is unspecified.
+- **Both backends include hidden and ignored entries.** Unlike fd's own defaults, the library supplies `--hidden --no-ignore`.
+- Entries named `.git` are excluded and not traversed. Other ignore files are not applied. Narrow the root for large trees.
+- Symbolic links can be found but are not followed. `all` also includes entry types other than regular files, directories, and symbolic links.
+- No matches returns `results: [], complete: true`.
+- Finding a match **beyond a limit** returns `complete: false` and `limitedBy: "maxResults" | "maxBytes"`, then stops and reaps the child process. If the search finishes with exactly the maximum number of entries, `complete: true` is returned.
+- Paths are never cut partway through. Entries that do not fit are omitted. No total count or continuation offset is returned. If incomplete, narrow the root or conditions.
+- The byte budget reserves room for completion metadata. A maxBytes value too small for the metadata is an error. When returning several results or file contents together, also account for run_js's output budget.
+- stdout is processed as a NUL-delimited stream, supporting filenames with spaces or newlines. It is decoded as UTF-8.
+- Abnormal exit codes, launch failures, and stderr diagnostics throw. fd receives `--show-errors`. Traversal errors that would occur after a limit stops the search cannot be checked.
+- Fallback is identified by `backend: "find"`. Because both backends share the same traversal policy, fallback alone adds no warning.
 
-GNU find互換の`-mindepth`・`-maxdepth`・`-iname`・`-print0`等を利用するため、
-最小機能のfindすべてを対象とするものではありません。`fdfind`名の自動探索は行いません。
+The library uses GNU find-compatible options such as `-mindepth`, `-maxdepth`, `-iname`, and `-print0`;
+it does not target every minimal find implementation. It does not automatically look for an executable named `fdfind`.
 
-検証：`./noe run .noe/lib/find/test.js`（fdとGNU互換findが必要）。
+Validation: `./noe run .noe/lib/find/test.js` (requires fd and GNU-compatible find).
