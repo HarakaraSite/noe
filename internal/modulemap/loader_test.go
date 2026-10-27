@@ -77,17 +77,30 @@ func TestLoadUsesInMemoryEntrySource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	loader := NewLoader(snapshot, filepath.Join(dir, "nested", "..", "entry.mjs"), `export const value = 42;`)
-	got, id, err := loader.Load("entry", filepath.Join(dir, "other", "main.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if id != entryPath || got != `export const value = 42;` {
-		t.Fatalf("entry loader returned (%q, %q)", got, id)
-	}
-	entryID, err := loader.EntryID()
-	if err != nil || entryID != entryPath {
-		t.Fatalf("EntryID = %q, %v; want %q", entryID, err, entryPath)
+	for _, tc := range []struct {
+		name   string
+		source string
+	}{
+		{"nonempty", `export const value = 42;`},
+		{"empty", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			entryName := filepath.Join(dir, "nested") + string(filepath.Separator) + ".." + string(filepath.Separator) + "entry.mjs"
+			loader := NewLoader(snapshot, entryName, tc.source)
+			entryID, err := loader.EntryID()
+			if err != nil || entryID != entryPath {
+				t.Fatalf("EntryID = %q, %v; want %q", entryID, err, entryPath)
+			}
+			for i := 0; i < 2; i++ {
+				got, id, err := loader.Load("entry", filepath.Join(dir, "other", "main.js"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if id != entryPath || got != tc.source {
+					t.Fatalf("entry loader returned (%q, %q), want (%q, %q)", got, id, tc.source, entryPath)
+				}
+			}
+		})
 	}
 }
 

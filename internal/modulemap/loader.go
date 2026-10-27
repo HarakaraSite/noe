@@ -20,7 +20,6 @@ type Loader struct {
 	read     func(string) ([]byte, error)
 	remote   RemoteReader
 	entryID  string
-	entry    string
 	hasEntry bool
 	entryErr error
 
@@ -46,7 +45,6 @@ func NewRemoteLoader(snapshot *Snapshot, entryName, entryCode string, read func(
 	l := &Loader{snapshot: snapshot, read: read, remote: remote, sources: make(map[string]string), aliases: make(map[string]string)}
 	if entryName != "" {
 		l.hasEntry = true
-		l.entry = entryCode
 		if IsHTTPURL(entryName) {
 			l.entryErr = fmt.Errorf("HTTP/HTTPS entry URLs are unsupported by the local module loader: %q", entryName)
 		} else if snapshot != nil && snapshot.virtual {
