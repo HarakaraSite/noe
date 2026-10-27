@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-26T13:07:51.669Z",
+  "provider": "openai-chatgpt",
+  "model": "gpt-6-luna",
+  "endpoint": "Responses through native NOE provider",
+  "apiKeyFallback": false,
+  "controlAgentTasks": 1,
+  "state": "completed",
+  "succeeded": true,
+  "answer": "OK",
+  "priorLocalGuard": {
+    "stage": "local-owner-model-guard",
+    "httpRequests": 0,
+    "apiKeyFallback": false,
+    "error": "Direct noe:model call rejected before HTTP: model operation does not match the owning agent"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "apiError": {
+    "code": "no_matching_rule",
+    "message": "Unauthorized",
+    "param": null,
+    "type": "rejected_by_access_enforcement"
+  },
+  "apiKeyFallback": false,
+  "authenticatedDecisionObserved": false,
+  "authentication": "existing ChatGPT OAuth access token",
+  "checkedAt": "2026-10-26T13:05:13Z",
+  "decisionRequests": 1,
+  "durationMs": 951,
+  "endpoint": "https://api.openai.com/v1/decisions",
+  "httpStatus": 401,
+  "model": "gpt-6-luna",
+  "requestId": "req_e15ed80bd5fe4798a59e296abc284d99",
+  "stage": "response"
+}
