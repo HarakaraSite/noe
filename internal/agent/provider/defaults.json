@@ -162,6 +162,17 @@
       "effortField": "reasoning.effort",
       "runJSInput": "javascript",
       "models": {
+        "gpt-6.1-terra": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Fast model for visual reasoning, computer use, writing, and scoped code fixes.",
+            "tags": ["visual", "coding"],
+            "capabilities": {"tools": true, "vision": true, "reasoning": true},
+            "contextWindow": 872000,
+            "maxOutputTokens": 128000,
+            "efforts": ["low", "medium", "high", "xhigh", "max"]
+          }
+        },
         "gpt-6.1-sol": {
           "catalog": {
             "kind": "agent",
@@ -205,6 +216,17 @@
       "sessionField": "prompt_cache_key",
       "effortField": "reasoning.effort",
       "models": {
+        "gpt-6.1-terra": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Fast model for visual reasoning, computer use, writing, and scoped code fixes.",
+            "tags": ["visual", "coding"],
+            "capabilities": {"tools": true, "vision": true, "reasoning": true},
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "efforts": ["none", "low", "medium", "high", "xhigh", "max"]
+          }
+        },
         "gpt-6.1-sol": {
           "catalog": {
             "kind": "agent",

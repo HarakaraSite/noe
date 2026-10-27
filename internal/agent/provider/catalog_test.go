@@ -50,7 +50,7 @@ func TestCatalogMergeFreezeAndTransportSeparation(t *testing.T) {
 func TestCatalogDefaultsCustomProviderAndDeletion(t *testing.T) {
 	r, _ := registryFixture(t, `{"providers":{"opencode-go":{"models":{"deepseek-v4.1-flash":{"catalog":null}}},"custom":{"sdk":"openai","api":"chat-completions","baseURL":"http://localhost:2345/v1","path":"/chat/completions","auth":"none","models":{"custom-model":{"catalog":{"description":"My local worker"}},"route-only":{}}}}}`)
 	models, err := r.ListModels(ModelQuery{})
-	if err != nil || len(models) != 13 {
+	if err != nil || len(models) != 15 {
 		t.Fatalf("merged catalog: %+v %v", models, err)
 	}
 	for i, model := range models {
@@ -75,6 +75,38 @@ func TestCatalogDefaultsCustomProviderAndDeletion(t *testing.T) {
 	// Catalog membership does not restrict direct calls.
 	if _, err := r.resolve("custom", "unlisted-model"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCatalogTerraDefaults(t *testing.T) {
+	r, _ := registryFixture(t, `{}`)
+	for _, tc := range []struct {
+		provider string
+		window   int64
+		efforts  string
+	}{
+		{"openai-chatgpt", 872000, "low,medium,high,xhigh,max"},
+		{"openai-api", 1050000, "none,low,medium,high,xhigh,max"},
+	} {
+		t.Run(tc.provider, func(t *testing.T) {
+			models, err := r.ListModels(ModelQuery{Provider: tc.provider, Kind: "agent"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, model := range models {
+				if model.Model != "gpt-6.1-terra" {
+					continue
+				}
+				if model.ContextWindow != tc.window || model.MaxOutputTokens != 128000 || strings.Join(model.Efforts, ",") != tc.efforts || !model.Capabilities["tools"] || !model.Capabilities["vision"] {
+					t.Fatalf("incorrect Terra metadata: %+v", model)
+				}
+				if _, err := r.resolve(tc.provider, model.Model); err != nil {
+					t.Fatalf("resolve Terra provider: %v", err)
+				}
+				return
+			}
+			t.Fatal("Terra missing from agent catalog")
+		})
 	}
 }
 

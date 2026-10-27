@@ -60,13 +60,19 @@ console.log(JSON.stringify(imageModels, null, 2));
 
 カタログは利用者が選んだ候補一覧であり、プロバイダの全モデル一覧や利用可能性の保証ではありません。`catalog`がない通信設定だけのモデルは一覧へ出ませんが、直接指定して実行できます。`"catalog": null`で一覧から外し、`"モデルID": null`でそのモデルの通信上書きも含めて削除します。新しいモデルの追加も同じJSONで行えます。
 
-組込み候補はOpenRouterのDeepSeek V4.1 Flash・GPT-6 Lunaと3種類の意思決定モデル、OpenCode GoのDeepSeek V4.1 Flash・GPT-6 Luna、OpenAIのChatGPT/APIキー経路それぞれのgpt-6.1-sol・gpt-6-lunaです。画像生成候補としてOpenRouterの`openai/gpt-image-2.5-flare`とOpenAI APIキー経路の`gpt-image-2.5-flare`も`kind: "image"`で一覧できます。生成モデルのIDと初期説明は[DeepSeekのモデルページ](https://openrouter.ai/deepseek/deepseek-v4.1-flash)・[GPT-6 Lunaのモデルページ](https://openrouter.ai/openai/gpt-6-luna)を2026-10-17に確認したものです。意思決定モデルとOpenCode Go経路の実接続範囲は[Decisions検証](development/decision-openrouter-validation.md)・[provider検証](development/provider-config-validation.md)を参照してください。価格や性能の自動更新は行いません。説明・タグは自身の評価と選択方針に合わせて上書きしてください。
+Built-in candidates include DeepSeek V4.1 Flash and GPT-6 Luna through OpenRouter and OpenCode Go, three OpenRouter decision models, and GPT-6.1 Sol, GPT-6.1 Terra, and GPT-6 Luna through both OpenAI providers. The `image` catalog also includes `openai/gpt-image-2.5-flare` on OpenRouter and `gpt-image-2.5-flare` on OpenAI API. The original DeepSeek and Luna IDs and descriptions were checked against their [DeepSeek](https://openrouter.ai/deepseek/deepseek-v4.1-flash) and [Luna](https://openrouter.ai/openai/gpt-6-luna) model pages on 2026-10-17. See the [Decisions validation](development/decision-openrouter-validation.md) and [provider validation](development/provider-config-validation.md) for tested provider access. Prices and performance are not updated automatically; override descriptions and tags to match your own selection policy.
 
 画像の利用例と生成providerの制約は[画像ガイド](agent-images.md)を参照してください。`kind: "image"`はcatalogで選択する候補の分類であり、認証やproviderの機能対応を保証するものではありません。
 
+The built-in `openai-chatgpt` and `openai-api` catalogs also include
+`gpt-6.1-terra`. The API entry follows the [OpenAI model specification](https://developers.openai.com/api/docs/models/gpt-6.1-terra).
+The ChatGPT entry uses the maximum context window and reasoning levels from
+the locally cached Codex model catalog. Its `ultra` effort is omitted because
+NOE does not currently accept that value.
+
 ## context metadataの設定値
 
-2026-10-18確認。単位はtokens。`—`はカタログの`maxOutputTokens`を未設定としている項目。
+Existing entries were checked on 2026-10-18; Terra was checked on 2026-10-27. Values are in tokens. `—` means `maxOutputTokens` is unspecified.
 
 | provider | model | contextWindow | maxOutputTokens | 根拠 |
 | --- | --- | ---: | ---: | --- |
@@ -78,8 +84,10 @@ console.log(JSON.stringify(imageModels, null, 2));
 | opencode-go | deepseek-v4.1-flash | 1,048,576 | — | 利用者指定により対応するOpenRouterモデルから採用 |
 | opencode-go | gpt-6-luna | 1,050,000 | 128,000 | 利用者指定により対応するOpenRouterモデルから採用 |
 | openai-chatgpt | gpt-6.1-sol | 872,000 | 128,000 | アカウントのモデルAPI最大window・[公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6.1-sol) |
+| openai-chatgpt | gpt-6.1-terra | 872,000 | 128,000 | Codex model catalog maximum window; [OpenAI model specification](https://developers.openai.com/api/docs/models/gpt-6.1-terra) for output limit |
 | openai-chatgpt | gpt-6-luna | 872,000 | 128,000 | アカウントのモデルAPI最大window・[公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6-luna) |
 | openai-api | gpt-6.1-sol | 1,050,000 | 128,000 | [公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6.1-sol) |
+| openai-api | gpt-6.1-terra | 1,050,000 | 128,000 | [OpenAI model specification](https://developers.openai.com/api/docs/models/gpt-6.1-terra) |
 | openai-api | gpt-6-luna | 1,050,000 | 128,000 | [公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6-luna) |
 
 **ChatGPT経路:** [公式のモデル取得手順](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)に従い、NOEで使用する認証の`GET https://api.openai.com/v1/models`を確認した。Solは`context_window: 500000`、Lunaは`context_window: 272000`、両方とも`max_context_window: 872000`だった。NOEは長い入力に使う最大値を採用し、最大出力の予約には公式モデル仕様の128,000を使う。アカウントの取得値は全アカウント共通の保証ではなく、利用者の取得値に合わせて外部JSONで上書きできる。モデル要求bodyは変更していない。

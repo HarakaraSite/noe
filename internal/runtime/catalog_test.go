@@ -18,7 +18,11 @@ func TestModelCatalogSnapshotWithoutCredentials(t *testing.T) {
 	opts := Options{Agent: &noeprofile.AgentOptions{Models: model.Options{ConfigFile: config}}}
 	source := `import {list_models} from "noe:agent";
 const all=await list_models();
-if(all.length!==13 || all.some(m=>"keyFile" in m || "baseURL" in m))throw Error("catalog shape");
+if(all.length!==15 || all.some(m=>"keyFile" in m || "baseURL" in m))throw Error("catalog shape");
+for(const provider of ["openai-chatgpt","openai-api"]){
+ const models=await list_models({provider,kind:"agent"});
+ if(!models.some(m=>m.model==="gpt-6.1-terra"))throw Error("Terra missing from " + provider);
+}
 const images=await list_models({kind:"image"});if(images.length!==2)throw Error("image catalog");
 const agents=await list_models({provider:"openrouter",kind:"agent"});
 if(agents.length!==2 || agents[0].description!=="local selection policy")throw Error("external override");
