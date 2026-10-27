@@ -151,10 +151,12 @@ func (i *agentInstance) acceptTaskCancellationLocked(op *Operation, cmd *command
 		return nil, newOperationError(500, "broker", "could not allocate cancellation activity")
 	}
 	queueIndex := -1
-	for index, candidate := range i.queue {
-		if candidate == cmd {
-			queueIndex = index
-			break
+	if !current {
+		for index, candidate := range i.queue {
+			if candidate == cmd {
+				queueIndex = index
+				break
+			}
 		}
 	}
 	if queueIndex < 0 && !current {

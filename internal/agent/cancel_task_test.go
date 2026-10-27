@@ -215,3 +215,130 @@ func TestCancelAfterRunRemovalPublishesAcceptanceBeforeTerminals(t *testing.T) {
 		}()
 	}
 }
+
+func TestCancelCurrentCommandPreservesQueuedCommands(t *testing.T) {
+	for _, active := range []bool{false, true} {
+		name := "selected"
+		if active {
+			name = "active"
+		}
+		t.Run(name, func(t *testing.T) {
+			var eventMu sync.Mutex
+			var currentAcceptances []events.Event
+			h := NewHost(Options{Observe: func(event events.Event) {
+				if event["type"] == "interrupt.accepted" && event["commandId"] == "current" {
+					eventMu.Lock()
+					currentAcceptances = append(currentAcceptances, event)
+					eventMu.Unlock()
+				}
+			}})
+			defer h.Close()
+			owner := h.NewOperation(t.Context())
+			instanceCtx, instanceCancel := context.WithCancel(owner.ctx)
+			defer instanceCancel()
+			done := make(chan struct{})
+			close(done) // This fixture drives transitions directly, without serve.
+			instance := &agentInstance{
+				host: h, id: "agent", owner: owner, state: "starting", ctx: instanceCtx,
+				cancel: instanceCancel, done: done, commands: make(map[string]*command),
+				runInterruptAccepted: make(map[string]chan struct{}),
+			}
+			current := newTaskCommand("current", "current-activity", "")
+			first := newTaskCommand("first", "first-activity", "")
+			middle := newTaskCommand("middle", "middle-activity", "")
+			last := newTaskCommand("last", "last-activity", "")
+			for _, cmd := range []*command{current, first, middle, last} {
+				close(cmd.accepted)
+			}
+			h.mu.Lock()
+			h.instances[instance.id] = instance
+			owner.instances[instance.id] = instance
+			for _, cmd := range []*command{current, first, middle, last} {
+				instance.enqueueCommandLocked(cmd)
+			}
+			selected := instance.selectCommandLocked()
+			var run *agentRun
+			var taskCtx context.Context
+			if active {
+				if instance.startSelectedCommandLocked(current) != commandStarted {
+					h.mu.Unlock()
+					t.Fatal("selected command did not start")
+				}
+				var taskCancel context.CancelFunc
+				taskCtx, taskCancel = context.WithCancel(instanceCtx)
+				instance.taskCancel = taskCancel
+				instance.currentRunID = "run"
+				run = &agentRun{id: "run", operation: owner, ctx: taskCtx, cancel: taskCancel, instance: instance}
+				h.runs[run.id] = run
+			}
+			h.mu.Unlock()
+			if selected != current {
+				t.Fatal("selection did not reserve the current command")
+			}
+
+			request := CancelTaskRequest{AgentID: instance.id, CommandID: current.id}
+			var accepted chan struct{}
+			for attempt := 0; attempt < 2; attempt++ {
+				response, err := h.cancelTask(owner, request)
+				if err != nil || response.Status != "accepted" {
+					t.Fatalf("current cancellation attempt %d: response=%+v err=%v", attempt, response, err)
+				}
+				h.mu.Lock()
+				gate := current.cancelAccepted
+				h.mu.Unlock()
+				if attempt == 0 {
+					accepted = gate
+				} else if gate != accepted {
+					t.Fatal("retry replaced the cancellation acceptance gate")
+				}
+			}
+			h.mu.Lock()
+			if !current.cancelRequested || accepted == nil || current.outcome != nil ||
+				len(instance.queue) != 3 || instance.queue[0] != first ||
+				instance.queue[1] != middle || instance.queue[2] != last {
+				h.mu.Unlock()
+				t.Fatal("current cancellation changed queued commands or settled current prematurely")
+			}
+			if active && (!run.interrupting || instance.interruptedRunID != run.id || instance.runInterruptAccepted[run.id] != accepted) {
+				h.mu.Unlock()
+				t.Fatal("active cancellation did not register the current run interruption")
+			}
+			h.mu.Unlock()
+			if active {
+				select {
+				case <-taskCtx.Done():
+				default:
+					t.Fatal("current task cancellation was not invoked")
+				}
+			}
+			<-accepted
+			instance.publishWG.Wait()
+			eventMu.Lock()
+			acceptances := append([]events.Event(nil), currentAcceptances...)
+			eventMu.Unlock()
+			if len(acceptances) != 1 {
+				t.Fatalf("current cancellation acceptance events=%d, want 1 after retry", len(acceptances))
+			}
+			if active && acceptances[0]["runId"] != run.id {
+				t.Fatalf("active cancellation acceptance runId=%v, want %s", acceptances[0]["runId"], run.id)
+			}
+
+			if _, err := h.cancelTask(owner, CancelTaskRequest{AgentID: instance.id, CommandID: middle.id}); err != nil {
+				t.Fatal(err)
+			}
+			for attempt := 0; attempt < 2; attempt++ {
+				outcome, err := h.waitTask(owner, taskRequest{AgentID: instance.id, CommandID: middle.id}, t.Context())
+				if err != nil || outcome.CommandID != middle.id || outcome.State != "cancelled" || outcome.Error != "agent task cancelled" {
+					t.Fatalf("retained queued outcome attempt %d: outcome=%+v err=%v", attempt, outcome, err)
+				}
+			}
+			h.mu.Lock()
+			if len(instance.queue) != 2 || instance.queue[0] != first || instance.queue[1] != last ||
+				instance.commands[middle.id] != middle {
+				h.mu.Unlock()
+				t.Fatal("queued cancellation changed sibling order or removed the retained command")
+			}
+			h.mu.Unlock()
+		})
+	}
+}
