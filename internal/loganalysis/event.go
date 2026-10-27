@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"strconv"
+	"strings"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
@@ -44,18 +45,41 @@ func projectEvent(event events.Event, q Query) events.Event {
 	return nil
 }
 
-func appendProjected(eventsOut *[]events.Event, event events.Event, seq uint64, previousSeq *uint64) {
-	if len(*eventsOut) > 0 && seq == *previousSeq+1 && isThinkingType(stringField(event, "type")) {
-		previous := (*eventsOut)[len(*eventsOut)-1]
+// projectedEvents accumulates text only after a group actually merges. A lone
+// event therefore keeps its original text field, including missing/non-string
+// values. It is local to one analysis and must not be copied after use.
+type projectedEvents struct {
+	events      *[]events.Event
+	previousSeq uint64
+	text        strings.Builder
+	merging     bool
+}
+
+func (p *projectedEvents) append(event events.Event, seq uint64) {
+	if len(*p.events) > 0 && seq == p.previousSeq+1 && isThinkingType(stringField(event, "type")) {
+		previous := (*p.events)[len(*p.events)-1]
 		if stringField(previous, "type") == stringField(event, "type") &&
 			stringField(previous, "requestId") == stringField(event, "requestId") {
-			previous["text"] = stringField(previous, "text") + stringField(event, "text")
-			*previousSeq = seq
+			if !p.merging {
+				p.text.WriteString(stringField(previous, "text"))
+				p.merging = true
+			}
+			p.text.WriteString(stringField(event, "text"))
+			p.previousSeq = seq
 			return
 		}
 	}
-	*eventsOut = append(*eventsOut, event)
-	*previousSeq = seq
+	p.finishGroup()
+	*p.events = append(*p.events, event)
+	p.previousSeq = seq
+}
+
+func (p *projectedEvents) finishGroup() {
+	if p.merging {
+		(*p.events)[len(*p.events)-1]["text"] = p.text.String()
+		p.text.Reset()
+		p.merging = false
+	}
 }
 
 func cloneEvent(event events.Event) events.Event {

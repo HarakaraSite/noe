@@ -124,7 +124,7 @@ func Analyze(ctx context.Context, reader io.Reader, q Query) (Snapshot, error) {
 
 	maxSeq := uint64(0)
 	state := newRunState(q.RunID)
-	var lastProjectedSeq uint64
+	projected := projectedEvents{events: &state.snapshot.Events}
 	for _, rec := range records {
 		if err := ctx.Err(); err != nil {
 			return Snapshot{}, err
@@ -141,12 +141,13 @@ func Analyze(ctx context.Context, reader io.Reader, q Query) (Snapshot, error) {
 		}
 		state.apply(rec, q.IncludeOutput)
 		if rec.seq > cursorSeq(q.Cursor) {
-			if projected := projectEvent(rec.event, q); projected != nil {
-				appendProjected(&state.snapshot.Events, projected, rec.seq, &lastProjectedSeq)
+			if event := projectEvent(rec.event, q); event != nil {
+				projected.append(event, rec.seq)
 			}
 		}
 	}
 
+	projected.finishGroup()
 	state.snapshot.Cursor = Cursor{ExecutionID: targetExecution, Seq: maxSeq}
 	state.snapshot.Phase = state.currentPhase()
 	if state.snapshot.Status == "completed" || state.snapshot.Status == "failed" || state.snapshot.Status == "cancelled" {
