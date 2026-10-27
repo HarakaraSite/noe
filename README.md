@@ -34,13 +34,13 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.8.3 release notes](docs/releases/v2.8.3.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.8.3)
+[v2.9.0 release notes](docs/releases/v2.9.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.9.0)
 
-v2.8.3 separates built-in runtime/API facts from editable behavioral
-instructions. The CLI no longer injects a fixed behavioral policy; common
-and workspace instruction files control those preferences. Public APIs and
-engine dependencies remain unchanged. See the [instruction guide](docs/instructions.md)
-and [release notes](docs/releases/v2.8.3.md).
+v2.9.0 adds a portable, agent-led development workflow and small core
+efficiency improvements. Implementation workers run focused tests without
+mandatory model-based approval gates. Public APIs and dependencies are
+unchanged. See the [workflow guide](.noe/lib/workflow/README.md) and
+[release notes](docs/releases/v2.9.0.md).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -55,7 +55,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.8.3
+# noe v2.9.0
 ```
 
 The examples below assume the repository root is your working directory.
