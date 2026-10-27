@@ -2554,3 +2554,52 @@ Native execution here is Linux amd64; the other five targets receive
 build/hash verification. This request authorizes publication, not local
 installation or process restarts. Repository-root/PATH binaries, user
 logs/caches and unrelated worktree changes are preserved.
+
+## v2.9.0 Release validation — 2026-10-27
+
+- Annotated tag `v2.9.0` points to
+  `9aee19f73819ed9a46020dafefbc20f3be6e836c`. The peeled remote tag and
+  successful workflow revision agree. Only this preparation evidence
+  document differs from checked source `bcdb286`.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/45)
+  succeeded (API run ID 226) using the unchanged lightweight
+  six-build/checksum/upload job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.9.0)
+  is published, neither draft nor prerelease (Release ID 158). Its body
+  matches the tagged [English release notes](v2.9.0.md).
+
+All seven assets were downloaded; all six binary hashes match SHA256SUMS.
+The actual distributed Linux amd64 binary reports `noe v2.9.0`, the tagged
+source revision, `vcs.modified=false`, `CGO_ENABLED=0`, go-quickjs v0.29.0
+and go-intl v0.8.0. Its SHA256 is
+`25991ff74bbf24966c99499ee21cdeb812ab19ecfb23f24d2a6ae8e8787312d0`.
+Version/arithmetic and the copied workflow's offline configuration,
+instruction and native-termination contract checks pass under this asset.
+
+Clean external modules fetched `stdlib@v2.9.0` and `agent@v2.9.0` from the
+actual published module with GOPROXY=direct, without local replacements or
+a synthetic proxy. Both built and passed `go mod verify`; the stdlib
+consumer and the agent portable/gohost modes ran successfully.
+MVS selected official go-quickjs v0.29.0 and go-intl v0.8.0.
+The downloaded core source files for all five cleanup areas and both
+public declaration files match the checked source.
+
+The first consumer-verification helper used an incorrect Intl module path
+and failed its metadata query after a successful module fetch. The helper
+was corrected to github.com/go-quickjs/go-intl, completed steps were reused,
+and all final consumer checks passed. This was a verification-script typo,
+not a product failure; its initial result is retained with the final evidence.
+
+Evidence is retained at `/tmp/noe-v2.9.0-release-2166384416`, including
+clean source/candidate, reused implementation and real-workflow smoke
+evidence, native Actions metadata, published release metadata, all seven
+assets, checksums/build information and public-module consumer logs/results.
+No paid model-provider calls or full source-suite reruns were made during
+release preparation/publication. Native execution here is Linux amd64;
+the other five targets have CI build/hash evidence, not native execution.
+
+This documentation-only follow-up does not move or replace the release tag.
+Local installation/process restarts were not requested and were not
+performed. Repository-root and PATH executable hashes and the original
+unrelated worktree status remain unchanged; user files/logs/caches are
+preserved and excluded.
