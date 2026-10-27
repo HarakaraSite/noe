@@ -3,6 +3,7 @@ package commandenv
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
@@ -99,5 +100,58 @@ func writeWindowsPlaceholder(t *testing.T, path string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte("placeholder"), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestWindowsEnvironmentCollisionsSelectSortedLastKey(t *testing.T) {
+	root := t.TempDir()
+	losingBin := filepath.Join(root, "losing")
+	winningBin := filepath.Join(root, "winning")
+	for _, dir := range []string{losingBin, winningBin} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeWindowsPlaceholder(t, filepath.Join(losingBin, "probe.exe"))
+	want := filepath.Join(winningBin, "probe.cmd")
+	writeWindowsPlaceholder(t, want)
+	losingShell := filepath.Join(root, "losing-shell.exe")
+	winningShell := filepath.Join(root, "winning-shell.exe")
+	writeWindowsPlaceholder(t, losingShell)
+	writeWindowsPlaceholder(t, winningShell)
+
+	source := map[string]string{
+		"PATH": losingBin, "Path": losingBin, "path": winningBin,
+		"PATHEXT": ".EXE", "PathExt": ".EXE", "pathext": ".CMD",
+		"COMSPEC": losingShell, "ComSpec": losingShell, "comspec": winningShell,
+	}
+	config := Config{Cwd: root, Env: source, Allow: func(string, []string) error { return nil }}
+	prepared, err := Prepare(config, "probe", nil, "", nil)
+	if err != nil || prepared.Command != want {
+		t.Fatalf("selected PATH/PATHEXT command = %q, %v; want %q", prepared.Command, err, want)
+	}
+	wantList := []string{"comspec=" + winningShell, "path=" + winningBin, "pathext=.CMD"}
+	if got := EnvList(prepared.Env); !slices.Equal(got, wantList) {
+		t.Fatalf("normalized environment block = %q, want %q", got, wantList)
+	}
+	// EnvList also handles collisions when passed a raw, non-normalized map.
+	if got := EnvList(source); !slices.Equal(got, wantList) {
+		t.Fatalf("raw environment block = %q, want %q", got, wantList)
+	}
+	var policyCommand string
+	var policyArgs []string
+	config.Allow = func(command string, args []string) error {
+		policyCommand, policyArgs = command, slices.Clone(args)
+		return nil
+	}
+	shell, err := Shell(config, "echo case", "", nil)
+	if err != nil || shell.Command != winningShell || policyCommand != winningShell ||
+		!slices.Equal(policyArgs, []string{"/d", "/s", "/c", "echo case"}) {
+		t.Fatalf("selected ComSpec shell = %#v, policy %q %q, error %v", shell, policyCommand, policyArgs, err)
+	}
+	source["path"] = "changed"
+	shell.Env["comspec"] = "changed"
+	if prepared.Env["path"] != winningBin || source["comspec"] != winningShell {
+		t.Fatal("prepared environments share the source map")
 	}
 }

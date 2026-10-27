@@ -163,3 +163,158 @@ func writeExecutable(t *testing.T, dir, name string) string {
 	}
 	return path
 }
+
+func TestPrepareSelectsEnvironmentAfterPolicyAndOwnsIt(t *testing.T) {
+	root := t.TempDir()
+	command := writeExecutable(t, root, "direct")
+	for _, useOverride := range []bool{false, true} {
+		name := "default"
+		if useOverride {
+			name = "override"
+		}
+		t.Run(name, func(t *testing.T) {
+			defaults := map[string]string{"MARK": "default"}
+			override := map[string]string{"MARK": "override"}
+			selected := defaults
+			var supplied map[string]string
+			if useOverride {
+				selected, supplied = override, override
+			}
+			calls := 0
+			config := Config{
+				Cwd: root,
+				Env: defaults,
+				Allow: func(got string, args []string) error {
+					calls++
+					if got != command || !slices.Equal(args, []string{"arg"}) {
+						t.Fatalf("policy request = %q %q", got, args)
+					}
+					selected["MARK"] = "policy"
+					return nil
+				},
+				ResolveDirectory: func(string) (string, error) {
+					if calls != 1 {
+						t.Fatalf("directory resolved after %d policy calls", calls)
+					}
+					return root, nil
+				},
+			}
+			prepared, err := Prepare(config, command, []string{"arg"}, "virtual", supplied)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 || prepared.Env["MARK"] != "policy" {
+				t.Fatalf("policy calls/environment = %d/%#v", calls, prepared.Env)
+			}
+			selected["MARK"] = "source changed"
+			if prepared.Env["MARK"] != "policy" {
+				t.Fatal("prepared environment changed with source")
+			}
+			prepared.Env["MARK"] = "output changed"
+			if selected["MARK"] != "source changed" {
+				t.Fatal("prepared environment shares source map")
+			}
+		})
+	}
+}
+
+func TestShellSnapshotsSelectedEnvironmentBeforePolicy(t *testing.T) {
+	root := t.TempDir()
+	shell := writeExecutable(t, root, "shell")
+	for _, useOverride := range []bool{false, true} {
+		name := "default"
+		if useOverride {
+			name = "override"
+		}
+		t.Run(name, func(t *testing.T) {
+			defaults := map[string]string{"ComSpec": shell, "MARK": "default"}
+			override := map[string]string{"ComSpec": shell, "MARK": "override"}
+			selected := defaults
+			var supplied map[string]string
+			wantMark := "default"
+			if useOverride {
+				selected, supplied, wantMark = override, override, "override"
+			}
+			wantCommand, wantArgs := "/bin/sh", []string{"-c", "echo test"}
+			if runtime.GOOS == "windows" {
+				wantCommand, wantArgs = shell, []string{"/d", "/s", "/c", "echo test"}
+			}
+			calls, resolutions := 0, 0
+			config := Config{
+				Cwd: root,
+				Env: defaults,
+				Allow: func(got string, args []string) error {
+					calls++
+					if got != wantCommand || !slices.Equal(args, wantArgs) {
+						t.Fatalf("policy request = %q %q, want %q %q", got, args, wantCommand, wantArgs)
+					}
+					selected["MARK"] = "policy"
+					selected["ComSpec"] = "changed"
+					return nil
+				},
+				ResolveDirectory: func(string) (string, error) {
+					resolutions++
+					if calls != 1 {
+						t.Fatalf("directory resolved after %d policy calls", calls)
+					}
+					return root, nil
+				},
+			}
+			prepared, err := Shell(config, "echo test", "virtual", supplied)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 || resolutions != 1 || prepared.Command != wantCommand ||
+				!slices.Equal(prepared.Args, wantArgs) || prepared.Env["MARK"] != wantMark ||
+				prepared.Env["ComSpec"] != shell {
+				t.Fatalf("shell calls %d/%d, prepared %#v", calls, resolutions, prepared)
+			}
+			prepared.Env["MARK"] = "output changed"
+			if selected["MARK"] != "policy" {
+				t.Fatal("shell environment shares source map")
+			}
+			selected["ComSpec"] = "changed again"
+			if prepared.Env["ComSpec"] != shell {
+				t.Fatal("shell environment changed with source")
+			}
+		})
+	}
+}
+
+func TestShellEmptyOverrideDoesNotInherit(t *testing.T) {
+	calls := 0
+	config := Config{
+		Env: map[string]string{"PATH": t.TempDir(), "ComSpec": "inherited", "MARK": "inherited"},
+		Allow: func(command string, args []string) error {
+			calls++
+			wantCommand, wantArgs := "/bin/sh", []string{"-c", "echo test"}
+			if runtime.GOOS == "windows" {
+				wantCommand, wantArgs = "cmd.exe", []string{"/d", "/s", "/c", "echo test"}
+			}
+			if command != wantCommand || !slices.Equal(args, wantArgs) {
+				t.Fatalf("policy request = %q %q, want %q %q", command, args, wantCommand, wantArgs)
+			}
+			return nil
+		},
+	}
+	prepared, err := Shell(config, "echo test", "", map[string]string{})
+	if calls != 1 {
+		t.Fatalf("policy calls = %d", calls)
+	}
+	if runtime.GOOS == "windows" {
+		if err == nil || !strings.Contains(err.Error(), "file not found") {
+			t.Fatalf("empty environment resolved shell through host/default PATH: %v", err)
+		}
+		return
+	}
+	if err != nil || len(prepared.Env) != 0 {
+		t.Fatalf("empty shell environment = %#v, %v", prepared.Env, err)
+	}
+}
+
+func TestEnvListSortsSelectedEnvironment(t *testing.T) {
+	env := normalizeEnv(map[string]string{"Z": "last", "A": "first", "M": "middle"})
+	if got, want := EnvList(env), []string{"A=first", "M=middle", "Z=last"}; !slices.Equal(got, want) {
+		t.Fatalf("environment block = %q, want %q", got, want)
+	}
+}

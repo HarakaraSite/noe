@@ -48,7 +48,7 @@ var errNotAllowed = errors.New("running programs is not allowed")
 // the executable using only the selected environment's PATH/PATHEXT.
 // A nil envOverride inherits Config.Env; a non-nil empty map means no env.
 func Prepare(config Config, command string, args []string, cwdOverride string, envOverride map[string]string) (Prepared, error) {
-	return prepare(config, command, args, cwdOverride, envOverride)
+	return prepare(config, command, args, cwdOverride, envOverride, nil)
 }
 
 // Shell prepares the OS shell for a command string. Policy receives the
@@ -64,11 +64,16 @@ func Shell(config Config, command, cwdOverride string, envOverride map[string]st
 		}
 		args = []string{"/d", "/s", "/c", command}
 	}
-	config.Env = env
-	return prepare(config, shell, args, cwdOverride, nil)
+	return prepare(config, shell, args, cwdOverride, nil, &selectedEnvironment{env: env})
 }
 
-func prepare(config Config, command string, args []string, cwdOverride string, envOverride map[string]string) (Prepared, error) {
+// selectedEnvironment holds a shell environment already copied before policy.
+// Direct preparation selects its environment after policy instead.
+type selectedEnvironment struct {
+	env map[string]string
+}
+
+func prepare(config Config, command string, args []string, cwdOverride string, envOverride map[string]string, selected *selectedEnvironment) (Prepared, error) {
 	requestedArgs := slices.Clone(args)
 	if config.Allow == nil {
 		return Prepared{}, errNotAllowed
@@ -83,7 +88,12 @@ func prepare(config Config, command string, args []string, cwdOverride string, e
 		return Prepared{}, errors.New("exec: command contains NUL")
 	}
 
-	env := chooseEnv(config.Env, envOverride)
+	var env map[string]string
+	if selected != nil {
+		env = selected.env
+	} else {
+		env = chooseEnv(config.Env, envOverride)
+	}
 	dir, err := workingDirectory(config, cwdOverride)
 	if err != nil {
 		return Prepared{}, err
@@ -105,17 +115,17 @@ func chooseEnv(defaultEnv, override map[string]string) map[string]string {
 
 func normalizeEnv(source map[string]string) map[string]string {
 	result := make(map[string]string, len(source))
+	if runtime.GOOS != "windows" {
+		for key, value := range source {
+			result[key] = value
+		}
+		return result
+	}
 	keys := make([]string, 0, len(source))
 	for key := range source {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	if runtime.GOOS != "windows" {
-		for _, key := range keys {
-			result[key] = source[key]
-		}
-		return result
-	}
 	for _, key := range keys {
 		for existing := range result {
 			if strings.EqualFold(existing, key) {
