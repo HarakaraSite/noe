@@ -5,7 +5,7 @@ Use this when an existing agent receives a user request to implement settled req
 ## Requester / outer agent
 
 1. Confirm the user wants implementation now and the requirements are settled. Identify the actual target repository root, the copied workflow run.js path, the requirements path, and any optional config. Do not invent requirements or launch the workflow from the NOE source checkout when another repository is the target.
-2. Explain that ordinary execution uses ChatGPT agent calls and the workflow parent also calls the native Jev Decisions API through OpenRouter (default model typesafe/jev-1.14). Both configured OpenRouter and agent-provider access are needed with defaults. Optional `decision.provider` / `decision.model` settings in `.noe/workflow.json` override the Jev settings independently from role settings; an existing role-only config remains valid. `--help` is offline and does not require credentials.
+2. Explain that ordinary execution requires configured agent-provider access (ChatGPT by default), with no mandatory model-based approval gates or separate decision-provider credential requirement. The optional `.noe/workflow.json` supports role overrides only; the experimental `decision` setting and its defaults have been removed without compatibility support. `--help` is offline and does not require credentials.
 3. Start one awaited standalone NOE subprocess from the actual target root. For example:
 
 ~~~js
@@ -32,7 +32,7 @@ The parent is the native root agent started by the launcher, not the requester a
 
 ## Workers
 
-The workflow parent may start scoped implementation, exploration, validation, and independent review agents as useful. Workers share files but are not isolated. They follow their task instructions, do not silently change requirements, commit/push/release, recursively launch the workflow, or further-delegate by default. They report evidence and concrete blockers to the parent. A worker is never a second workflow parent.
+The workflow parent may start scoped implementation, exploration, validation, and independent review agents as useful. Workers share files but are not isolated. They follow their task instructions, do not silently change requirements, commit/push/release, recursively launch the workflow, or further-delegate by default. Implementation workers implement and run the planned focused checks in one continuous loop, including related repairs, without a parent approval pause before testing. They report actual evidence and concrete blockers to the parent, who inspects the candidate before independent review and owns slice completion. A worker is never a second workflow parent.
 
 ## Direct CLI use
 

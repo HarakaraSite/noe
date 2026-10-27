@@ -5,15 +5,13 @@ import process from "node:process";
 import {fileURLToPath} from "node:url";
 import {run_agent} from "noe:agent";
 
-export const DEFAULT_DECISION = {provider: "openrouter", model: "typesafe/jev-1.14"};
-
 export const DEFAULT_ROLES = {
   parent: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "high"},
   general: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "high"},
   planning: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "high"},
   review: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "xhigh"},
-  routine: {provider: "openai-chatgpt", model: "gpt-6-luna", effort: "max"},
-  difficult: {provider: "openai-chatgpt", model: "gpt-6.1-sol", effort: "high"},
+  routine: {provider: "openai-chatgpt", model: "gpt-6.1-terra", effort: "high"},
+  difficult: {provider: "openai-chatgpt", model: "gpt-6.1-terra", effort: "high"},
 };
 
 const moduleMeta = /** @type {{url: string}} */ (/** @type {any} */ (import.meta));
@@ -21,7 +19,6 @@ const PACKAGE_DIR = dirname(fileURLToPath(moduleMeta.url));
 const INSTRUCTIONS_PATH = resolve(PACKAGE_DIR, "workflow.md");
 const DEFAULT_CONFIG_PATH = ".noe/workflow.json";
 const ROLE_FIELDS = new Set(["provider", "model", "effort"]);
-const DECISION_FIELDS = new Set(["provider", "model"]);
 
 export const HELP = [
   "Usage:",
@@ -30,8 +27,8 @@ export const HELP = [
   "",
   "Run from the target repository root. Requirements and config paths are relative to the current working directory.",
   "If --config is omitted, .noe/workflow.json is loaded when present; otherwise built-in model defaults are used.",
-  "The optional decision settings default to openrouter / typesafe/jev-1.14; normal execution makes OpenRouter decision calls as well as ChatGPT agent calls by default.",
-  "Help is offline and does not require provider credentials. Normal execution requires configured OpenRouter access and configured agent-provider access (ChatGPT by default).",
+  "Configuration supports role overrides only; there are no workflow-specific decision settings or mandatory model-based approval gates.",
+  "Help is offline and does not require provider credentials. Normal execution requires configured agent-provider access (ChatGPT by default).",
   "The workflow parent owns planning, delegated work, Git decisions, and the final natural-language report.",
   "There is no --repo option or automatic resume.",
 ].join("\n");
@@ -76,7 +73,7 @@ function defaultRoles() {
 function readSettings(configPath, cwd) {
   const resolvedConfig = resolve(cwd, configPath ?? DEFAULT_CONFIG_PATH);
   if (configPath === undefined && !existsSync(resolvedConfig)) {
-    return {roles: defaultRoles(), decision: {...DEFAULT_DECISION}, source: null};
+    return {roles: defaultRoles(), source: null};
   }
 
   let settings;
@@ -86,7 +83,10 @@ function readSettings(configPath, cwd) {
     throw new Error("Cannot read workflow settings " + resolvedConfig + ": " + String(error?.message ?? error));
   }
   if (settings === null || typeof settings !== "object" || Array.isArray(settings)) {
-    throw new Error("Workflow settings must be an object with optional role overrides and decision settings.");
+    throw new Error("Workflow settings must be an object with optional role overrides.");
+  }
+  for (const field of Object.keys(settings)) {
+    if (field !== "roles") throw new Error("Unknown workflow setting: " + field);
   }
   const overrides = settings.roles ?? {};
   if (overrides === null || typeof overrides !== "object" || Array.isArray(overrides)) {
@@ -110,21 +110,7 @@ function readSettings(configPath, cwd) {
     roles[name] = {...roles[name], ...override};
   }
 
-  const decision = {...DEFAULT_DECISION};
-  if (Object.prototype.hasOwnProperty.call(settings, "decision")) {
-    const override = settings.decision;
-    if (override === null || typeof override !== "object" || Array.isArray(override)) {
-      throw new Error("Workflow settings decision must be an object with optional provider and model overrides.");
-    }
-    for (const [field, value] of Object.entries(override)) {
-      if (!DECISION_FIELDS.has(field)) throw new Error("Unknown decision setting: " + field);
-      if (typeof value !== "string" || value.trim().length === 0) {
-        throw new Error("Decision setting " + field + " must be a nonempty string.");
-      }
-    }
-    Object.assign(decision, override);
-  }
-  return {roles, decision, source: resolvedConfig};
+  return {roles, source: resolvedConfig};
 }
 
 function buildPrompt({cwd, requirementsPath, requirementsFile, requirements, settings, instructions}) {
@@ -140,10 +126,7 @@ function buildPrompt({cwd, requirementsPath, requirementsFile, requirements, set
     "Role settings source: " + (settings.source ?? "built-in defaults (no config file present)"),
     "Role settings (ordinary agent provider/model/effort values):",
     JSON.stringify(settings.roles, null, 2),
-    "Decision settings (explicit noe:decision provider/model only; separate from agent role settings and effort):",
-    JSON.stringify(settings.decision, null, 2),
-    "Use these effective decision settings explicitly in every required parent-side noe:decision.decide call.",
-    "Follow the complete fixed procedure below. It defines responsibilities and judgment criteria, not a machine-enforced decision protocol.",
+    "Follow the complete fixed procedure below. It defines responsibilities and judgment criteria, not a machine-enforced workflow engine.",
     "----- BEGIN WORKFLOW PARENT INSTRUCTIONS -----",
     instructions,
     "----- END WORKFLOW PARENT INSTRUCTIONS -----",

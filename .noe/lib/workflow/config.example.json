@@ -1,8 +1,4 @@
 {
-  "decision": {
-    "provider": "openrouter",
-    "model": "typesafe/jev-1.14"
-  },
   "roles": {
     "parent": {
       "provider": "openai-chatgpt",
@@ -26,12 +22,12 @@
     },
     "routine": {
       "provider": "openai-chatgpt",
-      "model": "gpt-6-luna",
-      "effort": "max"
+      "model": "gpt-6.1-terra",
+      "effort": "high"
     },
     "difficult": {
       "provider": "openai-chatgpt",
-      "model": "gpt-6.1-sol",
+      "model": "gpt-6.1-terra",
       "effort": "high"
     }
   }

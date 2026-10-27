@@ -3,14 +3,12 @@ import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from "node
 import {join, resolve} from "node:path";
 import process from "node:process";
 import {fileURLToPath} from "node:url";
-import {DEFAULT_DECISION, DEFAULT_ROLES, main, runCli} from "./workflow.js";
+import * as workflow from "./workflow.js";
+
+const {DEFAULT_ROLES, main, runCli} = workflow;
 
 function assert(condition, message) {
   if (!condition) throw new Error("Assertion failed: " + message);
-}
-
-function assertPromptSettings(prompt, settings) {
-  assert(prompt.includes(JSON.stringify(settings, null, 2)), "effective decision settings reach the parent prompt");
 }
 
 const workdir = mkdtempSync(resolve(process.cwd(), ".workflow-launcher-test-"));
@@ -43,7 +41,12 @@ async function runWithConfig(settings, name = "settings.json") {
 }
 
 try {
-  // A role-only file keeps working and inherits the separate Jev defaults.
+  for (const name of ["routine", "difficult"]) {
+    const role = DEFAULT_ROLES[name];
+    assert(role.provider === "openai-chatgpt" && role.model === "gpt-6.1-terra" && role.effort === "high", name + " implementation/exploration defaults to Terra/high");
+  }
+
+  // Role overrides reach the parent without separate decision settings.
   const roleOnlyConfig = {
     roles: {routine: {model: "offline-routine", effort: "low"}},
   };
@@ -69,8 +72,8 @@ try {
   assert(lastCapture().prompt.includes(requirementText), "requirements are read from the caller's working directory");
   assert(lastCapture().prompt.includes(process.cwd()), "the actual launch working directory is supplied");
   assert(lastCapture().prompt.includes("offline-routine") && lastCapture().prompt.includes("gpt-6.1-sol"), "loaded role settings and defaults reach the parent");
-  assert(lastCapture().prompt.includes("Decision settings (explicit noe:decision provider/model only; separate from agent role settings and effort):"), "decision settings are clearly separated from role/effort settings");
-  assertPromptSettings(lastCapture().prompt, {provider: "openrouter", model: "typesafe/jev-1.14"});
+  assert(lastCapture().prompt.includes(JSON.stringify({...DEFAULT_ROLES, routine: {...DEFAULT_ROLES.routine, ...roleOnlyConfig.roles.routine}}, null, 2)), "effective role overrides reach the parent");
+  assert(!("DEFAULT_DECISION" in workflow), "experimental decision defaults are no longer exported");
   assert(lastCapture().prompt.includes("Read applicable root and nested AGENTS.md"), "workflow-parent instructions are loaded");
   assert(lastCapture().options.allowDelegation === true, "the native root parent explicitly receives delegation permission");
 
@@ -80,7 +83,6 @@ try {
   const defaultPathSettings = existsSync(defaultConfigPath)
     ? JSON.parse(readFileSync(defaultConfigPath, "utf8"))
     : {};
-  const ambientDecision = {...DEFAULT_DECISION, ...(defaultPathSettings.decision ?? {})};
   const ambientRoleOverrides = defaultPathSettings.roles ?? {};
   const ambientRoles = Object.fromEntries(
     Object.entries(DEFAULT_ROLES).map(([name, role]) => [
@@ -90,7 +92,6 @@ try {
   );
   const withoutConfig = await runCli(["--requirements", requirementsFile], {runAgent: stub});
   assert(withoutConfig === answer, "configuration remains optional");
-  assertPromptSettings(lastCapture().prompt, ambientDecision);
   assert(
     lastCapture().prompt.includes(JSON.stringify(ambientRoles, null, 2)),
     "the no-config launch passes default-path role settings or built-in role defaults",
@@ -100,83 +101,90 @@ try {
     "the parent role reflects the ambient default-path config or built-in defaults",
   );
 
-  // Partial overrides inherit the other decision default without affecting agent roles.
-  await runWithConfig({decision: {provider: "custom-decision-provider"}}, "provider-only.json");
-  assertPromptSettings(lastCapture().prompt, {provider: "custom-decision-provider", model: "typesafe/jev-1.14"});
-  assert(lastCapture().config.model === "gpt-6.1-sol" && lastCapture().config.effort === "high", "decision provider override does not alter agent settings");
-
-  await runWithConfig({decision: {model: "custom/decision-model"}}, "model-only.json");
-  assertPromptSettings(lastCapture().prompt, {provider: "openrouter", model: "custom/decision-model"});
-  assert(lastCapture().config.provider === "openai-chatgpt", "decision model override does not alter the agent provider");
-
-  // Both decision values can be overridden independently of role overrides.
+  // Empty and partial role configs inherit agent defaults.
+  await runWithConfig({}, "empty.json");
+  assert(lastCapture().prompt.includes(JSON.stringify(DEFAULT_ROLES, null, 2)), "empty configuration passes built-in role defaults");
   await runWithConfig({
-    decision: {provider: "custom-provider", model: "custom/model"},
     roles: {parent: {model: "custom-agent-model"}, routine: {effort: "low"}},
-  }, "full-override.json");
-  assertPromptSettings(lastCapture().prompt, {provider: "custom-provider", model: "custom/model"});
-  assert(lastCapture().config.provider === "openai-chatgpt" && lastCapture().config.model === "custom-agent-model" && lastCapture().config.effort === "high", "agent-role override remains independent of decision settings");
-  assert(lastCapture().prompt.includes('"effort": "low"'), "independent role effort is retained for agent assignment");
+  }, "role-overrides.json");
+  assert(lastCapture().config.provider === "openai-chatgpt" && lastCapture().config.model === "custom-agent-model" && lastCapture().config.effort === "high", "partial parent override inherits provider and effort");
+  assert(lastCapture().prompt.includes('"effort": "low"'), "independent role effort override is retained");
 
-  // The example file documents the same supported decision fields and preserves the roles.
+  // The copyable example contains only supported role settings.
   const testModule = /** @type {{url: string}} */ (/** @type {any} */ (import.meta));
   const examplePath = fileURLToPath(new URL("./config.example.json", testModule.url));
   const example = JSON.parse(readFileSync(examplePath, "utf8"));
-  assert(example.decision.provider === "openrouter" && example.decision.model === "typesafe/jev-1.14", "sample decision defaults are valid JSON");
-  assert(example.roles.parent.effort === "high", "sample agent role settings remain present");
+  assert(Object.keys(example).length === 1 && example.roles, "example configuration contains only roles");
+  assert(example.roles.parent.effort === "high", "sample parent role remains present");
+  for (const name of ["routine", "difficult"]) {
+    assert(JSON.stringify(example.roles[name]) === JSON.stringify(DEFAULT_ROLES[name]), name + " sample matches the Terra/high default");
+  }
+  await runWithConfig(example, "example.json");
+  assert(lastCapture().prompt.includes(JSON.stringify(example.roles, null, 2)), "sample role-only config launches correctly");
 
-  // Invalid decision objects/fields (especially effort) fail before launching an agent.
+  // Removed experimental settings and invalid role settings fail before agent launch.
   const invalidSettings = [
-    {decision: null},
-    {decision: []},
-    {decision: {effort: "high"}},
-    {decision: {threshold: 0.8}},
-    {decision: {provider: ""}},
-    {decision: {provider: "   "}},
-    {decision: {model: ""}},
-    {decision: {model: 7}},
+    {settings: {decision: {provider: "openrouter", model: "typesafe/jev-1.14"}}, expected: "Unknown workflow setting: decision"},
+    {settings: {decision: null}, expected: "Unknown workflow setting: decision"},
+    {settings: {extra: true}, expected: "Unknown workflow setting: extra"},
+    {settings: {roles: {unknown: {effort: "high"}}}, expected: "Unknown workflow role: unknown"},
+    {settings: {roles: {routine: {unknown: "value"}}}, expected: "Unknown setting for role routine: unknown"},
+    {settings: {roles: {routine: {effort: ""}}}, expected: "must be a nonempty string"},
   ];
   for (let index = 0; index < invalidSettings.length; index++) {
     const priorCalls = calls;
     let error;
     try {
-      await runWithConfig(invalidSettings[index], "invalid-" + index + ".json");
+      await runWithConfig(invalidSettings[index].settings, "invalid-" + index + ".json");
     } catch (caught) {
       error = String(caught?.message ?? caught);
     }
-    assert(typeof error === "string" && error.toLowerCase().includes("decision"), "invalid decision config is rejected (case " + index + "): " + String(error));
-    assert(calls === priorCalls, "invalid decision config is rejected before run_agent");
+    assert(typeof error === "string" && error.includes(invalidSettings[index].expected), "unsupported configuration is rejected (case " + index + "): " + String(error));
+    assert(calls === priorCalls, "unsupported configuration fails before run_agent");
   }
-  let effortError;
-  try {
-    await runWithConfig({decision: {effort: "high"}}, "invalid-effort.json");
-  } catch (caught) {
-    effortError = String(caught?.message ?? caught);
-  }
-  assert(effortError?.includes("Unknown decision setting: effort"), "decision effort is explicitly rejected");
 
-  // Ensure the parent prompt has all six next-stage boundaries and a native, evidence-based call.
-  const gateHeadings = [
-    "1. **Plan drafted -> independent plan reviews.**",
-    "2. **Plan reviews resolved -> implementation.**",
-    "3. **Slice implementation -> focused verification.**",
-    "4. **Focused verification -> code review.**",
-    "5. **Slice code review resolved -> local commit.**",
-    "6. **Overall validation -> final delivery/push.**",
-  ];
-  let previous = -1;
-  for (const heading of gateHeadings) {
-    const index = lastCapture().prompt.indexOf(heading);
-    assert(index > previous, "all six exact Jev boundaries appear in order: " + heading);
-    previous = index;
+  // The supplied procedure has no decision presets and keeps implementation/testing continuous.
+  const parentPrompt = lastCapture().prompt;
+  assert(parentPrompt.includes("There are no mandatory model-based approval gates."), "normal workflow progress has no model approval dependency");
+  assert(parentPrompt.includes("concrete unresolved judgment") && parentPrompt.includes("whether an extra opinion can be skipped"), "another opinion is not a replacement approval gate");
+  assert(parentPrompt.includes("does not create a new mandatory gate"), "unavailable advice is not an approval dependency");
+  for (const removed of ["typesafe/jev-1.14", "Optional consultation settings", "decision.provider", "decision.model"]) {
+    assert(!parentPrompt.includes(removed), "removed decision preset is absent from the parent prompt: " + removed);
   }
-  assert(lastCapture().prompt.includes('import { decide } from "noe:decision";'), "instructions demonstrate the existing native decision API");
-  assert(lastCapture().prompt.includes("provider: decisionSettings.provider") && lastCapture().prompt.includes("model: decisionSettings.model"), "the example uses effective decision settings explicitly");
-  assert(lastCapture().prompt.includes("Pause before authorizing/running the planned focused verification"), "implementation pauses before the planned focused checks");
-  for (const choice of ["proceed", "revise", "blocked"]) {
-    assert(lastCapture().prompt.includes(choice), "the decision instructions explain " + choice);
+  assert(parentPrompt.includes("implement and run the planned focused checks in one continuous loop"), "implementation owners can execute focused checks without a separate authorization");
+  assert(parentPrompt.includes("including after repairs") && parentPrompt.includes("Repairs do not need a separate test-authorization handoff."), "repair verification stays continuous");
+  assert(parentPrompt.includes("Avoid rerunning the same valid checks solely because the work passed from child to parent."), "handoff alone does not cause duplicate checks");
+  assert(parentPrompt.includes("Reuse existing evidence rather than repackaging requirements, full diffs and test output"), "record keeping reuses evidence instead of repeated approval packaging");
+  for (const obsolete of [
+    "The six next-stage boundaries",
+    "Pause before authorizing/running the planned focused verification",
+    "explicitly withhold the planned focused verification",
+    "every required parent-side noe:decision.decide call",
+    "pass through readiness boundary",
+  ]) {
+    assert(!parentPrompt.includes(obsolete), "obsolete gate/test-pause instruction is absent: " + obsolete);
   }
-  assert(lastCapture().prompt.includes("actual current source/diff") && lastCapture().prompt.includes("commands and outcomes") && lastCapture().prompt.includes("not merely paths"), "gates require actual evidence, not file paths or completion claims");
+
+  // Removing decision gates must not remove independent review, slice commits or delivery checks.
+  for (const retained of [
+    "independent, read-only normal and critical reviewers",
+    "Use an independent code reviewer",
+    "one modifying implementation child at a time",
+    "Do not commit while a valid finding remains unresolved.",
+    "Stage only intended paths/changes",
+    "Do not push per slice.",
+    "After all slices, verify the full requirements and cross-slice user paths.",
+    "Push once using normal Git commands only after requirements, validation and review are satisfied",
+    "Never release, create tags, force push, rewrite history",
+    "report that delivery is incomplete",
+  ]) {
+    assert(parentPrompt.includes(retained), "parent procedure retains safeguard: " + retained);
+  }
+  const outerPath = fileURLToPath(new URL("./agent-instruction.md", testModule.url));
+  const outerInstructions = readFileSync(outerPath, "utf8");
+  assert(outerInstructions.includes("no mandatory model-based approval gates or separate decision-provider credential requirement"), "outer requester guidance matches ordinary agent-only access");
+  assert(outerInstructions.includes("without a parent approval pause before testing"), "outer worker guidance permits continuous testing");
+  assert(outerInstructions.includes("Keep the owning command/tool alive until it completes."), "outer guidance still awaits one standalone subprocess");
 
   // Native non-completed outcomes remain errors and are not mistaken for successful delivery.
   const originalError = console.error;
@@ -204,8 +212,9 @@ try {
     runAgent: async () => { calls++; throw new Error("help called run_agent"); },
   });
   assert(help.includes("Usage:"), "help prints usage");
-  assert(help.includes("openrouter") && help.includes("typesafe/jev-1.14"), "help describes the default decision settings");
-  assert(help.includes("offline") && help.includes("configured OpenRouter access") && help.includes("ChatGPT"), "help explains offline behavior and OpenRouter plus default ChatGPT access");
+  assert(help.includes("role overrides only") && help.includes("no workflow-specific decision settings"), "help documents role-only configuration");
+  assert(!help.includes("openrouter") && !help.includes("typesafe/jev-1.14"), "help has no decision provider/model defaults");
+  assert(help.includes("offline") && help.includes("configured agent-provider access") && help.includes("ChatGPT"), "help explains offline help and ordinary agent access");
   assert(calls === beforeHelp, "help does not start a parent or read the supplied missing paths");
 
   console.log("workflow launcher offline checks passed");
