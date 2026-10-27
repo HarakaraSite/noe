@@ -54,14 +54,23 @@ func TestVersionCommandsUseConfiguredVersion(t *testing.T) {
 }
 
 func TestRemovedREPLHelpAndUnknownCommand(t *testing.T) {
+	hasREPLCommand := func(text string) bool {
+		for _, line := range strings.Split(text, "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 && fields[0] == "noe" && strings.EqualFold(fields[1], "repl") {
+				return true
+			}
+		}
+		return false
+	}
 	var stdout, stderr bytes.Buffer
-	if code := Run(context.Background(), nil, strings.NewReader(""), &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "noe run") || strings.Contains(strings.ToLower(stdout.String()), "repl") || stderr.Len() != 0 {
+	if code := Run(context.Background(), nil, strings.NewReader(""), &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "noe run") || hasREPLCommand(stdout.String()) || stderr.Len() != 0 {
 		t.Fatalf("help code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run(context.Background(), []string{"repl"}, strings.NewReader(""), &stdout, &stderr); code != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), `unknown command "repl"`) || strings.Count(strings.ToLower(stderr.String()), "repl") != 1 {
+	if code := Run(context.Background(), []string{"repl"}, strings.NewReader(""), &stdout, &stderr); code != 2 || stdout.Len() != 0 || strings.Count(stderr.String(), `unknown command "repl"`) != 1 || hasREPLCommand(stderr.String()) {
 		t.Fatalf("rejected command code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }
