@@ -2498,3 +2498,59 @@ does not move the release tag. Local executable installation/process restarts
 were not requested and were not performed. External instruction files remain
 user-controlled; the binary does not install or restore them. Existing user
 logs and caches are preserved and excluded from commits.
+
+## v2.9.0 preparation — 2026-10-27
+
+The user authorized release after committing the streamlined development
+workflow and completing an isolated smoke task. Latest published release:
+v2.8.3. The new minor version includes the portable agent-led workflow and
+the five core cleanup/efficiency slices. See [release notes](v2.9.0.md).
+
+Checked clean candidate source:
+`bcdb28699040db64e1cab3d8bf70b34707a9a8d5`.
+Its only production-Go difference from implementation `b362011` is the
+CLI version string. Dependencies, Go 1.27.2, go-quickjs v0.29.0, go-intl
+v0.8.0, no-JIT configuration and lightweight release workflow are unchanged.
+This preparation follow-up changes only this evidence document.
+
+Implementation evidence is reused:
+- Five ordered core slice commits `038bfcc`, `54f904b`, `fcdbd4e`,
+  `6e0d6fe` and `3050fdc` passed focused checks and independent reviews.
+  Coordinated whole-tree unit tests and vet passed, as did targeted
+  cancellation race checks. Windows command-environment checks were
+  cross-compiled and reviewed, not executed natively.
+- Workflow simplification `b362011` passed offline configuration/termination,
+  copied-package/no-config and help checks, JavaScript lint/type checks and
+  source/diff checks. Decision configuration/defaults were removed; only
+  role settings remain.
+- A real one-slice isolated display-label task completed independent
+  normal/critical plan reviews, Terra implementation with focused tests,
+  independent code review, a local commit and a verified push to a local
+  bare remote. Wall time was 408,330 ms; 2,141 recorded events contain zero
+  decision events. This is not a controlled speed comparison.
+- The bounded thinking-fragment benchmark in the release notes is reused;
+  it demonstrates local prefix-copy reduction, not end-to-end speedup.
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test | PASS |
+| Clean CGO-free native release-flags build | PASS, checked revision above, vcs.modified=false |
+| Candidate version/arithmetic | PASS, noe v2.9.0 and 2 |
+| Candidate workflow offline contract/configuration/termination checks | PASS, no provider calls |
+| Current README/release relative links | PASS, 127 references resolve |
+| Formatting/diff and production/dependency delta checks | PASS |
+| Unrelated tracked edits and local executable hashes | Unchanged and excluded |
+
+Evidence and clean detached source:
+`/tmp/noe-v2.9.0-release-2166384416`.
+Core command evidence and the real workflow smoke result are copied into
+its reused-evidence directory. No full suite, E2E, race, long wait, repeated
+paid task or six-binary local distribution build was rerun for release.
+CI builds the six profile targets, generates SHA256SUMS and uploads the
+immutable tag without duplicating local source tests. Published assets
+and actual Go-module retrieval are checked after publication.
+
+Native execution here is Linux amd64; the other five targets receive
+build/hash verification. This request authorizes publication, not local
+installation or process restarts. Repository-root/PATH binaries, user
+logs/caches and unrelated worktree changes are preserved.
