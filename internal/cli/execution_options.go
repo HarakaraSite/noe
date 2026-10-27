@@ -20,22 +20,55 @@ func parseExecutionOptions(args []string) (time.Duration, []string, error) {
 }
 
 type commandOptions struct {
-	timeout   time.Duration
-	events    *string // nil disables observation; empty chooses an automatic file name.
-	observe   bool    // render human-readable events directly on stdout.
-	importMap string  // explicit import-map path; empty disables mappings.
+	timeout         time.Duration
+	events          *string  // nil disables observation; empty chooses an automatic file name.
+	observe         bool     // render human-readable events directly on stdout.
+	importMap       string   // explicit import-map path; empty disables mappings.
+	instructionDirs []string // nil discovers defaults; non-nil replaces them.
 }
 
 func parseCommandOptions(args []string) (commandOptions, []string, error) {
 	var options commandOptions
 	var timeout time.Duration
 	seenTimeout := false
+	noInstructions := false
 
 	for i := 0; i < len(args); {
 		arg := args[i]
 		if arg == "--" {
 			options.timeout = timeout
 			return options, args[i+1:], nil
+		}
+		if arg == "--no-instructions" {
+			if noInstructions {
+				return commandOptions{}, nil, errors.New("noe: --no-instructions may be specified only once")
+			}
+			if options.instructionDirs != nil {
+				return commandOptions{}, nil, errors.New("noe: --instruction-dir and --no-instructions are mutually exclusive")
+			}
+			noInstructions = true
+			options.instructionDirs = []string{}
+			i++
+			continue
+		}
+		if arg == "--instruction-dir" || strings.HasPrefix(arg, "--instruction-dir=") {
+			if noInstructions {
+				return commandOptions{}, nil, errors.New("noe: --instruction-dir and --no-instructions are mutually exclusive")
+			}
+			value := strings.TrimPrefix(arg, "--instruction-dir=")
+			if arg == "--instruction-dir" {
+				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
+					return commandOptions{}, nil, errors.New("noe: --instruction-dir requires a directory path")
+				}
+				value = args[i+1]
+				i++
+			}
+			if value == "" {
+				return commandOptions{}, nil, errors.New("noe: --instruction-dir requires a directory path")
+			}
+			options.instructionDirs = append(options.instructionDirs, value)
+			i++
+			continue
 		}
 		if arg == "--import-map" || strings.HasPrefix(arg, "--import-map=") {
 			if options.importMap != "" {

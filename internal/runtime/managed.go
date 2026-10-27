@@ -63,7 +63,7 @@ func newManagedExecution(ctx context.Context, options Options, source Source) (*
 		}
 	}
 	host, err := publicagent.NewHost(ctx, publicagent.HostConfig{
-		Models: models, Runtime: &taskProfile, Instructions: noeprofile.InstructionSource(profile.Environment.Cwd), Observe: observe, Trace: settings.Trace,
+		Models: models, Runtime: &taskProfile, Instructions: noeprofile.SelectedInstructionSource(profile.Environment.Cwd, options.InstructionDirs), Observe: observe, Trace: settings.Trace,
 	})
 	if err != nil {
 		return nil, err

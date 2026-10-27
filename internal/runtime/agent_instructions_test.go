@@ -123,8 +123,10 @@ await run("removed");`, path, behaviors["custom"], path, behaviors["replaced"], 
 func TestAgentInstructionsFreezeParentAndReloadChild(t *testing.T) {
 	cwd, config := t.TempDir(), t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", config)
-	common := filepath.Join(config, "noe", "instructions", "10-common.md")
-	workspace := filepath.Join(cwd, ".noe", "instructions", "20-project.md")
+	common := filepath.Join(cwd, "selected-a", "10-common.md")
+	workspace := filepath.Join(cwd, "selected-b", "20-project.md")
+	writeAgentInstructionFixture(t, filepath.Join(config, "noe", "instructions", "default.md"), "EXCLUDED_DEFAULT")
+	writeAgentInstructionFixture(t, filepath.Join(cwd, ".noe", "instructions", "default.md"), "EXCLUDED_DEFAULT")
 	writeAgentInstructionFixture(t, common, "GLOBAL_VERSION_ZERO")
 	writeAgentInstructionFixture(t, workspace, "WORKSPACE_VERSION_ZERO")
 	writeAgentInstructionFixture(t, filepath.Join(cwd, "first.md"), "EXPLICIT_FIRST")
@@ -174,7 +176,7 @@ console.log(result.lastResult.answer);`, filepath.Join(cwd, "first.md"), filepat
 	defer cancel()
 	var out, stderr bytes.Buffer
 	code, err := Execute(ctx, Source{Name: filepath.Join(cwd, "scripts", "entry.js"), Code: source}, Options{
-		Cwd: cwd, Agent: agentTestOptions(p), Stdout: &out, Stderr: &stderr,
+		Cwd: cwd, InstructionDirs: []string{"selected-a", "selected-b"}, Agent: agentTestOptions(p), Stdout: &out, Stderr: &stderr,
 	})
 	if code != 0 || err != nil || out.String() != "parent done\n" {
 		t.Fatalf("code=%d err=%v stdout=%q stderr=%q", code, err, &out, &stderr)
@@ -204,7 +206,7 @@ console.log(result.lastResult.answer);`, filepath.Join(cwd, "first.md"), filepat
 			position = next + len(marker)
 		}
 	}
-	if strings.Contains(seen["child"][0], "EXPLICIT_FIRST") || strings.Contains(seen["child"][0], "VERSION_ZERO") || strings.Contains(seen["parent"][1], "VERSION_ONE") {
+	if strings.Contains(seen["parent"][0], "EXCLUDED_DEFAULT") || strings.Contains(seen["child"][0], "EXCLUDED_DEFAULT") || strings.Contains(seen["child"][0], "EXPLICIT_FIRST") || strings.Contains(seen["child"][0], "VERSION_ZERO") || strings.Contains(seen["parent"][1], "VERSION_ONE") {
 		t.Fatal("parent/child instruction snapshots leaked across runs")
 	}
 }
@@ -213,7 +215,7 @@ func TestAgentInstructionsLazyIdleFailureAndFrozenQueue(t *testing.T) {
 	cwd, config := t.TempDir(), t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", config)
 	// A malformed instruction directory must not affect import or idle spawn.
-	bad := filepath.Join(cwd, ".noe", "instructions")
+	bad := filepath.Join(cwd, "selected-instructions")
 	writeAgentInstructionFixture(t, bad, "not a directory")
 	var mu sync.Mutex
 	seen := map[string]string{}
@@ -253,7 +255,7 @@ async function task(instruction) {
  }
 }
 const failed=await task("bad-directory");
-if(failed.state!=="failed" || !failed.runId || !failed.error.includes("instructions")) throw Error(JSON.stringify(failed));
+if(failed.state!=="failed" || !failed.runId || !failed.error.includes(dir)) throw Error(JSON.stringify(failed));
 await unlink(dir);
 await mkdir(dir);
 await writeFile(dir+"/project.md","QUEUED_VERSION_ONE");
@@ -269,7 +271,7 @@ console.log("queue snapshots verified");`, bad)
 	defer cancel()
 	var out, stderr bytes.Buffer
 	code, err := Execute(ctx, Source{Name: filepath.Join(cwd, "main.js"), Code: source}, Options{
-		Cwd: cwd, Agent: agentTestOptions(p), Stdout: &out, Stderr: &stderr,
+		Cwd: cwd, InstructionDirs: []string{"selected-instructions"}, Agent: agentTestOptions(p), Stdout: &out, Stderr: &stderr,
 	})
 	if code != 0 || err != nil || out.String() != "queue snapshots verified\n" {
 		t.Fatalf("code=%d err=%v stdout=%q stderr=%q", code, err, &out, &stderr)

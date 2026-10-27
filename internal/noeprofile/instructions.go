@@ -16,9 +16,29 @@ import (
 // InstructionSource fixes NOE's directory locations at first use. It rereads
 // their contents for each invocation; the agent instance owns its body snapshot.
 func InstructionSource(cwd string) func(context.Context) (string, error) {
+	return SelectedInstructionSource(cwd, nil)
+}
+
+// SelectedInstructionSource uses default discovery for nil, or fixes a copy of
+// the supplied ordered replacement locations at construction. Contents remain lazy.
+func SelectedInstructionSource(cwd string, selected []string) func(context.Context) (string, error) {
 	var once sync.Once
 	var directories []string
 	var locationErr error
+	if selected != nil {
+		directories = make([]string, len(selected))
+		for i, directory := range selected {
+			if !filepath.IsAbs(directory) {
+				directory = filepath.Join(cwd, directory)
+			}
+			directories[i], locationErr = filepath.Abs(directory)
+			if locationErr != nil {
+				break
+			}
+		}
+		// Explicit selections, including empty, never trigger default discovery.
+		once.Do(func() {})
+	}
 	return func(ctx context.Context) (string, error) {
 		if ctx == nil {
 			return "", errors.New("NOE instructions: context is required")

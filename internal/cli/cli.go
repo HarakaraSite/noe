@@ -20,8 +20,8 @@ import (
 var Version = "v2.9.0"
 
 const usage = `Usage:
-  noe run [--timeout duration] [--import-map path] [--observe] [--events[=path|-]] script.js [args...]
-  noe eval [--timeout duration] [--import-map path] [--observe] [--events[=path|-]] 'code'
+  noe run [options] script.js [args...]
+  noe eval [options] 'code'
   noe observe [--run id] [--follow] [events.jsonl|-]
   noe observe --json --run id [--wait] events.jsonl
   noe agents [--full]
@@ -32,6 +32,16 @@ const usage = `Usage:
   noe docs [topic [member]]
   noe --help
   noe --version
+
+Execution options (before the first operand; -- ends options):
+  --timeout duration       Limit execution time.
+  --import-map path        Select an import map.
+  --instruction-dir PATH   Replace defaults; repeat in order (also --instruction-dir=PATH).
+  --no-instructions        Select no external directories (exclusive with --instruction-dir).
+  By default, common and starting-cwd workspace directories are used.
+  Built-in facts and explicit config.system remain with either selection.
+  --observe                Display readable events.
+  --events[=path|-]        Save or stream JSONL events.
 
 Events:
   --observe displays readable events on stdout without a pipe.
@@ -51,6 +61,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	var eventOption *string
 	var humanOutput bool
 	var importMapPath string
+	var instructionDirs []string
 	switch args[0] {
 	case "--help", "-h", "help":
 		fmt.Fprint(stdout, usage)
@@ -93,6 +104,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		executionTimeout, eventOption = options.timeout, options.events
 		humanOutput = options.observe
 		importMapPath = options.importMap
+		instructionDirs = options.instructionDirs
 	case "eval":
 		options, operands, err := parseCommandOptions(args[1:])
 		if err != nil {
@@ -112,6 +124,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		executionTimeout, eventOption = options.timeout, options.events
 		humanOutput = options.observe
 		importMapPath = options.importMap
+		instructionDirs = options.instructionDirs
 	default:
 		fmt.Fprintf(stderr, "noe: unknown command %q\n%s", args[0], usage)
 		return 2
@@ -128,7 +141,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	}
 	defer func() { exitCode = observed.finish(exitCode, stderr) }()
 	observed.emit(events.Event{"type": "execution.started", "command": args[0]})
-	runtimeOptions := runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs, ImportMap: importMap}
+	runtimeOptions := runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs, ImportMap: importMap, InstructionDirs: instructionDirs}
 	if observed != nil {
 		runtimeOptions.Stdout, runtimeOptions.Stderr = observed.stdout, observed.stderr
 	}

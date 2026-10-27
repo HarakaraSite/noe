@@ -24,6 +24,9 @@ type Options struct {
 	Stderr io.Writer
 	Args   []string
 	Cwd    string
+	// InstructionDirs replaces default external sources when non-nil; empty disables them.
+	// Relative paths are based on Cwd. The runtime copies and fixes locations at startup.
+	InstructionDirs []string
 	// Agent supplies NOE model, supervisor, control, and event settings. Nil uses lazy defaults.
 	Agent *noeprofile.AgentOptions
 	// Auth supplies HTTP/discovery settings for native sign-in verification.

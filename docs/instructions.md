@@ -9,20 +9,34 @@ Behavioral choices belong to users: autonomy and approval preferences, language 
 An agent instance composes its system message once when its first task starts:
 
 1. Built-in runtime and API facts, including the selected profile's capabilities.
-2. Markdown from the common instruction directory.
-3. Markdown from the workspace instruction directory.
-4. The explicitly supplied `config.system` string.
+2. Markdown from the selected external directories, in order.
+3. The explicitly supplied `config.system` string.
+
+By default the selected directories are common, then workspace:
 
 | Scope | Directory |
 | --- | --- |
 | Common | `$XDG_CONFIG_HOME/noe/instructions/`, or `~/.config/noe/instructions/` when the variable is empty or unset |
 | Workspace | `<NOE starting working directory>/.noe/instructions/` |
 
-The workspace is the host's configured working directory, not the script directory or a temporary agent-script location. There is no Git-root or ancestor-directory discovery. Children use the same workspace locations.
+The workspace is the host's configured working directory, not the script directory or a temporary agent-script location. There is no Git-root or ancestor-directory discovery. Children use the same selected locations.
+
+## Selecting directories for a CLI execution
+
+Both `noe run` and `noe eval` accept repeatable `--instruction-dir PATH` or `--instruction-dir=PATH` options. Together they **replace** the default list, in the supplied order; common and workspace are used only if explicitly listed. Repeating a directory reads it again. `--no-instructions` selects an empty external list and is mutually exclusive with `--instruction-dir`. It does not remove built-in facts or explicit `config.system`.
+
+```sh
+# An application-owned list; no app registry or identity is involved.
+noe run --instruction-dir /srv/my-app/instructions --instruction-dir ./team-rules app/main.js
+noe eval --instruction-dir=./team-rules 'console.log("ready")'
+noe run --no-instructions app/main.js
+```
+
+Options precede the first operand; `--` ends option parsing. Arguments after a run script are passed to the script, even if they look like instruction options. Relative directories are fixed against the actual starting cwd, not the entry script's directory. NOE does not interpolate environment variables or expand tildes in option values; any shell expansion occurs before NOE receives them. Selection changes instruction locations only, not the execution cwd or filesystem behavior.
 
 Files with the lowercase extension `.md` are read from each directory's immediate children in filename order. Names such as `10-tools.md` and `20-project.md` can make that order explicit. Subdirectories are not traversed. Symbolic links to regular files are supported.
 
-Contents are appended. Files with the same name in common and workspace directories are both read; one does not replace the other. Likewise, config.system is appended rather than replacing loaded files. To remove an instruction from the composed text, edit or remove the source file before creating a new agent instance.
+Contents are appended. Files with the same name in different selected directories are all read; one does not replace another. Likewise, `config.system` is appended rather than replacing loaded files. To remove an instruction from the composed text, edit or remove the source file before creating a new agent instance.
 
 Missing directories add no instructions. An unreadable directory or instruction file fails the task before a model request, with the affected path reported.
 
@@ -79,7 +93,7 @@ AGENTS.md is not discovered automatically. A file-path array cannot be passed di
 
 ## Snapshot lifetime
 
-Instruction files are read once per instance, before its first actual task's hooks or model request. Idle startup does not read them. Later queued tasks reuse the same composed system message, even if the files have changed.
+Instruction locations are fixed for the host execution, but file contents are read once per instance, before its first actual task's hooks or model request. Ordinary JavaScript and idle agent startup do not read them. Later queued tasks reuse the same composed system message, even if the files have changed.
 
 A new instance, including a new child, reads the current files at its own first task. It does not inherit the parent's loaded instruction text or conversation. Explicit config.system is fixed for its instance and reaches a new child only when explicitly supplied.
 
