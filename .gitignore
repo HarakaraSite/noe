@@ -1,2 +1,10 @@
 /noe
 /.zed/
+
+# Local execution artifacts.
+/.noe/events/
+
+# Generated Python bytecode.
+__pycache__/
+*.pyc
+*.pyo
