@@ -45,6 +45,8 @@ func readRecords(ctx context.Context, input io.Reader) ([]record, error) {
 		lineNumber++
 		line = bytes.TrimSuffix(line, []byte{'\n'})
 		line = bytes.TrimSuffix(line, []byte{'\r'})
+		// Parse before the next reader operation; a short line may borrow its buffer.
+		// JSON decoding owns the values retained in rec.
 		rec, parseErr := parseRecord(ctx, line)
 		if parseErr != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
@@ -72,6 +74,8 @@ func (r contextReader) Read(p []byte) (int, error) {
 	return r.reader.Read(p)
 }
 
+// A complete first-read line borrows reader's buffer until the next reader operation.
+// Buffer-spanning lines are accumulated separately.
 func readCompleteLine(ctx context.Context, reader *bufio.Reader) ([]byte, bool, error) {
 	var line []byte
 	for {
@@ -79,11 +83,14 @@ func readCompleteLine(ctx context.Context, reader *bufio.Reader) ([]byte, bool, 
 			return nil, false, err
 		}
 		part, err := reader.ReadSlice('\n')
-		line = append(line, part...)
 		switch err {
 		case nil:
-			return line, true, nil
+			if line == nil {
+				return part, true, nil
+			}
+			return append(line, part...), true, nil
 		case bufio.ErrBufferFull:
+			line = append(line, part...)
 			continue
 		case io.EOF:
 			// Do not parse a record until its terminating newline has arrived.

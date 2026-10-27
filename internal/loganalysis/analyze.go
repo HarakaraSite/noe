@@ -123,22 +123,20 @@ func Analyze(ctx context.Context, reader io.Reader, q Query) (Snapshot, error) {
 	}
 
 	maxSeq := uint64(0)
-	for _, rec := range records {
-		if err := ctx.Err(); err != nil {
-			return Snapshot{}, err
-		}
-		if rec.executionID == targetExecution && rec.seq > maxSeq {
-			maxSeq = rec.seq
-		}
-	}
-
 	state := newRunState(q.RunID)
 	var lastProjectedSeq uint64
 	for _, rec := range records {
 		if err := ctx.Err(); err != nil {
 			return Snapshot{}, err
 		}
-		if rec.executionID != targetExecution || stringField(rec.event, "runId") != q.RunID {
+		if rec.executionID != targetExecution {
+			continue
+		}
+		// The cursor covers the execution, including other runs and hidden events.
+		if rec.seq > maxSeq {
+			maxSeq = rec.seq
+		}
+		if stringField(rec.event, "runId") != q.RunID {
 			continue
 		}
 		state.apply(rec, q.IncludeOutput)
