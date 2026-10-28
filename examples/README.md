@@ -24,6 +24,7 @@
 | [image](image/README.md) | agentによる画像読取り、JavaScriptからの画像生成 | 読取りはagent用provider認証、生成は対応provider認証と利用料 |
 | [decision](decision/README.md) | Jev等による単発の構造化判断 | OpenRouter認証 |
 | [exa](exa/README.md) | 再利用できるExa検索ライブラリ | Exa APIキー |
+| [noebot](noebot/README.md) | Thin consumer of the separately installed private noebot application (Web, Telegram, jobs, notes, schedules) | NOE provider credentials; Telegram optional |
 | [agent-server](agent-server/README.md) | HTTP・ブラウザから常駐agentへ依頼・観察・制御 | 各providerの認証 |
 
 任意の指示を試す入口は`agent/try-agent.js`です。

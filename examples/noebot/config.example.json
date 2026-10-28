@@ -1,0 +1,9 @@
+{
+  "workspace": "/absolute/path/to/workspace",
+  "timezone": "Etc/UTC",
+  "agent": {
+    "provider": "openrouter",
+    "model": "provider/model-id",
+    "effort": "auto"
+  }
+}
