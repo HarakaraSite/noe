@@ -2603,3 +2603,58 @@ Local installation/process restarts were not requested and were not
 performed. Repository-root and PATH executable hashes and the original
 unrelated worktree status remain unchanged; user files/logs/caches are
 preserved and excluded.
+
+## v2.10.0 preparation — 2026-10-28
+
+The user authorized committing the short instruction-option names, release,
+and local package placement. Latest published release: v2.9.0.
+Implementation `c4fa378` makes `--inst DIR` / `--inst=DIR` and
+`--no-inst` canonical, retaining the original long compatibility aliases.
+This release also contains directory-selection `d20d883`, its help-test
+correction `63aa502`, and the previously committed Terra catalog metadata.
+See [release notes](v2.10.0.md).
+
+Checked clean release source:
+`d9602b39077ff0a47c3f4e059e1cfb1661ce7f8d`.
+Its only production-source difference from verified implementation
+`c4fa378` is the CLI Version string. Go dependencies and the unchanged
+six-target lightweight release workflow are unchanged. This preparation
+follow-up adds only this evidence section.
+
+Valid implementation evidence is reused:
+- The original directory-selection feature passed independent plan/code
+  reviews and deterministic CLI/runtime/source-reader checks. Its single
+  overall unit run passed all packages except a stale help-test assertion;
+  after the test-only correction, the complete CLI package passed.
+  Affected CLI/runtime/profile vet passed.
+- Short names, old aliases, mixed ordering/conflicts, empty selection,
+  actual run/eval composition, lazy behavior and script boundaries passed
+  the complete CLI package (`go test ./internal/cli -count=1`, 3.972s).
+  CLI vet, gofmt and diff checks passed.
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test | PASS |
+| Current README/release/instruction relative links | PASS, 138 references |
+| Clean CGO-free native release-flags build | PASS, checked revision above, vcs.modified=false |
+| Candidate version/help/arithmetic | PASS, noe v2.10.0 and 2 |
+| Native run/eval local-provider fixture | PASS, default/ordered replacement/explicit empty/old aliases and cwd |
+| Native usage and script boundaries | PASS, missing value/conflict errors and unchanged arguments |
+| Dependencies and release workflow | Unchanged |
+
+The candidate fixture makes only deterministic loopback provider requests;
+it makes no paid or external model-provider request. No full suite, race,
+long wait or six-binary local distribution build is repeated for release.
+CI builds six targets, creates SHA256SUMS and uploads the immutable tag.
+Published checksums, native instruction-option behavior and actual public
+Go-module retrieval will be verified after publication.
+
+Evidence and clean detached source: `/tmp/noe-v2.10.0-release-ymFznQ`.
+The user also authorized local package placement: install only the verified
+published Linux amd64 asset into repository-root `./noe` and
+`/home/agent/.local/bin/noe`, with backups and atomic replacement.
+Both currently report v2.8.1. Existing running processes will not be restarted.
+Native runtime verification is Linux amd64; other five targets have
+CI build/hash verification, not native execution here.
+The three pre-existing local discussion/run memos, user logs and caches
+are preserved and excluded from commits.
