@@ -36,8 +36,8 @@ const usage = `Usage:
 Execution options (before the first operand; -- ends options):
   --timeout duration       Limit execution time.
   --import-map path        Select an import map.
-  --instruction-dir PATH   Replace defaults; repeat in order (also --instruction-dir=PATH).
-  --no-instructions        Select no external directories (exclusive with --instruction-dir).
+  --inst DIR               Replace defaults; repeat in order (also --inst=DIR).
+  --no-inst                Select no external directories (exclusive with --inst).
   By default, common and starting-cwd workspace directories are used.
   Built-in facts and explicit config.system remain with either selection.
   --observe                Display readable events.

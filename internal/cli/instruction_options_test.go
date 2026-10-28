@@ -24,17 +24,23 @@ func TestParseInstructionOptions(t *testing.T) {
 		err                  string
 	}{
 		{"default", []string{"script.js"}, nil, []string{"script.js"}, ""},
-		{"empty", []string{"--no-instructions", "code"}, []string{}, []string{"code"}, ""},
-		{"ordered", []string{"--instruction-dir", "a", "--timeout=1s", "--instruction-dir=b", "--instruction-dir=a", "script", "--no-instructions"}, []string{"a", "b", "a"}, []string{"script", "--no-instructions"}, ""},
-		{"literal option path", []string{"--instruction-dir=--literal", "--", "code"}, []string{"--literal"}, []string{"code"}, ""},
-		{"terminator", []string{"--", "--no-instructions", "arg"}, nil, []string{"--no-instructions", "arg"}, ""},
-		{"missing", []string{"--instruction-dir"}, nil, nil, "requires a directory"},
-		{"missing before option", []string{"--instruction-dir", "--no-instructions"}, nil, nil, "requires a directory"},
-		{"empty separate", []string{"--instruction-dir", ""}, nil, nil, "requires a directory"},
-		{"empty equals", []string{"--instruction-dir="}, nil, nil, "requires a directory"},
-		{"conflict first dir", []string{"--instruction-dir=a", "--no-instructions"}, nil, nil, "mutually exclusive"},
-		{"conflict first empty", []string{"--no-instructions", "--instruction-dir=a"}, nil, nil, "mutually exclusive"},
-		{"duplicate empty", []string{"--no-instructions", "--no-instructions"}, nil, nil, "only once"},
+		{"empty", []string{"--no-inst", "code"}, []string{}, []string{"code"}, ""},
+		{"ordered", []string{"--inst", "a", "--timeout=1s", "--inst=b", "--inst=a", "script", "--no-inst"}, []string{"a", "b", "a"}, []string{"script", "--no-inst"}, ""},
+		{"literal option path", []string{"--inst=--literal", "--", "code"}, []string{"--literal"}, []string{"code"}, ""},
+		{"terminator", []string{"--", "--no-inst", "arg"}, nil, []string{"--no-inst", "arg"}, ""},
+		{"missing", []string{"--inst"}, nil, nil, "requires a directory"},
+		{"missing before option", []string{"--inst", "--no-inst"}, nil, nil, "requires a directory"},
+		{"empty separate", []string{"--inst", ""}, nil, nil, "requires a directory"},
+		{"empty equals", []string{"--inst="}, nil, nil, "requires a directory"},
+		{"conflict first dir", []string{"--inst=a", "--no-inst"}, nil, nil, "mutually exclusive"},
+		{"conflict first empty", []string{"--no-inst", "--inst=a"}, nil, nil, "mutually exclusive"},
+		{"duplicate empty", []string{"--no-inst", "--no-inst"}, nil, nil, "only once"},
+		{"legacy empty", []string{"--no-instructions", "code"}, []string{}, []string{"code"}, ""},
+		{"legacy ordered", []string{"--instruction-dir", "a", "--instruction-dir=b=c", "code"}, []string{"a", "b=c"}, []string{"code"}, ""},
+		{"mixed ordered", []string{"--inst=a", "--instruction-dir", "b", "--inst=a", "code"}, []string{"a", "b", "a"}, []string{"code"}, ""},
+		{"mixed conflict first dir", []string{"--instruction-dir=a", "--no-inst"}, nil, nil, "mutually exclusive"},
+		{"mixed conflict first empty", []string{"--no-instructions", "--inst=a"}, nil, nil, "mutually exclusive"},
+		{"mixed duplicate empty", []string{"--no-instructions", "--no-inst"}, nil, nil, "only once"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			opts, operands, err := parseCommandOptions(tc.args)
@@ -57,9 +63,10 @@ func TestParseInstructionOptions(t *testing.T) {
 func TestCLIInstructionUsageAndBoundary(t *testing.T) {
 	for _, command := range []string{"run", "eval"} {
 		for _, options := range [][]string{
-			{"--instruction-dir"}, {"--instruction-dir="}, {"--instruction-dir", "--no-instructions"},
-			{"--instruction-dir=a", "--no-instructions"}, {"--no-instructions", "--instruction-dir=a"},
-			{"--no-instructions", "--no-instructions"},
+			{"--inst"}, {"--inst="}, {"--inst", "--no-inst"},
+			{"--inst=a", "--no-inst"}, {"--no-inst", "--inst=a"},
+			{"--no-inst", "--no-inst"},
+			{"--no-inst", "--instruction-dir=a"}, {"--inst=a", "--no-instructions"},
 		} {
 			var out, stderr bytes.Buffer
 			args := append([]string{command}, options...)
@@ -73,8 +80,8 @@ func TestCLIInstructionUsageAndBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, stderr bytes.Buffer
-	args := []string{"run", "--no-instructions", "--", file, "--instruction-dir", "ignored", "--no-instructions"}
-	if code := Run(context.Background(), args, nil, &out, &stderr); code != 0 || out.String() != `["--instruction-dir","ignored","--no-instructions"]`+"\n" {
+	args := []string{"run", "--no-inst", "--", file, "--inst", "ignored", "--no-inst", "--instruction-dir", "--no-instructions"}
+	if code := Run(context.Background(), args, nil, &out, &stderr); code != 0 || out.String() != `["--inst","ignored","--no-inst","--instruction-dir","--no-instructions"]`+"\n" {
 		t.Fatalf("code=%d out=%q err=%q", code, &out, &stderr)
 	}
 }
@@ -137,8 +144,10 @@ if(r.lastResult?.state!=="completed") throw Error(JSON.stringify(r));`, cwd)
 			extra   string
 		}{
 			{"default", nil, "COMMON\n\nWORKSPACE"},
-			{"replacement", []string{"--instruction-dir", "two", "--timeout=10s", "--instruction-dir=one", "--instruction-dir=two", "--instruction-dir=missing"}, "TWO\n\nONE\n\nTWO"},
-			{"empty", []string{"--no-instructions"}, ""},
+			{"replacement", []string{"--inst", "two", "--timeout=10s", "--inst=one", "--inst=two", "--inst=missing"}, "TWO\n\nONE\n\nTWO"},
+			{"empty", []string{"--no-inst"}, ""},
+			{"legacy replacement", []string{"--instruction-dir", "two", "--instruction-dir=one"}, "TWO\n\nONE"},
+			{"legacy empty", []string{"--no-instructions"}, ""},
 		} {
 			t.Run(command+"/"+tc.name, func(t *testing.T) {
 				operand := file
@@ -189,7 +198,7 @@ func TestCLISelectedInstructionsRemainLazy(t *testing.T) {
 			operand = codeText
 		}
 		var out, stderr bytes.Buffer
-		code := Run(context.Background(), []string{command, "--instruction-dir", "not-dir", operand}, nil, &out, &stderr)
+		code := Run(context.Background(), []string{command, "--inst", "not-dir", operand}, nil, &out, &stderr)
 		if code != 0 || out.String() != "ordinary\n" || stderr.Len() != 0 {
 			t.Fatalf("%s: code=%d out=%q err=%q", command, code, &out, &stderr)
 		}

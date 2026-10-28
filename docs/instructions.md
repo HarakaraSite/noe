@@ -23,14 +23,16 @@ The workspace is the host's configured working directory, not the script directo
 
 ## Selecting directories for a CLI execution
 
-Both `noe run` and `noe eval` accept repeatable `--instruction-dir PATH` or `--instruction-dir=PATH` options. Together they **replace** the default list, in the supplied order; common and workspace are used only if explicitly listed. Repeating a directory reads it again. `--no-instructions` selects an empty external list and is mutually exclusive with `--instruction-dir`. It does not remove built-in facts or explicit `config.system`.
+Both `noe run` and `noe eval` accept repeatable `--inst DIR` or `--inst=DIR` options. Together they **replace** the default list, in the supplied order; common and workspace are used only if explicitly listed. Repeating a directory reads it again. `--no-inst` selects an empty external list and is mutually exclusive with `--inst`. It does not remove built-in facts or explicit `config.system`.
 
 ```sh
 # An application-owned list; no app registry or identity is involved.
-noe run --instruction-dir /srv/my-app/instructions --instruction-dir ./team-rules app/main.js
-noe eval --instruction-dir=./team-rules 'console.log("ready")'
-noe run --no-instructions app/main.js
+noe run --inst /srv/my-app/instructions --inst ./team-rules app/main.js
+noe eval --inst=./team-rules 'console.log("ready")'
+noe run --no-inst app/main.js
 ```
+
+The previous names `--instruction-dir` and `--no-instructions` remain accepted as compatibility aliases for `--inst` and `--no-inst`, respectively. The directory alias supports both separated and `=` forms; old and new names can be mixed under the same ordering and exclusivity rules.
 
 Options precede the first operand; `--` ends option parsing. Arguments after a run script are passed to the script, even if they look like instruction options. Relative directories are fixed against the actual starting cwd, not the entry script's directory. NOE does not interpolate environment variables or expand tildes in option values; any shell expansion occurs before NOE receives them. Selection changes instruction locations only, not the execution cwd or filesystem behavior.
 

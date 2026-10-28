@@ -35,36 +35,45 @@ func parseCommandOptions(args []string) (commandOptions, []string, error) {
 
 	for i := 0; i < len(args); {
 		arg := args[i]
+		// Retain the original names as aliases without changing script arguments.
+		switch {
+		case arg == "--instruction-dir":
+			arg = "--inst"
+		case strings.HasPrefix(arg, "--instruction-dir="):
+			arg = "--inst=" + strings.TrimPrefix(arg, "--instruction-dir=")
+		case arg == "--no-instructions":
+			arg = "--no-inst"
+		}
 		if arg == "--" {
 			options.timeout = timeout
 			return options, args[i+1:], nil
 		}
-		if arg == "--no-instructions" {
+		if arg == "--no-inst" {
 			if noInstructions {
-				return commandOptions{}, nil, errors.New("noe: --no-instructions may be specified only once")
+				return commandOptions{}, nil, errors.New("noe: --no-inst may be specified only once")
 			}
 			if options.instructionDirs != nil {
-				return commandOptions{}, nil, errors.New("noe: --instruction-dir and --no-instructions are mutually exclusive")
+				return commandOptions{}, nil, errors.New("noe: --inst and --no-inst are mutually exclusive")
 			}
 			noInstructions = true
 			options.instructionDirs = []string{}
 			i++
 			continue
 		}
-		if arg == "--instruction-dir" || strings.HasPrefix(arg, "--instruction-dir=") {
+		if arg == "--inst" || strings.HasPrefix(arg, "--inst=") {
 			if noInstructions {
-				return commandOptions{}, nil, errors.New("noe: --instruction-dir and --no-instructions are mutually exclusive")
+				return commandOptions{}, nil, errors.New("noe: --inst and --no-inst are mutually exclusive")
 			}
-			value := strings.TrimPrefix(arg, "--instruction-dir=")
-			if arg == "--instruction-dir" {
+			value := strings.TrimPrefix(arg, "--inst=")
+			if arg == "--inst" {
 				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
-					return commandOptions{}, nil, errors.New("noe: --instruction-dir requires a directory path")
+					return commandOptions{}, nil, errors.New("noe: --inst requires a directory path")
 				}
 				value = args[i+1]
 				i++
 			}
 			if value == "" {
-				return commandOptions{}, nil, errors.New("noe: --instruction-dir requires a directory path")
+				return commandOptions{}, nil, errors.New("noe: --inst requires a directory path")
 			}
 			options.instructionDirs = append(options.instructionDirs, value)
 			i++
