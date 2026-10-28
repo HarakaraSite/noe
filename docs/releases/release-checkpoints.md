@@ -2658,3 +2658,55 @@ Native runtime verification is Linux amd64; other five targets have
 CI build/hash verification, not native execution here.
 The three pre-existing local discussion/run memos, user logs and caches
 are preserved and excluded from commits.
+
+## v2.10.0 Release validation and package placement — 2026-10-28
+
+- Annotated tag `v2.10.0` points to
+  `8637edcd17d91e7737777fd8a5c6ee490aaf9809`, matching the peeled remote tag and
+  successful native workflow revision. Only preparation evidence differs
+  from checked clean source `d9602b39077ff0a47c3f4e059e1cfb1661ce7f8d`.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/46)
+  succeeded (API run ID 227) using the unchanged lightweight
+  six-target build/checksum/upload job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.10.0)
+  is published, neither draft nor prerelease (Release ID 159).
+  Its body matches the committed English [release notes](v2.10.0.md).
+
+All seven assets were downloaded and all six binary hashes match SHA256SUMS.
+The actual distributed Linux amd64 asset reports `noe v2.10.0`, the tagged
+source revision, `vcs.modified=false`, `CGO_ENABLED=0`, go-quickjs v0.29.0
+and go-intl v0.8.0. Its SHA256 is
+`4659e68efce9a33a82979f88d76d03a5ae4bfe28c279fd8c1c0d423912c86aaa`.
+
+The published binary passed version/help/arithmetic and the deterministic
+local-provider fixture: both run/eval, default sources, ordered explicit
+replacement and cwd, explicit-empty selection, old aliases, usage errors,
+and unchanged script arguments. Built-in facts and explicit system text
+remain. These fixture requests are loopback-only; no paid model-provider
+request was made.
+
+Clean external modules fetched stdlib@v2.10.0 and agent@v2.10.0 from the
+actual published module with GOPROXY=direct, no local replacements or
+synthetic proxy. Both built and passed `go mod verify`; the stdlib consumer
+and agent portable/gohost modes ran. MVS selected official go-quickjs
+v0.29.0 and go-intl v0.8.0. Published instruction-reader, managed-host,
+CLI-option, catalog and both public declaration files match the checked source.
+
+The verified published asset atomically replaced both
+`/home/agent/projects/noe/noe` and `/home/agent/.local/bin/noe`.
+Both hashes match the published checksum and both report `noe v2.10.0`.
+PATH resolves to the updated user binary. Installed invocation checks for
+`--inst` and `--no-inst` passed. Previous v2.8.1 executables are backed up at
+`/tmp/noe-v2.10.0-release-ymFznQ/installation`.
+Existing running processes were not restarted or interrupted.
+
+Evidence is retained at `/tmp/noe-v2.10.0-release-ymFznQ`, including
+candidate/source evidence, native Actions and Release metadata, all seven
+assets, published checksums/build info, CLI fixture results, actual
+external module consumers and installation.json. Other five targets have
+CI build/hash verification, not native execution here. Previously valid
+source suites were reused rather than repeated for publication.
+
+This documentation-only follow-up does not move or replace the release tag.
+The three pre-existing local memos remain unchanged and untracked;
+user instruction files, logs and caches are preserved.
