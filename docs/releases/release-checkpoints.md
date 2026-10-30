@@ -2710,3 +2710,46 @@ source suites were reused rather than repeated for publication.
 This documentation-only follow-up does not move or replace the release tag.
 The three pre-existing local memos remain unchanged and untracked;
 user instruction files, logs and caches are preserved.
+
+## v2.10.1 preparation — 2026-10-30
+
+The user authorized release and local executable placement after the NOE-local
+mkdtemp correction. Latest published release: v2.10.0. Implementation
+`6120981` preserves the prefix parent in both synchronous and Promise APIs;
+upstream issue filing is deferred. See [release notes](v2.10.1.md).
+The already committed thin noebot example is also included; unrelated
+uncommitted instruction/workflow edits and local memos are excluded.
+
+Checked clean candidate source:
+`cb8c4cead6231e06165f65fc31104a4bf93ce997`.
+The only production-Go changes from v2.10.0 are fsHost.mkdtemp and the CLI
+Version string. Dependencies and the six-target release workflow are unchanged.
+This preparation follow-up changes only this evidence document.
+
+Implementation evidence is reused: the new regression tests failed against
+the old implementation, then `go test ./internal/stdlib -run '^TestFiles'
+-count=1` passed after correction (2.687s). This includes both APIs, rooted
+and unrooted prefixes, configured cwd, trailing separators, missing and
+non-directory parents, parent symlinks, root confinement and ReadOnly.
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test, CGO disabled | PASS |
+| Clean native release-flags build, CGO disabled | PASS, checked revision above, vcs.modified=false |
+| Candidate version/arithmetic | PASS, noe v2.10.1 and 2 |
+| Candidate actual run/eval mkdtemp smoke | PASS, both APIs, absolute/relative/bare/trailing-separator prefixes and missing parent |
+| Current README/release/provenance relative links | PASS, 125 references |
+| Formatting/diff and production/dependency scope | PASS |
+
+Evidence and detached clean source:
+`/tmp/noe-v2.10.1-release-rn782yfe`.
+No full suite, unrelated E2E, race, long wait, paid provider calls or six-binary
+local distribution build is repeated for this patch. CI builds the six profile
+targets, generates SHA256SUMS and publishes the immutable tag. Published assets,
+native mkdtemp behavior and actual public Go-module retrieval are checked next.
+
+Only the verified published Linux amd64 asset will replace repository-root
+`./noe` and `/home/agent/.local/bin/noe`, with backups and atomic replacement.
+Running processes are not restarted. Native execution here is Linux amd64;
+other targets receive CI build/hash verification. User instruction files,
+logs, caches and pre-existing worktree changes remain untouched.
