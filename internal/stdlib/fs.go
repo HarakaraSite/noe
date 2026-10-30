@@ -460,15 +460,17 @@ func (f *fsHost) mkdtemp(prefix string) (string, error) {
 	if err := f.writable(); err != nil {
 		return "", err
 	}
-	dir := ""
-	if f.cfg.Root != "" {
-		root, err := f.resolve("/")
-		if err != nil {
-			return "", err
-		}
-		dir = root
+	// Split before resolving: the suffix is appended to the prefix, so a
+	// trailing separator means an empty name prefix inside that directory.
+	dir, name := filepath.Split(prefix)
+	if dir == "" {
+		dir = "."
 	}
-	out, err := os.MkdirTemp(dir, filepath.Base(prefix)+"*")
+	dir, err := f.resolve(dir)
+	if err != nil {
+		return "", err
+	}
+	out, err := os.MkdirTemp(dir, name+"*")
 	if err != nil {
 		return "", err
 	}

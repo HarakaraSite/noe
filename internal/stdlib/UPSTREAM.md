@@ -151,6 +151,16 @@ testdata/pathcorpus_node.js
     rejection. This fixes entry selection, not the separate nonexistent-path
     confinement issue or filesystem races. It is a NOE-local change.
 
+11. `mkdtempSync` and `fs/promises.mkdtemp` preserve the supplied prefix's
+    parent directory. Relative prefixes use the configured filesystem cwd;
+    a trailing separator creates a randomly named directory inside that
+    directory. The parent is resolved through the shared filesystem backend,
+    preserving root confinement and ReadOnly enforcement. Returned paths keep
+    the existing host-absolute or root-virtual form. `fs_mkdtemp_test.go`
+    covers both APIs, rooted and unrooted prefixes, relative paths, trailing
+    separators, missing/non-directory parents, and symlink/write policies.
+    This is a NOE-local fix; upstream issue filing is deferred.
+
 The initial snapshot import did not intentionally change HTTP behavior, body
 limits, timeouts, module names, exports, or protocols. Subsequent NOE-local
 changes should be recorded here with their rationale and validation. Upstream
@@ -163,13 +173,14 @@ NOE maintains this standard library independently. Fixes can be made locally
 without waiting for an upstream release. Shared defects and useful fixes may
 also be communicated upstream when an opportunity arises.
 
-### Open: mkdtemp discards the prefix directory (2026-10-26)
+### Fixed locally: mkdtemp discards the prefix directory (2026-10-30)
 
-Both `node:fs.mkdtempSync` and `node:fs/promises.mkdtemp` call `fsHost.mkdtemp`
-in `fs.go`. It passes `filepath.Base(prefix) + "*"` to `os.MkdirTemp`, dropping
-the directory from the supplied prefix. Without `FSConfig.Root`, creation
-therefore uses the OS temporary directory; with a root, it uses the root
-directory rather than the requested subdirectory.
+Reported on 2026-10-26: both `node:fs.mkdtempSync` and
+`node:fs/promises.mkdtemp` call `fsHost.mkdtemp` in `fs.go`. It previously passed
+`filepath.Base(prefix) + "*"` to `os.MkdirTemp`, dropping the directory from the
+supplied prefix. Without a filesystem root, creation therefore used the OS
+temporary directory; with a root, it used the root directory rather than the
+requested subdirectory.
 
 Reproduced through NOE's `run_js`, with the prefix's parent directory present:
 
@@ -187,10 +198,12 @@ The same implementation exists in the imported v0.27.0 and in
 [upstream v0.29.0 / main as checked on 2026-10-26](https://github.com/go-quickjs/go-quickjs/blob/44ddbaa01bcc4fa431e3e95978a18cb9ee4f21fc/stdlib/fs.go#L509-L526).
 Updating the engine dependency alone does not change this local copy.
 
-Local correction is pending. Preserve the prefix directory while honoring
-NOE's filesystem root and write permissions, and cover both synchronous and
-Promise APIs. Share the reproduction or fix upstream when convenient;
-upstream acceptance is not a prerequisite for a NOE fix.
+The NOE-local correction splits the prefix before path resolution, resolves
+its parent using the filesystem backend, and appends the random suffix only
+to the final name component. Both synchronous and Promise APIs are covered by
+regression tests, including filesystem root and write permissions. Upstream
+issue filing is deferred; upstream acceptance is not a prerequisite for this
+NOE fix.
 
 ## Evaluation and debugger difference
 
