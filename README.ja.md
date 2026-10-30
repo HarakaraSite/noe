@@ -35,14 +35,13 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.10.0リリースノート](docs/releases/v2.10.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.10.0)
+[v2.10.1リリースノート](docs/releases/v2.10.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.10.1)
 
-v2.10.0 adds per-execution instruction-directory selection through
-`--inst DIR` and `--no-inst`, plus GPT-6.1 Terra catalog metadata for
-OpenAI providers. The original long option names remain aliases. Public
-Go/JavaScript APIs and dependencies are unchanged. See the
-[instruction guide](docs/instructions.md) and
-[release notes](docs/releases/v2.10.0.md).
+v2.10.1 fixes `mkdtempSync` and `fs/promises.mkdtemp` so temporary
+directories are created under the supplied prefix's parent directory.
+Relative prefixes use the configured filesystem cwd, and root confinement
+and ReadOnly permissions remain enforced. Public APIs and dependencies
+are unchanged. See the [release notes](docs/releases/v2.10.1.md).
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
@@ -56,7 +55,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.10.0
+# noe v2.10.1
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。

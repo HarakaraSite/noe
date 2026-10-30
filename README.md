@@ -34,14 +34,13 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.10.0 release notes](docs/releases/v2.10.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.10.0)
+[v2.10.1 release notes](docs/releases/v2.10.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.10.1)
 
-v2.10.0 adds per-execution instruction-directory selection through
-`--inst DIR` and `--no-inst`, plus GPT-6.1 Terra catalog metadata for
-OpenAI providers. The original long option names remain aliases. Public
-Go/JavaScript APIs and dependencies are unchanged. See the
-[instruction guide](docs/instructions.md) and
-[release notes](docs/releases/v2.10.0.md).
+v2.10.1 fixes `mkdtempSync` and `fs/promises.mkdtemp` so temporary
+directories are created under the supplied prefix's parent directory.
+Relative prefixes use the configured filesystem cwd, and root confinement
+and ReadOnly permissions remain enforced. Public APIs and dependencies
+are unchanged. See the [release notes](docs/releases/v2.10.1.md).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -56,7 +55,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.10.0
+# noe v2.10.1
 ```
 
 The examples below assume the repository root is your working directory.
