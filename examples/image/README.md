@@ -44,8 +44,15 @@
 
 ## Original-image editing with subscription authentication
 
-Create a dedicated NOE login with `noe run scripts/auth-codex-images.js login`
-(or explicitly configure an external-readonly Codex credential source), then:
+Create a dedicated NOE login with
+`noe run --no-inst scripts/auth-codex-images.js login`. With a Mac browser and
+a Linux VM, keep that command running and paste the browser's full redirected
+callback URL into `noe run --no-inst scripts/auth-codex-images.js complete` in
+another VM terminal; press Enter, then Ctrl+D. Use the same optional
+credential-file for both commands and check the login terminal for save
+success. See the [image guide](../../docs/agent-images.md#subscription-generation-and-original-image-editing)
+for details. Alternatively, explicitly configure an external-readonly Codex
+credential source. Then:
 
 ```sh
 noe run examples/image/edit.js images/original.png images/revised.png 'Make the square orange.'

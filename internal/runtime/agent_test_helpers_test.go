@@ -62,6 +62,9 @@ func TestMain(m *testing.M) {
 	if code, handled := process.DispatchHelper(os.Args[1:]); handled {
 		os.Exit(code)
 	}
+	if os.Getenv("NOE_CODEX_IMAGES_HELPER_TEST") == "1" {
+		runCodexImageHelperProcess()
+	}
 	if os.Getenv("NOE_PROCESS_IO_HELPER") != "" {
 		for _, arg := range os.Args[1:] {
 			if arg == "-test.run=^TestNoeProcessIOHelper$" {

@@ -114,16 +114,60 @@ route. It is separate from `openai-chatgpt` public plan-sharing authentication.
 Create a dedicated NOE-owned login with:
 
 ```sh
-noe run scripts/auth-codex-images.js login
+noe run --no-inst scripts/auth-codex-images.js login
 ```
 
 The helper uses `${XDG_CONFIG_HOME:-$HOME/.config}/noe/credentials/openai-codex-images.json`
 unless an explicit file or `NOE_CODEX_IMAGE_CREDENTIALS_FILE` is selected.
-Open its authorization URL in a browser. For a remote NOE host, forward callback
-port 1455 from that host to the browser machine, for example with SSH `-L
-1455:127.0.0.1:1455`. NOE stores and refreshes its own grant; it does not import
-the active Codex application's refresh token. Host-supplied OAuth options can
-select a trusted issuer/client/callback profile.
+Run these commands with the NOE distribution root as the actual cwd. Keep
+`login` running in VM terminal A and open its authorization URL in the Mac
+browser. After signing in, copy the full redirected
+`http://127.0.0.1:PORT/auth/callback?...` URL from the browser's address bar,
+even if that page cannot connect. In VM terminal B, run:
+
+```sh
+noe run --no-inst scripts/auth-codex-images.js complete
+```
+
+Paste the URL into standard input, press Enter, then Ctrl+D on the empty line.
+The helper relays the callback to terminal A; check terminal A for credential
+save success. No SSH port forwarding, Python or separate curl command is
+required. `Callback delivered` only confirms delivery; native code exchange,
+identity validation and saving still belong to terminal A.
+
+The helper uses the same `login` / `complete` steps and terminal messages as
+the conversation helper. Image login tries port 1455, then registered alternate
+1457 automatically if the first is unavailable. It does not stop the existing
+listener. If both are occupied, finish a previous login and retry. Copy the
+actual browser redirect URL, including its selected port. The fixed image
+OAuth client has a registered redirect set; the conversation helper's dynamic
+registration supports arbitrary available loopback ports. Do not substitute an
+arbitrary image callback port based on the conversation flow's contract.
+
+To select another image credential file, use the same file in both commands:
+
+```sh
+noe run --no-inst scripts/auth-codex-images.js login /path/to/image-credentials.json
+noe run --no-inst scripts/auth-codex-images.js complete /path/to/image-credentials.json
+```
+
+Both commands also honor `NOE_CODEX_IMAGE_CREDENTIALS_FILE`. The adjacent
+`<credential-file>.pending/` directory has mode 0700. Each native attempt owns
+one mode-0600 JSON record containing only its loopback receiver; its random
+attempt ID is the filename. `complete` selects the newest published record.
+These records contain no authorization code or tokens. The helper checks the
+callback origin/path before delivery, and native auth verifies state and the
+sign-in result. Normal completion and reported
+login failures remove that attempt's pending record. Abrupt interruption can
+leave stale pending metadata: start a fresh `login`, which publishes a new
+record, then use the new browser redirect URL. `complete` explains missing pending metadata,
+URL mismatch and an unreachable/rejecting listener without printing the pasted
+URL or private response data.
+
+NOE stores and refreshes its own grant; it does not import the active Codex
+application's refresh token. Host-supplied OAuth options can select a trusted
+issuer/client/callback profile. Local browser callbacks and optional SSH
+forwarding continue to work as before.
 
 For an explicitly selected existing Codex login, configure both its path and
 read-only mode in a separate provider configuration:

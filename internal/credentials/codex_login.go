@@ -71,9 +71,9 @@ func BeginCodexImageLogin(ctx context.Context, file string, opts Options) (*Code
 	if !validCodexIssuer(issuer) {
 		return nil, errors.New("configured Codex issuer is not trusted")
 	}
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(codexCallbackPort(opts))))
+	listener, err := listenCodexImageCallback(codexCallbackPorts(opts))
 	if err != nil {
-		return nil, errors.New("could not start the Codex image login callback listener")
+		return nil, err
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	redirectURI := fmt.Sprintf("http://127.0.0.1:%d/auth/callback", port)
@@ -128,6 +128,16 @@ func BeginCodexImageLogin(ctx context.Context, file string, opts Options) (*Code
 		_ = a.server.Serve(a.listener)
 	}()
 	return a, nil
+}
+
+func listenCodexImageCallback(ports []int) (net.Listener, error) {
+	for _, port := range ports {
+		listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)))
+		if err == nil {
+			return listener, nil
+		}
+	}
+	return nil, errors.New("could not start the Codex image login callback listener: configured callback ports are in use or unavailable; finish a previous login and try again")
 }
 
 func (a *CodexImageLogin) Info() CodexImageLoginInfo { return a.info }

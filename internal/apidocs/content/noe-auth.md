@@ -59,7 +59,11 @@ loopback listener, state and PKCE verifier. The caller prints/opens the
 returned authorization URL and then completes this attempt. `file` is the
 selected private managed credential destination, anchored to the execution cwd.
 The issuer/client/port are host-controlled authentication options, not image
-request parameters. The default callback port is 1455.
+request parameters. The default callback port is 1455; if unavailable, NOE
+automatically uses the registered alternate port 1457. A positive host-supplied
+`CodexCallbackPort` selects exactly that port. Existing listeners are left
+running; when both default ports are unavailable, finish a previous login and
+retry. Use the exact redirect URL shown by the current browser attempt.
 
 ## complete_codex_image_login
 
@@ -67,8 +71,14 @@ request parameters. The default callback port is 1455.
 browser callback, exchanges its code, validates the signed identity and saves
 the dedicated credential record. It returns public file/email/expiry metadata,
 not tokens. Attempts belong to the originating execution; shutdown closes the
-listener and cancels outstanding work. A remote browser needs a loopback port
-forward to the NOE host. Use `scripts/auth-codex-images.js` for the normal flow.
+listener and cancels outstanding work. For a remote browser, run
+`noe run --no-inst scripts/auth-codex-images.js login` in one VM terminal and
+the same command with `complete` in another. Paste the browser's complete
+redirect URL on stdin and finish with Enter, Ctrl+D. The helper's private
+pending record identifies the local receiver; the second process relays the
+callback and does not adopt the first process's native attempt. Use the same
+optional credential-file for both commands. Check the login terminal for the
+final exchange/validation/save result; port forwarding is optional.
 
 The native login creates a separate grant. It does not copy or rotate the
 active Codex application's refresh token. Image provider `oauthMode: managed`

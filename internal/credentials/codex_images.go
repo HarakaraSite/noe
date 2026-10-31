@@ -536,11 +536,13 @@ func codexClientID(opts Options) string {
 	return CodexClientID
 }
 
-func codexCallbackPort(opts Options) int {
+func codexCallbackPorts(opts Options) []int {
 	if opts.CodexCallbackPort > 0 {
-		return opts.CodexCallbackPort
+		return []int{opts.CodexCallbackPort}
 	}
-	return CodexPort
+	// Unlike dynamic ChatGPT plan-sharing registration, this fixed client has
+	// registered redirects. Match the pinned Codex login source's two ports.
+	return []int{CodexPort, CodexFallbackPort}
 }
 
 func sameOrigin(issuer, endpoint string) bool {

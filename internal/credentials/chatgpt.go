@@ -21,6 +21,8 @@ const (
 	CodexIssuer   = "https://auth.openai.com"
 	CodexClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
 	CodexPort     = 1455
+	// Codex's fixed OAuth client registers this alternate loopback redirect.
+	CodexFallbackPort = 1457
 )
 
 type HTTPClient interface {
@@ -32,7 +34,7 @@ type Options struct {
 	DiscoveryURL      string // injectable discovery endpoint for local tests
 	CodexIssuer       string
 	CodexClientID     string
-	CodexCallbackPort int
+	CodexCallbackPort int // positive selects one exact port; zero tries 1455, then 1457
 }
 
 // Record matches hjh's token record, so a selected account can be copied intact.
