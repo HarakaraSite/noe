@@ -2801,3 +2801,57 @@ evidence was reused; no full source-suite rerun or paid provider call was made.
 All 13 pre-existing uncommitted instruction/workflow files and local memos
 retain their original hashes and remain excluded from release commits.
 This documentation-only follow-up does not move or replace the release tag.
+
+## v2.11.0 preparation — 2026-11-01
+
+The user authorized committing all remaining local changes, push and release.
+Latest published release: v2.10.1. Image implementation `6a1cd31` adds
+`edit_image`, the separate `openai-codex-images` generation/editing provider,
+NOE-owned native OAuth/refresh and explicit external-readonly credentials.
+Guidance and the three existing discussion/run records are included in
+`c7356d6`, as explicitly requested. See the [release notes](v2.11.0.md).
+
+Checked clean native candidate source:
+`1d3e9f0b4df1cc473a09f732fbe46b0c8db2c0fd`.
+Its only production-source change from the reviewed image implementation is
+the CLI Version string. The 38 implementation source/declaration/example
+hashes match the [implementation results](../development/image-api-extension-results.json).
+Go dependencies and the six-target release workflow are unchanged. This
+preparation follow-up changes only documentation.
+
+Implementation evidence is reused: whole-tree unit tests and vet passed;
+auth and image lifecycle race checks, TypeScript positive/negative checks,
+local/artifact Go consumers and optional-editor compatibility passed.
+Independent review's login completion/cancellation finding was fixed, verified
+with focused package/race checks, and independently re-reviewed as resolved.
+An authorized actual subscription workflow completed one generation and one
+edit, each followed by explicit image reading on later actual model requests;
+known usage was checked against distinct provider events. Both output PNGs
+were visually inspected. See the
+[implementation record](../development/image-api-extension-implementation.md).
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test, CGO disabled | PASS |
+| Six-target `go list -export ./...`, CGO disabled | PASS, compilation only |
+| Clean native release-flags build | PASS, checked source above, vcs.modified=false |
+| Candidate version/arithmetic | PASS, noe v2.11.0 and 2 |
+| Candidate image/model/auth exports and image catalog | PASS, six exports and generation/edit capabilities |
+| Native login helper offline help | PASS, no login/provider request |
+| Selected README/release/implementation/discussion links | PASS, 166 references |
+| Source hashes, dependencies/workflow and diff checks | PASS |
+
+Evidence is retained at `/tmp/noe-v2.11.0-release-47n8dcz6`; implementation
+logs and live images remain at `/tmp/noe-image-implementation-evidence`.
+No whole-tree suite, race suite, E2E, long wait, paid provider requests or
+six-binary local distribution build was repeated for release. CI builds six
+targets, creates SHA256SUMS and publishes the immutable tag. Published
+checksums, native image/auth bindings and actual Go-module consumers are
+verified after publication.
+
+The user explicitly skipped native NOE fresh-login confirmation. Native login
+and managed refresh have deterministic fixture/race evidence, without real
+account confirmation; the successful actual image workflow used the external
+read-only path. This accepted live-authentication gap remains recorded.
+Native execution here is Linux amd64; other targets receive compile/build/hash
+evidence. No local installation or process restart is part of this release.

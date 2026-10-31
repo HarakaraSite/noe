@@ -4,7 +4,8 @@ Implementation date: 2026-11-01. Baseline source:
 `fedad4de3bd4e3d6c50412bf3621de0082b9d750` (v2.10.1).
 The [design](image-api-extension-design.md) defines the contract;
 [results](image-api-extension-results.json) record checks and live evidence.
-This is a local implementation, not a published release.
+This records implementation and local validation; publication is tracked in
+the [release checkpoints](../releases/release-checkpoints.md).
 
 ## Implemented behavior
 
