@@ -2855,3 +2855,53 @@ account confirmation; the successful actual image workflow used the external
 read-only path. This accepted live-authentication gap remains recorded.
 Native execution here is Linux amd64; other targets receive compile/build/hash
 evidence. No local installation or process restart is part of this release.
+
+## v2.11.0 Release validation — 2026-11-01
+
+- Annotated tag `v2.11.0` points to
+  `1fcd84d1fef06640a02137ff8ee4bd7b505c4c4d`, matching the peeled remote tag
+  and successful workflow revision. Only implementation/publication evidence
+  documentation differs from the clean native candidate source above.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/48)
+  succeeded (API run ID 229) using the unchanged lightweight six-target
+  build/checksum/upload job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.11.0)
+  is published, neither draft nor prerelease (Release ID 161). Its body
+  matches the tagged English [release notes](v2.11.0.md).
+
+All seven assets were downloaded and all six binary hashes match SHA256SUMS.
+The actual distributed Linux amd64 asset reports `noe v2.11.0`, the tagged
+source revision, `vcs.modified=false`, `CGO_ENABLED=0`, go-quickjs v0.29.0
+and go-intl v0.8.0. Its SHA256 is
+`aa7d4370a7ee5ec7a5dcbbea282836a4ecb7bf7955f4f000b1b2a77db3daf18d`.
+
+The published Linux asset passed version/arithmetic, actual image/model/auth
+export checks, the new image-provider catalog/capabilities and the native
+login helper's offline help. These checks made no provider or login request.
+
+Three clean external modules fetched stdlib@v2.11.0, agent@v2.11.0 and
+agent/model@v2.11.0 with GOPROXY=direct, without local replacements or a
+synthetic proxy. All built, ran and passed `go mod verify`. The agent consumer
+ran in portable and gohost modes; the optional-editor consumer proved legacy
+required Service compatibility and explicit editor dispatch with actual PNG
+bytes. MVS selected official go-quickjs v0.29.0 and go-intl v0.8.0. All 38
+recorded implementation source/declaration/example hashes match the downloaded
+published module in each consumer.
+
+A nonessential full dependency-metadata query stalled after the successful
+agent checks. That query was cancelled; completed checks were reused, and
+metadata collection was narrowed to the three already fetched public/engine
+modules with network retrieval disabled. Final consumer verification passed;
+both the initial helper log and the completed evidence are retained.
+
+Evidence is retained at `/tmp/noe-v2.11.0-release-47n8dcz6`, including native
+Actions/Release metadata, all seven assets, checksums/build provenance,
+public-binary smoke results and actual public-module consumer logs/results.
+Native execution here is Linux amd64; other five targets have CI build/hash
+evidence. Implementation suites were reused rather than repeated. The
+user-accepted native-login/managed-refresh live gap remains unchanged.
+
+All previously uncommitted guidance files and discussion/run memos were
+included as requested. No local executable placement or process restart was
+performed. This documentation-only follow-up does not move or replace the
+release tag.
