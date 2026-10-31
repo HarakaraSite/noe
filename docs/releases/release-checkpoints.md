@@ -2905,3 +2905,20 @@ All previously uncommitted guidance files and discussion/run memos were
 included as requested. No local executable placement or process restart was
 performed. This documentation-only follow-up does not move or replace the
 release tag.
+
+## v2.11.0 local package placement — 2026-11-01
+
+After publication verification, the user explicitly requested local placement.
+The verified published Linux amd64 asset atomically replaced both
+`/home/agent/projects/noe/noe` and `/home/agent/.local/bin/noe`.
+Both installed SHA256 hashes match the published checksum
+`aa7d4370a7ee5ec7a5dcbbea282836a4ecb7bf7955f4f000b1b2a77db3daf18d`
+and both report `noe v2.11.0`. PATH resolves to the updated user binary.
+Installed arithmetic and image/model/auth export/catalog smoke checks passed
+without a provider or login request.
+
+Previous v2.10.1 executables are backed up at
+`/tmp/noe-v2.11.0-release-47n8dcz6/installation`, with per-path hashes,
+versions and installed smoke results. Existing running processes were not
+restarted or interrupted. This documentation-only follow-up preserves the
+published release tag.
