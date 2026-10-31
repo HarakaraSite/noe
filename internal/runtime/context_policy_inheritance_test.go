@@ -181,7 +181,7 @@ console.log("cross-process context policy verified");`
 			defer cancel()
 			var stdout, stderr bytes.Buffer
 			code, err := Execute(ctx, Source{Name: filepath.Join(cwd, "main.js"), Code: source}, Options{
-				Cwd: cwd, Agent: opts, Stdout: &stdout, Stderr: &stderr,
+				Cwd: cwd, Agent: opts, Stdout: &stdout, Stderr: &stderr, InstructionDirs: []string{},
 			})
 			if code != 0 || err != nil || !strings.Contains(stdout.String(), "cross-process context policy verified") {
 				t.Fatalf("code=%d err=%v stdout=%q stderr=%q", code, err, stdout.String(), stderr.String())

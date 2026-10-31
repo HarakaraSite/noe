@@ -40,3 +40,21 @@ func (p directModelProvider) GenerateImage(ctx context.Context, request imageapi
 		Parameters: request.Parameters, RunID: request.RunID,
 	})
 }
+
+func (p directModelProvider) EditImage(ctx context.Context, request imageapi.EditRequest) (imageapi.Generated, error) {
+	if p.service == nil {
+		return imageapi.Generated{}, &imageapi.Error{Code: "unsupported", Message: "direct agent host has no image editing service", Operation: "edit", Stage: "input"}
+	}
+	editor, ok := p.service.(model.ImageEditor)
+	if !ok {
+		return imageapi.Generated{}, &imageapi.Error{Code: "unsupported", Message: "image editing is unsupported", Operation: "edit", Stage: "input"}
+	}
+	generated, err := editor.EditImage(ctx, request)
+	if generated.Operation == "" {
+		generated.Operation = "edit"
+	}
+	if err != nil {
+		return generated, imageapi.DescribeError(err, "edit", "request", generated)
+	}
+	return generated, nil
+}

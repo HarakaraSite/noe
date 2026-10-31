@@ -50,7 +50,7 @@ for (const result of [first,second,left,right,empty]) {
 }
 console.log(JSON.stringify([first.lastResult.answer,second.lastResult.answer,[left.lastResult.answer,right.lastResult.answer],empty.lastResult.answer]));`
 	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{
-		Stdout: &out, Agent: agentTestOptions(p),
+		Stdout: &out, Agent: agentTestOptions(p), InstructionDirs: []string{},
 	})
 	if code != 0 || err != nil || out.String() != "[\"first\",\"second\",[\"left\",\"right\"],\"empty\"]\n" {
 		t.Fatalf("code=%d error=%v stdout=%q", code, err, &out)

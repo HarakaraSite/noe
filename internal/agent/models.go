@@ -42,6 +42,9 @@ func (unavailableModels) Decide(context.Context, model.DecisionRequest) (model.D
 func (unavailableModels) GenerateImage(context.Context, model.ImageRequest) (model.GeneratedImage, error) {
 	return model.GeneratedImage{}, ErrOperationClosed
 }
+func (unavailableModels) EditImage(context.Context, model.ImageEditRequest) (model.GeneratedImage, error) {
+	return model.GeneratedImage{}, ErrOperationClosed
+}
 
 func (s operationModels) checkedContext(ctx context.Context) (context.Context, context.CancelFunc, *agentRun, error) {
 	op := s.operation
@@ -288,31 +291,82 @@ func (s operationModels) Decide(ctx context.Context, request model.DecisionReque
 func (s operationModels) GenerateImage(ctx context.Context, request model.ImageRequest) (model.GeneratedImage, error) {
 	merged, cancel, run, err := s.checkedContext(ctx)
 	if err != nil {
-		return model.GeneratedImage{}, err
+		return model.GeneratedImage{}, scopedImageEntryError(err, "generate")
 	}
 	defer cancel()
 	if err := (imageapi.Request{Provider: request.Provider, Model: request.Model, Prompt: request.Prompt, Parameters: request.Parameters}).ValidateGeneration(); err != nil {
-		return model.GeneratedImage{}, err
+		return model.GeneratedImage{}, imageapi.DescribeError(err, "generate", "input", imageapi.Generated{})
 	}
 	h := s.operation.host
 	if err := h.checkProvider(merged, request.Provider); err != nil {
-		return model.GeneratedImage{}, err
+		return model.GeneratedImage{}, imageapi.DescribeError(err, "generate", "request", imageapi.Generated{})
 	}
 	if run != nil {
 		request.RunID = run.id
 	}
 	if h.imager == nil {
-		return model.GeneratedImage{}, errors.New("image generation provider is unavailable")
+		return model.GeneratedImage{}, &imageapi.Error{Code: "unsupported", Message: "image generation provider is unavailable", Operation: "generate", Stage: "input"}
 	}
-	requestID, err := randomID()
+	return s.performImage(ctx, merged, "generate", request.Provider, request.Model, nil, func() (model.GeneratedImage, error) {
+		return h.opts.Models.GenerateImage(merged, request)
+	})
+}
+
+func (s operationModels) EditImage(ctx context.Context, request model.ImageEditRequest) (model.GeneratedImage, error) {
+	merged, cancel, run, err := s.checkedContext(ctx)
+	if err != nil {
+		return model.GeneratedImage{}, scopedImageEntryError(err, "edit")
+	}
+	defer cancel()
+	prepared, err := imageapi.PrepareEdit(merged, imageapi.EditRequest{
+		Provider: request.Provider, Model: request.Model, Prompt: request.Prompt,
+		Images: request.Images, Parameters: request.Parameters, RunID: request.RunID,
+	})
 	if err != nil {
 		return model.GeneratedImage{}, err
+	}
+	h := s.operation.host
+	if err := h.checkProvider(merged, prepared.Provider); err != nil {
+		return model.GeneratedImage{}, imageapi.DescribeError(err, "edit", "request", imageapi.Generated{})
+	}
+	if run != nil {
+		prepared.RunID = run.id
+	}
+	editor, ok := h.imager.(imageapi.Editor)
+	if h.imager == nil || !ok {
+		return model.GeneratedImage{}, &imageapi.Error{Code: "unsupported", Message: "image editing provider is unavailable", Operation: "edit", Stage: "input"}
+	}
+	inputMetadata := make([]imageapi.Metadata, len(prepared.Images))
+	for i, input := range prepared.Images {
+		data, readErr := imageapi.ReadInputData(merged, fmt.Sprintf("image[%d]", i), input.Content, "")
+		if readErr != nil {
+			return model.GeneratedImage{}, imageapi.DescribeError(readErr, "edit", "input", imageapi.Generated{})
+		}
+		inputMetadata[i] = data.Metadata
+	}
+	return s.performImage(ctx, merged, "edit", prepared.Provider, prepared.Model, inputMetadata, func() (model.GeneratedImage, error) {
+		return editor.EditImage(merged, prepared)
+	})
+}
+
+func (s operationModels) performImage(ctx, merged context.Context, operation, providerName, modelName string, inputMetadata []imageapi.Metadata, call func() (model.GeneratedImage, error)) (model.GeneratedImage, error) {
+	h := s.operation.host
+	requestID, err := randomID()
+	if err != nil {
+		return model.GeneratedImage{}, imageapi.DescribeError(err, operation, "request", imageapi.Generated{})
 	}
 	activityID, err := randomID()
 	if err != nil {
-		return model.GeneratedImage{}, err
+		return model.GeneratedImage{}, imageapi.DescribeError(err, operation, "request", imageapi.Generated{})
 	}
-	fields, group, _, admitted := h.prepareDecisionFields(s.operation, requestID, activityID, decision.Request{Provider: request.Provider, Model: request.Model}, false)
+	fields, group, _, admitted := h.prepareDecisionFields(s.operation, requestID, activityID, decision.Request{Provider: providerName, Model: modelName}, false)
+	fields["operation"] = operation
+	fields["provider"] = providerName
+	fields["model"] = modelName
+	fields["inputCount"] = len(inputMetadata)
+	if len(inputMetadata) != 0 {
+		fields["inputImages"] = inputMetadata
+	}
 	limitOrigin := activityOrigin{Kind: "image"}
 	limitOrigin.RunID, _ = fields["runId"].(string)
 	limitOrigin.AgentID, _ = fields["agentId"].(string)
@@ -325,30 +379,87 @@ func (s operationModels) GenerateImage(ctx context.Context, request model.ImageR
 	h.mu.Unlock()
 	if !admitted {
 		h.finishExecutionLimit(action)
-		return model.GeneratedImage{}, newOperationError(409, "execution_limit", "image generation execution scope has ended")
+		code, message := executionLimitError(group)
+		imageCode := "cancelled"
+		if code == "execution_limit" {
+			imageCode = "quota"
+		}
+		return model.GeneratedImage{}, &imageapi.Error{Code: imageCode, Message: message, Operation: operation, Stage: "request"}
 	}
 	h.decisionEvent("image.started", fields, nil)
 	started := time.Now()
-	generated, err := h.opts.Models.GenerateImage(merged, request)
-	if merged.Err() != nil {
-		err = merged.Err()
+	generated, providerErr := call()
+	generated.Operation = operation
+	providerImageErr := (*imageapi.Error)(nil)
+	if providerErr != nil {
+		_ = errors.As(providerErr, &providerImageErr)
 	}
-	if err != nil {
-		h.decisionEvent("image.failed", fields, events.Event{"duration": time.Since(started), "reason": "provider"})
-		return model.GeneratedImage{}, err
+	usage := append(json.RawMessage(nil), generated.Usage...)
+	if len(usage) == 0 && providerImageErr != nil {
+		usage = append(json.RawMessage(nil), providerImageErr.Usage...)
+	}
+	providerRequestID := generated.RequestID
+	if providerRequestID == "" && providerImageErr != nil {
+		providerRequestID = providerImageErr.RequestID
 	}
 	h.mu.Lock()
-	if group != nil {
-		group.usage.add(summarizeUsage(generated.Usage))
+	if group != nil && len(usage) != 0 {
+		group.usage.add(summarizeUsage(usage))
 	}
 	h.mu.Unlock()
+	mergedErr := merged.Err()
+	var operationErr error
+	if mergedErr != nil {
+		operationErr = mergedErr
+	} else {
+		operationErr = providerErr
+	}
+	if operationErr != nil {
+		details := imageapi.DescribeError(operationErr, operation, "request", generated)
+		if len(usage) != 0 {
+			details.Usage = append(json.RawMessage(nil), usage...)
+		}
+		if providerRequestID != "" {
+			details.RequestID = providerRequestID
+		}
+		if mergedErr != nil {
+			details.Code = "cancelled"
+			details.Message = mergedErr.Error()
+		}
+		terminal := events.Event{
+			"duration": time.Since(started), "operation": operation,
+			"providerRequestId": providerRequestID, "responseModel": generated.ResponseModel,
+			"reason": details.Code, "error": details,
+		}
+		if len(usage) != 0 {
+			terminal["usage"] = usage
+		}
+		h.decorateExecution(terminal, group)
+		kind := "image.failed"
+		if details.Code == "cancelled" {
+			kind = "image.cancelled"
+		}
+		h.decisionEvent(kind, fields, terminal)
+		return generated, details
+	}
 	completed := events.Event{
-		"duration": time.Since(started), "providerRequestId": generated.RequestID,
-		"responseModel": generated.ResponseModel, "usage": generated.Usage,
+		"duration": time.Since(started), "operation": operation,
+		"providerRequestId": providerRequestID, "responseModel": generated.ResponseModel,
+	}
+	if len(usage) != 0 {
+		completed["usage"] = usage
 	}
 	h.decorateExecution(completed, group)
 	h.decisionEvent("image.completed", fields, completed)
 	return generated, nil
+}
+
+func scopedImageEntryError(err error, operation string) error {
+	details := imageapi.DescribeError(err, operation, "request", imageapi.Generated{})
+	if errors.Is(err, ErrOperationClosed) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		details.Code = "cancelled"
+	}
+	return fmt.Errorf("%w: %w", err, details)
 }
 
 func eventsForDirectModel(requestID, activityID string, causes []string, origin activityOrigin, group *executionGroup, h *Host) events.Event {

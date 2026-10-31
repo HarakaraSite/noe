@@ -25,6 +25,8 @@ type Binding struct {
 	closed  bool
 	done    chan struct{}
 	workers sync.WaitGroup
+	logins  map[string]*credentials.CodexImageLogin
+	active  map[string]bool
 }
 
 // Install registers the native endpoint used by credentials.ModuleSource.
@@ -46,13 +48,100 @@ func Install(ctx context.Context, rt *quickjs.Runtime, loop *stdlib.Loop, cwd st
 		return nil, errors.New("auth: absolute execution cwd is required")
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	b := &Binding{rt: rt, loop: loop, ctx: ctx, cancel: cancel, cwd: cwd, options: options, done: make(chan struct{})}
-	if err := rt.SetModule("noe:auth/internal", map[string]any{"save": b.save}); err != nil {
+	b := &Binding{rt: rt, loop: loop, ctx: ctx, cancel: cancel, cwd: cwd, options: options,
+		done: make(chan struct{}), logins: make(map[string]*credentials.CodexImageLogin), active: make(map[string]bool)}
+	if err := rt.SetModule("noe:auth/internal", map[string]any{
+		"save": b.save, "beginCodexImageLogin": b.beginCodexImageLogin,
+		"completeCodexImageLogin": b.completeCodexImageLogin,
+	}); err != nil {
 		cancel()
 		return nil, err
 	}
 	rt.OnClose(b.Close)
 	return b, nil
+}
+
+func (b *Binding) beginCodexImageLogin(payload string) *quickjs.Promise {
+	p := b.rt.NewPromise()
+	var request struct {
+		File string `json:"file"`
+	}
+	if json.Unmarshal([]byte(payload), &request) != nil || request.File == "" {
+		p.RejectError(errors.New("Codex image login requires a credential file"))
+		return p
+	}
+	if !filepath.IsAbs(request.File) {
+		request.File = filepath.Join(b.cwd, request.File)
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed || b.ctx.Err() != nil {
+		p.RejectError(context.Canceled)
+		return p
+	}
+	login, err := credentials.BeginCodexImageLogin(b.ctx, request.File, b.options)
+	if err != nil {
+		p.RejectError(err)
+		return p
+	}
+	b.logins[login.Info().ID] = login
+	data, err := json.Marshal(login.Info())
+	if err != nil {
+		delete(b.logins, login.Info().ID)
+		login.Close()
+		p.RejectError(errors.New("could not prepare Codex image login result"))
+		return p
+	}
+	if err := p.Resolve(string(data)); err != nil {
+		delete(b.logins, login.Info().ID)
+		login.Close()
+		p.RejectError(errors.New("could not return Codex image login result"))
+	}
+	return p
+}
+
+func (b *Binding) completeCodexImageLogin(id string) *quickjs.Promise {
+	p := b.rt.NewPromise()
+	b.mu.Lock()
+	login := b.logins[id]
+	if b.closed || b.ctx.Err() != nil {
+		b.mu.Unlock()
+		p.RejectError(context.Canceled)
+		return p
+	}
+	if login == nil || b.active[id] {
+		b.mu.Unlock()
+		p.RejectError(errors.New("Codex image login attempt is unavailable"))
+		return p
+	}
+	b.active[id] = true
+	b.workers.Add(1)
+	b.loop.Begin()
+	b.mu.Unlock()
+	go func() {
+		defer b.workers.Done()
+		defer b.loop.Done()
+		account, err := login.Complete(b.ctx)
+		login.Close()
+		data, _ := json.Marshal(account)
+		b.mu.Lock()
+		delete(b.logins, id)
+		delete(b.active, id)
+		b.mu.Unlock()
+		b.loop.Post(func() {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			if b.closed {
+				return
+			}
+			if err != nil {
+				p.RejectError(err)
+			} else {
+				_ = p.Resolve(string(data))
+			}
+		})
+	}()
+	return p
 }
 
 func (b *Binding) save(payload string) *quickjs.Promise {
@@ -109,7 +198,14 @@ func (b *Binding) Close() {
 	}
 	b.closed = true
 	b.cancel()
+	logins := make([]*credentials.CodexImageLogin, 0, len(b.logins))
+	for _, login := range b.logins {
+		logins = append(logins, login)
+	}
 	b.mu.Unlock()
+	for _, login := range logins {
+		login.Close()
+	}
 	b.workers.Wait()
 	close(b.done)
 }

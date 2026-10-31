@@ -102,6 +102,8 @@ declare namespace NOEAgent {
   }
 
   interface ImageErrorDetails {
+    operation?: "generate" | "edit" | "read";
+    stage?: "input" | "authentication" | "request" | "response" | "save";
     code: string;
     message: string;
     providerCode?: string;
@@ -349,6 +351,11 @@ declare namespace NOEAgent {
     parameters?: JSONRecord;
   }
 
+  interface EditImageOptions extends GenerateImageOptions {
+    /** Ordered local image paths; at least one source is required. */
+    images: readonly string[];
+  }
+
   interface GeneratedImage extends ImageMetadata {
     provider: string;
     model: string;
@@ -576,16 +583,20 @@ declare module "noe:decision" {
 declare module "noe:image" {
   export function read_image(path: string, options?: NOEAgent.ReadImageOptions): Promise<NOEAgent.ImageMetadata>;
   export function generate_image(options: NOEAgent.GenerateImageOptions): Promise<NOEAgent.GeneratedImage>;
+  export function edit_image(options: NOEAgent.EditImageOptions): Promise<NOEAgent.GeneratedImage>;
 }
 
 declare module "noe:model" {
   export function generate(options: NOEAgent.ModelGenerateOptions): Promise<NOEAgent.ModelGenerateResponse>;
   export function list_models(options?: NOEAgent.ModelQuery): Promise<NOEAgent.ModelInfo[]>;
   export { decide } from "noe:decision";
-  export { generate_image } from "noe:image";
+  export { generate_image, edit_image } from "noe:image";
 }
 
 declare module "noe:auth" {
+  export function begin_codex_image_login(options: { file: string }): Promise<{ id: string; authorizationURL: string; redirectURI: string }>;
+  export function complete_codex_image_login(attemptId: string): Promise<NOEAgent.SavedAccount>;
+
   export function save_chatgpt_credentials(
     options: NOEAgent.SaveChatGPTCredentialsOptions,
   ): Promise<NOEAgent.SavedAccount>;

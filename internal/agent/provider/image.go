@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -248,45 +249,53 @@ func (p *imageAdapter) GenerateImage(ctx context.Context, request imageapi.Reque
 		sdkErr = callErr
 		sdkResponsePresent = response != nil && response.ImageGenerationResponse != nil
 	}
-	if ctx.Err() != nil {
-		return imageapi.Generated{}, imageFailure("cancelled", 0, "", "", "", "")
-	}
 	status, requestID, responseBody, authFailure := state.snapshot()
 	responseModel, usage, providerCode, providerMessage, refusal, hasProviderError, imageData := parseImageResponse(responseBody)
+	credential := p.credential()
+	metadata := imageapi.Generated{Operation: "generate", ResponseModel: truncateImageMessage(sanitizeImageMetadata(responseModel, credential)), RequestID: truncateImageMessage(sanitizeImageMetadata(requestID, credential)), Usage: sanitizeImageUsage(usage, credential)}
+	fail := func(code string) (imageapi.Generated, error) {
+		stage := "request"
+		if code == "authentication" {
+			stage = "authentication"
+		}
+		if code == "response" {
+			stage = "response"
+		}
+		return metadata, imageapi.DescribeError(imageFailure(code, status, requestID, providerCode, providerMessage, credential), "generate", stage, metadata)
+	}
+	if ctx.Err() != nil {
+		return fail("cancelled")
+	}
+
 	if authFailure {
-		return imageapi.Generated{}, imageFailure("authentication", status, requestID, providerCode, providerMessage, p.credential())
+		return fail("authentication")
 	}
 	if refusal {
-		return imageapi.Generated{}, imageFailure("refusal", status, requestID, providerCode, providerMessage, p.credential())
+		return fail("refusal")
 	}
 	if hasProviderError {
 		code := classifyImageProviderError(status, providerCode, providerMessage)
-		return imageapi.Generated{}, imageFailure(code, status, requestID, providerCode, providerMessage, p.credential())
+		return fail(code)
 	}
 	if status < 200 || status >= 300 {
 		code := classifyImageProviderError(status, providerCode, providerMessage)
-		return imageapi.Generated{}, imageFailure(code, status, requestID, providerCode, providerMessage, p.credential())
+		return fail(code)
 	}
 	if sdkErr != nil || !sdkResponsePresent {
-		return imageapi.Generated{}, imageFailure("response", status, requestID, providerCode, providerMessage, p.credential())
+		return fail("response")
 	}
 	if ctx.Err() != nil {
-		return imageapi.Generated{}, imageFailure("cancelled", 0, "", "", "", "")
+		return fail("cancelled")
 	}
 	if len(imageData) != 1 || imageData[0] == "" {
-		return imageapi.Generated{}, imageFailure("response", status, requestID, providerCode, providerMessage, p.credential())
+		return fail("response")
 	}
 	content, err := base64.StdEncoding.DecodeString(imageData[0])
 	if err != nil {
-		return imageapi.Generated{}, imageFailure("response", status, requestID, providerCode, providerMessage, p.credential())
+		return fail("response")
 	}
-	credential := p.credential()
-	return imageapi.Generated{
-		Content:       content,
-		ResponseModel: truncateImageMessage(sanitizeImageMetadata(responseModel, credential)),
-		RequestID:     truncateImageMessage(sanitizeImageMetadata(requestID, credential)),
-		Usage:         sanitizeImageUsage(usage, credential),
-	}, nil
+	metadata.Content = content
+	return metadata, nil
 }
 
 func (p *imageAdapter) credential() string {
@@ -399,7 +408,7 @@ func classifyImageProviderError(status int, code, message string) string {
 	}
 
 	switch normalized {
-	case "insufficient_quota", "quota_exceeded", "billing_hard_limit_reached", "usage_limit_exceeded":
+	case "insufficient_quota", "quota_exceeded", "billing_hard_limit_reached", "usage_limit_exceeded", "usage_limit_reached", "subscription_sharing_usage_limit_exceeded":
 		return "quota"
 	case "rate_limit_exceeded", "too_many_requests", "rate_limited":
 		return "rate_limit"
@@ -499,40 +508,69 @@ func truncateImageMessage(value string) string {
 	return value
 }
 
+func (r *Registry) imageProvider(name, model string) (imageapi.Provider, error) {
+	profile, err := r.resolveDefinition(name, model)
+	if err != nil {
+		return nil, imageFailure("input", 0, "", "", "", "")
+	}
+	if profile.ImageGeneration == nil && profile.ImageEditing == nil || profile.Auth == "chatgpt-oauth" || profile.Auth != "codex-oauth" && profile.ImageGeneration == nil {
+		return nil, imageFailure("unsupported", 0, "", "", "", "")
+	}
+	cacheKey := name + "\x00" + model
+	shared, _ := json.Marshal(profile)
+	sharedKey := name + string(shared)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if client := r.imageClients[cacheKey]; client != nil {
+		return client, nil
+	}
+	if r.sharedImages == nil {
+		r.sharedImages = make(map[string]imageapi.Provider)
+	}
+	client := r.sharedImages[sharedKey]
+	if client == nil {
+		if profile.Auth == "codex-oauth" {
+			authOptions := r.opts.CodexAuth
+			if authOptions.HTTPClient == nil {
+				authOptions.HTTPClient = r.opts.HTTPClient
+			}
+			client = newCodexImageAdapter(profile, authOptions, r.opts.HTTPClient, r.opts.UserAgent)
+		} else {
+			client = newImageAdapter(profile, &apiKeyFile{keyFile: profile.KeyFile, readFile: os.ReadFile}, r.opts.HTTPClient)
+		}
+		r.sharedImages[sharedKey] = client
+	}
+	r.imageClients[cacheKey] = client
+	return client, nil
+}
+
 func (r *Registry) GenerateImage(ctx context.Context, request imageapi.Request) (imageapi.Generated, error) {
 	if err := request.ValidateGeneration(); err != nil {
-		return imageapi.Generated{}, imageapi.AsError(err)
+		return imageapi.Generated{}, imageapi.DescribeError(err, "generate", "input", imageapi.Generated{})
 	}
-	resolved, err := r.resolve(request.Provider, request.Model)
+	client, err := r.imageProvider(request.Provider, request.Model)
 	if err != nil {
-		var imageErr *imageapi.Error
-		if errors.As(err, &imageErr) {
-			return imageapi.Generated{}, imageErr
-		}
-		return imageapi.Generated{}, imageFailure("input", 0, "", "", "", "")
+		return imageapi.Generated{}, imageapi.DescribeError(err, "generate", "input", imageapi.Generated{})
 	}
-	var profile Definition
-	var key *apiKeyFile
-	switch configured := resolved.(type) {
-	case *OpenRouter:
-		profile = configured.profile
-		key = &configured.apiKeyFile
-	case *OpenAI:
-		profile = configured.profile
-		key = &configured.key
-	default:
-		return imageapi.Generated{}, imageFailure("unsupported", 0, "", "", "", "")
+	result, err := client.GenerateImage(ctx, request)
+	result.Operation = "generate"
+	return result, err
+}
+
+func (r *Registry) EditImage(ctx context.Context, request imageapi.EditRequest) (imageapi.Generated, error) {
+	request, err := imageapi.PrepareEdit(ctx, request)
+	if err != nil {
+		return imageapi.Generated{}, err
 	}
-	if profile.ImageGeneration == nil || profile.Auth == "chatgpt-oauth" {
-		return imageapi.Generated{}, imageFailure("unsupported", 0, "", "", "", "")
+	client, err := r.imageProvider(request.Provider, request.Model)
+	if err != nil {
+		return imageapi.Generated{}, imageapi.DescribeError(err, "edit", "input", imageapi.Generated{})
 	}
-	cacheKey := request.Provider + "\x00" + request.Model
-	r.mu.Lock()
-	imageProvider := r.imageClients[cacheKey]
-	if imageProvider == nil {
-		imageProvider = newImageAdapter(profile, key, r.opts.HTTPClient)
-		r.imageClients[cacheKey] = imageProvider
+	editor, ok := client.(imageapi.Editor)
+	if !ok {
+		return imageapi.Generated{}, &imageapi.Error{Code: "unsupported", Message: "image editing is unsupported by this provider", Operation: "edit", Stage: "input"}
 	}
-	r.mu.Unlock()
-	return imageProvider.GenerateImage(ctx, request)
+	result, err := editor.EditImage(ctx, request)
+	result.Operation = "edit"
+	return result, err
 }

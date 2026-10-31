@@ -76,6 +76,9 @@ type claims struct {
 	IssuedAt int64           `json:"iat"`
 	Nonce    string          `json:"nonce"`
 	Email    string          `json:"email"`
+	Auth     struct {
+		AccountID string `json:"chatgpt_account_id"`
+	} `json:"https://api.openai.com/auth"`
 }
 
 func (c *ChatGPT) verifyIDToken(ctx context.Context, d discovery, token, clientID, nonce string) (claims, error) {

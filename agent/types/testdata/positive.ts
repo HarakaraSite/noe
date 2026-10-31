@@ -77,3 +77,13 @@ async function publicAPIExamples(): Promise<void> {
 }
 
 void publicAPIExamples;
+
+import { edit_image as editImage } from "noe:image";
+import { edit_image as editModelImage } from "noe:model";
+import { begin_codex_image_login, complete_codex_image_login } from "noe:auth";
+const editedImage = editImage({provider:"openai-codex-images",model:"gpt-image-2",prompt:"edit",images:["input.png"],output:"output.png"});
+void editedImage;
+void editModelImage;
+const nativeImageLogin = begin_codex_image_login({file:"credentials.json"});
+void nativeImageLogin;
+void complete_codex_image_login("attempt-id");

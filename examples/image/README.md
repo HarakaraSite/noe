@@ -41,3 +41,16 @@
 ```
 
 画像生成はproviderのAPIを呼ぶため、利用料が発生する場合があります。ChatGPTサインインとOpenCode Goは画像生成に対応していません。エラー時に別providerへ自動で切り替えません。APIの制約・model選択・履歴と観察については[画像ガイド](../../docs/agent-images.md)を参照してください。
+
+## Original-image editing with subscription authentication
+
+Create a dedicated NOE login with `noe run scripts/auth-codex-images.js login`
+(or explicitly configure an external-readonly Codex credential source), then:
+
+```sh
+noe run examples/image/edit.js images/original.png images/revised.png 'Make the square orange.'
+```
+
+The script sends the actual local input bytes and keeps a separate revised
+file. It returns metadata, not a model vision judgment. Use `read_image` inside
+an actual agent tool call to inspect the result. See the [image guide](../../docs/agent-images.md#subscription-generation-and-original-image-editing).

@@ -209,11 +209,12 @@ func TestImageFailuresAreClassifiedAndProviderTextIsRedacted(t *testing.T) {
 func TestRegistryImageCatalogCoexistsWithAgentAndDecisionAndSupportsOverrides(t *testing.T) {
 	r, _ := registryFixture(t, `{"providers":{"openrouter":{"models":{"openai/gpt-image-2.5-flare":{"catalog":{"description":"custom image entry"}}}},"openai-api":{"models":{"gpt-image-2.5-flare":{"catalog":{"tags":["favorite"]}}}}}}`)
 	images, err := r.ListModels(ModelQuery{Kind: "image"})
-	if err != nil || len(images) != 2 {
+	if err != nil || len(images) != 3 {
 		t.Fatalf("image models: %+v %v", images, err)
 	}
 	if images[0].Provider != "openai-api" || images[0].Description != "Image generation through the OpenAI Images API." || strings.Join(images[0].Tags, ",") != "favorite" ||
-		images[1].Provider != "openrouter" || images[1].Description != "custom image entry" {
+		images[2].Provider != "openrouter" || images[2].Description != "custom image entry" ||
+		images[1].Provider != "openai-codex-images" || !images[1].Capabilities["imageEditing"] {
 		t.Fatalf("external catalog overrides: %+v", images)
 	}
 	agents, err := r.ListModels(ModelQuery{Kind: "agent"})

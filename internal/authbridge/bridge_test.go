@@ -2,8 +2,13 @@ package authbridge
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -81,5 +86,65 @@ tokens:{access_token:"fixture",id_token:"fixture",expires_in:60,scope:"chatgpt.t
 	}
 	if _, err := rt.Eval("1+1"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCodexImageLoginAttemptIsBindingLocalAndCanceledOnClose(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rt := quickjs.New()
+	loop := stdlib.NewLoop(rt)
+	rt.OnClose(loop.Close)
+	defer rt.Close()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+	cwd := t.TempDir()
+	b, err := Install(ctx, rt, loop, cwd, credentials.Options{CodexCallbackPort: port})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	promise := b.beginCodexImageLogin(`{"file":"managed.json"}`)
+	value, err := promise.Value().Await(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var info credentials.CodexImageLoginInfo
+	if err := json.Unmarshal([]byte(value.String()), &info); err != nil || info.ID == "" || info.AuthorizationURL == "" || info.RedirectURI == "" {
+		t.Fatalf("invalid safe login metadata: %q err=%v", value.String(), err)
+	}
+	if _, err := os.Stat(filepath.Join(cwd, "managed.json")); !os.IsNotExist(err) {
+		t.Fatalf("begin login performed credential-file I/O: %v", err)
+	}
+	login := b.logins[info.ID]
+	if login == nil {
+		t.Fatal("attempt was not retained by its binding")
+	}
+	_ = b.completeCodexImageLogin(info.ID)
+	closed := make(chan struct{})
+	go func() {
+		b.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-ctx.Done():
+		t.Fatal("binding Close did not cancel the pending callback attempt")
+	}
+	callback, err := url.Parse(info.RedirectURI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := net.DialTimeout("tcp", callback.Host, 100*time.Millisecond)
+	if err == nil {
+		_ = connection.Close()
+		t.Fatal("binding Close left the callback listener open")
+	}
+	if _, err := os.Stat(filepath.Join(cwd, "managed.json")); !os.IsNotExist(err) {
+		t.Fatalf("canceled login wrote credentials: %v", err)
 	}
 }

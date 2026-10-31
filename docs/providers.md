@@ -166,3 +166,16 @@ Responsesでは全履歴を送る方式を使い、`store: false`にします。
 呼出し時は`provider: "my-compatible-provider"`を指定します。利用できる範囲はOpenRouter Go SDKとNOEの各API adapterが扱える互換形式です。新しい独自API形式を追加するにはGo側の対応が必要です。
 
 `noe:decision`は引き続き`provider: "openrouter"`の専用APIです。agentのprovider設定を自動継承しません。
+
+## Image-only subscription provider
+
+`openai-codex-images` uses `sdk: openai`, `api: images`, `auth: codex-oauth`.
+Its `imageGeneration` and `imageEditing` endpoints are independently configurable
+and support model overlays. An image-only provider needs image endpoint fields,
+not dummy chat fields; chat/decision operations fail before network access.
+`oauthMode` is `managed` (NOE-owned login/refresh) or `external-readonly`
+(explicit Codex file, no refresh/writes). `oauthFile` and
+`NOE_CODEX_IMAGE_CREDENTIALS_FILE` retain existing credential precedence.
+Auth and account headers are host-owned, not image request options. Catalog
+capabilities `imageGeneration` and `imageEditing` describe implemented routes,
+not account entitlement. See [image authentication and editing](agent-images.md#subscription-generation-and-original-image-editing).

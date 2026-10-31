@@ -37,3 +37,9 @@ if (context.modelWindow.source !== undefined) {
 import("noe:agent/internal").then(({request}) => request("method", "{}"));
 
 void wrongResult;
+
+import { edit_image as invalidImageEdit } from "noe:image";
+// @ts-expect-error editing requires ordered image paths
+invalidImageEdit({provider:"p",model:"m",prompt:"edit",output:"out.png"});
+// @ts-expect-error editing accepts paths, not raw image bytes
+invalidImageEdit({provider:"p",model:"m",prompt:"edit",images:[new Uint8Array()],output:"out.png"});

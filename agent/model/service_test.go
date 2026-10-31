@@ -1,11 +1,14 @@
 package model
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -28,6 +31,32 @@ type imageProviderFunc func(context.Context, ImageRequest) (GeneratedImage, erro
 
 func (f imageProviderFunc) GenerateImage(ctx context.Context, request ImageRequest) (GeneratedImage, error) {
 	return f(ctx, request)
+}
+
+type imageEditorFunc func(context.Context, ImageEditRequest) (GeneratedImage, error)
+
+func (f imageEditorFunc) EditImage(ctx context.Context, request ImageEditRequest) (GeneratedImage, error) {
+	return f(ctx, request)
+}
+
+type imageAndEditor struct {
+	imageProviderFunc
+	imageEditorFunc
+}
+
+type chatEditor struct{ providerFunc }
+
+func (chatEditor) EditImage(context.Context, ImageEditRequest) (GeneratedImage, error) {
+	return GeneratedImage{Content: []byte("chat edit")}, nil
+}
+
+func editInput(t *testing.T) ImageInput {
+	t.Helper()
+	var content bytes.Buffer
+	if err := png.Encode(&content, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	return ImageInput{MIMEType: "image/png", Content: content.Bytes()}
 }
 
 func TestNewServiceIgnoresAmbientConfigAndDefersExplicitRead(t *testing.T) {
@@ -200,5 +229,116 @@ func TestCustomImageProviderIsIndependentOfCustomChatCatalog(t *testing.T) {
 	generated, err := service.GenerateImage(context.Background(), ImageRequest{Provider: "openai-api", Model: "fixture-image", Prompt: "draw"})
 	if err != nil || string(generated.Content) != "image bytes" || imageCalls != 1 {
 		t.Fatalf("custom image generation = %+v calls=%d err=%v", generated, imageCalls, err)
+	}
+}
+
+func TestImageEditorDispatchPrecedenceAndNoFallback(t *testing.T) {
+	input := editInput(t)
+	cases := []struct {
+		name    string
+		options Options
+		want    string
+	}{
+		{
+			name: "explicit editor precedes image provider and chat editor",
+			options: Options{
+				Provider: chatEditor{providerFunc(func(context.Context, Request) (Response, error) { return Response{}, nil })},
+				ImageProvider: imageAndEditor{
+					imageProviderFunc(func(context.Context, ImageRequest) (GeneratedImage, error) { return GeneratedImage{}, nil }),
+					imageEditorFunc(func(context.Context, ImageEditRequest) (GeneratedImage, error) {
+						return GeneratedImage{Content: []byte("image provider")}, nil
+					}),
+				},
+				ImageEditor: imageEditorFunc(func(context.Context, ImageEditRequest) (GeneratedImage, error) {
+					return GeneratedImage{Content: []byte("explicit editor")}, nil
+				}),
+			},
+			want: "explicit editor",
+		},
+		{
+			name: "explicit image provider editor precedes chat editor",
+			options: Options{
+				Provider: chatEditor{providerFunc(func(context.Context, Request) (Response, error) { return Response{}, nil })},
+				ImageProvider: imageAndEditor{
+					imageProviderFunc(func(context.Context, ImageRequest) (GeneratedImage, error) { return GeneratedImage{}, nil }),
+					imageEditorFunc(func(context.Context, ImageEditRequest) (GeneratedImage, error) {
+						return GeneratedImage{Content: []byte("image provider")}, nil
+					}),
+				},
+			},
+			want: "image provider",
+		},
+		{
+			name:    "chat editor used only without explicit image provider",
+			options: Options{Provider: chatEditor{providerFunc(func(context.Context, Request) (Response, error) { return Response{}, nil })}},
+			want:    "chat edit",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			service, err := NewService(tc.options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			editor, ok := service.(ImageEditor)
+			if !ok {
+				t.Fatal("built-in service does not expose optional ImageEditor")
+			}
+			got, err := editor.EditImage(context.Background(), ImageEditRequest{
+				Provider: "custom", Model: "fixture", Prompt: "edit", Images: []ImageInput{input},
+			})
+			if err != nil || string(got.Content) != tc.want {
+				t.Fatalf("EditImage = %q, %v; want %q", got.Content, err, tc.want)
+			}
+		})
+	}
+
+	chatCalls := 0
+	service, err := NewService(Options{
+		Provider:      chatEditor{providerFunc(func(context.Context, Request) (Response, error) { return Response{}, nil })},
+		ImageProvider: imageProviderFunc(func(context.Context, ImageRequest) (GeneratedImage, error) { return GeneratedImage{}, nil }),
+		ImageEditor: imageEditorFunc(func(context.Context, ImageEditRequest) (GeneratedImage, error) {
+			chatCalls++
+			return GeneratedImage{}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Explicit ImageEditor owns editing, even when the selected generation
+	// provider has no editor.
+	if _, err := service.(ImageEditor).EditImage(context.Background(), ImageEditRequest{
+		Provider: "custom", Model: "fixture", Prompt: "edit", Images: []ImageInput{input},
+	}); err != nil || chatCalls != 1 {
+		t.Fatalf("explicit editor dispatch calls=%d err=%v", chatCalls, err)
+	}
+
+	chatCalls = 0
+	service, err = NewService(Options{
+		Provider:      chatEditor{providerFunc(func(context.Context, Request) (Response, error) { return Response{}, nil })},
+		ImageProvider: imageProviderFunc(func(context.Context, ImageRequest) (GeneratedImage, error) { return GeneratedImage{}, nil }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.(ImageEditor).EditImage(context.Background(), ImageEditRequest{
+		Provider: "openai-api", Model: "fixture", Prompt: "edit", Images: []ImageInput{input},
+	})
+	var imageErr *ImageError
+	if !errors.Is(err, ErrUnsupported) || !errors.As(err, &imageErr) || imageErr.Code != "unsupported" {
+		t.Fatalf("selected image provider fell back to chat or registry: %v", err)
+	}
+}
+
+func TestExplicitImageEditorMakesProviderIndependent(t *testing.T) {
+	service, err := NewService(Options{ImageEditor: imageEditorFunc(func(context.Context, ImageEditRequest) (GeneratedImage, error) {
+		return GeneratedImage{Content: []byte("edited")}, nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checker := service.(interface{ HasProvider(string) (bool, error) })
+	if ok, err := checker.HasProvider("image-only"); err != nil || !ok {
+		t.Fatalf("explicit editor provider check: ok=%v err=%v", ok, err)
 	}
 }

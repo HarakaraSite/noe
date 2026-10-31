@@ -54,7 +54,7 @@ function imageError(details) {
   if (!isRecord(details)) details = {};
   const error = new Error(typeof details.message === "string" ? details.message : "image request failed");
   error.name = "ImageError";
-  for (const field of ["code", "providerCode", "providerMessage", "statusCode", "requestId", "usage"]) {
+  for (const field of ["code", "providerCode", "providerMessage", "statusCode", "requestId", "usage", "operation", "stage"]) {
     if (details[field] !== undefined) error[field] = details[field];
   }
   return error;
@@ -70,16 +70,18 @@ async function rpc(method, payload) {
 
 let readOrdinal = 0;
 export async function read_image(path, options = {}) {
-  const absolutePath = resolve(requireString(path, "path"));
-  const detail = detailFor(options);
-  return rpc("read_image", { path: absolutePath, detail, ordinal: ++readOrdinal });
+  return imageOperation("read", async () => {
+    const absolutePath = resolve(requireString(path, "path"));
+    const detail = detailFor(options);
+    return rpc("read_image", { path: absolutePath, detail, ordinal: ++readOrdinal });
+  });
 }
 
-export async function generate_image(options) {
-  if (!isRecord(options)) throw inputError("generate_image options must be an object");
-  const allowed = new Set(["provider", "model", "prompt", "output", "parameters"]);
+async function fileOperation(operation, options) {
+  if (!isRecord(options)) throw inputError(operation + " options must be an object");
+  const allowed = new Set(["provider", "model", "prompt", "output", "parameters", ...(operation === "edit_image" ? ["images"] : [])]);
   for (const key of Object.keys(options)) {
-    if (!allowed.has(key)) throw inputError("unknown generate_image option: " + key);
+    if (!allowed.has(key)) throw inputError("unknown " + operation + " option: " + key);
   }
   const provider = requireString(options.provider, "provider");
   const model = requireString(options.model, "model");
@@ -98,5 +100,29 @@ export async function generate_image(options) {
     validateJSON(options.parameters);
     payload.parameters = options.parameters;
   }
-  return rpc("generate_image", payload);
+  if (operation === "edit_image") {
+    if (!Array.isArray(options.images) || options.images.length === 0) throw inputError("images must be a nonempty array of file paths");
+    payload.images = options.images.map(path => resolve(requireString(path, "image path")));
+    if (Object.keys(payload.parameters || {}).some(key => key.toLowerCase() === "mask")) {
+      throw imageError({code:"unsupported",message:"mask editing is unsupported"});
+    }
+  }
+  return rpc(operation, payload);
+}
+
+async function imageOperation(operation, work) {
+  try { return await work(); }
+  catch (error) {
+    if (error.name === "ImageError") {
+      error.operation ??= operation;
+      error.stage ??= "input";
+    }
+    throw error;
+  }
+}
+export async function generate_image(options) {
+  return imageOperation("generate", () => fileOperation("generate_image", options));
+}
+export async function edit_image(options) {
+  return imageOperation("edit", () => fileOperation("edit_image", options));
 }

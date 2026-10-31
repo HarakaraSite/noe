@@ -117,6 +117,23 @@ func (s *lazyModels) GenerateImage(ctx context.Context, q model.ImageRequest) (m
 	}
 	return service.GenerateImage(ctx, q)
 }
+
+// EditImage preserves the optional editor capability through the CLI's lazy service.
+func (s *lazyModels) EditImage(ctx context.Context, q model.ImageEditRequest) (model.GeneratedImage, error) {
+	if err := ctx.Err(); err != nil {
+		return model.GeneratedImage{}, err
+	}
+	service, err := s.get()
+	if err != nil {
+		return model.GeneratedImage{}, err
+	}
+	editor, ok := service.(model.ImageEditor)
+	if !ok {
+		return model.GeneratedImage{}, model.ErrUnsupported
+	}
+	return editor.EditImage(ctx, q)
+}
+
 func (s *lazyModels) HasProvider(name string) (bool, error) {
 	service, err := s.get()
 	if err != nil {

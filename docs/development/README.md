@@ -74,6 +74,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 
 | テーマ | 計画・調査 | 実装・検証 |
 | --- | --- | --- |
+| Image API: subscription generation and original-image editing | [Proposed design](image-api-extension-design.md) | [Implementation](image-api-extension-implementation.md) · [Results](image-api-extension-results.json) · [Initial probe](image-api-extension-evidence.json) |
 | AI向け実行改善：静的ツール・標準API情報・結果/診断 | [範囲見直し計画・レビュー](ai-execution-contract-plan.md)・[S1詳細設計・レビュー](ai-execution-contract-design.md) | [実施・検証記録](ai-execution-contract-implementation.md)：S1〜S4・T完了。v2.3.0公開・配布物/公開Go module確認・配置済み |
 | v2：API再設計と3者の責務 | [構成案](v2-agent-runtime-plan.md)・[API/移行契約](v2-api-redesign.md)・[責務/経路](v2-responsibility-boundaries.md) | 破壊的変更採用・改訂レビュー完了 |
 | v2：実装と総合検証 | [11スライス実装計画](v2-agent-runtime-implementation-plan.md)・[計画レビュー](v2-api-redesign-review.md)・[実装記録](v2-implementation.md) | 承認済み計画に従い実装・スライス別検証中 |

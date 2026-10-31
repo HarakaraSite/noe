@@ -47,6 +47,7 @@ type Options struct {
 	KeyFile     string
 	BaseURL     string
 	HTTPClient  HTTPClient
+	CodexAuth   CodexAuthOptions
 	// DecisionServerURL is an origin (or gateway prefix), not the Chat base URL.
 	DecisionServerURL string
 }

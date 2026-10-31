@@ -2,7 +2,7 @@
 
 ### API information
 
-Public exports: `decide`, `generate`, `generate_image`, `list_models`.
+Public exports: `decide`, `edit_image`, `generate`, `generate_image`, `list_models`.
 
 Reference: `noe:model`. Owner: noeagentlib.
 
@@ -16,7 +16,7 @@ Public-definition source: internal/modelbinding/binding.go. Reading this referen
 configured model service. It does not start an agent loop. The module is
 available only when the host installs a model binding; the embedded catalog
 documents the API even in a profile where it is not installed. The binding
-also re-exports `decide` and `generate_image`; see the `noe:decision` and
+also re-exports `decide`, `generate_image`, and `edit_image`; see the `noe:decision` and
 `noe:image` reference topics for those operations.
 
 ## generate

@@ -33,7 +33,12 @@ const image = await generate_image({
 console.log(image); // metadata only
 ```
 
-初期対応の組み込み経路は、OpenRouterの`openai/gpt-image-2.5-flare`とOpenAI APIキーの`gpt-image-2.5-flare`です。ChatGPTサインイン経路とOpenCode Goは画像生成に対応していません。非対応や失敗時に別provider/modelへ自動fallbackしません。生成はproviderへのAPI要求で、利用料が発生する場合があります。
+Existing API-key generation routes include OpenRouter's `openai/gpt-image-2.5-flare`
+and OpenAI API's `gpt-image-2.5-flare`. The public plan-sharing `openai-chatgpt`
+route and OpenCode Go do not support image generation; the separate
+`openai-codex-images` subscription route is described below. NOE does not switch
+provider/model after an unsupported operation or failure. API-key generation
+can incur provider charges; subscription images consume their own included limits.
 
 一回の呼び出しで生成する画像は一枚です。`output`の親directoryは呼び出し側で用意してください。生成応答の画像を検証してから一時ファイル経由で保存先を置き換えるため、応答検証・書込みが失敗したとき既存ファイルを途中までの内容にしません。成功結果には絶対path、MIME、byte数、寸法、要求provider/model、取得できたresponse model・request ID・usageを含みます。画像bytesやBase64は返しません。生成した画像をagentに見せるときは、agentの`run_js`で`read_image(result.path)`を呼びます。
 
@@ -101,3 +106,77 @@ ceil(ceil(width / 32) * ceil(height / 32) * 1.2)
 ```
 
 `--observe`は読み取り・生成の進行を短く表示します。APIを含む利用例は[examples/image](../examples/image/README.md)、イベント表示の一般仕様は[観察ガイド](observe.md)を参照してください。
+
+## Subscription generation and original-image editing
+
+`openai-codex-images` provides the Codex-compatible ChatGPT subscription image
+route. It is separate from `openai-chatgpt` public plan-sharing authentication.
+Create a dedicated NOE-owned login with:
+
+```sh
+noe run scripts/auth-codex-images.js login
+```
+
+The helper uses `${XDG_CONFIG_HOME:-$HOME/.config}/noe/credentials/openai-codex-images.json`
+unless an explicit file or `NOE_CODEX_IMAGE_CREDENTIALS_FILE` is selected.
+Open its authorization URL in a browser. For a remote NOE host, forward callback
+port 1455 from that host to the browser machine, for example with SSH `-L
+1455:127.0.0.1:1455`. NOE stores and refreshes its own grant; it does not import
+the active Codex application's refresh token. Host-supplied OAuth options can
+select a trusted issuer/client/callback profile.
+
+For an explicitly selected existing Codex login, configure both its path and
+read-only mode in a separate provider configuration:
+
+```json
+{
+  "providers": {
+    "openai-codex-images": {
+      "oauthMode": "external-readonly",
+      "oauthFile": "/absolute/path/to/codex/auth.json"
+    }
+  }
+}
+```
+
+External mode never refreshes or writes the selected file; renew an expired
+login through its owner. Managed mode serializes refresh/rotation across NOE
+processes. A 401 may recover once using a newer same-identity credential.
+Generation/editing otherwise has no automatic retries or account/model fallback.
+Subscription limits are distinct from API-key charges and are not unlimited.
+
+```js
+import { generate_image, edit_image } from "noe:image";
+const original = await generate_image({
+  provider: "openai-codex-images", model: "gpt-image-2",
+  prompt: "A mint green square on white.", output: "images/original.png",
+  parameters: { quality: "low", size: "1024x1024" },
+});
+const revised = await edit_image({
+  provider: "openai-codex-images", model: "gpt-image-2",
+  images: [original.path], prompt: "Make the square orange.",
+  output: "images/revised.png",
+});
+console.log(revised.path, revised.mimeType, revised.width, revised.height);
+```
+
+Callers create the output directory. Inputs are ordered local file snapshots
+read through the invoking filesystem. Source bytes are sent to the editing
+service; this is not text regeneration. A separate output path retains both
+files. Actual output dimensions/MIME/bytes are decoded from the response; the
+requested size need not equal the result. The direct PNG probe returned
+1254x1254 from a 1024x1024 request. Editing does not guarantee exact preservation
+of all other pixels. PNG is the live-verified input format; JPEG/WebP and
+multiple input images require service-specific validation beyond local decoding.
+Masks and API-key/OpenRouter editing are not implemented by this slice.
+
+For model inspection, call `read_image(original.path)` inside an actual agent
+`run_js`, wait for its next model turn, then edit in a later tool call and use
+`read_image(revised.path)` again. Ordinary run/eval generation/editing does not
+itself create vision context. No new conversation-model tool is introduced.
+
+`ImageError.operation` identifies generate/edit/read and `stage` distinguishes
+input/authentication/request/response/save. Existing `code` categories remain.
+Known provider usage/request identity is retained on cancellation and errors,
+with consumption accounted once. Files already atomically committed before
+cancellation remain; a cancelled operation does not start a later save.

@@ -2,7 +2,7 @@
 
 ### API information
 
-Public exports: `save_chatgpt_credentials`.
+Public exports: `begin_codex_image_login`, `complete_codex_image_login`, `save_chatgpt_credentials`.
 
 Reference: `noe:auth`. Owner: noeagentlib.
 
@@ -50,3 +50,28 @@ import { save_chatgpt_credentials } from "noe:auth";
 const account = await save_chatgpt_credentials(result);
 console.log(account.email, account.expiresAt);
 ```
+
+## begin_codex_image_login
+
+`begin_codex_image_login({file}) -> Promise<{id, authorizationURL, redirectURI}>`
+starts a dedicated NOE-owned Codex-compatible ChatGPT login. Go owns the
+loopback listener, state and PKCE verifier. The caller prints/opens the
+returned authorization URL and then completes this attempt. `file` is the
+selected private managed credential destination, anchored to the execution cwd.
+The issuer/client/port are host-controlled authentication options, not image
+request parameters. The default callback port is 1455.
+
+## complete_codex_image_login
+
+`complete_codex_image_login(attemptId) -> Promise<SavedAccount>` waits for the
+browser callback, exchanges its code, validates the signed identity and saves
+the dedicated credential record. It returns public file/email/expiry metadata,
+not tokens. Attempts belong to the originating execution; shutdown closes the
+listener and cancels outstanding work. A remote browser needs a loopback port
+forward to the NOE host. Use `scripts/auth-codex-images.js` for the normal flow.
+
+The native login creates a separate grant. It does not copy or rotate the
+active Codex application's refresh token. Image provider `oauthMode: managed`
+refreshes this NOE-owned record with cross-process locking. An explicitly
+selected `external-readonly` Codex file is read afresh, without writes/refresh.
+The existing public plan-sharing login/record and API-key billing remain separate.

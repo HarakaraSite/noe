@@ -1,0 +1,209 @@
+{
+  "date": "2026-11-01",
+  "base_revision": "fedad4de3bd4e3d6c50412bf3621de0082b9d750",
+  "status": "implemented and independently reviewed; accepted live authentication gaps recorded",
+  "checks": [
+    {
+      "command": "go test ./...",
+      "result": "passed",
+      "log": "/tmp/noe-image-implementation-evidence/unit-final.log"
+    },
+    {
+      "command": "go vet ./...",
+      "result": "passed",
+      "log": "/tmp/noe-image-implementation-evidence/vet.log"
+    },
+    {
+      "command": "CGO_ENABLED=1 go test -race ./internal/agent ./internal/modelbinding ./agent/model ./internal/noeprofile -run 'Image|image|Edit|edit|Close' -count=1",
+      "result": "passed",
+      "log": "/tmp/noe-image-implementation-evidence/race-lifecycle.log"
+    },
+    {
+      "command": "go test -race ./internal/credentials ./internal/authbridge ./agent/auth -count=1",
+      "result": "passed after lifecycle correction",
+      "log": "/tmp/noe-image-implementation-evidence/race-auth-final.log"
+    },
+    {
+      "command": "tsc -p agent/types/testdata/tsconfig.json",
+      "result": "passed"
+    },
+    {
+      "command": "python3 scripts/check-stdlib-consumer.py --output /tmp/noe-image-implementation-evidence/consumer-artifact --agent",
+      "result": "passed: local and artifact consumers, portable/gohost and dependency closure"
+    },
+    {
+      "command": "GOWORK=off CGO_ENABLED=0 go run . [separate optional-editor consumer]",
+      "result": "passed: old required Service interface and new optional editor API"
+    },
+    {
+      "command": "go test ./internal/credentials ./internal/authbridge ./agent/auth ./internal/agent/provider ./internal/noeprofile -count=1",
+      "result": "passed after review corrections",
+      "log": "/tmp/noe-image-implementation-evidence/review-final-packages.log"
+    },
+    {
+      "command": "go vet ./internal/credentials ./internal/authbridge ./agent/auth ./internal/agent/provider",
+      "result": "passed after review corrections",
+      "log": "/tmp/noe-image-implementation-evidence/review-fix-vet.log"
+    }
+  ],
+  "live_verification": {
+    "status": "passed-after-lazy-wrapper-fix",
+    "credential_mode": "external-readonly",
+    "image_provider": "openai-codex-images",
+    "image_model": "gpt-image-2",
+    "vision_provider": "openai-chatgpt",
+    "vision_model": "gpt-6.1-terra",
+    "actual_image_service_requests": 2,
+    "runs": {
+      "initial": {
+        "image_operations": [
+          {
+            "operation": "generate",
+            "requestId": "48446ed9-0aa6-45ab-a5b1-84b43bd211d4",
+            "usage": {
+              "input_tokens": 20,
+              "input_tokens_details": {
+                "image_tokens": 0,
+                "text_tokens": 20
+              },
+              "output_tokens": 515,
+              "output_tokens_details": {
+                "image_tokens": 515,
+                "text_tokens": 0
+              },
+              "total_tokens": 535
+            }
+          }
+        ],
+        "read_image_count": 1,
+        "failures": [
+          {
+            "operation": "edit",
+            "error": {
+              "operation": "edit",
+              "stage": "input",
+              "code": "unsupported",
+              "message": "image editing is unsupported"
+            }
+          }
+        ],
+        "reported_total_tokens": 10602,
+        "sum_of_distinct_provider_usages": 10602,
+        "answer": "The original image shows a centered mint-green square on a white background: `/tmp/noe-image-implementation-evidence/live/images/original.png`.\n\nThe edit failed, so no edited image was available to view.\n\n- **Error:** `ImageError: image editing is unsupported`\n- **Exception code:** `unsupported`\n- **Stage:** `execute`\n- **Requested output path:** `/tmp/noe-image-implementation-evidence/live/images/edited.png`"
+      },
+      "continuation": {
+        "image_operations": [
+          {
+            "operation": "edit",
+            "requestId": "ec59c946-4e52-46c9-bd34-5777ed2a9781",
+            "usage": {
+              "input_tokens": 1556,
+              "input_tokens_details": {
+                "image_tokens": 1521,
+                "text_tokens": 35
+              },
+              "output_tokens": 515,
+              "output_tokens_details": {
+                "image_tokens": 515,
+                "text_tokens": 0
+              },
+              "total_tokens": 2071
+            }
+          }
+        ],
+        "read_image_count": 2,
+        "failures": [],
+        "reported_total_tokens": 13560,
+        "sum_of_distinct_provider_usages": 13560,
+        "answer": "- **Original:** A mint green square on a white background.  \n  `/tmp/noe-image-implementation-evidence/live/images/original.png`\n- **Edited:** An orange square on a white background.  \n  `/tmp/noe-image-implementation-evidence/live/images/edited.png`"
+      }
+    },
+    "images": {
+      "original.png": {
+        "bytes": 1030556,
+        "width": 1254,
+        "height": 1254,
+        "sha256": "088abc7c842b8aa1255395a881443ce7f075760f179e0755acada4ff6346e4e4"
+      },
+      "edited.png": {
+        "bytes": 1409209,
+        "width": 1254,
+        "height": 1254,
+        "sha256": "4ce3b3fb981b44e5783e496d5eb245d4b34d325ca405bbf8ad1ae7083040b0d3"
+      }
+    },
+    "visual_review": {
+      "original": "Mint green square on white",
+      "edited": "Orange square on white",
+      "method": "Both local files opened with image viewer; real conversation model also described both",
+      "pixel_exact_preservation_claimed": false
+    },
+    "sensitive_data_checks": "No selected credential strings or image data URLs/base64 payloads in model-facing output/events",
+    "native_login_live": "user-skipped; pending login cancelled, no new grant",
+    "managed_refresh_live": "not exercised; fixture/race coverage only"
+  },
+  "review": {
+    "independent": true,
+    "initial_findings": [
+      {
+        "priority": "P2",
+        "description": "Public login Complete lost Begin/attempt lifetime during exchange/save; Close could return while completion was active",
+        "status": "fixed and independently re-reviewed",
+        "fix": "Merge both contexts and cancel/join completion via a separate stopAttempt path; blocked exchange fixtures prove Close/Begin cancellation and no credential write."
+      }
+    ],
+    "additional_correction": "External same-account/different-user identity cannot recover401; selected record claims are used for comparison only.",
+    "focused_rereview": "resolved; no additional actionable findings; ready with user-accepted native-login live gap",
+    "real_services_called_by_reviewer": false
+  },
+  "accepted_live_gaps": [
+    "Native fresh-login confirmation explicitly skipped by user; pending attempt was cancelled without creating a managed grant.",
+    "Real managed-token refresh not exercised because no owned live grant was created; deterministic/race fixtures cover the implementation."
+  ],
+  "other_live_limits": [
+    "One PNG source and gpt-image-2 with low quality/opaque background/1024x1024 requested; actual output1254x1254.",
+    "JPEG/WebP input, multiple sources, transparency and quota-error/cancellation behavior were not live-requested."
+  ],
+  "artifacts": "/tmp/noe-image-implementation-evidence",
+  "publication": false,
+  "source_hashes": {
+    "agent/auth/auth.go": "eee7aa3614298f4a23f8f1cfe7492153213c35886f2834c24af88023538223bc",
+    "agent/auth/binding_test.go": "e0be9215e03e92f48a8197ba4dbed401976b560b869aed7924f9304ab2f2e45f",
+    "agent/image_runtime_test.go": "286b5c752275503b9b3e09284ccf291c8e3161b5a6f7e471e9d02f8d2060199b",
+    "agent/model/model.go": "898754a393a5b3893f4058778a4a388757db9027c1e6bd48a230b3a402089e0b",
+    "agent/model/service.go": "570d845c11c411ce2e9a324f3af66dc6fcbd010c97e42f380bbcb234aa64ee78",
+    "agent/model/service_test.go": "2d3b05b071d7eae9ac44a9b794c00fc1dafa99a79fb1f091980276fac533941a",
+    "agent/types/noeagentlib.d.ts": "224c3ca783098e017e4f96978ee72a733046efb3d13a2c90203f01021c3408a2",
+    "examples/image/edit.js": "dbf852533e129da5e2661baf34cf9a0d4a9fe360a5a6dd9837586d5efdc06e4e",
+    "internal/agent/direct_model.go": "2be25222680eb8313127e175ea0421cf6e19b1a66542449b8208b86a0df7bf7c",
+    "internal/agent/images_direct.go": "4229fab6007a5bad98c989f98a5f47519e3063ae4d96df70a5a6f98af6696812",
+    "internal/agent/images_direct_test.go": "51fac1e9b1f64c9f7b4e71beb28caee064b294bdfddfe3baefab11db63605608",
+    "internal/agent/models.go": "03a8ff1b2788222dc018cd929ffd982071884f3722fff5b56614070435153dca",
+    "internal/agent/provider/catalog_test.go": "cc3bfefc44a85683c61ea926f9d6734e2d58efad8662be2006a09ac7264eed88",
+    "internal/agent/provider/codex_images.go": "877d01b4a909531ca8c76fb63f330c48ab42832de5466cbf806834edf32648d9",
+    "internal/agent/provider/codex_images_test.go": "75600df86c6b892d24a8857786cc25a1f7c35f9a98e94a46b23c13c6f07b216c",
+    "internal/agent/provider/config.go": "b1e53962e014c1e83d5778055b1c1463680e59afd4f439f10c80d86af0d1a686",
+    "internal/agent/provider/image.go": "aff2fc292edac0121ef3fb10c82f96004b8c73fa598f53b70bb7ea61ed1acf5e",
+    "internal/agent/provider/image_test.go": "57cff5037cd8f686897be4988aef482a1528553be816ad6f2f7715de2e8aa6e6",
+    "internal/agent/provider/openrouter.go": "1343d5579d953c9d3ed0ec3662f586eac02cec0117fd86ab49df214aef123b3d",
+    "internal/authbridge/bridge.go": "a1d949a13ece0d88ff3710ac40031c7c966839d2774168f7734a3d7a6ebecba9",
+    "internal/authbridge/bridge_test.go": "270835904b5a0b9742e1c3cac6819bbe40e4aea56aa6e8c4d0325fbf31b91095",
+    "internal/credentials/chatgpt.go": "84d420cb9b535f541a5eb4561099a6df3a8614468ecd81a303396be64adffc50",
+    "internal/credentials/codex_images.go": "8538975109273bc59ddac40f2172d364587a3e793254d66906687817dc04a527",
+    "internal/credentials/codex_images_test.go": "78bf0573f020603d2b177d00b81ef5e6bb4ca76d920b56881c11c0e85a171ba3",
+    "internal/credentials/codex_login.go": "2bae3fc8d6db701c61f80aabd27883ab804b68751803cf21a902af080a9cc849",
+    "internal/credentials/js/auth.js": "489e0dae62424ce68dabde3f62441e1f91b00945eb15514b41ef49e282a8350c",
+    "internal/credentials/signin.go": "780452dd048c2112496657bb9ad1865636201ae6a8ac119c11ce863e74c925f9",
+    "internal/image/edit.go": "9af74b8cba577080ad79f1e9f00c4dc14a5e5c066d4673ee7190585f6fb25ac3",
+    "internal/image/image.go": "16b9bb900e05792eafc5721ed572ae06093d81a3866de8be5c79b39fa246e2e4",
+    "internal/image/js/image.js": "7a9e705fc3005f084a4d083521f185e03a20e6803d43bf1af2da75ae1926f6a4",
+    "internal/modelbinding/binding.go": "e4a29817095a091783c3fedb0355e7f22c05ca382f7884f36795d12b91299f15",
+    "internal/modelbinding/binding_test.go": "b09956c3e86c2a293fa3784dbd807ff52692e5b5afa1505e72a8f7b2d7d9aa0f",
+    "internal/noeprofile/models.go": "deb8500456354367ec7cf10ae88307474ebe951d17faf3368e2a08e9f10cd01f",
+    "internal/noeprofile/models_images_test.go": "1ed1331fb037500dd43f146d98ff66ccbc2b64e14599025cfd0ced9f0521f69c",
+    "internal/runtime/agent_test.go": "bab2e6e8051787cb9bc0b56525c99de7c71c81ffce95ede4cb67a6872ccf0811",
+    "internal/runtime/catalog_test.go": "0e00ee5cd620eb276908a3cbcf244ae73ea54ea506b726726a7a02e391c03a0c",
+    "internal/runtime/context_policy_inheritance_test.go": "860f1d45919e222340b3743d68d44bada87dbf253a89d04b8bd77957ecafa2d6",
+    "scripts/auth-codex-images.js": "03ad5bb33064612ff34852f97192cab14abdb7abeac10c9181486030a3b61863"
+  }
+}

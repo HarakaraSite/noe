@@ -72,6 +72,7 @@ type GenerationRequest struct {
 }
 
 type Generated struct {
+	Operation     string `json:"-"`
 	Content       []byte `json:"-"`
 	ResponseModel string
 	RequestID     string
@@ -92,6 +93,8 @@ type Provider interface {
 }
 
 type Error struct {
+	Operation       string          `json:"operation,omitempty"`
+	Stage           string          `json:"stage,omitempty"`
 	Usage           json.RawMessage `json:"usage,omitempty"`
 	Code            string          `json:"code"`
 	Message         string          `json:"message"`

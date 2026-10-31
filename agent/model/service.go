@@ -24,6 +24,7 @@ type Options struct {
 	ConfigDir   string
 	Env         map[string]string
 	Credentials map[string]CredentialFiles
+	CodexAuth   CodexAuthOptions
 	UserAgent   string
 	HTTPClient  HTTPClient
 
@@ -38,6 +39,7 @@ type Options struct {
 	Provider         Provider
 	DecisionProvider DecisionProvider
 	ImageProvider    ImageProvider
+	ImageEditor      ImageEditor
 }
 
 // Service is the standalone Go entry for catalog and model operations.
@@ -53,6 +55,7 @@ type service struct {
 	provider         Provider
 	decisionProvider DecisionProvider
 	imageProvider    ImageProvider
+	imageEditor      ImageEditor
 }
 
 // NewService snapshots Go input and normalizes explicit paths. It does not
@@ -97,10 +100,12 @@ func NewService(options Options) (Service, error) {
 		Env: env, Credentials: credentials, UserAgent: options.UserAgent,
 		HTTPClient: options.HTTPClient, KeyFile: options.KeyFile,
 		BaseURL: options.BaseURL, DecisionServerURL: options.DecisionServerURL,
+		CodexAuth: options.CodexAuth,
 	})
 	return &service{
 		registry: registry, provider: options.Provider,
 		decisionProvider: options.DecisionProvider, imageProvider: options.ImageProvider,
+		imageEditor: options.ImageEditor,
 	}, nil
 }
 
@@ -177,6 +182,59 @@ func (s *service) GenerateImage(ctx context.Context, request ImageRequest) (Gene
 	})
 }
 
+func (s *service) EditImage(ctx context.Context, request ImageEditRequest) (GeneratedImage, error) {
+	if err := checkContext(ctx); err != nil {
+		return GeneratedImage{}, imageapi.DescribeError(err, "edit", "request", GeneratedImage{})
+	}
+	prepared, err := imageapi.PrepareEdit(ctx, request)
+	if err != nil {
+		return GeneratedImage{}, err
+	}
+	var editor ImageEditor
+	switch {
+	case s.imageEditor != nil:
+		editor = s.imageEditor
+	case s.imageProvider != nil:
+		var ok bool
+		editor, ok = s.imageProvider.(ImageEditor)
+		if !ok {
+			return GeneratedImage{}, unsupportedImageEdit()
+		}
+	case s.provider != nil:
+		var ok bool
+		editor, ok = s.provider.(ImageEditor)
+		if !ok {
+			return GeneratedImage{}, unsupportedImageEdit()
+		}
+	default:
+		generated, editErr := s.registry.EditImage(ctx, prepared)
+		if generated.Operation == "" {
+			generated.Operation = "edit"
+		}
+		if editErr != nil {
+			return generated, imageapi.DescribeError(editErr, "edit", "request", generated)
+		}
+		return generated, nil
+	}
+
+	generated, err := editor.EditImage(ctx, prepared)
+	if generated.Operation == "" {
+		generated.Operation = "edit"
+	}
+	if err != nil {
+		return generated, imageapi.DescribeError(err, "edit", "request", generated)
+	}
+	return generated, nil
+}
+
+func unsupportedImageEdit() error {
+	imageErr := &imageapi.Error{
+		Code: "unsupported", Message: "image editing is unsupported",
+		Operation: "edit", Stage: "input",
+	}
+	return fmt.Errorf("model: edit image: %w: %w", ErrUnsupported, imageErr)
+}
+
 func (s *service) HasProvider(name string) (bool, error) {
 	if s.provider != nil {
 		if providerWithCatalog, ok := s.provider.(interface{ HasProvider(string) (bool, error) }); ok {
@@ -184,7 +242,7 @@ func (s *service) HasProvider(name string) (bool, error) {
 			if err != nil || exists {
 				return exists, err
 			}
-			if s.imageProvider != nil || s.decisionProvider != nil {
+			if s.imageProvider != nil || s.imageEditor != nil || s.decisionProvider != nil {
 				// This catalog belongs to the custom chat provider, while image
 				// and decision providers are independently selectable.
 				return true, nil
@@ -196,7 +254,7 @@ func (s *service) HasProvider(name string) (bool, error) {
 		// that it only represents OpenRouter); Generate/Decide classify requests.
 		return true, nil
 	}
-	if s.imageProvider != nil || s.decisionProvider != nil {
+	if s.imageProvider != nil || s.imageEditor != nil || s.decisionProvider != nil {
 		// These custom operations are independent of the chat catalog. Their
 		// own implementation is authoritative when no matching catalog exists.
 		return true, nil

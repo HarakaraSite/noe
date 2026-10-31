@@ -15,9 +15,12 @@ import (
 )
 
 const (
-	DiscoveryURL = "https://auth.openai.com/.well-known/openid-configuration"
-	Resource     = "https://api.openai.com/v1"
-	PlanScope    = "chatgpt.tokens.use.direct"
+	DiscoveryURL  = "https://auth.openai.com/.well-known/openid-configuration"
+	Resource      = "https://api.openai.com/v1"
+	PlanScope     = "chatgpt.tokens.use.direct"
+	CodexIssuer   = "https://auth.openai.com"
+	CodexClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
+	CodexPort     = 1455
 )
 
 type HTTPClient interface {
@@ -25,8 +28,11 @@ type HTTPClient interface {
 }
 
 type Options struct {
-	HTTPClient   HTTPClient
-	DiscoveryURL string // injectable discovery endpoint for local tests
+	HTTPClient        HTTPClient
+	DiscoveryURL      string // injectable discovery endpoint for local tests
+	CodexIssuer       string
+	CodexClientID     string
+	CodexCallbackPort int
 }
 
 // Record matches hjh's token record, so a selected account can be copied intact.
@@ -94,6 +100,8 @@ func (c *ChatGPT) getJSON(ctx context.Context, endpoint string, target any) erro
 	if err != nil {
 		return errors.New("invalid ChatGPT discovery URL")
 	}
+	req.Header.Set("User-Agent", "noe")
+	req.Header.Set("originator", "noe")
 	res, err := c.client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {

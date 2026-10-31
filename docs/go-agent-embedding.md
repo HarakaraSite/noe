@@ -245,3 +245,21 @@ Replace saved-log variants of `observe_agent` with caller-side file reading
 and `agent/log` parsing. Replace task/instance interruption with the separate
 `CancelTask` and `StopAgent` operations. Do not pass NOE control directories,
 executable paths, or internal connection tokens into the library API.
+
+## Optional image editing
+
+The required `model.Service` interface is unchanged. Services created with
+`model.NewService` also implement the optional `model.ImageEditor` interface.
+Use `model.ImageEditRequest` with ordered `model.ImageInput` MIME/byte snapshots;
+standalone model calls return `model.GeneratedImage` without choosing a file path.
+The `noe:image` binding reads input files and saves output through its selected
+execution filesystem. `Operation.Models()` preserves this optional interface
+with the same operation ownership, limits, cancellation and usage accounting.
+
+`model.Options.ImageEditor` explicitly supplies a custom editing operation.
+Otherwise an explicitly selected image provider (or chat provider when no image
+provider was selected) must implement the optional editor; a missing operation
+returns unsupported rather than using a built-in account. Existing custom
+services gain no new required method. `model.Options.CodexAuth` selects trusted
+OAuth issuer/client/callback options; `Options.Credentials` continues to select
+credential files by provider ID. Construction/catalog access remains lazy.

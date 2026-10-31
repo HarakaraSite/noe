@@ -25,6 +25,7 @@ var defaultDefinitions []byte
 // Definition contains data only. API-specific conversion stays in Go.
 type Definition struct {
 	SDK               string                     `json:"sdk"`
+	OAuthMode         string                     `json:"oauthMode,omitempty"`
 	Auth              string                     `json:"auth"`
 	OAuthFile         string                     `json:"oauthFile"`
 	OAuthFileEnv      string                     `json:"oauthFileEnv"`
@@ -42,6 +43,7 @@ type Definition struct {
 	RunJSInput        string                     `json:"runJSInput"`
 	DecisionServerURL string                     `json:"decisionServerURL"`
 	ImageGeneration   *ImageGenerationDefinition `json:"imageGeneration,omitempty"`
+	ImageEditing      *ImageGenerationDefinition `json:"imageEditing,omitempty"`
 	Models            map[string]json.RawMessage `json:"models"`
 }
 
@@ -69,6 +71,7 @@ type Registry struct {
 	clients       map[string]Provider
 	sharedClients map[string]Provider
 	imageClients  map[string]imageapi.Provider
+	sharedImages  map[string]imageapi.Provider
 }
 
 // NewExplicitRegistry creates a registry using only the paths and environment
@@ -147,7 +150,7 @@ func decodeDefinition(data []byte) (Definition, error) {
 	if d.SDK != "openrouter" && d.SDK != "openai" {
 		return d, fmt.Errorf("unsupported provider SDK %q", d.SDK)
 	}
-	if d.Auth != "api-key" && d.Auth != "chatgpt-oauth" && d.Auth != "none" {
+	if d.Auth != "api-key" && d.Auth != "chatgpt-oauth" && d.Auth != "none" && d.Auth != "codex-oauth" {
 		return d, fmt.Errorf("unsupported provider authentication %q", d.Auth)
 	}
 	if d.SDK == "openrouter" && d.Auth != "api-key" {
@@ -156,7 +159,7 @@ func decodeDefinition(data []byte) (Definition, error) {
 	if d.Auth == "chatgpt-oauth" && d.API != "responses" {
 		return d, errors.New("ChatGPT plan authentication uses Responses")
 	}
-	if d.API != "chat-completions" && d.API != "responses" {
+	if d.API != "chat-completions" && d.API != "responses" && d.API != "images" {
 		return d, fmt.Errorf("unsupported provider API %q", d.API)
 	}
 	if d.RunJSInput == "" {
@@ -168,20 +171,41 @@ func decodeDefinition(data []byte) (Definition, error) {
 	if d.RunJSInput == "javascript" && d.API != "responses" {
 		return d, errors.New("JavaScript run_js input requires Responses")
 	}
-	u, err := url.Parse(d.BaseURL)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return d, errors.New("provider baseURL must be an HTTP URL")
-	}
-	if d.Path == "" || !strings.HasPrefix(d.Path, "/") {
-		return d, errors.New("provider path must start with /")
-	}
-	if d.ImageGeneration != nil {
-		imageURL, err := url.Parse(d.ImageGeneration.BaseURL)
-		if err != nil || imageURL.Host == "" || (imageURL.Scheme != "http" && imageURL.Scheme != "https") {
-			return d, errors.New("imageGeneration baseURL must be an HTTP URL")
+	if d.Auth == "codex-oauth" {
+		if d.SDK != "openai" || d.API != "images" {
+			return d, errors.New("Codex image authentication requires an OpenAI images provider")
 		}
-		if d.ImageGeneration.Path == "" || !strings.HasPrefix(d.ImageGeneration.Path, "/") {
-			return d, errors.New("imageGeneration path must start with /")
+		if d.OAuthMode == "" {
+			d.OAuthMode = "managed"
+		}
+		if d.OAuthMode != "managed" && d.OAuthMode != "external-readonly" {
+			return d, errors.New("invalid Codex credential mode")
+		}
+	} else if d.OAuthMode != "" {
+		return d, errors.New("oauthMode requires codex-oauth")
+	}
+	validateEndpoint := func(base, path string) error {
+		u, err := url.Parse(base)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return errors.New("provider endpoint must be an HTTP URL")
+		}
+		if path == "" || !strings.HasPrefix(path, "/") {
+			return errors.New("provider path must start with /")
+		}
+		return nil
+	}
+	if d.API != "images" {
+		if err := validateEndpoint(d.BaseURL, d.Path); err != nil {
+			return d, err
+		}
+	} else if d.ImageGeneration == nil && d.ImageEditing == nil {
+		return d, errors.New("images provider requires an image endpoint")
+	}
+	for _, endpoint := range []*ImageGenerationDefinition{d.ImageGeneration, d.ImageEditing} {
+		if endpoint != nil {
+			if err := validateEndpoint(endpoint.BaseURL, endpoint.Path); err != nil {
+				return d, err
+			}
 		}
 	}
 	return d, nil
@@ -267,49 +291,43 @@ func (r *Registry) HasProvider(name string) (bool, error) {
 	return ok, nil
 }
 
-func (r *Registry) resolve(name, model string) (Provider, error) {
+func (r *Registry) resolveDefinition(name, model string) (Definition, error) {
 	if name == "" {
 		name = "openrouter"
 	}
 	ok, err := r.HasProvider(name)
 	if err != nil {
-		return nil, err
+		return Definition{}, err
 	}
 	if !ok {
-		return nil, fmt.Errorf("unknown provider %q", name)
-	}
-	key := name + "\x00" + model
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if p := r.clients[key]; p != nil {
-		return p, nil
+		return Definition{}, fmt.Errorf("unknown provider %q", name)
 	}
 	base, err := decodeObject(r.definitions.Providers[name])
 	if err != nil {
-		return nil, err
+		return Definition{}, err
 	}
 	var modelOverrides map[string]json.RawMessage
 	if models, ok := base["models"]; ok {
 		data, _ := json.Marshal(models)
 		if err := json.Unmarshal(data, &modelOverrides); err != nil {
-			return nil, err
+			return Definition{}, err
 		}
 	}
 	delete(base, "models")
 	if raw, ok := modelOverrides[model]; ok {
 		_, override, err := splitModel(raw)
 		if err != nil {
-			return nil, err
+			return Definition{}, err
 		}
 		mergeObject(base, override, 0)
 	}
 	data, err := json.Marshal(base)
 	if err != nil {
-		return nil, err
+		return Definition{}, err
 	}
 	d, err := decodeDefinition(data)
 	if err != nil {
-		return nil, err
+		return Definition{}, err
 	}
 	userAgent := r.opts.UserAgent
 	if userAgent == "" {
@@ -322,11 +340,31 @@ func (r *Registry) resolve(name, model string) (Provider, error) {
 	switch d.Auth {
 	case "api-key":
 		d.KeyFile, err = r.resolveCredentialPath(name, d.KeyFile, d.KeyFileEnv, false)
-	case "chatgpt-oauth":
+	case "chatgpt-oauth", "codex-oauth":
 		d.OAuthFile, err = r.resolveCredentialPath(name, d.OAuthFile, d.OAuthFileEnv, true)
 	}
 	if err != nil {
+		return Definition{}, err
+	}
+	return d, nil
+}
+
+func (r *Registry) resolve(name, model string) (Provider, error) {
+	if name == "" {
+		name = "openrouter"
+	}
+	d, err := r.resolveDefinition(name, model)
+	if err != nil {
 		return nil, err
+	}
+	if d.API == "images" {
+		return nil, errors.New("model operation unsupported by image-only provider")
+	}
+	key := name + "\x00" + model
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if p := r.clients[key]; p != nil {
+		return p, nil
 	}
 	opts := Options{Profile: &d, KeyFile: d.KeyFile, BaseURL: d.BaseURL, HTTPClient: r.opts.HTTPClient, DecisionServerURL: d.DecisionServerURL}
 	if name == "openrouter" {

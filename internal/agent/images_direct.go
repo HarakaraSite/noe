@@ -15,11 +15,11 @@ import (
 // attaches their validated snapshot to the active run_js tool call.
 func (op *Operation) ReadImage(ctx context.Context, path, detail string, ordinal int, read func(context.Context, string) ([]byte, error)) (imageapi.Metadata, error) {
 	if path == "" || ordinal <= 0 {
-		return imageapi.Metadata{}, imageInput("path and a positive ordinal are required")
+		return imageapi.Metadata{}, &imageapi.Error{Code: "input", Message: "path and a positive ordinal are required", Operation: "read", Stage: "input"}
 	}
 	merged, release, _, err := op.beginRequestContext(ctx)
 	if err != nil {
-		return imageapi.Metadata{}, readImageRequestError(err)
+		return imageapi.Metadata{}, imageapi.DescribeError(readImageRequestError(err), "read", "input", imageapi.Generated{})
 	}
 	defer release()
 
@@ -39,28 +39,28 @@ func (op *Operation) ReadImage(ctx context.Context, path, detail string, ordinal
 	}
 	h.mu.Unlock()
 	if run == nil || tool == nil {
-		return imageapi.Metadata{}, imageInput("read_image requires an active run_js model tool call")
+		return imageapi.Metadata{}, &imageapi.Error{Code: "input", Message: "read_image requires an active run_js model tool call", Operation: "read", Stage: "input"}
 	}
 	if read == nil {
-		return imageapi.Metadata{}, &imageapi.Error{Code: "filesystem", Message: "image input filesystem is unavailable"}
+		return imageapi.Metadata{}, &imageapi.Error{Code: "filesystem", Message: "image input filesystem is unavailable", Operation: "read", Stage: "input"}
 	}
 	if err := merged.Err(); err != nil {
-		return imageapi.Metadata{}, imageapi.AsError(err)
+		return imageapi.Metadata{}, imageapi.DescribeError(err, "read", "input", imageapi.Generated{})
 	}
 	content, err := read(merged, path)
 	if err != nil {
 		if contextErr := merged.Err(); contextErr != nil {
 			err = contextErr
 		}
-		return imageapi.Metadata{}, imageapi.AsError(err)
+		return imageapi.Metadata{}, readImageFailure(err)
 	}
 	data, err := imageapi.ReadInputData(merged, path, content, detail)
 	if err != nil {
-		return imageapi.Metadata{}, err
+		return imageapi.Metadata{}, imageapi.DescribeError(err, "read", "input", imageapi.Generated{})
 	}
 	imageID, err := randomID()
 	if err != nil {
-		return imageapi.Metadata{}, &imageapi.Error{Code: "response", Message: "cannot identify image attachment"}
+		return imageapi.Metadata{}, &imageapi.Error{Code: "response", Message: "cannot identify image attachment", Operation: "read", Stage: "input"}
 	}
 	data.ImageID = imageID
 	data.Ordinal = ordinal
@@ -69,7 +69,7 @@ func (op *Operation) ReadImage(ctx context.Context, path, detail string, ordinal
 	current, currentTool := h.admitImageLocked(op)
 	if current != run || currentTool != tool || merged.Err() != nil {
 		h.mu.Unlock()
-		return imageapi.Metadata{}, &imageapi.Error{Code: "cancelled", Message: "image attachment scope has ended"}
+		return imageapi.Metadata{}, &imageapi.Error{Code: "cancelled", Message: "image attachment scope has ended", Operation: "read", Stage: "input"}
 	}
 	tool.rawImages = append(tool.rawImages, data)
 	sort.Slice(tool.rawImages, func(i, j int) bool { return tool.rawImages[i].Ordinal < tool.rawImages[j].Ordinal })
@@ -82,7 +82,7 @@ func (op *Operation) ReadImage(ctx context.Context, path, detail string, ordinal
 
 func readImageRequestError(err error) error {
 	if errors.Is(err, ErrOperationClosed) {
-		return &imageapi.Error{Code: "cancelled", Message: "image attachment scope has ended"}
+		return &imageapi.Error{Code: "cancelled", Message: "image attachment scope has ended", Operation: "read", Stage: "input"}
 	}
 	var operationErr *operationError
 	if errors.As(err, &operationErr) {
@@ -99,12 +99,16 @@ func (op *Operation) ObserveImageSave(output string, generated model.GeneratedIm
 		return
 	}
 	h := op.host
-	fields := events.Event{
-		"path": output, "providerRequestId": generated.RequestID,
-		"responseModel": generated.ResponseModel,
+	operation := generated.Operation
+	if operation == "" {
+		operation = "generate"
 	}
-	if len(generated.Usage) != 0 {
-		fields["usage"] = append(json.RawMessage(nil), generated.Usage...)
+	requestID := generated.RequestID
+	usage := append(json.RawMessage(nil), generated.Usage...)
+	fields := events.Event{
+		"operation": operation,
+		"path":      output, "providerRequestId": generated.RequestID,
+		"responseModel": generated.ResponseModel,
 	}
 	if saveErr == nil {
 		if metadata.Path == "" {
@@ -112,8 +116,18 @@ func (op *Operation) ObserveImageSave(output string, generated model.GeneratedIm
 		}
 		fields["image"] = metadata
 	} else {
-		imageErr := imageapi.AsError(saveErr)
+		imageErr := imageapi.DescribeError(saveErr, operation, "save", generated)
+		if requestID == "" {
+			requestID = imageErr.RequestID
+		}
+		if len(usage) == 0 {
+			usage = append(json.RawMessage(nil), imageErr.Usage...)
+		}
 		fields["reason"], fields["error"] = imageErr.Code, imageErr
+	}
+	fields["providerRequestId"] = requestID
+	if len(usage) != 0 {
+		fields["usage"] = usage
 	}
 
 	h.mu.Lock()
@@ -147,4 +161,15 @@ func (op *Operation) ObserveImageSave(output string, generated model.GeneratedIm
 		fields["type"] = "image.save_failed"
 	}
 	h.observe(fields)
+}
+
+func readImageFailure(err error) *imageapi.Error {
+	var imageErr *imageapi.Error
+	if errors.As(err, &imageErr) {
+		return imageapi.DescribeError(err, "read", "input", imageapi.Generated{})
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return imageapi.DescribeError(err, "read", "input", imageapi.Generated{})
+	}
+	return &imageapi.Error{Code: "filesystem", Message: err.Error(), Operation: "read", Stage: "input"}
 }
