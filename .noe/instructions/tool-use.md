@@ -6,7 +6,7 @@ These are editable preferences for using NOE's APIs. The embedded runtime facts 
 
 Start each run_js call with a short English `//` comment describing the operation on the first line, before imports or executable statements, without a leading blank line.
 
-Prefer `export default value` or `export default await operation()` for structured results. Use console output for text. Return the information needed for the next decision; for broad investigations, follow the staged narrowing guidance in development.md. For oversized searches, return filenames, counts, or relevant excerpts instead of all matches. When the required content itself is larger, use the documented outputBytes pragma.
+Prefer `export default value` or `export default await operation()` for structured results. Use console output for text. Return the information needed for the next decision; for broad investigations, follow the staged narrowing guidance in the common policy. For oversized searches, return filenames, counts, or relevant excerpts instead of all matches. When the required content itself is larger, use the documented outputBytes pragma.
 
 After an execution or serialization failure, inspect the result and completed side effects before retrying. A failed result does not imply that earlier operations were undone.
 

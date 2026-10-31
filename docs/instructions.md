@@ -50,10 +50,11 @@ The source repository contains ordinary external instructions:
 
 - [behavior.md](../.noe/instructions/behavior.md): autonomy and interaction preferences.
 - [tool-use.md](../.noe/instructions/tool-use.md): comment style, API discovery, concurrent work, and model-backed decisions.
-- [delegation.md](../.noe/instructions/delegation.md): task splitting, waiting, reuse, and handoff.
-- [development.md](../.noe/instructions/development.md): investigation, validation, review, and completion.
+- [delegation.md](../.noe/instructions/delegation.md): task splitting, time and effort limits, waiting, reuse, and handoff.
+- [development.md](../.noe/instructions/development.md): repository requirements and validation/release references. General development rules are maintained in the user's selected common policy, rather than duplicated here.
 - [extention.md](../.noe/instructions/extention.md): local extension-library discovery and usage.
 - [js-tools.md](../.noe/instructions/js-tools.md): this workspace's lint and type-checking workflow.
+- [workflow.md](../.noe/instructions/workflow.md): a pointer to the standalone workflow instructions, used only when that workflow is explicitly selected.
 
 Edit, replace, or remove these files to choose the workspace's behavior. To use selected preferences across workspaces, place copies in the common directory. NOE does not install, recreate, or restore these files automatically. Keeping them external is a user-control boundary, not a trial before embedding them into the binary.
 

@@ -1,11 +1,11 @@
 # Outer-agent instruction template
 
-Use this when an existing agent receives a user request to implement settled requirements through the standalone workflow. Keep the requesting agent, actual workflow parent, and workers distinct.
+Use this only when the user explicitly selects the standalone development workflow for settled requirements. Ordinary implementation requests do not select it automatically. Its fixed plan and code reviews are specific to that workflow and do not apply to ordinary tasks. Keep the requesting agent, actual workflow parent, and workers distinct.
 
 ## Requester / outer agent
 
-1. Confirm the user wants implementation now and the requirements are settled. Identify the actual target repository root, the copied workflow run.js path, the requirements path, and any optional config. Do not invent requirements or launch the workflow from the NOE source checkout when another repository is the target.
-2. Explain that ordinary execution requires configured agent-provider access (ChatGPT by default), with no mandatory model-based approval gates or separate decision-provider credential requirement. The optional `.noe/workflow.json` supports role overrides only; the experimental `decision` setting and its defaults have been removed without compatibility support. `--help` is offline and does not require credentials.
+1. Establish from the request that implementation through this workflow is authorized and requirements are settled; do not request confirmation already provided. Identify the actual target repository root, the copied workflow run.js path, the requirements path, any optional config, and the requested delivery scope. The requirements passed to the parent must reflect any requested and authorized push; otherwise use local delivery. Do not invent requirements or launch the workflow from the NOE source checkout when another repository is the target.
+2. Ordinary execution requires configured agent-provider access (ChatGPT by default), with no mandatory model-based approval gates or separate decision-provider credential requirement. The optional `.noe/workflow.json` supports role overrides only. `--help` is offline and does not require credentials. See README.md for configuration details and migration notes.
 3. Start one awaited standalone NOE subprocess from the actual target root. For example:
 
 ~~~js
@@ -24,7 +24,7 @@ console.log(result.stdout);
 
 Keep the owning command/tool alive until it completes. Do not detach it or import the launcher into a managed run_js call as though it were a resumable workflow API. If the subprocess fails, reports native failure/cancellation, or ends without completing, report that fact rather than treating an agent ending as successful delivery.
 4. The workflow parent owns the plan, reviews, implementation coordination, validation judgments, Git commits and final push decision. Do not become a second coordinator, duplicate the parent's reviews, or independently repeat the same task stages. The requester may relay concise user-facing progress or a blocker but should let the parent make its judgments.
-5. Return the parent's natural-language answer to the user with its achieved behavior, evidence, local commits, actual push state, and remaining issues. If push failed or did not occur, describe delivery as incomplete.
+5. Return the parent's natural-language answer to the user with its achieved behavior, evidence, local commits, actual push state, and remaining issues. If push is part of the requested delivery and failed or did not occur, describe that delivery as incomplete. If local delivery was requested, an unperformed push is not a completion failure.
 
 ## Actual workflow parent
 
