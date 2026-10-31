@@ -34,13 +34,13 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.10.1 release notes](docs/releases/v2.10.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.10.1)
+[v2.11.0 release notes](docs/releases/v2.11.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.11.0)
 
-v2.10.1 fixes `mkdtempSync` and `fs/promises.mkdtemp` so temporary
-directories are created under the supplied prefix's parent directory.
-Relative prefixes use the configured filesystem cwd, and root confinement
-and ReadOnly permissions remain enforced. Public APIs and dependencies
-are unchanged. See the [release notes](docs/releases/v2.10.1.md).
+v2.11.0 adds `edit_image` and the `openai-codex-images` subscription
+provider for image generation and editing. It includes separate managed
+OAuth credentials, read-only access to an existing Codex login, and scoped
+usage/cancellation handling. See the [release notes](docs/releases/v2.11.0.md)
+and [image guide](docs/agent-images.md).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -55,7 +55,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.10.1
+# noe v2.11.0
 ```
 
 The examples below assume the repository root is your working directory.

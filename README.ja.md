@@ -35,13 +35,13 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.10.1リリースノート](docs/releases/v2.10.1.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.10.1)
+[v2.11.0リリースノート](docs/releases/v2.11.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.11.0)
 
-v2.10.1 fixes `mkdtempSync` and `fs/promises.mkdtemp` so temporary
-directories are created under the supplied prefix's parent directory.
-Relative prefixes use the configured filesystem cwd, and root confinement
-and ReadOnly permissions remain enforced. Public APIs and dependencies
-are unchanged. See the [release notes](docs/releases/v2.10.1.md).
+v2.11.0 adds `edit_image` and the `openai-codex-images` subscription
+provider for image generation and editing. It includes separate managed
+OAuth credentials, read-only access to an existing Codex login, and scoped
+usage/cancellation handling. See the [release notes](docs/releases/v2.11.0.md)
+and [image guide](docs/agent-images.md).
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
@@ -55,7 +55,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.10.1
+# noe v2.11.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
