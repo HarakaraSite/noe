@@ -2,8 +2,8 @@
 
 The local checkout updates the engine from v0.29.0 to v0.31.1 with JIT disabled,
 as explicitly requested. Baseline NOE commit: `2ffebde`.
-This record concerns source integration and validation, not publication or
-replacement of installed executables.
+This record concerns source integration and validation. Publication and
+placement are tracked in the [release checkpoints](../releases/release-checkpoints.md).
 
 ## Dependency and API scope
 
