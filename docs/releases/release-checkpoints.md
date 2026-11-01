@@ -2922,3 +2922,66 @@ Previous v2.10.1 executables are backed up at
 versions and installed smoke results. Existing running processes were not
 restarted or interrupted. This documentation-only follow-up preserves the
 published release tag.
+
+
+## v2.11.1 preparation — 2026-11-01
+
+The user authorized committing the engine integration, release and local
+placement, with JIT explicitly disabled. Latest published release: v2.11.0.
+Engine integration `20c80f3` updates go-quickjs v0.29.0 to v0.31.1. This
+release also includes previously committed image-helper fixes `2ffebde`:
+callback-URL paste relay, private per-attempt pending records, short messages,
+and automatic use of registered alternate port 1457 when 1455 is unavailable.
+See the [release notes](v2.11.1.md).
+
+Checked clean native candidate source:
+`c7cd49d41144e3c132776feb74128d203c318a7e`.
+Its production-source difference from verified engine integration `20c80f3`
+is only the CLI Version string. go-intl remains v0.8.0, Go remains 1.27.2,
+and the maintained stdlib snapshot and distribution workflow are unchanged.
+This preparation follow-up adds only this evidence section.
+
+Implementation evidence is reused from the
+[engine record](../development/go-quickjs-v0.31.1-upgrade.md) and
+`/tmp/noe-quickjs-v0311-zgxw87c3/results.json`: full unit, vet, four affected
+lifecycle race packages, external local/artifact agent consumers in both
+modes, all six target compilations, and module verification passed. The
+initial E2E run passed all except one instruction-sensitive fixture; the
+same failure reproduced under v0.29.0. Its CLI invocation now uses --no-inst,
+and its unchanged assertions pass on both engines; other successful E2E
+results are reused. Ordinary non-race long-turn deadline, Worker termination
+and node:vm timeout/reuse probes passed. Independent integration review found
+no actionable defect. The build graph selects disabled JIT code on all six
+targets and no JIT packages in the native CLI.
+
+The image-helper implementation has separate process/native OAuth fixture
+save evidence, URL/state/failure/redaction/cleanup checks, auth race and
+independent review evidence. The pending cleanup finding was fixed and
+re-reviewed; alternate-port selection review found no actionable defect.
+Those sources still match `/tmp/noe-image-login-align-ov4pfacb/results.json`.
+Real browser login acceptance on port 1457 remains unverified.
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test, CGO disabled | PASS |
+| Clean native release-flags build | PASS, checked revision above, vcs.modified=false |
+| Candidate version/arithmetic | PASS, noe v2.11.1 and 2 |
+| Candidate image/model/auth exports and image catalog | PASS |
+| Image helper offline login/complete help | PASS |
+| Build provenance | go-quickjs v0.31.1, go-intl v0.8.0, CGO_ENABLED=0, no JIT tag |
+| Selected README/release/upgrade relative links | PASS, 131 references |
+| Verified implementation hashes/workflow/diff | PASS |
+
+Release evidence is retained at `/tmp/noe-v2.11.1-release-r2wh403h`.
+Source suites, six-target compile checks, race and prior cancellation/provider
+experiments are not repeated for release. CI builds six targets, generates
+SHA256SUMS and uploads the immutable tag. Published hashes/build metadata,
+native smoke and actual public-module stdlib/agent consumers are verified
+after publication. The published source manifest covers 11 changed Go/JS
+source and module files.
+
+The verified published Linux amd64 asset will atomically replace
+`/home/agent/projects/noe/noe` and `/home/agent/.local/bin/noe`, with backups.
+Current executables are v2.11.0+local; running noebot and other processes are
+not restarted. Native execution here is Linux amd64; other five targets
+receive compile/build/hash evidence.
