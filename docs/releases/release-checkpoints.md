@@ -2985,3 +2985,69 @@ The verified published Linux amd64 asset will atomically replace
 Current executables are v2.11.0+local; running noebot and other processes are
 not restarted. Native execution here is Linux amd64; other five targets
 receive compile/build/hash evidence.
+
+
+## v2.11.1 Release validation and local placement — 2026-11-01
+
+- Annotated tag `v2.11.1` points to
+  `74bb0f22209ba283efc3754ea2bc488913f8b9ed`, matching the peeled remote tag
+  and successful native workflow revision. Only preparation evidence differs
+  from checked clean candidate `c7cd49d41144e3c132776feb74128d203c318a7e`.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/49)
+  succeeded (API run ID 230) using the unchanged lightweight six-target
+  build/checksum/upload job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.11.1)
+  is published, neither draft nor prerelease (Release ID 162). Its body
+  matches the tagged English [release notes](v2.11.1.md).
+
+All seven assets were downloaded and all six binary hashes match SHA256SUMS.
+All six embedded build records name the tagged source revision, go-quickjs
+v0.31.1, go-intl v0.8.0 and CGO_ENABLED=0, without the quickjs_jit tag.
+The Linux amd64 asset reports `noe v2.11.1` and `vcs.modified=false`.
+Its SHA256 is
+`df08292ccc51bc3b03973cd7c9a2cbfa3ece38e85afdf0dfce317cc9c5024905`.
+Published native version/arithmetic, image/model/auth exports/catalog and
+image-helper offline login/complete help passed, without provider or login
+requests.
+
+### Build metadata observation
+
+The five assets built after Linux amd64 stamp `vcs.modified=true`. The existing
+workflow writes binaries sequentially into dist/, which is not ignored by the
+existing .gitignore. A clean local clone of the same immutable tag was used to
+reproduce the metadata: adding only an untracked dist/noe-linux-amd64 output,
+without any tracked-source difference, makes a new native build stamp true.
+The build revision, dependencies and checksum verification of every published
+asset still agree. This is recorded as a build-output provenance limitation;
+the installed native asset is the first build and stamps false. The initial
+verification helper's assumption that all six stamp false failed, then the
+verified cause and per-asset states were recorded explicitly. All completed
+downloads and checksums were reused; release assets/tag were not replaced.
+
+### Public modules and installation
+
+Clean external modules fetched stdlib@v2.11.1 and agent@v2.11.1 with
+GOPROXY=direct, without replacements or a synthetic proxy. Both built, ran
+and passed go mod verify; the agent ran in portable and gohost modes.
+MVS selected official go-quickjs v0.31.1 and go-intl v0.8.0. Each consumer
+selects disabled JIT VM code. All 11 recorded changed Go/JS/module file hashes
+match the downloaded published module.
+
+The verified published Linux amd64 asset atomically replaced both
+`/home/agent/projects/noe/noe` and `/home/agent/.local/bin/noe`.
+Both installed hashes match the published checksum and both report
+`noe v2.11.1`. PATH resolves to the updated user binary. Installed
+version/arithmetic, image/model/auth exports/catalog and helper help passed.
+Previous v2.11.0+local executables are backed up at
+`/tmp/noe-v2.11.1-release-r2wh403h/installation` with per-path hashes and
+versions. Running noebot and other processes were not restarted or interrupted;
+they adopt the new executable when restarted normally.
+
+Evidence is retained at `/tmp/noe-v2.11.1-release-r2wh403h`, including
+Actions/Release metadata, all assets, checksums/build information, provenance
+reproduction, native smoke, public consumers and installation records.
+Implementation unit/E2E/race/compilation evidence was reused; no paid provider
+request or full source-suite rerun was made for release. Native runtime
+verification is Linux amd64; other five targets have compile/build/hash
+verification. Real-account browser login on alternate port 1457 remains
+unverified. This documentation-only follow-up preserves the release tag.
