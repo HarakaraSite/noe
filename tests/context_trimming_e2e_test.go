@@ -260,7 +260,8 @@ func TestContextTrimmingQueuedTaskContinuesConversationAndTrimState(t *testing.T
 	writeFixture(t, filepath.Join(work, "main.js"), contextTrimRunSource(true))
 	env := agentCLIEnv(t, server.URL)
 	env["NOE_AGENT_TRACE"] = ""
-	result := runCLI(t, work, env, "run", "--observe", "--events="+eventPath, "main.js")
+	// Fixed trim counts assume built-in facts, independent of user instructions.
+	result := runCLI(t, work, env, "run", "--no-inst", "--observe", "--events="+eventPath, "main.js")
 	requireExit(t, result, 0)
 	if !strings.Contains(result.stdout, "context trimmed:") {
 		t.Fatalf("human --observe output omitted queue run trimming:\n%s", result.stdout)

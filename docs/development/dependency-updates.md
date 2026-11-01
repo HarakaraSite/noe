@@ -186,3 +186,13 @@ export { executeToolWithHooks };
 検証環境はGo 1.27.2 / Linux amd64、JIT build tagなし。両方とも正式v0.28.0と、確認時のmain `92bd61dd7575e61f378ae65a5bbdfeca159459c1`（`v0.28.1-0.20261024003228-92bd61dd7575`）で同一結果。独立consumerは上流の公開Go APIだけを使い、NOE・NOE管理stdlib・local replaceを含まない。再export用loaderはGoコード内の文字列を返すだけの実装。両版で`go mod verify`成功。NOEのgo.mod・go.sumは変更していない。
 
 再現コード、版別modfile、英語本文、実測結果と投稿確認は `/var/tmp/go-quickjs-issues-MkRuD9/` に保存：`block/main.go`、`reexport/main.go`、`go.mod`・`main.mod`、`block-issue.txt`・`reexport-issue.txt`、`results.json`、`verified-issues.json`。issue本文にも再現コードを含めたため、このVMのファイルなしで再現できる。
+
+
+## go-quickjs v0.31.1, JIT disabled — 2026-11-01
+
+The local engine requirement is updated from v0.29.0 to v0.31.1. go-intl stays
+at v0.8.0; NOE's maintained stdlib snapshot and release configuration are
+unchanged. JIT remains disabled in constructors and builds. See the
+[upgrade and validation record](go-quickjs-v0.31.1-upgrade.md) for API/behavior
+scope, normal-build cancellation evidence, the independent review and the
+instruction-sensitive E2E fixture correction.
