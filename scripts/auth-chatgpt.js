@@ -31,6 +31,7 @@ if (command === "help" || command === "--help") {
   console.log("login: print a browser URL and wait for the loopback callback.");
   console.log("complete: paste the browser's callback URL on stdin, then send EOF (Ctrl+D).");
 } else if (command === "complete") {
+  console.log("Paste the full callback URL from the browser, press Enter, then press Ctrl+D on the empty line:");
   const pending = readJSON(pendingFile);
   const text = process.stdin.read();
   const callback = new URL(String(text || "").trim());
@@ -80,7 +81,10 @@ if (command === "help" || command === "--help") {
     for (const [key, value] of Object.entries(params)) authorize.searchParams.set(key, value);
     writeJSON(pendingFile, { redirectURI });
     console.log("Continue with ChatGPT:\n" + authorize.href);
-    console.log("On a remote host, run this helper with 'complete' in another terminal and paste the callback URL on stdin.");
+    console.log("On a remote host, keep this login running and run this helper with 'complete' in another terminal.");
+    console.log("Copy the full http://127.0.0.1:.../auth/callback?... URL from the browser address bar, even if the page cannot connect.");
+    console.log("Paste that URL into the complete terminal, press Enter, then press Ctrl+D on the empty line.");
+    console.log("Check this login terminal for confirmation that credentials were saved.");
     const callback = await callbackPromise;
     if (callback.searchParams.has("error")) throw new Error("ChatGPT sign-in was not authorized");
     const issuedId = callback.searchParams.get("client_id") || (registration && clientId);

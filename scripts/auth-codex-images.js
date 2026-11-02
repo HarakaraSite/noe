@@ -60,6 +60,7 @@ if (command === "help" || command === "--help") {
   console.log("login: print a ChatGPT authorization URL and wait for the loopback callback.");
   console.log("complete: paste the browser's callback URL on stdin, then send EOF (Enter, Ctrl+D).");
 } else if (command === "complete") {
+  console.log("Paste the full callback URL from the browser, press Enter, then press Ctrl+D on the empty line:");
   const pending = readPending();
   let expected;
   try {
@@ -93,7 +94,10 @@ if (command === "help" || command === "--help") {
   try {
     writePending(attempt);
     console.log("Continue with ChatGPT:\n" + attempt.authorizationURL);
-    console.log("On a remote host, run this helper with 'complete' in another terminal and paste the callback URL on stdin.");
+    console.log("On a remote host, keep this login running and run this helper with 'complete' in another terminal.");
+    console.log("Copy the full http://127.0.0.1:.../auth/callback?... URL from the browser address bar, even if the page cannot connect.");
+    console.log("Paste that URL into the complete terminal, press Enter, then press Ctrl+D on the empty line.");
+    console.log("Check this login terminal for confirmation that credentials were saved.");
     const account = await complete_codex_image_login(attempt.id);
     console.log("Codex image credentials saved: " + account.file);
   } finally {
