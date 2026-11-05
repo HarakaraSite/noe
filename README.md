@@ -34,12 +34,12 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.11.2 release notes](docs/releases/v2.11.2.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.11.2)
+[v2.12.0 release notes](docs/releases/v2.12.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.12.0)
 
-v2.11.2 updates go-quickjs to v0.32.0 with JIT disabled, improving
-regular-expression matching, JSON output, and JavaScript compilation. It also
-synchronizes two standard-library lifecycle tests with upstream.
-See the [release notes](docs/releases/v2.11.2.md).
+v2.12.0 adopts native Go JSON v2 processing across NOE, stdlib, and agentlib.
+It also improves timer management, stream backpressure, and incremental
+decompression. See the [release notes](docs/releases/v2.12.0.md) for JSON
+compatibility details and manual stream-writing guidance.
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -54,7 +54,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.11.2
+# noe v2.12.0
 ```
 
 The examples below assume the repository root is your working directory.

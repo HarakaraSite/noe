@@ -530,8 +530,8 @@ are retained at `/tmp/noe-transform-backpressure-jmxi3c1i`.
 
 Current upstream main and duplicate issues/PRs have not been checked; upstream
 integration and independent reproduction remain prerequisites for a
-contribution. This work remains local and unreleased. No upstream issue or
-PR has been submitted, and no release or executable placement was performed.
+contribution. These changes are included in NOE v2.12.0. No upstream issue or
+PR has been submitted.
 
 ## Evaluation and debugger difference
 
