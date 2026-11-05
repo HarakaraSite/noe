@@ -3153,3 +3153,70 @@ smoke, public consumers, and installation records. Implementation evidence
 was reused; full source suites were not rerun for release. Native runtime
 verification is Linux amd64. This documentation-only follow-up preserves the
 immutable release tag.
+
+## v2.12.0 preparation — 2026-11-05
+
+The user authorized release after the JSON migration and live-provider
+verification. This release includes timer/queue improvements `41c5a9b`,
+stream/decompression/cancellation improvements `21f57b1`, and native JSON v2
+migration `430c983`. See the [release notes](v2.12.0.md) and
+[JSON migration note](../development/json-v2-migration.md).
+
+Checked clean native candidate source: `358156da51726c722dc50f6e6930304c520d3d5e`.
+The only production-Go/module change after the validated migration is the
+CLI Version string. Go remains 1.27.2, go-quickjs v0.32.0, and go-intl v0.8.0.
+The distribution workflow is unchanged; JIT remains disabled.
+
+### Reused implementation evidence
+
+- Stdlib timer/queue and Streams work passed whole-tree unit/local CLI E2E,
+  focused race checks, public Go consumers, TypeScript declarations, and
+  embedded-JavaScript lint. Evidence:
+  `/tmp/noe-transform-backpressure-jmxi3c1i/results.json` and
+  `/tmp/noe-stdlib-next-il7YTI/results.json`.
+- JSON migration evidence and source hashes:
+  `/tmp/noe-json-v2-migration-0rw5q7sj/results.json`. Whole-tree unit/local
+  CLI E2E and broad race runs covered unchanged production sources. Initial
+  failures were confined to three tests: v1-based context byte estimates,
+  an object-member ordering assertion, and a socket shutdown assertion
+  before its native-operation join. All affected normal/race cases passed
+  after correcting those tests, including ten repeated socket race checks.
+  Full vet, adjusted-package vet, JSON API audit, and formatting passed.
+  Independent review found and verified the fix for supervisor nil versus
+  explicitly empty process environments; no actionable findings remain.
+- Live-provider evidence: `/tmp/noe-json-v2-live-sam0z9ch/results.json`.
+  Six cases passed: OpenCodeGo Chat/Responses, OpenRouter Chat, OpenAI API
+  Responses, ChatGPT OAuth Responses, and the public Go agent client through
+  OpenRouter. Fourteen model calls and twelve tool executions checked JSON
+  value/presence, hooks, context/usage/events, and typed Go result retrieval.
+  Models returned unknown proof values inserted by afterTool, confirming
+  the effective tool JSON reached provider continuation requests. All paths
+  use agentlib. This covers successful dummy exchanges, not every response
+  or long-running workload; large integers beyond JS's safe range were text.
+
+All 96 migration file hashes matched before the migration commit; its
+subsequent edits are documentation only. All 95 migration code/test/example
+hashes still match the implementation evidence at release preparation.
+The source checks, candidate, and release helpers are retained at
+`/tmp/noe-v2.12.0-release-osvi0xaf`.
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test, CGO disabled | PASS |
+| Clean native release-flags build | PASS; candidate revision above, vcs.modified=false |
+| Candidate version/arithmetic, regular expressions, JSON and switch | PASS |
+| Candidate image/model/auth, Worker and node:vm module exports | PASS |
+| Authentication helpers' offline help | PASS |
+| Engine/dependency metadata and disabled JIT VM selection | PASS |
+| Selected relative documentation links | PASS, 130 references |
+| Source scope, implementation hashes and diff formatting | PASS |
+
+Existing passing implementation checks are reused. CI builds six CGO-free
+binaries, checksums, and the immutable tag release without repeating source
+tests. Published assets/build records, native smoke, and clean external Go
+consumers are checked before local placement. The previously documented
+dist/ build-output provenance limitation still applies to later CI targets.
+The verified published Linux amd64 executable will replace repository-root
+`./noe` and `/home/agent/.local/bin/noe` atomically with v2.11.2 backups.
+Existing processes adopt it at their next normal restart. Native execution
+here is Linux amd64; other targets receive build/checksum verification.
