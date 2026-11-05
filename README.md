@@ -34,13 +34,12 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.11.1 release notes](docs/releases/v2.11.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.11.1)
+[v2.11.2 release notes](docs/releases/v2.11.2.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.11.2)
 
-v2.11.1 updates go-quickjs to v0.31.1 with JIT disabled and adds
-callback-URL pasting to the image sign-in helper. Image login automatically
-tries its registered alternate callback port when the default is occupied.
-See the [release notes](docs/releases/v2.11.1.md) and
-[image guide](docs/agent-images.md).
+v2.11.2 updates go-quickjs to v0.32.0 with JIT disabled, improving
+regular-expression matching, JSON output, and JavaScript compilation. It also
+synchronizes two standard-library lifecycle tests with upstream.
+See the [release notes](docs/releases/v2.11.2.md).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -55,7 +54,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.11.1
+# noe v2.11.2
 ```
 
 The examples below assume the repository root is your working directory.
