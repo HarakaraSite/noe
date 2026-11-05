@@ -161,6 +161,26 @@ testdata/pathcorpus_node.js
     separators, missing/non-directory parents, and symlink/write policies.
     This is a NOE-local fix; upstream issue filing is deferred.
 
+12. `Loop.Run` and `Loop.RunUntil` reuse one lazily created Go wait timer per
+    call. Previously, each wait created another timer and deferred its Stop
+    until the entire call returned, retaining timers during long runs. The
+    timer is now stopped after each wait and on every return. JavaScript
+    timer registration, ordering, callback execution, cancellation, and loop
+    lifetime retain their existing contracts. `loop_timer_test.go` covers
+    deadline changes after host wakeups, timer-free waiting, and later runs
+    using virtual time, and benchmarks allocation and live-heap growth.
+    This is a NOE-local optimization.
+
+13. ReadableStream data and pending-read queues advance a head index instead
+    of using Array.shift for each item. Consumed references are cleared
+    immediately; queues compact only after at least half their entries have
+    been consumed and reset when empty. Close/error detach pending requests
+    before settling them without copying the entire array. FIFO order, chunk
+    identity, size accounting, backpressure, and terminal states retain their
+    existing contracts. `streams_queue_test.go` covers draining/refilling,
+    zero-size/undefined chunks, a slow tee reader, and pending reads on close,
+    cancellation, and error. This is a NOE-local optimization.
+
 The initial snapshot import did not intentionally change HTTP behavior, body
 limits, timeouts, module names, exports, or protocols. Subsequent NOE-local
 changes should be recorded here with their rationale and validation. Upstream
@@ -204,6 +224,120 @@ to the final name component. Both synchronous and Promise APIs are covered by
 regression tests, including filesystem root and write permissions. Upstream
 issue filing is deferred; upstream acceptance is not a prerequisite for this
 NOE fix.
+
+### Upstream PR candidate: loop wait timer reuse (2026-11-05)
+
+**Status:** implemented and validated locally in NOE; not yet released.
+An upstream issue or PR has not been created. This note records a
+possible future contribution, as requested by the user.
+
+**Upstream scope and cause.** Both `Loop.Run` and `Loop.RunUntil` originate in
+the imported v0.27.0 stdlib. The same per-wait `time.NewTimer` followed by
+`defer timer.Stop()` remains in
+[upstream v0.32.0 Run](https://github.com/go-quickjs/go-quickjs/blob/v0.32.0/stdlib/loop.go#L231)
+and [RunUntil](https://github.com/go-quickjs/go-quickjs/blob/v0.32.0/stdlib/loop.go#L294).
+When host work repeatedly wakes a loop with a future JavaScript timer armed,
+each wait adds a Go timer and a deferred call. Those references remain live
+until the enclosing Run/RunUntil returns, even after individual timers expire.
+This produces growing live memory during one long run; it is not a claim of
+permanent retention after the call returns. The engine dependency itself is
+unchanged by this stdlib correction.
+
+**Proposed contribution.** Reuse one lazily created wait timer local to each
+Run/RunUntil call, stop it after each wait, and use one deferred stop for all
+return paths. Preserve JavaScript timer ordering, pending-work behavior,
+context cancellation, completion-channel handling, and reuse of the loop
+across calls. NOE's implementation is in [loop.go](loop.go); its behavior
+regression and benchmark are in [loop_timer_test.go](loop_timer_test.go).
+
+This local optimization was measured against NOE commit
+`10b90dd4aba92ac1167c598d01ed1a61209b652d`, with go-quickjs v0.32.0 and JIT
+disabled. `BenchmarkLoopTimerWake` repeatedly posts host work while a distant
+JavaScript timer keeps the loop waiting. It samples live heap before Run or
+RunUntil returns, while the old deferred Stop calls still retain their timers.
+
+On Linux amd64, Go 1.27.2, Intel Core i9-13900HX, GOMAXPROCS=1, medians of
+three 5,000-post runs were:
+
+| Path | Allocated bytes/post, before -> after | Allocations/post, before -> after | Time/post, before -> after |
+| --- | --- | --- | --- |
+| Run | 415 -> 104 | 8 -> 4 | 1,342 ns -> 991 ns |
+| RunUntil | 415 -> 104 | 8 -> 4 | 1,336 ns -> 1,053 ns |
+
+Additional 1,000- and 10,000-post measurements confirmed that the old live
+heap grew by approximately 311 bytes/post, while the new net live-heap change
+stayed constant at -3,624 bytes. This is a process-heap delta that includes
+reclaimed setup objects, not a timer-only byte count. These measurements
+describe this host-wakeup workload, not end-to-end application speed.
+
+The virtual-time regression passed for both Run and RunUntil on the old and
+new implementations: host wakeup brings a deadline forward, the loop waits
+without timers between callbacks, another timer fires, and a later Run works.
+The combined whole-tree unit/local CLI E2E suite passed, including external Go
+consumers. Full vet and focused loop/timer/Worker/cancellation/Close race
+checks across internal/stdlib, internal/jsexec, and public stdlib also passed.
+Raw benchmark and validation logs are retained at
+`/tmp/noe-loop-timer-noLO95`. Dependencies, public APIs, and JavaScript timer
+queue behavior are unchanged. This work does not publish or install a release.
+
+**Before preparing an upstream PR:** inspect the then-current upstream main
+and existing issues/PRs, and reproduce the allocation/retention measurements
+using upstream's own stdlib without NOE's Profile/execution-scope extensions.
+The figures above measure NOE's maintained copy, not a separately executed
+upstream build. Port the fix and focused tests against upstream's actual
+source and supported Go versions. At v0.32.0 upstream declares Go 1.24.0,
+whereas NOE uses Go 1.27.2 and its new regression uses `testing/synctest.Test`
+(added in Go 1.25); adapt that test for the supported minimum rather than
+copying it unchanged or silently raising upstream's Go requirement. Current
+upstream main, duplicate reports, and Go 1.24 execution have not been checked.
+
+### ReadableStream queue indexing (2026-11-05)
+
+The data queue and pending-read queue previously called Array.shift for every
+item. In go-quickjs v0.32.0 that operation moves the remaining elements on
+each call, so draining a long queue takes quadratic element-moving work.
+Both shift sites are also present in
+[upstream v0.32.0 streams.go](https://github.com/go-quickjs/go-quickjs/blob/v0.32.0/stdlib/streams.go).
+NOE now advances head indices, clears consumed references immediately, and
+compacts after at least half the array has been consumed. Empty queues reset
+their indices. Close/error detach the pending-read array before settling
+requests, preserving the previous ordering without copying the array first.
+Chunk bytes and object identity are preserved.
+
+`BenchmarkStreamsQueue` measures complete public stream operations: buffering
+chunks before reading, or queuing read promises before producing chunks. Each
+batch verifies FIFO values and EOF. On Linux amd64, Go 1.27.2, Intel Core
+i9-13900HX, JIT disabled and GOMAXPROCS=1, medians of three 100 ms runs were:
+
+| Path / chunks per batch | Time/batch, before -> after | Allocated bytes/batch, before -> after |
+| --- | --- | --- |
+| Buffered / 1 | 16.42 us -> 16.34 us | 10,854 -> 10,774 |
+| Buffered / 64 | 197.1 us -> 148.1 us | 68,589 -> 70,129 |
+| Buffered / 1,024 | 11.17 ms -> 2.14 ms | 986,768 -> 992,677 |
+| Pending reads / 1 | 21.25 us -> 21.27 us | 14,387 -> 14,310 |
+| Pending reads / 64 | 299.9 us -> 272.6 us | 176,495 -> 178,097 |
+| Pending reads / 1,024 | 12.96 ms -> 4.01 ms | 2,759,681 -> 2,732,228 |
+
+Long-queue elapsed time decreases substantially; single-chunk results remain
+approximately level. Compaction adds some reference-array allocation: about
+2.2% for buffered batches of 64 and 0.6% for buffered batches of 1,024. This is
+not an across-the-board allocation reduction or a measurement of end-to-end
+HTTP/file throughput. The baseline stream source matches NOE commit
+`10b90dd4aba92ac1167c598d01ed1a61209b652d`; the existing local timer improvement
+was preserved throughout.
+
+The new tests cover draining/refilling queues, chunk identity and size
+accounting, zero-size/undefined values, a slow tee branch, reader locking,
+and close/cancel/error after partially servicing pending reads. Whole-tree
+unit/local CLI E2E, including external Go consumers, passed. Full vet,
+embedded-JavaScript Biome lint, and focused stream/HTTP/Worker/cancellation/
+Close race checks across internal/stdlib, internal/jsexec, and public stdlib
+passed. Raw results are retained at `/tmp/noe-stream-queue-FVRPcD`.
+
+The change and benchmark are in [streams.go](streams.go) and
+[streams_queue_test.go](streams_queue_test.go). These are NOE-local changes;
+current upstream main, duplicate reports, and an upstream-only benchmark have
+not been checked. No upstream issue or PR has been submitted.
 
 ## Evaluation and debugger difference
 

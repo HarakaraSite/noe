@@ -88,6 +88,7 @@ const streamsJS = `(function (host) {
       this._stream = stream;
       this._source = source;
       this._queue = [];
+      this._queueHead = 0;
       this._queued = 0;
       this._hwm = strategy.highWaterMark === undefined ? 1 : Number(strategy.highWaterMark);
       this._sizeOf = typeof strategy.size === "function" ? strategy.size : () => 1;
@@ -109,7 +110,7 @@ const streamsJS = `(function (host) {
       if (this._stream._state !== "readable") {
         throw new TypeError("this stream is not readable");
       }
-      const waiting = this._stream._reads.shift();
+      const waiting = this._stream._takeRead();
       if (waiting) {
         // Somebody is already waiting, so the chunk never joins the queue.
         waiting.resolve({value: chunk, done: false});
@@ -155,7 +156,18 @@ const streamsJS = `(function (host) {
     }
 
     _take() {
-      const entry = this._queue.shift();
+      const entry = this._queue[this._queueHead];
+      // Release each consumed chunk immediately. Compact only after at least
+      // half the entries have been consumed, instead of moving the entire
+      // remaining queue on every read.
+      this._queue[this._queueHead++] = undefined;
+      if (this._queueHead === this._queue.length) {
+        this._queue.length = 0;
+        this._queueHead = 0;
+      } else if (this._queueHead * 2 >= this._queue.length) {
+        this._queue = this._queue.slice(this._queueHead);
+        this._queueHead = 0;
+      }
       this._queued -= entry.size;
       if (this._queue.length === 0 && this._closeRequested) this._stream._close();
       else this._pullIfNeeded();
@@ -172,6 +184,7 @@ const streamsJS = `(function (host) {
       this._storedError = undefined;
       this._reader = null;
       this._reads = [];
+      this._readHead = 0;
       this._closedD = deferred();
       this._controller = new ReadableStreamDefaultController(this, this._source, strategy);
 
@@ -203,16 +216,38 @@ const streamsJS = `(function (host) {
       if (this._state === "closed") return Promise.resolve(undefined);
       if (this._state === "errored") return Promise.reject(this._storedError);
       this._controller._queue = [];
+      this._controller._queueHead = 0;
       this._controller._queued = 0;
       const done = call(this._source.cancel, this._source, reason);
       this._close();
       return done.then(() => undefined);
     }
 
+    _takeRead() {
+      if (this._reads.length === 0) return undefined;
+      const request = this._reads[this._readHead];
+      this._reads[this._readHead++] = undefined;
+      if (this._readHead === this._reads.length) {
+        this._reads.length = 0;
+        this._readHead = 0;
+      } else if (this._readHead * 2 >= this._reads.length) {
+        this._reads = this._reads.slice(this._readHead);
+        this._readHead = 0;
+      }
+      return request;
+    }
+
     _close() {
       if (this._state !== "readable") return;
       this._state = "closed";
-      for (const r of this._reads.splice(0)) r.resolve({value: undefined, done: true});
+      const reads = this._reads, head = this._readHead;
+      this._reads = [];
+      this._readHead = 0;
+      for (let i = head; i < reads.length; i++) {
+        const request = reads[i];
+        reads[i] = undefined;
+        request.resolve({value: undefined, done: true});
+      }
       this._closedD.resolve(undefined);
     }
 
@@ -221,8 +256,16 @@ const streamsJS = `(function (host) {
       this._state = "errored";
       this._storedError = reason;
       this._controller._queue = [];
+      this._controller._queueHead = 0;
       this._controller._queued = 0;
-      for (const r of this._reads.splice(0)) r.reject(reason);
+      const reads = this._reads, head = this._readHead;
+      this._reads = [];
+      this._readHead = 0;
+      for (let i = head; i < reads.length; i++) {
+        const request = reads[i];
+        reads[i] = undefined;
+        request.reject(reason);
+      }
       this._closedD.reject(reason);
     }
 

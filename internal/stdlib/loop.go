@@ -303,6 +303,8 @@ func (l *Loop) discardScopeTimers(scope *ExecutionScope) {
 // exception in a timer or a reaction becomes. Cancelling ctx stops the loop --
 // and the callback running, should one never return -- and returns its error.
 func (l *Loop) Run(ctx context.Context) error {
+	var waiter loopWaitTimer
+	defer waiter.stop()
 	// The callbacks run under ctx, so that one that never returns is
 	// stopped by it too, not only the waiting between them.
 	for {
@@ -338,9 +340,7 @@ func (l *Loop) Run(ctx context.Context) error {
 		// from another goroutine, the next timer, or the context ending.
 		var wait <-chan time.Time
 		if next, ok := l.timers.next(); ok {
-			timer := time.NewTimer(max(0, time.Until(next)))
-			defer timer.Stop()
-			wait = timer.C
+			wait = waiter.reset(next)
 		} else if !l.Pending() && !l.rt.Busy() {
 			// No timers, no host work, nothing queued: the program is over.
 			return nil
@@ -353,6 +353,7 @@ func (l *Loop) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+		waiter.stop()
 	}
 }
 
@@ -366,6 +367,8 @@ func (l *Loop) fatal(err error) bool {
 // RunUntil works until the given promise settles, which is what a host running
 // one asynchronous thing wants rather than a loop that outlives it.
 func (l *Loop) RunUntil(ctx context.Context, done <-chan struct{}) error {
+	var waiter loopWaitTimer
+	defer waiter.stop()
 	for {
 		select {
 		case <-done:
@@ -393,9 +396,7 @@ func (l *Loop) RunUntil(ctx context.Context, done <-chan struct{}) error {
 		}
 		var wait <-chan time.Time
 		if next, ok := l.timers.next(); ok {
-			timer := time.NewTimer(max(0, time.Until(next)))
-			defer timer.Stop()
-			wait = timer.C
+			wait = waiter.reset(next)
 		}
 		select {
 		case <-l.rt.Wake():
@@ -406,6 +407,31 @@ func (l *Loop) RunUntil(ctx context.Context, done <-chan struct{}) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+		waiter.stop()
+	}
+}
+
+// loopWaitTimer belongs to one Run or RunUntil call. Create its Go timer only
+// when a JavaScript timer needs a wakeup, then reuse it across waits. Stopping
+// after each wait avoids leaving a wakeup armed while callbacks run or while
+// only host work is pending; the call's deferred stop covers every return.
+type loopWaitTimer struct {
+	timer *time.Timer
+}
+
+func (w *loopWaitTimer) reset(next time.Time) <-chan time.Time {
+	delay := max(0, time.Until(next))
+	if w.timer == nil {
+		w.timer = time.NewTimer(delay)
+	} else {
+		w.timer.Reset(delay)
+	}
+	return w.timer.C
+}
+
+func (w *loopWaitTimer) stop() {
+	if w.timer != nil {
+		w.timer.Stop()
 	}
 }
 
