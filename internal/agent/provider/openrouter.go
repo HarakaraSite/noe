@@ -174,10 +174,15 @@ func (c *observedHTTPClient) Do(request *http.Request) (*http.Response, error) {
 		body := newObservedBody(source)
 		body.observe = state.observe
 		if state.responseAPI == "responses" {
+			body.chat = nil
+			body.native = &responsesAccumulator{}
 			body.extract = responsesObservations
-		} else if state.reasoningField != "" {
-			body.extract = func(raw jsonv1.RawMessage) []StreamEvent {
-				return streamObservationsForField(raw, state.reasoningField)
+		} else {
+			body.chat.reasoningField = state.reasoningField
+			if state.reasoningField != "" {
+				body.extract = func(raw jsonv1.RawMessage) []StreamEvent {
+					return streamObservationsForField(raw, state.reasoningField)
+				}
 			}
 		}
 		state.setResponse(response.StatusCode, body)
@@ -308,16 +313,14 @@ func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (Respons
 	}
 	// [DONE] terminates an SSE completion, even if the HTTP connection stays
 	// open. Do not wait for EOF; the deferred owner closes stream/body.
-	events, done, readErr := body.snapshot()
+	done, readErr, consumeErr := body.snapshot()
 	if readErr != nil || !done {
 		return Response{}, providerError(ErrorStream, 0, nil)
 	}
-	accumulator := newStreamAccumulator()
-	accumulator.reasoningField = p.profile.ReasoningField
-	if err := accumulator.consume(events); err != nil {
+	if consumeErr != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
-	response, err := accumulator.response()
+	response, err := body.response()
 	if err != nil {
 		return Response{}, err
 	}

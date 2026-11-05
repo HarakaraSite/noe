@@ -89,3 +89,6 @@ Raw baseline/streaming/final benchmark logs, summaries, verification logs,
 and changed-source hashes are retained at
 `/tmp/noe-agentlib-opt-g7j4w93x/results.json`. Implementation and validation
 are complete; release and executable placement remain separate work.
+
+Subsequent work is recorded in
+[conversation appends and incremental SSE assembly](agentlib-checkpoint-sse-optimization.md).

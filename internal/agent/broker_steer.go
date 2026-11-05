@@ -11,12 +11,14 @@ type applySteersRequest struct {
 	RunID      string                `json:"runId"`
 	CommandIDs []string              `json:"commandIds"`
 	Snapshot   *conversationSnapshot `json:"snapshot,omitempty"`
+	Append     *conversationAppend   `json:"append,omitempty"`
 }
 
 type commitFinalRequest struct {
 	RunID    string                `json:"runId"`
 	Answer   string                `json:"answer"`
 	Snapshot *conversationSnapshot `json:"snapshot,omitempty"`
+	Append   *conversationAppend   `json:"append,omitempty"`
 }
 
 type commitFinalResponse struct {
@@ -97,26 +99,30 @@ func (h *Host) applySteers(op *Operation, request applySteersRequest) (any, erro
 			}
 		}
 	}
+	var candidate *conversationSnapshot
 	if run.instance != nil {
-		if request.Snapshot == nil {
+		if (request.Snapshot == nil) == (request.Append == nil) {
 			h.mu.Unlock()
-			return nil, newOperationError(http.StatusBadRequest, "conversation", "managed task steer acknowledgement requires a snapshot")
+			return nil, newOperationError(http.StatusBadRequest, "conversation", "managed task steer acknowledgement requires one conversation update")
 		}
-		if err := validateConversationSnapshot(request.Snapshot); err != nil {
+		var alreadyStored bool
+		var err error
+		if allApplied && request.Append != nil && len(request.Append.Entries) == 0 && run.instance.conversation != nil && request.Append.BaseRevision == run.instance.conversation.Revision {
+			candidate, alreadyStored = run.instance.conversation, true
+		} else {
+			candidate, alreadyStored, err = conversationAppendCandidate(run.instance.conversation, request.Snapshot, request.Append, len(commands), "protected", allApplied)
+		}
+		if err != nil {
 			h.mu.Unlock()
-			return nil, newOperationError(http.StatusBadRequest, "conversation", err.Error())
+			return nil, newOperationError(http.StatusConflict, "conversation", err.Error())
 		}
 		if allApplied {
-			if !conversationSnapshotEqual(run.instance.conversation, request.Snapshot) {
+			if !alreadyStored {
 				h.mu.Unlock()
-				return nil, newOperationError(http.StatusConflict, "conversation", "applied steer snapshot is stale")
+				return nil, newOperationError(http.StatusConflict, "conversation", "applied steer update is stale")
 			}
 		} else {
-			if err := validateConversationAppend(run.instance.conversation, request.Snapshot, len(commands), "protected"); err != nil {
-				h.mu.Unlock()
-				return nil, newOperationError(http.StatusConflict, "conversation", err.Error())
-			}
-			entries := request.Snapshot.Entries[len(run.instance.conversation.Entries):]
+			entries := candidate.Entries[len(run.instance.conversation.Entries):]
 			for index, command := range commands {
 				var message struct {
 					Role    string `json:"role"`
@@ -124,10 +130,13 @@ func (h *Host) applySteers(op *Operation, request applySteersRequest) (any, erro
 				}
 				if len(entries[index].Messages) != 1 || json.Unmarshal(entries[index].Messages[0], &message) != nil || message.Role != "user" || message.Content != command.instruction {
 					h.mu.Unlock()
-					return nil, newOperationError(http.StatusConflict, "conversation", "steer snapshot does not match the delivered commands")
+					return nil, newOperationError(http.StatusConflict, "conversation", "steer update does not match the delivered commands")
 				}
 			}
 		}
+	} else if request.Append != nil {
+		h.mu.Unlock()
+		return nil, newOperationError(http.StatusConflict, "conversation", "conversation append requires a managed task")
 	}
 	if !allApplied {
 		for _, command := range commands {
@@ -135,7 +144,7 @@ func (h *Host) applySteers(op *Operation, request applySteersRequest) (any, erro
 			run.pendingSteerActivityIDs = appendUniqueActivityIDs(run.pendingSteerActivityIDs, command.activityID)
 		}
 		if run.instance != nil {
-			run.instance.conversation = cloneConversationSnapshot(request.Snapshot)
+			run.instance.conversation = candidate
 		}
 	}
 	h.mu.Unlock()
@@ -165,20 +174,28 @@ func (h *Host) commitFinal(ctx context.Context, op *Operation, request commitFin
 		code, message := executionLimitError(group)
 		return commitFinalResponse{}, newOperationError(http.StatusConflict, code, message)
 	}
+	var candidate *conversationSnapshot
 	if run.instance != nil {
-		if request.Snapshot == nil {
+		if (request.Snapshot == nil) == (request.Append == nil) {
 			h.mu.Unlock()
-			return commitFinalResponse{}, newOperationError(http.StatusBadRequest, "conversation", "managed task final commit requires a snapshot")
+			return commitFinalResponse{}, newOperationError(http.StatusBadRequest, "conversation", "managed task final commit requires one conversation update")
 		}
 		if run.modelStep == nil || !run.modelStep.responseComplete || len(run.modelStep.toolCalls) != 0 {
 			h.mu.Unlock()
 			return commitFinalResponse{}, newOperationError(http.StatusConflict, "final", "managed task has no complete final assistant response")
 		}
-		alreadyStored := conversationSnapshotEqual(run.instance.conversation, request.Snapshot)
-		if err := validateFinalConversationCandidate(run.instance.conversation, request.Snapshot, request.Answer, alreadyStored); err != nil {
+		var err error
+		candidate, _, err = conversationAppendCandidate(run.instance.conversation, request.Snapshot, request.Append, 1, "block", true)
+		if err == nil {
+			err = validateFinalConversationEntry(candidate.Entries[len(candidate.Entries)-1], request.Answer)
+		}
+		if err != nil {
 			h.mu.Unlock()
 			return commitFinalResponse{}, newOperationError(http.StatusConflict, "conversation", err.Error())
 		}
+	} else if request.Append != nil {
+		h.mu.Unlock()
+		return commitFinalResponse{}, newOperationError(http.StatusConflict, "conversation", "conversation append requires a managed task")
 	}
 	if run.finalClosed {
 		if run.finalAnswer != request.Answer {
@@ -205,7 +222,7 @@ func (h *Host) commitFinal(ctx context.Context, op *Operation, request commitFin
 	if run.instance != nil {
 		// The full provider assistant object is committed together with the
 		// finalization gate, including candidates rejected by a pending steer.
-		run.instance.conversation = cloneConversationSnapshot(request.Snapshot)
+		run.instance.conversation = candidate
 	}
 	if len(instructions) != 0 {
 		h.mu.Unlock()

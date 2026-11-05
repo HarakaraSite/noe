@@ -29,15 +29,18 @@ type conversationEntry struct {
 
 type conversationCheckpointRequest struct {
 	RunID    string                `json:"runId"`
-	Snapshot *conversationSnapshot `json:"snapshot"`
+	Snapshot *conversationSnapshot `json:"snapshot,omitempty"`
+	Append   *conversationAppend   `json:"append,omitempty"`
 }
 
 func (h *Host) conversationCheckpoint(op *Operation, request conversationCheckpointRequest) (map[string]any, error) {
-	if request.RunID == "" || request.Snapshot == nil {
-		return nil, newOperationError(http.StatusBadRequest, "request", "runId and snapshot are required")
+	if request.RunID == "" || (request.Snapshot == nil) == (request.Append == nil) {
+		return nil, newOperationError(http.StatusBadRequest, "request", "runId and one conversation update are required")
 	}
-	if err := validateConversationSnapshot(request.Snapshot); err != nil {
-		return nil, newOperationError(http.StatusBadRequest, "conversation", err.Error())
+	if request.Snapshot != nil {
+		if err := validateConversationSnapshot(request.Snapshot); err != nil {
+			return nil, newOperationError(http.StatusBadRequest, "conversation", err.Error())
+		}
 	}
 	h.mu.Lock()
 	run := h.runs[request.RunID]
@@ -52,15 +55,19 @@ func (h *Host) conversationCheckpoint(op *Operation, request conversationCheckpo
 		return nil, newOperationError(http.StatusConflict, "conversation", "only a complete tool exchange can be checkpointed")
 	}
 	instance := run.instance
-	var appendErr error
+	candidate := request.Snapshot
 	if instance != nil {
-		appendErr = validateConversationAppend(instance.conversation, request.Snapshot, 1, "block")
-	}
-	if err := appendErr; err != nil {
+		var err error
+		candidate, _, err = conversationAppendCandidate(instance.conversation, request.Snapshot, request.Append, 1, "block", false)
+		if err != nil {
+			h.mu.Unlock()
+			return nil, newOperationError(http.StatusConflict, "conversation", err.Error())
+		}
+	} else if request.Append != nil {
 		h.mu.Unlock()
-		return nil, newOperationError(http.StatusConflict, "conversation", err.Error())
+		return nil, newOperationError(http.StatusConflict, "conversation", "conversation append requires a managed task")
 	}
-	entry := request.Snapshot.Entries[len(request.Snapshot.Entries)-1]
+	entry := candidate.Entries[len(candidate.Entries)-1]
 	if err := validateCompletedToolBlock(entry, step); err != nil {
 		h.mu.Unlock()
 		return nil, newOperationError(http.StatusConflict, "conversation", err.Error())
@@ -70,7 +77,7 @@ func (h *Host) conversationCheckpoint(op *Operation, request conversationCheckpo
 		return nil, newOperationError(409, "image", err.Error())
 	}
 	if instance != nil {
-		instance.conversation = cloneConversationSnapshot(request.Snapshot)
+		instance.conversation = candidate
 	}
 	h.mu.Unlock()
 	return map[string]any{"committed": true}, nil
@@ -97,19 +104,7 @@ func validateCompletedToolBlock(entry conversationEntry, step *modelStepState) e
 	return nil
 }
 
-func validateFinalConversationCandidate(current, next *conversationSnapshot, answer string, alreadyStored bool) error {
-	if err := validateConversationSnapshot(next); err != nil {
-		return err
-	}
-	if !alreadyStored {
-		if err := validateConversationAppend(current, next, 1, "block"); err != nil {
-			return err
-		}
-	}
-	if len(next.Entries) == 0 {
-		return errors.New("final conversation candidate is missing")
-	}
-	entry := next.Entries[len(next.Entries)-1]
+func validateFinalConversationEntry(entry conversationEntry, answer string) error {
 	if entry.Kind != "block" || len(conversationResponseMessages(entry.Messages)) != 1 {
 		return errors.New("final conversation candidate must contain one assistant message")
 	}
@@ -212,13 +207,7 @@ func cloneConversationSnapshot(snapshot *conversationSnapshot) *conversationSnap
 	if snapshot.Entries != nil {
 		copy.Entries = make([]conversationEntry, len(snapshot.Entries))
 		for index, entry := range snapshot.Entries {
-			copy.Entries[index] = conversationEntry{ID: entry.ID, Kind: entry.Kind}
-			if entry.Messages != nil {
-				copy.Entries[index].Messages = make([]jsonv1.RawMessage, len(entry.Messages))
-				for messageIndex, message := range entry.Messages {
-					copy.Entries[index].Messages[messageIndex] = append(jsonv1.RawMessage(nil), message...)
-				}
-			}
+			copy.Entries[index] = cloneConversationEntry(entry)
 		}
 	}
 	return copy
@@ -275,29 +264,33 @@ func validateConversationSnapshot(snapshot *conversationSnapshot) error {
 	}
 	seen := make(map[string]struct{}, len(snapshot.Entries))
 	for _, entry := range snapshot.Entries {
-		if entry.ID == "" || len(entry.Messages) == 0 || (entry.Kind != "protected" && entry.Kind != "block") {
-			return errors.New("invalid conversation entry")
+		if err := validateConversationEntry(entry); err != nil {
+			return err
 		}
 		if _, duplicate := seen[entry.ID]; duplicate {
 			return errors.New("duplicate conversation entry ID")
 		}
 		seen[entry.ID] = struct{}{}
-		for _, message := range entry.Messages {
-			if !isJSONObject(message) {
-				return errors.New("invalid conversation message")
-			}
-		}
-		if entry.Kind == "protected" {
-			if len(entry.Messages) != 1 {
-				return errors.New("protected conversation entries must contain one message")
-			}
-			continue
-		}
-		if err := validateConversationBlock(entry.Messages); err != nil {
-			return err
-		}
 	}
 	return nil
+}
+
+func validateConversationEntry(entry conversationEntry) error {
+	if entry.ID == "" || len(entry.Messages) == 0 || (entry.Kind != "protected" && entry.Kind != "block") {
+		return errors.New("invalid conversation entry")
+	}
+	for _, message := range entry.Messages {
+		if !isJSONObject(message) {
+			return errors.New("invalid conversation message")
+		}
+	}
+	if entry.Kind == "protected" {
+		if len(entry.Messages) != 1 {
+			return errors.New("protected conversation entries must contain one message")
+		}
+		return nil
+	}
+	return validateConversationBlock(entry.Messages)
 }
 
 // A status describes this turn's runtime state. Retain it with the response so

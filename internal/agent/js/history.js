@@ -85,6 +85,14 @@ export class TaskHistory {
     };
   }
 
+  appendAfter(baseRevision) {
+    const count = this.revision - baseRevision;
+    if (!Number.isSafeInteger(baseRevision) || baseRevision < 2 || count < 0 || count > this.entries.length) {
+      throw Error("invalid conversation append revision");
+    }
+    return {baseRevision, entries: count === 0 ? [] : this.entries.slice(-count)};
+  }
+
   layout() {
     return {
       revision: this.revision,

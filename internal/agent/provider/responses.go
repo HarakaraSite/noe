@@ -5,7 +5,6 @@ import (
 	jsonv1 "encoding/json"
 	json "encoding/json/v2"
 	"errors"
-	"sort"
 	"strings"
 
 	"github.com/OpenRouterTeam/go-sdk/models/components"
@@ -201,64 +200,11 @@ func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Re
 	if body == nil {
 		return Response{}, providerError(ErrorStream, 0, nil)
 	}
-	events, _, readErr := body.snapshot()
+	_, readErr, _ := body.snapshot()
 	if readErr != nil {
 		return Response{}, providerError(ErrorStream, 0, nil)
 	}
-	return responseFromEvents(events)
-}
-
-// Completed streams may put the full items only in output_item.done while the
-// terminal response.output is empty (observed on ChatGPT plan Responses).
-// Retain whole raw items, including encrypted reasoning and unknown fields.
-func responseFromEvents(events []jsonv1.RawMessage) (Response, error) {
-	items := make(map[int]jsonv1.RawMessage)
-	for _, raw := range events {
-		var event struct {
-			Type        string            `json:"type"`
-			Response    jsonv1.RawMessage `json:"response"`
-			Item        jsonv1.RawMessage `json:"item"`
-			OutputIndex int               `json:"output_index"`
-		}
-		if json.Unmarshal(raw, &event) != nil {
-			return Response{}, providerError(ErrorResponse, 0, nil)
-		}
-		if event.Type == "response.output_item.done" {
-			if !isJSONObject(event.Item) {
-				return Response{}, providerError(ErrorResponse, 0, nil)
-			}
-			items[event.OutputIndex] = event.Item
-		}
-		if event.Type == "response.completed" {
-			var envelope map[string]jsonv1.RawMessage
-			if json.Unmarshal(event.Response, &envelope) != nil {
-				return Response{}, providerError(ErrorResponse, 0, nil)
-			}
-			var output []jsonv1.RawMessage
-			if raw := envelope["output"]; len(raw) > 0 && json.Unmarshal(raw, &output) != nil {
-				return Response{}, providerError(ErrorResponse, 0, nil)
-			}
-			for index, item := range output {
-				items[index] = item
-			}
-			indices := make([]int, 0, len(items))
-			for index := range items {
-				indices = append(indices, index)
-			}
-			sort.Ints(indices)
-			output = make([]jsonv1.RawMessage, 0, len(items))
-			for _, index := range indices {
-				output = append(output, items[index])
-			}
-			envelope["output"], _ = json.Marshal(output)
-			assembled, err := json.Marshal(envelope)
-			if err != nil {
-				return Response{}, err
-			}
-			return responseFromNative(assembled)
-		}
-	}
-	return Response{}, providerError(ErrorStream, 0, nil)
+	return body.response()
 }
 
 func responseFromNative(raw jsonv1.RawMessage) (Response, error) {

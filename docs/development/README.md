@@ -48,6 +48,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 採用した小規模改善5件の範囲・実装・検証 | [対応記録](small-improvements-20261020.md) |
 | 処理の重複・履歴転送・Go Client JSON往復の整理 | [8スライスの実装・検証記録](processing-simplification.md) |
 | Agent library context serialization | [Implementation, measurements, and verification](agentlib-optimization.md) |
+| Agent conversation appends and incremental SSE | [Implementation, measurements, and verification](agentlib-checkpoint-sse-optimization.md) |
 | agent/実行Profile/Worker/messaging/JS toolの責務境界 | [計画と通常・批判的レビュー](responsibility-boundaries-refactor-plan.md)・[実装・検証記録](responsibility-boundaries-refactor-implementation.md) |
 | agent内部の責務・JSとGoの分担・所有関係・同期 | [agentの構成](agent-architecture.md) |
 | Built-in runtime and API contracts | [facts.md](../../internal/agent/facts.md) |

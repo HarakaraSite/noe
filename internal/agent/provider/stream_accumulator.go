@@ -50,93 +50,91 @@ func newStreamAccumulator() *streamAccumulator {
 	}
 }
 
-func (a *streamAccumulator) consume(events []jsonv1.RawMessage) error {
-	for _, raw := range events {
-		var chunk struct {
-			Choices []struct {
-				Index        int               `json:"index"`
-				Delta        jsonv1.RawMessage `json:"delta"`
-				FinishReason jsonv1.RawMessage `json:"finish_reason"`
-			} `json:"choices"`
-			Usage jsonv1.RawMessage `json:"usage"`
-			Error jsonv1.RawMessage `json:"error"`
+func (a *streamAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
+	var chunk struct {
+		Choices []struct {
+			Index        int               `json:"index"`
+			Delta        jsonv1.RawMessage `json:"delta"`
+			FinishReason jsonv1.RawMessage `json:"finish_reason"`
+		} `json:"choices"`
+		Usage jsonv1.RawMessage `json:"usage"`
+		Error jsonv1.RawMessage `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &chunk); err != nil {
+		return fmt.Errorf("invalid SSE event")
+	}
+	if len(chunk.Error) > 0 && string(chunk.Error) != "null" {
+		return errors.New("provider returned an SSE error event")
+	}
+	if len(chunk.Usage) > 0 && string(chunk.Usage) != "null" {
+		a.usage = append(a.usage[:0], chunk.Usage...)
+	}
+	for _, choice := range chunk.Choices {
+		// This adapter requests one completion and therefore retains choice 0.
+		if choice.Index != 0 {
+			continue
 		}
-		if err := json.Unmarshal(raw, &chunk); err != nil {
-			return fmt.Errorf("invalid SSE event")
+		if len(choice.FinishReason) > 0 && string(choice.FinishReason) != "null" {
+			if err := json.Unmarshal(choice.FinishReason, &a.finishReason); err != nil {
+				return fmt.Errorf("invalid finish reason")
+			}
 		}
-		if len(chunk.Error) > 0 && string(chunk.Error) != "null" {
-			return errors.New("provider returned an SSE error event")
+		if len(choice.Delta) == 0 || string(choice.Delta) == "null" {
+			continue
 		}
-		if len(chunk.Usage) > 0 && string(chunk.Usage) != "null" {
-			a.usage = append(a.usage[:0], chunk.Usage...)
+		var delta map[string]jsonv1.RawMessage
+		if err := json.Unmarshal(choice.Delta, &delta); err != nil {
+			return fmt.Errorf("invalid assistant delta")
 		}
-		for _, choice := range chunk.Choices {
-			// This adapter requests one completion and therefore retains choice 0.
-			if choice.Index != 0 {
+		for key, value := range delta {
+			if a.reasoningField != "" && key == a.reasoningField {
+				key = "reasoning"
+			} else if a.reasoningField != "" && (key == "reasoning" || key == "reasoning_content") {
+				a.other[key] = append(jsonv1.RawMessage(nil), value...)
 				continue
 			}
-			if len(choice.FinishReason) > 0 && string(choice.FinishReason) != "null" {
-				if err := json.Unmarshal(choice.FinishReason, &a.finishReason); err != nil {
-					return fmt.Errorf("invalid finish reason")
-				}
-			}
-			if len(choice.Delta) == 0 || string(choice.Delta) == "null" {
-				continue
-			}
-			var delta map[string]jsonv1.RawMessage
-			if err := json.Unmarshal(choice.Delta, &delta); err != nil {
-				return fmt.Errorf("invalid assistant delta")
-			}
-			for key, value := range delta {
-				if a.reasoningField != "" && key == a.reasoningField {
-					key = "reasoning"
-				} else if a.reasoningField != "" && (key == "reasoning" || key == "reasoning_content") {
-					a.other[key] = append(jsonv1.RawMessage(nil), value...)
+			switch key {
+			case "role":
+				a.role = append(a.role[:0], value...)
+			case "content":
+				a.contentSeen = true
+				if string(value) == "null" {
 					continue
 				}
-				switch key {
-				case "role":
-					a.role = append(a.role[:0], value...)
-				case "content":
-					a.contentSeen = true
-					if string(value) == "null" {
-						continue
-					}
-					var part string
-					if err := json.Unmarshal(value, &part); err != nil {
-						return fmt.Errorf("invalid assistant content")
-					}
-					a.contentText = true
-					a.content.WriteString(part)
-				case "reasoning", "reasoning_content":
-					a.reasoningSet = true
-					var part string
-					if string(value) != "null" {
-						if err := json.Unmarshal(value, &part); err != nil {
-							return fmt.Errorf("invalid reasoning content")
-						}
-					}
-					a.reasoning.WriteString(part)
-				case "refusal":
-					a.refusalSet = true
-					var part string
-					if string(value) != "null" {
-						if err := json.Unmarshal(value, &part); err != nil {
-							return fmt.Errorf("invalid refusal content")
-						}
-					}
-					a.refusal.WriteString(part)
-				case "reasoning_details":
-					if err := a.consumeReasoningDetails(value); err != nil {
-						return err
-					}
-				case "tool_calls":
-					if err := a.consumeToolCalls(value); err != nil {
-						return err
-					}
-				default:
-					a.other[key] = append(jsonv1.RawMessage(nil), value...)
+				var part string
+				if err := json.Unmarshal(value, &part); err != nil {
+					return fmt.Errorf("invalid assistant content")
 				}
+				a.contentText = true
+				a.content.WriteString(part)
+			case "reasoning", "reasoning_content":
+				a.reasoningSet = true
+				var part string
+				if string(value) != "null" {
+					if err := json.Unmarshal(value, &part); err != nil {
+						return fmt.Errorf("invalid reasoning content")
+					}
+				}
+				a.reasoning.WriteString(part)
+			case "refusal":
+				a.refusalSet = true
+				var part string
+				if string(value) != "null" {
+					if err := json.Unmarshal(value, &part); err != nil {
+						return fmt.Errorf("invalid refusal content")
+					}
+				}
+				a.refusal.WriteString(part)
+			case "reasoning_details":
+				if err := a.consumeReasoningDetails(value); err != nil {
+					return err
+				}
+			case "tool_calls":
+				if err := a.consumeToolCalls(value); err != nil {
+					return err
+				}
+			default:
+				a.other[key] = append(jsonv1.RawMessage(nil), value...)
 			}
 		}
 	}

@@ -141,10 +141,12 @@ function validatedSteers(value) {
   });
 }
 
-async function appendAndApplySteers(runId, history, value) {
+async function appendAndApplySteers(runId, history, value, managedConversation) {
   const steers = validatedSteers(value);
+  const baseRevision = history.revision;
   for (const steer of steers) history.appendSteer(steer);
-  await rpc("apply_steers", { runId, commandIds: steers.map((steer) => steer.commandId), snapshot: history.snapshot() });
+  await rpc("apply_steers", {runId, commandIds: steers.map((steer) => steer.commandId),
+    ...(managedConversation ? {append: history.appendAfter(baseRevision)} : {snapshot: history.snapshot()})});
 }
 
 // This internal entry point is used by the managed-task bootstrap. It keeps the
@@ -197,7 +199,7 @@ export async function executeTask(config, instruction) {
           ...(managedConversation ? {historyRevision: history.revision} : {messages: history.messages()}),
         });
         modelStepId = requireString(prepared.modelStepId, "modelStepId");
-        if (prepared.steers !== undefined) await appendAndApplySteers(runId, history, prepared.steers);
+        if (prepared.steers !== undefined) await appendAndApplySteers(runId, history, prepared.steers, managedConversation);
         await prepareContext(modelStepId);
         await callHooks(loadedHooks, "beforeModelRequest", {runId, modelStepId});
       }
@@ -229,7 +231,7 @@ export async function executeTask(config, instruction) {
       });
       if (!isRecord(response)) throw new Error("provider returned an invalid response");
       if (response.steers !== undefined) {
-        await appendAndApplySteers(runId, history, response.steers);
+        await appendAndApplySteers(runId, history, response.steers, managedConversation);
         continue;
       }
       await callHooks(loadedHooks, "afterModelResponse", {
@@ -266,6 +268,7 @@ export async function executeTask(config, instruction) {
           throw error;
         }
         const images = imagesByCall.flatMap(images => images || []);
+        const baseRevision = history.revision;
         try {
           history.completeBlock(response.message, results, images, contextMessage);
         } catch (error) {
@@ -273,7 +276,8 @@ export async function executeTask(config, instruction) {
           throw error;
         }
         if (managedConversation || images.length > 0) {
-          await rpc("conversation_checkpoint", {runId, snapshot: history.snapshot()});
+          await rpc("conversation_checkpoint", {runId,
+            ...(managedConversation ? {append: history.appendAfter(baseRevision)} : {snapshot: history.snapshot()})});
         }
         modelStepId = null;
         continue;
@@ -293,13 +297,15 @@ export async function executeTask(config, instruction) {
 
       // Append before the finalization gate. The broker commits this complete
       // assistant object on both accepted and steer-rejected candidates.
+      const baseRevision = history.revision;
       history.completeBlock(response.message, [], undefined, contextMessage);
-      const committed = await rpc("commit_final", { runId, answer, snapshot: history.snapshot() });
+      const committed = await rpc("commit_final", {runId, answer,
+        ...(managedConversation ? {append: history.appendAfter(baseRevision)} : {snapshot: history.snapshot()})});
       if (!isRecord(committed) || typeof committed.committed !== "boolean") {
         throw new Error("agent broker returned an invalid final-answer result");
       }
       if (!committed.committed) {
-        await appendAndApplySteers(runId, history, committed.instructions);
+        await appendAndApplySteers(runId, history, committed.instructions, managedConversation);
         modelStepId = null;
         continue;
       }

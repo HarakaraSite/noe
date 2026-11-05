@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	json "encoding/json/v2"
 	"net/http"
 	"os"
 
@@ -114,7 +113,7 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 	if body == nil {
 		return Response{}, providerError(ErrorStream, status, nil)
 	}
-	events, done, readErr := body.snapshot()
+	done, readErr, consumeErr := body.snapshot()
 	if readErr != nil {
 		return Response{}, providerError(ErrorStream, status, nil)
 	}
@@ -122,39 +121,22 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 		if !completed {
 			return Response{}, providerError(ErrorStream, status, nil)
 		}
-		return responseFromEvents(events)
+		return body.response()
 	}
 	if !done {
 		return Response{}, providerError(ErrorStream, status, nil)
 	}
-	accumulator := newStreamAccumulator()
-	accumulator.reasoningField = p.profile.ReasoningField
-	if err := accumulator.consume(events); err != nil {
+	if consumeErr != nil {
 		return Response{}, providerError(ErrorResponse, status, nil)
 	}
-	return accumulator.response()
+	return body.response()
 }
 
 // ChatGPT usage-limit failures can arrive after the HTTP 200 stream starts.
 func nativeStreamFailure(state *callState) error {
 	_, body := state.response()
-	if body != nil {
-		events, _, _ := body.snapshot()
-		for _, raw := range events {
-			var event struct {
-				Response struct {
-					Error struct {
-						Code string `json:"code"`
-					} `json:"error"`
-				} `json:"response"`
-			}
-			if json.Unmarshal(raw, &event) == nil {
-				switch event.Response.Error.Code {
-				case "subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable":
-					return providerError(ErrorQuota, 0, nil)
-				}
-			}
-		}
+	if body != nil && body.nativeQuota() {
+		return providerError(ErrorQuota, 0, nil)
 	}
 	return providerError(ErrorResponse, 0, nil)
 }

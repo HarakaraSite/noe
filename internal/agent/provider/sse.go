@@ -9,29 +9,30 @@ import (
 )
 
 // observedBody lets the SDK consume its own EventStream while independently
-// recording complete SSE events and the underlying body's read errors. The SDK's EventStream intentionally stops reading at [DONE].
+// assembling complete SSE events and recording the underlying body's read
+// errors. The SDK's EventStream intentionally stops reading at [DONE].
 type observedBody struct {
 	source  io.ReadCloser
 	observe func(StreamEvent)
 	extract func(jsonv1.RawMessage) []StreamEvent
 
-	mu        sync.Mutex
-	line      []byte
-	skipLF    bool
-	firstLine bool
-	dataLines []string
-	// Each payload owns its bytes and is immutable after append. snapshot callers
-	// must not modify payload bytes; snapshot only copies this outer slice.
-	events  []jsonv1.RawMessage
-	done    bool
-	readErr error
+	mu         sync.Mutex
+	line       []byte
+	skipLF     bool
+	firstLine  bool
+	dataLines  []string
+	chat       *streamAccumulator
+	native     *responsesAccumulator
+	consumeErr error
+	done       bool
+	readErr    error
 
 	closeOnce sync.Once
 	closeErr  error
 }
 
 func newObservedBody(source io.ReadCloser) *observedBody {
-	return &observedBody{source: source}
+	return &observedBody{source: source, chat: newStreamAccumulator()}
 }
 
 func (b *observedBody) Read(p []byte) (int, error) {
@@ -64,13 +65,28 @@ func (b *observedBody) Close() error {
 	return b.closeErr
 }
 
-func (b *observedBody) snapshot() (events []jsonv1.RawMessage, done bool, readErr error) {
+func (b *observedBody) snapshot() (done bool, readErr, consumeErr error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	events = make([]jsonv1.RawMessage, len(b.events))
-	// Payloads remain immutable, so only the mutable outer slice needs copying.
-	copy(events, b.events)
-	return events, b.done, b.readErr
+	return b.done, b.readErr, b.consumeErr
+}
+
+func (b *observedBody) response() (Response, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.consumeErr != nil {
+		return Response{}, b.consumeErr
+	}
+	if b.native != nil {
+		return b.native.response()
+	}
+	return b.chat.response()
+}
+
+func (b *observedBody) nativeQuota() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.native != nil && b.native.quota
 }
 
 func (b *observedBody) feedLocked(chunk []byte) []jsonv1.RawMessage {
@@ -84,12 +100,12 @@ func (b *observedBody) feedLocked(chunk []byte) []jsonv1.RawMessage {
 		}
 		switch c {
 		case '\r':
-			if event := b.processLineLocked(); event != nil {
+			if event := b.processLineLocked(); event != nil && b.observe != nil {
 				completed = append(completed, event)
 			}
 			b.skipLF = true
 		case '\n':
-			if event := b.processLineLocked(); event != nil {
+			if event := b.processLineLocked(); event != nil && b.observe != nil {
 				completed = append(completed, event)
 			}
 		default:
@@ -108,13 +124,20 @@ func (b *observedBody) processLineLocked() jsonv1.RawMessage {
 		var event jsonv1.RawMessage
 		if len(b.dataLines) > 0 {
 			data := strings.Join(b.dataLines, "\n")
+			clear(b.dataLines)
 			b.dataLines = b.dataLines[:0]
 			if data == "[DONE]" {
 				b.done = true
 			} else {
 				event = make(jsonv1.RawMessage, len(data))
 				copy(event, data)
-				b.events = append(b.events, event)
+				if b.native != nil {
+					if err := b.native.consumeEvent(event); b.consumeErr == nil {
+						b.consumeErr = err
+					}
+				} else if b.consumeErr == nil {
+					b.consumeErr = b.chat.consumeEvent(event)
+				}
 			}
 		}
 		b.line = b.line[:0]

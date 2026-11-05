@@ -30,6 +30,12 @@ if(h.entries.some(e=>e.messages.includes(old))) throw Error("deleted object reta
 let incompleteRejected=false;
 try {h.completeBlock(recent,[{}]);} catch(e) {if(!e.message.includes("incomplete"))throw e;incompleteRejected=true;}
 if(!incompleteRejected)throw Error("partial block accepted");
+const baseRevision=h.revision;
+const appended={role:"assistant",content:"after trim",native_item:{signature:"keep"}};
+h.completeBlock(appended);
+const delta=h.appendAfter(baseRevision);
+if(delta.baseRevision!==baseRevision || delta.entries.length!==1 || delta.entries[0].messages[0]!==appended) throw Error("append includes the committed prefix or loses provider fields");
+if(h.appendAfter(h.revision).entries.length!==0) throw Error("empty append changed history");
 console.log("history ok");`
 	var out strings.Builder
 	code, err := Execute(context.Background(), Source{Name: "history-test.js", Code: source}, Options{Stdout: &out})
