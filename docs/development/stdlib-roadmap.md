@@ -7,7 +7,7 @@ and gradually expanding their capabilities. Establish a consistent API and
 resource model first, then build new features on that foundation. Detailed
 contracts and the canonical module names are decided in the relevant phase.
 
-Phases 1 and 2 are implemented and locally verified, but unreleased. See the
+Phases 1 and 2 were released in [v2.13.0](../releases/v2.13.0.md). See the
 [phase 1](stdlib-fs-integration.md) and [phase 2](stdlib-fs-basics.md)
 implementation and validation records. This completes the first filesystem
 milestone. The approved API uses symbolic filesystem error codes with the

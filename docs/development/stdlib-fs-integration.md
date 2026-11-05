@@ -2,7 +2,8 @@
 
 [Roadmap](stdlib-roadmap.md) · [Development guide](README.md) · [FileHandle reference](../../internal/apidocs/content/stdlib-fs-promises.md)
 
-2026-11-05. Implemented and locally verified; unreleased. The user approved
+2026-11-05. Implemented and locally verified; released in
+[v2.13.0](../releases/v2.13.0.md). The user approved
 removing `noe:fs-handle` without a compatibility adapter after the consumer
 audit recorded in the roadmap. The working tree is based on
 `7b7df5750b006913f16f3182729efeee311978cb`.

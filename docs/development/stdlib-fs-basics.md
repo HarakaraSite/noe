@@ -2,8 +2,9 @@
 
 [Roadmap](stdlib-roadmap.md) · [Phase 1](stdlib-fs-integration.md) · [FileHandle reference](../../internal/apidocs/content/stdlib-fs-promises.md)
 
-2026-11-05. Phase 2 is implemented and locally verified in the working tree
-based on `e4368d2`. Publication is tracked in the release checkpoints.
+2026-11-05. Phase 2 was implemented and locally verified from base `e4368d2`,
+then released in [v2.13.0](../releases/v2.13.0.md). Publication and local
+placement are tracked in the [release checkpoints](../releases/release-checkpoints.md).
 Together with phase 1, this completes the first filesystem milestone.
 
 ## Implemented operations
