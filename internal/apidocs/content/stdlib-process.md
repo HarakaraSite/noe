@@ -6,19 +6,19 @@ Reference: `node:process`; aliases: `process`. Owner: noestdlib.
 
 Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
 
-Availability: Requires Profile.Modules.ProcessInfo; standard I/O also depends on Modules.Stdio.
+Availability: Installed when Profile.Modules.ProcessInfo or Profile.Modules.Stdio is selected. Process metadata and the global `process` object require ProcessInfo. Named standard I/O exports require Stdio. Workers receive empty stdin (immediate EOF) and use the configured output destinations.
 
-Public-definition source: internal/stdlib/process.go. Reading this reference evaluates no target module and makes no provider request.
+Public-definition source: internal/stdlib/process.go and internal/nativeio/host.go. Reading this reference evaluates no target module and makes no provider request.
 
-Exports the process object as the module default and as the global process. It reports NOE's arguments, environment, working directory, standard streams, and process controls; it is not a full Node process object.
+The `node:process` module exposes NOE's process metadata and host standard I/O as Web Streams; it is not a full Node process object. It does not provide Node stream or EventEmitter compatibility for standard I/O.
 
 ### Exports
 
-`default`
+`default`; with Stdio, `stdin`, `stdout`, and `stderr`.
 
-Use the global process object or import process from "node:process". There are no named exports: importing {cwd}, {env}, or {argv} is unsupported. Call process.cwd() and read process.env/process.argv instead.
+When ProcessInfo is selected, the default export is the same object as the global `process`. It reports NOE's arguments, environment, working directory, process ID, and process controls. With Stdio alone, the default is an object containing only `stdin`, `stdout`, and `stderr`; no global `process` or process metadata is installed. With both capabilities selected, the default/global object's standard stream properties are the same Web Stream instances as the named exports. Process metadata is not available as named exports: import the default or use the global `process` when ProcessInfo is selected.
 
-In NOE, process.argv contains the executable, current source name, then script arguments. process.env is a JavaScript snapshot; editing it does not change the host environment. process.exit() ends the current NOE run.
+With ProcessInfo selected, process.argv contains the executable, current source name, then script arguments. process.env is a JavaScript snapshot; editing it does not change the host environment. process.exit() ends the current NOE run.
 
 ## cwd
 
@@ -63,6 +63,41 @@ if (!process.env.API_TOKEN) process.exit(2);
 ~~~
 
 This ends the run and its owned runtime resources. Set process.exitCode when the script should finish naturally with a non-zero code.
+
+## stdin
+
+Availability: Requires Profile.Modules.Stdio. `stdin` is a `ReadableStream<Uint8Array>` for the configured host input. It is demand-driven; importing it does not start reading. Workers receive immediate EOF.
+
+~~~js
+import { stdin } from "node:process";
+
+const text = await new Response(stdin).text();
+~~~
+
+Use a stream reader or async iteration to process bytes incrementally. A standard input stream can be consumed once.
+
+## stdout
+
+Availability: Requires Profile.Modules.Stdio. `stdout` is a `WritableStream<Uint8Array>` for the configured host output. Writes are asynchronous and complete when the host writer accepts the bytes.
+
+~~~js
+import { stdout } from "node:process";
+
+const writer = stdout.getWriter();
+try {
+  await writer.write(new TextEncoder().encode("hello\n"));
+} finally {
+  writer.releaseLock();
+}
+~~~
+
+When ProcessInfo is also selected, `process.stdout` is the same stream instance. Closing this stream endpoint does not close the caller's borrowed host writer.
+
+## stderr
+
+Availability: Requires Profile.Modules.Stdio. `stderr` is a `WritableStream<Uint8Array>` for the configured host error output. It has the same byte, ownership, and lifecycle behavior as `stdout`.
+
+When ProcessInfo is also selected, `process.stderr` is the same stream instance. Use `TextEncoder` when writing text. For stream connections, use Web Streams `pipeTo`; see the `node:stream/web` reference.
 
 ### Source basis
 

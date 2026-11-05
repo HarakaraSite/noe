@@ -458,8 +458,11 @@ declare namespace NOEStdlib {
     _makeLong(path: string): string;
   }
 
-  interface ProcessStreamOut { write(text: string): boolean; readonly isTTY: false }
-  interface ProcessStreamIn { read(): string | null; readonly isTTY: false }
+  interface ProcessStdio {
+    readonly stdin: ReadableStream<Uint8Array>;
+    readonly stdout: WritableStream<Uint8Array>;
+    readonly stderr: WritableStream<Uint8Array>;
+  }
   interface Process {
     readonly argv: string[];
     readonly env: Record<string, string>;
@@ -479,9 +482,9 @@ declare namespace NOEStdlib {
     removeListener(name: PropertyKey, listener: EventCallback): this;
     emit(name: PropertyKey, ...args: unknown[]): boolean;
     listeners(name: PropertyKey): EventCallback[];
-    readonly stdout?: ProcessStreamOut;
-    readonly stderr?: ProcessStreamOut;
-    readonly stdin?: ProcessStreamIn;
+    readonly stdout?: ProcessStdio["stdout"];
+    readonly stderr?: ProcessStdio["stderr"];
+    readonly stdin?: ProcessStdio["stdin"];
   }
 
   interface QueryStringRecord { [key: string]: string | string[] }
@@ -792,8 +795,6 @@ declare namespace NOEStdlib {
   function subscribe(name: SignalName): SignalSubscription;
 
   function docs(topic?: string, member?: string): string;
-  function pipe(source: ReadableStream<Uint8Array>, destination: WritableStream<Uint8Array>, options?: {signal?: AbortSignal; preventClose?: boolean}): Promise<void>;
-
   interface URLPatternPartResult { input: string; groups: Record<string, string | undefined> }
   interface URLPatternResult {
     inputs: unknown[];
@@ -1350,6 +1351,10 @@ declare module "node:path/win32" {
 }
 declare module "node:process" {
   export type Process = NOEStdlib.Process;
+  export type ProcessStdio = NOEStdlib.ProcessStdio;
+  export const stdin: NOEStdlib.ProcessStdio["stdin"];
+  export const stdout: NOEStdlib.ProcessStdio["stdout"];
+  export const stderr: NOEStdlib.ProcessStdio["stderr"];
   const process: NOEStdlib.Process;
   export default process;
 }
@@ -1510,12 +1515,6 @@ declare module "worker_threads" { export * from "node:worker_threads"; export {d
 declare module "zlib" { export * from "node:zlib"; export {default} from "node:zlib"; }
 
 declare module "noe:docs" { export import docs = NOEStdlib.docs; }
-declare module "noe:io" {
-  export const stdin: ReadableStream<Uint8Array>;
-  export const stdout: WritableStream<Uint8Array>;
-  export const stderr: WritableStream<Uint8Array>;
-  export import pipe = NOEStdlib.pipe;
-}
 declare module "noe:http" {
   export import fetch = NOEStdlib.fetch;
   export import serve = NOEStdlib.serve;

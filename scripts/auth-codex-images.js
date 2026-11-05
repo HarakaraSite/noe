@@ -1,6 +1,7 @@
 // Create a dedicated NOE-managed Codex image grant; active Codex credentials
 // are never read or copied by this helper.
 import { homedir } from "node:os";
+import { stdin } from "node:process";
 import { join, resolve } from "node:path";
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, chmodSync, renameSync, unlinkSync } from "node:fs";
 import { begin_codex_image_login, complete_codex_image_login } from "noe:auth";
@@ -71,7 +72,7 @@ if (command === "help" || command === "--help") {
   }
   let callback;
   try {
-    callback = new URL(String(process.stdin?.read() || "").trim());
+    callback = new URL((await new Response(stdin).text()).trim());
   } catch {
     throw new Error("Invalid callback URL. Copy the full redirected URL from the browser and run complete again.");
   }

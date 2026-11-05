@@ -81,6 +81,22 @@ const streamsJS = `(function (host) {
     catch (e) { return Promise.reject(e); }
   };
 
+  // pipeTo may have to stop waiting for a read without cancelling its source
+  // when preventCancel is set. The stream is locked to this reader, so every
+  // pending read request belongs to this pipe operation.
+  function interruptPipeRead(reader) {
+    const stream = reader && reader._stream;
+    if (!stream || stream._reader !== reader || stream._reads.length === 0) return;
+    const reads = stream._reads, head = stream._readHead;
+    stream._reads = [];
+    stream._readHead = 0;
+    for (let i = head; i < reads.length; i++) {
+      const request = reads[i];
+      reads[i] = undefined;
+      request.resolve({value: undefined, done: true});
+    }
+  }
+
   // --- ReadableStream -------------------------------------------------------
 
   class ReadableStreamDefaultController {
@@ -325,37 +341,256 @@ const streamsJS = `(function (host) {
 
     async pipeTo(destination, options = {}) {
       const {preventClose, preventAbort, preventCancel, signal} = options;
-      const reader = this.getReader();
-      const writer = destination.getWriter();
-      let aborted = null;
-      const onAbort = () => { aborted = signal.reason || new Error("aborted"); };
-      if (signal) {
-        if (signal.aborted) onAbort();
-        else if (typeof signal.addEventListener === "function") {
-          signal.addEventListener("abort", onAbort);
-        }
+      if (signal !== undefined && !(signal instanceof AbortSignal)) {
+        throw new TypeError("signal must be an AbortSignal");
       }
+      const addAbortListener = signal ? signal.addEventListener : null;
+      const removeAbortListener = signal ? signal.removeEventListener : null;
+      if (signal && (typeof addAbortListener !== "function" || typeof removeAbortListener !== "function")) {
+        throw new TypeError("signal must be an AbortSignal");
+      }
+
+      let reader = null;
+      let writer = null;
+      let registrationAttempted = false;
+      let pipeFailure = false;
+      let pipeError;
+      let cleanupFailure = false;
+      let cleanupError;
+      let shuttingDown = false;
+      let shutdownSucceeded = false;
+      let shutdownReason;
+      let shutdownPromise = Promise.resolve({ok: true});
+      let stopped = false;
+      const stopWaiters = new Set();
+      let closingDestination = false;
+      let finalized = false;
+      let phase = "idle";
+      let sourceClosed = false;
+      let pendingWrite = null;
+
+      const wakeStopped = () => {
+        if (stopped) return;
+        stopped = true;
+        for (const wake of stopWaiters) wake();
+        stopWaiters.clear();
+      };
+
+      const beginShutdown = (reason, direction) => {
+        if (shuttingDown || finalized) return;
+        shuttingDown = true;
+        shutdownSucceeded = false;
+        shutdownReason = reason;
+        const actions = [];
+        const startAction = action => {
+          try { actions.push(Promise.resolve(action())); }
+          catch (e) { actions.push(Promise.reject(e)); }
+        };
+        if ((direction === "source" || direction === "abort") && !preventAbort &&
+            writer && writer._stream && writer._stream._state === "writable") {
+          startAction(() => writer.abort(reason));
+        }
+        if ((direction === "destination" || direction === "abort") && !preventCancel &&
+            reader && reader._stream && reader._stream._state === "readable") {
+          startAction(() => reader.cancel(reason));
+        } else if ((direction === "destination" || direction === "abort") && preventCancel) {
+          interruptPipeRead(reader);
+        }
+        // These actions start together. Record rejections immediately so they
+        // remain handled while an in-flight write is being joined below.
+        shutdownPromise = Promise.all(actions).then(
+          () => ({ok: true}),
+          error => ({ok: false, error}),
+        );
+        wakeStopped();
+      };
+
+      const beginGracefulClose = () => {
+        if (shuttingDown || finalized) return;
+        shuttingDown = true;
+        shutdownSucceeded = true;
+        if (preventClose) {
+          shutdownPromise = Promise.resolve({ok: true});
+        } else {
+          closingDestination = true;
+          try {
+            shutdownPromise = Promise.resolve(writer.close()).then(
+              () => ({ok: true}),
+              error => ({ok: false, error}),
+            );
+          } catch (e) { shutdownPromise = Promise.resolve({ok: false, error: e}); }
+        }
+        wakeStopped();
+      };
+
+      const onSourceClosed = () => {
+        if (shuttingDown || finalized || closingDestination) return;
+        sourceClosed = true;
+        // A pending read will resolve with its last chunk or EOF. A write
+        // already in flight must finish before normal close is propagated.
+        if (phase === "read" || phase === "write") return;
+        beginGracefulClose();
+      };
+
+      const onAbort = () => {
+        if (shuttingDown || finalized) return;
+        let reason;
+        try { reason = signal.reason; }
+        catch (e) { reason = e; }
+        beginShutdown(reason, "abort");
+      };
+
+      const raceOperation = operation => {
+        if (stopped) return Promise.resolve({kind: "stopped"});
+        let pending;
+        try { pending = Promise.resolve(operation()); }
+        catch (e) { return Promise.resolve({kind: "error", error: e}); }
+        return new Promise(resolve => {
+          let settled = false;
+          const finish = result => {
+            if (settled) return;
+            settled = true;
+            stopWaiters.delete(wake);
+            resolve(result);
+          };
+          const wake = () => finish({kind: "stopped"});
+          stopWaiters.add(wake);
+          pending.then(
+            value => finish({kind: "value", value}),
+            error => finish({kind: "error", error}),
+          );
+          if (stopped) wake();
+        });
+      };
+
+      const awaitShutdown = async () => {
+        const write = pendingWrite;
+        const [action] = await Promise.all([
+          shutdownPromise,
+          write ? write.then(noop, noop) : Promise.resolve(undefined),
+        ]);
+        if (!action.ok) throw action.error;
+        if (!shutdownSucceeded) throw shutdownReason;
+      };
+
       try {
-        for (;;) {
-          if (aborted) throw aborted;
-          await writer.ready;
-          const {value, done} = await reader.read();
-          if (done) break;
-          if (aborted) throw aborted;
-          await writer.write(value);
+        reader = this.getReader();
+        writer = destination.getWriter();
+
+        reader.closed.then(
+          () => onSourceClosed(),
+          error => beginShutdown(error, "source"),
+        );
+        writer.closed.then(
+          () => {
+            if (!finalized && !closingDestination) {
+              beginShutdown(new TypeError("the destination writable stream is closed"), "destination");
+            }
+          },
+          error => beginShutdown(error, "destination"),
+        );
+
+        if (signal) {
+          if (signal.aborted) onAbort();
+          else {
+            registrationAttempted = true;
+            addAbortListener.call(signal, "abort", onAbort);
+            // An overridden listener method may synchronously abort while it
+            // is registering the listener.
+            if (signal.aborted) onAbort();
+          }
         }
-        if (!preventClose) await writer.close();
+
+        if (!shuttingDown) {
+          for (;;) {
+            if (shuttingDown) break;
+            phase = "ready";
+            let result = await raceOperation(() => writer.ready);
+            phase = "idle";
+            if (result.kind === "stopped") break;
+            if (result.kind === "error") {
+              beginShutdown(result.error, "destination");
+              break;
+            }
+
+            if (shuttingDown) break;
+            phase = "read";
+            result = await raceOperation(() => reader.read());
+            phase = "idle";
+            if (result.kind === "stopped") break;
+            if (result.kind === "error") {
+              beginShutdown(result.error, "source");
+              break;
+            }
+            if (result.value.done) break;
+
+            // A chunk already read is still offered to the sink. A shutdown
+            // starts abort/cancel actions at once and still joins this write
+            // before releasing the writer.
+            phase = "write";
+            let write;
+            try { write = Promise.resolve(writer.write(result.value.value)); }
+            catch (e) { write = Promise.reject(e); }
+            pendingWrite = write;
+            result = await raceOperation(() => write);
+            phase = "idle";
+            if (result.kind !== "stopped") pendingWrite = null;
+            if (result.kind === "stopped") break;
+            if (result.kind === "error") {
+              beginShutdown(result.error, "destination");
+              break;
+            }
+            if (sourceClosed) break;
+          }
+        }
+
+        if (shuttingDown) await awaitShutdown();
+
+        if (!preventClose && !shutdownSucceeded) {
+          closingDestination = true;
+          const result = await raceOperation(() => writer.close());
+          if (result.kind === "stopped") await awaitShutdown();
+          if (result.kind === "error") {
+            beginShutdown(result.error, "close");
+            await awaitShutdown();
+          }
+        }
       } catch (e) {
-        if (!preventAbort) await writer.abort(e).catch(noop);
-        if (!preventCancel) await reader.cancel(e).catch(noop);
-        throw e;
+        pipeFailure = true;
+        pipeError = e;
       } finally {
-        if (signal && typeof signal.removeEventListener === "function") {
-          signal.removeEventListener("abort", onAbort);
+        finalized = true;
+        wakeStopped();
+        if (registrationAttempted) {
+          try { removeAbortListener.call(signal, "abort", onAbort); }
+          catch (e) {
+            if (!pipeFailure && !cleanupFailure) {
+              cleanupFailure = true;
+              cleanupError = e;
+            }
+          }
         }
-        reader.releaseLock();
-        writer.releaseLock();
+        if (reader) {
+          try { reader.releaseLock(); }
+          catch (e) {
+            if (!pipeFailure && !cleanupFailure) {
+              cleanupFailure = true;
+              cleanupError = e;
+            }
+          }
+        }
+        if (writer) {
+          try { writer.releaseLock(); }
+          catch (e) {
+            if (!pipeFailure && !cleanupFailure) {
+              cleanupFailure = true;
+              cleanupError = e;
+            }
+          }
+        }
       }
+      if (pipeFailure) throw pipeError;
+      if (cleanupFailure) throw cleanupError;
     }
 
     values(options = {}) {

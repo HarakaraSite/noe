@@ -105,8 +105,8 @@ if(result.code===null && result.signal===null)throw Error("missing exit status")
 
 func TestNoeIOBorrowedInputAndOutput(t *testing.T) {
 	input := strings.NewReader("one\ntwo\n")
-	out := runStdlib(t, `import {stdin,stdout,pipe} from "noe:io";
-await pipe(stdin,stdout); console.log("legacy still works");`, Options{Stdin: input})
+	out := runStdlib(t, `import {stdin,stdout} from "node:process";
+await stdin.pipeTo(stdout); console.log("legacy still works");`, Options{Stdin: input})
 	if out != "one\ntwo\nlegacy still works\n" {
 		t.Fatalf("out=%q", out)
 	}
@@ -126,23 +126,29 @@ if(!message.endsWith("|isolated||"))throw Error(message); await w.terminate();`
 	runStdlib(t, script, Options{Cwd: dir})
 }
 
-func TestProcessIOSharedOutputAliasesAcrossWorkerAndLegacy(t *testing.T) {
+func TestProcessIOSharedOutputAliasesAcrossWorkerAndGlobal(t *testing.T) {
 	var output bytes.Buffer
 	dir := t.TempDir()
 	const writes = 50
-	worker := `import {parentPort} from "node:worker_threads"; import {stdout,stderr} from "noe:io";
+	worker := `import {parentPort} from "node:worker_threads"; import {stdout,stderr} from "node:process";
 const a=stdout.getWriter(), b=stderr.getWriter(), chunk=new TextEncoder().encode("w".repeat(4096));
 await Promise.all([0,1].map(async i=>{for(let n=0;n<50;n++)await (i?b:a).write(chunk)}));
-for(let n=0;n<50;n++)process.stdout.write("l".repeat(4096));parentPort.postMessage("done");parentPort.close();`
+a.releaseLock();b.releaseLock();
+const globalWriter=process.stdout.getWriter();
+try{for(let n=0;n<50;n++)await globalWriter.write(new TextEncoder().encode("l".repeat(4096)));}finally{globalWriter.releaseLock();}
+parentPort.postMessage("done");parentPort.close();`
 	if err := os.WriteFile(filepath.Join(dir, "worker.js"), []byte(worker), 0600); err != nil {
 		t.Fatal(err)
 	}
-	source := `import {Worker} from "node:worker_threads"; import {stdout,stderr} from "noe:io";
+	source := `import {Worker} from "node:worker_threads"; import {stdout,stderr} from "node:process";
 const worker=new Worker("./worker.js");
 const done=new Promise((resolve,reject)=>{worker.on("message",resolve);worker.on("error",reject)});
 const a=stdout.getWriter(),b=stderr.getWriter(),chunk=new TextEncoder().encode("m".repeat(4096));
 await Promise.all([done,...[0,1].map(async i=>{for(let n=0;n<50;n++)await (i?b:a).write(chunk)})]);
-for(let n=0;n<50;n++)process.stderr.write("l".repeat(4096));await worker.terminate();`
+a.releaseLock();b.releaseLock();
+const globalWriter=process.stderr.getWriter();
+try{for(let n=0;n<50;n++)await globalWriter.write(new TextEncoder().encode("l".repeat(4096)));}finally{globalWriter.releaseLock();}
+await worker.terminate();`
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	code, err := Execute(ctx, Source{filepath.Join(dir, "main.js"), source}, Options{Stdout: &output, Stderr: &output, Cwd: dir})

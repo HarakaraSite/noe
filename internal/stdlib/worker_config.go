@@ -58,7 +58,6 @@ func (c Config) forWorker(w *workerContext, specifier string, o workerOptions) C
 	}
 	if c.Process != nil {
 		p := *c.Process
-		p.Stdin = nil
 		p.Exit, p.worker = w.exit, true
 		// The parent's handling of its own rejections is not the worker's.
 		p.Unhandled = nil
@@ -144,11 +143,6 @@ func (c *Config) shareWriters() {
 		return syncWriter{mu: mu, w: w}
 	}
 	c.Stdout, c.Stderr = wrap(c.Stdout), wrap(c.Stderr)
-	if c.Process != nil {
-		p := *c.Process
-		p.Stdout, p.Stderr = wrap(p.Stdout), wrap(p.Stderr)
-		c.Process = &p
-	}
 }
 
 // errNoLoop is Workers without a Loop to run the workers' messages on.

@@ -18,7 +18,7 @@ import (
 
 func TestProcessIOBlockedStdoutWriteCancelsOnSIGINT(t *testing.T) {
 	work := t.TempDir()
-	source := `import {stdout} from "noe:io";
+	source := `import {stdout} from "node:process";
 import {writeFileSync} from "node:fs";
 writeFileSync("stream-ready", "ready");
 const writer=stdout.getWriter(), chunk=new Uint8Array(64*1024);
@@ -82,7 +82,7 @@ while(true) await writer.write(chunk);`
 
 func TestProcessIOBlockedStdoutWriteCancelsOnTimeout(t *testing.T) {
 	work := t.TempDir()
-	source := `import {stdout} from "noe:io";
+	source := `import {stdout} from "node:process";
 import {writeFileSync} from "node:fs";
 writeFileSync("stream-ready", "ready");
 const writer=stdout.getWriter(), chunk=new Uint8Array(64*1024);

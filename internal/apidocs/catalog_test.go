@@ -111,7 +111,7 @@ func TestCatalogNavigationAndIsolation(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"noe:agent/api", "noe:agent/hooks", "noe:agent/internal", "node:net", "../../instructions.md"} {
+	for _, name := range []string{"noe:agent/api", "noe:agent/hooks", "noe:agent/internal", "noe:io", "node:net", "../../instructions.md"} {
 		if _, err := Lookup(name, ""); err == nil {
 			t.Fatalf("unexpected public topic: %s", name)
 		}

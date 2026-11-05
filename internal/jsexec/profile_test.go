@@ -96,10 +96,10 @@ func TestAttachSnapshotsEnvironmentAndIsolatesConcurrentExecutions(t *testing.T)
 			}
 			if evalErr == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-				_, moduleErr := rt.EvalModuleContext(ctx, "no-stdio.mjs", `import "noe:io"`)
+				_, moduleErr := rt.EvalModuleContext(ctx, "no-stdio.mjs", `import {stdin} from "node:process"`)
 				cancel()
 				if moduleErr == nil {
-					evalErr = errors.New("unselected noe:io module was importable")
+					evalErr = errors.New("unselected standard input was importable")
 				}
 			}
 			results <- result{cwd: input.cwd, output: value.String(), err: evalErr}
@@ -231,7 +231,7 @@ func TestProfileSelectsStdioWithoutAddingOtherNativeModules(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 	ns, err := rt.EvalModuleContext(ctx, "selected-stdio.mjs", `
-		import {stdin, stdout, stderr} from "noe:io";
+		import {stdin, stdout, stderr} from "node:process";
 		export const selected = stdin && stdout && stderr;
 	`)
 	cancel()

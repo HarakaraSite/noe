@@ -356,7 +356,8 @@ func TestProcess(t *testing.T) {
 		console.log(process.env.HOME, process.env.LANG, process.env.MISSING)
 		console.log(process.cwd())
 		console.log(typeof process.platform, typeof process.arch)
-		process.stdout.write("written\n")
+		if ("stdin" in process || "stdout" in process || "stderr" in process) throw Error("metadata installed stdio")
+		console.log("written")
 		const [s, ns] = process.hrtime()
 		console.log(typeof s, typeof ns)
 		try { process.exit(1) } catch (e) { console.log("cannot exit") }

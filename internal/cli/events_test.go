@@ -47,7 +47,7 @@ func eventTexts(records []events.Event, kind string) string {
 }
 
 func TestEventsRunAndEvalStdout(t *testing.T) {
-	script := `console.log('日本語');console.error('warning');process.stdout.write('tail');`
+	script := `console.log('日本語');console.error('warning');const writer=process.stdout.getWriter();try{await writer.write(new TextEncoder().encode('tail'));}finally{writer.releaseLock();}`
 	file := filepath.Join(t.TempDir(), "output.js")
 	if err := os.WriteFile(file, []byte(script), 0600); err != nil {
 		t.Fatal(err)
@@ -227,10 +227,10 @@ func (w *abortableEventSink) WriteContext(ctx context.Context, p []byte) (int, e
 func TestEventsStreamAbortWithNoRecordBytesAllowsContinuation(t *testing.T) {
 	out := &abortableEventSink{marker: filepath.Join(t.TempDir(), "write-started")}
 	var diagnostic bytes.Buffer
-	source := `import {stdout,pipe} from "noe:io"; import {existsSync} from "node:fs";
+	source := `import {stdout} from "node:process"; import {existsSync} from "node:fs";
 const c=new AbortController(),reason=new Error("expected abort");
 const source=new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode("blocked"));controller.close()}});
-const p=pipe(source,stdout,{signal:c.signal});
+const p=source.pipeTo(stdout,{signal:c.signal});
 const check=()=>{if(existsSync(` + strconv.Quote(out.marker) + `))c.abort(reason);else setTimeout(check,1)};check();
 try{await p;throw Error("abort did not reject")}catch(e){if(e!==reason)throw e}
 console.log("continued after stream abort");`
@@ -321,7 +321,7 @@ func TestEventOutputRetainsTextWhenTerminalMirrorFails(t *testing.T) {
 
 func TestDirectObserveRunEvalAndFileRecording(t *testing.T) {
 	dir := t.TempDir()
-	script := `console.log('hello');console.error('warning');process.stdout.write('tail');`
+	script := `console.log('hello');console.error('warning');const writer=process.stdout.getWriter();try{await writer.write(new TextEncoder().encode('tail'));}finally{writer.releaseLock();}`
 	file := filepath.Join(dir, "output.js")
 	if err := os.WriteFile(file, []byte(script), 0600); err != nil {
 		t.Fatal(err)

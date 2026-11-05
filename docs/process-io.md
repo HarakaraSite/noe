@@ -1,8 +1,8 @@
 # プロセスと標準I/Oストリーム
 
-実行バイナリと同じ版のAPI契約は`noe docs node:child_process spawn`・`noe docs noe:io`で参照できます。概要に表示されるmember名を第2引数へ渡すと詳細を取得します（[内蔵docs](reference.md)）。
+Use `noe docs node:child_process spawn` and `noe docs node:process stdin` for the API contract in the matching executable. Pass a member name shown in a topic overview as the second argument to open its details ([embedded reference](reference.md)).
 
-The NOE-specific `spawn` export from `node:child_process`, together with `noe:io`, is available to run/eval, agent `run_js`, and Workers. `spawn` resolves its Promise after startup and exposes byte-oriented Web Streams of `Uint8Array`. It does not add Node.js EventEmitter or Node streams APIs. Existing `exec`, `execFile`, `spawnSync`, `process.std*`, and the `noe:io` facade remain available.
+The NOE-specific `spawn` export from `node:child_process` and the standard I/O exports from `node:process` are available to run/eval, agent `run_js`, and Workers when their host capabilities are selected. `spawn` resolves its Promise after startup and exposes byte-oriented Web Streams of `Uint8Array`. Host standard I/O uses the same Web Stream types. NOE does not add Node.js EventEmitter or Node streams compatibility for standard I/O. The former `noe:io` module and the synchronous `process.stdin.read()`, `process.stdout.write()`, `process.stderr.write()`, and `isTTY` facades are removed.
 
 ## 子を起動して通信する
 
@@ -45,26 +45,37 @@ inheritは呼出し元のホストI/Oを使い、観察時のwriterも通りま�
 
 子と内部監督が生存・回収中の間、NOEの実行は続きます。run_jsの所有者が強制終了された場合も、POSIXでは所有者pipeのEOFを監督が検知して対象groupを停止します。この所有関係のためPOSIXではspawnごとにGo製監督1プロセスが追加されます。親終了後の独立実行機能ではありません。
 
-## ホスト標準I/Oとpipe
+## Host standard I/O
 
 ```js
-import { stdin, stdout, pipe } from "noe:io";
-await pipe(stdin, stdout, { preventClose: true });
+import { stdin, stdout } from "node:process";
+
+const text = await new Response(stdin).text();
+const writer = stdout.getWriter();
+try {
+  await writer.write(new TextEncoder().encode(text));
+} finally {
+  writer.releaseLock();
+}
 ```
 
-stdinはread要求から逐次読み、EOFを待たずにバイト列を返します。importだけでは読取りを始めません。stdout/stderrへのwriteは非同期で、実際の書込み完了を待ちます。文字列にはTextEncoder/TextDecoderを使います。JSONLの例は[stdio-jsonl.js](../examples/process/stdio-jsonl.js)です。
+`stdin` is a demand-driven `ReadableStream<Uint8Array>`; importing it does not start a read. `stdout` and `stderr` are `WritableStream<Uint8Array>` values. Use `Response` or `TextDecoder` to read text, and encode text with `TextEncoder` before writing. The JSONL example is [stdio-jsonl.js](../examples/process/stdio-jsonl.js).
 
-ホストのstdin/stdout/stderrは借用品です。ストリームのclose/abort/cancelやNOEの終了で元のI/Oを閉じません。既存のconsoleとprocess.stdin.read()/stdout.write()も使えます。同じstdinを新旧APIから並行して消費する使い方には読取り順の保証がありません。
+The host's input and output endpoints are borrowed. Closing, aborting, or canceling a Web Stream does not close the caller's underlying reader or writer. A stream can have only one active consumer; do not read the same stdin concurrently through multiple readers.
 
-`pipe(source, destination, { signal, preventClose = false } = {})`はEOFまで転送し、既定では宛先をcloseします。preventCloseは正常EOF時にだけ宛先を開いたままにします。エラー・abortではreader.cancelとwriter.abortを開始して待機中のI/Oにも取消しを伝え、原因でrejectします。子のkillは行わないのでfinallyでchild.close()を呼べます。
+Use the standard Web Streams `pipeTo` method to connect streams:
 
-固定stdlibの`.pipeTo(..., {signal})`はデータ待ち中のabortを直ちに処理しないため、取消しが必要な接続はこのpipeを使います。既存のpipeToの実装は変更していません。
+```js
+await child.stdout.pipeTo(stdout, { preventClose: true });
+```
+
+`pipeTo` closes its destination at normal EOF unless `preventClose` is set. With default cancellation options, an `AbortSignal` cancels the source and aborts the destination, including pending I/O, then rejects the pipe promise with the abort reason. `preventCancel` and `preventAbort` suppress cleanup for their corresponding side. A pipe does not terminate a child process; call `child.close()` in `finally` when the child is owned by the current runtime.
 
 通常実行とeventsファイルのmirrorはバイト列を流します。`--events=-`や`--observe`ではstdoutが観察用に使われ、出力は文字列イベントとして扱います。任意バイナリの転送に観察stdoutを使わないでください。
 
 ## Worker
 
-Workers register the same `node:child_process.spawn` extension. Their stdin is empty and output is inherited from the host; terminating a Worker reclaims children it started. If `Profile.Environment.Env` is set, that environment is used by default; otherwise the child inherits the host-configured default. An explicit spawn `env` replaces the whole environment.
+Workers register the same `node:child_process.spawn` extension. When standard I/O is selected, their `node:process` stdin reaches immediate EOF and stdout/stderr use the configured host destinations; terminating a Worker reclaims children it started. If `Profile.Environment.Env` is set, that environment is used by default; otherwise the child inherits the host-configured default. An explicit spawn `env` replaces the whole environment.
 
 ```js
 await (async () => {

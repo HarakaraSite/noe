@@ -45,7 +45,7 @@
 
 | グループ | 現在の状態 | 残る検討 |
 | --- | --- | --- |
-| 1：プロセスと標準I/O | **完了**。`node:child_process.spawn`の子プロセスハンドルとstdin/stdout/stderr、`noe:io`のホスト標準I/Oストリーム | [公開契約](process-io.md)・[実装記録](development/process-io-implementation.md)を参照 |
+| 1：プロセスと標準I/O | **完了**。`node:child_process.spawn`の子プロセスハンドルと`node:process`のホスト標準I/O Web Streams | [公開契約](process-io.md)・[実装記録](development/process-io-implementation.md)を参照 |
 | 2: Add APIs for specific needs | **Completed.** FileHandle operations are part of `node:fs/promises`; `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides OS signal subscriptions. | See the [current contracts](low-level-io.md) and the [original implementation record](development/low-level-group2-implementation.md). Filesystem [phase 1](development/stdlib-fs-integration.md) and [phase 2](development/stdlib-fs-basics.md) were released in [v2.13.0](releases/v2.13.0.md), including FileHandle stat/truncate/sync, creation/append flags, Dirent, and approved error/metadata normalization. |
 | 3：後続候補 | **未完了**。ファイル変更通知、端末操作 | ポーリングやCLIと比較。TTY判定・サイズ・raw mode・PTYは別々に評価 |
 
@@ -215,7 +215,7 @@ NOE内の親子agentは既存の起動・観察・操作APIで連携でき、こ
 
 Workerのloaderは`noe:agent`を受け付けません。通常JSからのagent起動は既に非同期で、並行起動や親子の委譲のためにWorker対応を足す必要はありません。必要ならWorkerからmainへメッセージを送り、mainでagentを呼ぶ構成を取れます。
 
-重い計算・解析の途中から直接agentを呼ぶ用途で中継が実際の不便になった時に検討します。module登録だけでなく、Host/Client scope・認証への接続、Worker終了時の取消しと所有関係も決めます。`node:child_process.spawn`・`noe:io`のWorker対応や、MCPクライアントのWorker検証とは別の残件です。
+重い計算・解析の途中から直接agentを呼ぶ用途で中継が実際の不便になった時に検討します。module登録だけでなく、Host/Client scope・認証への接続、Worker終了時の取消しと所有関係も決めます。`node:child_process.spawn`・`node:process` stdioのWorker対応や、MCPクライアントのWorker検証とは別の残件です。
 
 照合根拠：[`NOE Profile`](../internal/noeprofile/profile.go)はWorkerへagent bindingを導入せず、[`import_map_test.go`](../internal/runtime/import_map_test.go)もこの制約を検証する。
 

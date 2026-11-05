@@ -39,7 +39,7 @@ func TestOutputNormalizationChecksDynamicComparability(t *testing.T) {
 			defer rt.Close()
 			_, err := InstallProfile(rt, ProfileConfig{Core: stdlib.Config{
 				Stdout: tc.stdout, Stderr: tc.stderr,
-				Process: &stdlib.Process{Stdout: tc.stdout, Stderr: tc.stderr},
+				Process: &stdlib.Process{},
 			}})
 			if err != nil {
 				t.Fatal(err)

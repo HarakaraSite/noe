@@ -14,6 +14,9 @@ milestone. The approved API uses symbolic filesystem error codes with the
 positive platform OS number in `errno`, `mtime` as a Date, and canonical POSIX
 file-type, permission, and special bits in `mode`.
 
+Phase 3 is now implemented and locally verified in the two process and
+standard-I/O slices below. Those changes are not released yet.
+
 ## Phases
 
 | Phase | Work | Intended outcome |
@@ -122,8 +125,8 @@ Current filesystem contracts and implementation entry points:
 2026-11-05, after the v2.13.0 filesystem milestone. Phase 3 has started
 with a source and consumer audit. The user then approved the first slice:
 publish the existing Promise/Web Streams `spawn` through `node:child_process`
-and remove `noe:process` without a compatibility adapter. Standard-I/O facade
-changes remain a later slice.
+and remove `noe:process` without a compatibility adapter. The standard-I/O
+follow-up is recorded in the second slice below.
 
 The command backends are already shared: captured `node:child_process`
 operations in `internal/stdlib/exec.go` and streaming `noe:process.spawn`
@@ -161,9 +164,8 @@ events. Its standard I/O uses Node streams. Moving NOE's current function
 under a Node-style module name retains NOE-specific semantics, documented
 explicitly in its reference. It does not establish Node spawn compatibility.
 
-Decide standard-I/O entry points and any synchronous-facade migration as
-a subsequent slice. Preserve the current separation of ProcessInfo, Stdio,
-and Commands capabilities and the main/Worker ownership rules throughout.
+The subsequent standard-I/O slice preserves the separation of ProcessInfo,
+Stdio, and Commands capabilities and the main/Worker ownership rules.
 
 ### Implementation and validation
 
@@ -207,6 +209,106 @@ Logs, the consumer module artifact, and the temporary noebot migration patch
 are under `/tmp/noe-process-integration-863auo4a/`. The installed NOE binaries
 and running applications were not changed. No release or paid provider calls
 were performed for this slice.
+
+## Process and standard I/O integration: second slice
+
+2026-11-05, based on `64bd5c4`. After committing the process-entry slice,
+the user approved standard-I/O integration without compatibility adapters.
+Implementation and local validation are complete; this slice is not released.
+
+| Previous surface | Approved replacement |
+| --- | --- |
+| `stdin`, `stdout`, `stderr` imported from `noe:io` | Named imports from `node:process` or bare `process`. The old module is removed. |
+| Separate `process.std*` synchronous facades | The same byte Web Streams as the module's named exports. Default and global process properties share their locks and lifecycle. |
+| `process.stdin.read()` returning text or `null` | Use a Web reader, async iteration, or `await new Response(stdin).text()`. Whole-input text consumption returns an empty string at empty EOF. |
+| `process.stdout.write(text)` / `stderr.write(text)` returning a boolean | Encode text and await a Web writer's `write(Uint8Array)`, releasing the writer when finished. The old `isTTY` facade is also removed. |
+| `pipe(source, destination, options)` | `source.pipeTo(destination, options)`. The native helper is removed. Use an actual AbortSignal for the standard signal option; the old helper's falsy/structural signal extensions are not retained. |
+
+The shared streams have one lock each: code cannot independently acquire
+writers through named and default/global aliases at the same time. Console
+output still uses the configured host destination independently of the
+runtime's Web Stream endpoint.
+
+Capability selection remains independent. With ProcessInfo and Stdio selected,
+the default process object is also the global object and exposes the same
+three streams. With Stdio alone, the module default and named exports provide
+only streams; no process metadata or global process object is installed.
+With ProcessInfo alone, the module default/global metadata remain available
+and standard-I/O properties and named exports are absent. Neither capability
+means the process module is unavailable.
+
+Workers retain immediate-EOF stdin and their configured output destinations.
+Runtime-owned endpoints are reclaimed without closing borrowed host streams.
+The public Go Environment and Profile selection fields remain unchanged;
+the obsolete standard-I/O fields in the internal metadata configuration and
+its synchronous implementations are removed.
+
+Removing the native pipe helper requires fixing standard `pipeTo` cancellation:
+its previous abort listener only set a flag while reads/writes could remain
+pending. The implementation must actively stop eligible endpoints, preserve
+the abort reason, honor preventClose/preventAbort/preventCancel, and release
+locks on completion and failure. The specification reference is the
+[WHATWG pipe algorithm](https://streams.spec.whatwg.org/index.html#readable-stream-pipe-to).
+The same flag-only implementation is present in the pinned upstream
+`github.com/go-quickjs/go-quickjs@v0.32.0/stdlib/streams.go`; a future upstream
+proposal should separate this correctness fix from NOE's API consolidation.
+
+The remote noebot revision remains
+`45de74771d9c048448afb1e7f1039b0b45a01443`. Its inspected sources do not use
+`noe:io`, synchronous `process.std*` calls, or process-module standard-I/O
+imports. No further noebot source migration was identified for this slice;
+the earlier two required spawn-import changes remain queued separately.
+
+### Second-slice implementation and validation
+
+`internal/stdlib.Processes` now installs metadata only.
+`internal/nativeio.Host.Stdio` builds the execution-owned Web Streams, and
+`internal/noestdlib` publishes them through `ProcessStdio` before user
+initializers or Worker entry imports. The old native module and pipe helper
+and the separate synchronous metadata-configuration fields are removed.
+
+The standard pipe implementation now actively handles shutdown while reads,
+writes, or backpressure are pending. Cancellation actions start together;
+accepted writes settle before pipe completion and lock release. An internal
+read-interruption helper preserves source data when preventCancel is set,
+without changing public reader.releaseLock behavior. EOF under backpressure
+and asynchronous EOF close the destination once. Stop-wait subscriptions are
+removed after each operation, avoiding retention across long-lived pipes.
+
+Validation passed:
+
+- Full unit tests for `internal/stdlib`, `internal/nativeio`,
+  `internal/noestdlib`, `internal/jsexec`, `internal/runtime`, `internal/cli`,
+  and public `stdlib`.
+- Targeted race tests for pipe cancellation and prevent flags, scoped standard
+  I/O, alias identity, shutdown, and nested Worker cleanup.
+- CLI process/standard-I/O, summarize-stdin, low-level ownership/cancellation,
+  and HTTP upload/receive E2E tests.
+- External public stdlib consumer through a checkout replacement and a
+  standalone module artifact. Covers Stdio without ProcessInfo, aliases,
+  inherited Worker behavior, and retained ownership of borrowed input/output.
+  The artifact built for all six release targets; runtime checks ran on Linux.
+- Six offline `.noe/lib` suites and remote noebot S1 31/31, S2 83/83,
+  S3 45/45, and images 11/11. The temporary noebot copy contains only the
+  previously required spawn-import changes.
+- TypeScript positive/negative fixtures, API catalog tests, changed JavaScript
+  lint/syntax, affected-package vet, and whitespace checks.
+- Candidate CLI reference checks; process-worker, binary process-pipeline,
+  and summarize-stdin examples; both authentication-helper help commands.
+- Independent read-only review of module registration, capability separation,
+  ownership, Worker behavior, and pipe shutdown. Review findings about EOF,
+  accepted-write completion, and retained stop subscriptions were fixed and
+  checked with targeted runtime probes. No actionable findings remained.
+
+The first full unit run found an old optional-chaining stdin call in
+`scripts/auth-codex-images.js`, which the literal-call audit had missed.
+It now consumes the Web Stream while retaining sanitized callback errors.
+The local OAuth fixture tests and the full runtime package passed after the
+fix; no real provider calls or credential changes were needed.
+
+Evidence is under `/tmp/noe-stdio-integration-dkaizbjk/`, including unit,
+runtime recheck, race, E2E, public consumer, library, and noebot logs. Installed
+NOE binaries and running applications were not replaced or restarted.
 
 ## Development and distribution tools
 

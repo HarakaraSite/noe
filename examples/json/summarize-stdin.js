@@ -1,5 +1,7 @@
 // printf '[100,200,300]\n' | ./noe run examples/json/summarize-stdin.js
-const values = JSON.parse(process.stdin.read() ?? "");
+import { stdin } from "node:process";
+
+const values = JSON.parse(await new Response(stdin).text());
 if (!Array.isArray(values) || !values.every(value => typeof value === "number" && Number.isFinite(value))) {
   throw new TypeError("stdin must be a JSON array of finite numbers");
 }

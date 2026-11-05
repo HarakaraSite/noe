@@ -127,13 +127,13 @@ func (r *heldInput) ReadContext(ctx context.Context, p []byte) (int, error) {
 }
 func (r *heldInput) Close() error { r.closed.Add(1); return nil }
 
-func TestManagedCancelStopsSynchronousAndNativeStdioWithoutClosingBorrowedStreams(t *testing.T) {
+func TestManagedCancelStopsConsoleAndWebStdioWithoutClosingBorrowedStreams(t *testing.T) {
 	for name, source := range map[string]string{
 		"console":        `console.log("blocked");`,
-		"process-output": `process.stdout.write("blocked");`,
-		"native-output":  `import {stdout} from "noe:io";const w=stdout.getWriter();await w.write(new Uint8Array([1]));`,
-		"process-input":  `process.stdin.read();`,
-		"native-input":   `import {stdin} from "noe:io";await stdin.getReader().read();`,
+		"process-output": `const w=process.stdout.getWriter();try{await w.write(new TextEncoder().encode("blocked"));}finally{w.releaseLock();}`,
+		"native-output":  `import {stdout} from "node:process";const w=stdout.getWriter();await w.write(new Uint8Array([1]));`,
+		"process-input":  `const r=process.stdin.getReader();try{await r.read();}finally{r.releaseLock();}`,
+		"native-input":   `import {stdin} from "node:process";await stdin.getReader().read();`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			writer := &heldOutput{entered: make(chan struct{}), release: make(chan struct{})}
@@ -211,7 +211,7 @@ func TestManagedFreshLoaderWorkerInitializerAndVirtualImports(t *testing.T) {
 			return func(specifier, referrer string) (string, string, error) {
 				switch specifier {
 				case "./worker-entry.mjs":
-					return `import {parentPort} from "node:worker_threads";import {stdin} from "noe:io";import {value} from "./dep.mjs";if(!(await stdin.getReader().read()).done)throw new Error("worker inherited stdin");parentPort.postMessage(value);`, "memory:worker-entry", nil
+					return `import {parentPort} from "node:worker_threads";import {stdin} from "node:process";import {value} from "./dep.mjs";if(!(await stdin.getReader().read()).done)throw new Error("worker inherited stdin");parentPort.postMessage(value);`, "memory:worker-entry", nil
 				case "./dep.mjs":
 					// The virtual root uses cwd, while a loaded Worker module keeps its ID.
 					if referrer != "memory:worker-entry" && filepath.Dir(referrer) != cwd {

@@ -27,7 +27,7 @@ func stdlibTopics() []topicSpec {
 		{ID: "node:path", Kind: "module", Summary: "Computes path strings without reading the filesystem.", File: "stdlib-path.md", Aliases: []string{"path"}},
 		{ID: "node:path/posix", Kind: "module", Summary: "The explicit POSIX path-flavor module.", File: "stdlib-path-posix.md", Aliases: []string{"path/posix"}},
 		{ID: "node:path/win32", Kind: "module", Summary: "The explicit Windows path-flavor module.", File: "stdlib-path-win32.md", Aliases: []string{"path/win32"}},
-		{ID: "node:process", Kind: "module", Summary: "Exports the process object as the module default and as the global process.", File: "stdlib-process.md", Aliases: []string{"process"}},
+		{ID: "node:process", Kind: "module", Summary: "Exports process metadata and host standard I/O Web Streams.", File: "stdlib-process.md", Aliases: []string{"process"}},
 		{ID: "node:querystring", Kind: "module", Summary: "Parses and serializes legacy query-string text.", File: "stdlib-querystring.md", Aliases: []string{"querystring"}},
 		{ID: "node:stream/web", Kind: "module", Summary: "Exports Web Streams classes and strategies, including text encoding/decoding streams.", File: "stdlib-stream-web.md", Aliases: []string{"stream/web"}},
 		{ID: "node:string_decoder", Kind: "module", Summary: "Decodes byte chunks without losing a UTF-8 character split across chunk boundaries.", File: "stdlib-string-decoder.md", Aliases: []string{"string_decoder"}},

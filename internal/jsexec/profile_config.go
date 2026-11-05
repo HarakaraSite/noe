@@ -21,7 +21,6 @@ func lowerConfig(profile Profile, env Environment, backend *filesystem.Backend, 
 	if modules.ProcessInfo {
 		cfg.Process = &lower.Process{
 			Args: cloneArgs(env.Args), Env: cloneMap(env.Env), Cwd: env.Cwd,
-			Stdin: env.Stdin, Stdout: env.Stdout, Stderr: env.Stderr,
 		}
 	}
 	if modules.OS != nil {

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { stdout, stderr } from "noe:io";
+import { stdout, stderr } from "node:process";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 

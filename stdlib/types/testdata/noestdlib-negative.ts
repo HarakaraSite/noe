@@ -1,7 +1,10 @@
 import {readFileSync, readdirSync, statSync} from "node:fs";
 import {exec, execFile, spawnSync} from "node:child_process";
+import processModule from "node:process";
 // @ts-expect-error NOE's live spawn API is now part of node:child_process.
 import {spawn as legacySpawn} from "noe:process";
+// @ts-expect-error Standard I/O is exported from node:process, not noe:io.
+import {stdin as legacyStdin} from "noe:io";
 import {ReadableStream} from "node:stream/web";
 import {connect} from "noe:sockets";
 import {open as openFile} from "node:fs/promises";
@@ -55,6 +58,23 @@ subscribe("SIGQUIT");
 // @ts-expect-error NOE does not register node:net
 import type {Socket} from "node:net";
 void (undefined as unknown as Socket);
+
+if (processModule.stdin) {
+  // @ts-expect-error stdin is a byte ReadableStream; use a reader or Response.
+  processModule.stdin.read();
+  // @ts-expect-error Web Streams do not expose the old isTTY facade.
+  processModule.stdin.isTTY;
+}
+if (processModule.stdout) {
+  // @ts-expect-error stdout is a byte WritableStream; use getWriter().write().
+  processModule.stdout.write("text");
+  // @ts-expect-error Web Streams do not expose the old isTTY facade.
+  processModule.stdout.isTTY;
+}
+if (processModule.stderr) {
+  // @ts-expect-error stderr is a byte WritableStream; use getWriter().write().
+  processModule.stderr.write("text");
+}
 
 // NOE supports base64 but not Node's base64url encoding extension.
 // @ts-expect-error base64url is not implemented by Buffer

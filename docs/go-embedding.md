@@ -76,14 +76,23 @@ resolvers, clients, providers, and callbacks remain borrowed.
 
 | `Modules` field | Capability |
 | --- | --- |
-| `ProcessInfo` | `process`, `process.cwd()`, and `process.env` |
-| `Stdio` | `noe:io` and the selected environment's streams |
+| `ProcessInfo` | Process metadata, `process.cwd()`, `process.env`, and the global `process` object |
+| `Stdio` | Named `node:process` standard I/O Web Streams and the selected environment's streams |
 | `FS` | `node:fs` and `node:fs/promises`; `FileSystemOptions` selects `Root` and `ReadOnly` |
 | `Commands` | `node:child_process` captured commands and NOE-specific Web Streams `spawn`; options select `Allow`, timeout, output limit, and optional `Supervisor` |
 | `DNS`, `Fetch`, `Serve`, `WebSockets` | The corresponding network capability and its limits/callbacks |
 | `RawSockets`, `Signals` | `noe:sockets` and `noe:signals` |
 | `Workers`, `OS` | Worker runtimes and selected host-information behavior |
 | `Random`, `WindowsPaths` | Random source and path interpretation for the execution |
+
+`ProcessInfo` and `Stdio` are independent. With Stdio alone, `node:process`
+exports the streams and a default object containing them, but there is no
+global `process` or process metadata. With ProcessInfo alone, the default and
+global process objects provide metadata but have no standard I/O properties,
+and the named stream exports are absent. With both selected, the default and
+global process `stdin`, `stdout`, and `stderr` properties are the same Web
+Stream objects as the named exports. Workers receive empty stdin (immediate
+EOF) and share the configured output destinations.
 
 The same `Environment` supplies cwd, arguments, environment variables, and
 standard streams to selected modules. `Env == nil` means an empty environment;

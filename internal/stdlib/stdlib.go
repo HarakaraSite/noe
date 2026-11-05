@@ -89,8 +89,6 @@ type Config struct {
 	// workerInstaller replaces legacy worker installation for Profile-based
 	// callers and receives the worker's own runtime and loop on its owner.
 	workerInstaller WorkerInstaller
-	// processStdio is nil on the legacy path, which preserves its old behavior.
-	processStdio *bool
 	// environmentCwd/environmentArgs/environmentEnv keep Profile state tied to
 	// the execution even when process metadata is not installed.
 	environmentCwd  string
@@ -133,10 +131,9 @@ func Install(rt *quickjs.Runtime, cfg Config) error {
 	return install(rt, cfg)
 }
 
-// InstallProfile installs a normalized Profile configuration. processStdio
-// keeps process metadata and standard streams independently selectable.
-func InstallProfile(rt *quickjs.Runtime, cfg Config, processStdio bool, workerInstaller WorkerInstaller) error {
-	cfg.processStdio = &processStdio
+// InstallProfile installs a normalized Profile configuration. Standard I/O
+// adapters are composed separately from process metadata by the caller.
+func InstallProfile(rt *quickjs.Runtime, cfg Config, workerInstaller WorkerInstaller) error {
 	cfg.workerInstaller = workerInstaller
 	return install(rt, cfg)
 }
@@ -249,21 +246,7 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 		}
 	}
 	if cfg.Process != nil {
-		// process.stdout and the console write to the same places unless the
-		// host has said otherwise: they are the same two streams.
-		if cfg.Process.Stdout == nil {
-			cfg.Process.Stdout = cfg.Stdout
-		}
-		if cfg.Process.Stderr == nil {
-			cfg.Process.Stderr = cfg.Stderr
-		}
-		var err error
-		if cfg.processStdio == nil {
-			err = Processes(rt, cfg.Process)
-		} else {
-			err = processes(rt, cfg.Process, *cfg.processStdio)
-		}
-		if err != nil {
+		if err := Processes(rt, cfg.Process); err != nil {
 			return err
 		}
 	}

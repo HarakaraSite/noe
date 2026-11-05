@@ -7,15 +7,15 @@ import (
 	"testing"
 )
 
-func TestProcessStdinReadIsSynchronousAndConsumesInput(t *testing.T) {
+func TestProcessStdinWebStreamConsumesInput(t *testing.T) {
 	for _, input := range []string{"", "[100,200,300]\n", "雪\n日本語\n", "last line"} {
 		t.Run(input, func(t *testing.T) {
 			reader := &trackedStdin{Reader: strings.NewReader(input)}
 			want := jsString(t, input)
-			source := `const first = process.stdin.read();
-if (first !== ` + want + ` && !(first === null && ` + want + ` === "")) throw Error("stdin contents");
-if (first instanceof Promise) throw Error("stdin read must be synchronous");
-if (process.stdin.read() !== null) throw Error("stdin was not consumed");
+			source := `const body = new Response(process.stdin);
+const first = await body.text();
+if (first !== ` + want + `) throw Error("stdin contents");
+if (!body.bodyUsed) throw Error("stdin body was not consumed");
 console.log("stdin ready");`
 			out := runStdlib(t, source, Options{Stdin: reader})
 			if out != "stdin ready\n" {
@@ -26,7 +26,7 @@ console.log("stdin ready");`
 			}
 		})
 	}
-	if out := runStdlib(t, `console.log(process.stdin.read() === null)`, Options{}); out != "true\n" {
+	if out := runStdlib(t, `console.log(await new Response(process.stdin).text() === "")`, Options{}); out != "true\n" {
 		t.Fatalf("empty default stdin output=%q", out)
 	}
 }

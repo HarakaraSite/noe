@@ -47,15 +47,15 @@ func TestDocsAreIndependentFromIOAndProcess(t *testing.T) {
 	rt := quickjs.New()
 	defer rt.Close()
 	input := &observedInput{}
-	if _, err := InstallProfile(rt, ProfileConfig{Core: stdlib.Config{
+	if _, err := InstallProfile(rt, ProfileConfig{IO: IOConfig{Stdin: input}, Core: stdlib.Config{
 		NoWebAPIs: true,
-		Process:   &stdlib.Process{Stdin: input},
+		Process:   &stdlib.Process{},
 	}}); err != nil {
 		t.Fatal(err)
 	}
 	ns, err := rt.EvalModule("docs-test.mjs", `
 		import {docs} from "noe:docs";
-		export const text = docs("noe:io");
+		export const text = docs("node:process");
 		export const typeError = (() => { try { docs(1); } catch (e) { return e.name; } })();
 		export const missing = (() => { try { docs("no-such-topic"); } catch (e) { return e.code; } })();
 	`)
@@ -63,7 +63,7 @@ func TestDocsAreIndependentFromIOAndProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	text, err := ns.Get("text")
-	if err != nil || !strings.Contains(text.String(), "host `stdin`, `stdout`, and `stderr`") {
+	if err != nil || !strings.Contains(text.String(), "Reference: `node:process`") {
 		t.Fatalf("docs returned %q, %v", text.String(), err)
 	}
 	typeError, _ := ns.Get("typeError")
@@ -107,7 +107,7 @@ func TestInstallClonesSettingsAndCanReuseConfiguration(t *testing.T) {
 		}
 	}
 
-	if process.Stdout != nil || process.Stderr != nil || process.Env["A"] != "one" || len(process.Args) != 2 {
+	if process.Env["A"] != "one" || len(process.Args) != 2 {
 		t.Fatalf("caller Process was modified: %#v", process)
 	}
 	if cfg.Core.FS.Loop != nil || cfg.Core.Fetch.Loop != nil || cfg.Core.DNS.Loop != nil || cfg.Core.Run.Loop != nil || cfg.Core.Serve.Loop != nil {
@@ -157,7 +157,7 @@ func TestOutputNormalizationAliasesAndBorrowsWriters(t *testing.T) {
 		sink := &bytes.Buffer{}
 		rt := quickjs.New()
 		bindings, err := InstallProfile(rt, ProfileConfig{Core: stdlib.Config{
-			Stdout: sink, Stderr: sink, Process: &stdlib.Process{Stdout: sink, Stderr: sink},
+			Stdout: sink, Stderr: sink, Process: &stdlib.Process{},
 		}})
 		if err != nil {
 			t.Fatal(err)
@@ -186,7 +186,7 @@ func TestOutputNormalizationAliasesAndBorrowsWriters(t *testing.T) {
 		var sink uncomparableWriter = make([]byte, 0, 64)
 		rt := quickjs.New()
 		_, err := InstallProfile(rt, ProfileConfig{Core: stdlib.Config{
-			Stdout: sink, Process: &stdlib.Process{Stdout: sink},
+			Stdout: sink, Process: &stdlib.Process{},
 		}})
 		if err != nil {
 			t.Fatal(err)

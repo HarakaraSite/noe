@@ -44,6 +44,9 @@ func run() error {
 	if err := commands(ctx); err != nil {
 		return err
 	}
+	if err := stdio(ctx); err != nil {
+		return err
+	}
 	root, err := os.MkdirTemp("", "noe-public-stdlib-")
 	if err != nil {
 		return err
@@ -52,7 +55,7 @@ func run() error {
 	if err := os.WriteFile(filepath.Join(root, "value.mjs"), []byte(`export const value=42;`), 0600); err != nil {
 		return err
 	}
-	worker := `import {parentPort} from "node:worker_threads";import {value} from "value";import {stdin} from "noe:io";if(!(await stdin.getReader().read()).done||process.stdin.read()!==null)throw Error("worker stdin");parentPort.postMessage(value);parentPort.close();`
+	worker := `import {parentPort} from "node:worker_threads";import {value} from "value";import {stdin} from "node:process";if(stdin!==process.stdin)throw Error("worker stdin identity");const reader=stdin.getReader();try{if(!(await reader.read()).done)throw Error("worker stdin");}finally{reader.releaseLock();}parentPort.postMessage(value);parentPort.close();`
 	if err := os.WriteFile(filepath.Join(root, "worker.mjs"), []byte(worker), 0600); err != nil {
 		return err
 	}
@@ -87,7 +90,7 @@ func run() error {
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[consumer]", Virtual: true, Module: true, Code: `
 import {value} from "value";import {Worker} from "node:worker_threads";import {docs} from "noe:docs";
 import {open,readdir} from "node:fs/promises";
-if(value!==42||process.env.SELECTED!=="yes"||process.cwd()!=="/"||process.stdin.read()!=="borrowed input")throw Error("environment");
+if(value!==42||process.env.SELECTED!=="yes"||process.cwd()!=="/"||await new Response(process.stdin).text()!=="borrowed input")throw Error("environment");
 const missing=await open("missing.mjs").then(()=>null,error=>error);if(missing?.code!=="ENOENT"||typeof missing.errno!=="number"||missing.errno<=0)throw Error("filesystem error normalization");
 const file=await open("value.mjs");try{const buffer=new Uint8Array(6);const result=await file.read(buffer);if(result.bytesRead!==6||result.buffer!==buffer)throw Error("standard FS handle");}finally{await file.close();}
 const created=await open("created.bin","wx+",0o600);
@@ -140,6 +143,26 @@ if (await import("noe:process").then(()=>true,()=>false)) throw Error("removed p
 	}}}})
 	if err != nil || result.Code != 0 {
 		return fmt.Errorf("command consumer result=%+v error=%s", result, stdlib.Diagnostic(err))
+	}
+	return nil
+}
+
+func stdio(ctx context.Context) error {
+	input := &borrowedInput{reader: strings.NewReader("stdio input")}
+	output := new(borrowedSink)
+	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[stdio consumer]", Virtual: true, Module: true, Code: `
+import selected, {stdin,stdout,stderr} from "node:process";
+import bare, {stdin as bareInput,stdout as bareOutput} from "process";
+if (selected!==bare || stdin!==bareInput || stdout!==bareOutput || selected.stdin!==stdin || selected.stdout!==stdout || selected.stderr!==stderr)
+  throw Error("stdio aliases");
+if (typeof process!=="undefined" || "env" in selected || "argv" in selected) throw Error("stdio metadata selection");
+await stdin.pipeTo(stdout,{preventClose:true});
+const writer=stdout.getWriter();
+try { await writer.write(new TextEncoder().encode(" tail")); } finally { writer.releaseLock(); }
+if (await import("noe:io").then(()=>true,()=>false)) throw Error("removed stdio module");
+`}, stdlib.Profile{Environment: stdlib.Environment{Stdin: input, Stdout: output}, Modules: stdlib.Modules{Stdio: true}})
+	if err != nil || result.Code != 0 || output.String() != "stdio input tail" || input.closed || output.closed {
+		return fmt.Errorf("stdio consumer result=%+v output=%q error=%s", result, output.String(), stdlib.Diagnostic(err))
 	}
 	return nil
 }

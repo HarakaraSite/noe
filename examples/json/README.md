@@ -32,7 +32,7 @@ printf '[100,200,300]\n' | ./noe run examples/json/summarize-stdin.js
 ```sh
 DEMO_DIR=$(mktemp -d)
 ./noe run examples/json/collect-json.js examples/json/data/numbers > "$DEMO_DIR/summary.json"
-./noe eval 'const report = JSON.parse(process.stdin.read()); console.log(report.total)' < "$DEMO_DIR/summary.json"
+./noe eval 'import {stdin} from "node:process"; const report = JSON.parse(await new Response(stdin).text()); console.log(report.total)' < "$DEMO_DIR/summary.json"
 # 800
 ```
 

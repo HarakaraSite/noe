@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-func TestProcessStdinReadRunAndEvalPreservePipedInput(t *testing.T) {
+func TestProcessStdinWebStreamRunAndEvalPreservePipedInput(t *testing.T) {
 	cases := []struct {
 		name  string
 		input string
@@ -27,7 +27,7 @@ func TestProcessStdinReadRunAndEvalPreservePipedInput(t *testing.T) {
 		{name: "final text without newline", input: "last line: 雪だるま☃"},
 		{name: "empty", input: ""},
 	}
-	source := `const value = process.stdin.read();
+	source := `const value = await new Response(process.stdin).text();
 console.log(JSON.stringify({ value }));`
 
 	for _, mode := range []string{"run", "eval"} {
@@ -43,9 +43,6 @@ console.log(JSON.stringify({ value }));`
 				got := runCLIWithInput(t, work, tc.input, args...)
 				requireExit(t, got, 0)
 				var value any = tc.input
-				if tc.input == "" {
-					value = nil // process.stdin.read() returns null when there is no data.
-				}
 				wantJSON, err := json.Marshal(struct {
 					Value any `json:"value"`
 				}{Value: value})
@@ -183,7 +180,7 @@ func TestSummarizeStdinExampleAndPipeline(t *testing.T) {
 		t.Fatalf("summarize example: stdout=%q stderr=%q", got.stdout, got.stderr)
 	}
 
-	verify := `const value = JSON.parse(process.stdin.read());
+	verify := `const value = await new Response(process.stdin).json();
 if (value.count !== 3 || value.total !== 600 || value.average !== 200) throw new Error("pipeline value mismatch");
 console.log("pipeline verified");`
 	piped := runCLIWithInput(t, work, got.stdout, "eval", verify)

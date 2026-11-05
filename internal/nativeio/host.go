@@ -48,6 +48,7 @@ type Host struct {
 	wg          sync.WaitGroup
 	stopRuntime func() bool
 	spawnValue  quickjs.Value
+	stdioValues map[string]quickjs.Value
 }
 
 // Install must run on the runtime owner, after stdlib.Install. The caller
@@ -106,16 +107,14 @@ func install(rt *quickjs.Runtime, opts Options, modules Modules) (result *Host, 
 		}
 		if modules.Stdio {
 			exports := make(map[string]quickjs.Value)
-			for _, name := range []string{"stdin", "stdout", "stderr", "pipe"} {
+			for _, name := range []string{"stdin", "stdout", "stderr"} {
 				v, e := values.Get(name)
 				if e != nil {
 					return nil, e
 				}
 				exports[name] = v
 			}
-			if err := rt.SetModuleValues("noe:io", exports); err != nil {
-				return nil, err
-			}
+			h.stdioValues = exports
 		}
 		if modules.Commands {
 			spawn, e := values.Get("spawn")
@@ -148,6 +147,9 @@ func install(rt *quickjs.Runtime, opts Options, modules Modules) (result *Host, 
 // Spawn returns the owner-thread adapter for composition with captured command
 // exports. This host owns its children; the module installer owns publication.
 func (h *Host) Spawn() quickjs.Value { return h.spawnValue }
+
+// Stdio returns the owner-thread Web Streams for process-module composition.
+func (h *Host) Stdio() map[string]quickjs.Value { return h.stdioValues }
 
 // Close touches only Go resources. It never waits for JS promise delivery.
 func (h *Host) Close() {

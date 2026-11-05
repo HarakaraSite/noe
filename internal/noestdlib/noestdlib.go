@@ -72,18 +72,6 @@ func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings,
 	stdout := outputs.normalize(core.Stdout)
 	stderr := outputs.normalize(core.Stderr)
 	core.Stdout, core.Stderr = stdout, stderr
-	if core.Process != nil {
-		if core.Process.Stdout == nil {
-			core.Process.Stdout = stdout
-		} else {
-			core.Process.Stdout = outputs.normalize(core.Process.Stdout)
-		}
-		if core.Process.Stderr == nil {
-			core.Process.Stderr = stderr
-		} else {
-			core.Process.Stderr = outputs.normalize(core.Process.Stderr)
-		}
-	}
 	result := &ProfileBindings{Bindings: Bindings{Stdout: stdout, Stderr: stderr}}
 	var closeOnce sync.Once
 	closeAdapters := func() {
@@ -98,7 +86,7 @@ func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings,
 	}
 	result.close = closeAdapters
 	rt.OnClose(closeAdapters)
-	if err := stdlib.InstallProfile(rt, core, cfg.Native.Stdio, cfg.WorkerInstall); err != nil {
+	if err := stdlib.InstallProfile(rt, core, cfg.WorkerInstall); err != nil {
 		closeAdapters()
 		return nil, err
 	}
@@ -125,6 +113,12 @@ func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings,
 			return nil, installErr
 		}
 		result.native = host
+		if cfg.Native.Stdio {
+			if err := stdlib.ProcessStdio(rt, core.Process != nil, host.Stdio()); err != nil {
+				closeAdapters()
+				return nil, err
+			}
+		}
 		if cfg.Native.Commands {
 			// Complete the module before any user imports it. The same function
 			// is published through the named/default and bare/node: entry points.

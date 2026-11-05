@@ -14,7 +14,7 @@ import (
 )
 
 func TestProcessIOOpenStdinRespondsBeforeEOF(t *testing.T) {
-	source := `import {stdin,stdout} from "noe:io";
+	source := `import {stdin,stdout} from "node:process";
 const {value,done}=await stdin.getReader().read();
 if(done) throw Error("stdin unexpectedly ended");
 await stdout.getWriter().write(value);
@@ -54,7 +54,7 @@ func TestProcessIOStreamPipePreservesBinaryAboveCaptureLimit(t *testing.T) {
 	for i := range payload {
 		payload[i] = byte(i*31 + 7)
 	}
-	source := `import {stdin,stdout,pipe} from "noe:io"; await pipe(stdin,stdout);`
+	source := `import {stdin,stdout} from "node:process"; await stdin.pipeTo(stdout);`
 	got := runCLIWithInput(t, t.TempDir(), string(payload), "eval", source)
 	requireExit(t, got, 0)
 	if got.stderr != "" || !bytes.Equal([]byte(got.stdout), payload) {
@@ -63,7 +63,7 @@ func TestProcessIOStreamPipePreservesBinaryAboveCaptureLimit(t *testing.T) {
 }
 
 func TestProcessIONativeStreamRunAndEvalKeepNormalOutput(t *testing.T) {
-	source := `import {stdout} from "noe:io";
+	source := `import {stdout} from "node:process";
 await stdout.getWriter().write(new TextEncoder().encode("native stream output\n"));`
 	for _, mode := range []string{"run", "eval"} {
 		t.Run(mode, func(t *testing.T) {
@@ -85,7 +85,7 @@ await stdout.getWriter().write(new TextEncoder().encode("native stream output\n"
 
 func TestProcessIONativeStreamUsesEventsAndObserveOutputs(t *testing.T) {
 	const marker = "native stream event output"
-	source := `import {stdout} from "noe:io";
+	source := `import {stdout} from "node:process";
 await stdout.getWriter().write(new TextEncoder().encode("` + marker + `"));`
 	work := t.TempDir()
 
@@ -113,7 +113,7 @@ await stdout.getWriter().write(new TextEncoder().encode("` + marker + `"));`
 }
 
 func TestProcessIOBlockedStdinReadCancelsOnTimeout(t *testing.T) {
-	process := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--timeout=250ms", `import {stdin} from "noe:io";
+	process := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--timeout=250ms", `import {stdin} from "node:process";
 console.log("WAITING_FOR_STREAM_INPUT");
 await stdin.getReader().read();
 console.log("READ_AFTER_TIMEOUT");`)

@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, renameSy
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { randomBytes, createHash } from "node:crypto";
+import { stdin } from "node:process";
 import { save_chatgpt_credentials } from "noe:auth";
 
 const args = process.argv.slice(2);
@@ -33,8 +34,8 @@ if (command === "help" || command === "--help") {
 } else if (command === "complete") {
   console.log("Paste the full callback URL from the browser, press Enter, then press Ctrl+D on the empty line:");
   const pending = readJSON(pendingFile);
-  const text = process.stdin.read();
-  const callback = new URL(String(text || "").trim());
+  const text = await new Response(stdin).text();
+  const callback = new URL(text.trim());
   const expected = new URL(pending.redirectURI);
   if (callback.origin !== expected.origin || callback.pathname !== expected.pathname || callback.hash || callback.username || callback.password) {
     throw new Error("Callback URL does not match the running sign-in attempt");

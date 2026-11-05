@@ -1,6 +1,6 @@
 // A local echo MCP fixture. Protocol handling is JavaScript-only; the host
 // process supplies streams, not an MCP implementation.
-import { stdin, stdout } from "noe:io";
+import { stdin, stdout } from "node:process";
 
 const mode = process.argv[2] || "normal";
 const decoder = new TextDecoder();

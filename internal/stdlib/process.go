@@ -2,7 +2,6 @@ package stdlib
 
 import (
 	"context"
-	"io"
 	"os"
 	"runtime"
 	"sort"
@@ -30,10 +29,6 @@ type Process struct {
 	// Cwd is what process.cwd() answers. Empty answers "/", which is what a
 	// runtime with no filesystem has.
 	Cwd string
-	// Stdout and Stderr are where process.stdout.write and its partner go.
-	Stdout, Stderr io.Writer
-	// Stdin is what process.stdin.read() draws from, read in full on first use.
-	Stdin io.Reader
 	// Exit is called by process.exit. A host that wants the script to be able
 	// to end the program passes os.Exit; one that does not leaves it nil, and
 	// the call raises an exception the script can see but not ignore.
@@ -66,10 +61,6 @@ func SetExecutionExit(p *Process, exit func(int)) {
 // Processes installs the process object, as a global and as the "process"
 // module, which is where a program looks for it either way.
 func Processes(rt *quickjs.Runtime, cfg *Process) error {
-	return processes(rt, cfg, true)
-}
-
-func processes(rt *quickjs.Runtime, cfg *Process, exposeStdio bool) error {
 	if cfg == nil {
 		cfg = &Process{}
 	}
@@ -159,28 +150,6 @@ func processes(rt *quickjs.Runtime, cfg *Process, exposeStdio bool) error {
 		return err
 	}
 
-	if exposeStdio {
-		stdout, err := writableStream(rt, cfg.Stdout)
-		if err != nil {
-			return err
-		}
-		stderr, err := writableStream(rt, cfg.Stderr)
-		if err != nil {
-			return err
-		}
-		stdin, err := readableStream(rt, cfg.Stdin)
-		if err != nil {
-			return err
-		}
-		if err := setAll(p, map[string]any{
-			"stdout": stdout,
-			"stderr": stderr,
-			"stdin":  stdin,
-		}); err != nil {
-			return err
-		}
-	}
-
 	// The event interface a node program expects, as far as it means anything
 	// here: "exit" is called when the host says the program is ending, and
 	// "unhandledRejection" when a promise nobody took is rejected. Anything
@@ -218,6 +187,28 @@ func processes(rt *quickjs.Runtime, cfg *Process, exposeStdio bool) error {
 	return setNodeModule(rt, "process", exports)
 }
 
+// ProcessStdio publishes one set of Web Streams through the process module.
+// Metadata and the global process object are used only when explicitly selected.
+func ProcessStdio(rt *quickjs.Runtime, processInfo bool, streams map[string]quickjs.Value) error {
+	p := rt.NewObject()
+	if processInfo {
+		var err error
+		p, err = rt.Get("process")
+		if err != nil {
+			return err
+		}
+	}
+	exports := map[string]any{"default": p}
+	for _, name := range []string{"stdin", "stdout", "stderr"} {
+		value := streams[name]
+		if err := p.Set(name, value); err != nil {
+			return err
+		}
+		exports[name] = value
+	}
+	return setNodeModule(rt, "process", exports)
+}
+
 // listening reports whether the script listens for one of process's events.
 func listening(p quickjs.Value, event string) bool {
 	listeners, err := p.Get("listeners")
@@ -245,49 +236,6 @@ func ExitCode(rt *quickjs.Runtime) (int, bool) {
 		return 0, false
 	}
 	return int(f), true
-}
-
-// writableStream is the little of a stream that a script writing output needs.
-func writableStream(rt *quickjs.Runtime, w io.Writer) (quickjs.Value, error) {
-	o := rt.NewObject()
-	err := setAll(o, map[string]any{
-		"write": func(s string) bool {
-			if w == nil {
-				return true
-			}
-			io.WriteString(w, s)
-			return true
-		},
-		"isTTY": false,
-	})
-	return o, err
-}
-
-// readableStream is the little of a stream that a script reading input needs:
-// the whole of it, read when first asked for.
-func readableStream(rt *quickjs.Runtime, r io.Reader) (quickjs.Value, error) {
-	var contents string
-	var read bool
-	o := rt.NewObject()
-	err := setAll(o, map[string]any{
-		"read": func() any {
-			if r == nil {
-				return nil
-			}
-			if !read {
-				b, _ := io.ReadAll(r)
-				contents, read = string(b), true
-			}
-			if contents == "" {
-				return nil
-			}
-			out := contents
-			contents = ""
-			return out
-		},
-		"isTTY": false,
-	})
-	return o, err
 }
 
 func setAll(o quickjs.Value, entries map[string]any) error {

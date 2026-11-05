@@ -195,3 +195,19 @@ images 11/11 on the candidate NOE binary. The patch and logs are under
 `/tmp/noe-process-integration-863auo4a/`, including
 `noebot-spawn-import.patch`. The actual noebot repositories and running
 applications were not changed.
+
+### Standard-I/O audit for the following slice
+
+The next approved NOE slice replaces `noe:io` and synchronous `process.std*`
+facades with byte Web Streams from `node:process`, using standard `pipeTo`
+instead of the native `pipe` helper. A source audit at the same remote noebot
+revision found no use of those APIs in its application or test sources.
+No additional noebot edits were identified for standard I/O. Keep the required
+two spawn-import changes above in the consolidated noebot instruction.
+
+The completed standard-I/O candidate was also checked against a temporary
+copy containing only those two spawn-import changes: S1 31/31, S2 83/83,
+S3 45/45, and images 11/11 passed. The remote `main` still resolved to the
+same revision at the end of the audit. Logs and the import patch are under
+`/tmp/noe-stdio-integration-dkaizbjk/`. The real noebot repositories remain
+unchanged.

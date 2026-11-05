@@ -71,7 +71,7 @@ NOE_OPENCODE_GO_API_KEY_FILE=/path/to/key \
 
 It compares retain ratios 0.1/0.2 and disabled trimming with controlled tool-output padding, then runs a natural task without padding. Each task has a 12-request / 180-second experiment bound. See the [implementation and behavior record](../docs/development/context-trimming-implementation.md); optional memory-file creation is not a success condition.
 
-`process_io*_e2e_test.go`は新しい`node:child_process`・`noe:io`を実CLIで確認します。開いたままの入力、40 MiBの転送、観察出力、Worker終了、fixture providerからのmanaged run_jsを`cancel_task`・timeout・SIGINTで停止し、所有するOS subprocessを回収する経路を含みます。task/tool JavaScriptはCLIと同じprocess内の別VMで実行するため、VM終了判定に`process.pid`を使いません。実providerへの接続は不要です。公式MCP SDKの任意の適合確認は[scripts/spikes/process-io-mcp](../scripts/spikes/process-io-mcp/README.md)へ分離しています。
+`process_io*_e2e_test.go`は新しい`node:child_process`・`node:process`を実CLIで確認します。開いたままの入力、40 MiBの転送、観察出力、Worker終了、fixture providerからのmanaged run_jsを`cancel_task`・timeout・SIGINTで停止し、所有するOS subprocessを回収する経路を含みます。task/tool JavaScriptはCLIと同じprocess内の別VMで実行するため、VM終了判定に`process.pid`を使いません。実providerへの接続は不要です。公式MCP SDKの任意の適合確認は[scripts/spikes/process-io-mcp](../scripts/spikes/process-io-mcp/README.md)へ分離しています。
 
 `low_level*_e2e_test.go` exercise FileHandle operations from `node:fs/promises` and the `noe:sockets` and `noe:signals` APIs through the built CLI. They cover positional file I/O, concurrent TCP/Unix round trips, responses after send FIN, run/eval, Workers, JSONL/observe, fixture-agent tool execution, task cancellation, timeout/SIGINT during accept and I/O, Worker shutdown, restored signal defaults after unsubscribe, and Unix pathname cleanup after normal close and forced termination. OS signals are sent to dedicated child processes.
 

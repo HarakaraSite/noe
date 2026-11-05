@@ -26,57 +26,6 @@
     });
   }
 
-  async function pipe(source, destination, { signal, preventClose = false } = {}) {
-    // Keep falsy values as no signal and accept structurally compatible signals.
-    if (signal && (typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function"))
-      throw new TypeError("signal must provide addEventListener and removeEventListener");
-    const reader = source.getReader();
-    let writer;
-    try { writer = destination.getWriter(); }
-    catch (error) { reader.releaseLock(); throw error; }
-    let aborted = false, reason, stopping;
-    const stop = error => {
-      if (!stopping) {
-        // Start both cancellations before awaiting either: either endpoint may
-        // currently be waiting on its peer. Handle both rejections immediately.
-        stopping = Promise.allSettled([reader.cancel(error), writer.abort(error)]);
-      }
-      return stopping;
-    };
-    const abort = () => {
-      aborted = true;
-      reason = signal.reason === undefined ? new Error("The operation was aborted") : signal.reason;
-      stop(reason);
-    };
-    try {
-      if (signal) {
-        signal.addEventListener("abort", abort, { once: true });
-        if (signal.aborted) abort();
-      }
-      while (!aborted) {
-        const { value, done } = await reader.read();
-        if (aborted) break;
-        if (done) {
-          if (!preventClose) await writer.close();
-          if (aborted) throw reason;
-          return;
-        }
-        await writer.write(value);
-      }
-      throw reason;
-    } catch (error) {
-      await stop(aborted ? reason : error);
-      throw aborted ? reason : error;
-    } finally {
-      try {
-        if (signal) signal.removeEventListener("abort", abort);
-      } finally {
-        try { reader.releaseLock(); }
-        finally { writer.releaseLock(); }
-      }
-    }
-  }
-
   async function spawn(command, args = [], options = {}) {
     if (typeof command !== "string" || !command || command.includes("\0"))
       throw new TypeError("command must be a nonempty string without NUL");
@@ -131,5 +80,5 @@
     };
   }
 
-  return { stdin: readable(host.stdin), stdout: writable(host.stdout), stderr: writable(host.stderr), pipe, spawn };
+  return { stdin: readable(host.stdin), stdout: writable(host.stdout), stderr: writable(host.stderr), spawn };
 })
