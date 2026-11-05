@@ -3269,3 +3269,68 @@ and installation records. Passing source-suite results were reused rather
 than repeated for release. Native execution is Linux amd64; the other five
 targets received build and checksum verification. This documentation-only
 follow-up preserves the immutable release tag.
+
+## v2.13.0 preparation — 2026-11-05
+
+The user authorized commit, release, and the established local placement
+flow after filesystem phases 1 and 2 were completed. Phase 2 is committed as
+`67528d9`; this release also includes filesystem integration `e4368d2` and
+agent-library optimizations `08fedd6` and `7b7df57` after v2.12.0. See the
+[release notes](v2.13.0.md) for the intentionally breaking JS migration.
+The public Go API/import paths remain on the existing `/v2` module line.
+
+Checked clean native candidate: `832e4a27fbd7b22b2bde11ded016bde0ae57bc2e`.
+The only production-Go difference after the verified feature source is the
+CLI Version string. Go 1.27.2, go-quickjs v0.32.0, go-intl v0.8.0, disabled
+JIT, the release profile, and the six-target CI workflow are unchanged.
+
+### Reused implementation evidence
+
+- [Filesystem phase 1](../development/stdlib-fs-integration.md) and
+  [phase 2](../development/stdlib-fs-basics.md): affected core/public/runtime
+  and API catalog units, targeted race checks, CLI run/eval/Workers/agent
+  tools, Root/ReadOnly and lifecycle regressions, TypeScript fixtures,
+  JS lint, vet, and independent reviews. The finalized phase 2 consumer
+  artifact ran and built for all six targets; library suites and 170 remote
+  noebot tests passed without consumer changes. Evidence and source hashes:
+  `/tmp/noe-fs-phase1-IJeRd4` and `/tmp/noe-fs-phase2-0N5iae`.
+- [Agent context serialization](../development/agentlib-optimization.md):
+  unit/public/runtime, race, CLI context E2E, vet, and serialization/benchmark
+  evidence at `/tmp/noe-agentlib-opt-g7j4w93x/results.json`.
+- [Conversation appends and SSE](../development/agentlib-checkpoint-sse-optimization.md):
+  agent/public/model/bridge/runtime checks, scoped race, complete local CLI
+  E2E, vet, JS lint, and measurements at
+  `/tmp/noe-agentlib-checkpoint-sse-t57yl1gy/results.json`.
+
+All 52 changed Go/JS/module paths since v2.12.0 match the layered implementation
+source manifests, including removed files, or the checked version-only update.
+Both dependency files are unchanged. The full passing source suites are
+reused rather than repeated for release.
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test, CGO disabled | PASS |
+| Clean release-flags native build | PASS; candidate revision above, vcs.modified=false |
+| Candidate version/arithmetic, regexp/JSON/switch | PASS |
+| Candidate image/model/auth/Worker/node:vm exports | PASS |
+| Authentication helpers' offline help | PASS |
+| Filesystem migration smoke | PASS; legacy module absent, normalized error/metadata, create/truncate/sync/append/Dirent |
+| Dependency/build metadata and disabled JIT | PASS |
+| Selected documentation links | PASS, 150 references |
+| Source manifests and diff formatting | PASS |
+
+Release helpers, the candidate, source/evidence manifests, native smoke,
+and metadata are retained at `/tmp/noe-v2.13.0-release-ujSR0q`. CI builds and
+publishes the immutable tag without rerunning these source checks. Published
+checksums/build records, native behavior, and clean external stdlib/agent
+consumers will be checked before placement.
+
+The existing dist/ build-output provenance limitation remains: later CI
+binaries can report vcs.modified=true after earlier outputs are created.
+Their source revision, dependencies, target settings, and published hashes
+must still match. Native runtime checks here are Linux amd64; other targets
+receive build/checksum verification.
+
+The verified Linux amd64 release asset will atomically replace repository
+`./noe` and `/home/agent/.local/bin/noe`, with v2.12.0 backups. Existing
+processes are not restarted and adopt it at their next normal restart.
