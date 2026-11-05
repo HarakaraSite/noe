@@ -34,12 +34,12 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.12.0 release notes](docs/releases/v2.12.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.12.0)
+[v2.13.0 release notes](docs/releases/v2.13.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.13.0)
 
-v2.12.0 adopts native Go JSON v2 processing across NOE, stdlib, and agentlib.
-It also improves timer management, stream backpressure, and incremental
-decompression. See the [release notes](docs/releases/v2.12.0.md) for JSON
-compatibility details and manual stream-writing guidance.
+v2.13.0 unifies filesystem handles under `node:fs/promises`, adds creation,
+append, metadata, sync, and Dirent operations, and reduces agent-library
+serialization and SSE overhead. This includes breaking filesystem API and
+result changes; see the [migration notes](docs/releases/v2.13.0.md).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -54,7 +54,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.12.0
+# noe v2.13.0
 ```
 
 The examples below assume the repository root is your working directory.

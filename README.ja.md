@@ -35,12 +35,12 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.12.0リリースノート](docs/releases/v2.12.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.12.0)
+[v2.13.0リリースノート](docs/releases/v2.13.0.md) · [バイナリのダウンロード](https://forge.harakara.site/littleisland/noe/releases/tag/v2.13.0)
 
-v2.12.0 adopts native Go JSON v2 processing across NOE, stdlib, and agentlib.
-It also improves timer management, stream backpressure, and incremental
-decompression. See the [release notes](docs/releases/v2.12.0.md) for JSON
-compatibility details and manual stream-writing guidance.
+v2.13.0 unifies filesystem handles under `node:fs/promises`, adds creation,
+append, metadata, sync, and Dirent operations, and reduces agent-library
+serialization and SSE overhead. This includes breaking filesystem API and
+result changes; see the [migration notes](docs/releases/v2.13.0.md).
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
@@ -54,7 +54,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.12.0
+# noe v2.13.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。
