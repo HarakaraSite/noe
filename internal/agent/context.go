@@ -405,15 +405,15 @@ type contextHistoryStats struct {
 }
 
 func measureContextHistory(messages, tools []jsonv1.RawMessage, estimates map[string]int64) (contextHistoryStats, error) {
-	messageData, err := json.Marshal(messages)
+	messagesBytes, err := jsonEncodedSize(messages)
 	if err != nil {
 		return contextHistoryStats{}, fmt.Errorf("encode context messages: %w", err)
 	}
-	toolData, err := json.Marshal(tools)
+	toolsBytes, err := jsonEncodedSize(tools)
 	if err != nil {
 		return contextHistoryStats{}, fmt.Errorf("encode context tools: %w", err)
 	}
-	return contextHistoryStats{len(messageData), len(messages), len(toolData), historyImageTokens(messages, estimates)}, nil
+	return contextHistoryStats{messagesBytes, len(messages), toolsBytes, historyImageTokens(messages, estimates)}, nil
 }
 
 func prepareContextEstimateFromStats(state *contextRunState, runID string, stats contextHistoryStats) contextSnapshot {

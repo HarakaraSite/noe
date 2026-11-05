@@ -108,10 +108,19 @@ func (s *contextRunState) executionSnapshot() *executionContextSnapshot {
 }
 
 func contextHistoryDigest(messages, tools []jsonv1.RawMessage) string {
-	encoded, _ := json.Marshal(struct {
+	value := struct {
 		Messages []jsonv1.RawMessage
 		Tools    []jsonv1.RawMessage
-	}{messages, tools})
+	}{messages, tools}
+	if !largeJSONValues(messages, tools) {
+		digest := sha256.New()
+		if err := json.MarshalWrite(digest, value); err == nil {
+			return hex.EncodeToString(digest.Sum(nil))
+		}
+	}
+	// Also preserve the previous digest of Marshal's partial output for invalid
+	// histories; preparation rejects these before they can be admitted.
+	encoded, _ := json.Marshal(value)
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:])
 }
@@ -150,16 +159,16 @@ func historyPartsFromStats(messages []jsonv1.RawMessage, layout *contextHistoryL
 		if entry.Kind == "protected" {
 			protected = append(protected, group...)
 		} else {
-			encoded, _ := json.Marshal(group)
-			weights = append(weights, estimateContextTokens(len(encoded)-1, 0)+historyImageTokens(group, estimates))
+			encodedBytes, _ := jsonEncodedSize(group)
+			weights = append(weights, estimateContextTokens(encodedBytes-1, 0)+historyImageTokens(group, estimates))
 		}
 		offset += entry.Count
 	}
 	if offset != len(messages) {
 		return 0, 0, nil, fmt.Errorf("context history count mismatch")
 	}
-	fixedData, _ := json.Marshal(protected)
-	fixed := estimateContextTokens(len(fixedData), stats.toolsBytes) + historyImageTokens(protected, estimates)
+	fixedBytes, _ := jsonEncodedSize(protected)
+	fixed := estimateContextTokens(fixedBytes, stats.toolsBytes) + historyImageTokens(protected, estimates)
 	execution := max(0, estimateContextTokens(stats.messagesBytes, stats.toolsBytes)+stats.imageTokens-fixed)
 	return fixed, execution, weights, nil
 }
