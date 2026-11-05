@@ -223,7 +223,7 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 		}
 		// Compressing reads bytes and writes bytes, and the stream form of it
 		// needs the streams above.
-		if err := Compression(rt); err != nil {
+		if err := compression(rt, cfg.Loop); err != nil {
 			return err
 		}
 		// And the smaller modules, which are mostly what is already here

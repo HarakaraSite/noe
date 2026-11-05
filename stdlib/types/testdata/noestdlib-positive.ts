@@ -169,6 +169,10 @@ if (!(messageChannel.port1 instanceof MessagePort)) throw new Error("MessagePort
 messageChannel.port1.postMessage({kind: "fixture"});
 const digest: Promise<ArrayBuffer> = crypto.subtle.digest("SHA-256", encoded);
 const compressed = new CompressionStream("gzip");
+const transformed = new TransformStream<Uint8Array, Uint8Array>({
+  transform(chunk, controller) { controller.enqueue(chunk); },
+  cancel(reason: unknown) { console.log(reason); },
+});
 const cloned = structuredClone({bytes: encoded}, {transfer: []});
 const timerId: number = setTimeout(() => console.log(cloned.bytes.length), 1);
 clearTimeout(timerId);
@@ -182,4 +186,4 @@ void [assertAlias, asyncHooksAlias, bufferAlias, childProcessAlias, cryptoAlias,
   currentDirectory, tagValues, decoded, timerResult, fileURL, lengthPromise, vmValue, exitCode, zipped, plainOutput, v4Records, resolverServers, binaryCommand, binaryShell,
   widenedFileOutput, widenedShellOutput, widenedSyncOutput, generalEncodingOutput, optionalBufferOutput, definiteBufferedOutput, definiteTextOutput,
   docsText, ownedStatus, fetched, readCount, socketConnect, socketListener, response, parsedBody, streamChunk,
-  digest, compressed, currentPid];
+  digest, compressed, transformed, currentPid];

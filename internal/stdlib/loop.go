@@ -281,9 +281,11 @@ func (l *Loop) discardScopeTimers(scope *ExecutionScope) {
 		}
 		if t.scope == scope {
 			t.dead = true
+			t.index = -1
 			delete(l.timers.byID, t.id)
 			continue
 		}
+		t.index = len(kept)
 		kept = append(kept, t)
 	}
 	for i := len(kept); i < len(l.timers.entries); i++ {
@@ -501,9 +503,8 @@ type timer struct {
 
 // timerQueue keeps the armed timers in the order they are due.
 //
-// A cancelled timer is marked rather than removed, because a script cancels by
-// an identifier it was given and the queue is a heap: marking costs nothing and
-// the entry falls out when its turn comes.
+// Entries keep their heap index so cancellation can remove them immediately,
+// releasing the callback and arguments even while earlier timers keep running.
 type timerQueue struct {
 	entries []*timer
 	byID    map[int64]*timer
@@ -520,6 +521,7 @@ func (q *timerQueue) add(t *timer) {
 func (q *timerQueue) cancel(id int64) {
 	if t, ok := q.byID[id]; ok {
 		t.dead = true
+		heap.Remove((*timerHeap)(q), t.index)
 		delete(q.byID, id)
 	}
 }
@@ -586,5 +588,6 @@ func (h *timerHeap) Pop() any {
 	t := old[n-1]
 	old[n-1] = nil
 	h.entries = old[:n-1]
+	t.index = -1
 	return t
 }

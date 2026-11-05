@@ -464,6 +464,7 @@ declare namespace NOEStdlib {
     start?(controller: TransformStreamDefaultController<O>): unknown;
     transform?(chunk: I, controller: TransformStreamDefaultController<O>): unknown;
     flush?(controller: TransformStreamDefaultController<O>): unknown;
+    cancel?(reason?: unknown): unknown;
   }
   interface TransformStreamDefaultController<T = unknown> {
     readonly desiredSize: number | null;

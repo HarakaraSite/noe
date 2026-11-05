@@ -28,12 +28,17 @@ const maxInflated = 1 << 30
 //
 //	import {gzipSync, gunzipSync} from "zlib"
 func Compression(rt *quickjs.Runtime) error {
-	c := &compressHost{rt: rt}
+	return compression(rt, nil)
+}
+
+func compression(rt *quickjs.Runtime, loop *Loop) error {
+	c := &compressHost{rt: rt, loop: loop}
 	host := rt.NewObject()
 	if err := setAll(host, map[string]any{
-		"deflate": c.deflate,
-		"inflate": c.inflate,
-		"packer":  c.packer,
+		"deflate":  c.deflate,
+		"inflate":  c.inflate,
+		"packer":   c.packer,
+		"unpacker": c.unpacker,
 	}); err != nil {
 		return err
 	}
@@ -66,7 +71,8 @@ func Compression(rt *quickjs.Runtime) error {
 }
 
 type compressHost struct {
-	rt *quickjs.Runtime
+	rt   *quickjs.Runtime
+	loop *Loop
 }
 
 // writerFor is the one place a format name becomes a compressor. The names are
@@ -143,9 +149,7 @@ func (c *compressHost) inflate(format string, data quickjs.Value) (quickjs.Value
 // packer hands back a compressor that keeps its state between calls, which is
 // what lets a stream be compressed as it goes rather than gathered first.
 //
-// There is no counterpart for decompression: a decompressor has to be pulled
-// rather than pushed, and the stream that feeds it cannot be pulled from
-// another goroutine without the runtime going with it.
+// The asynchronous counterpart for decompression is in compress_stream.go.
 func (c *compressHost) packer(format string) (quickjs.Value, error) {
 	var out bytes.Buffer
 	w, err := writerFor(format, &out)
@@ -154,9 +158,10 @@ func (c *compressHost) packer(format string) (quickjs.Value, error) {
 	}
 	closed := false
 	take := func() quickjs.Value {
-		b := append([]byte(nil), out.Bytes()...)
+		// NewBytes copies into the runtime before the buffer is reused.
+		b := c.rt.NewBytes(out.Bytes())
 		out.Reset()
-		return c.rt.NewBytes(b)
+		return b
 	}
 	o := c.rt.NewObject()
 	err = setAll(o, map[string]any{
@@ -227,27 +232,56 @@ const compressJS = `(function (host) {
     }
   }
 
-  // Going the other way the input is gathered first: a decompressor is pulled
-  // rather than pushed, and there is nothing here to pull it.
+  // Go owns the decoder and its pipes; only byte snapshots cross goroutines.
+  // Reading drives output, so a slow consumer holds input writes back too.
   class DecompressionStream {
     constructor(format) {
       host.cloneAs(this, "opaque");
-      const name = String(format);
-      const chunks = [];
-      const inner = new TransformStream({
-        transform(chunk) { chunks.push(asBytes(chunk)); },
-        flush(controller) {
-          let total = 0;
-          for (const c of chunks) total += c.length;
-          const all = new Uint8Array(total);
-          let at = 0;
-          for (const c of chunks) { all.set(c, at); at += c.length; }
-          const out = host.inflate(name, all);
-          if (out.length > 0) controller.enqueue(out);
+      const unpacker = host.unpacker(String(format));
+      let readableController, writableController, failed = false, failure;
+      const remember = reason => {
+        if (!failed) { failed = true; failure = reason; }
+      };
+      const fail = reason => {
+        if (failed) return;
+        remember(reason);
+        readableController.error(reason);
+        writableController.error(reason);
+        unpacker.abort();
+      };
+      this.readable = new ReadableStream({
+        start(controller) { readableController = controller; },
+        async pull(controller) {
+          try {
+            const chunk = await unpacker.read();
+            if (failed) return;
+            if (chunk === null) controller.close();
+            else controller.enqueue(chunk);
+          } catch (error) { fail(error); }
+        },
+        cancel(reason) {
+          remember(reason);
+          writableController.error(reason);
+          unpacker.abort();
+        },
+      }, {highWaterMark: 0});
+      this.writable = new WritableStream({
+        start(controller) { writableController = controller; },
+        async write(chunk) {
+          try { await unpacker.write(asBytes(chunk)); }
+          catch (error) { fail(error); throw failure; }
+        },
+        async close() {
+          try { await unpacker.close(); }
+          catch (error) { fail(error); throw failure; }
+        },
+        abort(reason) {
+          remember(reason);
+          readableController.error(reason);
+          unpacker.abort();
         },
       });
-      this.readable = inner.readable;
-      this.writable = inner.writable;
+      unpacker.finished.catch(fail);
     }
   }
 

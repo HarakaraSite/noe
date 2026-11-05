@@ -87,6 +87,25 @@ try {
 
 A writer owns the stream lock until released. Closing or aborting the writer also settles the stream's closed promise.
 
+## TransformStream
+
+TransformStream(transformer?, writableStrategy?, readableStrategy?) connects a writable side to a readable side. The transformer can provide start, transform, flush, and cancel hooks. Each transform receives an input chunk and a controller with enqueue, error, terminate, and desiredSize.
+
+The readable highWaterMark defaults to 0. Writes wait for output demand, and resume when reads make room according to the readable strategy. TextEncoderStream, TextDecoderStream, and CompressionStream use the same flow control. Consume output concurrently with writes; pipeThrough and pipeTo arrange this automatically.
+
+~~~js
+const upper = new TransformStream({
+  transform(chunk, controller) { controller.enqueue(chunk.toUpperCase()); },
+});
+await ReadableStream.from(["hello", "world"])
+  .pipeThrough(upper)
+  .pipeTo(new WritableStream({write(chunk) { console.log(chunk); }}));
+~~~
+
+Readable cancellation or writable abort calls the transformer's cancel hook. Cancellation, errors, and termination release writes waiting for output demand. Callback failures propagate to both sides; termination closes the readable side and errors the writable side.
+
+The highWaterMark controls when the next transform may run. A transform or flush callback can enqueue multiple chunks at once, and callers can queue writes without awaiting them, so it is not a total memory limit.
+
 ### Source basis
 
 NOE-maintained implementation: internal/stdlib, based on github.com/go-quickjs/go-quickjs@v0.27.0/stdlib. NOE installs this module through internal/runtime/stdlib.go and reserves its bare-name alias through internal/modulemap/builtins.go.

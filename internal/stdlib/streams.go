@@ -494,7 +494,8 @@ const streamsJS = `(function (host) {
 
     _wake() {
       if (this._readyD && (this._desired > 0 || this._state !== "writable")) {
-        this._readyD.resolve(undefined);
+        if (this._state === "errored") this._readyD.reject(this._storedError);
+        else this._readyD.resolve(undefined);
         this._readyD = null;
       }
     }
@@ -504,7 +505,7 @@ const streamsJS = `(function (host) {
     // has finished.
     _write(chunk) {
       if (this._state !== "writable") {
-        return Promise.reject(this._storedError ||
+        return Promise.reject(this._state === "errored" ? this._storedError :
           new TypeError("this stream is no longer writable"));
       }
       let size = 1;
@@ -516,7 +517,8 @@ const streamsJS = `(function (host) {
         .then(() => this._started)
         .then(() => {
           if (this._state !== "writable") {
-            throw this._storedError || new TypeError("this stream is no longer writable");
+            throw this._state === "errored" ? this._storedError :
+              new TypeError("this stream is no longer writable");
           }
           return call(this._sink.write, this._sink, chunk, this._controller);
         });
@@ -534,7 +536,7 @@ const streamsJS = `(function (host) {
 
     _close() {
       if (this._state !== "writable") {
-        return Promise.reject(this._storedError ||
+        return Promise.reject(this._state === "errored" ? this._storedError :
           new TypeError("this stream is already closed"));
       }
       const done = this._chain
@@ -613,42 +615,110 @@ const streamsJS = `(function (host) {
       host.cloneAs(this, "transfer");
       transformer = transformer || {};
       let inner = null;
-      let terminated = false;
+      let writable;
+      let backpressure = true;
+      let pressureChange = deferred();
+      let finishPromise;
+      const started = deferred();
+
+      const setBackpressure = (value) => {
+        if (backpressure === value) return;
+        pressureChange.resolve(undefined);
+        pressureChange = deferred();
+        backpressure = value;
+      };
+      const errorWritable = (reason) => {
+        writable._controller.error(reason);
+        // A write may be waiting for output demand rather than executing a
+        // transform. Every terminal path must release that wait.
+        setBackpressure(false);
+      };
+      const fail = (reason) => {
+        inner.error(reason);
+        errorWritable(reason);
+      };
 
       const controller = {
-        enqueue: (chunk) => inner.enqueue(chunk),
-        error: (reason) => { inner.error(reason); },
+        enqueue: (chunk) => {
+          try { inner.enqueue(chunk); }
+          catch (e) { fail(e); throw e; }
+          if (!inner._shouldPull()) setBackpressure(true);
+        },
+        error: fail,
         terminate: () => {
-          terminated = true;
-          try { inner.close(); } catch (e) {}
+          if (!inner._closeRequested && inner._stream._state === "readable") inner.close();
+          errorWritable(new TypeError("this transform has been terminated"));
         },
         get desiredSize() { return inner.desiredSize; },
       };
 
-      const readable = new ReadableStream({
-        start: (c) => { inner = c; },
-        // The writable side drives this one, so there is nothing to pull: a
-        // transform produces output only when it is given input.
-        cancel: (reason) => call(transformer.cancel, transformer, reason),
-      }, readableStrategy);
+      const cancel = (reason, fromReadable) => {
+        if (finishPromise) return finishPromise;
+        const finished = deferred();
+        finishPromise = finished.promise;
+        call(transformer.cancel, transformer, reason).then(() => {
+          if (fromReadable) {
+            if (writable._state === "errored") throw writable._storedError;
+            errorWritable(reason);
+          } else {
+            if (inner._stream._state === "errored") throw inner._stream._storedError;
+            inner.error(reason);
+            setBackpressure(false);
+          }
+        }).then(finished.resolve, (e) => { fail(e); finished.reject(e); });
+        return finishPromise;
+      };
 
-      const writable = new WritableStream({
-        start: () => call(transformer.start, transformer, controller),
-        write: (chunk) => {
+      const readable = new ReadableStream({
+        start: (c) => { inner = c; return started.promise; },
+        pull: () => {
+          setBackpressure(false);
+          // Keep this pull active until output fills the readable side.
+          // Another read then releases the next waiting write, including
+          // when the readable high water mark is zero.
+          return pressureChange.promise;
+        },
+        cancel: (reason) => cancel(reason, true),
+      }, {
+        highWaterMark: readableStrategy.highWaterMark === undefined ? 0 : readableStrategy.highWaterMark,
+        size: readableStrategy.size,
+      });
+
+      writable = new WritableStream({
+        start: () => started.promise,
+        write: async (chunk) => {
+          if (backpressure) await pressureChange.promise;
+          if (writable._state === "errored") throw writable._storedError;
           if (typeof transformer.transform !== "function") {
             controller.enqueue(chunk);
             return undefined;
           }
-          return call(transformer.transform, transformer, chunk, controller);
+          return call(transformer.transform, transformer, chunk, controller).catch((e) => {
+            fail(e);
+            throw e;
+          });
         },
-        close: () => call(transformer.flush, transformer, controller).then(() => {
-          if (!terminated) { try { inner.close(); } catch (e) {} }
-        }),
-        abort: (reason) => { inner.error(reason); },
+        close: () => {
+          if (writable._state === "errored") return Promise.reject(writable._storedError);
+          if (finishPromise) return finishPromise;
+          const finished = deferred();
+          finishPromise = finished.promise;
+          call(transformer.flush, transformer, controller).then(() => {
+            if (readable._state === "errored") throw readable._storedError;
+            if (!inner._closeRequested && readable._state === "readable") inner.close();
+          }).then(finished.resolve, (e) => { fail(e); finished.reject(e); });
+          return finishPromise;
+        },
+        abort: (reason) => cancel(reason, false),
       }, writableStrategy);
 
       this.readable = readable;
       this.writable = writable;
+      const startResult = typeof transformer.start === "function" ? transformer.start(controller) : undefined;
+      Promise.resolve(startResult).then(started.resolve, (e) => {
+        fail(e);
+        started.reject(e);
+      });
     }
   }
 

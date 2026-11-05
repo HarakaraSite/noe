@@ -181,6 +181,44 @@ testdata/pathcorpus_node.js
     zero-size/undefined chunks, a slow tee reader, and pending reads on close,
     cancellation, and error. This is a NOE-local optimization.
 
+14. Timer cancellation removes the entry from its heap immediately instead of
+    retaining a dead entry until it reaches the head. Callback arguments and
+    async contexts can therefore be collected while other timers keep the
+    execution running. Scope compaction refreshes surviving heap indices, and
+    removal marks popped indices invalid. `timer_cancel_test.go` covers
+    repeated cancellation, retained entries, and cancellation after scope
+    cleanup, and measures a cancellation-heavy workload.
+
+15. The compression packer passes its buffer directly to NewBytes, which
+    copies into runtime-owned memory before the buffer resets. The previous
+    intermediate byte-slice copy is removed. `compress_packer_test.go` checks
+    that later writes and close preserve earlier output for all three formats,
+    verifies round trips, and measures allocation.
+
+16. DecompressionStream now decodes incrementally on Go-owned workers instead
+    of gathering all input before one synchronous inflate. A lazy decoder
+    reads an input pipe and emits byte chunks according to readable-side
+    demand. Input snapshots isolate JavaScript buffers from Go I/O. Runtime
+    and execution-scope hooks stop and join workers; AsyncWork callbacks touch
+    JavaScript only on its owner. The existing output limit applies across
+    the whole stream. `compress_stream_test.go` covers output before input EOF,
+    backpressure, cancellation/abort, malformed/truncated/checksum errors,
+    input ownership, cumulative limits, idle construction, and runtime/scope
+    teardown. `decompress_bench_test.go` measures whole public-stream batches.
+    These compression changes are NOE-local adaptations.
+
+17. TransformStream connects readable-side demand to writable-side progress.
+    The readable high water mark defaults to zero; further transforms wait
+    when the readable strategy reports backpressure. Shared startup waits for
+    asynchronous initialization, while synchronous start failures throw from
+    the constructor. Cancellation, abort, errors, and termination unblock
+    writes waiting for demand. Callback failures propagate between the two
+    sides. Writable ready promises reject on errors, and write/close preserve
+    falsy error reasons. `streams_transform_test.go` covers queue thresholds,
+    resumption, slow sinks, terminal paths, callback failures, and derived
+    text/compression streams. The public declarations include the transformer's
+    cancel hook. These are NOE-local changes.
+
 The initial snapshot import did not intentionally change HTTP behavior, body
 limits, timeouts, module names, exports, or protocols. Subsequent NOE-local
 changes should be recorded here with their rationale and validation. Upstream
@@ -338,6 +376,162 @@ The change and benchmark are in [streams.go](streams.go) and
 [streams_queue_test.go](streams_queue_test.go). These are NOE-local changes;
 current upstream main, duplicate reports, and an upstream-only benchmark have
 not been checked. No upstream issue or PR has been submitted.
+
+### Upstream contribution candidates: cancelled timers, packer copies, and incremental decompression (2026-11-05)
+
+Implemented in the requested order against baseline NOE commit
+`41c5a9b0a894036d333425416e5feee902c3027c`: cancelled-timer release, packer
+copy removal, then incremental decompression. Dependencies and public Go/JS
+signatures are unchanged. This work remains local and does not submit an
+upstream issue/PR, publish a release, or replace installed executables.
+
+**Upstream origin.** All three original mechanisms were inherited from the
+imported v0.27.0 stdlib. Comparing the locally cached upstream v0.27.0 and
+v0.32.0 sources confirmed that both versions contain the same relevant code:
+
+| Candidate | Upstream v0.32.0 source | Inherited behavior | NOE-local improvement |
+| --- | --- | --- | --- |
+| Cancelled-timer release | [loop.go:414](https://github.com/go-quickjs/go-quickjs/blob/v0.32.0/stdlib/loop.go#L414-L419) | Cancellation marks the timer dead and removes its ID; the heap retains the callback and arguments until that entry reaches the head. | Remove the timer from the heap immediately and maintain indices through scope cleanup. |
+| Packer output copy | [compress.go:156](https://github.com/go-quickjs/go-quickjs/blob/v0.32.0/stdlib/compress.go#L156-L160) | `take` copies the buffer into a new Go slice, then `NewBytes` copies it again. | Construct the independently owned JS bytes before resetting the buffer, removing the intermediate copy. |
+| Incremental decompression | [compress.go:230](https://github.com/go-quickjs/go-quickjs/blob/v0.32.0/stdlib/compress.go#L230-L251) | `DecompressionStream` gathers all input, concatenates it, and inflates only during flush. | Bridge the Go decoder to asynchronous reads/writes with backpressure, cancellation, and cumulative output accounting. |
+
+The improvements themselves were implemented in NOE; they are not fixes
+copied from an upstream release. In particular, the incremental decoder uses
+NOE's execution-scope cleanup and installation wiring, so an upstream proposal
+must adapt that integration. The original retention/allocation/streaming
+limitations above are confirmed in the pinned sources; the measurements below
+describe NOE, not a standalone reproduction against upstream.
+
+**Cancelled timers.** The benchmark arms an earlier live interval and creates
+and cancels 1,024 distant timers with 4 KiB arguments. Previously 1,025 entries
+remained in the heap after cancellation; now only the live interval remains.
+Cancelled callback/argument references become collectible immediately.
+Arm/cancel elapsed time is approximately level (3.111 ms -> 3.126 ms per
+batch). Removal is O(log n), replacing the previous O(1) mark; this benchmark
+is not a worst-case heap-removal throughput claim. Heap indices are refreshed
+when scope cleanup compacts the queue, including when heap.Init swaps nothing.
+
+**Packer output.** NewBytes already copies its input, so only that copy is
+needed before bytes.Buffer.Reset. Previous output remains independently
+owned. Median allocated bytes per gzip batch fell from 1,299,175 to 1,225,431
+for 64 KiB input and 5,477,287 to 4,420,483 for 1 MiB input. Allocation counts
+fell by two per batch; elapsed time stayed approximately level.
+
+**Incremental decoding.** The decoder starts only on first read/write/close.
+Unused streams start no worker and do not keep the runtime busy. Output demand
+uses a zero-high-water-mark readable and an unbuffered Go channel; the decoder
+can have a pending output chunk while input writes wait. The first read uses
+a small buffer for short streams, and subsequent buffers are at most 32 KiB.
+This describes the bridge, not buffers held by the caller, source, Go codec,
+or downstream consumer. Writers should consume output concurrently, for
+example through pipeThrough/pipeTo. Earlier data may be delivered before a
+later checksum or truncation failure. The previous 1 GiB decoded-output cap
+is cumulative across all chunks. Existing Go codec framing is retained;
+this is not a claim of full Compression Standard conformance.
+
+Whole-stream gzip measurements use precompressed deterministic data, 16 KiB
+input chunks, and a consumer that counts decoded bytes without accumulating
+them. Baseline builds overlay only the old decompression implementation and
+installation call; the packer-copy fix and timer changes are retained.
+On Linux amd64, Go 1.27.2, Intel Core i9-13900HX, JIT disabled,
+GOMAXPROCS=1, medians of three 100 ms benchmark runs were:
+
+| Decoded input size | Time/batch, before -> after | Allocated bytes/batch, before -> after | Allocations/batch, before -> after |
+| --- | --- | --- | --- |
+| 1 KiB | 135.575 us -> 134.987 us | 125,975 -> 116,453 | 552 -> 632 |
+| 1 MiB | 14.814 ms -> 2.689 ms | 21,853,366 -> 4,099,367 | 6,568 -> 9,064 |
+
+The new path creates more small promise/work objects while allocating fewer
+total bytes. These are workload-specific allocation and elapsed-time results,
+not peak RSS measurements or end-to-end application speed guarantees.
+The new tests also exercise standalone Compression(rt) without a Loop by
+driving AsyncWork through Value.Await. NOE's normal installation supplies its
+Loop so attached executions also participate in scope cleanup.
+
+Focused timer tests and race checks passed before the packer change; focused
+packer tests and benchmarks passed before incremental decoding. Incremental
+tests passed for gzip, deflate, and deflate-raw both with and without a Loop.
+A bounded independent review found no actionable ownership, cancellation, or
+shutdown defect. Combined unit/local CLI E2E, including external consumers,
+passed. The combined race run passed internal/stdlib and internal/jsexec;
+public stdlib's two external-consumer tests initially failed because a new
+zlib documentation heading was interpreted as an API member. The heading was
+corrected to the catalog's prose level. Catalog/docs tests, CLI docs E2E, and
+the affected external consumers under race then passed; other passing race
+results were reused. Full vet and embedded-JavaScript lint also passed.
+Raw evidence and benchmark medians are retained at
+`/tmp/noe-stdlib-next-il7YTI`. The zlib reference now describes incremental
+processing, backpressure, cancellation, the cumulative limit, and the existing
+synchronous/callback function forms accurately.
+
+Implementation: [loop.go](loop.go), [compress.go](compress.go), and
+[compress_stream.go](compress_stream.go). Current upstream main and duplicate
+issues/PRs have not been checked. Before contributing, confirm that the relevant
+behavior remains, reproduce the proposed change and measurements independently
+of NOE's wiring, and adapt the tests to upstream's supported Go version (the
+new NOE tests use `testing/synctest.Test`, which requires Go 1.25; upstream
+v0.32.0 declares Go 1.24). Contribution remains deferred while NOE's stdlib
+improvements continue; no upstream issue or PR has been submitted.
+
+### Upstream contribution candidate: TransformStream backpressure (2026-11-05)
+
+The imported v0.27.0 and the pinned v0.32.0 contain the same
+[TransformStream implementation](https://github.com/go-quickjs/go-quickjs/blob/v0.32.0/stdlib/streams.go#L565-L609).
+Its writable hook invokes the transformer without consulting readable-side
+demand, and its readable source has no pull hook to wake blocked writes.
+As a result, a slow downstream consumer can leave the entire transformed
+output queued even when the producer awaits every write or uses pipeThrough.
+The recent FIFO indexing improvement reduces queue-draining work but does not
+provide this missing flow control.
+
+A deterministic reproduction uses an identity transform, both high water
+marks explicitly set to 1, and 256 separately allocated 64 KiB chunks. Before
+starting any read, the old NOE implementation completes all 256 writes and
+retains 16 MiB of queued output. The corrected implementation completes one
+write and retains one 64 KiB output chunk, then waits for a read. Node's native
+implementation also completes one write in the same probe. After reading
+resumes, all 256 chunks arrive in order. With the corrected default readable
+high water mark of zero, no write completes before there is output demand.
+These figures count output payload queued in this workload; they do not
+measure peak RSS or total pipeline memory. A caller can queue input writes,
+and a transform or flush callback can enqueue multiple output chunks at once.
+
+The NOE-local change follows the Streams Standard's
+[write-side wait](https://streams.spec.whatwg.org/#transform-stream-default-sink-write-algorithm)
+and [read-side pull](https://streams.spec.whatwg.org/#transform-stream-default-source-pull-algorithm)
+model. A shared pressure-change promise links the two sides; callback failure,
+cancellation, abort, and termination release blocked writes. Startup waits for
+the transformer's asynchronous initialization. A synchronous start exception
+now throws from the constructor, matching native behavior. Writable ready
+promises reject when erroring, and pending/new writes and close preserve
+error reasons such as undefined, zero, and false. Cancellation and abort call
+the transformer's cancel hook, with one shared finish promise coordinating
+cancel/flush. The existing implementation remains a supported subset of Web
+Streams, not a claim of complete standard conformance.
+
+The behavior change also applies to TextEncoderStream, TextDecoderStream, and
+CompressionStream through their existing TransformStream wiring. Manually
+driving either side requires concurrent output consumption; code that awaits
+all writes before starting reads must use a pipe or start the consumer first.
+The reference documents this behavior, and the TypeScript declarations and
+positive fixture include the existing transformer cancel hook.
+
+Implementation and regression coverage: [streams.go](streams.go) and
+[streams_transform_test.go](streams_transform_test.go). The bounded-queue and
+slow-sink tests fail against the saved pre-change streams.go and pass after
+the correction. Focused tests also cover configured byte-size accounting,
+unbounded strategies, asynchronous start, synchronous start exceptions,
+transform/flush/enqueue failures, cancel-hook rejection, falsy reasons, and
+derived text/compression streams. Whole-tree unit/local CLI E2E, including
+external Go consumers, passed. Full race checks across internal/stdlib,
+internal/jsexec, and public stdlib passed. TypeScript declaration fixtures and
+embedded-JavaScript lint passed. Raw results and the saved pre-change source
+are retained at `/tmp/noe-transform-backpressure-jmxi3c1i`.
+
+Current upstream main and duplicate issues/PRs have not been checked; upstream
+integration and independent reproduction remain prerequisites for a
+contribution. This work remains local and unreleased. No upstream issue or
+PR has been submitted, and no release or executable placement was performed.
 
 ## Evaluation and debugger difference
 
