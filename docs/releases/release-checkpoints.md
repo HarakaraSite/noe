@@ -3051,3 +3051,53 @@ request or full source-suite rerun was made for release. Native runtime
 verification is Linux amd64; other five targets have compile/build/hash
 verification. Real-account browser login on alternate port 1457 remains
 unverified. This documentation-only follow-up preserves the release tag.
+
+## v2.11.2 preparation — 2026-11-05
+
+The user authorized committing the go-quickjs update, release, and local
+placement. Latest published release: v2.11.1. Engine integration `db1bdb8`
+updates go-quickjs v0.31.1 to v0.32.0 and ports upstream's two lifecycle-test
+fixes. The release also includes previously committed remote authentication
+callback-paste guidance `6b89d1a`. See the [release notes](v2.11.2.md).
+
+Checked clean native candidate source:
+`3c21505a7a3565da049648547ee99c7ed0a79905`.
+Its production-Go and module difference from the verified integration is
+only the CLI Version string. go-intl remains v0.8.0 and Go remains 1.27.2.
+The maintained stdlib implementation and distribution workflow are unchanged.
+
+Implementation evidence is retained at
+`/tmp/noe-quickjs-v0320-xfR0og/results.json`, including hashes of the three
+integration files. Those hashes still match. The combined unit/local CLI E2E
+suite passed, including public stdlib/agent external consumers and both agent
+modes; full vet, module verification, and repeated lifecycle tests passed.
+Each changed lifecycle test passed 15 times normally across CPU counts 1, 2,
+and 4, then six times under the race detector across CPU counts 1 and 4.
+The test bodies and helpers match upstream v0.32.0 with NOE's imports retained.
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test, CGO disabled | PASS |
+| Clean native release-flags build | PASS, candidate revision above, vcs.modified=false |
+| Candidate version/arithmetic | PASS, noe v2.11.2 and 2 |
+| Candidate regular expressions, JSON output, and switch dispatch | PASS |
+| Candidate image/model/auth, Worker, and node:vm module exports | PASS |
+| Conversation/image helper offline help | PASS |
+| Build provenance | go-quickjs v0.32.0, go-intl v0.8.0, CGO_ENABLED=0, no JIT tag |
+| Native dependency graph | Disabled JIT VM code; no JIT packages |
+| Selected README/release relative links | PASS, 127 references |
+| Implementation hashes, source scope, and diff formatting | PASS |
+
+Release evidence and detached candidate source are retained at
+`/tmp/noe-v2.11.2-release-lNyMxL`. Existing source suites are reused rather
+than repeated for release. The unchanged CI builds six distribution targets,
+generates SHA256SUMS, and publishes the immutable tag. Published assets,
+source/dependency metadata, native smoke behavior, and actual public-module
+consumers are checked after publication. The previously documented dist/
+build-output provenance limitation remains applicable to later CI builds.
+
+The verified published Linux amd64 asset will atomically replace
+`/home/agent/projects/noe/noe` and `/home/agent/.local/bin/noe`, with backups
+of the current v2.11.1 executables. Running processes adopt it on their next
+normal restart. Native execution here is Linux amd64; the other five targets
+receive build and checksum verification.
