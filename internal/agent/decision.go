@@ -2,7 +2,8 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"net/http"
 	"time"
@@ -12,7 +13,7 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
-func (h *Host) decide(requestContext context.Context, op *Operation, request decision.Request) (json.RawMessage, error) {
+func (h *Host) decide(requestContext context.Context, op *Operation, request decision.Request) (jsonv1.RawMessage, error) {
 	if requestContext == nil || op == nil {
 		return nil, newOperationError(http.StatusBadRequest, "request", "decision request context is required")
 	}
@@ -65,8 +66,8 @@ func (h *Host) decide(requestContext context.Context, op *Operation, request dec
 		return nil, newOperationError(status, code, message)
 	}
 	var meta struct {
-		Model string          `json:"model"`
-		Usage json.RawMessage `json:"usage"`
+		Model string            `json:"model"`
+		Usage jsonv1.RawMessage `json:"usage"`
 	}
 	_ = json.Unmarshal(response.JSON, &meta)
 	end := events.Event{"duration": time.Since(started)}
@@ -86,7 +87,7 @@ func (h *Host) decide(requestContext context.Context, op *Operation, request dec
 	}
 	h.decorateExecution(end, group)
 	h.decisionEvent("decision.completed", fields, end)
-	return append(json.RawMessage(nil), response.JSON...), nil
+	return append(jsonv1.RawMessage(nil), response.JSON...), nil
 }
 
 func (h *Host) decisionFields(op *Operation, requestID string, request decision.Request) events.Event {

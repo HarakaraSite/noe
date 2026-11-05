@@ -2,7 +2,7 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"net/http"
 	"strings"
@@ -228,7 +228,7 @@ func (h *Host) finishJSResult(runID string, run *agentRun, started time.Time, to
 	exitCode := result.ExitCode
 	h.traceEvent(traceEvent{
 		RunID: runID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
-		Status: "js_result", Duration: time.Since(started), ExitCode: &exitCode, Reason: result.Reason,
+		Status: "js_result", Duration: int64(time.Since(started)), ExitCode: &exitCode, Reason: result.Reason,
 	})
 	fields := events.Event{"toolCallId": toolCallID, "source": "run_js"}
 	addActivityFields(fields, activityID, causedBy, origin)

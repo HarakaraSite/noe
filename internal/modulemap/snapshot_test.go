@@ -167,9 +167,10 @@ func TestParseRejectsInvalidMapsWithContext(t *testing.T) {
 		json string
 		want string
 	}{
-		{"duplicate imports", `{"imports":{},"imports":{}}`, `duplicate JSON key "imports"`},
-		{"duplicate key", `{"imports":{"x":"./one.js","x":"./two.js"}}`, `duplicate JSON key "x"`},
+		{"duplicate imports", `{"imports":{},"imports":{}}`, `duplicate object member name "imports"`},
+		{"duplicate key", `{"imports":{"x":"./one.js","x":"./two.js"}}`, `duplicate object member name "x"`},
 		{"syntax", `{"imports":`, `invalid import map JSON`},
+		{"invalid UTF-8", "{\"imports\":{\"x\":\"./\xff.js\"}}", `invalid UTF-8`},
 		{"root type", `[]`, `must be a JSON object`},
 		{"unsupported field", `{"scopes":{}}`, `unsupported import map field "scopes"`},
 		{"imports type", `{"imports":[]}`, `field "imports" must be an object`},
@@ -182,7 +183,7 @@ func TestParseRejectsInvalidMapsWithContext(t *testing.T) {
 		{"bare target", `{"imports":{"x":"y"}}`, `target must be a relative path`},
 		{"extension", `{"imports":{"x":"./x.ts"}}`, `must end in .js or .mjs`},
 		{"unsupported target URL", `{"imports":{"x":"ftp://example.invalid/x.js"}}`, `unsupported target URL scheme`},
-		{"trailing value", `{} {}`, `trailing JSON value`},
+		{"trailing value", `{} {}`, `after top-level value`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -3,7 +3,8 @@ package provider
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"io"
 	"net/http"
 	"sync"
@@ -86,9 +87,9 @@ func (p *OpenRouter) Decide(ctx context.Context, request decision.Request) (deci
 		return decision.Response{}, err
 	}
 	payload, err := json.Marshal(struct {
-		Model     string                     `json:"model"`
-		State     json.RawMessage            `json:"state"`
-		Questions map[string]json.RawMessage `json:"questions"`
+		Model     string                       `json:"model"`
+		State     jsonv1.RawMessage            `json:"state"`
+		Questions map[string]jsonv1.RawMessage `json:"questions"`
 	}{request.Model, request.State, request.Questions})
 	if err != nil {
 		return decision.Response{}, providerError(ErrorResponse, 0, nil)
@@ -112,5 +113,5 @@ func (p *OpenRouter) Decide(ctx context.Context, request decision.Request) (deci
 	if call.status != http.StatusOK || call.body == nil || call.body.readErr != nil || decision.ValidateResponse(call.body.data.Bytes()) != nil {
 		return decision.Response{}, providerError(ErrorResponse, call.status, nil)
 	}
-	return decision.Response{JSON: append(json.RawMessage(nil), call.body.data.Bytes()...), StatusCode: call.status}, nil
+	return decision.Response{JSON: append(jsonv1.RawMessage(nil), call.body.data.Bytes()...), StatusCode: call.status}, nil
 }

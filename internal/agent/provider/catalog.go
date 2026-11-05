@@ -1,8 +1,8 @@
 package provider
 
 import (
-	"bytes"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"sort"
@@ -16,8 +16,8 @@ type ModelInfo struct {
 	Description     string          `json:"description,omitempty"`
 	Tags            []string        `json:"tags,omitempty"`
 	Capabilities    map[string]bool `json:"capabilities,omitempty"`
-	ContextWindow   int64           `json:"contextWindow,omitempty"`
-	MaxOutputTokens int64           `json:"maxOutputTokens,omitempty"`
+	ContextWindow   int64           `json:"contextWindow,omitzero"`
+	MaxOutputTokens int64           `json:"maxOutputTokens,omitzero"`
 	Efforts         []string        `json:"efforts,omitempty"`
 }
 
@@ -35,7 +35,7 @@ type ModelQuery struct {
 
 // splitModel separates catalog metadata from a partial transport definition.
 // The transport overlay keeps its existing JSON format and validation path.
-func splitModel(raw json.RawMessage) (*ModelInfo, map[string]any, error) {
+func splitModel(raw jsonv1.RawMessage) (*ModelInfo, map[string]any, error) {
 	override, err := decodeObject(raw)
 	if err != nil {
 		return nil, nil, err
@@ -53,9 +53,7 @@ func splitModel(raw json.RawMessage) (*ModelInfo, map[string]any, error) {
 		return nil, nil, err
 	}
 	var info ModelInfo
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&info); err != nil {
+	if err := json.Unmarshal(data, &info, json.RejectUnknownMembers(true)); err != nil {
 		return nil, nil, err
 	}
 	if info.Kind == "" {

@@ -1,8 +1,10 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"io"
 	"net/http"
@@ -100,6 +102,17 @@ type retryHTTPClient func(*http.Request) (*http.Response, error)
 
 func (f retryHTTPClient) Do(r *http.Request) (*http.Response, error) { return f(r) }
 
+func sameJSONDocument(a, b string) bool {
+	left, right := jsontext.Value([]byte(a)), jsontext.Value([]byte(b))
+	if err := left.Format(jsontext.ReorderRawObjects(true)); err != nil {
+		return false
+	}
+	if err := right.Format(jsontext.ReorderRawObjects(true)); err != nil {
+		return false
+	}
+	return bytes.Equal(left, right)
+}
+
 func TestGenerationAdaptersRetryWithFreshResponseState(t *testing.T) {
 	for _, sdk := range []string{"openrouter", "openai"} {
 		for _, api := range []string{"chat-completions", "responses"} {
@@ -155,7 +168,7 @@ func TestGenerationAdaptersRetryWithFreshResponseState(t *testing.T) {
 					if err != nil || !strings.Contains(string(result.Message), "success") || strings.Contains(string(result.Message), "function_call") || strings.Contains(string(result.Message), "tool_calls") {
 						t.Fatalf("failed attempt contaminated the final response: %s %v", result.Message, err)
 					}
-					if len(bodies) != 3 || bodies[0] != bodies[1] || bodies[1] != bodies[2] || thinking.String() != "observed observed " {
+					if len(bodies) != 3 || !sameJSONDocument(bodies[0], bodies[1]) || !sameJSONDocument(bodies[1], bodies[2]) || thinking.String() != "observed observed " {
 						t.Fatalf("retry changed input or lost partial thinking: bodies=%v thinking=%q", bodies, thinking.String())
 					}
 					if want := []time.Duration{0, 2 * time.Second, 6 * time.Second}; !reflect.DeepEqual(attempts, want) {

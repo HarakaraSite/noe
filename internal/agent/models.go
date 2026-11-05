@@ -2,7 +2,8 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"time"
@@ -200,7 +201,7 @@ func (s operationModels) Generate(ctx context.Context, request model.Request) (m
 		}
 		return model.Response{}, err
 	}
-	if !json.Valid(response.Message) || len(response.Message) == 0 || (len(response.Usage) != 0 && !json.Valid(response.Usage)) {
+	if !validJSON(response.Message) || len(response.Message) == 0 || (len(response.Usage) != 0 && !validJSON(response.Usage)) {
 		return model.Response{}, errors.New("provider returned an invalid response")
 	}
 	usage := summarizeUsage(response.Usage)
@@ -264,8 +265,8 @@ func (s operationModels) Decide(ctx context.Context, request model.DecisionReque
 		return model.DecisionResponse{}, err
 	}
 	var metadata struct {
-		Model string          `json:"model"`
-		Usage json.RawMessage `json:"usage"`
+		Model string            `json:"model"`
+		Usage jsonv1.RawMessage `json:"usage"`
 	}
 	_ = json.Unmarshal(response.JSON, &metadata)
 	h.mu.Lock()
@@ -394,9 +395,9 @@ func (s operationModels) performImage(ctx, merged context.Context, operation, pr
 	if providerErr != nil {
 		_ = errors.As(providerErr, &providerImageErr)
 	}
-	usage := append(json.RawMessage(nil), generated.Usage...)
+	usage := append(jsonv1.RawMessage(nil), generated.Usage...)
 	if len(usage) == 0 && providerImageErr != nil {
-		usage = append(json.RawMessage(nil), providerImageErr.Usage...)
+		usage = append(jsonv1.RawMessage(nil), providerImageErr.Usage...)
 	}
 	providerRequestID := generated.RequestID
 	if providerRequestID == "" && providerImageErr != nil {
@@ -417,7 +418,7 @@ func (s operationModels) performImage(ctx, merged context.Context, operation, pr
 	if operationErr != nil {
 		details := imageapi.DescribeError(operationErr, operation, "request", generated)
 		if len(usage) != 0 {
-			details.Usage = append(json.RawMessage(nil), usage...)
+			details.Usage = append(jsonv1.RawMessage(nil), usage...)
 		}
 		if providerRequestID != "" {
 			details.RequestID = providerRequestID

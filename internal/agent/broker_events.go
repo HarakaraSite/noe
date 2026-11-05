@@ -1,8 +1,10 @@
 package agent
 
 import (
-	"encoding/json"
-	"time"
+	"bytes"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
@@ -24,7 +26,7 @@ type traceEvent struct {
 	Name     string        `json:"name,omitempty"`
 	Model    string        `json:"model,omitempty"`
 	Status   string        `json:"status"`
-	Duration time.Duration `json:"duration,omitempty"`
+	Duration int64         `json:"duration,omitempty,omitzero"`
 	Usage    *usageSummary `json:"usage,omitempty"`
 	ExitCode *int          `json:"exitCode,omitempty"`
 	Reason   string        `json:"reason,omitempty"`
@@ -44,11 +46,15 @@ func (h *Host) traceEvent(event traceEvent) {
 	}
 	h.traceMu.Lock()
 	defer h.traceMu.Unlock()
-	_ = json.NewEncoder(h.opts.Trace).Encode(event)
+	var line bytes.Buffer
+	if err := json.MarshalEncode(jsontext.NewEncoder(&line), event); err != nil {
+		return
+	}
+	_, _ = h.opts.Trace.Write(line.Bytes())
 }
 
-func summarizeUsage(raw json.RawMessage) *usageSummary {
-	if len(raw) == 0 || !json.Valid(raw) {
+func summarizeUsage(raw jsonv1.RawMessage) *usageSummary {
+	if len(raw) == 0 || !validJSON(raw) {
 		return nil
 	}
 	var usage struct {

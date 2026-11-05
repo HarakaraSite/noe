@@ -2,7 +2,8 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"math"
 	"unicode/utf8"
@@ -463,7 +464,7 @@ func cloneTaskOutcome(outcome TaskOutcome) TaskOutcome {
 		details.ProviderCode = normalizeJSONText(details.ProviderCode)
 		details.ProviderMessage = normalizeJSONText(details.ProviderMessage)
 		details.RequestID = normalizeJSONText(details.RequestID)
-		details.Usage = append(json.RawMessage(nil), outcome.ErrorDetails.Usage...)
+		details.Usage = append(jsonv1.RawMessage(nil), outcome.ErrorDetails.Usage...)
 		copy.ErrorDetails = &details
 	}
 	if outcome.omitAnswer {

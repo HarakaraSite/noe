@@ -2,7 +2,8 @@ package jsexec
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"sync/atomic"
@@ -17,7 +18,7 @@ var nextRuntimeID atomic.Uint64
 // Result contains detached execution data. JS values stay with their VM owner.
 type Result struct {
 	Code        int                          `json:"Code"`
-	Data        json.RawMessage              `json:"data,omitempty"`
+	Data        jsonv1.RawMessage            `json:"data,omitzero"`
 	Diagnostics []executionresult.Diagnostic `json:"diagnostics,omitempty"`
 }
 
@@ -222,7 +223,7 @@ func (r *Runtime) Run(source Source) (result Result, err error) {
 		if !encoded.IsString() {
 			return result, errors.New("stdlib: evaluated result could not be serialized; JSON.stringify returned no JSON text")
 		}
-		result.Data = json.RawMessage(encoded.String())
+		result.Data = jsonv1.RawMessage(encoded.String())
 		stage = "execute"
 		if err := r.loop.Run(driveCtx); err != nil {
 			return result, err

@@ -2,7 +2,8 @@ package agent
 
 import (
 	"bytes"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 )
 
@@ -13,10 +14,10 @@ type Config struct {
 	Model                  string           `json:"model,omitempty"`
 	Name                   string           `json:"name,omitempty"`
 	System                 string           `json:"system,omitempty"`
-	MaxTokens              int              `json:"maxTokens,omitempty"`
+	MaxTokens              int              `json:"maxTokens,omitempty,omitzero"`
 	Effort                 string           `json:"effort,omitempty"`
 	Cwd                    string           `json:"cwd,omitempty"`
-	Hooks                  *HookModules     `json:"hooks,omitempty"`
+	Hooks                  *HookModules     `json:"hooks,omitzero"`
 	ContextBudget          *ContextBudget   `json:"contextBudget,omitempty"`
 	ContextPolicy          *ContextPolicy   `json:"contextPolicy,omitempty"`
 	ExecutionLimits        *ExecutionLimits `json:"executionLimits,omitempty"`
@@ -33,7 +34,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*c = Config(decoded)
-	var fields map[string]json.RawMessage
+	var fields map[string]jsonv1.RawMessage
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
@@ -58,7 +59,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 }
 
 func (c Config) MarshalJSON() ([]byte, error) {
-	var rawBudget json.RawMessage
+	var rawBudget jsonv1.RawMessage
 	if c.ContextBudget != nil {
 		encoded, err := json.Marshal(c.ContextBudget)
 		if err != nil {
@@ -66,9 +67,9 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		}
 		rawBudget = encoded
 	} else if c.contextBudgetPresent {
-		rawBudget = json.RawMessage("null")
+		rawBudget = jsonv1.RawMessage("null")
 	}
-	var rawExecutionLimits json.RawMessage
+	var rawExecutionLimits jsonv1.RawMessage
 	if c.ExecutionLimits != nil {
 		encoded, err := json.Marshal(c.ExecutionLimits)
 		if err != nil {
@@ -76,9 +77,9 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		}
 		rawExecutionLimits = encoded
 	} else if c.executionLimitsPresent {
-		rawExecutionLimits = json.RawMessage("null")
+		rawExecutionLimits = jsonv1.RawMessage("null")
 	}
-	var rawContextPolicy json.RawMessage
+	var rawContextPolicy jsonv1.RawMessage
 	if c.ContextPolicy != nil {
 		encoded, err := json.Marshal(c.ContextPolicy)
 		if err != nil {
@@ -86,20 +87,20 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		}
 		rawContextPolicy = encoded
 	} else if c.contextPolicyPresent {
-		rawContextPolicy = json.RawMessage("null")
+		rawContextPolicy = jsonv1.RawMessage("null")
 	}
 	return json.Marshal(struct {
-		Provider        string          `json:"provider,omitempty"`
-		Model           string          `json:"model,omitempty"`
-		Name            string          `json:"name,omitempty"`
-		System          string          `json:"system,omitempty"`
-		MaxTokens       int             `json:"maxTokens,omitempty"`
-		Effort          string          `json:"effort,omitempty"`
-		Cwd             string          `json:"cwd,omitempty"`
-		Hooks           *HookModules    `json:"hooks,omitempty"`
-		ContextBudget   json.RawMessage `json:"contextBudget,omitempty"`
-		ContextPolicy   json.RawMessage `json:"contextPolicy,omitempty"`
-		ExecutionLimits json.RawMessage `json:"executionLimits,omitempty"`
+		Provider        string            `json:"provider,omitempty"`
+		Model           string            `json:"model,omitempty"`
+		Name            string            `json:"name,omitempty"`
+		System          string            `json:"system,omitempty"`
+		MaxTokens       int               `json:"maxTokens,omitempty,omitzero"`
+		Effort          string            `json:"effort,omitempty"`
+		Cwd             string            `json:"cwd,omitempty"`
+		Hooks           *HookModules      `json:"hooks,omitzero"`
+		ContextBudget   jsonv1.RawMessage `json:"contextBudget,omitzero"`
+		ContextPolicy   jsonv1.RawMessage `json:"contextPolicy,omitzero"`
+		ExecutionLimits jsonv1.RawMessage `json:"executionLimits,omitzero"`
 	}{c.Provider, c.Model, c.Name, c.System, c.MaxTokens, c.Effort, c.Cwd, c.Hooks, rawBudget, rawContextPolicy, rawExecutionLimits})
 }
 

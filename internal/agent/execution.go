@@ -1,7 +1,8 @@
 package agent
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
@@ -34,7 +35,7 @@ func (l *ExecutionLimits) UnmarshalJSON(data []byte) error {
 	if l == nil || len(data) == 0 || strings.TrimSpace(string(data)) == "null" {
 		return fmt.Errorf("executionLimits must be an object")
 	}
-	var fields map[string]json.RawMessage
+	var fields map[string]jsonv1.RawMessage
 	if err := json.Unmarshal(data, &fields); err != nil || fields == nil {
 		return fmt.Errorf("executionLimits must be an object")
 	}

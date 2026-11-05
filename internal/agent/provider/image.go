@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"io"
 	"net/http"
@@ -170,14 +172,14 @@ func (p *imageAdapter) securitySource(ctx context.Context) (components.Security,
 }
 
 func imageRequestBody(profile Definition, request imageapi.Request) ([]byte, error) {
-	fields := make(map[string]json.RawMessage)
+	fields := make(map[string]jsonv1.RawMessage)
 	if profile.ImageGeneration != nil {
 		for key, value := range profile.ImageGeneration.Parameters {
-			fields[key] = append(json.RawMessage(nil), value...)
+			fields[key] = append(jsonv1.RawMessage(nil), value...)
 		}
 	}
 	for key, value := range request.Parameters {
-		fields[key] = append(json.RawMessage(nil), value...)
+		fields[key] = append(jsonv1.RawMessage(nil), value...)
 	}
 	// Configuration parameters can contain provider-specific options, but the
 	// request identity and cardinality are owned by NOE.
@@ -308,27 +310,27 @@ func (p *imageAdapter) credential() string {
 }
 
 type imageResponseFields struct {
-	ID      string            `json:"id"`
-	Model   string            `json:"model"`
-	Data    []json.RawMessage `json:"data"`
-	Usage   json.RawMessage   `json:"usage"`
-	Refusal string            `json:"refusal"`
-	Blocked bool              `json:"blocked"`
-	Error   json.RawMessage   `json:"error"`
+	ID      string              `json:"id"`
+	Model   string              `json:"model"`
+	Data    []jsonv1.RawMessage `json:"data"`
+	Usage   jsonv1.RawMessage   `json:"usage"`
+	Refusal string              `json:"refusal"`
+	Blocked bool                `json:"blocked"`
+	Error   jsonv1.RawMessage   `json:"error"`
 }
 
 type imageDataFields struct {
 	B64JSON string `json:"b64_json"`
 }
 
-func parseImageResponse(body []byte) (model string, usage json.RawMessage, code, message string, refusal, hasError bool, images []string) {
+func parseImageResponse(body []byte) (model string, usage jsonv1.RawMessage, code, message string, refusal, hasError bool, images []string) {
 	var response imageResponseFields
 	if json.Unmarshal(body, &response) != nil {
 		return "", nil, "", "", false, false, nil
 	}
 	model = response.Model
-	if len(response.Usage) > 0 && json.Valid(response.Usage) {
-		usage = append(json.RawMessage(nil), response.Usage...)
+	if len(response.Usage) > 0 && jsontext.Value(response.Usage).IsValid() {
+		usage = append(jsonv1.RawMessage(nil), response.Usage...)
 	}
 	if strings.TrimSpace(response.Refusal) != "" {
 		refusal = true
@@ -353,8 +355,8 @@ func parseImageResponse(body []byte) (model string, usage json.RawMessage, code,
 	return model, usage, code, message, refusal, hasError, images
 }
 
-func parseProviderImageError(raw json.RawMessage) (code, message string, refusal bool) {
-	var fields map[string]json.RawMessage
+func parseProviderImageError(raw jsonv1.RawMessage) (code, message string, refusal bool) {
+	var fields map[string]jsonv1.RawMessage
 	if json.Unmarshal(raw, &fields) != nil {
 		return "", "", false
 	}
@@ -367,7 +369,7 @@ func parseProviderImageError(raw json.RawMessage) (code, message string, refusal
 	return code, message, refusal
 }
 
-func rawString(raw json.RawMessage) string {
+func rawString(raw jsonv1.RawMessage) string {
 	if len(raw) == 0 || string(raw) == "null" {
 		return ""
 	}
@@ -464,15 +466,15 @@ func sanitizeImageMetadata(value, credential string) string {
 	return value
 }
 
-func sanitizeImageUsage(usage json.RawMessage, credential string) json.RawMessage {
-	if len(usage) == 0 || !json.Valid(usage) {
+func sanitizeImageUsage(usage jsonv1.RawMessage, credential string) jsonv1.RawMessage {
+	if len(usage) == 0 || !jsontext.Value(usage).IsValid() {
 		return nil
 	}
 	text := sanitizeImageMetadata(string(usage), credential)
 	if strings.Contains(text, "[redacted") {
 		return nil
 	}
-	return json.RawMessage(text)
+	return jsonv1.RawMessage(text)
 }
 
 func imageFailure(code string, status int, requestID, providerCode, providerMessage, credential string) *imageapi.Error {
@@ -517,7 +519,8 @@ func (r *Registry) imageProvider(name, model string) (imageapi.Provider, error) 
 		return nil, imageFailure("unsupported", 0, "", "", "", "")
 	}
 	cacheKey := name + "\x00" + model
-	shared, _ := json.Marshal(profile)
+	// Profiles contain maps and this encoding becomes part of a cache key.
+	shared, _ := json.Marshal(profile, json.Deterministic(true))
 	sharedKey := name + string(shared)
 	r.mu.Lock()
 	defer r.mu.Unlock()

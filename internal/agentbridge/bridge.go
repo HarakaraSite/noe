@@ -5,7 +5,8 @@ package agentbridge
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"sync"
 
@@ -225,7 +226,7 @@ func (b *Binding) agentRequest(method, payload string) *quickjs.Promise {
 
 func (b *Binding) agentBeginHookScope(payload string) *quickjs.Promise {
 	promise := b.rt.NewPromise()
-	if !json.Valid([]byte(payload)) {
+	if !jsontext.Value([]byte(payload)).IsValid() {
 		promise.RejectError(errors.New("invalid hook scope request"))
 		return promise
 	}
@@ -278,7 +279,7 @@ func (b *Binding) agentRequestHook(scopeID, method, payload string) *quickjs.Pro
 		promise.RejectError(errors.New("unsupported hook agent request"))
 		return promise
 	}
-	if !json.Valid([]byte(payload)) {
+	if !jsontext.Value([]byte(payload)).IsValid() {
 		promise.RejectError(errors.New("invalid agent request JSON"))
 		return promise
 	}

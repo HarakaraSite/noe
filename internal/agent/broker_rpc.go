@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 )
 
 // RequestError is a safe request failure returned across the JS promise
@@ -77,7 +76,7 @@ func (op *Operation) call(ctx context.Context, scopeOverride, method, payload st
 	if !validOperationMethod(method) {
 		return "", &RequestError{Code: "method", Message: "unknown agent request method"}
 	}
-	if !json.Valid([]byte(payload)) {
+	if !validJSON([]byte(payload)) {
 		return "", &RequestError{Code: "request", Message: "invalid agent request JSON"}
 	}
 	return op.host.callDirect(ctx, op, scopeOverride, method, payload)

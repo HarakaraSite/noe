@@ -5,22 +5,22 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
 )
 
 // Request is one chat completion request. Messages and Tools contain complete
 // provider-compatible JSON objects and are forwarded without SDK conversion.
 type Request struct {
-	Provider  string            `json:"provider,omitempty"`
-	RunID     string            `json:"runId,omitempty"`
-	SessionID string            `json:"sessionId,omitempty"` // Stable for a managed agent instance.
-	Model     string            `json:"model"`
-	Messages  []json.RawMessage `json:"messages"`
-	Tools     []json.RawMessage `json:"tools,omitempty"`
-	CacheKey  string            `json:"cacheKey,omitempty"`
-	MaxTokens int               `json:"maxTokens,omitempty"`
-	Effort    string            `json:"effort,omitempty"`
-	Observe   func(StreamEvent) `json:"-"`
+	Provider  string              `json:"provider,omitempty"`
+	RunID     string              `json:"runId,omitempty"`
+	SessionID string              `json:"sessionId,omitempty"` // Stable for a managed agent instance.
+	Model     string              `json:"model"`
+	Messages  []jsonv1.RawMessage `json:"messages"`
+	Tools     []jsonv1.RawMessage `json:"tools,omitempty"`
+	CacheKey  string              `json:"cacheKey,omitempty"`
+	MaxTokens int                 `json:"maxTokens,omitzero"`
+	Effort    string              `json:"effort,omitempty"`
+	Observe   func(StreamEvent)   `json:"-"`
 }
 
 func (r Request) sessionID() string {
@@ -43,9 +43,9 @@ type StreamEvent struct {
 // Response contains the assistant message, completion reason and raw usage
 // object returned by a provider.
 type Response struct {
-	Message      json.RawMessage `json:"message"`
-	FinishReason string          `json:"finishReason"`
-	Usage        json.RawMessage `json:"usage,omitempty"`
+	Message      jsonv1.RawMessage `json:"message"`
+	FinishReason string            `json:"finishReason"`
+	Usage        jsonv1.RawMessage `json:"usage,omitzero"`
 }
 
 // Provider generates one assistant response for a chat history.

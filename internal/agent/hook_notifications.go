@@ -1,7 +1,8 @@
 package agent
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"strings"
 )
 
@@ -39,7 +40,7 @@ func hookFailureNotice(failures []HookFailure) string {
 	return out.String()
 }
 
-func (n *preparedContextNotification) matches(messages []json.RawMessage) bool {
+func (n *preparedContextNotification) matches(messages []jsonv1.RawMessage) bool {
 	if len(messages) == 0 {
 		return false
 	}

@@ -2,10 +2,11 @@ package agent
 
 import (
 	"bytes"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"unicode/utf8"
 )
@@ -40,14 +41,9 @@ func runJSOutputBytes(source string) (int64, error) {
 		var options struct {
 			OutputBytes *int64 `json:"outputBytes"`
 		}
-		decoder := json.NewDecoder(strings.NewReader(strings.TrimSpace(strings.TrimPrefix(comment, "@noe:"))))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&options); err != nil {
+		data := []byte(strings.TrimSpace(strings.TrimPrefix(comment, "@noe:")))
+		if err := json.Unmarshal(data, &options, json.RejectUnknownMembers(true)); err != nil {
 			return defaultToolOutputBytes, fmt.Errorf("invalid run_js @noe pragma: %w", err)
-		}
-		var extra any
-		if err := decoder.Decode(&extra); err != io.EOF {
-			return defaultToolOutputBytes, errors.New("run_js @noe pragma must contain one JSON object")
 		}
 		if options.OutputBytes == nil || *options.OutputBytes < minToolOutputBytes || *options.OutputBytes > maxToolOutputBytes {
 			return defaultToolOutputBytes, fmt.Errorf("run_js outputBytes must be an integer between %d and %d bytes", minToolOutputBytes, maxToolOutputBytes)
@@ -81,7 +77,7 @@ type toolOutputPreview struct {
 
 // projectToolOutput limits only the model-facing value, after hooks. An
 // overflow is a preview of the whole hook result, never a partial data value.
-func projectToolOutput(result, rawResult json.RawMessage, limit int64) (json.RawMessage, bool, error) {
+func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1.RawMessage, bool, error) {
 	if limit <= 0 {
 		limit = defaultToolOutputBytes
 	}
@@ -198,10 +194,11 @@ func utf8Prefix(source string, size int) string {
 	return source[:size]
 }
 
-func sameToolOutput(a, b json.RawMessage) bool {
-	var left, right bytes.Buffer
-	if json.Compact(&left, a) != nil || json.Compact(&right, b) != nil {
+func sameToolOutput(a, b jsonv1.RawMessage) bool {
+	left := jsontext.Value(a).Clone()
+	right := jsontext.Value(b).Clone()
+	if left.Format() != nil || right.Format() != nil {
 		return bytes.Equal(a, b)
 	}
-	return bytes.Equal(left.Bytes(), right.Bytes())
+	return bytes.Equal(left, right)
 }

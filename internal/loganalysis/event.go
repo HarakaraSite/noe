@@ -1,7 +1,7 @@
 package loganalysis
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"math"
 	"strconv"
 	"strings"
@@ -105,7 +105,7 @@ func boolField(event events.Event, key string) bool {
 }
 
 func uintField(value any) (uint64, bool) {
-	if number, ok := value.(json.Number); ok {
+	if number, ok := value.(jsonv1.Number); ok {
 		parsed, err := strconv.ParseUint(number.String(), 10, 64)
 		return parsed, err == nil
 	}
@@ -131,7 +131,7 @@ func uintField(value any) (uint64, bool) {
 }
 
 func int64Field(value any) (int64, bool) {
-	if number, ok := value.(json.Number); ok {
+	if number, ok := value.(jsonv1.Number); ok {
 		parsed, err := strconv.ParseInt(number.String(), 10, 64)
 		return parsed, err == nil
 	}
@@ -166,7 +166,7 @@ func intField64(value any) int64 {
 }
 
 func float64Field(value any) (float64, bool) {
-	if number, ok := value.(json.Number); ok {
+	if number, ok := value.(jsonv1.Number); ok {
 		parsed, err := strconv.ParseFloat(number.String(), 64)
 		return parsed, err == nil
 	}

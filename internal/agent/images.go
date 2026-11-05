@@ -2,7 +2,8 @@ package agent
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
@@ -135,27 +136,27 @@ func (run *agentRun) imageStore() map[string]*imageapi.Data {
 
 // Internal history holds references, never data URLs. Expansion returns new
 // request buffers, which pin bytes for the provider even during cancellation.
-func (h *Host) expandImagesLocked(run *agentRun, messages []json.RawMessage) ([]json.RawMessage, error) {
+func (h *Host) expandImagesLocked(run *agentRun, messages []jsonv1.RawMessage) ([]jsonv1.RawMessage, error) {
 	return h.processImagesLocked(run, messages, true)
 }
 
-func (h *Host) validateImagesLocked(run *agentRun, messages []json.RawMessage) error {
+func (h *Host) validateImagesLocked(run *agentRun, messages []jsonv1.RawMessage) error {
 	_, err := h.processImagesLocked(run, messages, false)
 	return err
 }
 
-func (h *Host) processImagesLocked(run *agentRun, messages []json.RawMessage, expand bool) ([]json.RawMessage, error) {
-	var result []json.RawMessage
+func (h *Host) processImagesLocked(run *agentRun, messages []jsonv1.RawMessage, expand bool) ([]jsonv1.RawMessage, error) {
+	var result []jsonv1.RawMessage
 	if expand {
-		result = make([]json.RawMessage, len(messages))
+		result = make([]jsonv1.RawMessage, len(messages))
 	}
 	store := run.imageStore()
 	for i, raw := range messages {
-		var msg map[string]json.RawMessage
+		var msg map[string]jsonv1.RawMessage
 		if json.Unmarshal(raw, &msg) != nil {
 			return nil, errors.New("invalid image message")
 		}
-		var parts []map[string]json.RawMessage
+		var parts []map[string]jsonv1.RawMessage
 		if json.Unmarshal(msg["content"], &parts) != nil {
 			if expand {
 				result[i] = raw
@@ -192,7 +193,7 @@ func (h *Host) processImagesLocked(run *agentRun, messages []json.RawMessage, ex
 	return result, nil
 }
 
-func imageReferences(messages []json.RawMessage) []string {
+func imageReferences(messages []jsonv1.RawMessage) []string {
 	var ids []string
 	for _, raw := range messages {
 		var msg struct {
@@ -212,10 +213,10 @@ func imageReferences(messages []json.RawMessage) []string {
 	}
 	return ids
 }
-func imageAttachmentMessage(raw json.RawMessage) bool {
+func imageAttachmentMessage(raw jsonv1.RawMessage) bool {
 	var m struct {
-		Role    string                       `json:"role"`
-		Content []map[string]json.RawMessage `json:"content"`
+		Role    string                         `json:"role"`
+		Content []map[string]jsonv1.RawMessage `json:"content"`
 	}
 	if json.Unmarshal(raw, &m) != nil || m.Role != "user" || len(m.Content) == 0 {
 		return false
@@ -259,7 +260,7 @@ func commitStepImagesLocked(run *agentRun, entry conversationEntry) error {
 	discardStepImages(step)
 	return nil
 }
-func reconcileImagesLocked(run *agentRun, messages []json.RawMessage) {
+func reconcileImagesLocked(run *agentRun, messages []jsonv1.RawMessage) {
 	keep := map[string]bool{}
 	for _, id := range imageReferences(messages) {
 		keep[id] = true

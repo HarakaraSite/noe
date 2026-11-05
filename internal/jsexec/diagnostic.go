@@ -2,7 +2,7 @@ package jsexec
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"math"
 	"strings"

@@ -1,7 +1,8 @@
 package provider
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"net/http"
 	"net/url"
@@ -37,7 +38,7 @@ func (c *configuredHTTPClient) Do(request *http.Request) (*http.Response, error)
 	return c.client.Do(request)
 }
 
-func parameterObject(parameters map[string]json.RawMessage) (map[string]any, error) {
+func parameterObject(parameters map[string]jsonv1.RawMessage) (map[string]any, error) {
 	if len(parameters) == 0 {
 		return make(map[string]any), nil
 	}
@@ -70,19 +71,19 @@ func configuredChatRequestBody(profile Definition, request Request) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
-	var dynamic map[string]json.RawMessage
+	var dynamic map[string]jsonv1.RawMessage
 	if err := json.Unmarshal(raw, &dynamic); err != nil {
 		return nil, err
 	}
 	delete(dynamic, "session_id")
 	delete(dynamic, "reasoning")
-	body := make(map[string]json.RawMessage)
+	body := make(map[string]jsonv1.RawMessage)
 	for key, value := range profile.Parameters {
 		body[key] = value
 	}
 	for key, value := range dynamic {
 		if key == "stream_options" && body[key] != nil {
-			var configured, required map[string]json.RawMessage
+			var configured, required map[string]jsonv1.RawMessage
 			if json.Unmarshal(body[key], &configured) == nil && json.Unmarshal(value, &required) == nil && configured != nil {
 				for key, value := range required {
 					configured[key] = value
@@ -105,16 +106,16 @@ func configuredChatRequestBody(profile Definition, request Request) ([]byte, err
 	return json.Marshal(body)
 }
 
-func putRawField(object map[string]json.RawMessage, path string, value any) {
+func putRawField(object map[string]jsonv1.RawMessage, path string, value any) {
 	key, rest, nested := strings.Cut(path, ".")
 	if !nested {
 		object[key], _ = json.Marshal(value)
 		return
 	}
-	next := make(map[string]json.RawMessage)
+	next := make(map[string]jsonv1.RawMessage)
 	_ = json.Unmarshal(object[key], &next)
 	if next == nil {
-		next = make(map[string]json.RawMessage)
+		next = make(map[string]jsonv1.RawMessage)
 	}
 	putRawField(next, rest, value)
 	object[key], _ = json.Marshal(next)

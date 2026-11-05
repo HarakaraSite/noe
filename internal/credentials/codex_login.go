@@ -6,7 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -245,7 +245,7 @@ func (a *CodexImageLogin) exchangeAndSave(ctx context.Context, code string) (Acc
 		return Account{}, fmt.Errorf("Codex image authorization-code exchange failed (HTTP %d)", response.StatusCode)
 	}
 	var tokens codexTokenResponse
-	if json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&tokens) != nil || tokens.AccessToken == "" || tokens.RefreshToken == "" || tokens.IDToken == "" {
+	if json.UnmarshalRead(io.LimitReader(response.Body, 1<<20), &tokens) != nil || tokens.AccessToken == "" || tokens.RefreshToken == "" || tokens.IDToken == "" {
 		return Account{}, errors.New("Codex image authorization-code response is incomplete")
 	}
 	claims, err := c.verifyIDToken(ctx, d, tokens.IDToken, a.clientID, a.nonce)

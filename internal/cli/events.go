@@ -2,7 +2,7 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -336,7 +336,7 @@ func (w *eventOutput) write(ctx context.Context, p []byte, cancellable bool) (in
 		at += size
 	}
 	if at > 0 {
-		event := events.Event{"type": w.kind, "text": string(w.pending[:at])}
+		event := events.Event{"type": w.kind, "text": jsonTextString(w.pending[:at])}
 		if cancellable {
 			err := w.events.EmitContext(ctx, event)
 			w.pending = w.pending[at:]
@@ -358,7 +358,22 @@ func (w *eventOutput) flush() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if len(w.pending) != 0 {
-		w.events.Emit(events.Event{"type": w.kind, "text": string(w.pending)})
+		w.events.Emit(events.Event{"type": w.kind, "text": jsonTextString(w.pending)})
 		w.pending = nil
 	}
+}
+
+// jsonTextString preserves each invalid byte as the replacement rune at the
+// byte-to-text boundary while leaving the original output stream untouched.
+func jsonTextString(data []byte) string {
+	if utf8.Valid(data) {
+		return string(data)
+	}
+	runes := make([]rune, 0, len(data))
+	for len(data) > 0 {
+		r, size := utf8.DecodeRune(data)
+		runes = append(runes, r)
+		data = data[size:]
+	}
+	return string(runes)
 }

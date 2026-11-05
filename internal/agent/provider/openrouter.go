@@ -3,7 +3,8 @@ package provider
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"io"
 	"net/http"
 	"os"
@@ -175,7 +176,9 @@ func (c *observedHTTPClient) Do(request *http.Request) (*http.Response, error) {
 		if state.responseAPI == "responses" {
 			body.extract = responsesObservations
 		} else if state.reasoningField != "" {
-			body.extract = func(raw json.RawMessage) []StreamEvent { return streamObservationsForField(raw, state.reasoningField) }
+			body.extract = func(raw jsonv1.RawMessage) []StreamEvent {
+				return streamObservationsForField(raw, state.reasoningField)
+			}
 		}
 		state.setResponse(response.StatusCode, body)
 		response.Body = body
@@ -184,10 +187,10 @@ func (c *observedHTTPClient) Do(request *http.Request) (*http.Response, error) {
 }
 
 type chatRequestBody struct {
-	Model         string            `json:"model"`
-	Messages      []json.RawMessage `json:"messages"`
-	Tools         []json.RawMessage `json:"tools,omitempty"`
-	Stream        bool              `json:"stream"`
+	Model         string              `json:"model"`
+	Messages      []jsonv1.RawMessage `json:"messages"`
+	Tools         []jsonv1.RawMessage `json:"tools,omitempty"`
+	Stream        bool                `json:"stream"`
 	StreamOptions struct {
 		IncludeUsage bool `json:"include_usage"`
 	} `json:"stream_options"`
@@ -237,11 +240,11 @@ func makeChatRequestBody(request Request) ([]byte, error) {
 	return encoded, nil
 }
 
-func isJSONObject(raw json.RawMessage) bool {
+func isJSONObject(raw jsonv1.RawMessage) bool {
 	if len(raw) == 0 {
 		return false
 	}
-	var object map[string]json.RawMessage
+	var object map[string]jsonv1.RawMessage
 	return json.Unmarshal(raw, &object) == nil && object != nil
 }
 

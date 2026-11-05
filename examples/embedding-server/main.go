@@ -4,11 +4,11 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -113,13 +113,8 @@ func newHandler(cwd string, timeout time.Duration, source stdlib.Source) http.Ha
 		}
 		// A small request limit keeps this demonstration's input bounded.
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&input); err != nil || input.Values == nil {
+		if err := json.UnmarshalRead(r.Body, &input); err != nil || input.Values == nil {
 			http.Error(w, "expected {\"values\":[number,...]}", http.StatusBadRequest)
-			return
-		}
-		if err := decoder.Decode(new(any)); err != io.EOF {
-			http.Error(w, "expected one JSON object", http.StatusBadRequest)
 			return
 		}
 		for _, value := range input.Values {
@@ -163,7 +158,7 @@ func newHandler(cwd string, timeout time.Duration, source stdlib.Source) http.Ha
 		if result.Code != 0 {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
-		if err := json.NewEncoder(w).Encode(executionResponse{
+		if err := json.MarshalEncode(jsontext.NewEncoder(w), executionResponse{
 			Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: result.Code,
 		}); err != nil {
 			log.Printf("write response: %v", err)

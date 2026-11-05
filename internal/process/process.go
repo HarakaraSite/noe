@@ -15,7 +15,7 @@ type Config struct {
 	Command string
 	Args    []string
 	Dir     string
-	Env     []string
+	Env     []string `json:"Env,omitzero"`
 
 	// Supervisor explicitly selects a POSIX helper executable. Empty starts
 	// directly. A helper main must call DispatchHelper before application work.

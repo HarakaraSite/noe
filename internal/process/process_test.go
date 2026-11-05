@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	targetModeEnv = "NOE_PROCESS_TEST_MODE"
-	ownerModeEnv  = "NOE_PROCESS_TEST_OWNER"
+	targetModeEnv    = "NOE_PROCESS_TEST_MODE"
+	ownerModeEnv     = "NOE_PROCESS_TEST_OWNER"
+	environmentCheck = "--noe-process-test-environment-check"
+	inheritedEnvKey  = "NOE_PROCESS_TEST_INHERITED"
 )
 
 func TestMain(m *testing.M) {
@@ -32,10 +34,55 @@ func TestMain(m *testing.M) {
 			}
 		}
 	}
+	if len(os.Args) == 2 && os.Args[1] == environmentCheck {
+		if value, ok := os.LookupEnv(inheritedEnvKey); ok {
+			_, _ = fmt.Fprintf(os.Stdout, "present=%s\n", value)
+		} else {
+			_, _ = io.WriteString(os.Stdout, "missing\n")
+		}
+		os.Exit(0)
+	}
 	if code, handled := DispatchHelper(os.Args[1:]); handled {
 		os.Exit(code)
 	}
 	os.Exit(m.Run())
+}
+
+func TestSupervisorPreservesNilAndEmptyEnvironment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX supervisor IPC is unavailable on Windows")
+	}
+	t.Setenv(inheritedEnvKey, "from-owner")
+	executable := testExecutable(t)
+	for _, test := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{name: "nil inherits", env: nil, want: "present=from-owner\n"},
+		{name: "empty clears", env: []string{}, want: "missing\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			child, err := Start(context.Background(), Config{
+				Supervisor: executable,
+				Command:    executable,
+				Args:       []string{environmentCheck},
+				Env:        test.env,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer child.Close()
+			result, waitErr := child.Wait()
+			output, readErr := io.ReadAll(child.Stdout)
+			if waitErr != nil || result.Code == nil || *result.Code != 0 {
+				t.Fatalf("Wait = %#v, %v", result, waitErr)
+			}
+			if readErr != nil || string(output) != test.want {
+				t.Fatalf("stdout = %q, %v; want %q", output, readErr, test.want)
+			}
+		})
+	}
 }
 
 func TestProcessTargetHelper(t *testing.T) {

@@ -1,7 +1,8 @@
 package loganalysis
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"strconv"
 	"strings"
 
@@ -49,7 +50,7 @@ func (s *runState) apply(rec record, includeOutput bool) {
 	if value := stringField(event, "groupId"); value != "" {
 		s.snapshot.GroupID = value
 	}
-	for key, target := range map[string]*json.RawMessage{"execution": &s.snapshot.Execution, "context": &s.snapshot.Context} {
+	for key, target := range map[string]*jsonv1.RawMessage{"execution": &s.snapshot.Execution, "context": &s.snapshot.Context} {
 		if value, ok := event[key]; ok {
 			if encoded, err := json.Marshal(value); err == nil {
 				*target = encoded

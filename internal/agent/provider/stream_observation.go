@@ -1,7 +1,8 @@
 package provider
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"strings"
 )
 
@@ -10,15 +11,15 @@ import (
 // exact match of the concatenated detail text is treated as a mirrored copy
 // and emitted once; differing detail text is retained as its own fragment.
 // Encrypted reasoning data and signatures are never surfaced here.
-func streamObservations(raw json.RawMessage) []StreamEvent {
+func streamObservations(raw jsonv1.RawMessage) []StreamEvent {
 	var chunk struct {
 		Choices []struct {
 			Index int `json:"index"`
 			Delta struct {
-				Reasoning        json.RawMessage `json:"reasoning"`
-				ReasoningContent json.RawMessage `json:"reasoning_content"`
-				ReasoningDetails json.RawMessage `json:"reasoning_details"`
-				Content          json.RawMessage `json:"content"`
+				Reasoning        jsonv1.RawMessage `json:"reasoning"`
+				ReasoningContent jsonv1.RawMessage `json:"reasoning_content"`
+				ReasoningDetails jsonv1.RawMessage `json:"reasoning_details"`
+				Content          jsonv1.RawMessage `json:"content"`
 			} `json:"delta"`
 		} `json:"choices"`
 	}
@@ -41,7 +42,7 @@ func streamObservations(raw json.RawMessage) []StreamEvent {
 		}
 		var details []detailObservation
 		var detailText strings.Builder
-		var rawDetails []map[string]json.RawMessage
+		var rawDetails []map[string]jsonv1.RawMessage
 		if len(choice.Delta.ReasoningDetails) > 0 && json.Unmarshal(choice.Delta.ReasoningDetails, &rawDetails) == nil {
 			for _, fields := range rawDetails {
 				var kind string
@@ -79,20 +80,20 @@ func streamObservations(raw json.RawMessage) []StreamEvent {
 	return observations
 }
 
-func streamObservationsForField(raw json.RawMessage, field string) []StreamEvent {
+func streamObservationsForField(raw jsonv1.RawMessage, field string) []StreamEvent {
 	if field == "reasoning" || field == "reasoning_content" {
 		return streamObservations(raw)
 	}
-	var chunk map[string]json.RawMessage
+	var chunk map[string]jsonv1.RawMessage
 	if json.Unmarshal(raw, &chunk) != nil {
 		return nil
 	}
-	var choices []map[string]json.RawMessage
+	var choices []map[string]jsonv1.RawMessage
 	if json.Unmarshal(chunk["choices"], &choices) != nil {
 		return nil
 	}
 	for _, choice := range choices {
-		var delta map[string]json.RawMessage
+		var delta map[string]jsonv1.RawMessage
 		if json.Unmarshal(choice["delta"], &delta) != nil {
 			continue
 		}
@@ -106,7 +107,7 @@ func streamObservationsForField(raw json.RawMessage, field string) []StreamEvent
 	return streamObservations(encoded)
 }
 
-func streamText(raw json.RawMessage) (string, bool) {
+func streamText(raw jsonv1.RawMessage) (string, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return "", false
 	}

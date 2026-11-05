@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
 
 type record struct {
@@ -105,10 +106,8 @@ func parseRecord(ctx context.Context, line []byte) (record, error) {
 	if err := ctx.Err(); err != nil {
 		return record{}, err
 	}
-	decoder := json.NewDecoder(contextReader{ctx: ctx, reader: bytes.NewReader(line)})
-	decoder.UseNumber()
 	var event events.Event
-	if err := decoder.Decode(&event); err != nil {
+	if err := json.UnmarshalRead(contextReader{ctx: ctx, reader: bytes.NewReader(line)}, &event, jsonutil.PreserveNumbers()); err != nil {
 		return record{}, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -116,16 +115,6 @@ func parseRecord(ctx context.Context, line []byte) (record, error) {
 	}
 	if event == nil {
 		return record{}, errors.New("expected a JSON object")
-	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		if err == nil {
-			return record{}, errors.New("multiple JSON values in one line")
-		}
-		return record{}, err
-	}
-	if err := ctx.Err(); err != nil {
-		return record{}, err
 	}
 	executionID, ok := event["executionId"].(string)
 	if !ok || executionID == "" {

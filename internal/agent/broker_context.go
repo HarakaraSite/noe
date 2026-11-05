@@ -1,21 +1,22 @@
 package agent
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"net/http"
 	"strings"
 	"time"
 )
 
 type contextPrepareRequest struct {
-	HistoryRevision int64                 `json:"historyRevision,omitempty"`
+	HistoryRevision int64                 `json:"historyRevision,omitempty,omitzero"`
 	RunID           string                `json:"runId"`
 	ModelStepID     string                `json:"modelStepId"`
-	Messages        []json.RawMessage     `json:"messages"`
-	Tools           []json.RawMessage     `json:"tools,omitempty"`
+	Messages        []jsonv1.RawMessage   `json:"messages"`
+	Tools           []jsonv1.RawMessage   `json:"tools,omitempty"`
 	History         *contextHistoryLayout `json:"history,omitempty"`
 	Snapshot        *conversationSnapshot `json:"snapshot,omitempty"`
-	Final           bool                  `json:"final,omitempty"`
+	Final           bool                  `json:"final,omitempty,omitzero"`
 	AppliedPlanID   string                `json:"appliedPlanId,omitempty"`
 }
 
@@ -25,10 +26,10 @@ type contextAccessRequest struct {
 }
 
 type contextSetRequest struct {
-	RunID       string          `json:"runId,omitempty"`
-	ModelStepID string          `json:"modelStepId,omitempty"`
-	Key         json.RawMessage `json:"key"`
-	Text        json.RawMessage `json:"text"`
+	RunID       string            `json:"runId,omitempty"`
+	ModelStepID string            `json:"modelStepId,omitempty"`
+	Key         jsonv1.RawMessage `json:"key"`
+	Text        jsonv1.RawMessage `json:"text"`
 }
 
 type contextGetResponse struct {

@@ -2,7 +2,8 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"sort"
 	"strings"
@@ -30,10 +31,10 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	var input []json.RawMessage
+	var input []jsonv1.RawMessage
 	callTypes := make(map[string]string)
 	for _, raw := range request.Messages {
-		var message map[string]json.RawMessage
+		var message map[string]jsonv1.RawMessage
 		if err := json.Unmarshal(raw, &message); err != nil {
 			return nil, err
 		}
@@ -42,7 +43,7 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 		switch role {
 		case "assistant":
 			if items, ok := message[nativeResponseItems]; ok {
-				var native []json.RawMessage
+				var native []jsonv1.RawMessage
 				if err := json.Unmarshal(items, &native); err != nil {
 					return nil, err
 				}
@@ -78,14 +79,14 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 		}
 		content := message["content"]
 		if role == "user" {
-			var parts []map[string]json.RawMessage
+			var parts []map[string]jsonv1.RawMessage
 			if json.Unmarshal(content, &parts) == nil {
 				for index, part := range parts {
 					var kind string
 					json.Unmarshal(part["type"], &kind)
 					switch kind {
 					case "text":
-						part["type"] = json.RawMessage(`"input_text"`)
+						part["type"] = jsonv1.RawMessage(`"input_text"`)
 					case "image_url":
 						var image struct {
 							URL    string `json:"url"`
@@ -108,21 +109,21 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 		}
 		input = append(input, encoded)
 	}
-	tools := make([]map[string]json.RawMessage, 0, len(request.Tools))
+	tools := make([]map[string]jsonv1.RawMessage, 0, len(request.Tools))
 	for _, raw := range request.Tools {
 		var tool struct {
-			Type     string                     `json:"type"`
-			Function map[string]json.RawMessage `json:"function"`
+			Type     string                       `json:"type"`
+			Function map[string]jsonv1.RawMessage `json:"function"`
 		}
 		if json.Unmarshal(raw, &tool) != nil || tool.Type != "function" || tool.Function == nil {
 			return nil, errors.New("unsupported Responses tool")
 		}
 		var name string
 		if json.Unmarshal(tool.Function["name"], &name) == nil && name == "run_js" && profile.RunJSInput == "javascript" {
-			custom := map[string]json.RawMessage{
-				"type":   json.RawMessage(`"custom"`),
+			custom := map[string]jsonv1.RawMessage{
+				"type":   jsonv1.RawMessage(`"custom"`),
 				"name":   tool.Function["name"],
-				"format": json.RawMessage(`{"type":"text"}`),
+				"format": jsonv1.RawMessage(`{"type":"text"}`),
 			}
 			if description := tool.Function["description"]; len(description) > 0 {
 				custom["description"] = description
@@ -130,7 +131,7 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 			tools = append(tools, custom)
 			continue
 		}
-		tool.Function["type"] = json.RawMessage(`"function"`)
+		tool.Function["type"] = jsonv1.RawMessage(`"function"`)
 		tools = append(tools, tool.Function)
 	}
 	body["model"], body["input"], body["tools"], body["stream"], body["store"] = request.Model, input, tools, true, false
@@ -210,14 +211,14 @@ func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Re
 // Completed streams may put the full items only in output_item.done while the
 // terminal response.output is empty (observed on ChatGPT plan Responses).
 // Retain whole raw items, including encrypted reasoning and unknown fields.
-func responseFromEvents(events []json.RawMessage) (Response, error) {
-	items := make(map[int]json.RawMessage)
+func responseFromEvents(events []jsonv1.RawMessage) (Response, error) {
+	items := make(map[int]jsonv1.RawMessage)
 	for _, raw := range events {
 		var event struct {
-			Type        string          `json:"type"`
-			Response    json.RawMessage `json:"response"`
-			Item        json.RawMessage `json:"item"`
-			OutputIndex int             `json:"output_index"`
+			Type        string            `json:"type"`
+			Response    jsonv1.RawMessage `json:"response"`
+			Item        jsonv1.RawMessage `json:"item"`
+			OutputIndex int               `json:"output_index"`
 		}
 		if json.Unmarshal(raw, &event) != nil {
 			return Response{}, providerError(ErrorResponse, 0, nil)
@@ -229,11 +230,11 @@ func responseFromEvents(events []json.RawMessage) (Response, error) {
 			items[event.OutputIndex] = event.Item
 		}
 		if event.Type == "response.completed" {
-			var envelope map[string]json.RawMessage
+			var envelope map[string]jsonv1.RawMessage
 			if json.Unmarshal(event.Response, &envelope) != nil {
 				return Response{}, providerError(ErrorResponse, 0, nil)
 			}
-			var output []json.RawMessage
+			var output []jsonv1.RawMessage
 			if raw := envelope["output"]; len(raw) > 0 && json.Unmarshal(raw, &output) != nil {
 				return Response{}, providerError(ErrorResponse, 0, nil)
 			}
@@ -245,7 +246,7 @@ func responseFromEvents(events []json.RawMessage) (Response, error) {
 				indices = append(indices, index)
 			}
 			sort.Ints(indices)
-			output = make([]json.RawMessage, 0, len(items))
+			output = make([]jsonv1.RawMessage, 0, len(items))
 			for _, index := range indices {
 				output = append(output, items[index])
 			}
@@ -260,12 +261,12 @@ func responseFromEvents(events []json.RawMessage) (Response, error) {
 	return Response{}, providerError(ErrorStream, 0, nil)
 }
 
-func responseFromNative(raw json.RawMessage) (Response, error) {
+func responseFromNative(raw jsonv1.RawMessage) (Response, error) {
 	var response struct {
-		Status string            `json:"status"`
-		Output []json.RawMessage `json:"output"`
-		Usage  json.RawMessage   `json:"usage"`
-		Error  json.RawMessage   `json:"error"`
+		Status string              `json:"status"`
+		Output []jsonv1.RawMessage `json:"output"`
+		Usage  jsonv1.RawMessage   `json:"usage"`
+		Error  jsonv1.RawMessage   `json:"error"`
 	}
 	if json.Unmarshal(raw, &response) != nil || response.Status != "completed" || (len(response.Error) > 0 && string(response.Error) != "null") {
 		return Response{}, providerError(ErrorResponse, 0, nil)
@@ -336,7 +337,7 @@ func responseFromNative(raw json.RawMessage) (Response, error) {
 	return Response{Message: encoded, FinishReason: finish, Usage: response.Usage}, nil
 }
 
-func responsesObservations(raw json.RawMessage) []StreamEvent {
+func responsesObservations(raw jsonv1.RawMessage) []StreamEvent {
 	var event struct {
 		Type  string `json:"type"`
 		Delta string `json:"delta"`

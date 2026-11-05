@@ -32,3 +32,28 @@ func TestCapturedOutputUsesRequestedBudget(t *testing.T) {
 		}
 	}
 }
+
+func TestCapturedOutputReplacesInvalidUTF8AtTextBoundary(t *testing.T) {
+	capture := capturedOutput{maxBytes: 32}
+	for _, b := range []byte{'a', 0xff, 0xc3, 0xa9, 'b', 0xe2, 0x82} {
+		if n, err := capture.Write([]byte{b}); n != 1 || err != nil {
+			t.Fatalf("write=%d,%v", n, err)
+		}
+	}
+	got, omitted := capture.result()
+	if want := "a\uFFFDéb\uFFFD\uFFFD"; got != want || omitted != 0 || !utf8.ValidString(got) {
+		t.Fatalf("result=%q omitted=%d want=%q omitted=0", got, omitted, want)
+	}
+}
+
+func TestCapturedOutputKeepsRuneAcrossUntruncatedHeadTailBoundary(t *testing.T) {
+	capture := capturedOutput{maxBytes: 32}
+	want := strings.Repeat("a", 15) + "é" + "z"
+	if n, err := capture.Write([]byte(want)); n != len(want) || err != nil {
+		t.Fatalf("write=%d,%v", n, err)
+	}
+	got, omitted := capture.result()
+	if got != want || omitted != 0 || !utf8.ValidString(got) {
+		t.Fatalf("result=%q omitted=%d want=%q omitted=0", got, omitted, want)
+	}
+}

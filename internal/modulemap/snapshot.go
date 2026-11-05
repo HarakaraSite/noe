@@ -4,9 +4,8 @@ package modulemap
 
 import (
 	"bytes"
-	"encoding/json"
+	json "encoding/json/v2"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -254,75 +253,14 @@ func validateModuleExtension(path string) error {
 	return nil
 }
 
-// decodeUniqueJSON decodes JSON while rejecting duplicate keys at every object
-// level. encoding/json's ordinary map decoding silently keeps the last value.
+// decodeUniqueJSON uses JSON v2's strict document parser, which rejects
+// duplicate names at every object depth, invalid UTF-8, and trailing values.
 func decodeUniqueJSON(data []byte) (any, error) {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	value, err := decodeJSONValue(decoder, "$")
-	if err != nil {
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
 		return nil, err
 	}
-	if _, err := decoder.Token(); err != io.EOF {
-		if err == nil {
-			return nil, fmt.Errorf("trailing JSON value at byte %d", decoder.InputOffset())
-		}
-		return nil, fmt.Errorf("invalid trailing data at byte %d: %w", decoder.InputOffset(), err)
-	}
 	return value, nil
-}
-
-func decodeJSONValue(decoder *json.Decoder, location string) (any, error) {
-	token, err := decoder.Token()
-	if err != nil {
-		return nil, fmt.Errorf("at %s byte %d: %w", location, decoder.InputOffset(), err)
-	}
-	switch value := token.(type) {
-	case json.Delim:
-		switch value {
-		case '{':
-			object := make(map[string]any)
-			for decoder.More() {
-				keyToken, err := decoder.Token()
-				if err != nil {
-					return nil, fmt.Errorf("at %s byte %d: %w", location, decoder.InputOffset(), err)
-				}
-				key, ok := keyToken.(string)
-				if !ok {
-					return nil, fmt.Errorf("at %s byte %d: object key is not a string", location, decoder.InputOffset())
-				}
-				if _, duplicate := object[key]; duplicate {
-					return nil, fmt.Errorf("duplicate JSON key %q at %s byte %d", key, location, decoder.InputOffset())
-				}
-				child, err := decodeJSONValue(decoder, location+"."+key)
-				if err != nil {
-					return nil, err
-				}
-				object[key] = child
-			}
-			if _, err := decoder.Token(); err != nil {
-				return nil, fmt.Errorf("at %s byte %d: %w", location, decoder.InputOffset(), err)
-			}
-			return object, nil
-		case '[':
-			array := make([]any, 0)
-			for i := 0; decoder.More(); i++ {
-				child, err := decodeJSONValue(decoder, fmt.Sprintf("%s[%d]", location, i))
-				if err != nil {
-					return nil, err
-				}
-				array = append(array, child)
-			}
-			if _, err := decoder.Token(); err != nil {
-				return nil, fmt.Errorf("at %s byte %d: %w", location, decoder.InputOffset(), err)
-			}
-			return array, nil
-		default:
-			return nil, fmt.Errorf("unexpected JSON delimiter %q at %s byte %d", value, location, decoder.InputOffset())
-		}
-	default:
-		return token, nil
-	}
 }
 
 // Imports returns an independent copy of the normalized mappings.

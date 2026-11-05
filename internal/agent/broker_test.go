@@ -599,3 +599,12 @@ func finishFixtureRun(op *Operation, runID string) error {
 	_, err := op.Call("finish", fmt.Sprintf(`{"runId":%q,"status":"completed"}`, runID))
 	return err
 }
+
+func TestTraceEventWritesOneJSONLRecord(t *testing.T) {
+	var trace bytes.Buffer
+	host := &Host{opts: Options{Trace: &trace}}
+	host.traceEvent(traceEvent{Status: "completed", Duration: 1})
+	if got := trace.String(); strings.Count(got, "\n") != 1 || !strings.HasSuffix(got, "\n") {
+		t.Fatalf("trace record framing = %q, want one newline-framed JSON value", got)
+	}
+}

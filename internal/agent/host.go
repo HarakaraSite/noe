@@ -313,7 +313,7 @@ func (h *Host) Close() {
 	for _, run := range ended {
 		h.traceEvent(traceEvent{
 			RunID: run.id, ParentID: run.parentID, Name: run.name, Model: run.model,
-			Status: "cancelled", Duration: time.Since(run.started),
+			Status: "cancelled", Duration: int64(time.Since(run.started)),
 		})
 		h.observeEndedRun("agent.cancelled", run, events.Event{
 			"status": "cancelled", "duration": time.Since(run.started),

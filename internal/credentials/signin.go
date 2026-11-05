@@ -6,7 +6,8 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"math/big"
 	"os"
@@ -69,13 +70,13 @@ func SaveChatGPT(ctx context.Context, request SaveRequest, opts Options) (Accoun
 }
 
 type claims struct {
-	Issuer   string          `json:"iss"`
-	Subject  string          `json:"sub"`
-	Audience json.RawMessage `json:"aud"`
-	Expires  int64           `json:"exp"`
-	IssuedAt int64           `json:"iat"`
-	Nonce    string          `json:"nonce"`
-	Email    string          `json:"email"`
+	Issuer   string            `json:"iss"`
+	Subject  string            `json:"sub"`
+	Audience jsonv1.RawMessage `json:"aud"`
+	Expires  int64             `json:"exp"`
+	IssuedAt int64             `json:"iat"`
+	Nonce    string            `json:"nonce"`
+	Email    string            `json:"email"`
 	Auth     struct {
 		AccountID string `json:"chatgpt_account_id"`
 	} `json:"https://api.openai.com/auth"`

@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 	"math"
 )
@@ -24,7 +24,7 @@ func imageEstimatesLocked(run *agentRun) map[string]int64 {
 	}
 	return result
 }
-func historyImageTokens(messages []json.RawMessage, estimates map[string]int64) int64 {
+func historyImageTokens(messages []jsonv1.RawMessage, estimates map[string]int64) int64 {
 	var total int64
 	for _, id := range imageReferences(messages) {
 		total += estimates[id]

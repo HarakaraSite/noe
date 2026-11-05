@@ -2,7 +2,8 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,23 +16,23 @@ import (
 )
 
 type modelRequest struct {
-	HistoryRevision int64             `json:"historyRevision,omitempty"`
-	Notification    *string           `json:"notification,omitempty"`
-	RunID           string            `json:"runId"`
-	ModelStepID     string            `json:"modelStepId,omitempty"`
-	Model           string            `json:"model"`
-	Messages        []json.RawMessage `json:"messages"`
-	Tools           []json.RawMessage `json:"tools,omitempty"`
-	CacheKey        string            `json:"cacheKey,omitempty"`
-	MaxTokens       int               `json:"maxTokens,omitempty"`
-	Effort          string            `json:"effort,omitempty"`
+	HistoryRevision int64               `json:"historyRevision,omitempty,omitzero"`
+	Notification    *string             `json:"notification,omitzero"`
+	RunID           string              `json:"runId"`
+	ModelStepID     string              `json:"modelStepId,omitempty"`
+	Model           string              `json:"model"`
+	Messages        []jsonv1.RawMessage `json:"messages"`
+	Tools           []jsonv1.RawMessage `json:"tools,omitempty"`
+	CacheKey        string              `json:"cacheKey,omitempty"`
+	MaxTokens       int                 `json:"maxTokens,omitempty,omitzero"`
+	Effort          string              `json:"effort,omitempty"`
 }
 
 type modelResponse struct {
 	RequestID    string             `json:"requestId,omitempty"`
-	Message      json.RawMessage    `json:"message,omitempty"`
+	Message      jsonv1.RawMessage  `json:"message,omitzero"`
 	FinishReason string             `json:"finishReason,omitempty"`
-	Usage        json.RawMessage    `json:"usage,omitempty"`
+	Usage        jsonv1.RawMessage  `json:"usage,omitzero"`
 	Steers       []steerInstruction `json:"steers,omitempty"`
 }
 
@@ -220,7 +221,7 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		h.emitContextUpdated(run, contextSnapshot, modelStatus, contextActivityID, contextCauses)
 		h.traceEvent(traceEvent{
 			RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
-			Status: "provider_error", Duration: time.Since(started),
+			Status: "provider_error", Duration: int64(time.Since(started)),
 		})
 		if h.opts.Observe != nil {
 			modelStatus := "failed"
@@ -244,7 +245,7 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		h.emitContextUpdated(run, contextSnapshot, "cancelled", contextActivityID, contextCauses)
 		h.traceEvent(traceEvent{
 			RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
-			Status: "cancelled", Duration: time.Since(started),
+			Status: "cancelled", Duration: int64(time.Since(started)),
 		})
 		if h.opts.Observe != nil {
 			fields := events.Event{"requestId": requestID, "status": "cancelled", "reason": "cancelled", "duration": time.Since(started)}
@@ -256,14 +257,14 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		}
 		return modelResponse{}, newOperationError(status, code, message)
 	}
-	if !json.Valid(response.Message) || len(response.Message) == 0 || (len(response.Usage) != 0 && !json.Valid(response.Usage)) {
+	if !validJSON(response.Message) || len(response.Message) == 0 || (len(response.Usage) != 0 && !validJSON(response.Usage)) {
 		h.mu.Lock()
 		contextSnapshot, contextActivityID, contextCauses := h.completeContextRequestLocked(run, requestID, "failed", nil, time.Now())
 		h.mu.Unlock()
 		h.emitContextUpdated(run, contextSnapshot, "failed", contextActivityID, contextCauses)
 		h.traceEvent(traceEvent{
 			RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
-			Status: "invalid_response", Duration: time.Since(started),
+			Status: "invalid_response", Duration: int64(time.Since(started)),
 		})
 		if h.opts.Observe != nil {
 			fields := events.Event{"requestId": requestID, "status": "invalid_response", "reason": "provider_response", "duration": time.Since(started)}
@@ -277,7 +278,7 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 	}
 	h.traceEvent(traceEvent{
 		RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
-		Status: "model_response", Duration: time.Since(started), Usage: summarizeUsage(response.Usage),
+		Status: "model_response", Duration: int64(time.Since(started)), Usage: summarizeUsage(response.Usage),
 	})
 	usage := summarizeUsage(response.Usage)
 	var explicitRefusal struct {
@@ -326,12 +327,12 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 	return modelResponse{RequestID: requestID, Message: response.Message, FinishReason: response.FinishReason, Usage: response.Usage}, nil
 }
 
-func modelToolCallStates(raw json.RawMessage) (map[string]*toolCallState, []string, error) {
+func modelToolCallStates(raw jsonv1.RawMessage) (map[string]*toolCallState, []string, error) {
 	var message struct {
 		ToolCalls []struct {
 			ID       string `json:"id"`
 			Function struct {
-				Name json.RawMessage `json:"name"`
+				Name jsonv1.RawMessage `json:"name"`
 			} `json:"function"`
 		} `json:"tool_calls"`
 	}
@@ -364,10 +365,10 @@ func modelToolCallStates(raw json.RawMessage) (map[string]*toolCallState, []stri
 	return toolCalls, toolCallOrder, nil
 }
 
-func intermediateMessage(raw json.RawMessage) (string, []string, bool) {
+func intermediateMessage(raw jsonv1.RawMessage) (string, []string, bool) {
 	var message struct {
-		Content   json.RawMessage   `json:"content"`
-		ToolCalls []json.RawMessage `json:"tool_calls"`
+		Content   jsonv1.RawMessage   `json:"content"`
+		ToolCalls []jsonv1.RawMessage `json:"tool_calls"`
 	}
 	if json.Unmarshal(raw, &message) != nil || len(message.ToolCalls) == 0 {
 		return "", nil, false
@@ -384,7 +385,7 @@ func intermediateMessage(raw json.RawMessage) (string, []string, bool) {
 	return messageText(message.Content), ids, true
 }
 
-func messageText(raw json.RawMessage) string {
+func messageText(raw jsonv1.RawMessage) string {
 	var text string
 	if json.Unmarshal(raw, &text) == nil {
 		return text
@@ -409,11 +410,11 @@ func messageText(raw json.RawMessage) string {
 	return builder.String()
 }
 
-func isJSONObject(raw json.RawMessage) bool {
+func isJSONObject(raw jsonv1.RawMessage) bool {
 	if len(raw) == 0 {
 		return false
 	}
-	var object map[string]json.RawMessage
+	var object map[string]jsonv1.RawMessage
 	return json.Unmarshal(raw, &object) == nil && object != nil
 }
 

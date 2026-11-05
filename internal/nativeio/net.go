@@ -3,7 +3,7 @@ package nativeio
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"

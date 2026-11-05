@@ -2,7 +2,7 @@ package provider
 
 import (
 	"bytes"
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"io"
 	"strings"
 	"sync"
@@ -13,7 +13,7 @@ import (
 type observedBody struct {
 	source  io.ReadCloser
 	observe func(StreamEvent)
-	extract func(json.RawMessage) []StreamEvent
+	extract func(jsonv1.RawMessage) []StreamEvent
 
 	mu        sync.Mutex
 	line      []byte
@@ -22,7 +22,7 @@ type observedBody struct {
 	dataLines []string
 	// Each payload owns its bytes and is immutable after append. snapshot callers
 	// must not modify payload bytes; snapshot only copies this outer slice.
-	events  []json.RawMessage
+	events  []jsonv1.RawMessage
 	done    bool
 	readErr error
 
@@ -37,7 +37,7 @@ func newObservedBody(source io.ReadCloser) *observedBody {
 func (b *observedBody) Read(p []byte) (int, error) {
 	n, err := b.source.Read(p)
 	b.mu.Lock()
-	var completed []json.RawMessage
+	var completed []jsonv1.RawMessage
 	if n > 0 {
 		completed = b.feedLocked(p[:n])
 	}
@@ -64,17 +64,17 @@ func (b *observedBody) Close() error {
 	return b.closeErr
 }
 
-func (b *observedBody) snapshot() (events []json.RawMessage, done bool, readErr error) {
+func (b *observedBody) snapshot() (events []jsonv1.RawMessage, done bool, readErr error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	events = make([]json.RawMessage, len(b.events))
+	events = make([]jsonv1.RawMessage, len(b.events))
 	// Payloads remain immutable, so only the mutable outer slice needs copying.
 	copy(events, b.events)
 	return events, b.done, b.readErr
 }
 
-func (b *observedBody) feedLocked(chunk []byte) []json.RawMessage {
-	var completed []json.RawMessage
+func (b *observedBody) feedLocked(chunk []byte) []jsonv1.RawMessage {
+	var completed []jsonv1.RawMessage
 	for _, c := range chunk {
 		if b.skipLF {
 			b.skipLF = false
@@ -99,20 +99,20 @@ func (b *observedBody) feedLocked(chunk []byte) []json.RawMessage {
 	return completed
 }
 
-func (b *observedBody) processLineLocked() json.RawMessage {
+func (b *observedBody) processLineLocked() jsonv1.RawMessage {
 	if !b.firstLine {
 		b.line = bytes.TrimPrefix(b.line, []byte("\xef\xbb\xbf"))
 		b.firstLine = true
 	}
 	if len(b.line) == 0 {
-		var event json.RawMessage
+		var event jsonv1.RawMessage
 		if len(b.dataLines) > 0 {
 			data := strings.Join(b.dataLines, "\n")
 			b.dataLines = b.dataLines[:0]
 			if data == "[DONE]" {
 				b.done = true
 			} else {
-				event = make(json.RawMessage, len(data))
+				event = make(jsonv1.RawMessage, len(data))
 				copy(event, data)
 				b.events = append(b.events, event)
 			}

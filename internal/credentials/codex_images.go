@@ -5,7 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -206,13 +207,13 @@ func (c *CodexImages) externalSnapshot(ctx context.Context) (CodexSnapshot, erro
 		return CodexSnapshot{}, errors.New("could not read the selected Codex credential file")
 	}
 	var external struct {
-		AuthMode     json.RawMessage `json:"auth_mode"`
-		OpenAIAPIKey string          `json:"OPENAI_API_KEY"`
+		AuthMode     jsonv1.RawMessage `json:"auth_mode"`
+		OpenAIAPIKey string            `json:"OPENAI_API_KEY"`
 		Tokens       struct {
-			AccessToken  string          `json:"access_token"`
-			RefreshToken string          `json:"refresh_token"`
-			IDToken      json.RawMessage `json:"id_token"`
-			AccountID    string          `json:"account_id"`
+			AccessToken  string            `json:"access_token"`
+			RefreshToken string            `json:"refresh_token"`
+			IDToken      jsonv1.RawMessage `json:"id_token"`
+			AccountID    string            `json:"account_id"`
 			Provenance   struct {
 				Issuer   string `json:"issuer"`
 				ClientID string `json:"client_id"`
@@ -295,7 +296,7 @@ func (c *CodexImages) refresh(ctx context.Context, record *codexImagesRecord, re
 		return fmt.Errorf("Codex image token refresh failed (HTTP %d)", res.StatusCode)
 	}
 	var tokens codexTokenResponse
-	if json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&tokens) != nil || tokens.AccessToken == "" {
+	if json.UnmarshalRead(io.LimitReader(res.Body, 1<<20), &tokens) != nil || tokens.AccessToken == "" {
 		return errors.New("Codex image token refresh response is incomplete")
 	}
 	expires, ok := responseExpiry(tokens)
@@ -341,7 +342,7 @@ func discoverCodex(ctx context.Context, opts Options, client HTTPClient) (discov
 		return discovery{}, errors.New("trusted Codex sign-in service discovery failed")
 	}
 	var result discovery
-	if json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&result) != nil || result.Issuer != codexIssuer(opts) || result.TokenEndpoint == "" || result.JWKSURI == "" {
+	if json.UnmarshalRead(io.LimitReader(res.Body, 1<<20), &result) != nil || result.Issuer != codexIssuer(opts) || result.TokenEndpoint == "" || result.JWKSURI == "" {
 		return discovery{}, errors.New("trusted Codex sign-in service discovery failed")
 	}
 	if !sameOrigin(result.Issuer, result.TokenEndpoint) || !sameOrigin(result.Issuer, result.JWKSURI) {
@@ -441,11 +442,9 @@ func tokenExpiry(token string) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	var claims struct {
-		Expires json.Number `json:"exp"`
+		Expires jsonv1.Number `json:"exp"`
 	}
-	decoder := json.NewDecoder(strings.NewReader(string(payload)))
-	decoder.UseNumber()
-	if decoder.Decode(&claims) != nil {
+	if json.Unmarshal(payload, &claims) != nil {
 		return time.Time{}, false
 	}
 	seconds, err := claims.Expires.Int64()
@@ -493,7 +492,7 @@ func responseExpiry(tokens codexTokenResponse) (time.Time, bool) {
 	return tokenExpiry(tokens.AccessToken)
 }
 
-func rawTokenString(raw json.RawMessage) string {
+func rawTokenString(raw jsonv1.RawMessage) string {
 	var token string
 	if json.Unmarshal(raw, &token) == nil {
 		return token

@@ -5,7 +5,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"io"
 	"net/http"
 	"net/url"
@@ -88,7 +89,7 @@ func (p *codexImageAdapter) call(ctx context.Context, operation string, request 
 	if err != nil {
 		return fail("input", "input", 0, "", "", nil)
 	}
-	var fields map[string]json.RawMessage
+	var fields map[string]jsonv1.RawMessage
 	if json.Unmarshal(payload, &fields) != nil {
 		return fail("input", "input", 0, "", "", nil)
 	}

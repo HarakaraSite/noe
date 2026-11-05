@@ -3,6 +3,7 @@ package agent_test
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"math"
 	"strings"
@@ -57,7 +58,7 @@ func TestTypedClientSpawnPreservesJSONConfigErrors(t *testing.T) {
 	infinite := math.Inf(1)
 	config.ContextPolicy = &agent.ContextPolicy{RetainRatio: &infinite}
 	_, err = client.Spawn(ctx, agent.SpawnRequest{Config: config, Instruction: textPointer("invalid ratio")})
-	var unsupported *json.UnsupportedValueError
+	var unsupported *jsonv2.SemanticError
 	if !errors.As(err, &unsupported) {
 		t.Fatalf("non-finite policy error = %v, want JSON unsupported-value error", err)
 	}

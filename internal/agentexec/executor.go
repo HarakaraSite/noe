@@ -3,7 +3,9 @@ package agentexec
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
@@ -76,7 +78,7 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 	}
 	code := execution.Code
 	if execution.Kind == "task" {
-		if !json.Valid(execution.Config) {
+		if !jsontext.Value(execution.Config).IsValid() {
 			return core.Result{}, errors.New("agent: invalid task configuration")
 		}
 		encoded, _ := json.Marshal(string(execution.Config))
@@ -88,7 +90,7 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[agent " + execution.Kind + "]", Code: code, Module: true, Virtual: true}, profile)
 	out := core.Result{
 		ExitCode: result.Code, Reason: "completed",
-		Data:        append(json.RawMessage(nil), result.Data...),
+		Data:        append(jsonv1.RawMessage(nil), result.Data...),
 		Diagnostics: append([]executionresult.Diagnostic(nil), result.Diagnostics...),
 	}
 	if result.Code != 0 {

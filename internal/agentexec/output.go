@@ -64,14 +64,15 @@ func (c *capturedOutput) Write(p []byte) (int, error) {
 
 // result is called only after the stream collector finishes. The marker is
 // additional to the retained data budget. For valid UTF-8, avoid introducing
-// broken characters at either side of the removed middle section.
+// broken characters at either side of the removed middle section. Invalid
+// bytes are replaced when the captured bytes become JSON text.
 func (c *capturedOutput) result() (string, int64) {
 	head := c.head
 	tail := make([]byte, 0, len(c.tail))
 	tail = append(tail, c.tail[c.tailStart:]...)
 	tail = append(tail, c.tail[:c.tailStart]...)
 	if c.total <= int64(c.limit()) {
-		return string(head) + string(tail), 0
+		return outputText(append(append([]byte(nil), head...), tail...)), 0
 	}
 	for i := len(head) - 1; i >= max(0, len(head)-utf8.UTFMax); i-- {
 		if utf8.RuneStart(head[i]) {
@@ -85,5 +86,18 @@ func (c *capturedOutput) result() (string, int64) {
 		tail = tail[1:]
 	}
 	omitted := c.total - int64(len(head)+len(tail))
-	return string(head) + fmt.Sprintf("\n[NOE: output truncated; %d bytes omitted]\n", omitted) + string(tail), omitted
+	return outputText(head) + fmt.Sprintf("\n[NOE: output truncated; %d bytes omitted]\n", omitted) + outputText(tail), omitted
+}
+
+func outputText(data []byte) string {
+	if utf8.Valid(data) {
+		return string(data)
+	}
+	runes := make([]rune, 0, len(data))
+	for len(data) > 0 {
+		r, size := utf8.DecodeRune(data)
+		runes = append(runes, r)
+		data = data[size:]
+	}
+	return string(runes)
 }

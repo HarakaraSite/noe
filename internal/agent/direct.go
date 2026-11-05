@@ -2,7 +2,8 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 
@@ -148,7 +149,7 @@ func (h *Host) dispatchDirect(ctx context.Context, op *Operation, method, payloa
 		}
 		return h.opts.Models.ListModels(ctx, query)
 	case "decide":
-		var raw json.RawMessage
+		var raw jsonv1.RawMessage
 		if err := decode(&raw); err != nil {
 			return nil, newOperationError(400, "request", "invalid decision request")
 		}

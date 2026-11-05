@@ -4,7 +4,8 @@ package logbinding
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"io"
 	"sync"
@@ -75,13 +76,12 @@ func (b *Binding) analyze(input quickjs.Value, options string) (string, error) {
 		}
 		data = append([]byte(nil), value...)
 	}
-	decoder := json.NewDecoder(bytes.NewBufferString(options))
-	decoder.DisallowUnknownFields()
+	decoder := jsontext.NewDecoder(bytes.NewBufferString(options))
 	var query loganalysis.Query
-	if err := decoder.Decode(&query); err != nil {
+	if err := json.UnmarshalDecode(decoder, &query, json.RejectUnknownMembers(true)); err != nil {
 		return "", err
 	}
-	if err := decoder.Decode(new(any)); err != io.EOF {
+	if err := json.UnmarshalDecode(decoder, new(any)); err != io.EOF {
 		return "", errors.New("invalid log options")
 	}
 	snapshot, err := loganalysis.Analyze(b.ctx, bytes.NewReader(data), query)

@@ -2,7 +2,7 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"errors"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
@@ -19,7 +19,7 @@ const (
 type Execution struct {
 	Operation   *Operation
 	Kind        string
-	Config      json.RawMessage
+	Config      jsonv1.RawMessage
 	Instruction string
 	Code        string
 	// OutputBytes sets the tool's stream capture budget. Zero uses the default.
@@ -33,9 +33,9 @@ type Result struct {
 	Stderr             string                       `json:"stderr"`
 	ExitCode           int                          `json:"exitCode"`
 	Reason             string                       `json:"reason"`
-	StdoutOmittedBytes int64                        `json:"stdoutOmittedBytes,omitempty"`
-	StderrOmittedBytes int64                        `json:"stderrOmittedBytes,omitempty"`
-	Data               json.RawMessage              `json:"data,omitempty"`
+	StdoutOmittedBytes int64                        `json:"stdoutOmittedBytes,omitempty,omitzero"`
+	StderrOmittedBytes int64                        `json:"stderrOmittedBytes,omitempty,omitzero"`
+	Data               jsonv1.RawMessage            `json:"data,omitzero"`
 	Diagnostics        []executionresult.Diagnostic `json:"diagnostics,omitempty"`
 }
 

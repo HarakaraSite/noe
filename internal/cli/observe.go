@@ -3,7 +3,8 @@ package cli
 import (
 	"bufio"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
@@ -53,7 +54,7 @@ func runObserve(ctx context.Context, args []string, stdin io.Reader, stdout, std
 		}
 		snapshot, err := agentobservation.Observe(ctx, agentobservation.Query{LogPath: path, RunID: *runID, Wait: *wait})
 		if err == nil {
-			err = json.NewEncoder(display).Encode(snapshot)
+			err = json.MarshalEncode(jsontext.NewEncoder(display), snapshot)
 		}
 		if err != nil {
 			return observeError(ctx, stderr, err)

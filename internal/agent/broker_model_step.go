@@ -1,17 +1,17 @@
 package agent
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"net/http"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 )
 
 type beginModelStepRequest struct {
-	HistoryRevision int64             `json:"historyRevision,omitempty"`
-	RunID           string            `json:"runId"`
-	Messages        []json.RawMessage `json:"messages"`
-	Tools           []json.RawMessage `json:"tools,omitempty"`
+	HistoryRevision int64               `json:"historyRevision,omitempty,omitzero"`
+	RunID           string              `json:"runId"`
+	Messages        []jsonv1.RawMessage `json:"messages"`
+	Tools           []jsonv1.RawMessage `json:"tools,omitempty"`
 }
 
 type beginModelStepResponse struct {

@@ -3,7 +3,8 @@ package agent
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"time"
 )
@@ -106,16 +107,16 @@ func (s *contextRunState) executionSnapshot() *executionContextSnapshot {
 	return result
 }
 
-func contextHistoryDigest(messages, tools []json.RawMessage) string {
+func contextHistoryDigest(messages, tools []jsonv1.RawMessage) string {
 	encoded, _ := json.Marshal(struct {
-		Messages []json.RawMessage
-		Tools    []json.RawMessage
+		Messages []jsonv1.RawMessage
+		Tools    []jsonv1.RawMessage
 	}{messages, tools})
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:])
 }
 
-func historyParts(messages []json.RawMessage, tools []json.RawMessage, layout *contextHistoryLayout, imageEstimates ...map[string]int64) (int64, int64, []int64, error) {
+func historyParts(messages []jsonv1.RawMessage, tools []jsonv1.RawMessage, layout *contextHistoryLayout, imageEstimates ...map[string]int64) (int64, int64, []int64, error) {
 	var estimates map[string]int64
 	if len(imageEstimates) > 0 {
 		estimates = imageEstimates[0]
@@ -127,7 +128,7 @@ func historyParts(messages []json.RawMessage, tools []json.RawMessage, layout *c
 	return historyPartsFromStats(messages, layout, estimates, stats)
 }
 
-func historyPartsFromStats(messages []json.RawMessage, layout *contextHistoryLayout, estimates map[string]int64, stats contextHistoryStats) (int64, int64, []int64, error) {
+func historyPartsFromStats(messages []jsonv1.RawMessage, layout *contextHistoryLayout, estimates map[string]int64, stats contextHistoryStats) (int64, int64, []int64, error) {
 	if layout == nil {
 		// Old internal callers only supply a transcript, without deletion metadata.
 		// Treat it as protected rather than guessing ownership from roles.
@@ -136,7 +137,7 @@ func historyPartsFromStats(messages []json.RawMessage, layout *contextHistoryLay
 	if layout.Revision <= 0 || len(layout.Entries) < 2 {
 		return 0, 0, nil, fmt.Errorf("invalid context history layout")
 	}
-	protected := []json.RawMessage{}
+	protected := []jsonv1.RawMessage{}
 	weights := []int64{}
 	seen := make(map[string]bool)
 	offset := 0
@@ -163,7 +164,7 @@ func historyPartsFromStats(messages []json.RawMessage, layout *contextHistoryLay
 	return fixed, execution, weights, nil
 }
 
-func (s *contextRunState) planTrim(messages, tools []json.RawMessage, layout *contextHistoryLayout) (*contextTrimPlan, error) {
+func (s *contextRunState) planTrim(messages, tools []jsonv1.RawMessage, layout *contextHistoryLayout) (*contextTrimPlan, error) {
 	if layout == nil || s.policyDisabled {
 		return nil, nil
 	}
@@ -174,7 +175,7 @@ func (s *contextRunState) planTrim(messages, tools []json.RawMessage, layout *co
 	return s.planTrimWithWeights(messages, tools, layout, weights)
 }
 
-func (s *contextRunState) planTrimWithWeights(messages, tools []json.RawMessage, layout *contextHistoryLayout, weights []int64) (*contextTrimPlan, error) {
+func (s *contextRunState) planTrimWithWeights(messages, tools []jsonv1.RawMessage, layout *contextHistoryLayout, weights []int64) (*contextTrimPlan, error) {
 	if layout == nil || s.policyDisabled {
 		return nil, nil
 	}
@@ -203,7 +204,7 @@ func (s *contextRunState) planTrimWithWeights(messages, tools []json.RawMessage,
 	}
 	plan := contextTrimPlan{ID: id, Revision: layout.Revision}
 	keptLayout := contextHistoryLayout{Revision: layout.Revision + 1}
-	keptMessages := []json.RawMessage{}
+	keptMessages := []jsonv1.RawMessage{}
 	offset, blocks := 0, 0
 	for _, entry := range layout.Entries {
 		remove := entry.Kind == "block" && blocks < removeCount
@@ -222,7 +223,7 @@ func (s *contextRunState) planTrimWithWeights(messages, tools []json.RawMessage,
 	return &plan, nil
 }
 
-func (s *contextRunState) acknowledgeTrim(planID string, layout *contextHistoryLayout, messages, tools []json.RawMessage) (*contextTrimSnapshot, error) {
+func (s *contextRunState) acknowledgeTrim(planID string, layout *contextHistoryLayout, messages, tools []jsonv1.RawMessage) (*contextTrimSnapshot, error) {
 	pending := s.pendingPlan
 	if pending == nil || planID != pending.plan.ID || layout == nil || layout.Revision != pending.afterLayout.Revision || contextHistoryDigest(messages, tools) != pending.afterDigest {
 		return nil, fmt.Errorf("stale or invalid context trim acknowledgement")

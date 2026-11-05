@@ -1,7 +1,8 @@
 package provider
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"sort"
@@ -18,18 +19,18 @@ type streamAccumulator struct {
 	reasoningSet   bool
 	refusal        strings.Builder
 	refusalSet     bool
-	role           json.RawMessage
-	other          map[string]json.RawMessage
+	role           jsonv1.RawMessage
+	other          map[string]jsonv1.RawMessage
 	reasonDetails  []*reasoningDetailAccumulator
 	reasonByKey    map[string]*reasoningDetailAccumulator
 	toolCalls      map[int]*toolCallAccumulator
 	finishReason   string
-	usage          json.RawMessage
+	usage          jsonv1.RawMessage
 }
 
 type toolCallAccumulator struct {
-	fields       map[string]json.RawMessage
-	function     map[string]json.RawMessage
+	fields       map[string]jsonv1.RawMessage
+	function     map[string]jsonv1.RawMessage
 	arguments    strings.Builder
 	argumentsSet bool
 	name         strings.Builder
@@ -37,28 +38,28 @@ type toolCallAccumulator struct {
 }
 
 type reasoningDetailAccumulator struct {
-	fields    map[string]json.RawMessage
+	fields    map[string]jsonv1.RawMessage
 	fragments map[string]*strings.Builder
 }
 
 func newStreamAccumulator() *streamAccumulator {
 	return &streamAccumulator{
-		other:       make(map[string]json.RawMessage),
+		other:       make(map[string]jsonv1.RawMessage),
 		reasonByKey: make(map[string]*reasoningDetailAccumulator),
 		toolCalls:   make(map[int]*toolCallAccumulator),
 	}
 }
 
-func (a *streamAccumulator) consume(events []json.RawMessage) error {
+func (a *streamAccumulator) consume(events []jsonv1.RawMessage) error {
 	for _, raw := range events {
 		var chunk struct {
 			Choices []struct {
-				Index        int             `json:"index"`
-				Delta        json.RawMessage `json:"delta"`
-				FinishReason json.RawMessage `json:"finish_reason"`
+				Index        int               `json:"index"`
+				Delta        jsonv1.RawMessage `json:"delta"`
+				FinishReason jsonv1.RawMessage `json:"finish_reason"`
 			} `json:"choices"`
-			Usage json.RawMessage `json:"usage"`
-			Error json.RawMessage `json:"error"`
+			Usage jsonv1.RawMessage `json:"usage"`
+			Error jsonv1.RawMessage `json:"error"`
 		}
 		if err := json.Unmarshal(raw, &chunk); err != nil {
 			return fmt.Errorf("invalid SSE event")
@@ -82,7 +83,7 @@ func (a *streamAccumulator) consume(events []json.RawMessage) error {
 			if len(choice.Delta) == 0 || string(choice.Delta) == "null" {
 				continue
 			}
-			var delta map[string]json.RawMessage
+			var delta map[string]jsonv1.RawMessage
 			if err := json.Unmarshal(choice.Delta, &delta); err != nil {
 				return fmt.Errorf("invalid assistant delta")
 			}
@@ -90,7 +91,7 @@ func (a *streamAccumulator) consume(events []json.RawMessage) error {
 				if a.reasoningField != "" && key == a.reasoningField {
 					key = "reasoning"
 				} else if a.reasoningField != "" && (key == "reasoning" || key == "reasoning_content") {
-					a.other[key] = append(json.RawMessage(nil), value...)
+					a.other[key] = append(jsonv1.RawMessage(nil), value...)
 					continue
 				}
 				switch key {
@@ -134,7 +135,7 @@ func (a *streamAccumulator) consume(events []json.RawMessage) error {
 						return err
 					}
 				default:
-					a.other[key] = append(json.RawMessage(nil), value...)
+					a.other[key] = append(jsonv1.RawMessage(nil), value...)
 				}
 			}
 		}
@@ -142,8 +143,8 @@ func (a *streamAccumulator) consume(events []json.RawMessage) error {
 	return nil
 }
 
-func (a *streamAccumulator) consumeReasoningDetails(raw json.RawMessage) error {
-	var details []map[string]json.RawMessage
+func (a *streamAccumulator) consumeReasoningDetails(raw jsonv1.RawMessage) error {
+	var details []map[string]jsonv1.RawMessage
 	if err := json.Unmarshal(raw, &details); err != nil {
 		return fmt.Errorf("invalid reasoning details")
 	}
@@ -151,7 +152,7 @@ func (a *streamAccumulator) consumeReasoningDetails(raw json.RawMessage) error {
 		key := reasoningDetailKey(fields)
 		detail := a.reasonByKey[key]
 		if key == "" || detail == nil {
-			detail = &reasoningDetailAccumulator{fields: make(map[string]json.RawMessage), fragments: make(map[string]*strings.Builder)}
+			detail = &reasoningDetailAccumulator{fields: make(map[string]jsonv1.RawMessage), fragments: make(map[string]*strings.Builder)}
 			a.reasonDetails = append(a.reasonDetails, detail)
 			if key != "" {
 				a.reasonByKey[key] = detail
@@ -162,7 +163,7 @@ func (a *streamAccumulator) consumeReasoningDetails(raw json.RawMessage) error {
 			case "text", "summary", "data", "signature":
 				var fragment string
 				if string(value) == "null" {
-					detail.fields[field] = append(json.RawMessage(nil), value...)
+					detail.fields[field] = append(jsonv1.RawMessage(nil), value...)
 					continue
 				}
 				if err := json.Unmarshal(value, &fragment); err == nil {
@@ -173,17 +174,17 @@ func (a *streamAccumulator) consumeReasoningDetails(raw json.RawMessage) error {
 					}
 					builder.WriteString(fragment)
 				} else {
-					detail.fields[field] = append(json.RawMessage(nil), value...)
+					detail.fields[field] = append(jsonv1.RawMessage(nil), value...)
 				}
 			default:
-				detail.fields[field] = append(json.RawMessage(nil), value...)
+				detail.fields[field] = append(jsonv1.RawMessage(nil), value...)
 			}
 		}
 	}
 	return nil
 }
 
-func reasoningDetailKey(fields map[string]json.RawMessage) string {
+func reasoningDetailKey(fields map[string]jsonv1.RawMessage) string {
 	if rawIndex := fields["index"]; len(rawIndex) > 0 {
 		var index int64
 		if json.Unmarshal(rawIndex, &index) == nil {
@@ -199,8 +200,8 @@ func reasoningDetailKey(fields map[string]json.RawMessage) string {
 	return ""
 }
 
-func (a *streamAccumulator) consumeToolCalls(raw json.RawMessage) error {
-	var calls []map[string]json.RawMessage
+func (a *streamAccumulator) consumeToolCalls(raw jsonv1.RawMessage) error {
+	var calls []map[string]jsonv1.RawMessage
 	if err := json.Unmarshal(raw, &calls); err != nil {
 		return fmt.Errorf("invalid tool call delta")
 	}
@@ -213,14 +214,14 @@ func (a *streamAccumulator) consumeToolCalls(raw json.RawMessage) error {
 		}
 		call := a.toolCalls[index]
 		if call == nil {
-			call = &toolCallAccumulator{fields: make(map[string]json.RawMessage), function: make(map[string]json.RawMessage)}
+			call = &toolCallAccumulator{fields: make(map[string]jsonv1.RawMessage), function: make(map[string]jsonv1.RawMessage)}
 			a.toolCalls[index] = call
 		}
 		for key, value := range part {
 			switch key {
 			case "index":
 			case "function":
-				var function map[string]json.RawMessage
+				var function map[string]jsonv1.RawMessage
 				if err := json.Unmarshal(value, &function); err != nil {
 					return fmt.Errorf("invalid tool function delta")
 				}
@@ -241,11 +242,11 @@ func (a *streamAccumulator) consumeToolCalls(raw json.RawMessage) error {
 						call.name.WriteString(fragment)
 						call.nameSet = true
 					default:
-						call.function[functionKey] = append(json.RawMessage(nil), functionValue...)
+						call.function[functionKey] = append(jsonv1.RawMessage(nil), functionValue...)
 					}
 				}
 			default:
-				call.fields[key] = append(json.RawMessage(nil), value...)
+				call.fields[key] = append(jsonv1.RawMessage(nil), value...)
 			}
 		}
 	}
@@ -269,20 +270,20 @@ func (a *streamAccumulator) response() (Response, error) {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
 
-	message := make(map[string]json.RawMessage, len(a.other)+6)
-	message["role"] = json.RawMessage(`"assistant"`)
+	message := make(map[string]jsonv1.RawMessage, len(a.other)+6)
+	message["role"] = jsonv1.RawMessage(`"assistant"`)
 	if len(a.role) > 0 {
 		message["role"] = a.role
 	}
 	if a.contentSeen {
 		if !a.contentText {
-			message["content"] = json.RawMessage("null")
+			message["content"] = jsonv1.RawMessage("null")
 		} else {
 			encoded, _ := json.Marshal(a.content.String())
 			message["content"] = encoded
 		}
 	} else if len(a.toolCalls) > 0 {
-		message["content"] = json.RawMessage("null")
+		message["content"] = jsonv1.RawMessage("null")
 	}
 	if a.reasoningSet {
 		encoded, _ := json.Marshal(a.reasoning.String())
@@ -297,9 +298,9 @@ func (a *streamAccumulator) response() (Response, error) {
 		message["refusal"] = encoded
 	}
 	if len(a.reasonDetails) > 0 {
-		details := make([]json.RawMessage, 0, len(a.reasonDetails))
+		details := make([]jsonv1.RawMessage, 0, len(a.reasonDetails))
 		for _, detail := range a.reasonDetails {
-			fields := make(map[string]json.RawMessage, len(detail.fields)+len(detail.fragments))
+			fields := make(map[string]jsonv1.RawMessage, len(detail.fields)+len(detail.fragments))
 			for key, value := range detail.fields {
 				fields[key] = value
 			}
@@ -325,14 +326,14 @@ func (a *streamAccumulator) response() (Response, error) {
 			indices = append(indices, index)
 		}
 		sort.Ints(indices)
-		calls := make([]json.RawMessage, 0, len(indices))
+		calls := make([]jsonv1.RawMessage, 0, len(indices))
 		for _, index := range indices {
 			call := a.toolCalls[index]
-			fields := make(map[string]json.RawMessage, len(call.fields)+1)
+			fields := make(map[string]jsonv1.RawMessage, len(call.fields)+1)
 			for key, value := range call.fields {
 				fields[key] = value
 			}
-			function := make(map[string]json.RawMessage, len(call.function)+2)
+			function := make(map[string]jsonv1.RawMessage, len(call.function)+2)
 			for key, value := range call.function {
 				function[key] = value
 			}
@@ -368,5 +369,5 @@ func (a *streamAccumulator) response() (Response, error) {
 	if err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
-	return Response{Message: messageJSON, FinishReason: a.finishReason, Usage: append(json.RawMessage(nil), a.usage...)}, nil
+	return Response{Message: messageJSON, FinishReason: a.finishReason, Usage: append(jsonv1.RawMessage(nil), a.usage...)}, nil
 }

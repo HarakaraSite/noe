@@ -3,11 +3,13 @@ package agent
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"math"
 
 	"forge.harakara.site/littleisland/noe/v2/agent/model"
+	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
 
 const (
@@ -24,7 +26,7 @@ type ContextPolicy struct {
 }
 
 func (p *ContextPolicy) UnmarshalJSON(data []byte) error {
-	var fields map[string]json.RawMessage
+	var fields map[string]jsonv1.RawMessage
 	if err := json.Unmarshal(data, &fields); err != nil || fields == nil {
 		return errors.New("contextPolicy must be an object")
 	}
@@ -52,35 +54,31 @@ func (p *ContextPolicy) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func decodePolicyFloat(raw json.RawMessage) (float64, error) {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
+func decodePolicyFloat(raw jsonv1.RawMessage) (float64, error) {
 	var decoded any
-	if err := decoder.Decode(&decoded); err != nil {
+	if err := json.Unmarshal(raw, &decoded, jsonutil.PreserveNumbers()); err != nil {
 		return 0, err
 	}
-	value, ok := decoded.(json.Number)
+	value, ok := decoded.(jsonv1.Number)
 	if !ok {
 		return 0, errors.New("expected a JSON number")
 	}
 	return value.Float64()
 }
 
-func decodePolicyInteger(raw json.RawMessage) (int64, error) {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
+func decodePolicyInteger(raw jsonv1.RawMessage) (int64, error) {
 	var decoded any
-	if err := decoder.Decode(&decoded); err != nil {
+	if err := json.Unmarshal(raw, &decoded, jsonutil.PreserveNumbers()); err != nil {
 		return 0, err
 	}
-	value, ok := decoded.(json.Number)
+	value, ok := decoded.(jsonv1.Number)
 	if !ok {
 		return 0, errors.New("expected a JSON integer")
 	}
 	return value.Int64()
 }
 
-func parseContextPolicy(raw json.RawMessage) (*ContextPolicy, bool, error) {
+func parseContextPolicy(raw jsonv1.RawMessage) (*ContextPolicy, bool, error) {
 	if len(raw) == 0 {
 		return nil, false, nil
 	}

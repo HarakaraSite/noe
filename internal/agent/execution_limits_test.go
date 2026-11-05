@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -46,6 +47,45 @@ func TestExecutionLimitsConfigValidationAndEncoding(t *testing.T) {
 	var decoded Config
 	if err := json.Unmarshal(encoded, &decoded); err != nil || decoded.ExecutionLimits == nil || decoded.ExecutionLimits.AgentStarts == nil || *decoded.ExecutionLimits.AgentStarts != 4 {
 		t.Fatalf("round trip %s: limits=%+v err=%v", encoded, decoded.ExecutionLimits, err)
+	}
+}
+
+func TestExecutionLimitsJSONV2ZeroRoundTrip(t *testing.T) {
+	zero := int64(0)
+	limits := ExecutionLimits{ProviderCalls: &zero}
+
+	encodedLimits, err := jsonv2.Marshal(limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decodedLimits ExecutionLimits
+	if err := jsonv2.Unmarshal(encodedLimits, &decodedLimits); err != nil || decodedLimits.ProviderCalls == nil || *decodedLimits.ProviderCalls != 0 {
+		t.Fatalf("limits round trip %s: %+v, err=%v", encodedLimits, decodedLimits, err)
+	}
+
+	hooks := HookModules{}
+	config := Config{
+		Provider: "fixture", Model: "fixture-model", Hooks: &hooks,
+		ExecutionLimits: &limits,
+	}
+	encodedConfig, err := jsonv2.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decodedConfig Config
+	if err := jsonv2.Unmarshal(encodedConfig, &decodedConfig); err != nil || decodedConfig.ExecutionLimits == nil || decodedConfig.ExecutionLimits.ProviderCalls == nil || *decodedConfig.ExecutionLimits.ProviderCalls != 0 || decodedConfig.Hooks == nil || *decodedConfig.Hooks == nil {
+		t.Fatalf("config round trip %s: %+v, err=%v", encodedConfig, decodedConfig, err)
+	}
+
+	cacheKey := ""
+	task := TaskConfig{Config: config, MaxSteps: 3, CacheKey: &cacheKey}
+	encodedTask, err := jsonv2.Marshal(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decodedTask TaskConfig
+	if err := jsonv2.Unmarshal(encodedTask, &decodedTask); err != nil || decodedTask.ExecutionLimits == nil || decodedTask.ExecutionLimits.ProviderCalls == nil || *decodedTask.ExecutionLimits.ProviderCalls != 0 || decodedTask.Hooks == nil || *decodedTask.Hooks == nil || decodedTask.CacheKey == nil || *decodedTask.CacheKey != "" || decodedTask.MaxSteps != 3 {
+		t.Fatalf("task config round trip %s: %+v, err=%v", encodedTask, decodedTask, err)
 	}
 }
 

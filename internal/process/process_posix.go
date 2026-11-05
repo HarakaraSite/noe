@@ -4,7 +4,8 @@ package process
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -27,7 +28,7 @@ type helperMessage struct {
 	Magic         string  `json:"magic,omitempty"`
 	Type          string  `json:"type,omitempty"`
 	Config        *Config `json:"config,omitempty"`
-	PID           int     `json:"pid,omitempty"`
+	PID           int     `json:"pid,omitzero"`
 	Signal        string  `json:"signal,omitempty"`
 	Result        *Result `json:"result,omitempty"`
 	Error         string  `json:"error,omitempty"`
@@ -50,7 +51,7 @@ func (w *controlWriter) send(message helperMessage) error {
 	if w.closed.Load() {
 		return os.ErrClosed
 	}
-	return json.NewEncoder(w.file).Encode(message)
+	return json.MarshalEncode(jsontext.NewEncoder(w.file), message)
 }
 
 func (w *controlWriter) close() error {
@@ -146,9 +147,9 @@ func startSupervised(ctx context.Context, config Config) (*Child, error) {
 			<-cancelDone
 		}
 	}
-	decoder := json.NewDecoder(statusRead)
+	decoder := jsontext.NewDecoder(statusRead)
 	var hello helperMessage
-	readyErr := decoder.Decode(&hello)
+	readyErr := json.UnmarshalDecode(decoder, &hello)
 	if readyErr == nil && (hello.Type != "ready" || hello.Magic != supervisorMagic) {
 		readyErr = errors.New("invalid process supervisor readiness response")
 	}
@@ -181,7 +182,7 @@ func startSupervised(ctx context.Context, config Config) (*Child, error) {
 	}
 
 	var started helperMessage
-	if err := decoder.Decode(&started); err != nil {
+	if err := json.UnmarshalDecode(decoder, &started); err != nil {
 		stopStartupCancel()
 		_ = control.close()
 		closeFiles(stdinWrite, stdoutRead, stderrRead)
@@ -262,9 +263,9 @@ func startSupervised(ctx context.Context, config Config) (*Child, error) {
 	return c, nil
 }
 
-func monitorSupervisor(c *Child, decoder *json.Decoder, helperCmd *exec.Cmd, helperScope processscope.Scope, statusRead *os.File) {
+func monitorSupervisor(c *Child, decoder *jsontext.Decoder, helperCmd *exec.Cmd, helperScope processscope.Scope, statusRead *os.File) {
 	var message helperMessage
-	protocolErr := decoder.Decode(&message)
+	protocolErr := json.UnmarshalDecode(decoder, &message)
 	if protocolErr == nil && message.Type != "exited" {
 		protocolErr = fmt.Errorf("invalid process supervisor completion response %q", message.Type)
 	}
@@ -314,7 +315,7 @@ func monitorSupervisor(c *Child, decoder *json.Decoder, helperCmd *exec.Cmd, hel
 
 func readAndWaitForSupervisor(statusRead *os.File, helperCmd *exec.Cmd, helperScope processscope.Scope) (helperMessage, error) {
 	var message helperMessage
-	decodeErr := json.NewDecoder(statusRead).Decode(&message)
+	decodeErr := json.UnmarshalDecode(jsontext.NewDecoder(statusRead), &message)
 	if decodeErr != nil && !errors.Is(decodeErr, io.EOF) {
 		decodeErr = fmt.Errorf("read process supervisor startup response: %w", decodeErr)
 	}
@@ -335,12 +336,12 @@ func waitSupervisor(helperCmd *exec.Cmd, helperScope processscope.Scope, statusR
 	return errors.Join(waitErr, scopeErr, closeErr)
 }
 
-func runSupervisor(config Config, testStartGatePath string, decoder *json.Decoder, statusFile *os.File) int {
-	status := json.NewEncoder(statusFile)
+func runSupervisor(config Config, testStartGatePath string, decoder *jsontext.Decoder, statusFile *os.File) int {
+	status := jsontext.NewEncoder(statusFile)
 	controlEvents := make(chan helperControlEvent, 1)
 	go readControlMessages(decoder, controlEvents)
 	if event, ownerGone := pollOwnerEvent(controlEvents); ownerGone && event.err != nil {
-		_ = status.Encode(helperMessage{Type: "start_error", Error: "process owner closed during startup"})
+		_ = json.MarshalEncode(status, helperMessage{Type: "start_error", Error: "process owner closed during startup"})
 		return 0
 	}
 
@@ -352,11 +353,11 @@ func runSupervisor(config Config, testStartGatePath string, decoder *json.Decode
 	cmd.Stderr = os.Stderr
 	scope, err := processscope.New(cmd)
 	if err != nil {
-		_ = status.Encode(helperMessage{Type: "start_error", Error: err.Error()})
+		_ = json.MarshalEncode(status, helperMessage{Type: "start_error", Error: err.Error()})
 		return 0
 	}
 	if err := scope.Start(); err != nil {
-		_ = status.Encode(helperMessage{Type: "start_error", Error: err.Error()})
+		_ = json.MarshalEncode(status, helperMessage{Type: "start_error", Error: err.Error()})
 		if cmd.Process != nil {
 			_ = scope.Kill()
 			_ = cmd.Process.Kill()
@@ -395,7 +396,7 @@ func runSupervisor(config Config, testStartGatePath string, decoder *json.Decode
 		finishSupervisorStartupFailure(cmd, scope, status, errors.New("process owner closed during startup"))
 		return 0
 	}
-	_ = status.Encode(helperMessage{Type: "started", PID: pid})
+	_ = json.MarshalEncode(status, helperMessage{Type: "started", PID: pid})
 	// Do not reap the target until the owner has captured its identity. This
 	// closes the race where a fast target exits before Start can open a pidfd.
 	for controlEvents != nil {
@@ -449,17 +450,17 @@ reaped:
 		resultErr = errors.Join(resultErr, fmt.Errorf("wait for target process: %w", waitIDErr))
 	}
 	_ = scope.Close()
-	_ = status.Encode(helperMessage{Type: "exited", Result: &result, Error: errorString(resultErr)})
+	_ = json.MarshalEncode(status, helperMessage{Type: "exited", Result: &result, Error: errorString(resultErr)})
 	return 0
 }
 
-func finishSupervisorStartupFailure(cmd *exec.Cmd, scope processscope.Scope, status *json.Encoder, startErr error) {
+func finishSupervisorStartupFailure(cmd *exec.Cmd, scope processscope.Scope, status *jsontext.Encoder, startErr error) {
 	_ = scope.Kill()
 	waitIDErr := processscope.WaitExit(cmd.Process)
 	waitErr := cmd.Wait()
 	_, resultErr := processResult(cmd.ProcessState, waitErr)
 	_ = scope.Close()
-	_ = status.Encode(helperMessage{Type: "start_error", Error: errors.Join(startErr, waitIDErr, resultErr).Error()})
+	_ = json.MarshalEncode(status, helperMessage{Type: "start_error", Error: errors.Join(startErr, waitIDErr, resultErr).Error()})
 }
 
 func pollOwnerEvent(events <-chan helperControlEvent) (helperControlEvent, bool) {
@@ -476,10 +477,10 @@ type helperControlEvent struct {
 	err     error
 }
 
-func readControlMessages(decoder *json.Decoder, events chan<- helperControlEvent) {
+func readControlMessages(decoder *jsontext.Decoder, events chan<- helperControlEvent) {
 	for {
 		var message helperMessage
-		if err := decoder.Decode(&message); err != nil {
+		if err := json.UnmarshalDecode(decoder, &message); err != nil {
 			events <- helperControlEvent{err: err}
 			return
 		}
@@ -544,14 +545,14 @@ func DispatchHelper(args []string) (code int, handled bool) {
 	syscall.CloseOnExec(3)
 	syscall.CloseOnExec(4)
 	// No command is accepted before main reaches this explicit dispatcher.
-	if err := json.NewEncoder(status).Encode(helperMessage{Magic: supervisorMagic, Type: "ready"}); err != nil {
+	if err := json.MarshalEncode(jsontext.NewEncoder(status), helperMessage{Magic: supervisorMagic, Type: "ready"}); err != nil {
 		_ = control.Close()
 		_ = status.Close()
 		return 125, true
 	}
-	decoder := json.NewDecoder(control)
+	decoder := jsontext.NewDecoder(control)
 	var hello helperMessage
-	if err := decoder.Decode(&hello); err != nil || hello.Magic != supervisorMagic || hello.Config == nil {
+	if err := json.UnmarshalDecode(decoder, &hello); err != nil || hello.Magic != supervisorMagic || hello.Config == nil {
 		_ = control.Close()
 		_ = status.Close()
 		return 125, true

@@ -2,7 +2,7 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -110,7 +110,10 @@ func runAgentControl(ctx context.Context, args []string, stdout, stderr io.Write
 	if err != nil {
 		return fail(err)
 	}
-	var response struct{ Status, CommandID string }
+	var response struct {
+		Status    string `json:"status"`
+		CommandID string `json:"commandId"`
+	}
 	if err := json.Unmarshal(result, &response); err != nil {
 		return fail(err)
 	}

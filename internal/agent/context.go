@@ -2,7 +2,8 @@ package agent
 
 import (
 	"bytes"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"math"
@@ -22,19 +23,15 @@ type ContextBudget struct {
 
 func (b *ContextBudget) UnmarshalJSON(data []byte) error {
 	var value struct {
-		InputTokens json.Number `json:"inputTokens"`
+		InputTokens int64 `json:"inputTokens"`
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	decoder.UseNumber()
-	if err := decoder.Decode(&value); err != nil {
+	if err := json.Unmarshal(data, &value, json.RejectUnknownMembers(true)); err != nil {
 		return errors.New("contextBudget must contain only inputTokens")
 	}
-	input, err := value.InputTokens.Int64()
-	if err != nil || input <= 0 || input > maxSafeContextBudget {
+	if value.InputTokens <= 0 || value.InputTokens > maxSafeContextBudget {
 		return errors.New("contextBudget.inputTokens must be a positive safe integer")
 	}
-	b.InputTokens = input
+	b.InputTokens = value.InputTokens
 	return nil
 }
 
@@ -57,7 +54,7 @@ type contextPrevious struct {
 
 type contextEstimate struct {
 	Tokens      int64     `json:"tokens"`
-	ImageTokens int64     `json:"imageTokens,omitempty"`
+	ImageTokens int64     `json:"imageTokens,omitempty,omitzero"`
 	Method      string    `json:"method"`
 	Stage       string    `json:"stage"`
 	ModelStepID string    `json:"modelStepId"`
@@ -152,7 +149,7 @@ func cloneContextTrimSnapshot(trim *contextTrimSnapshot) *contextTrimSnapshot {
 	return &copy
 }
 
-func parseContextBudget(raw json.RawMessage) (*ContextBudget, bool, error) {
+func parseContextBudget(raw jsonv1.RawMessage) (*ContextBudget, bool, error) {
 	if len(raw) == 0 {
 		return nil, false, nil
 	}
@@ -394,7 +391,7 @@ func estimateContextTokens(messagesBytes, toolsBytes int) int64 {
 	return int64((bytes + 3) / 4)
 }
 
-func prepareContextEstimate(state *contextRunState, runID string, messages []json.RawMessage, tools []json.RawMessage) (contextSnapshot, string, error) {
+func prepareContextEstimate(state *contextRunState, runID string, messages []jsonv1.RawMessage, tools []jsonv1.RawMessage) (contextSnapshot, string, error) {
 	stats, err := measureContextHistory(messages, tools, state.imageEstimates)
 	if err != nil {
 		return contextSnapshot{}, "", err
@@ -407,7 +404,7 @@ type contextHistoryStats struct {
 	imageTokens                             int64
 }
 
-func measureContextHistory(messages, tools []json.RawMessage, estimates map[string]int64) (contextHistoryStats, error) {
+func measureContextHistory(messages, tools []jsonv1.RawMessage, estimates map[string]int64) (contextHistoryStats, error) {
 	messageData, err := json.Marshal(messages)
 	if err != nil {
 		return contextHistoryStats{}, fmt.Errorf("encode context messages: %w", err)

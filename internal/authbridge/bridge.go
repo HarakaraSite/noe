@@ -4,7 +4,7 @@ package authbridge
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"path/filepath"
 	"sync"

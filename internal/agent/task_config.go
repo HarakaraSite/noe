@@ -1,6 +1,9 @@
 package agent
 
-import "encoding/json"
+import (
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
+)
 
 // TaskConfig is frozen at registration and copied into each fresh task
 // execution.
@@ -20,7 +23,7 @@ func (c TaskConfig) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var fields map[string]json.RawMessage
+	var fields map[string]jsonv1.RawMessage
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return nil, err
 	}

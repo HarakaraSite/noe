@@ -2,7 +2,8 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"sync"
 	"time"
 
@@ -51,7 +52,7 @@ func (o taskOutcome) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(struct {
 		outcome
-		Answer      *string `json:"answer,omitempty"`
+		Answer      *string `json:"answer,omitzero"`
 		AnswerBytes int     `json:"answerBytes"`
 	}{outcome: outcome(o), AnswerBytes: len(o.Answer)})
 }
@@ -81,7 +82,7 @@ type agentInstance struct {
 	host                 *Host
 	id                   string
 	config               taskConfig
-	configJSON           json.RawMessage
+	configJSON           jsonv1.RawMessage
 	keepAlive            bool
 	allowDelegation      bool // Frozen at launch by the owning caller; never inherited.
 	owner                *Operation
@@ -299,7 +300,7 @@ func (i *agentInstance) serve() {
 			if outcome.Error != "" {
 				fields["error"] = outcome.Error
 			}
-			h.traceEvent(traceEvent{RunID: run.id, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model, Status: outcome.State, Duration: time.Since(run.started)})
+			h.traceEvent(traceEvent{RunID: run.id, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model, Status: outcome.State, Duration: int64(time.Since(run.started))})
 			h.observeRun("agent."+outcome.State, run.id, run, fields)
 		}
 		i.publishCommandOutcome(cmd)

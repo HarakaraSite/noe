@@ -3,7 +3,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -66,7 +66,7 @@ func (fixtureProvider) Generate(ctx context.Context, _ model.Request) (model.Res
 		return model.Response{}, err
 	}
 	return model.Response{
-		Message:      json.RawMessage(`{"role":"assistant","content":"The total is 31."}`),
+		Message:      jsonv1.RawMessage(`{"role":"assistant","content":"The total is 31."}`),
 		FinishReason: "stop",
 	}, nil
 }

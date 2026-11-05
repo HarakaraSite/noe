@@ -6,7 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 	"io"
@@ -76,28 +76,39 @@ func (w *Writer) emit(ctx context.Context, event Event, cancellable bool) error 
 	w.seq++
 	record["version"], record["seq"] = 1, w.seq
 	record["time"], record["executionId"] = time.Now().UTC().Format(time.RFC3339Nano), w.id
-	if !cancellable {
-		w.err = json.NewEncoder(w.out).Encode(record)
-		return w.err
+	// Event durations are documented as nanoseconds. Normalize the wire copy
+	// without changing the time.Duration values seen by Go observers.
+	if duration, ok := record["duration"].(time.Duration); ok {
+		record["duration"] = duration.Nanoseconds()
 	}
 	data, err := json.Marshal(record)
+	if err != nil {
+		w.err = err
+		return err
+	}
+	data = append(data, '\n')
+	if !cancellable {
+		var n int
+		n, w.err = w.out.Write(data)
+		if w.err == nil && n != len(data) {
+			w.err = io.ErrShortWrite
+		}
+		return w.err
+	}
+	out, err := hostio.NewWriter(w.out)
 	if err == nil {
-		var out hostio.Writer
-		out, err = hostio.NewWriter(w.out)
-		if err == nil {
-			defer out.Close()
-			var written int
-			written, err = out.WriteContext(ctx, append(data, '\n'))
-			var committed *CommittedCancellation
-			if ctx.Err() != nil && errors.Is(err, ctx.Err()) && errors.As(err, &committed) {
-				return err
-			}
-			if written == 0 && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
-				// Nothing from this record reached the sink. The caller may
-				// recover from a stream abort without poisoning future records.
-				w.seq--
-				return err
-			}
+		defer out.Close()
+		var written int
+		written, err = out.WriteContext(ctx, data)
+		var committed *CommittedCancellation
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) && errors.As(err, &committed) {
+			return err
+		}
+		if written == 0 && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			// Nothing from this record reached the sink. The caller may
+			// recover from a stream abort without poisoning future records.
+			w.seq--
+			return err
 		}
 	}
 	w.err = err

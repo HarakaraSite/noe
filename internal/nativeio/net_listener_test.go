@@ -350,7 +350,7 @@ func TestNetListenUnixLongPathUsesShortPrivateAlias(t *testing.T) {
 	if len(path) != maxPath || len(stagePath) <= maxPath {
 		t.Skipf("host paths do not exercise Unix sun_path fallback: public=%d stage=%d max=%d", len(path), len(stagePath), maxPath)
 	}
-	rt, _ := netRuntime(t, dir, nil)
+	rt, h := netRuntime(t, dir, nil)
 	result := awaitNet(t, evalNet(t, rt, `(async()=>{
   const {listen,connect}=await import("noe:sockets");
   const listener=await listen({network:"unix",path:"s"});
@@ -367,6 +367,7 @@ func TestNetListenUnixLongPathUsesShortPrivateAlias(t *testing.T) {
 	if _, err := os.Lstat(path); !os.IsNotExist(err) {
 		t.Fatalf("long-path listener left public pathname: %v", err)
 	}
+	waitNetOperations(t, h)
 	if rt.Busy() {
 		t.Fatalf("long-path listener retained work: busy=%v", rt.Busy())
 	}

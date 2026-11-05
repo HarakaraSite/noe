@@ -2,7 +2,7 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -106,15 +106,15 @@ type runConfig struct {
 }
 
 type startRequest struct {
-	Provider      string          `json:"provider"`
-	Model         string          `json:"model"`
-	Name          string          `json:"name"`
-	MaxTokens     int             `json:"maxTokens"`
-	Effort        string          `json:"effort,omitempty"`
-	MaxSteps      int             `json:"maxSteps,omitempty"`
-	Hooks         []string        `json:"hooks,omitempty"`
-	ContextBudget json.RawMessage `json:"contextBudget,omitempty"`
-	ContextPolicy json.RawMessage `json:"contextPolicy,omitempty"`
+	Provider      string            `json:"provider"`
+	Model         string            `json:"model"`
+	Name          string            `json:"name"`
+	MaxTokens     int               `json:"maxTokens"`
+	Effort        string            `json:"effort,omitempty"`
+	MaxSteps      int               `json:"maxSteps,omitempty,omitzero"`
+	Hooks         []string          `json:"hooks,omitempty"`
+	ContextBudget jsonv1.RawMessage `json:"contextBudget,omitzero"`
+	ContextPolicy jsonv1.RawMessage `json:"contextPolicy,omitzero"`
 }
 
 type finishRequest struct {
@@ -399,7 +399,7 @@ func (h *Host) finish(ctx context.Context, op *Operation, request finishRequest)
 	}
 	h.traceEvent(traceEvent{
 		RunID: request.RunID, ParentID: run.parentRunID, Name: run.config.Name, Model: run.config.Model,
-		Status: status, Duration: time.Since(run.started),
+		Status: status, Duration: int64(time.Since(run.started)),
 	})
 	fields := events.Event{
 		"status": status, "duration": time.Since(run.started),

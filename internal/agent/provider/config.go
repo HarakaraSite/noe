@@ -1,13 +1,12 @@
 package provider
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,6 +16,7 @@ import (
 
 	"forge.harakara.site/littleisland/noe/v2/internal/decision"
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
+	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
 
 //go:embed defaults.json
@@ -24,39 +24,39 @@ var defaultDefinitions []byte
 
 // Definition contains data only. API-specific conversion stays in Go.
 type Definition struct {
-	SDK               string                     `json:"sdk"`
-	OAuthMode         string                     `json:"oauthMode,omitempty"`
-	Auth              string                     `json:"auth"`
-	OAuthFile         string                     `json:"oauthFile"`
-	OAuthFileEnv      string                     `json:"oauthFileEnv"`
-	API               string                     `json:"api"`
-	BaseURL           string                     `json:"baseURL"`
-	Path              string                     `json:"path"`
-	KeyFile           string                     `json:"keyFile"`
-	KeyFileEnv        string                     `json:"keyFileEnv"`
-	Headers           map[string]string          `json:"headers"`
-	Parameters        map[string]json.RawMessage `json:"parameters"`
-	SessionHeader     string                     `json:"sessionHeader"`
-	SessionField      string                     `json:"sessionField"`
-	ReasoningField    string                     `json:"reasoningField"`
-	EffortField       string                     `json:"effortField"`
-	RunJSInput        string                     `json:"runJSInput"`
-	DecisionServerURL string                     `json:"decisionServerURL"`
-	ImageGeneration   *ImageGenerationDefinition `json:"imageGeneration,omitempty"`
-	ImageEditing      *ImageGenerationDefinition `json:"imageEditing,omitempty"`
-	Models            map[string]json.RawMessage `json:"models"`
+	SDK               string                       `json:"sdk"`
+	OAuthMode         string                       `json:"oauthMode,omitempty"`
+	Auth              string                       `json:"auth"`
+	OAuthFile         string                       `json:"oauthFile"`
+	OAuthFileEnv      string                       `json:"oauthFileEnv"`
+	API               string                       `json:"api"`
+	BaseURL           string                       `json:"baseURL"`
+	Path              string                       `json:"path"`
+	KeyFile           string                       `json:"keyFile"`
+	KeyFileEnv        string                       `json:"keyFileEnv"`
+	Headers           map[string]string            `json:"headers"`
+	Parameters        map[string]jsonv1.RawMessage `json:"parameters"`
+	SessionHeader     string                       `json:"sessionHeader"`
+	SessionField      string                       `json:"sessionField"`
+	ReasoningField    string                       `json:"reasoningField"`
+	EffortField       string                       `json:"effortField"`
+	RunJSInput        string                       `json:"runJSInput"`
+	DecisionServerURL string                       `json:"decisionServerURL"`
+	ImageGeneration   *ImageGenerationDefinition   `json:"imageGeneration,omitempty"`
+	ImageEditing      *ImageGenerationDefinition   `json:"imageEditing,omitempty"`
+	Models            map[string]jsonv1.RawMessage `json:"models"`
 }
 
 // ImageGenerationDefinition configures the provider-specific image generation
 // endpoint independently of the provider's chat or Responses endpoint.
 type ImageGenerationDefinition struct {
-	BaseURL    string                     `json:"baseURL"`
-	Path       string                     `json:"path"`
-	Parameters map[string]json.RawMessage `json:"parameters"`
+	BaseURL    string                       `json:"baseURL"`
+	Path       string                       `json:"path"`
+	Parameters map[string]jsonv1.RawMessage `json:"parameters"`
 }
 
 type definitions struct {
-	Providers map[string]json.RawMessage `json:"providers"`
+	Providers map[string]jsonv1.RawMessage `json:"providers"`
 }
 
 // Registry lazily loads one immutable configuration per host. Model clients
@@ -82,18 +82,12 @@ func NewExplicitRegistry(opts Options) *Registry {
 }
 
 func decodeObject(data []byte) (map[string]any, error) {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
 	var value map[string]any
-	if err := decoder.Decode(&value); err != nil {
+	if err := json.Unmarshal(data, &value, jsonutil.PreserveNumbers()); err != nil {
 		return nil, err
 	}
 	if value == nil {
 		return nil, errors.New("configuration must be an object")
-	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		return nil, errors.New("unexpected trailing configuration data")
 	}
 	return value, nil
 }
@@ -136,9 +130,7 @@ func mergeObject(base, override map[string]any, providerDepth int) {
 
 func decodeDefinition(data []byte) (Definition, error) {
 	var d Definition
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&d); err != nil {
+	if err := json.Unmarshal(data, &d, json.RejectUnknownMembers(true)); err != nil {
 		return d, fmt.Errorf("invalid provider definition: %w", err)
 	}
 	if d.SDK == "" {
@@ -306,7 +298,7 @@ func (r *Registry) resolveDefinition(name, model string) (Definition, error) {
 	if err != nil {
 		return Definition{}, err
 	}
-	var modelOverrides map[string]json.RawMessage
+	var modelOverrides map[string]jsonv1.RawMessage
 	if models, ok := base["models"]; ok {
 		data, _ := json.Marshal(models)
 		if err := json.Unmarshal(data, &modelOverrides); err != nil {
@@ -376,10 +368,11 @@ func (r *Registry) resolve(name, model string) (Provider, error) {
 			opts.DecisionServerURL = r.opts.DecisionServerURL
 		}
 	}
+	// This value is used as a map key, so encode nested maps deterministically.
 	sharedKey, _ := json.Marshal(struct {
 		Profile                             Definition
 		KeyFile, BaseURL, DecisionServerURL string
-	}{d, opts.KeyFile, opts.BaseURL, opts.DecisionServerURL})
+	}{d, opts.KeyFile, opts.BaseURL, opts.DecisionServerURL}, json.Deterministic(true))
 	if p := r.sharedClients[name+string(sharedKey)]; p != nil {
 		r.clients[key] = p
 		return p, nil

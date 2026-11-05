@@ -1,7 +1,8 @@
 package agent
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"net/http"
 	"strings"
 
@@ -14,10 +15,10 @@ type toolResultRequest struct {
 	ModelStepID          string              `json:"modelStepId"`
 	ToolCallID           string              `json:"toolCallId"`
 	ToolName             string              `json:"toolName"`
-	RawArguments         json.RawMessage     `json:"rawArguments"`
-	Arguments            json.RawMessage     `json:"arguments"`
-	RawResult            json.RawMessage     `json:"rawResult"`
-	Result               json.RawMessage     `json:"result"`
+	RawArguments         jsonv1.RawMessage   `json:"rawArguments"`
+	Arguments            jsonv1.RawMessage   `json:"arguments"`
+	RawResult            jsonv1.RawMessage   `json:"rawResult"`
+	Result               jsonv1.RawMessage   `json:"result"`
 	ModelResultAvailable *bool               `json:"modelResultAvailable,omitempty"`
 	RawImages            []imageapi.Metadata `json:"rawImages,omitempty"`
 	Images               []imageapi.Metadata `json:"images,omitempty"`
@@ -26,8 +27,8 @@ type toolResultRequest struct {
 
 func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[string]any, error) {
 	if request.RunID == "" || request.ModelStepID == "" || request.ToolCallID == "" || strings.TrimSpace(request.ToolName) == "" ||
-		len(request.RawArguments) == 0 || len(request.Arguments) == 0 || !json.Valid(request.RawArguments) || !json.Valid(request.Arguments) ||
-		len(request.RawResult) == 0 || !json.Valid(request.RawResult) || len(request.Result) == 0 || !json.Valid(request.Result) {
+		len(request.RawArguments) == 0 || len(request.Arguments) == 0 || !validJSON(request.RawArguments) || !validJSON(request.Arguments) ||
+		len(request.RawResult) == 0 || !validJSON(request.RawResult) || len(request.Result) == 0 || !validJSON(request.Result) {
 		return nil, newOperationError(http.StatusBadRequest, "request", "invalid tool result report")
 	}
 
@@ -44,8 +45,8 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 		return nil, newOperationError(http.StatusConflict, "tool_call", "unknown or completed tool call")
 	}
 	modelResultAvailable := request.ModelResultAvailable == nil || *request.ModelResultAvailable
-	modelResult := json.RawMessage("null")
-	var hookResult json.RawMessage
+	modelResult := jsonv1.RawMessage("null")
+	var hookResult jsonv1.RawMessage
 	if modelResultAvailable {
 		projected, truncated, err := projectToolOutput(request.Result, request.RawResult, toolState.outputBytes)
 		if err != nil {
@@ -127,12 +128,12 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 	return map[string]any{"recorded": true, "result": modelResult}, nil
 }
 
-func cloneRawJSON(raw json.RawMessage) json.RawMessage {
-	return append(json.RawMessage(nil), raw...)
+func cloneRawJSON(raw jsonv1.RawMessage) jsonv1.RawMessage {
+	return append(jsonv1.RawMessage(nil), raw...)
 }
 
-func rawToolExecutionFacts(raw json.RawMessage) events.Event {
-	var object map[string]json.RawMessage
+func rawToolExecutionFacts(raw jsonv1.RawMessage) events.Event {
+	var object map[string]jsonv1.RawMessage
 	if json.Unmarshal(raw, &object) != nil || object == nil {
 		return nil
 	}

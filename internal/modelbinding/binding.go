@@ -3,7 +3,9 @@ package modelbinding
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -301,19 +303,18 @@ func (b *Binding) generateImage(ctx context.Context, payload string) (imageapi.R
 }
 
 type editFileRequest struct {
-	Provider   string                     `json:"provider"`
-	Model      string                     `json:"model"`
-	Prompt     string                     `json:"prompt"`
-	Output     string                     `json:"output"`
-	Images     []string                   `json:"images"`
-	Parameters map[string]json.RawMessage `json:"parameters,omitempty"`
+	Provider   string                       `json:"provider"`
+	Model      string                       `json:"model"`
+	Prompt     string                       `json:"prompt"`
+	Output     string                       `json:"output"`
+	Images     []string                     `json:"images"`
+	Parameters map[string]jsonv1.RawMessage `json:"parameters,omitempty"`
 }
 
 func (b *Binding) editImage(ctx context.Context, payload string) (imageapi.Response, error) {
 	var request editFileRequest
-	decoder := json.NewDecoder(strings.NewReader(payload))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&request); err != nil {
+	decoder := jsontext.NewDecoder(strings.NewReader(payload))
+	if err := json.UnmarshalDecode(decoder, &request, json.RejectUnknownMembers(true)); err != nil {
 		return imageapi.Response{}, &imageapi.Error{Code: "input", Message: "invalid image edit request", Operation: "edit", Stage: "input"}
 	}
 	if err := ensureJSONEOF(decoder); err != nil {
@@ -418,9 +419,9 @@ func (b *Binding) saveImage(ctx context.Context, fs stdlib.FileSystem, output, p
 	return imageapi.Response{Metadata: metadata, Provider: provider, Model: model, ResponseModel: generated.ResponseModel, RequestID: generated.RequestID, Usage: generated.Usage}, nil
 }
 
-func ensureJSONEOF(decoder *json.Decoder) error {
+func ensureJSONEOF(decoder *jsontext.Decoder) error {
 	var extra any
-	if err := decoder.Decode(&extra); err == nil {
+	if err := json.UnmarshalDecode(decoder, &extra); err == nil {
 		return errors.New("unexpected trailing JSON value")
 	} else if !errors.Is(err, io.EOF) {
 		return err
@@ -498,7 +499,7 @@ func cancelledImageValue(value any, method string, cause error) map[string]any {
 		return map[string]any{"imageError": &imageapi.Error{
 			Code: "cancelled", Message: cause.Error(), Operation: operation,
 			Stage: "save", RequestID: response.RequestID,
-			Usage: append(json.RawMessage(nil), response.Usage...),
+			Usage: append(jsonv1.RawMessage(nil), response.Usage...),
 		}}
 	}
 	return map[string]any{"imageError": &imageapi.Error{

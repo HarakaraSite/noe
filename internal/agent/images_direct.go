@@ -2,7 +2,7 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"errors"
 	"sort"
 
@@ -104,7 +104,7 @@ func (op *Operation) ObserveImageSave(output string, generated model.GeneratedIm
 		operation = "generate"
 	}
 	requestID := generated.RequestID
-	usage := append(json.RawMessage(nil), generated.Usage...)
+	usage := append(jsonv1.RawMessage(nil), generated.Usage...)
 	fields := events.Event{
 		"operation": operation,
 		"path":      output, "providerRequestId": generated.RequestID,
@@ -121,7 +121,7 @@ func (op *Operation) ObserveImageSave(output string, generated model.GeneratedIm
 			requestID = imageErr.RequestID
 		}
 		if len(usage) == 0 {
-			usage = append(json.RawMessage(nil), imageErr.Usage...)
+			usage = append(jsonv1.RawMessage(nil), imageErr.Usage...)
 		}
 		fields["reason"], fields["error"] = imageErr.Code, imageErr
 	}

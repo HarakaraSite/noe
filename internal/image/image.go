@@ -4,7 +4,8 @@ package imageapi
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"strings"
 )
@@ -26,12 +27,12 @@ type Data struct {
 }
 
 type Request struct {
-	Provider   string                     `json:"provider"`
-	Model      string                     `json:"model"`
-	Prompt     string                     `json:"prompt"`
-	Output     string                     `json:"output"`
-	Parameters map[string]json.RawMessage `json:"parameters,omitempty"`
-	RunID      string                     `json:"-"`
+	Provider   string                       `json:"provider"`
+	Model      string                       `json:"model"`
+	Prompt     string                       `json:"prompt"`
+	Output     string                       `json:"output"`
+	Parameters map[string]jsonv1.RawMessage `json:"parameters,omitempty"`
+	RunID      string                       `json:"-"`
 }
 
 func (r Request) Validate() error {
@@ -55,7 +56,7 @@ func (r Request) ValidateGeneration() error {
 		case "model", "prompt", "n", "stream", "provider", "baseurl", "path", "output", "api_key", "authorization", "headers", "session_id", "prompt_cache_key", "input_references", "image", "images":
 			return &Error{Code: "input", Message: "reserved image parameter: " + key}
 		}
-		if strings.TrimSpace(key) == "" || !json.Valid(value) {
+		if strings.TrimSpace(key) == "" || !jsontext.Value(value).IsValid() {
 			return &Error{Code: "input", Message: "invalid image parameter"}
 		}
 	}
@@ -64,11 +65,11 @@ func (r Request) ValidateGeneration() error {
 
 // GenerationRequest describes model generation independently of file saving.
 type GenerationRequest struct {
-	Provider   string                     `json:"provider"`
-	Model      string                     `json:"model"`
-	Prompt     string                     `json:"prompt"`
-	Parameters map[string]json.RawMessage `json:"parameters,omitempty"`
-	RunID      string                     `json:"-"`
+	Provider   string                       `json:"provider"`
+	Model      string                       `json:"model"`
+	Prompt     string                       `json:"prompt"`
+	Parameters map[string]jsonv1.RawMessage `json:"parameters,omitempty"`
+	RunID      string                       `json:"-"`
 }
 
 type Generated struct {
@@ -76,16 +77,16 @@ type Generated struct {
 	Content       []byte `json:"-"`
 	ResponseModel string
 	RequestID     string
-	Usage         json.RawMessage
+	Usage         jsonv1.RawMessage
 }
 
 type Response struct {
 	Metadata
-	Provider      string          `json:"provider"`
-	Model         string          `json:"model"`
-	ResponseModel string          `json:"responseModel,omitempty"`
-	RequestID     string          `json:"requestId,omitempty"`
-	Usage         json.RawMessage `json:"usage,omitempty"`
+	Provider      string            `json:"provider"`
+	Model         string            `json:"model"`
+	ResponseModel string            `json:"responseModel,omitempty"`
+	RequestID     string            `json:"requestId,omitempty"`
+	Usage         jsonv1.RawMessage `json:"usage,omitzero"`
 }
 
 type Provider interface {
@@ -93,15 +94,15 @@ type Provider interface {
 }
 
 type Error struct {
-	Operation       string          `json:"operation,omitempty"`
-	Stage           string          `json:"stage,omitempty"`
-	Usage           json.RawMessage `json:"usage,omitempty"`
-	Code            string          `json:"code"`
-	Message         string          `json:"message"`
-	ProviderCode    string          `json:"providerCode,omitempty"`
-	ProviderMessage string          `json:"providerMessage,omitempty"`
-	StatusCode      int             `json:"statusCode,omitempty"`
-	RequestID       string          `json:"requestId,omitempty"`
+	Operation       string            `json:"operation,omitempty"`
+	Stage           string            `json:"stage,omitempty"`
+	Usage           jsonv1.RawMessage `json:"usage,omitzero"`
+	Code            string            `json:"code"`
+	Message         string            `json:"message"`
+	ProviderCode    string            `json:"providerCode,omitempty"`
+	ProviderMessage string            `json:"providerMessage,omitempty"`
+	StatusCode      int               `json:"statusCode,omitzero"`
+	RequestID       string            `json:"requestId,omitempty"`
 }
 
 func (e *Error) Error() string {

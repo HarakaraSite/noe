@@ -33,7 +33,13 @@ func TestObserveContextAndParallelHookSnapshots(t *testing.T) {
 		t.Fatalf("delta lost state: %+v", snapshot)
 	}
 	data, err := json.Marshal(snapshot)
-	if err != nil || !strings.Contains(string(data), `"context":{"budget"`) {
+	var encodedSnapshot struct {
+		Context map[string]json.RawMessage `json:"context"`
+	}
+	if err == nil {
+		err = json.Unmarshal(data, &encodedSnapshot)
+	}
+	if err != nil || len(encodedSnapshot.Context["budget"]) == 0 {
 		t.Fatalf("context became string: %s %v", data, err)
 	}
 	if strings.Contains(string(data), "captured raw output") || strings.Contains(string(data), "changed model output") || !strings.Contains(string(data), `"toolExecution":{"success":true}`) {

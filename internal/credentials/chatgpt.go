@@ -3,7 +3,7 @@ package credentials
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -115,7 +115,7 @@ func (c *ChatGPT) getJSON(ctx context.Context, endpoint string, target any) erro
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("ChatGPT discovery failed (HTTP %d)", res.StatusCode)
 	}
-	if json.NewDecoder(res.Body).Decode(target) != nil {
+	if json.UnmarshalRead(res.Body, target) != nil {
 		return errors.New("invalid ChatGPT discovery response")
 	}
 	return nil
@@ -182,7 +182,7 @@ func (c *ChatGPT) refresh(ctx context.Context, record *Record) error {
 		return fmt.Errorf("ChatGPT token refresh failed (HTTP %d)", res.StatusCode)
 	}
 	var tokens Tokens
-	if json.NewDecoder(res.Body).Decode(&tokens) != nil || tokens.Access == "" || tokens.Refresh == "" || tokens.ExpiresIn <= 0 {
+	if json.UnmarshalRead(res.Body, &tokens) != nil || tokens.Access == "" || tokens.Refresh == "" || tokens.ExpiresIn <= 0 {
 		return errors.New("ChatGPT refresh response is incomplete")
 	}
 	record.Access, record.Refresh, record.TokenType = tokens.Access, tokens.Refresh, tokens.TokenType

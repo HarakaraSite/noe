@@ -3,7 +3,8 @@ package control
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -349,14 +350,13 @@ func (c *Controller) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 
 func decodeRequest(w http.ResponseWriter, r *http.Request, target any) bool {
 	defer r.Body.Close()
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBytes))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	decoder := jsontext.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBytes))
+	if err := json.UnmarshalDecode(decoder, target, json.RejectUnknownMembers(true)); err != nil {
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid control request")
 		return false
 	}
 	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
+	if err := json.UnmarshalDecode(decoder, &extra); err != io.EOF {
 		writeRPCError(w, http.StatusBadRequest, "request", "invalid control request")
 		return false
 	}
@@ -376,9 +376,9 @@ func writeHostError(w http.ResponseWriter, err error) {
 func writeRPCError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(rpcErrorBody{Error: RPCError{Code: code, Message: message}})
+	_ = json.MarshalEncode(jsontext.NewEncoder(w), rpcErrorBody{Error: RPCError{Code: code, Message: message}})
 }
 
 func writeJSON(w http.ResponseWriter, value any) {
-	_ = json.NewEncoder(w).Encode(value)
+	_ = json.MarshalEncode(jsontext.NewEncoder(w), value)
 }

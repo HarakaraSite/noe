@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -93,7 +94,8 @@ if(r.lastResult.answer!=="continued successfully")throw Error(JSON.stringify(r))
 			}
 			delivered := map[string]string{}
 			for i, req := range requests {
-				body, _ := json.Marshal(req.Messages)
+				// Count the bytes using the same JSON v2 defaults as preparation.
+				body, _ := jsonv2.Marshal(req.Messages)
 				_, failures, err := parseHookNotification(req.Messages)
 				wantFailures := 2
 				if i == 0 {
@@ -124,7 +126,7 @@ if(r.lastResult.answer!=="continued successfully")throw Error(JSON.stringify(r))
 						_, _ = fmt.Sscanf(line, "Next request estimate: about %d tokens", &statedEstimate)
 					}
 				}
-				toolsData, _ := json.Marshal(req.Tools)
+				toolsData, _ := jsonv2.Marshal(req.Tools)
 				actualEstimate := (len(body) + len(toolsData) + 3) / 4
 				if statedEstimate != actualEstimate {
 					t.Fatalf("request %d notice estimate=%d actual prepared payload estimate=%d", i, statedEstimate, actualEstimate)

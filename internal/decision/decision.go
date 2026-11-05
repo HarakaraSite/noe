@@ -5,21 +5,23 @@ package decision
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"io"
 	"strings"
 )
 
 type Request struct {
-	Provider  string                     `json:"provider"`
-	Model     string                     `json:"model"`
-	State     json.RawMessage            `json:"state"`
-	Questions map[string]json.RawMessage `json:"questions"`
+	Provider  string                       `json:"provider"`
+	Model     string                       `json:"model"`
+	State     jsonv1.RawMessage            `json:"state"`
+	Questions map[string]jsonv1.RawMessage `json:"questions"`
 }
 
 type Response struct {
-	JSON       json.RawMessage
+	JSON       jsonv1.RawMessage
 	StatusCode int
 }
 
@@ -29,12 +31,11 @@ type Provider interface {
 
 func ParseRequest(raw []byte) (Request, error) {
 	var request Request
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&request); err != nil {
+	decoder := jsontext.NewDecoder(bytes.NewReader(raw))
+	if err := json.UnmarshalDecode(decoder, &request, json.RejectUnknownMembers(true)); err != nil {
 		return Request{}, errors.New("invalid decision request")
 	}
-	if err := decoder.Decode(new(any)); err != io.EOF {
+	if err := json.UnmarshalDecode(decoder, new(any)); err != io.EOF {
 		return Request{}, errors.New("invalid trailing decision data")
 	}
 	return request, request.Validate()
@@ -45,7 +46,7 @@ func (r Request) Validate() error {
 		return errors.New("decision requires provider openrouter and a nonempty model")
 	}
 	state := bytes.TrimSpace(r.State)
-	if !json.Valid(state) || len(state) == 0 {
+	if !jsontext.Value(state).IsValid() || len(state) == 0 {
 		return errors.New("decision state must be a nonempty string, object, or array")
 	}
 	switch state[0] {
@@ -69,13 +70,13 @@ func (r Request) Validate() error {
 	return nil
 }
 
-func IsObject(raw json.RawMessage) bool {
+func IsObject(raw jsonv1.RawMessage) bool {
 	raw = bytes.TrimSpace(raw)
-	return len(raw) != 0 && raw[0] == '{' && json.Valid(raw)
+	return len(raw) != 0 && raw[0] == '{' && jsontext.Value(raw).IsValid()
 }
 
-func ValidateResponse(raw json.RawMessage) error {
-	var response map[string]json.RawMessage
+func ValidateResponse(raw jsonv1.RawMessage) error {
+	var response map[string]jsonv1.RawMessage
 	if !IsObject(raw) || json.Unmarshal(raw, &response) != nil || !IsObject(response["answers"]) {
 		return errors.New("invalid decision response")
 	}

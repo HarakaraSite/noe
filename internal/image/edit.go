@@ -2,7 +2,7 @@ package imageapi
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
 	"fmt"
 	"strings"
 )
@@ -15,12 +15,12 @@ type Input struct {
 
 // EditRequest asks for one edited image without choosing an output location.
 type EditRequest struct {
-	Provider   string                     `json:"provider"`
-	Model      string                     `json:"model"`
-	Prompt     string                     `json:"prompt"`
-	Images     []Input                    `json:"-"`
-	Parameters map[string]json.RawMessage `json:"parameters,omitempty"`
-	RunID      string                     `json:"-"`
+	Provider   string                       `json:"provider"`
+	Model      string                       `json:"model"`
+	Prompt     string                       `json:"prompt"`
+	Images     []Input                      `json:"-"`
+	Parameters map[string]jsonv1.RawMessage `json:"parameters,omitempty"`
+	RunID      string                       `json:"-"`
 }
 
 type Editor interface {
@@ -65,7 +65,7 @@ func DescribeError(err error, operation, stage string, generated Generated) *Err
 		details.Stage = stage
 	}
 	if len(details.Usage) == 0 {
-		details.Usage = append(json.RawMessage(nil), generated.Usage...)
+		details.Usage = append(jsonv1.RawMessage(nil), generated.Usage...)
 	}
 	if details.RequestID == "" {
 		details.RequestID = generated.RequestID

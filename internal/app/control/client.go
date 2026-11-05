@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -133,7 +135,7 @@ func (r *controlRegistration) close() {
 
 // Call sends one bounded admission or status request. It never waits for an
 // accepted task to finish.
-func (c ControlConnection) Call(ctx context.Context, method string, payload any) (json.RawMessage, error) {
+func (c ControlConnection) Call(ctx context.Context, method string, payload any) (jsonv1.RawMessage, error) {
 	if ctx == nil {
 		return nil, errors.New("agent control request requires a context")
 	}
@@ -174,16 +176,16 @@ func (c ControlConnection) Call(ctx context.Context, method string, payload any)
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		var body rpcErrorBody
-		if json.NewDecoder(io.LimitReader(response.Body, maxControlBody)).Decode(&body) == nil && body.Error.Code != "" {
+		if json.UnmarshalRead(io.LimitReader(response.Body, maxControlBody), &body) == nil && body.Error.Code != "" {
 			return nil, &body.Error
 		}
 		return nil, fmt.Errorf("agent host rejected control request (HTTP %d)", response.StatusCode)
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxControlBody+1))
-	if err != nil || len(data) > maxControlBody || !json.Valid(data) {
+	if err != nil || len(data) > maxControlBody || !jsontext.Value(data).IsValid() {
 		return nil, errors.New("agent host returned an invalid control response")
 	}
-	return json.RawMessage(data), nil
+	return jsonv1.RawMessage(data), nil
 }
 
 func validateConnectionURL(raw string) error {

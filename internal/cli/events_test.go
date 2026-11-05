@@ -259,7 +259,8 @@ func (failedEventWriter) Write([]byte) (int, error) { return 0, errors.New("even
 
 func TestEventsWriteFailureCancelsAndReports(t *testing.T) {
 	var diagnostic bytes.Buffer
-	if code := Run(context.Background(), []string{"eval", "--events=-", `await new Promise(()=>{});`}, strings.NewReader(""), failedEventWriter{}, &diagnostic); code != 1 || !strings.Contains(diagnostic.String(), "write events: event output failed") {
+	code := Run(context.Background(), []string{"eval", "--events=-", `await new Promise(()=>{});`}, strings.NewReader(""), failedEventWriter{}, &diagnostic)
+	if code != 1 || !strings.Contains(diagnostic.String(), "write events:") || !strings.Contains(diagnostic.String(), "event output failed") {
 		t.Fatalf("exit %d: %s", code, &diagnostic)
 	}
 }
@@ -276,6 +277,23 @@ func TestEventOutputPreservesSplitUTF8AndPartialLine(t *testing.T) {
 	w.flush()
 	if got := eventTexts(readEvents(t, out.String()), "stdout"); got != "日\n本" {
 		t.Fatalf("text %q", got)
+	}
+}
+
+func TestEventOutputReplacesInvalidUTF8OnlyForJSONText(t *testing.T) {
+	var out, mirror bytes.Buffer
+	w := &eventOutput{events: events.New(&out, "test"), kind: "stdout", mirror: &mirror}
+	for _, part := range [][]byte{{0xff}, {0xc3}, {0xa9}, {0xe2, 0x82}} {
+		if _, err := w.Write(part); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.flush()
+	if got, want := eventTexts(readEvents(t, out.String()), "stdout"), "\uFFFDé\uFFFD\uFFFD"; got != want {
+		t.Fatalf("event text %q want %q", got, want)
+	}
+	if got, want := mirror.Bytes(), []byte{0xff, 0xc3, 0xa9, 0xe2, 0x82}; !bytes.Equal(got, want) {
+		t.Fatalf("mirrored bytes %v want %v", got, want)
 	}
 }
 

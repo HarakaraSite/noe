@@ -2,12 +2,15 @@ package agent
 
 import (
 	"bytes"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
+
+	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
 
 // conversationSnapshot is the current pruned transcript owned by one agent
@@ -19,9 +22,9 @@ type conversationSnapshot struct {
 }
 
 type conversationEntry struct {
-	ID       string            `json:"id"`
-	Kind     string            `json:"kind"`
-	Messages []json.RawMessage `json:"messages"`
+	ID       string              `json:"id"`
+	Kind     string              `json:"kind"`
+	Messages []jsonv1.RawMessage `json:"messages"`
 }
 
 type conversationCheckpointRequest struct {
@@ -120,10 +123,10 @@ func validateFinalConversationCandidate(current, next *conversationSnapshot, ans
 	return nil
 }
 
-func assistantFinalText(raw json.RawMessage) (string, error) {
+func assistantFinalText(raw jsonv1.RawMessage) (string, error) {
 	var message struct {
-		Role    string          `json:"role"`
-		Content json.RawMessage `json:"content"`
+		Role    string            `json:"role"`
+		Content jsonv1.RawMessage `json:"content"`
 	}
 	if json.Unmarshal(raw, &message) != nil || message.Role != "assistant" {
 		return "", errors.New("final conversation candidate must be an assistant message")
@@ -132,15 +135,15 @@ func assistantFinalText(raw json.RawMessage) (string, error) {
 	if json.Unmarshal(message.Content, &content) == nil {
 		return content, nil
 	}
-	var parts []json.RawMessage
+	var parts []jsonv1.RawMessage
 	if json.Unmarshal(message.Content, &parts) != nil {
 		return "", nil
 	}
 	var text []string
 	for _, rawPart := range parts {
 		var part struct {
-			Type string          `json:"type"`
-			Text json.RawMessage `json:"text"`
+			Type string            `json:"type"`
+			Text jsonv1.RawMessage `json:"text"`
 		}
 		if json.Unmarshal(rawPart, &part) != nil || part.Type != "text" {
 			continue
@@ -179,10 +182,10 @@ func (s *conversationSnapshot) append(kind string, message any) error {
 	if err != nil {
 		return err
 	}
-	return s.appendRaw(kind, []json.RawMessage{encoded})
+	return s.appendRaw(kind, []jsonv1.RawMessage{encoded})
 }
 
-func (s *conversationSnapshot) appendRaw(kind string, messages []json.RawMessage) error {
+func (s *conversationSnapshot) appendRaw(kind string, messages []jsonv1.RawMessage) error {
 	if s == nil {
 		return errors.New("conversation snapshot is missing")
 	}
@@ -191,9 +194,9 @@ func (s *conversationSnapshot) appendRaw(kind string, messages []json.RawMessage
 	}
 	s.Sequence++
 	s.Revision++
-	copyMessages := make([]json.RawMessage, len(messages))
+	copyMessages := make([]jsonv1.RawMessage, len(messages))
 	for index, message := range messages {
-		copyMessages[index] = append(json.RawMessage(nil), message...)
+		copyMessages[index] = append(jsonv1.RawMessage(nil), message...)
 	}
 	s.Entries = append(s.Entries, conversationEntry{
 		ID: fmt.Sprintf("history-%d", s.Sequence), Kind: kind, Messages: copyMessages,
@@ -211,9 +214,9 @@ func cloneConversationSnapshot(snapshot *conversationSnapshot) *conversationSnap
 		for index, entry := range snapshot.Entries {
 			copy.Entries[index] = conversationEntry{ID: entry.ID, Kind: entry.Kind}
 			if entry.Messages != nil {
-				copy.Entries[index].Messages = make([]json.RawMessage, len(entry.Messages))
+				copy.Entries[index].Messages = make([]jsonv1.RawMessage, len(entry.Messages))
 				for messageIndex, message := range entry.Messages {
-					copy.Entries[index].Messages[messageIndex] = append(json.RawMessage(nil), message...)
+					copy.Entries[index].Messages[messageIndex] = append(jsonv1.RawMessage(nil), message...)
 				}
 			}
 		}
@@ -225,14 +228,14 @@ func (s *conversationSnapshot) appendProtected(instruction string) error {
 	return s.append("protected", map[string]string{"role": "user", "content": instruction})
 }
 
-func (s *conversationSnapshot) messages() []json.RawMessage {
+func (s *conversationSnapshot) messages() []jsonv1.RawMessage {
 	if s == nil {
 		return nil
 	}
-	var messages []json.RawMessage
+	var messages []jsonv1.RawMessage
 	for _, entry := range s.Entries {
 		for _, message := range entry.Messages {
-			messages = append(messages, append(json.RawMessage(nil), message...))
+			messages = append(messages, append(jsonv1.RawMessage(nil), message...))
 		}
 	}
 	return messages
@@ -240,8 +243,8 @@ func (s *conversationSnapshot) messages() []json.RawMessage {
 
 // messageView borrows immutable entry payloads. Callers must hold Host.mu and
 // must copy before handing these bytes to a borrowed model service.
-func (s *conversationSnapshot) messageView() []json.RawMessage {
-	var messages []json.RawMessage
+func (s *conversationSnapshot) messageView() []jsonv1.RawMessage {
+	var messages []jsonv1.RawMessage
 	for _, entry := range s.Entries {
 		messages = append(messages, entry.Messages...)
 	}
@@ -300,7 +303,7 @@ func validateConversationSnapshot(snapshot *conversationSnapshot) error {
 // A status describes this turn's runtime state. Retain it with the response so
 // replay preserves the sent prefix and trimming removes both together. Older
 // snapshots without a status remain valid.
-func conversationResponseMessages(messages []json.RawMessage) []json.RawMessage {
+func conversationResponseMessages(messages []jsonv1.RawMessage) []jsonv1.RawMessage {
 	if len(messages) > 0 {
 		var first struct {
 			Role    string `json:"role"`
@@ -313,7 +316,7 @@ func conversationResponseMessages(messages []json.RawMessage) []json.RawMessage 
 	return messages
 }
 
-func validateConversationBlock(messages []json.RawMessage) error {
+func validateConversationBlock(messages []jsonv1.RawMessage) error {
 	messages = conversationResponseMessages(messages)
 	if len(messages) == 0 {
 		return errors.New("conversation block is missing its assistant message")
@@ -354,7 +357,7 @@ func validateConversationBlock(messages []json.RawMessage) error {
 	return nil
 }
 
-func validateConversationSnapshotMatches(snapshot *conversationSnapshot, messages []json.RawMessage, layout *contextHistoryLayout) error {
+func validateConversationSnapshotMatches(snapshot *conversationSnapshot, messages []jsonv1.RawMessage, layout *contextHistoryLayout) error {
 	if err := validateConversationSnapshot(snapshot); err != nil {
 		return err
 	}
@@ -463,17 +466,15 @@ func conversationSnapshotEqual(left, right *conversationSnapshot) bool {
 	return true
 }
 
-func conversationJSONEqual(left, right json.RawMessage) bool {
+func conversationJSONEqual(left, right jsonv1.RawMessage) bool {
 	// Most mirrored entries retain their exact encoding. Validate before taking
 	// this path so identical malformed input is not accepted as a JSON value.
-	if bytes.Equal(left, right) && json.Valid(left) {
+	if bytes.Equal(left, right) && validJSON(left) {
 		return true
 	}
-	decode := func(raw json.RawMessage) (any, error) {
-		decoder := json.NewDecoder(bytes.NewReader(raw))
-		decoder.UseNumber()
+	decode := func(raw jsonv1.RawMessage) (any, error) {
 		var value any
-		if err := decoder.Decode(&value); err != nil {
+		if err := json.Unmarshal(raw, &value, jsonutil.PreserveNumbers()); err != nil {
 			return nil, err
 		}
 		return value, nil
