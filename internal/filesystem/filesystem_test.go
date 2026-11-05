@@ -137,3 +137,27 @@ func TestExecutionViewCancellationLeavesBorrowedBackendUsable(t *testing.T) {
 		t.Fatalf("caller cancellation = %v", err)
 	}
 }
+
+func TestExclusiveCreatePreservesDanglingFinalSymlink(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Symlink("target", filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	for _, cfg := range []Config{{Cwd: root}, {Root: root}} {
+		b, err := New(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := b.OpenFile(context.Background(), "link", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if file != nil {
+			_ = file.Close()
+			t.Fatal("exclusive open followed dangling link")
+		}
+		if !errors.Is(err, os.ErrExist) {
+			t.Fatalf("exclusive open error=%v, want existence error", err)
+		}
+		if _, err := os.Lstat(filepath.Join(root, "target")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("exclusive open created target: %v", err)
+		}
+	}
+}

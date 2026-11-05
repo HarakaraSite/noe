@@ -43,7 +43,7 @@ func (f *fsHost) openRead(p string, start, end int64) (quickjs.Value, error) {
 		}
 	}
 
-	r := &fileReader{rt: f.rt, loop: f.cfg.Loop, file: file, left: left}
+	r := &fileReader{fs: f, rt: f.rt, loop: f.cfg.Loop, file: file, left: left}
 	// A file read partway when the runtime closes is closed with it.
 	r.unhook = f.rt.OnClose(func() { file.Close() })
 	if scope := f.cfg.Loop.executionScope(); scope != nil {
@@ -67,6 +67,7 @@ func (f *fsHost) openRead(p string, start, end int64) (quickjs.Value, error) {
 
 // fileReader is an open file being read a chunk at a time.
 type fileReader struct {
+	fs   *fsHost
 	rt   *quickjs.Runtime
 	loop *Loop
 	file *os.File
@@ -87,7 +88,7 @@ func (r *fileReader) read() *quickjs.Promise {
 		return p
 	}
 	if r.busy {
-		p.RejectError(errors.New("this file is already being read"))
+		r.fs.reject(p, errors.New("this file is already being read"))
 		return p
 	}
 	size := int64(fileChunk)
@@ -112,7 +113,7 @@ func (r *fileReader) read() *quickjs.Promise {
 		}
 		r.close()
 		if err != nil && !errors.Is(err, io.EOF) {
-			p.RejectError(err)
+			r.fs.reject(p, err)
 			return
 		}
 		p.Resolve(nil)
@@ -167,7 +168,7 @@ func (f *fsHost) openWrite(p string, appending bool) (quickjs.Value, error) {
 		return quickjs.Value{}, err
 	}
 
-	w := &fileWriter{rt: f.rt, loop: f.cfg.Loop, file: file}
+	w := &fileWriter{fs: f, rt: f.rt, loop: f.cfg.Loop, file: file}
 	// A file still being written when the runtime closes is closed with it.
 	w.unhook = f.rt.OnClose(func() { file.Close() })
 	if scope := f.cfg.Loop.executionScope(); scope != nil {
@@ -199,6 +200,7 @@ func (f *fsHost) openWrite(p string, appending bool) (quickjs.Value, error) {
 
 // fileWriter is an open file being written a chunk at a time.
 type fileWriter struct {
+	fs   *fsHost
 	rt   *quickjs.Runtime
 	loop *Loop
 	file *os.File
@@ -211,7 +213,7 @@ type fileWriter struct {
 func (w *fileWriter) write(chunk quickjs.Value) *quickjs.Promise {
 	p := w.rt.NewPromise()
 	if w.done {
-		p.RejectError(errors.New("this file has already been closed"))
+		w.fs.reject(p, fileError(os.ErrClosed, "ERR_FILE_CLOSED"))
 		return p
 	}
 	b, ok := chunk.Bytes()
@@ -225,7 +227,7 @@ func (w *fileWriter) write(chunk quickjs.Value) *quickjs.Promise {
 	if w.loop == nil {
 		_, err := w.file.Write(data)
 		if err != nil {
-			p.RejectError(err)
+			w.fs.reject(p, err)
 		} else {
 			p.Resolve(nil)
 		}
@@ -238,14 +240,14 @@ func (w *fileWriter) write(chunk quickjs.Value) *quickjs.Promise {
 		_, err := file.Write(data)
 		loop.postExecution(func() {
 			if err != nil {
-				p.RejectError(err)
+				w.fs.reject(p, err)
 				return
 			}
 			p.Resolve(nil)
 		})
 	}); err != nil {
 		loop.Done()
-		p.RejectError(err)
+		w.fs.reject(p, err)
 	}
 	return p
 }
@@ -267,7 +269,7 @@ func (w *fileWriter) closeValue() *quickjs.Promise {
 			w.scopeUnhook()
 		}
 		if err != nil {
-			p.RejectError(err)
+			w.fs.reject(p, err)
 		} else {
 			p.Resolve(nil)
 		}
@@ -286,7 +288,7 @@ func (w *fileWriter) closeValue() *quickjs.Promise {
 				w.scopeUnhook()
 			}
 			if err != nil {
-				p.RejectError(err)
+				w.fs.reject(p, err)
 				return
 			}
 			p.Resolve(nil)
@@ -297,7 +299,7 @@ func (w *fileWriter) closeValue() *quickjs.Promise {
 		if w.scopeUnhook != nil {
 			w.scopeUnhook()
 		}
-		p.RejectError(err)
+		w.fs.reject(p, err)
 	}
 	return p
 }

@@ -308,13 +308,15 @@ traceにはrun ID、親run ID、agent名、model、status、duration（nanosecon
 | `readFile(path, "utf8")` | UTF-8テキストを文字列として読む |
 | `readFile(path)` | 全バイトをUint8Arrayとして読む |
 | `writeFile(path, data)` | 文字列またはバイト列を書き込む |
-| `readdir(path)` | 直下の名前を文字列の配列で返す |
-| `stat(path)`・`lstat(path)` | `size`、`mode`、`mtimeMs`、`mtime`と、`isFile()`・`isDirectory()`などを返す。`stat`はリンク先、`lstat`はリンク自身を調べる |
+| `readdir(path, options?)` | Returns names by default, or Dirent objects with `{withFileTypes: true}`. |
+| `stat(path)`・`lstat(path)` | Return `FileInfo` with canonical POSIX file-type, permission, and special bits in `mode`, plus `mtime` as a `Date` and `mtimeMs` as epoch milliseconds. Extract permissions with `mode & 0o777`. `stat` follows links; `lstat` describes the link itself. |
 | `mkdir(path, options)` | `{ recursive: true }`などの標準オプションを受け付ける |
 | `rename(from, to)` | 名前を変更または移動する |
 | `rm(path, options)` | `{ recursive: true, force: true }`などの標準オプションを受け付ける |
 
-`readdir`の結果は名前だけで、Direntオブジェクトではありません。`stat`はシンボリックリンクの参照先、`lstat`はリンク自身を調べます。パスの解決はファイル操作時のカレントディレクトリが基準です。
+Filesystem errors across synchronous calls, promises, FileHandles, and Web Streams use symbolic string `code` values such as `ENOENT` and `EEXIST`; `errno`, when present, is the positive platform OS number and varies by platform. Custom codes include `ERR_INVALID_ARG`, `ERR_READ_ONLY`, `ERR_FILE_CLOSED`, and `ERR_IO`.
+
+`readdir(path)` returns names; `readdir(path, {withFileTypes: true})` returns Dirent objects. `stat`はシンボリックリンクの参照先、`lstat`はリンク自身を調べます。パスの解決はファイル操作時のカレントディレクトリが基準です。
 
 ```js
 import { readFile, writeFile } from "fs/promises";

@@ -11,6 +11,7 @@ import fsPromisesDefault, {
   FileHandleRead,
   FileHandleReadOptions,
   FileHandleWrite,
+  FileSystemError,
   open as nodeFsOpen,
 } from "node:fs/promises";
 import {FileHandle, open as bareFsOpen, readFile, readdir} from "fs/promises";
@@ -220,3 +221,29 @@ void [assertAlias, asyncHooksAlias, bufferAlias, childProcessAlias, cryptoAlias,
   defaultNodeFsPromiseOpen, defaultBareFsPromiseOpen,
   socketConnect, socketListener, response, parsedBody, streamChunk,
   digest, compressed, transformed, currentPid];
+
+// FileHandle metadata, resizing, and durable flush are promise operations.
+const openCreated = await nodeFsOpen("created.bin", "wx+", 0o600);
+const handleInfo: NOEStdlib.FileInfo = await openCreated.stat();
+const handleMtime: Date = handleInfo.mtime;
+const handleMtimeMs: number = handleInfo.mtimeMs;
+const handleMode: number = handleInfo.mode;
+const fileKindBits: number = handleMode & 0o170000;
+const filePermissionBits: number = handleMode & 0o777;
+const filesystemError: FileSystemError = Object.assign(new Error("missing"), {
+  code: "ENOENT",
+  errno: 2,
+  path: "missing",
+  syscall: "open",
+});
+await openCreated.truncate(4);
+await openCreated.sync();
+await openCreated.close();
+const syncDirents = fs.readdirSync(".", {withFileTypes: true});
+const asyncDirents = await readdir(".", {withFileTypes: true});
+const entryNames: string[] = syncDirents.map(entry => entry.name);
+const entryParent: string | undefined = asyncDirents[0]?.parentPath;
+const isEntryFile: boolean | undefined = asyncDirents[0]?.isFile();
+const variableDirents: string[] | NOEStdlib.Dirent[] = fs.readdirSync(".", {withFileTypes: Math.random() > 0.5});
+void [handleInfo, handleMtime, handleMtimeMs, fileKindBits, filePermissionBits, filesystemError,
+  entryNames, entryParent, isEntryFile, variableDirents];

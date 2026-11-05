@@ -29,11 +29,22 @@ declare namespace NOEStdlib {
     stderr?: string | Uint8Array;
   }
 
+  interface FileSystemError extends CodedError {
+    code: string;
+    errno?: number;
+    path?: string;
+    dest?: string;
+    syscall?: string;
+    bytesRead?: number;
+    bytesWritten?: number;
+    buffer?: ArrayBufferView | string;
+  }
+
   interface FileInfo {
     readonly size: number;
     readonly mode: number;
     readonly mtimeMs: number;
-    readonly mtime: string;
+    readonly mtime: Date;
     isFile(): boolean;
     isDirectory(): boolean;
     isSymbolicLink(): boolean;
@@ -320,10 +331,25 @@ declare namespace NOEStdlib {
     readonly REFUSED: number; readonly SERVFAIL: number; readonly TIMEOUT: number; readonly V4MAPPED: number;
   }
 
+  interface Dirent {
+    readonly name: string;
+    readonly parentPath: string;
+    isFile(): boolean;
+    isDirectory(): boolean;
+    isSymbolicLink(): boolean;
+    isBlockDevice(): boolean;
+    isCharacterDevice(): boolean;
+    isFIFO(): boolean;
+    isSocket(): boolean;
+  }
+  interface DirentConstructor {
+    new(name: string, kind: number, parentPath: string): Dirent;
+    readonly prototype: Dirent;
+  }
   interface FileReadOptions { start?: number; end?: number }
   interface FileWriteOptions { flags?: string }
   type FileData = string | Uint8Array | ArrayBuffer | ArrayBufferView;
-  type FileHandleFlags = "r" | "r+";
+  type FileHandleFlags = "r" | "r+" | "w" | "wx" | "w+" | "wx+" | "a" | "ax" | "a+" | "ax+";
   interface FileHandleIOOptions { offset?: number; length?: number; position?: number | null }
   interface FileHandleReadOptions<B extends ArrayBufferView = Uint8Array> extends FileHandleIOOptions {
     buffer?: B;
@@ -335,6 +361,9 @@ declare namespace NOEStdlib {
     buffer: B;
   }
   interface FileHandle {
+    stat(): Promise<FileInfo>;
+    truncate(length?: number): Promise<void>;
+    sync(): Promise<void>;
     read<B extends ArrayBufferView>(buffer: B, offset?: number, length?: number, position?: number | null): Promise<FileHandleRead<B>>;
     read<B extends ArrayBufferView>(buffer: B, options?: FileHandleIOOptions): Promise<FileHandleRead<B>>;
     read<B extends ArrayBufferView = Uint8Array>(options?: FileHandleReadOptions<B>): Promise<FileHandleRead<B>>;
@@ -344,6 +373,7 @@ declare namespace NOEStdlib {
     close(): Promise<void>;
   }
   interface FSModule {
+    readonly Dirent: DirentConstructor;
     appendFileSync(path: string, data: FileData): void;
     chmodSync(path: string, mode: number): void;
     copyFileSync(from: string, to: string): void;
@@ -355,7 +385,9 @@ declare namespace NOEStdlib {
     mkdtempSync(prefix: string): string;
     readFileSync(path: string): Uint8Array;
     readFileSync(path: string, encoding: string | {encoding: string}): string;
-    readdirSync(path: string): string[];
+    readdirSync(path: string, options?: {withFileTypes?: false}): string[];
+    readdirSync(path: string, options: {withFileTypes: true}): Dirent[];
+    readdirSync(path: string, options: {withFileTypes?: boolean}): string[] | Dirent[];
     readlinkSync(path: string): string;
     realpathSync(path: string): string;
     renameSync(from: string, to: string): void;
@@ -369,13 +401,15 @@ declare namespace NOEStdlib {
   interface FSPromisesAPI {
     appendFile(path: string, data: FileData): Promise<void>;
     copyFile(from: string, to: string): Promise<void>;
-    open(path: string, flags?: FileHandleFlags): Promise<FileHandle>;
+    open(path: string, flags?: FileHandleFlags, mode?: number): Promise<FileHandle>;
     lstat(path: string): Promise<FileInfo>;
     mkdir(path: string, options?: {recursive?: boolean}): Promise<void>;
     mkdtemp(prefix: string): Promise<string>;
     readFile(path: string): Promise<Uint8Array>;
     readFile(path: string, encoding: string | {encoding: string}): Promise<string>;
-    readdir(path: string): Promise<string[]>;
+    readdir(path: string, options?: {withFileTypes?: false}): Promise<string[]>;
+    readdir(path: string, options: {withFileTypes: true}): Promise<Dirent[]>;
+    readdir(path: string, options: {withFileTypes?: boolean}): Promise<string[] | Dirent[]>;
     readlink(path: string): Promise<string>;
     realpath(path: string): Promise<string>;
     rename(from: string, to: string): Promise<void>;
@@ -1196,7 +1230,9 @@ declare module "node:events" {
   export default EventEmitter;
 }
 declare module "node:fs" {
-  export type FileInfo = NOEStdlib.FileInfo; export type FileData = NOEStdlib.FileData;
+  export type Dirent = NOEStdlib.Dirent;
+  export const Dirent: NOEStdlib.DirentConstructor;
+  export type FileInfo = NOEStdlib.FileInfo; export type FileSystemError = NOEStdlib.FileSystemError; export type FileData = NOEStdlib.FileData;
   export type FileReadOptions = NOEStdlib.FileReadOptions; export type FileWriteOptions = NOEStdlib.FileWriteOptions;
   export type FSPromisesAPI = NOEStdlib.FSPromisesAPI;
   export const appendFileSync: NOEStdlib.FSModule["appendFileSync"];
@@ -1223,7 +1259,8 @@ declare module "node:fs" {
   export default api;
 }
 declare module "node:fs/promises" {
-  export type FileInfo = NOEStdlib.FileInfo; export type FileData = NOEStdlib.FileData;
+  export type Dirent = NOEStdlib.Dirent;
+  export type FileInfo = NOEStdlib.FileInfo; export type FileSystemError = NOEStdlib.FileSystemError; export type FileData = NOEStdlib.FileData;
   export type FileHandle = NOEStdlib.FileHandle; export type FileHandleFlags = NOEStdlib.FileHandleFlags;
   export type FileHandleIOOptions = NOEStdlib.FileHandleIOOptions;
   export type FileHandleRead<B extends ArrayBufferView = Uint8Array> = NOEStdlib.FileHandleRead<B>;

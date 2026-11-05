@@ -6,8 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
-	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
 
@@ -77,6 +75,13 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	}
 	settings.Root, settings.Cwd = backend.Root(), backend.Cwd()
 	f := &fsHost{rt: rt, cfg: &settings, backend: backend}
+	if err := f.installMetadata(); err != nil {
+		return err
+	}
+	dirent, err := f.installDirectoryValues()
+	if err != nil {
+		return err
+	}
 	handles, err := newFileHost(f)
 	if err != nil {
 		return err
@@ -95,23 +100,29 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	}
 
 	sync := map[string]any{
-		"readFileSync":   f.readFile,
-		"writeFileSync":  f.writeFile,
-		"appendFileSync": f.appendFile,
+		"readFileSync": func(p string, enc quickjs.Value) (any, error) {
+			v, err := f.readFile(p, enc)
+			return filesystemResult(f, v, err)
+		},
+		"writeFileSync":  func(p string, data quickjs.Value) error { return f.throwError(f.writeFile(p, data)) },
+		"appendFileSync": func(p string, data quickjs.Value) error { return f.throwError(f.appendFile(p, data)) },
 		"existsSync":     f.exists,
-		"statSync":       func(p string) (quickjs.Value, error) { return f.stat(p, false) },
-		"lstatSync":      func(p string) (quickjs.Value, error) { return f.stat(p, true) },
-		"readdirSync":    f.readdir,
-		"mkdirSync":      f.mkdir,
-		"rmSync":         f.remove,
-		"rmdirSync":      f.rmdir,
-		"unlinkSync":     f.unlink,
-		"renameSync":     f.rename,
-		"copyFileSync":   f.copyFile,
-		"realpathSync":   f.realpath,
-		"readlinkSync":   f.readlink,
-		"chmodSync":      f.chmod,
-		"mkdtempSync":    f.mkdtemp,
+		"statSync":       func(p string) (quickjs.Value, error) { v, err := f.stat(p, false); return filesystemResult(f, v, err) },
+		"lstatSync":      func(p string) (quickjs.Value, error) { v, err := f.stat(p, true); return filesystemResult(f, v, err) },
+		"readdirSync": func(p string, opts quickjs.Value) (quickjs.Value, error) {
+			v, err := f.readdir(p, opts)
+			return filesystemResult(f, v, err)
+		},
+		"mkdirSync":    func(p string, opts quickjs.Value) error { return f.throwError(f.mkdir(p, opts)) },
+		"rmSync":       func(p string, opts quickjs.Value) error { return f.throwError(f.remove(p, opts)) },
+		"rmdirSync":    func(p string) error { return f.throwError(f.rmdir(p)) },
+		"unlinkSync":   func(p string) error { return f.throwError(f.unlink(p)) },
+		"renameSync":   func(from, to string) error { return f.throwError(f.rename(from, to)) },
+		"copyFileSync": func(from, to string) error { return f.throwError(f.copyFile(from, to)) },
+		"realpathSync": func(p string) (string, error) { v, err := f.realpath(p); return filesystemResult(f, v, err) },
+		"readlinkSync": func(p string) (string, error) { v, err := f.readlink(p); return filesystemResult(f, v, err) },
+		"chmodSync":    func(p string, mode float64) error { return f.throwError(f.chmod(p, mode)) },
+		"mkdtempSync":  func(p string) (string, error) { v, err := f.mkdtemp(p); return filesystemResult(f, v, err) },
 	}
 
 	// The promise half runs the same operations, named as node names them. Each
@@ -143,8 +154,14 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 		"lstat": func(p string) *quickjs.Promise {
 			return f.promise(func() (any, error) { return f.statInfo(p, true) })
 		},
-		"readdir": func(p string) *quickjs.Promise {
-			return f.promise(func() (any, error) { return f.readdir(p) })
+		"readdir": func(p string, opts quickjs.Value) *quickjs.Promise {
+			withTypes, err := directoryOptions(opts)
+			return f.promise(func() (any, error) {
+				if err != nil {
+					return nil, err
+				}
+				return f.readDirectory(p, withTypes)
+			})
 		},
 		"mkdir": func(p string, opts quickjs.Value) *quickjs.Promise {
 			recursive := optionTruthy(opts, "recursive")
@@ -181,8 +198,14 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	// installed where there are streams to build them out of.
 	streamHost := rt.NewObject()
 	if err := errors.Join(
-		streamHost.Set("openRead", f.openRead),
-		streamHost.Set("openWrite", f.openWrite),
+		streamHost.Set("openRead", func(p string, start, end int64) (quickjs.Value, error) {
+			v, err := f.openRead(p, start, end)
+			return filesystemResult(f, v, err)
+		}),
+		streamHost.Set("openWrite", func(p string, append bool) (quickjs.Value, error) {
+			v, err := f.openWrite(p, append)
+			return filesystemResult(f, v, err)
+		}),
 	); err != nil {
 		return err
 	}
@@ -191,7 +214,8 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 		return err
 	}
 
-	exports := make(map[string]any, len(sync)+4)
+	exports := make(map[string]any, len(sync)+5)
+	exports["Dirent"] = dirent
 	for k, v := range sync {
 		exports[k] = v
 	}
@@ -223,6 +247,8 @@ type fsHost struct {
 	rt      *quickjs.Runtime
 	cfg     *FS
 	backend *filesystem.Backend
+	dirents quickjs.Value
+	date    quickjs.Value
 }
 
 func (f *fsHost) rootPath() (string, error)             { return f.backend.Root(), nil }
@@ -311,42 +337,6 @@ func (f *fsHost) statInfo(p string, link bool) (os.FileInfo, error) {
 		return os.Lstat(full)
 	}
 	return os.Stat(full)
-}
-
-// statValue is the object a stat call hands back, with the methods node's has.
-func (f *fsHost) statValue(info os.FileInfo) (quickjs.Value, error) {
-	o := f.rt.NewObject()
-	mode := info.Mode()
-	set := func(name string, v any) error { return o.Set(name, v) }
-	if err := errors.Join(
-		set("size", float64(info.Size())),
-		set("mode", float64(mode.Perm())),
-		set("mtimeMs", float64(info.ModTime().UnixNano())/1e6),
-		set("mtime", info.ModTime().Format(time.RFC3339Nano)),
-		set("isFile", func() bool { return mode.IsRegular() }),
-		set("isDirectory", func() bool { return mode.IsDir() }),
-		set("isSymbolicLink", func() bool { return mode&os.ModeSymlink != 0 }),
-	); err != nil {
-		return quickjs.Value{}, err
-	}
-	return o, nil
-}
-
-func (f *fsHost) readdir(p string) (any, error) {
-	full, err := f.resolve(p)
-	if err != nil {
-		return nil, err
-	}
-	entries, err := os.ReadDir(full)
-	if err != nil {
-		return nil, err
-	}
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		names = append(names, e.Name())
-	}
-	sort.Strings(names)
-	return names, nil
 }
 
 func (f *fsHost) mkdir(p string, opts quickjs.Value) error {
@@ -532,7 +522,7 @@ func (f *fsHost) promise(work func() (any, error)) *quickjs.Promise {
 		loop.postExecution(func() { f.settle(p, v, err) })
 	}); err != nil {
 		loop.Done()
-		p.RejectError(err)
+		f.reject(p, err)
 	}
 	return p
 }
@@ -541,7 +531,7 @@ func (f *fsHost) promise(work func() (any, error)) *quickjs.Promise {
 // turning the Go forms the operations deal in into what script expects.
 func (f *fsHost) settle(p *quickjs.Promise, v any, err error) {
 	if err != nil {
-		p.RejectError(err)
+		f.reject(p, err)
 		return
 	}
 	switch x := v.(type) {
@@ -549,10 +539,17 @@ func (f *fsHost) settle(p *quickjs.Promise, v any, err error) {
 		p.Resolve(nil)
 	case []byte:
 		p.Resolve(f.rt.NewBytes(x))
+	case directoryEntries:
+		val, err := f.directoryValue(x)
+		if err != nil {
+			f.reject(p, err)
+			return
+		}
+		p.Resolve(val)
 	case os.FileInfo:
 		val, err := f.statValue(x)
 		if err != nil {
-			p.RejectError(err)
+			f.reject(p, err)
 			return
 		}
 		p.Resolve(val)

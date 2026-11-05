@@ -28,6 +28,9 @@ type Backend struct {
 	readOnly    bool
 }
 
+// ErrReadOnly reports a write rejected by the selected filesystem policy.
+var ErrReadOnly = errors.New("the filesystem is read-only")
+
 // New fixes relative host paths at construction. With Root, script paths and
 // Cwd are virtual paths within that root; without it, Cwd is a host path.
 func New(cfg Config) (*Backend, error) {
@@ -74,7 +77,7 @@ func (b *Backend) Root() string        { return b.root }
 
 func (b *Backend) CheckWritable() error {
 	if b.readOnly {
-		return errors.New("the filesystem is read-only")
+		return ErrReadOnly
 	}
 	return nil
 }
@@ -210,17 +213,24 @@ func (b *Backend) Stat(ctx context.Context, p string) (fs.FileInfo, error) {
 	return info, err
 }
 
+// ResolveForOpen applies the write policy and preserves the final directory
+// entry for exclusive creation, including when that entry is a dangling link.
+func (b *Backend) ResolveForOpen(p string, flags int) (string, error) {
+	if flags&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_APPEND) != 0 {
+		if err := b.CheckWritable(); err != nil {
+			return "", err
+		}
+	}
+	exclusive := flags&(os.O_CREATE|os.O_EXCL) == os.O_CREATE|os.O_EXCL
+	return b.Resolve(p, !exclusive)
+}
+
 // OpenFile checks the same policy as the Node APIs. The caller owns the file.
 func (b *Backend) OpenFile(ctx context.Context, p string, flags int, mode os.FileMode) (*os.File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if flags&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_APPEND) != 0 {
-		if err := b.CheckWritable(); err != nil {
-			return nil, err
-		}
-	}
-	full, err := b.Resolve(p, true)
+	full, err := b.ResolveForOpen(p, flags)
 	if err != nil {
 		return nil, err
 	}

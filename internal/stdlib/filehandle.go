@@ -11,8 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 
+	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
@@ -109,47 +109,48 @@ type fileBackend interface {
 	Read([]byte) (int, error)
 	WriteAt([]byte, int64) (int, error)
 	Write([]byte) (int, error)
+	Stat() (os.FileInfo, error)
+	Truncate(int64) error
+	Sync() error
 	Close() error
 }
 
-func (h *fileHost) openFile(path, mode string) *quickjs.Promise {
-	return h.openFileUsing(path, mode, openFileBackend)
+func (h *fileHost) openFile(path, flags string, mode int) *quickjs.Promise {
+	return h.openFileUsing(path, flags, mode, openFileBackend)
 }
 
 func openFileBackend(path string, flags int, perm os.FileMode) (fileBackend, error) {
 	return os.OpenFile(path, flags, perm)
 }
 
-func (h *fileHost) openFileUsing(path, mode string, open func(string, int, os.FileMode) (fileBackend, error)) *quickjs.Promise {
+func (h *fileHost) openFileUsing(path, flagName string, mode int, open func(string, int, os.FileMode) (fileBackend, error)) *quickjs.Promise {
 	if path == "" || strings.ContainsRune(path, 0) {
 		return h.rejectedFilePromise("path must be a nonempty string without NUL", "ERR_INVALID_ARG")
 	}
-	flags := os.O_RDONLY
-	switch mode {
-	case "r":
-	case "r+":
-		flags = os.O_RDWR
-	default:
-		return h.rejectedFilePromise(`mode must be "r" or "r+"`, "ERR_INVALID_ARG")
+	if mode < 0 || mode > 0o777 {
+		return h.rejectedFilePromise("mode must be an integer from 0 through 0o777", "ERR_INVALID_ARG")
 	}
-	if flags != os.O_RDONLY {
-		if err := h.fs.backend.CheckWritable(); err != nil {
+	flags, appendMode, ok := fileOpenFlags(flagName)
+	if !ok {
+		return h.rejectedFilePromise("unsupported file open flags", "ERR_INVALID_ARG")
+	}
+	resolved, err := h.fs.backend.ResolveForOpen(path, flags)
+	if err != nil {
+		if errors.Is(err, filesystem.ErrReadOnly) {
 			return h.rejectedFilePromise(err.Error(), "ERR_READ_ONLY")
 		}
-	}
-	resolved, err := h.fs.backend.Resolve(path, true)
-	if err != nil {
 		return h.rejectedFileErrorPromise(err)
 	}
 	return h.asyncFile(func() (any, error) {
 		if err := h.ctx.Err(); err != nil {
 			return nil, fileError(err, "ERR_FILE_CLOSED")
 		}
-		file, err := open(resolved, flags, 0)
+		file, err := open(resolved, flags, os.FileMode(mode))
 		if err != nil {
 			return nil, fileError(err, fileErrorCode(err))
 		}
 		f := newFileHandle(h, file)
+		f.appendMode = appendMode
 		if err := h.ctx.Err(); err != nil {
 			_ = f.Close()
 			return nil, fileError(err, "ERR_FILE_CLOSED")
@@ -167,12 +168,40 @@ func (h *fileHost) openFileUsing(path, mode string, open func(string, int, os.Fi
 	}, nil)
 }
 
+func fileOpenFlags(name string) (flags int, appendMode, ok bool) {
+	switch name {
+	case "r":
+		return os.O_RDONLY, false, true
+	case "r+":
+		return os.O_RDWR, false, true
+	case "w":
+		return os.O_WRONLY | os.O_CREATE | os.O_TRUNC, false, true
+	case "wx":
+		return os.O_WRONLY | os.O_CREATE | os.O_TRUNC | os.O_EXCL, false, true
+	case "w+":
+		return os.O_RDWR | os.O_CREATE | os.O_TRUNC, false, true
+	case "wx+":
+		return os.O_RDWR | os.O_CREATE | os.O_TRUNC | os.O_EXCL, false, true
+	case "a":
+		return os.O_WRONLY | os.O_CREATE | os.O_APPEND, true, true
+	case "ax":
+		return os.O_WRONLY | os.O_CREATE | os.O_APPEND | os.O_EXCL, true, true
+	case "a+":
+		return os.O_RDWR | os.O_CREATE | os.O_APPEND, true, true
+	case "ax+":
+		return os.O_RDWR | os.O_CREATE | os.O_APPEND | os.O_EXCL, true, true
+	default:
+		return 0, false, false
+	}
+}
+
 type fileHandle struct {
 	h          *fileHost
 	file       fileBackend
 	mu         sync.Mutex
 	closing    bool
 	closed     bool
+	appendMode bool
 	closeOnce  sync.Once
 	finishOnce sync.Once
 	closeErr   error
@@ -188,6 +217,9 @@ func (f *fileHandle) object() (quickjs.Value, error) {
 	if err := errors.Join(
 		o.Set("read", f.read),
 		o.Set("write", f.write),
+		o.Set("stat", f.stat),
+		o.Set("truncate", f.truncate),
+		o.Set("sync", f.sync),
 		o.Set("close", f.closeValue),
 	); err != nil {
 		return quickjs.Value{}, err
@@ -292,7 +324,8 @@ func (f *fileHandle) write(position, input quickjs.Value) *quickjs.Promise {
 	return f.h.asyncFile(func() (any, error) {
 		var n int
 		var writeErr error
-		if offset < 0 {
+		if offset < 0 || f.appendMode {
+			// O_APPEND writes always go to EOF; WriteAt rejects append descriptors.
 			n, writeErr = file.Write(data)
 		} else {
 			n, writeErr = file.WriteAt(data, offset)
@@ -310,6 +343,45 @@ func (f *fileHandle) write(position, input quickjs.Value) *quickjs.Promise {
 			return nil, &fileIOError{cause: writeErr, code: fileErrorCode(writeErr), bytesWritten: n, hasBytesWritten: true}
 		}
 		return n, nil
+	}, nil, nil, f.ops.Done)
+}
+
+func (f *fileHandle) stat() *quickjs.Promise {
+	file, err := f.beginIO()
+	if err != nil {
+		return f.h.rejectedFileErrorPromise(err)
+	}
+	return f.h.asyncFile(func() (any, error) {
+		return file.Stat()
+	}, func(value any) (any, error) {
+		info, ok := value.(os.FileInfo)
+		if !ok {
+			return quickjs.Value{}, errors.New("file stat returned an invalid result")
+		}
+		return f.h.fs.statValue(info)
+	}, nil, f.ops.Done)
+}
+
+func (f *fileHandle) truncate(length int64) *quickjs.Promise {
+	if length < 0 || length > maxSafeFileInteger {
+		return f.h.rejectedFilePromise("length must be a nonnegative safe integer", "ERR_INVALID_ARG")
+	}
+	file, err := f.beginIO()
+	if err != nil {
+		return f.h.rejectedFileErrorPromise(err)
+	}
+	return f.h.asyncFile(func() (any, error) {
+		return nil, file.Truncate(length)
+	}, nil, nil, f.ops.Done)
+}
+
+func (f *fileHandle) sync() *quickjs.Promise {
+	file, err := f.beginIO()
+	if err != nil {
+		return f.h.rejectedFileErrorPromise(err)
+	}
+	return f.h.asyncFile(func() (any, error) {
+		return nil, file.Sync()
 	}, nil, nil, f.ops.Done)
 }
 
@@ -385,19 +457,7 @@ func fileError(err error, code any) error {
 	return &fileIOError{cause: err, code: code}
 }
 
-func fileErrorCode(err error) any {
-	var errno syscall.Errno
-	if errors.As(err, &errno) {
-		return int64(errno)
-	}
-	if errors.Is(err, os.ErrClosed) {
-		return "ERR_FILE_CLOSED"
-	}
-	if errors.Is(err, io.ErrShortWrite) {
-		return "ERR_IO"
-	}
-	return "ERR_IO"
-}
+func fileErrorCode(err error) string { return filesystemErrorCode(err) }
 
 func fileInteger(value quickjs.Value, name string) (int64, error) {
 	if value.Kind() != quickjs.KindNumber {
@@ -450,7 +510,7 @@ func (h *fileHost) asyncFile(run func() (any, error), convert func(any) (any, er
 					if drop != nil {
 						drop(original)
 					}
-					p.RejectError(err)
+					h.fs.reject(p, err)
 					return
 				}
 			}
@@ -458,7 +518,7 @@ func (h *fileHost) asyncFile(run func() (any, error), convert func(any) (any, er
 				if drop != nil {
 					drop(original)
 				}
-				p.RejectError(err)
+				h.fs.reject(p, err)
 			}
 		})
 	}()
@@ -476,12 +536,9 @@ func (h *fileHost) rejectedFileErrorPromise(err error) *quickjs.Promise {
 }
 
 func (h *fileHost) fileErrorValue(err error) quickjs.Value {
-	value := h.rt.NewError("Error", err.Error())
+	value := h.fs.errorValue(err)
 	var detail *fileIOError
 	if errors.As(err, &detail) {
-		if detail.code != nil {
-			_ = value.Set("code", detail.code)
-		}
 		if detail.hasBytesRead {
 			_ = value.Set("data", h.rt.NewBytes(detail.data))
 			_ = value.Set("bytesRead", detail.bytesRead)
@@ -489,8 +546,6 @@ func (h *fileHost) fileErrorValue(err error) quickjs.Value {
 		if detail.hasBytesWritten {
 			_ = value.Set("bytesWritten", detail.bytesWritten)
 		}
-	} else if err != nil {
-		_ = value.Set("code", fileErrorCode(err))
 	}
 	return value
 }

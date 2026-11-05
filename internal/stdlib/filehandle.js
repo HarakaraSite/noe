@@ -17,6 +17,10 @@
     if (value === null || typeof value !== "object" || Array.isArray(value)) invalid("options must be an object");
     return value;
   }
+  function fileMode(value) {
+    if (!Number.isSafeInteger(value) || value < 0 || value > 0o777) invalid("mode must be an integer from 0 through 0o777");
+    return value;
+  }
   function bytes(buffer) {
     if (!ArrayBuffer.isView(buffer)) invalid("buffer must be an ArrayBuffer view");
     return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
@@ -73,14 +77,23 @@
           });
         } catch (error) { return Promise.reject(error); }
       },
+      stat() { return value.stat(); },
+      truncate(length = 0) {
+        try {
+          if (!Number.isSafeInteger(length)) invalid("length must be a safe integer");
+          return value.truncate(Math.max(0, length));
+        } catch (error) { return Promise.reject(error); }
+      },
+      sync() { return value.sync(); },
       close() { return value.close(); },
     };
   }
-  function open(path, flags = "r") {
+  function open(path, flags = "r", mode = 0o666) {
     try {
       if (typeof path !== "string" || path.length === 0 || path.includes("\0")) invalid("path must be a nonempty string without NUL");
-      if (flags !== "r" && flags !== "r+") invalid('flags must be "r" or "r+"');
-      return native.open(path, flags).then(handle);
+      if (!["r", "r+", "w", "wx", "w+", "wx+", "a", "ax", "a+", "ax+"].includes(flags)) invalid("unsupported file open flags");
+      mode = fileMode(mode);
+      return native.open(path, flags, mode).then(handle);
     } catch (error) { return Promise.reject(error); }
   }
   return {open, handle};

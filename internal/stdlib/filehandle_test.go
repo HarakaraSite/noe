@@ -27,7 +27,7 @@ func TestOpenFileAloneDoesNotKeepRuntimeAliveAndCloseReclaimsIt(t *testing.T) {
 	if err := rt.Set("openOwnedFile", h.openFile); err != nil {
 		t.Fatal(err)
 	}
-	ns := evalFiles(t, rt, loop, `export const file=await openOwnedFile(`+strconv.Quote(path)+`,"r");`)
+	ns := evalFiles(t, rt, loop, `export const file=await openOwnedFile(`+strconv.Quote(path)+`,"r",0o666);`)
 	if _, err := ns.Get("file"); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestRuntimeCloseDisposesFileOpenedAfterCancellation(t *testing.T) {
 	releaseOpen := func() { releaseOnce.Do(func() { close(release) }) }
 	t.Cleanup(releaseOpen)
 	var opened *os.File
-	promise := h.openFileUsing(path, "r", func(path string, flags int, perm os.FileMode) (fileBackend, error) {
+	promise := h.openFileUsing(path, "r", 0o666, func(path string, flags int, perm os.FileMode) (fileBackend, error) {
 		close(started)
 		<-release
 		file, err := os.OpenFile(path, flags, perm)
@@ -229,18 +229,71 @@ func TestFileCloseRejectsNewIOImmediately(t *testing.T) {
 	ns := evalFiles(t, rt, loop, `const closing=globalThis.fakeFile.close();
 const read=await globalThis.fakeFile.read(new Uint8Array(1),0,1,0).then(() => "resolved", e => e.code);
 const write=await globalThis.fakeFile.write(new Uint8Array([1]),0,1,0).then(() => "resolved", e => e.code);
+const stat=await globalThis.fakeFile.stat().then(() => "resolved", e => e.code);
+const truncate=await globalThis.fakeFile.truncate(1).then(() => "resolved", e => e.code);
+const sync=await globalThis.fakeFile.sync().then(() => "resolved", e => e.code);
 await closing;
-export const report=JSON.stringify({read,write});`)
+export const report=JSON.stringify({read,write,stat,truncate,sync});`)
 	var got struct {
-		Read  string `json:"read"`
-		Write string `json:"write"`
+		Read     string `json:"read"`
+		Write    string `json:"write"`
+		Stat     string `json:"stat"`
+		Truncate string `json:"truncate"`
+		Sync     string `json:"sync"`
 	}
 	decodeFileReport(t, ns, &got)
-	if got.Read != "ERR_FILE_CLOSED" || got.Write != "ERR_FILE_CLOSED" {
-		t.Errorf("I/O after close call = read %q, write %q; want immediate closed errors", got.Read, got.Write)
+	if got.Read != "ERR_FILE_CLOSED" || got.Write != "ERR_FILE_CLOSED" || got.Stat != "ERR_FILE_CLOSED" || got.Truncate != "ERR_FILE_CLOSED" || got.Sync != "ERR_FILE_CLOSED" {
+		t.Errorf("operations after close call = %+v; want immediate closed errors", got)
 	}
-	if backend.readCalls.Load() != 0 || backend.writeCalls.Load() != 0 {
-		t.Errorf("backend received post-close I/O: reads=%d writes=%d", backend.readCalls.Load(), backend.writeCalls.Load())
+	if backend.readCalls.Load() != 0 || backend.writeCalls.Load() != 0 || backend.statCalls.Load() != 0 || backend.truncateCalls.Load() != 0 || backend.syncCalls.Load() != 0 {
+		t.Errorf("backend received post-close I/O: reads=%d writes=%d stats=%d truncates=%d syncs=%d", backend.readCalls.Load(), backend.writeCalls.Load(), backend.statCalls.Load(), backend.truncateCalls.Load(), backend.syncCalls.Load())
+	}
+}
+
+func TestFileCloseWaitsForStartedSyncAndRejectsNewMethods(t *testing.T) {
+	rt, h, loop := fileRuntime(t, "")
+	backend := &fakeFileBackend{syncStarted: make(chan struct{}), syncGate: make(chan struct{})}
+	registerFakeFile(t, rt, h, backend)
+	if err := rt.Set("fakeSyncStarted", func() bool {
+		select {
+		case <-backend.syncStarted:
+			return true
+		default:
+			return false
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Set("releaseFakeSync", func() bool { backend.releaseSync(); return true }); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Set("fakeCloseCount", func() int32 { return backend.closeCount.Load() }); err != nil {
+		t.Fatal(err)
+	}
+	ns := evalFiles(t, rt, loop, `const syncing=globalThis.fakeFile.sync();
+async function waitForSync(){if(!fakeSyncStarted()){await new Promise(r=>setTimeout(r,0));return waitForSync();}}
+await waitForSync();
+const closing=globalThis.fakeFile.close();
+const late=await Promise.all([
+ globalThis.fakeFile.stat().then(()=>"resolved",e=>e.code),
+ globalThis.fakeFile.truncate(1).then(()=>"resolved",e=>e.code),
+ globalThis.fakeFile.sync().then(()=>"resolved",e=>e.code),
+]);
+await new Promise(resolve=>setTimeout(resolve,5));
+const closeBeforeSyncFinishes=fakeCloseCount();
+releaseFakeSync();
+await Promise.all([syncing,closing]);
+export const report=JSON.stringify({late,closeBeforeSyncFinishes});`)
+	var got struct {
+		Late                    []string `json:"late"`
+		CloseBeforeSyncFinishes int32    `json:"closeBeforeSyncFinishes"`
+	}
+	decodeFileReport(t, ns, &got)
+	if len(got.Late) != 3 || got.Late[0] != "ERR_FILE_CLOSED" || got.Late[1] != "ERR_FILE_CLOSED" || got.Late[2] != "ERR_FILE_CLOSED" || got.CloseBeforeSyncFinishes != 0 {
+		t.Errorf("sync/close admission results=%+v", got)
+	}
+	if backend.syncCalls.Load() != 1 || backend.closeCount.Load() != 1 {
+		t.Errorf("sync calls=%d, close calls=%d; want one admitted sync and one close", backend.syncCalls.Load(), backend.closeCount.Load())
 	}
 }
 
@@ -278,25 +331,72 @@ export const report=result.bytesRead===1&&result.buffer[0]===7;`)
 }
 
 type fakeFileBackend struct {
-	readData     []byte
-	readErr      error
-	readStarted  chan struct{}
-	readFinished chan struct{}
-	readGate     chan struct{}
-	readOnce     sync.Once
-	written      []byte
-	writeOffset  int64
-	writeN       int
-	writeErr     error
-	mu           sync.Mutex
-	closeOnce    sync.Once
-	closeCount   atomic.Int32
-	readCalls    atomic.Int32
-	writeCalls   atomic.Int32
+	readData        []byte
+	readErr         error
+	readStarted     chan struct{}
+	readFinished    chan struct{}
+	readGate        chan struct{}
+	readOnce        sync.Once
+	statInfo        os.FileInfo
+	statErr         error
+	truncateErr     error
+	truncateLen     int64
+	syncErr         error
+	syncStarted     chan struct{}
+	syncGate        chan struct{}
+	syncStartedOnce sync.Once
+	syncGateOnce    sync.Once
+	written         []byte
+	writeOffset     int64
+	writeN          int
+	writeErr        error
+	mu              sync.Mutex
+	closeOnce       sync.Once
+	closeCount      atomic.Int32
+	readCalls       atomic.Int32
+	writeCalls      atomic.Int32
+	writeAtCalls    atomic.Int32
+	writeSeqCalls   atomic.Int32
+	statCalls       atomic.Int32
+	truncateCalls   atomic.Int32
+	syncCalls       atomic.Int32
 }
 
-func (f *fakeFileBackend) Read(p []byte) (int, error)  { return f.ReadAt(p, 0) }
-func (f *fakeFileBackend) Write(p []byte) (int, error) { return f.WriteAt(p, 0) }
+func (f *fakeFileBackend) Read(p []byte) (int, error) { return f.ReadAt(p, 0) }
+func (f *fakeFileBackend) Write(p []byte) (int, error) {
+	f.writeSeqCalls.Add(1)
+	return f.recordWrite(p, -1)
+}
+
+func (f *fakeFileBackend) Stat() (os.FileInfo, error) {
+	f.statCalls.Add(1)
+	if f.statErr != nil {
+		return nil, f.statErr
+	}
+	if f.statInfo == nil {
+		return nil, errors.New("fake stat info is not configured")
+	}
+	return f.statInfo, nil
+}
+
+func (f *fakeFileBackend) Truncate(length int64) error {
+	f.truncateCalls.Add(1)
+	f.mu.Lock()
+	f.truncateLen = length
+	f.mu.Unlock()
+	return f.truncateErr
+}
+
+func (f *fakeFileBackend) Sync() error {
+	f.syncCalls.Add(1)
+	if f.syncStarted != nil {
+		f.syncStartedOnce.Do(func() { close(f.syncStarted) })
+	}
+	if f.syncGate != nil {
+		<-f.syncGate
+	}
+	return f.syncErr
+}
 
 func (f *fakeFileBackend) ReadAt(p []byte, _ int64) (int, error) {
 	f.readCalls.Add(1)
@@ -315,6 +415,12 @@ func (f *fakeFileBackend) ReadAt(p []byte, _ int64) (int, error) {
 
 func (f *fakeFileBackend) WriteAt(p []byte, offset int64) (int, error) {
 	f.writeCalls.Add(1)
+	f.writeAtCalls.Add(1)
+	return f.recordWrite(p, offset)
+}
+
+func (f *fakeFileBackend) recordWrite(p []byte, offset int64) (int, error) {
+	f.writeCalls.Add(1)
 	f.mu.Lock()
 	f.written = append([]byte(nil), p...)
 	f.writeOffset = offset
@@ -332,8 +438,17 @@ func (f *fakeFileBackend) Close() error {
 		if f.readGate != nil {
 			close(f.readGate)
 		}
+		if f.syncGate != nil {
+			f.syncGateOnce.Do(func() { close(f.syncGate) })
+		}
 	})
 	return nil
+}
+
+func (f *fakeFileBackend) releaseSync() {
+	if f.syncGate != nil {
+		f.syncGateOnce.Do(func() { close(f.syncGate) })
+	}
 }
 
 func (f *fakeFileBackend) releaseRead() {
@@ -411,7 +526,11 @@ func fileRuntime(t *testing.T, cwd string) (*quickjs.Runtime, *fileHost, *Loop) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := newFileHost(&fsHost{rt: rt, cfg: &FS{Loop: loop}, backend: backend})
+	fs := &fsHost{rt: rt, cfg: &FS{Loop: loop}, backend: backend}
+	if err := fs.installMetadata(); err != nil {
+		t.Fatal(err)
+	}
+	h, err := newFileHost(fs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,20 +611,21 @@ func TestFileHandlePublicValidationAndOpenErrors(t *testing.T) {
 	rt, _, loop := fileRuntime(t, cwd)
 	ns := evalFiles(t, rt, loop, `import {open} from "node:fs/promises";
 const code=p=>p.then(()=>"resolved",e=>e.code);
-const missing=await code(open("missing"));
-if(typeof missing!=="number"||missing===0)throw Error("missing errno");
-const invalid=[open(""),open("file",{mode:"r+"}),open("file","w"),open("file",null)];
+const missing=await open("missing").then(()=>null,e=>e);
+if(missing?.code!=="ENOENT"||typeof missing.errno!=="number"||missing.errno<=0)throw Error("missing filesystem error");
+const invalid=[open(""),open("file",{mode:"r+"}),open("file","not-a-flag"),open("file",null)];
 const f=await open("file","r+");
 for(const number of [-1,1.5,NaN,Infinity,Number.MAX_SAFE_INTEGER+1]){
  invalid.push(f.read(new Uint8Array(2),{position:number}),f.read(new Uint8Array(2),{length:number}),f.write(new Uint8Array(2),{position:number}));
+ if(number!==-1)invalid.push(f.truncate(number));
 }
 invalid.push(f.read(new Uint8Array(2),{offset:2,length:1}),f.read({buffer:"bad"}),f.write("x",0,"hex"),f.write("x",NaN),f.write(new ArrayBuffer(2)));
 const codes=await Promise.all(invalid.map(code));
 if(codes.some(c=>c!=="ERR_INVALID_ARG"))throw Error("validation codes "+JSON.stringify(codes));
 await f.close();
 const r=await open("file");
-const denied=await r.write(new Uint8Array([1])).then(()=>null,e=>({code:e.code,bytesWritten:e.bytesWritten}));
-await r.close();if(typeof denied?.code!=="number"||denied.bytesWritten!==0)throw Error("readonly descriptor");
+const denied=await r.write(new Uint8Array([1])).then(()=>null,e=>({code:e.code,errno:e.errno,bytesWritten:e.bytesWritten}));
+await r.close();if(typeof denied?.code!=="string"||typeof denied.errno!=="number"||denied.errno<=0||denied.bytesWritten!==0)throw Error("readonly descriptor");
 await code(open("must-not-create","r+"));
 export const report=true;`)
 	result, err := ns.Get("report")
@@ -514,6 +634,117 @@ export const report=true;`)
 	}
 	if _, err := os.Stat(filepath.Join(cwd, "must-not-create")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("r+ created file: %v", err)
+	}
+}
+
+func TestFileHandleOpenFlagsCreateExclusiveAppendAndMode(t *testing.T) {
+	cwd := t.TempDir()
+	if err := os.WriteFile(filepath.Join(cwd, "existing"), []byte("old contents"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rt, _, loop := fileRuntime(t, cwd)
+	if err := rt.Set("permissionsAvailable", goruntime.GOOS != "windows"); err != nil {
+		t.Fatal(err)
+	}
+	ns := evalFiles(t, rt, loop, `import fs from "node:fs";
+import {open} from "node:fs/promises";
+const code=p=>p.then(()=>"resolved",e=>e.code);
+const invalidModes=[-1,0o1000,1.5,NaN,Infinity,"600"];
+const modeErrors=await Promise.all(invalidModes.map((mode,n)=>code(open("invalid-mode-"+n,"w",mode))));
+if(modeErrors.some(c=>c!=="ERR_INVALID_ARG"))throw Error("invalid modes "+JSON.stringify(modeErrors));
+
+const trunc=await open("existing","w");
+if((await trunc.stat()).size!==0)throw Error("w did not truncate");
+const truncateReadDenied=await trunc.read(new Uint8Array(1)).then(()=>false,e=>typeof e.code==="string"&&typeof e.errno==="number"&&e.errno>0);
+await trunc.write("W");await trunc.close();
+if(!truncateReadDenied)throw Error("w was not write-only");
+const plus=await open("existing","w+");
+if((await plus.stat()).size!==0)throw Error("w+ did not truncate");
+await plus.write("X");
+const plusRead=await plus.read(new Uint8Array(1),0,1,0);
+if(plusRead.buffer[0]!==88)throw Error("w+ is not readable and writable");
+await plus.close();
+
+const append=await open("existing","a");
+const appendReadDenied=await append.read(new Uint8Array(1)).then(()=>false,e=>typeof e.code==="string"&&typeof e.errno==="number"&&e.errno>0);
+await append.write("A",0);await append.close();
+if(!appendReadDenied||fs.readFileSync("existing","utf8")!=="XA")throw Error("a access or append semantics");
+const appendPlus=await open("existing","a+");
+const appendPlusRead=await appendPlus.read(new Uint8Array(2));
+await appendPlus.write("B",0);await appendPlus.close();
+if(new TextDecoder().decode(appendPlusRead.buffer)!=="XA"||fs.readFileSync("existing","utf8")!=="XAB")throw Error("a+ access or append semantics");
+
+const exclusive=await open("exclusive","wx",0o600);
+const exclusiveMode=(await exclusive.stat()).mode;
+if(permissionsAvailable&&((exclusiveMode&0o777)&~0o600)!==0)throw Error("mode exceeded requested permissions: "+exclusiveMode);
+await exclusive.close();
+const exclusiveModes=[["wx","wx-file"],["wx+","wx-plus-file"],["ax","ax-file"],["ax+","ax-plus-file"]];
+for(const [flags,path] of exclusiveModes){
+ const file=await open(path,flags,0o600);
+ if(flags.endsWith("+")){
+  await file.write("Q",0);
+  const read=await file.read(new Uint8Array(1),0,1,0);
+  if(read.bytesRead!==1||read.buffer[0]!==81)throw Error(flags+" is not readable and writable");
+ }
+ await file.close();
+ const duplicate=await open(path,flags).then(()=>null,e=>e);
+ if(duplicate?.code!=="EEXIST"||typeof duplicate.errno!=="number"||duplicate.errno<=0)throw Error(flags+" did not reject an existing path");
+}
+const defaultMode=await open("default-mode","wx");
+if(permissionsAvailable&&((((await defaultMode.stat()).mode&0o777)&~0o666)!==0))throw Error("default mode exceeded 0o666");
+await defaultMode.close();
+const createdAppend=await open("created-by-a","a");await createdAppend.write("a");await createdAppend.close();
+const createdAx=await open("created-by-ax","ax");await createdAx.close();
+const createdAxPlus=await open("created-by-ax-plus","ax+");await createdAxPlus.write("z",0);await createdAxPlus.close();
+if(fs.readFileSync("created-by-a","utf8")!=="a"||fs.readFileSync("created-by-ax-plus","utf8")!=="z")throw Error("append create flags");
+export const report=true;`)
+	result, err := ns.Get("report")
+	if err != nil || !result.Bool() {
+		t.Fatalf("report=%v, error=%v", result, err)
+	}
+	if _, err := os.Stat(filepath.Join(cwd, "invalid-mode-0")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("invalid mode created a file: %v", err)
+	}
+}
+
+func TestFileHandleStatUsesDescriptorAndTruncatePreservesCursor(t *testing.T) {
+	cwd := t.TempDir()
+	if err := os.WriteFile(filepath.Join(cwd, "original"), []byte("abcdef"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rt, _, loop := fileRuntime(t, cwd)
+	ns := evalFiles(t, rt, loop, `import fs from "node:fs";
+import {open,rename,stat} from "node:fs/promises";
+const file=await open("original","r+");
+try{
+ await rename("original","moved");
+ fs.writeFileSync("original","replacement is larger than the opened file");
+ const descriptor=await file.stat();const pathNow=await stat("original");
+ if(!descriptor.isFile()||descriptor.size!==6||pathNow.size<=descriptor.size)throw Error("stat followed the replaced path");
+ const first=await file.read(new Uint8Array(2));
+ if(new TextDecoder().decode(first.buffer)!=="ab")throw Error("initial cursor");
+ await file.truncate(3);
+ if((await file.stat()).size!==3)throw Error("truncate did not shrink");
+ const afterShrink=await file.read(new Uint8Array(2));
+ if(afterShrink.bytesRead!==1||afterShrink.buffer[0]!==99)throw Error("truncate moved the cursor");
+ await file.truncate(7);
+ const afterExtend=await file.read(new Uint8Array(4));
+ if(afterExtend.bytesRead!==4||afterExtend.buffer.some(byte=>byte!==0))throw Error("truncate did not extend at the current cursor");
+ if((await file.stat()).size!==7)throw Error("extended stat size");
+ await file.truncate(-1);
+ if((await file.stat()).size!==0)throw Error("negative truncate did not clamp to zero");
+ await file.truncate(5);await file.truncate();
+ if((await file.stat()).size!==0)throw Error("default truncate length is not zero");
+ await file.sync();
+}finally{await file.close()}
+export const report=true;`)
+	result, err := ns.Get("report")
+	if err != nil || !result.Bool() {
+		t.Fatalf("report=%v, error=%v", result, err)
+	}
+	data, err := os.ReadFile(filepath.Join(cwd, "original"))
+	if err != nil || string(data) != "replacement is larger than the opened file" {
+		t.Fatalf("replacement bytes=%q, error=%v", data, err)
 	}
 }
 

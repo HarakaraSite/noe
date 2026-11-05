@@ -1,4 +1,4 @@
-import {readFileSync, readdirSync} from "node:fs";
+import {readFileSync, readdirSync, statSync} from "node:fs";
 import {exec, execFile, spawnSync} from "node:child_process";
 // @ts-expect-error spawn belongs to noe:process, not node:child_process
 import {spawn} from "node:child_process";
@@ -17,10 +17,12 @@ import {resolve4} from "node:dns/promises";
 // @ts-expect-error encoded reads are text, not bytes
 const bytes: Uint8Array = readFileSync("file.txt", "utf8");
 const text: string = readFileSync("file.txt", "utf8");
+// @ts-expect-error mtime is a Date; use mtimeMs for numeric timestamps
+const oldTimestampString: string = statSync("file.txt").mtime;
 
-// NOE accepts only a path for directory listing; Node Dirent options are not implemented.
-// @ts-expect-error withFileTypes and Dirent are unsupported
-readdirSync(".", {withFileTypes: true});
+// Directory entry mode must be a boolean.
+// @ts-expect-error withFileTypes does not accept strings
+readdirSync(".", {withFileTypes: "true"});
 
 // BYOB readers are deliberately not implemented.
 const stream = new ReadableStream<Uint8Array>();
@@ -42,8 +44,8 @@ void file.writeAt(0, new Uint8Array([1]));
 // Only existing-file read and read/write flags are supported.
 // @ts-expect-error the object-style mode option was removed
 void openFile("file.txt", {mode: "r+"});
-// @ts-expect-error create/truncate flags are not implemented
-void openFile("file.txt", "w");
+// @ts-expect-error synchronous-open flag variants are not implemented
+void openFile("file.txt", "rs");
 
 // Signal support is platform-dependent and the public name set is explicit.
 // @ts-expect-error SIGQUIT is not part of the supported subscription surface

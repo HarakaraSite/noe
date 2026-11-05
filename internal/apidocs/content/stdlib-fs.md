@@ -14,15 +14,17 @@ Reads and writes files synchronously or as Web Streams. The module exposes synch
 
 ### Exports
 
-`appendFileSync`, `chmodSync`, `copyFileSync`, `createReadStream`, `createWriteStream`, `default`, `existsSync`, `lstatSync`, `mkdirSync`, `mkdtempSync`, `promises`, `readFileSync`, `readdirSync`, `readlinkSync`, `realpathSync`, `renameSync`, `rmSync`, `rmdirSync`, `statSync`, `unlinkSync`, `writeFileSync`
+`Dirent`, `appendFileSync`, `chmodSync`, `copyFileSync`, `createReadStream`, `createWriteStream`, `default`, `existsSync`, `lstatSync`, `mkdirSync`, `mkdtempSync`, `promises`, `readFileSync`, `readdirSync`, `readlinkSync`, `realpathSync`, `renameSync`, `rmSync`, `rmdirSync`, `statSync`, `unlinkSync`, `writeFileSync`
 
 Use node:fs for synchronous whole-file operations or sequential Web Streams. Use open from node:fs/promises for reads and writes through an open file; its FileHandle methods are documented in node:fs/promises. A stream closes when it completes, is cancelled/aborted, or its runtime closes.
 
-Directory listings are arrays of names, not Node Dirent objects. Use readdirSync with statSync/lstatSync to inspect entry types; the Node withFileTypes option is not implemented.
+Directory listings return names by default. Pass `{withFileTypes: true}` to receive `Dirent` objects with entry names and type predicates.
+
+Filesystem errors from synchronous calls and Web Streams use string `code` values such as `ENOENT` and `EACCES`. When the operating system provides an errno, `errno` retains its positive platform value; the value varies by platform. Errors may also include `path`, `dest`, and `syscall` when available; path fields are projected relative to the configured filesystem root. Custom codes include `ERR_INVALID_ARG`, `ERR_READ_ONLY`, `ERR_FILE_CLOSED`, and the fallback `ERR_IO`.
 
 ## readdirSync
 
-Syntax: readdirSync(path) -> string[]. It returns entry names in sorted order, excluding the parent path. It accepts a path only; withFileTypes, encoding, and recursive options are not implemented. Passing a Node options object does not turn the returned strings into Dirent objects: do not use entry.name or entry.isDirectory().
+Syntax: `readdirSync(path, {withFileTypes = false} = {}) -> string[] | Dirent[]`. Entries are sorted by name. With the default or `withFileTypes: false`, each entry is a name string. With `withFileTypes: true`, each entry is a `Dirent`. Recursive traversal and alternate name encodings are not implemented.
 
 ~~~js
 import {readdirSync, statSync} from "node:fs";
@@ -35,11 +37,11 @@ console.log(JSON.stringify(readdirSync(dir).map(name => ({
 }))));
 ~~~
 
-The call throws on path or directory-read errors. For promise-based access, use await readdir(path) from node:fs/promises; its result is also a string array.
+The call throws on path or directory-read errors. For promise-based access, use `await readdir(path, options)` from `node:fs/promises`; the same name/Dirent selection applies.
 
 ## statSync
 
-Syntax: statSync(path) -> object. It follows symbolic links and throws if the target cannot be inspected. The result provides size, mode, mtimeMs, mtime, isFile(), isDirectory(), and isSymbolicLink(). size is bytes, mode is permission bits, mtimeMs is Unix epoch milliseconds, and mtime is a timestamp string, not a Node Date object. The Node options object is not implemented.
+Syntax: statSync(path) -> FileInfo. It follows symbolic links and throws if the target cannot be inspected. The supported result provides size, mode, mtimeMs, mtime, isFile(), isDirectory(), and isSymbolicLink(). size is bytes. mode uses canonical POSIX file-type, permission, and special bits on every platform; extract permissions with `mode & 0o777`. mtime is a JavaScript Date, while mtimeMs is Unix epoch milliseconds and may retain fractional milliseconds. `mtime.getTime()` is an integer and truncates fractional milliseconds. The Node options object is not implemented.
 
 ~~~js
 import {statSync} from "node:fs";
@@ -52,7 +54,7 @@ Use lstatSync when the symbolic link itself matters. Use await stat(path) from n
 
 ## lstatSync
 
-Syntax: lstatSync(path) -> object. It has the same fields and methods as statSync but describes the symbolic link itself rather than following its target. Call info.isSymbolicLink() to distinguish a link. It throws on path or metadata-read errors.
+Syntax: lstatSync(path) -> FileInfo. It has the same fields and methods as statSync but describes the symbolic link itself rather than following its target. Call info.isSymbolicLink() to distinguish a link. It throws on path or metadata-read errors.
 
 ## readFileSync
 
@@ -125,3 +127,16 @@ A write failure rejects the write/close promise.
 ### Source basis
 
 NOE-maintained implementation: internal/stdlib, based on github.com/go-quickjs/go-quickjs@v0.27.0/stdlib. NOE installs this module through internal/runtime/stdlib.go and reserves its bare-name alias through internal/modulemap/builtins.go.
+
+
+## Dirent
+
+`readdirSync(path, {withFileTypes: true})` and promise `readdir` return instances of the `Dirent` class exported by `node:fs` and `fs`. Each entry has `name` and `parentPath`; the parent path is the path supplied to the listing operation. Methods `isFile()`, `isDirectory()`, `isSymbolicLink()`, `isBlockDevice()`, `isCharacterDevice()`, `isFIFO()`, and `isSocket()` describe the directory entry without following its final symlink.
+
+~~~js
+import {readdirSync} from "node:fs";
+
+for (const entry of readdirSync(".", {withFileTypes: true})) {
+  console.log(entry.name, entry.isDirectory(), entry.isSymbolicLink());
+}
+~~~

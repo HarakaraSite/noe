@@ -46,7 +46,7 @@
 | グループ | 現在の状態 | 残る検討 |
 | --- | --- | --- |
 | 1：プロセスと標準I/O | **完了**。`noe:process`の子プロセスハンドルとstdin/stdout/stderr、`noe:io`のホスト標準I/Oストリーム | [公開契約](process-io.md)・[実装記録](development/process-io-implementation.md)を参照 |
-| 2: Add APIs for specific needs | **Completed.** FileHandle operations are part of `node:fs/promises`; `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides OS signal subscriptions. | See the [current contracts](low-level-io.md) and the [original implementation record](development/low-level-group2-implementation.md). The filesystem migration removes `noe:fs-handle` without a compatibility adapter; [phase 1](development/stdlib-fs-integration.md) is implemented and locally verified (unreleased). FileHandle stat/truncate/sync remain phase 2 candidates. |
+| 2: Add APIs for specific needs | **Completed.** FileHandle operations are part of `node:fs/promises`; `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides OS signal subscriptions. | See the [current contracts](low-level-io.md) and the [original implementation record](development/low-level-group2-implementation.md). Filesystem [phase 1](development/stdlib-fs-integration.md) and [phase 2](development/stdlib-fs-basics.md) are implemented and locally verified (unreleased), including FileHandle stat/truncate/sync, creation/append flags, Dirent, and approved error/metadata normalization. |
 | 3：後続候補 | **未完了**。ファイル変更通知、端末操作 | ポーリングやCLIと比較。TTY判定・サイズ・raw mode・PTYは別々に評価 |
 
 `execFile`は既に非同期、ファイルの逐次I/Oも既存stdlibで利用可能です。第1グループの追加価値は実行中の入出力・終了観察・停止をハンドルで扱えることです。Ctrl+Cの取消しは既にあり、JSへのOSシグナル配送は別候補です。元QuickJSのfd番号・`dup`・readiness callbackの再現は要件にしません。
