@@ -627,7 +627,7 @@ class AgentServerTests(unittest.TestCase):
                         'open("spawned.pid","w").write(str(os.getpid())); time.sleep(120)')
         child_code = ('// Spawn an owned subprocess and wait for interruption.\n'
                       'import {writeFileSync} from "node:fs";\n'
-                      'import {spawn} from "noe:process";\n'
+                      'import {spawn} from "node:child_process";\n'
                       'writeFileSync("child.started","yes");\n'
                       'const child=await spawn(' + json.dumps(sys.executable) + ',' +
                       json.dumps(["-c", child_script]) +

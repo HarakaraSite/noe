@@ -11,7 +11,6 @@ func noeTopics() []topicSpec {
 		{ID: "noe:decision", Kind: "module", Summary: "Make one structured decision with an explicitly selected OpenRouter model.", File: "noe-decision.md"},
 		{ID: "noe:image", Kind: "module", Summary: "Read images for an agent request and generate image files with an explicit model.", File: "noe-image.md"},
 		{ID: "noe:auth", Kind: "module", Summary: "Validate and save a completed ChatGPT sign-in result.", File: "noe-auth.md"},
-		{ID: "noe:process", Kind: "module", Summary: "Start an owned child process with byte-stream standard I/O.", File: "noe-process.md"},
 		{ID: "noe:io", Kind: "module", Summary: "Access host standard I/O streams and pipe Web Streams with active cancellation.", File: "noe-io.md"},
 		{ID: "noe:http", Kind: "module", Summary: "Fetch HTTP resources and serve requests with shared Web types and response streams.", File: "noe-http.md"},
 		{ID: "noe:sockets", Kind: "module", Summary: "Open TCP or Unix stream sockets and listeners as byte streams.", File: "noe-sockets.md"},

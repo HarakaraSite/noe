@@ -1049,8 +1049,7 @@ declare namespace NOEStdlib {
 
 /* Supported Node-style modules. The alias declarations below re-export each
  * canonical module so the two specifiers cannot drift apart. Only APIs that
- * NOE registers are present; e.g. fs does not define Dirent and child_process
- * does not define spawn. */
+ * NOE registers are present. */
 
 declare module "node:assert" {
   export type AssertionError = NOEStdlib.AssertionError;
@@ -1105,14 +1104,18 @@ declare module "node:child_process" {
   export interface ExecOptions extends NOEStdlib.ExecOptions {}
   export type ExecResult<Output = string> = NOEStdlib.ExecResult<Output>;
   export type SpawnSyncResult<Output = string> = NOEStdlib.SpawnSyncResult<Output>;
+  export type ChildProcess = NOEStdlib.OwnedChildProcess;
+  export type SpawnOptions = NOEStdlib.SpawnOptions;
   export import exec = NOEStdlib.exec;
   export import execFile = NOEStdlib.execFile;
   export import execFileSync = NOEStdlib.execFileSync;
   export import execSync = NOEStdlib.execSync;
+  export import spawn = NOEStdlib.spawn;
   export import spawnSync = NOEStdlib.spawnSync;
   const api: {
     exec: typeof NOEStdlib.exec; execFile: typeof NOEStdlib.execFile;
     execFileSync: typeof NOEStdlib.execFileSync; execSync: typeof NOEStdlib.execSync;
+    spawn: typeof NOEStdlib.spawn;
     spawnSync: typeof NOEStdlib.spawnSync;
   };
   export default api;
@@ -1513,7 +1516,6 @@ declare module "noe:io" {
   export const stderr: WritableStream<Uint8Array>;
   export import pipe = NOEStdlib.pipe;
 }
-declare module "noe:process" { export import spawn = NOEStdlib.spawn; export type ChildProcess = NOEStdlib.OwnedChildProcess; export type SpawnOptions = NOEStdlib.SpawnOptions; }
 declare module "noe:http" {
   export import fetch = NOEStdlib.fetch;
   export import serve = NOEStdlib.serve;

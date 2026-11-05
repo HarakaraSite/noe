@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,13 @@ import (
 )
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--noe-consumer-command" {
+		if _, err := os.Stdout.Write([]byte{0, 255, 128, 10}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -31,6 +39,9 @@ func run() error {
 		return err
 	}
 	if err := urlImports(ctx); err != nil {
+		return err
+	}
+	if err := commands(ctx); err != nil {
 		return err
 	}
 	root, err := os.MkdirTemp("", "noe-public-stdlib-")
@@ -97,6 +108,42 @@ if(answer!==42||!docs().includes("noe:agent"))throw Error("worker or full docs")
 	_, err = sink.Write([]byte("caller retains output"))
 	return err
 }
+
+func commands(ctx context.Context) error {
+	program, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(program)
+	if err != nil {
+		return err
+	}
+	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[command consumer]", Virtual: true, Module: true, Code: `
+import commands, {spawn,execFile} from "node:child_process";
+import bare, {spawn as bareSpawn} from "child_process";
+if (spawn!==bareSpawn || spawn!==commands.spawn || spawn!==bare.spawn) throw Error("spawn aliases");
+const program=` + string(encoded) + `, args=["--noe-consumer-command"];
+const child=await spawn(program,args,{stdin:"ignore",stderr:"ignore"});
+try {
+  const bytes=new Uint8Array(await new Response(child.stdout).arrayBuffer());
+  if (Array.from(bytes).join(",")!=="0,255,128,10" || (await child.exited).code!==0) throw Error("streaming consumer");
+} finally { await child.close(); }
+const captured=await execFile(program,args,{encoding:"buffer"});
+if (Array.from(captured.stdout).join(",")!=="0,255,128,10") throw Error("captured consumer");
+if (typeof process!=="undefined") throw Error("commands installed metadata");
+if (await import("noe:process").then(()=>true,()=>false)) throw Error("removed process module");
+`}, stdlib.Profile{Modules: stdlib.Modules{Commands: &stdlib.CommandOptions{Allow: func(name string, _ []string) error {
+		if name != program {
+			return errors.New("unexpected command")
+		}
+		return nil
+	}}}})
+	if err != nil || result.Code != 0 {
+		return fmt.Errorf("command consumer result=%+v error=%s", result, stdlib.Diagnostic(err))
+	}
+	return nil
+}
+
 func advanced(ctx context.Context) error {
 	rt := quickjs.New()
 	loop := stdlib.NewLoop(rt)

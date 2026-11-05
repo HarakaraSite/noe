@@ -47,14 +47,17 @@ type Host struct {
 	resources   map[io.Closer]struct{}
 	wg          sync.WaitGroup
 	stopRuntime func() bool
+	spawnValue  quickjs.Value
 }
 
-// Install must run on the runtime owner, after stdlib.Install.
+// Install must run on the runtime owner, after stdlib.Install. The caller
+// publishes Spawn together with the captured command exports.
 func Install(rt *quickjs.Runtime, opts Options) (result *Host, err error) {
 	return install(rt, opts, Modules{Stdio: true, Commands: true, RawSockets: true, Signals: true})
 }
 
-// InstallSelected installs only the selected native modules.
+// InstallSelected installs only the selected native adapters. Command
+// publication is left to the caller, which composes Spawn with captured APIs.
 func InstallSelected(rt *quickjs.Runtime, opts Options, modules Modules) (result *Host, err error) {
 	return install(rt, opts, modules)
 }
@@ -119,9 +122,7 @@ func install(rt *quickjs.Runtime, opts Options, modules Modules) (result *Host, 
 			if e != nil {
 				return nil, e
 			}
-			if err := rt.SetModuleValues("noe:process", map[string]quickjs.Value{"spawn": spawn}); err != nil {
-				return nil, err
-			}
+			h.spawnValue = spawn
 		}
 	}
 	installs := []struct {
@@ -143,6 +144,10 @@ func install(rt *quickjs.Runtime, opts Options, modules Modules) (result *Host, 
 	}
 	return h, nil
 }
+
+// Spawn returns the owner-thread adapter for composition with captured command
+// exports. This host owns its children; the module installer owns publication.
+func (h *Host) Spawn() quickjs.Value { return h.spawnValue }
 
 // Close touches only Go resources. It never waits for JS promise delivery.
 func (h *Host) Close() {

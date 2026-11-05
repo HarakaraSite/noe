@@ -1,4 +1,4 @@
-import { spawn } from "noe:process";
+import { spawn } from "node:child_process";
 import { stdout, stderr } from "noe:io";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";

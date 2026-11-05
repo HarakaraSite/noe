@@ -20,7 +20,7 @@ func TestHooksSharedProviderLimitReapsParallelRunJSProcess(t *testing.T) {
 	cwd := t.TempDir()
 	ready := filepath.Join(cwd, "child.pid")
 	wait := fmt.Sprintf(`// Keep an owned child process alive until group cancellation.
-const {spawn}=await import("noe:process");
+const {spawn}=await import("node:child_process");
 const {writeFileSync}=await import("node:fs");
 const child=await spawn("/bin/sh",["-c","exec sleep 60"],{stdin:"ignore",stdout:"ignore",stderr:"ignore"});
 writeFileSync(%q,String(child.pid));

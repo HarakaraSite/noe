@@ -117,6 +117,97 @@ Current filesystem contracts and implementation entry points:
 - [Shared filesystem backend](../../internal/filesystem/filesystem.go)
 - [Profile installation](../../internal/noestdlib/noestdlib.go)
 
+## Process and standard I/O integration: first slice
+
+2026-11-05, after the v2.13.0 filesystem milestone. Phase 3 has started
+with a source and consumer audit. The user then approved the first slice:
+publish the existing Promise/Web Streams `spawn` through `node:child_process`
+and remove `noe:process` without a compatibility adapter. Standard-I/O facade
+changes remain a later slice.
+
+The command backends are already shared: captured `node:child_process`
+operations in `internal/stdlib/exec.go` and streaming `noe:process.spawn`
+in `internal/nativeio/process.go` both use `internal/commandenv` and
+`internal/process`. They already share executable lookup, configured
+environment/cwd resolution, command authorization, and OS process ownership.
+The remaining integration is primarily the public API and stream adapters.
+
+| Surface before this slice | Contract to account for |
+| --- | --- |
+| `node:child_process` and `child_process` | Captured command APIs, including Promise-based `execFile` and `exec`; no streaming `spawn` export. |
+| `noe:process.spawn` | Promise-based startup with Web Streams and `exited`, asynchronous `kill`, and idempotent `close`. Profile environments use replacement semantics; the legacy native installer uses an overlay. |
+| `noe:io` | Demand-driven byte Web Streams and a cancellation-aware `pipe` helper. |
+| `node:process` and global `process` | Default export with synchronous whole-input `stdin.read()` and text `stdout.write()`/`stderr.write()` facades. These differ from both the Web Streams above and full Node streams. |
+
+Unlike the earlier filesystem-handle removal, process entry-point changes
+affect existing noebot code. Its remote `main` was checked again at
+`45de74771d9c048448afb1e7f1039b0b45a01443`: `app/main.mjs` and
+`tests/s1.mjs` import `noe:process`, and the host launcher awaits startup,
+inherits all three streams, and uses the owned child's lifecycle methods.
+NOE's find, search, and repo-map libraries and several process/agent-server
+examples also use that entry point. `examples/json/summarize-stdin.js` uses
+the synchronous `process.stdin.read()` facade.
+
+The approved first slice adds the existing Promise/Web Streams `spawn`
+to `node:child_process`, sharing the function across named/default exports
+and the bare `child_process` alias. `noe:process` is removed. NOE's examples,
+hidden libraries, types, and current references migrate with the module.
+The required noebot migration is recorded alongside its
+[deferred API-adoption work](stdlib-fs-basics.md#required-process-import-migration-for-the-next-noe-release).
+
+Node's [`spawn` contract](https://nodejs.org/api/child_process.html#child_processspawncommand-args-options)
+returns a ChildProcess immediately and reports startup and exit through
+events. Its standard I/O uses Node streams. Moving NOE's current function
+under a Node-style module name retains NOE-specific semantics, documented
+explicitly in its reference. It does not establish Node spawn compatibility.
+
+Decide standard-I/O entry points and any synchronous-facade migration as
+a subsequent slice. Preserve the current separation of ProcessInfo, Stdio,
+and Commands capabilities and the main/Worker ownership rules throughout.
+
+### Implementation and validation
+
+The first slice is implemented locally. `internal/nativeio` builds the owned
+streaming adapter; `internal/noestdlib` composes it with the captured-command
+functions through `internal/stdlib.CommandsWithSpawn`. Composition finishes
+before user initializers or Worker entry modules run. The old module is no
+longer registered, and its separate embedded reference was merged into the
+canonical child-process reference.
+
+The following checks passed:
+
+- Full unit tests for `internal/nativeio`, `internal/noestdlib`,
+  `internal/jsexec`, `internal/runtime`, `internal/stdlib`, and public `stdlib`.
+- Targeted race checks for streaming/captured API identity and output,
+  authorization, command environment and timeouts, close/ownership, and
+  Worker process streams.
+- CLI `TestProcessIO*` E2E tests, including live/binary pipes, cancellation,
+  Worker termination, and fixture-agent subprocess-tree recovery.
+- External public stdlib consumer with both a checkout replacement and an
+  independent module artifact: startup, binary Web Streams, captured output,
+  all module aliases, and removal of the old entry point. The artifact built
+  for Linux, Darwin, and Windows on amd64/arm64; runtime checks ran on Linux.
+- All six offline `.noe/lib` suites and the 170 existing noebot checks with
+  only the two required imports changed in a temporary copy.
+- Public TypeScript positive/negative fixtures, embedded API catalog tests,
+  changed JavaScript lint, and the migrated Python fixture's syntax check.
+- Candidate CLI reference lookup and the migrated process-worker and binary
+  process-pipeline examples. The old documentation topic is unavailable.
+- Affected-package vet and independent read-only review of module composition,
+  capability selection, initialization ordering, and ownership. No actionable
+  findings remained.
+
+The first E2E attempt exposed an existing test-fixture race: shell redirection
+could create a PID file before `echo` wrote its contents. The PID helper now
+waits for nonempty contents within its existing deadline, then applies the
+same positive-integer validation. The complete process E2E group passed
+after that test-only correction.
+
+Logs, the consumer module artifact, and the temporary noebot migration patch
+are under `/tmp/noe-process-integration-863auo4a/`. The installed NOE binaries
+and running applications were not changed. No release or paid provider calls
+were performed for this slice.
+
 ## Development and distribution tools
 
 TypeScript execution, bundling, and standalone executable generation form a

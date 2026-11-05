@@ -13,7 +13,7 @@ Task recipes are available as details: results, files, commands, imports, http, 
 The internal input is an object with one required property. JSON tool providers use this form:
 
 ```json
-{"code":"// Read the embedded API reference.\nimport { docs } from 'noe:docs';\nconsole.log(docs('noe:process', 'spawn'));"}
+{"code":"// Read the embedded API reference.\nimport { docs } from 'noe:docs';\nconsole.log(docs('node:child_process', 'spawn'));"}
 ```
 
 The built-in openai-chatgpt provider instead accepts the JavaScript module source directly as a custom tool input, without JSON wrapping or code fences. Hooks still receive parsed `arguments: {code}`; `rawArguments` is the original source on that transport, and the original JSON string on JSON tool transports.
@@ -24,7 +24,7 @@ The result reports `stdout`, `stderr`, `exitCode`, and `reason`, plus optional `
 
 Standard output and standard error are captured independently. Each stream retains at most 64 KiB: the first 32 KiB and last 32 KiB. If a stream is larger, its text contains a truncation marker and the result includes the corresponding `stdoutOmittedBytes` or `stderrOmittedBytes` count. These byte counts describe omitted captured output, not an exit status.
 
-Use `noe:docs` from `run_js` to look up an API before using it. Use `noe:process` when a child command must remain active during the call, and close owned handles in `finally`. A child process, socket, signal subscription, or other owned resource cannot continue independently after its owning tool runtime ends.
+Use `noe:docs` from `run_js` to look up an API before using it. Use the NOE-specific `spawn` export from `node:child_process` when a child command must remain active during the call, and close owned handles in `finally`. A child process, socket, signal subscription, or other owned resource cannot continue independently after its owning tool runtime ends.
 
 `noe:image` has a task-specific path: `read_image(path)` returns metadata to JavaScript and attaches the image to the next model request after the tool call. Do not expect a top-level `noe run`, `eval`, or Worker to provide model vision context.
 
@@ -128,7 +128,7 @@ try {
 }
 ~~~
 
-execFile rejects on a nonzero exit with code, stdout, and stderr details. execFileSync and execSync throw an Error with the same details (their output is always text); success still returns stdout as a string. exec/execSync use a shell when shell syntax is needed. spawnSync returns a status object; inspect its error before status. For a live process with incremental Streams, read docs("noe:process", "spawn") instead. Owned processes cannot outlive the run_js runtime.
+execFile rejects on a nonzero exit with code, stdout, and stderr details. execFileSync and execSync throw an Error with the same details (their output is always text); success still returns stdout as a string. exec/execSync use a shell when shell syntax is needed. spawnSync returns a status object; inspect its error before status. For a live process with incremental Web Streams, read docs("node:child_process", "spawn") instead. Owned processes cannot outlive the run_js runtime.
 
 ## imports
 

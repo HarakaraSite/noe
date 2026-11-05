@@ -8,15 +8,21 @@ Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source dist
 
 Availability: Requires Profile.Modules.Commands.
 
-Public-definition source: internal/stdlib/exec.go. Reading this reference evaluates no target module and makes no provider request.
+Public-definition source: internal/stdlib/exec.go, internal/nativeio/host.go, internal/nativeio/js/streams.js, and their composition in internal/noestdlib/noestdlib.go. Reading this reference evaluates no target module and makes no provider request.
 
-Runs operating-system programs to completion and returns captured output. execFile invokes a program directly; exec and execSync pass a command string through the platform shell. There is no streaming spawn or asynchronous callback API.
+Runs captured commands and starts owned child processes. execFile invokes a program directly; exec and execSync pass a command string through the platform shell. `spawn` is an NOE-specific API that starts a live child and returns Web Streams; it is not the Node.js EventEmitter or Node streams API.
 
 ### Exports
 
-`default`, `exec`, `execFile`, `execFileSync`, `execSync`, `spawnSync`
+`default`, `exec`, `execFile`, `execFileSync`, `execSync`, `spawn`, `spawnSync`
 
-In NOE, child process calls can run local programs. Use noe:process for NOE-managed process handles and their lifecycle controls. Use HTTP/WebSocket APIs for web traffic and noe:sockets for raw TCP/Unix byte streams.
+The default export object includes the same functions, including `spawn`.
+
+### Type exports
+
+`ExecOptions`, `ExecResult`, `SpawnSyncResult`, `ChildProcess`, `SpawnOptions`
+
+`spawn(command, args = [], options = {}) -> Promise<ChildProcess>` starts a local program directly without invoking a shell. It is an NOE-specific extension to this module. The returned handle uses Web Streams of `Uint8Array`; it does not expose Node.js child-process events or Node streams. Use HTTP/WebSocket APIs for web traffic and noe:sockets for raw TCP/Unix byte streams.
 
 ## execFile
 
@@ -107,6 +113,68 @@ if (result.error) throw result.error;
 console.log(result.stdout);
 ~~~
 
+## spawn
+
+`spawn(command, args = [], options = {}) -> Promise<ChildProcess>` requires a nonempty command and an array of string arguments. Neither may contain NUL. It starts the executable directly and does not invoke a shell. The promise resolves after startup succeeds; start failures reject it.
+
+Options:
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `stdin`, `stdout`, `stderr` | `"pipe"` | Each accepts `"pipe"`, `"inherit"`, or `"ignore"`. A pipe returns a Web Stream; inherited or ignored streams return `null`. |
+| `cwd` | current working directory | Child working directory. |
+| `env` | the Profile's default command environment | When `Profile.Environment.Env` is unset, that default inherits the host-configured environment. Omitting `options.env` inherits the selected default. An explicit object replaces it; entries with a `null` value are omitted. |
+
+All three streams default to pipes. Consume stdout and stderr concurrently when both are piped, or choose `inherit`/`ignore` for an unused stream. Convert text explicitly with `TextEncoder` and `TextDecoder`.
+
+~~~js
+import { spawn } from "node:child_process";
+
+const child = await spawn(process.argv[0], ["eval", "console.log('child output')"], {
+  stdout: "pipe",
+  stderr: "inherit",
+});
+try {
+  const output = await new Response(child.stdout).text();
+  const status = await child.exited;
+  console.log(output.trim(), status.code);
+} finally {
+  await child.close();
+}
+~~~
+
+The result is `{pid, stdin, stdout, stderr, exited, kill, close}`. `exited` resolves to `{code, signal}` after the child exits, including nonzero exit codes. A nonzero exit does not reject `exited`; supervision failures do. Output EOF and process exit are separate, so read piped output through EOF when its final bytes matter. If both output streams are piped, drain them concurrently to avoid filling a pipe and blocking the child.
+
+## ChildProcess.pid
+
+`pid` is the operating-system process ID of the started child command, not an internal supervisor process.
+
+## ChildProcess.stdin
+
+When `stdin: "pipe"`, this is a `WritableStream<Uint8Array>`. Write bytes with a writer or `pipe`; closing the stream sends EOF to the child. It is `null` when `stdin` is inherited or ignored. Aborting the writable closes the child's input side.
+
+## ChildProcess.stdout
+
+When `stdout: "pipe"`, this is a `ReadableStream<Uint8Array>` that ends at child EOF. Read it while the process runs. It is `null` when `stdout` is inherited or ignored. Cancelling the stream closes that read end.
+
+## ChildProcess.stderr
+
+When `stderr: "pipe"`, this is a `ReadableStream<Uint8Array>` that ends at child EOF. Drain it concurrently with stdout if both are piped. It is `null` when `stderr` is inherited or ignored. Cancelling the stream closes that read end.
+
+## ChildProcess.exited
+
+This Promise resolves to `{code, signal}` when process supervision finishes. `code` is the ordinary exit code, including nonzero values; `signal` identifies signal termination where the OS reports one. The other field may be `null` when it does not apply. Await it to observe completion; it does not terminate the child.
+
+## ChildProcess.kill
+
+`await child.kill(signal = "SIGTERM")` sends a stop request to the owned process group or Windows Job. This requests termination; use `exited` to wait for it. Signal and termination behavior depend on the operating system. On Windows, termination uses the Job rather than converting an exit code into a POSIX signal.
+
+## ChildProcess.close
+
+`await child.close()` is idempotent and performs forced cleanup. It closes owned pipes, stops a process that is still running, waits for process supervision and stream pumps, and releases the handle. Unread output may be discarded. Call it in `finally`; runtime shutdown also reclaims owned children. An inherited-output forwarding failure is reported by close.
+
+The child and its pipes belong to the execution that starts them, including Worker executions, and cannot outlive that runtime. POSIX uses one Go supervision process per spawned child; if the owning run_js runtime is forcibly stopped, the supervisor detects the owner's pipe closing and stops the process group. This is not a detached-process API.
+
 ### Source basis
 
-NOE-maintained implementation: internal/stdlib, based on github.com/go-quickjs/go-quickjs@v0.27.0/stdlib. NOE installs this module through internal/runtime/stdlib.go and reserves its bare-name alias through internal/modulemap/builtins.go.
+NOE-maintained implementation: captured commands are in internal/stdlib, based on github.com/go-quickjs/go-quickjs@v0.27.0/stdlib; live process handles are in internal/nativeio. internal/noestdlib composes both implementations into one module. NOE installs this module through internal/runtime/stdlib.go and reserves its bare-name alias through internal/modulemap/builtins.go.

@@ -57,7 +57,7 @@ func processHelperJS(t *testing.T, mode string) string {
 }
 
 func TestProcessStreamsMultipleLiveRequests(t *testing.T) {
-	script := `import {spawn} from "noe:process";
+	script := `import {spawn} from "node:child_process";
 const child=await ` + processHelperJS(t, "echo") + `;
 const enc=new TextEncoder(), dec=new TextDecoder();
 const writer=child.stdin.getWriter(), out=child.stdout.getReader(), err=child.stderr.getReader();
@@ -78,7 +78,7 @@ await child.close(); await child.close(); console.log("live requests passed");`
 func TestProcessEnvironmentCwdAndExit(t *testing.T) {
 	dir := t.TempDir()
 	command := strings.Replace(processHelperJS(t, "env"), `}})`, `},cwd:".",stdin:"ignore"})`, 1)
-	script := `import {spawn} from "noe:process";
+	script := `import {spawn} from "node:child_process";
 process.env.REMOVED_SETTING="remove me"; process.env.CHANGED_SETTING="changed";
 const child=await ` + strings.Replace(command, `NOE_PROCESS_IO_HELPER:"env"`, `NOE_PROCESS_IO_HELPER:"env",REMOVED_SETTING:null,WORKER_SETTING:"root"`, 1) + `;
 const [text,errors]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text()]);
@@ -88,14 +88,14 @@ if(text!==` + jsString(t, dir+"|root||changed") + ` || result.code!==7 || result
 }
 
 func TestProcessStartFailureAndValidation(t *testing.T) {
-	runStdlib(t, `import {spawn} from "noe:process";
+	runStdlib(t, `import {spawn} from "node:child_process";
 for (const fn of [()=>spawn("noe-command-that-does-not-exist"),()=>spawn("x",[3]),()=>spawn("x",[],{stdout:"invalid"})]) {
 let failed=false;try{await fn()}catch(e){failed=true}if(!failed)throw Error("accepted invalid start");
 }`, Options{})
 }
 
 func TestProcessCloseUnblocksPendingRead(t *testing.T) {
-	runStdlib(t, `import {spawn} from "noe:process";
+	runStdlib(t, `import {spawn} from "node:child_process";
 const child=await `+processHelperJS(t, "wait")+`;
 const reader=child.stdout.getReader(); await reader.read();
 const read=reader.read().catch(()=>({done:true}));
@@ -114,7 +114,7 @@ await pipe(stdin,stdout); console.log("legacy still works");`, Options{Stdin: in
 
 func TestProcessModuleInWorkerUsesOwnEnvironment(t *testing.T) {
 	dir := t.TempDir()
-	worker := `import {parentPort} from "node:worker_threads"; import {spawn} from "noe:process";
+	worker := `import {parentPort} from "node:worker_threads"; import {spawn} from "node:child_process";
 const c=await ` + processHelperJS(t, "env") + `; const text=await new Response(c.stdout).text(); await c.exited;await c.close(); parentPort.postMessage(text); parentPort.close();`
 	if err := os.WriteFile(filepath.Join(dir, "worker.js"), []byte(worker), 0600); err != nil {
 		t.Fatal(err)

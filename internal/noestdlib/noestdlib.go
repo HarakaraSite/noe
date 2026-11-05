@@ -125,6 +125,14 @@ func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings,
 			return nil, installErr
 		}
 		result.native = host
+		if cfg.Native.Commands {
+			// Complete the module before any user imports it. The same function
+			// is published through the named/default and bare/node: entry points.
+			if err := stdlib.CommandsWithSpawn(rt, core.Run, host.Spawn()); err != nil {
+				closeAdapters()
+				return nil, err
+			}
+		}
 	}
 	return result, nil
 }

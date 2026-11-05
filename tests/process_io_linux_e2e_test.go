@@ -141,7 +141,7 @@ func TestProcessIOWorkerTerminateStopsActiveSpawn(t *testing.T) {
 	defer processIOKillPIDFiles(shellPath, grandchildPath)
 	workerSource := `import {parentPort} from "node:worker_threads";
 import {readFile} from "node:fs/promises";
-import {spawn} from "noe:process";
+import {spawn} from "node:child_process";
 const shellPath=` + strconv.Quote(shellPath) + `, grandchildPath=` + strconv.Quote(grandchildPath) + `;
 await spawn("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"process-io-worker",shellPath,grandchildPath],{stdin:"ignore",stdout:"ignore",stderr:"ignore"});
 let childReady=false;

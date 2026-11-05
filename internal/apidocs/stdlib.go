@@ -15,7 +15,7 @@ func stdlibTopics() []topicSpec {
 		{ID: "node:assert", Kind: "module", Summary: "Synchronous assertion helpers for checking values and thrown errors.", File: "stdlib-assert.md", Aliases: []string{"assert"}},
 		{ID: "node:async_hooks", Kind: "module", Summary: "Tracks async execution context for values that must follow work across promises and timers.", File: "stdlib-async-hooks.md", Aliases: []string{"async_hooks"}},
 		{ID: "node:buffer", Kind: "module", Summary: "Provides byte-oriented Buffer helpers and the Buffer global.", File: "stdlib-buffer.md", Aliases: []string{"buffer"}},
-		{ID: "node:child_process", Kind: "module", Summary: "Runs operating-system programs to completion and returns captured output.", File: "stdlib-child_process.md", Aliases: []string{"child_process"}},
+		{ID: "node:child_process", Kind: "module", Summary: "Runs captured commands or starts owned child processes with byte-stream Web Streams.", File: "stdlib-child_process.md", Aliases: []string{"child_process"}},
 		{ID: "node:crypto", Kind: "module", Summary: "Offers hashing, HMAC, random values, key derivation, and a limited Web Crypto surface.", File: "stdlib-crypto.md", Aliases: []string{"crypto"}},
 		{ID: "node:dns", Kind: "module", Summary: "System resolver queries with callbacks; use node:dns/promises for Promise-based queries.", File: "stdlib-dns.md", Aliases: []string{"dns"}},
 		{ID: "node:dns/promises", Kind: "module", Summary: "Promise-oriented DNS resolver module.", File: "stdlib-dns-promises.md", Aliases: []string{"dns/promises"}},

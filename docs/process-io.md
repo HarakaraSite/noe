@@ -1,17 +1,16 @@
 # プロセスと標準I/Oストリーム
 
-実行バイナリと同じ版のAPI契約は`noe docs noe:process`・`noe docs noe:io`で参照できます。概要に表示されるmember名を第2引数へ渡すと詳細を取得します（[内蔵docs](reference.md)）。
+実行バイナリと同じ版のAPI契約は`noe docs node:child_process spawn`・`noe docs noe:io`で参照できます。概要に表示されるmember名を第2引数へ渡すと詳細を取得します（[内蔵docs](reference.md)）。
 
-`noe:process`と`noe:io`はNOEの拡張モジュールです。通常のrun/eval、agentのrun_js、Workerで使えます。go-quickjsの`node:child_process`・`process.std*`・Web Streamsの実装は変更しません。
+The NOE-specific `spawn` export from `node:child_process`, together with `noe:io`, is available to run/eval, agent `run_js`, and Workers. `spawn` resolves its Promise after startup and exposes byte-oriented Web Streams of `Uint8Array`. It does not add Node.js EventEmitter or Node streams APIs. Existing `exec`, `execFile`, `spawnSync`, `process.std*`, and the `noe:io` facade remain available.
 
 ## 子を起動して通信する
 
 ```js
-import { spawn } from "noe:process";
+import { spawn } from "node:child_process";
 
 const child = await spawn("some-command", ["--jsonl"], {
   cwd: ".",
-  env: { MODE: "worker", REMOVE_THIS: null },
   stdin: "pipe", stdout: "pipe", stderr: "inherit",
 });
 try {
@@ -31,7 +30,7 @@ try {
 | 項目 | 動作 |
 | --- | --- |
 | cwd | 省略時は呼出し元のcwd。相対指定も同じcwdから解決 |
-| env | 呼出し時の`process.env`に指定キーを上書き。nullは削除。Worker固有の環境も反映 |
+| env | If `Profile.Environment.Env` is unset, the host-configured default is used. Omitting spawn's `env` inherits the selected environment. An explicit `env` object replaces the whole environment; entries with `null` values are omitted. |
 | stdin / stdout / stderr | 各`pipe`・`inherit`・`ignore`。既定はすべてpipe |
 | child.pid | 対象コマンドのPID。内部監督のPIDではない |
 | child.stdin | `WritableStream<Uint8Array>`。pipe以外はnull。closeでEOF、abortで書込み端を閉じる |
@@ -65,11 +64,11 @@ stdinはread要求から逐次読み、EOFを待たずにバイト列を返し�
 
 ## Worker
 
-Workerにも同じ拡張を登録します。stdinは空入力、出力はホストを継承し、そのWorkerで起動した子はterminateで回収します。envはそのWorkerのprocess.envから取得します。
+Workers register the same `node:child_process.spawn` extension. Their stdin is empty and output is inherited from the host; terminating a Worker reclaims children it started. If `Profile.Environment.Env` is set, that environment is used by default; otherwise the child inherits the host-configured default. An explicit spawn `env` replaces the whole environment.
 
 ```js
 await (async () => {
-  const { spawn } = await import("noe:process");
+  const { spawn } = await import("node:child_process");
   const c = await spawn("some-command", [], { stdin: "ignore", stderr: "inherit" });
   try { return await new Response(c.stdout).text(); }
   finally { await c.close(); }

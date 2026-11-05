@@ -19,7 +19,7 @@ For HTTP, prefer `import { fetch, serve } from "noe:http"`. That NOE module shar
 | node:assert | Assertions for values and errors. |
 | node:async_hooks | Async execution context and hooks. |
 | node:buffer | Byte buffers and base64 helpers. |
-| node:child_process | Synchronous and promise-based captured child commands. |
+| node:child_process | Captured child commands and owned child processes with byte-stream Web Streams. |
 | node:crypto | Hashes, randomness, key derivation, and limited Web Crypto. |
 | node:dns | System resolver lookup functions. |
 | node:dns/promises | Promise-oriented system resolver API. |
@@ -45,9 +45,9 @@ For HTTP, prefer `import { fetch, serve } from "noe:http"`. That NOE module shar
 
 ### Runtime behavior
 
-The local command-line runtime selects these modules through its execution profile. A Go host selects filesystem, process/commands, DNS, fetch, serving, WebSockets, and Workers independently; `noe:docs` remains a full catalog even when a capability is disabled. `node:fs` and `node:fs/promises` require the filesystem capability. `node:child_process` and `noe:process` require the command capability. `node:fs/promises.open` uses the same filesystem view as the other filesystem APIs. `child_process.execFile` already returns a promise. `fs.createReadStream` and `fs.createWriteStream` return Web Streams, not Node streams. Workers load through the selected execution's loader factory, whose contract is documented in node:worker_threads.
+The local command-line runtime selects these modules through its execution profile. A Go host selects filesystem, process/commands, DNS, fetch, serving, WebSockets, and Workers independently; `noe:docs` remains a full catalog even when a capability is disabled. `node:fs` and `node:fs/promises` require the filesystem capability. `node:child_process` requires the command capability. `node:fs/promises.open` uses the same filesystem view as the other filesystem APIs. `child_process.execFile` already returns a promise. `fs.createReadStream` and `fs.createWriteStream` return Web Streams, not Node streams. Workers load through the selected execution's loader factory, whose contract is documented in node:worker_threads.
 
-Use `open` from node:fs/promises for reads and writes through an open file handle, and noe:sockets for raw TCP/Unix byte streams. HTTP and WebSocket APIs handle requests and messages, not raw byte-stream sockets. The WebSockets capability selects the WebSocket client and server APIs; it is distinct from NOE's raw network socket module. Use noe:process for NOE-managed process handles. See globals for APIs installed directly on globalThis.
+Use `open` from node:fs/promises for reads and writes through an open file handle, and noe:sockets for raw TCP/Unix byte streams. HTTP and WebSocket APIs handle requests and messages, not raw byte-stream sockets. The WebSockets capability selects the WebSocket client and server APIs; it is distinct from NOE's raw network socket module. Use the NOE-specific `spawn` export from node:child_process for owned child-process handles. See globals for APIs installed directly on globalThis.
 
 ### Source basis
 

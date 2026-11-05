@@ -33,7 +33,7 @@ func TestProcessIOAgentRunInterruptReapsGeneratedProcessTree(t *testing.T) {
 			return agentModelReply{Content: "unexpected second model call"}
 		}
 		code := `import {writeFileSync} from "node:fs";
-import {spawn} from "noe:process";
+import {spawn} from "node:child_process";
 writeFileSync("agent-run-js-ready","ready");
 await spawn("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"agent-process-io","agent-shell.pid","agent-grandchild.pid"],{stdin:"ignore",stdout:"ignore",stderr:"ignore"});
 await new Promise(()=>{});`
@@ -152,7 +152,7 @@ func TestProcessIOAgentParentCancellationReapsSpawnTreesWithInheritedAndIgnoredP
 					return agentModelReply{Content: "unexpected second model call"}
 				}
 				code := `import {writeFileSync} from "node:fs";
-import {spawn} from "noe:process";
+import {spawn} from "node:child_process";
 writeFileSync("parent-run-js-ready","ready");
 await spawn("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"parent-process-io","parent-shell.pid","parent-grandchild.pid"],{stdin:"ignore",stdout:` + strconv.Quote(tc.stdout) + `,stderr:` + strconv.Quote(tc.stderr) + `});
 await new Promise(()=>{});`

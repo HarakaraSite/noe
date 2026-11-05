@@ -110,3 +110,88 @@ The semantics were checked against the official Node.js documentation for
 [filesystem flags and FileHandle operations](https://nodejs.org/api/fs.html)
 and [system errors](https://nodejs.org/api/errors.html). These references guide
 the supported subset; they do not imply implementation of the full Node API.
+
+## Deferred noebot API adoption
+
+Recorded on 2026-11-05 for a later consolidated instruction in the noebot
+repository. The remote `main` was rechecked at
+`45de74771d9c048448afb1e7f1039b0b45a01443`. Implementation is deferred to
+noebot-side work; no noebot sources were changed for this assessment.
+
+The existing code passed the 170 checks recorded above without migration.
+These are optional improvements, with no measured performance gains yet.
+
+| Candidate | Current noebot code | Benefit and recommended scope |
+| --- | --- | --- |
+| Notes directory traversal | `app/notes.mjs`, `Notes.list()`: name-only `readdirSync`, followed by `lstatSync` for every entry. | Use `readdirSync(dir, {withFileTypes: true})` and Dirent predicates to avoid the separate per-entry metadata call. This is the smallest adoption candidate. Preserve symlink rejection, note-name validation, temporary-directory exclusion, and sorted results. Keep the path checks used for reads and writes. |
+| Durable persistence | `app/store.mjs`, `syncPath()` and `atomicWriteFile()`; used by Store, Notes, and image storage. A normal atomic write invokes GNU `sync -f` before rename and again for the parent directory after rename. | FileHandle-based writes and `sync()` can remove external command launches and narrow the synchronization scope. This has the largest potential benefit, but requires a persistence redesign rather than a local API replacement. |
+| Missing-file handling | `app/store.mjs`, `lstatMaybe()`: an `ENOENT` fast path followed by a parent-listing fallback for older NOE errors. | NOE v2.13.0 already activates the existing fast path without code changes. Remove the fallback and update the outdated error comment only when older NOE support is dropped. Cleanup alone adds little performance benefit on v2.13.0. |
+
+### Persistence work to define in noebot
+
+`FileHandle.sync()` is asynchronous. `Store.transaction()` currently completes
+synchronously and rejects asynchronous callbacks; `syncNow()` also rejects
+thenable sync adapters. A future change must address caller completion,
+write serialization, initialization, and handle cleanup together.
+
+Preserve the current atomic-publication guarantees: finish writing and syncing
+the temporary file before rename, then sync the destination's parent directory
+before reporting durable success. A file-only sync does not replace the
+post-rename directory sync. Preserve private file/directory permissions and
+the existing distinction between failures before publication and uncertain
+commits after a rename attempt, including the stop-writes behavior.
+
+GNU [`sync -f`](https://www.gnu.org/s/coreutils/manual/html_node/sync-invocation.html)
+synchronizes the filesystem containing the path; NOE's FileHandle `sync()`
+operates on the open descriptor. Check directory-handle syncing on noebot's
+Linux target as part of that redesign. Remove the GNU sync startup prerequisite
+and documentation only when all persistence callers have migrated.
+
+### Compatibility decisions for later work
+
+noebot currently documents and enforces NOE >= 2.11.0 in `README.md` and
+`app/main.mjs`. Adopting the new APIs requires a decision on raising that
+minimum to v2.13.0 or providing an older-version path. Explain that change
+when proposing each work item, as requested by the user. Asynchronous
+persistence also changes internal Store/Notes caller contracts and their
+injected filesystem/sync test adapters; identify the affected callers before
+implementation.
+
+Suggested sequence: adopt Dirent for Notes as a small change, then plan the
+larger persistence change separately. Include missing-file fallback cleanup
+when the minimum-version decision makes it appropriate. Reuse the existing
+S1, S2, S3, and image suites and their persistence-failure cases for the
+affected changes.
+
+### Required process import migration for the next NOE release
+
+Later on 2026-11-05, the user approved moving the Promise/Web Streams
+`spawn` into `node:child_process` and removing `noe:process` without an
+adapter. Apply this migration when noebot adopts the NOE release containing
+that change, before the optional filesystem improvements above.
+
+At the inspected noebot revision, change the imports in `app/main.mjs` and
+`tests/s1.mjs`:
+
+```js
+import {spawn} from 'node:child_process';
+```
+
+Continue awaiting `spawn` and using its existing stream options and
+`exited`, `kill()`, and `close()` methods. This remains NOE's Promise/Web
+Streams API; Node-style ChildProcess events are not introduced. The matching
+embedded reference is now `docs('node:child_process', 'spawn')`.
+
+Update noebot's documented and enforced minimum NOE version in `README.md`
+and `app/main.mjs` to the release that ships this change. That version is
+not assigned yet; published NOE v2.13.0 still uses `noe:process` and does not
+export the new `spawn` entry point. The filesystem-only minimum-version
+decision above is separate from this required process migration.
+
+Validation used a temporary copy of the remote source at the same revision.
+The unmodified S1 suite failed to import the removed module, as expected.
+Changing only those two imports passed S1 31/31, S2 83/83, S3 45/45, and
+images 11/11 on the candidate NOE binary. The patch and logs are under
+`/tmp/noe-process-integration-863auo4a/`, including
+`noebot-spawn-import.patch`. The actual noebot repositories and running
+applications were not changed.

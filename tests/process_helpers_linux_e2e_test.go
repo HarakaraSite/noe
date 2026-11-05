@@ -16,7 +16,14 @@ import (
 // execution. JavaScript tasks share the CLI process and must not be targeted.
 func agentPIDFile(t *testing.T, ctx context.Context, name string) int {
 	t.Helper()
-	data := waitAgentFile(t, ctx, name)
+	var data []byte
+	for len(data) == 0 {
+		data = waitAgentFile(t, ctx, name)
+		if len(data) == 0 {
+			// Shell redirection creates the file before echo writes the PID.
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil || pid <= 0 {
 		t.Fatalf("invalid OS subprocess PID fixture %s: %q", name, data)

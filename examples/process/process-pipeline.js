@@ -1,5 +1,5 @@
 // Pass bytes through two child processes with bounded stream buffering.
-import { spawn } from "noe:process";
+import { spawn } from "node:child_process";
 import { stdin, stdout, pipe } from "noe:io";
 import { resolve } from "node:path";
 

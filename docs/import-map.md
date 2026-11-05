@@ -65,7 +65,7 @@ const snapshot = await run_agent(
 console.log(snapshot.lastResult.answer);
 ```
 
-Workerの**内部のimport**にmapを使えます。標準loaderのWorker入口はローカルです。global Workerの既存local target alias経路は維持し、node Workerの文字列path検査は変更しません。HTTP/HTTPSの直接URLやURL target aliasを入口にする対応はなく、取得前に拒否します。Workerからの`noe:agent`・`noe:decision`・`noe:auth`利用は引き続き未対応です。任意の`noe:process.spawn()`で起動する外部プログラムへはoptionを自動注入しません。
+Workerの**内部のimport**にmapを使えます。標準loaderのWorker入口はローカルです。global Workerの既存local target alias経路は維持し、node Workerの文字列path検査は変更しません。HTTP/HTTPSの直接URLやURL target aliasを入口にする対応はなく、取得前に拒否します。Workerからの`noe:agent`・`noe:decision`・`noe:auth`利用は引き続き未対応です。任意の`node:child_process.spawn()`で起動する外部プログラムへはoptionを自動注入しません。
 
 ## ソースの寿命と互換性
 

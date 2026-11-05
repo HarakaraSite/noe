@@ -63,6 +63,16 @@ type Run struct {
 //	const branch = execFileSync("git", ["branch", "--show-current"]).trim()
 //	const {stdout} = await execFile("git", ["status", "--short"])
 func Commands(rt *quickjs.Runtime, cfg *Run) error {
+	return commands(rt, cfg, quickjs.Value{})
+}
+
+// CommandsWithSpawn composes captured commands and the execution-owned Web
+// Streams adapter into one module. Call it before evaluating user modules.
+func CommandsWithSpawn(rt *quickjs.Runtime, cfg *Run, spawn quickjs.Value) error {
+	return commands(rt, cfg, spawn)
+}
+
+func commands(rt *quickjs.Runtime, cfg *Run, spawn quickjs.Value) error {
 	if cfg == nil {
 		cfg = &Run{}
 	}
@@ -74,6 +84,9 @@ func Commands(rt *quickjs.Runtime, cfg *Run) error {
 		"execFile":     r.execFile,
 		"exec":         r.execShell,
 		"execSync":     r.execShellSync,
+	}
+	if spawn.IsFunction() {
+		exports["spawn"] = spawn
 	}
 	exports["default"] = copyExports(exports)
 	return setNodeModule(rt, "child_process", exports)

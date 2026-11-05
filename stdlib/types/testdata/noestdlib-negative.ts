@@ -1,7 +1,7 @@
 import {readFileSync, readdirSync, statSync} from "node:fs";
 import {exec, execFile, spawnSync} from "node:child_process";
-// @ts-expect-error spawn belongs to noe:process, not node:child_process
-import {spawn} from "node:child_process";
+// @ts-expect-error NOE's live spawn API is now part of node:child_process.
+import {spawn as legacySpawn} from "noe:process";
 import {ReadableStream} from "node:stream/web";
 import {connect} from "noe:sockets";
 import {open as openFile} from "node:fs/promises";

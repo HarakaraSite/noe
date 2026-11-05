@@ -1,7 +1,8 @@
 import assert, {deepStrictEqual, rejects as assertRejects, strict} from "node:assert";
 import {AsyncLocalStorage} from "async_hooks";
 import bufferDefault, {Buffer} from "node:buffer";
-import {exec, execFile, spawnSync} from "child_process";
+import childProcessDefault, {exec, execFile, spawn as spawnBare, spawnSync, type ChildProcess, type SpawnOptions} from "child_process";
+import nodeChildProcessDefault, {spawn as spawnOwned, type ChildProcess as CanonicalChildProcess, type SpawnOptions as CanonicalSpawnOptions} from "node:child_process";
 import {createHash, randomBytes} from "crypto";
 import dns, {lookup as lookupCallback, resolve4 as resolve4Callback} from "node:dns";
 import * as dnsPromises from "dns/promises";
@@ -32,7 +33,6 @@ import {gzipSync} from "zlib";
 
 import {docs} from "noe:docs";
 import {stdin, stdout, pipe} from "noe:io";
-import {spawn as spawnOwned} from "noe:process";
 import {fetch as noeFetch, serve as noeServe} from "noe:http";
 import {connect, listen} from "noe:sockets";
 import {subscribe} from "noe:signals";
@@ -145,9 +145,16 @@ const docsText: string = docs("node:fs/promises", "open");
 const inputStream: ReadableStream<Uint8Array> = stdin;
 const outputStream: WritableStream<Uint8Array> = stdout;
 const pipeResult: Promise<void> = pipe(inputStream, outputStream, {preventClose: true});
-const ownedChild = await spawnOwned("echo", ["hello"], {stdout: "pipe"});
+const ownedOptions: CanonicalSpawnOptions = {stdout: "pipe", env: {MODE: "worker", OMIT_THIS: null}};
+const ownedChild: CanonicalChildProcess = await spawnOwned("echo", ["hello"], ownedOptions);
+const bareOwnedChild: ChildProcess = await spawnBare("echo", ["hello"], {stdout: "pipe"});
+const defaultSpawn: typeof spawnOwned = childProcessDefault.spawn;
+const canonicalDefaultSpawn: typeof spawnOwned = nodeChildProcessDefault.spawn;
+const bareChildTypeMatches: ChildProcess = ownedChild;
+const canonicalOptions: SpawnOptions = ownedOptions;
 const ownedStatus: number | null = (await ownedChild.exited).code;
 await ownedChild.close();
+await bareOwnedChild.close();
 const fetched: Promise<Response> = noeFetch("https://example.test");
 const noeServer = noeServe(request => Response.json({url: request.url}));
 noeServer.close();
@@ -216,6 +223,7 @@ void [assertAlias, asyncHooksAlias, bufferAlias, childProcessAlias, cryptoAlias,
   currentDirectory, tagValues, decoded, timerResult, fileURL, lengthPromise, vmValue, exitCode, zipped, plainOutput, v4Records, resolverServers, binaryCommand, binaryShell,
   widenedFileOutput, widenedShellOutput, widenedSyncOutput, generalEncodingOutput, optionalBufferOutput, definiteBufferedOutput, definiteTextOutput,
   docsText, ownedStatus, fetched, readCount, sameReadBuffer, sameOptionReadBuffer, defaultReadBuffer, sameDataView,
+  defaultSpawn, canonicalDefaultSpawn, bareChildTypeMatches, canonicalOptions,
   typedViewRead, sameWriteBuffer, samePositionalWriteBuffer, typedTextWrite, sameText,
   bareFsPromiseOpen, namedNodeFsPromiseOpen, namedNodeFsPromisesImportOpen,
   defaultNodeFsPromiseOpen, defaultBareFsPromiseOpen,

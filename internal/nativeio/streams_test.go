@@ -26,6 +26,9 @@ func streamRuntime(t *testing.T, opts Options) (*quickjs.Runtime, *Host, *stdlib
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := stdlib.CommandsWithSpawn(rt, nil, h.Spawn()); err != nil {
+		t.Fatal(err)
+	}
 	return rt, h, loop
 }
 

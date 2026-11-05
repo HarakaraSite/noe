@@ -33,8 +33,8 @@ type Config struct {
 	Supervisor string
 }
 
-// Prepared is the resolved command shared by Node child_process and
-// noe:process. Env is a copy and is never inherited from the host process.
+// Prepared is the resolved command shared by captured and streaming commands.
+// Env is a copy and is never inherited from the host process.
 type Prepared struct {
 	Command string
 	Args    []string
