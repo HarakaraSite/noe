@@ -1,35 +1,14 @@
-# ファイルハンドル・ソケット・OSシグナル
+# File handles, sockets, and OS signals
 
-実行バイナリと同じ版のAPI契約は`noe docs noe:fs-handle`・`noe docs noe:sockets`・`noe docs noe:signals`で参照できます。概要に表示されるmember名を第2引数へ渡すと詳細を取得します（[内蔵docs](reference.md)）。
+Use `noe docs node:fs/promises open` and `noe docs node:fs/promises FileHandle.read` for the file handle contract. Use `noe docs noe:sockets` and `noe docs noe:signals` for the NOE socket and signal APIs. Member names from a topic overview select detailed entries in the embedded reference ([guide](reference.md)).
 
-このガイドのAPIはv1.8.0以降で利用できます。
+The socket and signal APIs in this guide are available from v1.8.0.
 
-`noe:fs-handle`、`noe:sockets`、`noe:signals`はNOEの拡張です。run/eval、agentのrun_js、Workerで使えます。現在のOSユーザー権限で動きます。stdlibの`node:fs`、HTTP、プロセスAPIも引き続き使えます。
+`noe:sockets` and `noe:signals` are NOE extensions available to run/eval, agent `run_js`, and Workers. They use the operating-system permissions of the NOE process. The standard `node:fs`, `node:fs/promises`, HTTP, and process APIs remain available through their selected capabilities.
 
-## 開いたファイルの一部分を読み書きする
+## Open files
 
-```js
-import { open } from "noe:fs-handle";
-const file = await open("./index.bin", { mode: "r+" });
-try {
-  const { data, bytesRead, eof } = await file.readAt(32, 16);
-  console.log(bytesRead, eof);
-  await file.writeAt(32, data);
-} finally {
-  await file.close();
-}
-```
-
-| 操作 | 動作 |
-| --- | --- |
-| `open(path, {mode="r"}={})` | Promiseでhandleを返す。`r`は既存fileの読取り、`r+`は読書き。作成・truncate・appendを行わない。相対pathはruntimeのcwd基準 |
-| `file.readAt(position, length)` | byte位置から読み、`{data:Uint8Array, bytesRead, eof}`を返すPromise。短いreadとEOFを同時に保持。長さ0は空bytesで成功しEOFを探索しない |
-| `file.writeAt(position, bytes)` | Uint8Arrayを呼出し時にcopyし、成功時は全長の書込み数を返すPromise。対象外bytesを変更せず、fileを縮めない |
-| `file.close()` | Promise。冪等。新規I/Oを拒否し、開始済みのGo処理が終わるまで追跡する |
-
-position/lengthは非負のsafe integerで、Goへ変換でき、加算がoverflowしない値を指定します。空/NUL入りpathは入力エラーです。OSエラーには取得できる`code`が付きます。EOF以外の部分read失敗はerrorの`data`・`bytesRead`、部分write失敗は`bytesWritten`を保持してrejectします。完了済みの書込みはrollbackしません。
-
-開いた通常fileだけでは実行を維持しません。未完了I/Oは実行を維持し、runtime終了時に所有handleを回収します。デバイス・FIFO・NFS等でblockするOS file I/Oの即時取消しは保証しません。新規作成・metadataはstdlibを使えます。共有seek位置、fd公開、lock、sync/durabilityの契約はありません。
+`open` from `node:fs/promises` returns a `FileHandle` for an existing file. Use its `read()` and `write()` methods for sequential or positional byte I/O, then call `close()`. The handle contract, supported overloads, returned buffers, and errors are documented in the embedded `node:fs/promises` reference. Open handles do not keep an evaluation alive; runtime cleanup closes remaining handles.
 
 ## TCP・Unixソケットで通信する
 

@@ -64,6 +64,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 子の完了待ち中にsteerで親へ制御を戻す | [実装・検証記録](steer-aware-wait-implementation.md) · [実装指示書](steer-aware-wait-implementation-task.md) |
 | JSによるExa MCPクライアントとソケットデーモンの利用例 | [実装・検証記録](mcp-daemon-examples.md) |
 | txiki.jsとの機能差と今後の改善の参考 | [比較調査（2026-10-24）](txikijs-comparison-20261024.md) |
+| Standard library API integration and expansion | [Roadmap and first filesystem milestone](stdlib-roadmap.md) |
 | go-quickjs v0.28.0の取り込み | [計画・レビュー・検証記録](go-quickjs-v0.28.0-plan.md) |
 | go-quickjs v0.29.0の影響調査・取り込み | [API・既報修正・Intl・検証記録](go-quickjs-v0.29.0-impact.md) |
 | go-quickjs v0.31.1 upgrade, JIT disabled | [Scope, compatibility and verification](go-quickjs-v0.31.1-upgrade.md) |
@@ -88,6 +89,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 意思決定API | [計画](decision-plan.md) | [実装記録](decision-implementation.md)・[実接続](decision-openrouter-validation.md) |
 | プロセス・標準I/Oストリーム | [計画](process-io-plan.md) | [実装記録](process-io-implementation.md) |
 | 第2グループ：file・socket・signal | [実装計画](low-level-group2-plan.md)・[計画レビュー](low-level-group2-review.md) | [実装・検証記録](low-level-group2-implementation.md)・[計画確定前スパイク](low-level-group2-spike.md) |
+| Filesystem API integration | [Roadmap](stdlib-roadmap.md) | [Phase 1 implementation and validation](stdlib-fs-integration.md) |
 | HTTP/HTTPS URL import | [設計案](url-import-plan.md)・[スライス](url-import-slices.md)・[通常/批判的レビュー](url-import-review.md) | [実装・検証記録](url-import-implementation.md)・[コードレビュー](url-import-code-review.md) |
 | ローカルESM・import map | [計画](local-import-map-plan.md) | [実装記録](local-import-map-implementation.md)・[MCPクライアントのスパイク](../../scripts/spikes/process-io-mcp/README.md) |
 | hook・処理の連鎖・コンテキスト通知 | [計画](execution-hooks-plan.md) | [実装記録](execution-hooks-implementation.md)・[OpenCode Go検証](execution-hooks-opencode-validation.md) |

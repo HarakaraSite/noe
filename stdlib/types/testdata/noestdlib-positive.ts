@@ -6,8 +6,15 @@ import {createHash, randomBytes} from "crypto";
 import dns, {lookup as lookupCallback, resolve4 as resolve4Callback} from "node:dns";
 import * as dnsPromises from "dns/promises";
 import {EventEmitter, once} from "events";
-import fs, {readFileSync, statSync} from "node:fs";
-import {readFile, readdir} from "fs/promises";
+import fs, {promises as fsPromises, readFileSync, statSync} from "node:fs";
+import fsPromisesDefault, {
+  FileHandleRead,
+  FileHandleReadOptions,
+  FileHandleWrite,
+  open as nodeFsOpen,
+} from "node:fs/promises";
+import {FileHandle, open as bareFsOpen, readFile, readdir} from "fs/promises";
+import bareFsPromisesDefault from "fs/promises";
 import {serve as nodeServe} from "node:http";
 import {platform, cpus} from "os";
 import path, {join, posix} from "node:path";
@@ -26,7 +33,6 @@ import {docs} from "noe:docs";
 import {stdin, stdout, pipe} from "noe:io";
 import {spawn as spawnOwned} from "noe:process";
 import {fetch as noeFetch, serve as noeServe} from "noe:http";
-import {open} from "noe:fs-handle";
 import {connect, listen} from "noe:sockets";
 import {subscribe} from "noe:signals";
 
@@ -134,7 +140,7 @@ const worker = new NodeWorker("./worker.mjs", {name: "fixture", env: WORKER_SHAR
 const exitCode: Promise<number | undefined> = worker.terminate();
 const zipped: Uint8Array = gzipSync(bytes);
 
-const docsText: string = docs("noe:fs-handle", "open");
+const docsText: string = docs("node:fs/promises", "open");
 const inputStream: ReadableStream<Uint8Array> = stdin;
 const outputStream: WritableStream<Uint8Array> = stdout;
 const pipeResult: Promise<void> = pipe(inputStream, outputStream, {preventClose: true});
@@ -144,9 +150,32 @@ await ownedChild.close();
 const fetched: Promise<Response> = noeFetch("https://example.test");
 const noeServer = noeServe(request => Response.json({url: request.url}));
 noeServer.close();
-const fileHandle = await open("README.md", {mode: "r"});
-const fileRead = await fileHandle.readAt(0, 8);
+const fileHandle: FileHandle = await nodeFsOpen("README.md");
+const bareFsPromiseOpen: typeof nodeFsOpen = bareFsOpen;
+const namedNodeFsPromiseOpen: typeof nodeFsOpen = fs.promises.open;
+const namedNodeFsPromisesImportOpen: typeof nodeFsOpen = fsPromises.open;
+const defaultNodeFsPromiseOpen: typeof nodeFsOpen = fsPromisesDefault.open;
+const defaultBareFsPromiseOpen: typeof nodeFsOpen = bareFsPromisesDefault.open;
+const readBuffer = new Uint8Array(8);
+const fileRead = await fileHandle.read(readBuffer, 0, readBuffer.byteLength, 0);
+const sameReadBuffer: Uint8Array = fileRead.buffer;
+const optionRead = await fileHandle.read(readBuffer, {offset: 1, length: 2, position: 1});
+const sameOptionReadBuffer: Uint8Array = optionRead.buffer;
+const defaultRead = await fileHandle.read();
+const defaultReadBuffer: Uint8Array = defaultRead.buffer;
+const dataView = new DataView(new ArrayBuffer(4));
+const viewOptions: FileHandleReadOptions<DataView> = {buffer: dataView, offset: 0, length: 4, position: 0};
+const viewRead = await fileHandle.read(viewOptions);
+const typedViewRead: FileHandleRead<DataView> = viewRead;
+const sameDataView: DataView = viewRead.buffer;
 const readCount: number = fileRead.bytesRead;
+const byteWrite = await fileHandle.write(readBuffer, {offset: 0, length: 2, position: 0});
+const sameWriteBuffer: Uint8Array = byteWrite.buffer;
+const positionalWrite = await fileHandle.write(readBuffer, 0, 2, 0);
+const samePositionalWriteBuffer: Uint8Array = positionalWrite.buffer;
+const textWrite = await fileHandle.write("text", 0, "utf-8");
+const typedTextWrite: FileHandleWrite<string> = textWrite;
+const sameText: string = textWrite.buffer;
 await fileHandle.close();
 const socketConnect = connect({network: "tcp", host: "127.0.0.1", port: 9000});
 const socketListener = listen({network: "unix", path: "/tmp/noe.sock"});
@@ -185,5 +214,9 @@ void [assertAlias, asyncHooksAlias, bufferAlias, childProcessAlias, cryptoAlias,
   fileText, fileBytes, fileSize, asyncText, names, hostPlatform, cpuCount, resolvedPath, winPath, posixPath,
   currentDirectory, tagValues, decoded, timerResult, fileURL, lengthPromise, vmValue, exitCode, zipped, plainOutput, v4Records, resolverServers, binaryCommand, binaryShell,
   widenedFileOutput, widenedShellOutput, widenedSyncOutput, generalEncodingOutput, optionalBufferOutput, definiteBufferedOutput, definiteTextOutput,
-  docsText, ownedStatus, fetched, readCount, socketConnect, socketListener, response, parsedBody, streamChunk,
+  docsText, ownedStatus, fetched, readCount, sameReadBuffer, sameOptionReadBuffer, defaultReadBuffer, sameDataView,
+  typedViewRead, sameWriteBuffer, samePositionalWriteBuffer, typedTextWrite, sameText,
+  bareFsPromiseOpen, namedNodeFsPromiseOpen, namedNodeFsPromisesImportOpen,
+  defaultNodeFsPromiseOpen, defaultBareFsPromiseOpen,
+  socketConnect, socketListener, response, parsedBody, streamChunk,
   digest, compressed, transformed, currentPid];

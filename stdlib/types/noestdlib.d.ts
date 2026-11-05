@@ -323,6 +323,26 @@ declare namespace NOEStdlib {
   interface FileReadOptions { start?: number; end?: number }
   interface FileWriteOptions { flags?: string }
   type FileData = string | Uint8Array | ArrayBuffer | ArrayBufferView;
+  type FileHandleFlags = "r" | "r+";
+  interface FileHandleIOOptions { offset?: number; length?: number; position?: number | null }
+  interface FileHandleReadOptions<B extends ArrayBufferView = Uint8Array> extends FileHandleIOOptions {
+    buffer?: B;
+  }
+  interface FileHandleRead<B extends ArrayBufferView = Uint8Array> { bytesRead: number; buffer: B }
+  type FileHandleWriteOptions = FileHandleIOOptions;
+  interface FileHandleWrite<B extends ArrayBufferView | string = ArrayBufferView | string> {
+    bytesWritten: number;
+    buffer: B;
+  }
+  interface FileHandle {
+    read<B extends ArrayBufferView>(buffer: B, offset?: number, length?: number, position?: number | null): Promise<FileHandleRead<B>>;
+    read<B extends ArrayBufferView>(buffer: B, options?: FileHandleIOOptions): Promise<FileHandleRead<B>>;
+    read<B extends ArrayBufferView = Uint8Array>(options?: FileHandleReadOptions<B>): Promise<FileHandleRead<B>>;
+    write<B extends ArrayBufferView>(buffer: B, offset?: number, length?: number, position?: number | null): Promise<FileHandleWrite<B>>;
+    write<B extends ArrayBufferView>(buffer: B, options?: FileHandleIOOptions): Promise<FileHandleWrite<B>>;
+    write(text: string, position?: number | null, encoding?: "utf8" | "utf-8"): Promise<FileHandleWrite<string>>;
+    close(): Promise<void>;
+  }
   interface FSModule {
     appendFileSync(path: string, data: FileData): void;
     chmodSync(path: string, mode: number): void;
@@ -349,6 +369,7 @@ declare namespace NOEStdlib {
   interface FSPromisesAPI {
     appendFile(path: string, data: FileData): Promise<void>;
     copyFile(from: string, to: string): Promise<void>;
+    open(path: string, flags?: FileHandleFlags): Promise<FileHandle>;
     lstat(path: string): Promise<FileInfo>;
     mkdir(path: string, options?: {recursive?: boolean}): Promise<void>;
     mkdtemp(prefix: string): Promise<string>;
@@ -701,11 +722,6 @@ declare namespace NOEStdlib {
     unzip(data: Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
     unzipSync(data: Uint8Array | ArrayBuffer): Uint8Array;
   }
-
-  interface FileHandleRead { data: Uint8Array; bytesRead: number; eof: boolean }
-  interface FileHandle { readAt(position: number, length: number): Promise<FileHandleRead>; writeAt(position: number, bytes: Uint8Array): Promise<number>; close(): Promise<void> }
-  type FileHandleMode = "r" | "r+";
-  function open(path: string, options?: {mode?: FileHandleMode}): Promise<FileHandle>;
 
   interface ChildProcessStatus { code: number | null; signal: string | null }
   interface OwnedChildProcess {
@@ -1208,8 +1224,15 @@ declare module "node:fs" {
 }
 declare module "node:fs/promises" {
   export type FileInfo = NOEStdlib.FileInfo; export type FileData = NOEStdlib.FileData;
+  export type FileHandle = NOEStdlib.FileHandle; export type FileHandleFlags = NOEStdlib.FileHandleFlags;
+  export type FileHandleIOOptions = NOEStdlib.FileHandleIOOptions;
+  export type FileHandleRead<B extends ArrayBufferView = Uint8Array> = NOEStdlib.FileHandleRead<B>;
+  export type FileHandleReadOptions<B extends ArrayBufferView = Uint8Array> = NOEStdlib.FileHandleReadOptions<B>;
+  export type FileHandleWrite<B extends ArrayBufferView | string = ArrayBufferView | string> = NOEStdlib.FileHandleWrite<B>;
+  export type FileHandleWriteOptions = NOEStdlib.FileHandleWriteOptions;
   export const appendFile: NOEStdlib.FSPromisesAPI["appendFile"];
   export const copyFile: NOEStdlib.FSPromisesAPI["copyFile"];
+  export const open: NOEStdlib.FSPromisesAPI["open"];
   export const lstat: NOEStdlib.FSPromisesAPI["lstat"];
   export const mkdir: NOEStdlib.FSPromisesAPI["mkdir"];
   export const mkdtemp: NOEStdlib.FSPromisesAPI["mkdtemp"];
@@ -1461,7 +1484,6 @@ declare module "noe:http" {
   export type HTTPServer = NOEStdlib.HTTPServer;
   export type ServeOptions = NOEStdlib.ServeOptions;
 }
-declare module "noe:fs-handle" { export import open = NOEStdlib.open; export type FileHandle = NOEStdlib.FileHandle; export type FileHandleRead = NOEStdlib.FileHandleRead; export type FileHandleMode = NOEStdlib.FileHandleMode; }
 declare module "noe:sockets" {
   export import connect = NOEStdlib.connect; export import listen = NOEStdlib.listen;
   export type Connection = NOEStdlib.RawConnection; export type Listener = NOEStdlib.SocketListener;

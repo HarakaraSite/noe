@@ -4,7 +4,7 @@ import {exec, execFile, spawnSync} from "node:child_process";
 import {spawn} from "node:child_process";
 import {ReadableStream} from "node:stream/web";
 import {connect} from "noe:sockets";
-import {open} from "noe:fs-handle";
+import {open as openFile} from "node:fs/promises";
 import {subscribe} from "noe:signals";
 import {MessagePort, Worker as NodeWorker} from "node:worker_threads";
 import bufferDefault from "node:buffer";
@@ -31,9 +31,19 @@ stream.getReader({mode: "byob"});
 // @ts-expect-error UDP sockets are unsupported
 connect({network: "udp", host: "127.0.0.1", port: 53});
 
-// Positional file access opens existing files for reading or read/write.
-// @ts-expect-error create/truncate modes are not implemented
-void open("file.txt", {mode: "w"});
+const file = await openFile("file.txt", "r+");
+// The former NOE extension and its positional-only methods were removed.
+// @ts-expect-error noe:fs-handle has no supported declaration
+import {open as legacyOpen} from "noe:fs-handle";
+// @ts-expect-error FileHandle exposes read(), not readAt()
+void file.readAt(0, 1);
+// @ts-expect-error FileHandle exposes write(), not writeAt()
+void file.writeAt(0, new Uint8Array([1]));
+// Only existing-file read and read/write flags are supported.
+// @ts-expect-error the object-style mode option was removed
+void openFile("file.txt", {mode: "r+"});
+// @ts-expect-error create/truncate flags are not implemented
+void openFile("file.txt", "w");
 
 // Signal support is platform-dependent and the public name set is explicit.
 // @ts-expect-error SIGQUIT is not part of the supported subscription surface

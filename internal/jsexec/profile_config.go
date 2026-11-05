@@ -57,7 +57,7 @@ func lowerConfig(profile Profile, env Environment, backend *filesystem.Backend, 
 		cfg.Workers = &lower.Workers{Max: modules.Workers.Max}
 	}
 	selection := noestdlib.NativeModules{
-		Stdio: modules.Stdio, Commands: modules.Commands != nil, FS: modules.FS != nil,
+		Stdio: modules.Stdio, Commands: modules.Commands != nil,
 		RawSockets: modules.RawSockets, Signals: modules.Signals,
 	}
 	return cfg, selection, nil

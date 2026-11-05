@@ -1,5 +1,5 @@
 // Read an index, exchange bytes over a socket, and update the selected range.
-import { open } from "noe:fs-handle";
+import { open } from "node:fs/promises";
 import { connect, listen } from "noe:sockets";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,7 +12,7 @@ const network = process.argv[2] ?? "tcp";
 const options = network === "unix"
   ? { network, path: join(directory, "service.sock") }
   : { network, host: "127.0.0.1", port: 0 };
-const file = await open(path, { mode: "r+" });
+const file = await open(path, "r+");
 let listener;
 try {
   listener = await listen(options);
@@ -28,12 +28,13 @@ try {
   const connection = await connect(network === "tcp"
     ? { network, host: "127.0.0.1", port: listener.address.port } : options);
   try {
-    const { data } = await file.readAt(2, 3);
+    const data = new Uint8Array(3);
+    const { buffer } = await file.read(data, 0, data.byteLength, 2);
     const writer = connection.writable.getWriter();
-    await writer.write(data);
+    await writer.write(buffer);
     await writer.close();
     const response = new Uint8Array(await new Response(connection.readable).arrayBuffer());
-    await file.writeAt(2, response);
+    await file.write(response, 0, response.byteLength, 2);
   } finally { await connection.close(); }
   await service;
   console.log(Array.from(readFileSync(path))); // [0, 1, 12, 13, 14, 5, 6, 7]

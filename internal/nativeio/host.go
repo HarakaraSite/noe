@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/commandenv"
-	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
 	"forge.harakara.site/littleisland/noe/v2/internal/hostio"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
@@ -26,7 +25,6 @@ type Options struct {
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 	Cwd            string
-	FileSystem     *filesystem.Backend
 	Command        *commandenv.Config
 	// Supervisor selects the explicit helper for the legacy command adapter.
 	Supervisor string
@@ -35,7 +33,7 @@ type Options struct {
 // Modules selects the native adapters installed by one Profile. Legacy
 // Install continues to select all adapters as one unit.
 type Modules struct {
-	Stdio, Commands, FS, RawSockets, Signals bool
+	Stdio, Commands, RawSockets, Signals bool
 }
 
 type Host struct {
@@ -53,7 +51,7 @@ type Host struct {
 
 // Install must run on the runtime owner, after stdlib.Install.
 func Install(rt *quickjs.Runtime, opts Options) (result *Host, err error) {
-	return install(rt, opts, Modules{Stdio: true, Commands: true, FS: true, RawSockets: true, Signals: true})
+	return install(rt, opts, Modules{Stdio: true, Commands: true, RawSockets: true, Signals: true})
 }
 
 // InstallSelected installs only the selected native modules.
@@ -130,7 +128,6 @@ func install(rt *quickjs.Runtime, opts Options, modules Modules) (result *Host, 
 		selected bool
 		install  func() error
 	}{
-		{modules.FS, h.installFS},
 		{modules.RawSockets, h.installNet},
 		{modules.Signals, h.installSignals},
 	}

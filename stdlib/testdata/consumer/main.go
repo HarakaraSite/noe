@@ -75,9 +75,9 @@ func run() error {
 	}
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[consumer]", Virtual: true, Module: true, Code: `
 import {value} from "value";import {Worker} from "node:worker_threads";import {docs} from "noe:docs";
-import {open} from "noe:fs-handle";
+import {open} from "node:fs/promises";
 if(value!==42||process.env.SELECTED!=="yes"||process.cwd()!=="/"||process.stdin.read()!=="borrowed input")throw Error("environment");
-const file=await open("value.mjs");try{if((await file.readAt(0,6)).bytesRead!==6)throw Error("native FS");}finally{await file.close();}
+const file=await open("value.mjs");try{const buffer=new Uint8Array(6);const result=await file.read(buffer);if(result.bytesRead!==6||result.buffer!==buffer)throw Error("standard FS handle");}finally{await file.close();}
 if(await (await fetch(endpoint)).text()!=="loopback response")throw Error("fetch");
 const worker=new Worker("./worker.mjs",{type:"module"});const answer=await new Promise((resolve,reject)=>{worker.on("message",resolve);worker.on("error",reject)});await worker.terminate();
 if(answer!==42||!docs().includes("noe:agent"))throw Error("worker or full docs");console.log("managed consumer");`}, profile)

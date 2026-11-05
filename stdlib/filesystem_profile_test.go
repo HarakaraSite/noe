@@ -12,7 +12,7 @@ import (
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
-func TestProfileNodeAndNativeFilesystemAgree(t *testing.T) {
+func TestProfileNodeFilesystemHandlesAgree(t *testing.T) {
 	for _, readOnly := range []bool{false, true} {
 		name := "writable"
 		if readOnly {
@@ -45,22 +45,27 @@ func TestProfileNodeAndNativeFilesystemAgree(t *testing.T) {
 			defer cancel()
 			source, err := view.Prepare(stdlib.Source{Name: "memory:fs", Module: true, Virtual: true, Code: `
 import fs from "node:fs";
-import {open} from "noe:fs-handle";
+import fsPromises, {open as nodeOpen} from "node:fs/promises";
+import barePromises, {open as bareOpen} from "fs/promises";
+if (nodeOpen!==bareOpen||nodeOpen!==fs.promises.open||nodeOpen!==fsPromises.open||nodeOpen!==barePromises.open) throw new Error("open aliases differ");
 const node=fs.readFileSync("value","utf8");
-const file=await open("/sub/value");
-const native=new TextDecoder().decode((await file.readAt(0,3)).data);
+const file=await nodeOpen("/sub/value");
+const buffer=new Uint8Array(3);
+const read=await file.read(buffer,0,buffer.byteLength,0);
+if (read.buffer!==buffer||read.bytesRead!==3) throw new Error("read result does not retain its buffer");
+const handleText=new TextDecoder().decode(read.buffer.subarray(0,read.bytesRead));
 await file.close();
 if (readOnlyCase) {
-  let nodeDenied=false, nativeDenied=false;
+  let nodeDenied=false, handleDenied=false;
   try { fs.writeFileSync("value","bad"); } catch(error) { nodeDenied=error.message.includes("read-only"); }
-  try { await open("value",{mode:"r+"}); } catch(error) { nativeDenied=error.code==="ERR_READ_ONLY"; }
-  if (!nodeDenied || !nativeDenied) throw new Error("inconsistent read-only policy");
+  try { await nodeOpen("value","r+"); } catch(error) { handleDenied=error.code==="ERR_READ_ONLY"; }
+  if (!nodeDenied || !handleDenied) throw new Error("inconsistent read-only policy");
 } else {
-  const writable=await open("value",{mode:"r+"});
-  await writable.writeAt(0,new TextEncoder().encode("new"));
+  const writable=await nodeOpen("value","r+");
+  await writable.write(new TextEncoder().encode("new"),0,3,0);
   await writable.close();
 }
-globalThis.fsResult=native+"|"+node+"|"+fs.readFileSync("/sub/value","utf8");
+globalThis.fsResult=handleText+"|"+node+"|"+fs.readFileSync("/sub/value","utf8");
 `})
 			if err != nil {
 				t.Fatal(err)
@@ -117,11 +122,11 @@ func TestProfileFilesystemAPIsRejectOutwardSymlinks(t *testing.T) {
 	defer cancel()
 	source, err := view.Prepare(stdlib.Source{Name: "memory:links", Module: true, Virtual: true, Code: `
 import fs from "node:fs";
-import {open} from "noe:fs-handle";
-let nodeDenied=false,nativeDenied=false;
+import {open} from "node:fs/promises";
+let nodeDenied=false,handleDenied=false;
 try { fs.readFileSync("out/value"); } catch(error) { nodeDenied=error.message.includes("root"); }
-try { await open("out/value"); } catch(error) { nativeDenied=error.message.includes("root"); }
-if (!nodeDenied||!nativeDenied) throw new Error("outward link was followed");
+try { await open("out/value"); } catch(error) { handleDenied=error.message.includes("root"); }
+if (!nodeDenied||!handleDenied) throw new Error("outward link was followed");
 globalThis.linksDenied=true;
 `})
 	if err != nil {

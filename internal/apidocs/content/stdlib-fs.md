@@ -16,7 +16,7 @@ Reads and writes files synchronously or as Web Streams. The module exposes synch
 
 `appendFileSync`, `chmodSync`, `copyFileSync`, `createReadStream`, `createWriteStream`, `default`, `existsSync`, `lstatSync`, `mkdirSync`, `mkdtempSync`, `promises`, `readFileSync`, `readdirSync`, `readlinkSync`, `realpathSync`, `renameSync`, `rmSync`, `rmdirSync`, `statSync`, `unlinkSync`, `writeFileSync`
 
-Use node:fs for whole-file operations or sequential Web Streams. Use noe:fs-handle for position-based I/O on an open file; these APIs serve different needs. A stream closes when it completes, is cancelled/aborted, or its runtime closes.
+Use node:fs for synchronous whole-file operations or sequential Web Streams. Use open from node:fs/promises for reads and writes through an open file; its FileHandle methods are documented in node:fs/promises. A stream closes when it completes, is cancelled/aborted, or its runtime closes.
 
 Directory listings are arrays of names, not Node Dirent objects. Use readdirSync with statSync/lstatSync to inspect entry types; the Node withFileTypes option is not implemented.
 
@@ -120,7 +120,7 @@ try {
 }
 ~~~
 
-A write failure rejects the write/close promise. noe:fs-handle is the separate API for explicit offset reads and writes.
+A write failure rejects the write/close promise.
 
 ### Source basis
 

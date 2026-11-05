@@ -21,7 +21,7 @@ func stdlibTopics() []topicSpec {
 		{ID: "node:dns/promises", Kind: "module", Summary: "Promise-oriented DNS resolver module.", File: "stdlib-dns-promises.md", Aliases: []string{"dns/promises"}},
 		{ID: "node:events", Kind: "module", Summary: "Provides a small EventEmitter implementation and a promise helper.", File: "stdlib-events.md", Aliases: []string{"events"}},
 		{ID: "node:fs", Kind: "module", Summary: "Reads and writes files synchronously or as Web Streams.", File: "stdlib-fs.md", Aliases: []string{"fs"}},
-		{ID: "node:fs/promises", Kind: "module", Summary: "Provides promise-returning whole-file and metadata operations.", File: "stdlib-fs-promises.md", Aliases: []string{"fs/promises"}},
+		{ID: "node:fs/promises", Kind: "module", Summary: "Provides promise-returning file, metadata, and open-handle operations.", File: "stdlib-fs-promises.md", Aliases: []string{"fs/promises"}},
 		{ID: "node:http", Kind: "module", Summary: "Provides an HTTP server backed by the Web Request and Response APIs.", File: "stdlib-http.md", Aliases: []string{"http"}},
 		{ID: "node:os", Kind: "module", Summary: "Reports selected host system information.", File: "stdlib-os.md", Aliases: []string{"os"}},
 		{ID: "node:path", Kind: "module", Summary: "Computes path strings without reading the filesystem.", File: "stdlib-path.md", Aliases: []string{"path"}},

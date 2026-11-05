@@ -36,14 +36,13 @@ type FS struct {
 	Root string
 	// ReadOnly refuses everything that would change anything.
 	ReadOnly bool
-	// Loop, when set, is where the promise API does its work: the operation
-	// runs on another goroutine and settles its promise on the loop. Without
-	// one the work happens at once and the promise is handed back settled,
-	// which is right for a script that is the only thing running.
+	// Loop schedules whole-file promise operations off the runtime owner.
+	// Without one those operations return settled promises. FileHandle I/O
+	// always runs asynchronously and delivers results on the runtime owner.
 	Loop *Loop
 }
 
-// Files installs the "fs" module.
+// Files installs "fs" and "fs/promises", including their "node:" aliases.
 //
 // The synchronous half is what node calls readFileSync and friends; the
 // promise half is fs.promises, and also the default export's promises
@@ -78,6 +77,22 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	}
 	settings.Root, settings.Cwd = backend.Root(), backend.Cwd()
 	f := &fsHost{rt: rt, cfg: &settings, backend: backend}
+	handles, err := newFileHost(f)
+	if err != nil {
+		return err
+	}
+	native := rt.NewObject()
+	if err := native.Set("open", handles.openFile); err != nil {
+		return err
+	}
+	fileAPI, err := evalWithHost(rt, "<fs-filehandle>", fileHandleJS, native)
+	if err != nil {
+		return err
+	}
+	open, err := fileAPI.Get("open")
+	if err != nil {
+		return err
+	}
 
 	sync := map[string]any{
 		"readFileSync":   f.readFile,
@@ -103,6 +118,7 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	// reads what it needs out of the runtime here and then does its work with
 	// plain Go data, which is what lets the work happen off this goroutine.
 	promises := map[string]any{
+		"open": open,
 		"readFile": func(p string, enc quickjs.Value) *quickjs.Promise {
 			text := encodingOf(enc) != ""
 			return f.promise(func() (any, error) {

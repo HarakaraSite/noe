@@ -29,9 +29,9 @@ func TestLowLevelAgentTaskCancelAndParentTimeout(t *testing.T) {
 					return agentModelReply{Content: "unexpected"}
 				}
 				code := `// Wait on owned resources until the parent cancels this run.
-import {open} from "noe:fs-handle";import {listen} from "noe:sockets";import {subscribe} from "noe:signals";
+import {open} from "node:fs/promises";import {listen} from "noe:sockets";import {subscribe} from "noe:signals";
 import {writeFileSync} from "node:fs";
-await open("index.bin",{mode:"r+"});subscribe("SIGTERM");
+await open("index.bin","r+");subscribe("SIGTERM");
 const listener=await listen({network:"unix",path:"./agent.sock"});`
 				code += `writeFileSync("run-js-ready","ready");await listener.accept();`
 				return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("owned-low-level", code)}}}, FinishReason: "tool_calls"}

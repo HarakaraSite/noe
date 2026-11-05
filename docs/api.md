@@ -6,7 +6,7 @@
 
 NOEは固定したgo-quickjs v0.29.0をJavaScriptエンジンに使い、go-quickjs v0.27.0のstdlibを原型とするNOE管理の標準ライブラリを有効にします。通常ビルドでは実験的JITを有効にしません。Web APIとNode形式APIを利用できます。各APIはNOEが管理する実装に従い、Node.js全体との互換性を保証するものではありません。
 
-JavaScriptに`noe`グローバルや旧`noe.*` APIはありません。NOE固有の入口として、CLIの`run`・`eval`・`docs`・`--timeout`と、組み込みES moduleの`noe:agent`・`noe:model`・`noe:agent-log`・`noe:decision`・`noe:image`・`noe:auth`があります。NOE既定Profileではagent・model・log・decision・image・authモジュールをWorkersへ導入しません。`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:http`・`noe:docs`はWorkerでも利用できるNOE拡張です。[旧APIからの移行](#旧apiからの移行)と[移行の実装記録](archive/increment-12.md)も参照してください。
+NOE-specific entry points include CLI commands, NOE modules, and host APIs. `noe:process`, `noe:io`, `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers. File handles are provided by the standard `node:fs/promises` module. Agent, model, decision, image, authentication, and saved-event modules are available only in the main runtime when selected by the host. See [migration from the old API](#旧apiからの移行) and the [migration implementation record](archive/increment-12.md).
 
 v2.3.0以降のrun_js返却data・診断・明示importへの移行は[実行結果と診断](execution-results.md)を参照してください。
 
@@ -24,7 +24,7 @@ NOEは次のホスト機能をスクリプトに渡します。
 - HTTPサーバーの待受
 - Workersとメッセージング
 
-Workersにも同じNOE管理の標準ライブラリのホスト機能を渡します。NOE固有moduleでは`noe:process`・`noe:io`・`noe:fs-handle`・`noe:sockets`・`noe:signals`・`noe:http`・`noe:docs`をWorkerで利用でき、`noe:agent`・`noe:decision`・`noe:image`・`noe:auth`は利用できません。NOEはsandboxではありません。スクリプトは起動した利用者と同じOS権限で動作します。
+Workers receive the same host-selected standard-library capabilities. NOE modules `noe:process`, `noe:io`, `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers; `noe:agent`, `noe:decision`, `noe:image`, and `noe:auth` are not. File handles are exposed through `node:fs/promises`. NOE is not a sandbox: scripts run with the operating-system permissions of the process that started NOE.
 
 原型であるgo-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
@@ -277,7 +277,7 @@ traceにはrun ID、親run ID、agent名、model、status、duration（nanosecon
 
 `noe:process`の`spawn`で子の入出力を実行中から扱い、終了・停止・回収を行えます。`noe:io`はホストのstdin/stdout/stderrのWeb Streamsと取消し対応`pipe`を公開します。通常のJavaScript・run_js・Workerで利用できます。公開契約と例は[プロセス・標準I/Oガイド](process-io.md)を参照してください。stdlibの`execFile`・`process.std*`・`pipeTo`は変更しません。
 
-`noe:fs-handle`の位置指定readAt/writeAt、`noe:sockets`のTCP/Unix connect/listen、`noe:signals`のAsyncIterator購読も使えます。API・方向別終了・OS差・所有と回収は[ファイル・ソケット・シグナル](low-level-io.md)を参照してください。
+`node:fs/promises.open` provides `FileHandle.read()` and `write()` for sequential or positional file I/O. `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides an AsyncIterator subscription. See [file handles, sockets, and signals](low-level-io.md) for the current contracts and resource lifecycles.
 
 ## 意思決定モデル：`noe:decision`
 

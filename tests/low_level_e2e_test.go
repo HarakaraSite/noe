@@ -15,18 +15,19 @@ import (
 // No protocol helper is installed in Go: the same public modules implement
 // the server, concurrent clients, FIN/response exchange and indexed update.
 func lowLevelRoundTrip(network string) string {
-	return `const {open}=await import("noe:fs-handle");
+	return `const {open}=await import("node:fs/promises");
 const {listen,connect}=await import("noe:sockets");
 const {readFileSync}=await import("node:fs");
 const network=` + strconv.Quote(network) + `;
 const options=network==="tcp"?{network,host:"127.0.0.1",port:0}:{network,path:"./s.sock"};
-const file=await open("index.bin",{mode:"r+"});
+const file=await open("index.bin","r+");
 const listener=await listen(options);
 async function allBytes(readable){return new Uint8Array(await new Response(readable).arrayBuffer())}
 try {
  const before=readFileSync("index.bin");
- const {data,bytesRead,eof}=await file.readAt(4,4);
- if(bytesRead!==4||eof||data[0]!==4)throw Error("index read");
+ const data=new Uint8Array(4);
+ const {buffer,bytesRead}=await file.read(data,0,4,4);
+ if(buffer!==data||bytesRead!==4||data[0]!==4)throw Error("index read");
  const serving=(async()=>{
   const jobs=[];
   for(let n=0;n<3;n++){
@@ -52,7 +53,9 @@ try {
   }finally{await c.close()}
  }));
  await serving;
- if(await file.writeAt(4,new Uint8Array([...requests,99]))!==4)throw Error("index write");
+ const patch=new Uint8Array([...requests,99]);
+ const write=await file.write(patch,{offset:0,length:4,position:4});
+ if(write.bytesWritten!==4||write.buffer!==patch)throw Error("index write");
  const after=readFileSync("index.bin");
  if(after.length!==before.length||after.some((b,i)=>(i<4||i>=8)&&b!==before[i]))throw Error("unrelated bytes changed");
  console.log("low-level roundtrip passed");

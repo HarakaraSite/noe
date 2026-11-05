@@ -19,8 +19,7 @@ import (
 )
 
 // IOConfig selects the native I/O modules as a group. Stdin is borrowed and
-// is not inherited by worker runtimes. Cwd is used to resolve relative paths
-// in the native file API.
+// is not inherited by worker runtimes. Cwd is the native command directory.
 type IOConfig struct {
 	Stdin io.Reader
 	Cwd   string
@@ -28,7 +27,7 @@ type IOConfig struct {
 
 // NativeModules selects NOE-owned modules independently for a Profile.
 type NativeModules struct {
-	Stdio, Commands, FS, RawSockets, Signals bool
+	Stdio, Commands, RawSockets, Signals bool
 }
 
 // ProfileConfig is the internal normalized installation request used by
@@ -107,12 +106,9 @@ func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings,
 		closeAdapters()
 		return nil, err
 	}
-	if cfg.Native.Stdio || cfg.Native.Commands || cfg.Native.FS || cfg.Native.RawSockets || cfg.Native.Signals {
+	if cfg.Native.Stdio || cfg.Native.Commands || cfg.Native.RawSockets || cfg.Native.Signals {
 		nativeOptions := nativeio.Options{Context: cfg.Context,
 			Stdin: cfg.IO.Stdin, Stdout: stdout, Stderr: stderr, Cwd: cfg.IO.Cwd,
-		}
-		if core.FS != nil {
-			nativeOptions.FileSystem = core.FS.Backend
 		}
 		if core.Run != nil {
 			nativeOptions.Command = &commandenv.Config{
@@ -121,7 +117,7 @@ func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings,
 			}
 		}
 		host, installErr := nativeio.InstallSelected(rt, nativeOptions, nativeio.Modules{
-			Stdio: cfg.Native.Stdio, Commands: cfg.Native.Commands, FS: cfg.Native.FS,
+			Stdio: cfg.Native.Stdio, Commands: cfg.Native.Commands,
 			RawSockets: cfg.Native.RawSockets, Signals: cfg.Native.Signals,
 		})
 		if installErr != nil {

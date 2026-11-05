@@ -13,7 +13,8 @@ noe docs noe:sockets connect
 引数なしで全canonical topic IDとkind・短い概要・CLI/JSの参照方法を載せた一覧、topicを指定すると概要と詳細memberの一覧、memberも指定するとtopic名・短い概要・該当する型宣言/availabilityの条件と指定detailを表示します。member取得では全overviewや他memberの説明を繰り返しません。返却objectの操作も、表示されたIDで参照できます。
 
 ```sh
-noe docs noe:fs-handle FileHandle.readAt
+noe docs node:fs/promises open
+noe docs node:fs/promises FileHandle.read
 noe docs noe:sockets Connection.close
 ```
 
@@ -22,7 +23,7 @@ noe docs noe:sockets Connection.close
 ```js
 import { docs } from "noe:docs";
 console.log(docs());
-console.log(docs("noe:fs-handle", "FileHandle.readAt"));
+console.log(docs("node:fs/promises", "FileHandle.read"));
 ```
 
 `docs()`は同期でMarkdown文字列を返します。全文を一度に読む必要はありません。module概要で用途と制約を確認し、必要なmemberを選んでください。`fs`などの対応するbare名も`node:fs`と同じ本文を返します。

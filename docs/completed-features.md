@@ -234,9 +234,7 @@ Linux amd64でローカルMCPの初期化/一覧/並列呼出し、Exaエント�
 
 通常のHTTP用途と要求・応答のストリーミングは`noe:http`を推奨入口とし、既存の`fetch`・`serve`・`node:http`も維持します。Web型・Streams・WebSocket・loopは共通実装を利用します。後続の低レベルAPI拡張は[別候補](future-candidates.md#一部完了-汎用の低レベルapi拡張と優先順位--2026-10-18)です。
 
-公開名は実装の出自と分けて考える。Web標準の型・共通機能は標準名を維持し、NOEが設計するAPIは`noe:`を正式な入口にする。`node:fs`は当面維持し、NOEとして仕様を整える段階で`noe:fs`を正式名、`node:fs`を同じ実装を参照する互換エイリアスにする案を持つ。将来は`noe:fs-handle`を`noe:fs`へ統合することも検討し、ハンドルの表現・読み書き・closeの契約と旧入口の互換性を整理する。エイリアスなら振る舞いも共通になり、互換動作に差が必要な部分だけ別途扱う。一律の改名は行わず、具体的な範囲・時期は未決定。
-
-上記のAPI改名・統合案は未採用の後続候補であり、実装・公開済みのstdlibを未完了へ戻す条件ではありません。
+Filesystem entry points retain the standard `node:fs` and `node:fs/promises` names. Phase 1 is implemented and locally verified (unreleased): `open` and its `FileHandle` methods are part of `node:fs/promises`, and `noe:fs-handle` is removed without a compatibility adapter. Existing imports of `noe:fs-handle`, `{mode: ...}` options, and `readAt`/`writeAt` calls must migrate. See the [implementation and validation](development/stdlib-fs-integration.md) and [standard-library roadmap](development/stdlib-roadmap.md).
 
 照合根拠：[`stdlib/stdlib.go`](../stdlib/stdlib.go)・[`agent/host.go`](../agent/host.go)・[`internal/noestdlib`](../internal/noestdlib/noestdlib.go)・[`internal/agentexec/executor.go`](../internal/agentexec/executor.go)。外部consumerのコードは[`stdlib/consumer_test.go`](../stdlib/consumer_test.go)・[`agent/consumer_test.go`](../agent/consumer_test.go)、実際の公開module検証は[リリース記録](releases/release-checkpoints.md)にあります。
 

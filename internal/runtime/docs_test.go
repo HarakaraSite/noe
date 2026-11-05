@@ -28,10 +28,11 @@ if(docs(undefined)!==docs())throw Error("optional arguments");
 for(const call of [()=>docs(null),()=>docs(1),()=>docs("node:fs",{}),()=>docs("node:fs",undefined,"extra")]) {
  let thrown=false;try{call()}catch(e){if(!(e instanceof TypeError))throw e;thrown=true}if(!thrown)throw Error("type validation");
 }
-for(const call of [()=>docs("node:net"),()=>docs("noe:run_js","missing"),()=>docs("noe:agent/hooks")]) {
+for(const call of [()=>docs("node:net"),()=>docs("noe:run_js","missing"),()=>docs("noe:agent/hooks"),()=>docs("noe:fs-handle")]) {
  let thrown=false;try{call()}catch(e){if(e.code!=="ERR_DOC_NOT_FOUND")throw e;thrown=true}if(!thrown)throw Error("missing validation");
 }
 let toolOnly=false;try{await import("noe:run_js")}catch{toolOnly=true}if(!toolOnly)throw Error("tool is not a module");
+let oldFilesystemModule=false;try{await import("noe:fs-handle")}catch{oldFilesystemModule=true}if(!oldFilesystemModule)throw Error("removed filesystem module still imports");
 `
 	for _, topic := range apidocs.Topics() {
 		if topic.Kind != "module" {
@@ -100,19 +101,19 @@ func TestAgentLooksUpDocsThenUsesAPI(t *testing.T) {
 			if len(messages) == 0 || !strings.Contains(messages[0].Content, "noe:docs") || !strings.Contains(messages[0].Content, "fresh owned JavaScript runtime") {
 				return provider.Response{}, fmt.Errorf("initial instructions lost identity or reference navigation")
 			}
-			return hookToolReply(map[string]string{"lookup": "// Read the positional file API contract.\nconst {docs}=await import(\"noe:docs\");console.log(docs(\"noe:fs-handle\"));console.log(docs(\"noe:fs-handle\",\"FileHandle.readAt\"));"}, "lookup"), nil
+			return hookToolReply(map[string]string{"lookup": "// Read the standard FileHandle API contract.\nconst {docs}=await import(\"noe:docs\");console.log(docs(\"node:fs/promises\"));console.log(docs(\"node:fs/promises\",\"FileHandle.read\"));"}, "lookup"), nil
 		}
 		if step == 2 {
 			found := false
 			for _, message := range messages {
-				if message.Role == "tool" && strings.Contains(message.Content, "bytesRead") && strings.Contains(message.Content, "readAt") {
+				if message.Role == "tool" && strings.Contains(message.Content, "bytesRead") && strings.Contains(message.Content, "FileHandle.read") {
 					found = true
 				}
 			}
 			if !found {
 				return provider.Response{}, fmt.Errorf("API reference was not delivered as a tool result")
 			}
-			return hookToolReply(map[string]string{"read": "// Use the documented positional read and release the handle.\nconst {open}=await import(\"noe:fs-handle\");const f=await open(\"bytes.bin\");try{const r=await f.readAt(2,3);console.log(new TextDecoder().decode(r.data));}finally{await f.close();}"}, "read"), nil
+			return hookToolReply(map[string]string{"read": "// Use the documented positional read and release the handle.\nconst {open}=await import(\"node:fs/promises\");const f=await open(\"bytes.bin\");try{const buffer=new Uint8Array(3);const r=await f.read(buffer,0,3,2);console.log(new TextDecoder().decode(r.buffer.subarray(0,r.bytesRead)));}finally{await f.close();}"}, "read"), nil
 		}
 		for _, message := range messages {
 			if message.Role == "tool" && strings.Contains(message.Content, "cde") {
