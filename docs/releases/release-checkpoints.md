@@ -3220,3 +3220,52 @@ The verified published Linux amd64 executable will replace repository-root
 `./noe` and `/home/agent/.local/bin/noe` atomically with v2.11.2 backups.
 Existing processes adopt it at their next normal restart. Native execution
 here is Linux amd64; other targets receive build/checksum verification.
+
+## v2.12.0 Release validation and local placement — 2026-11-05
+
+- Annotated tag `v2.12.0` points to `a0cd77ae573fa325afa60f05a70e38247294ecbc`, matching the peeled
+  remote tag and release workflow revision. Only preparation documentation
+  differs from checked candidate `358156d`.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/51) succeeded
+  (API run ID 232) using the unchanged six-target build/checksum/upload job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.12.0) is published,
+  neither draft nor prerelease (Release ID 165). Its body matches
+  the tagged English [release notes](v2.12.0.md).
+
+All seven assets were downloaded, and all six binary hashes match SHA256SUMS.
+Each build record names the tagged revision, go-quickjs v0.32.0, go-intl v0.8.0,
+its expected OS/architecture, and CGO_ENABLED=0, without quickjs_jit.
+The Linux amd64 asset reports `noe v2.12.0` and `vcs.modified=false`.
+Its SHA256 is `8fbc3b7d61bd85da49d1e23a5084b10f4b844f6abe210ef22e26a7838919d8d1`.
+The five later CI assets retain the documented dist/ output-provenance
+limitation (`vcs.modified=true`); their source revision, dependencies, target
+settings, and published hashes match.
+
+The published Linux amd64 asset passed version, arithmetic, regular-expression/
+JSON/switch, image/model/auth/Worker/node:vm exports, and both authentication
+helpers' offline help checks with exit 0 and empty stderr. Release verification
+made no additional provider requests; the six pre-release live cases above
+remain the provider evidence.
+
+Clean external Go modules fetched stdlib@v2.12.0 and agent@v2.12.0 using
+GOPROXY=direct without replacements or a synthetic proxy. Both ran and passed
+go mod verify; agent ran in portable and gohost modes. MVS selected official
+go-quickjs v0.32.0 and go-intl v0.8.0, and both consumers selected disabled JIT
+VM code. All 108 changed Go/JS/module file hashes matched the published module.
+
+The verified published Linux amd64 asset atomically replaced both
+`/home/agent/projects/noe/noe` and `/home/agent/.local/bin/noe`. Both installed
+hashes match the published checksum; both report `noe v2.12.0` and passed
+installed version/arithmetic checks. PATH resolves to the updated user binary.
+Previous v2.11.2 executables are backed up under
+`/tmp/noe-v2.12.0-release-osvi0xaf/installation` with per-path
+versions and hashes. Existing processes were not restarted or interrupted;
+they adopt the new executable on their next normal restart.
+
+Evidence is retained at `/tmp/noe-v2.12.0-release-osvi0xaf/results.json`,
+including pointers to implementation/live-provider evidence, Actions/Release
+metadata, all assets/build records, checksums, native smoke, public consumers,
+and installation records. Passing source-suite results were reused rather
+than repeated for release. Native execution is Linux amd64; the other five
+targets received build and checksum verification. This documentation-only
+follow-up preserves the immutable release tag.
