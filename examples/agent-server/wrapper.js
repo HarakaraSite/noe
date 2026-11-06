@@ -1,7 +1,8 @@
-import { spawn } from "node:child_process";
-import { stdout, stderr } from "node:process";
+import { spawn } from "noe:process";
+import { stdout, stderr } from "noe:process";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
+import { serve } from "noe:http";
 
 const message = error => String(error?.message || error);
 const json = (value, status = 200, extra = {}) => Response.json(value, {
@@ -42,6 +43,8 @@ export async function startAgentWrapper(options, html) {
     if (closePromise) return closePromise;
     closing = true;
     closePromise = (async () => {
+      // The /shutdown route defers this call until after its response returns.
+      const serverClose = server.close();
       try {
         if (worker && !childStatus) {
           const response = await fetch(worker.url.replace(/\/$/, "") + "/shutdown", { method: "POST" });
@@ -55,7 +58,7 @@ export async function startAgentWrapper(options, html) {
         }
       } finally {
         if (child) await child.close();
-        server.close();
+        await serverClose;
         out.releaseLock(); err.releaseLock();
       }
     })();
@@ -93,6 +96,7 @@ export async function startAgentWrapper(options, html) {
         const invalid = method(request, ["POST"]); if (invalid) return invalid;
         if (closing) return json({ error: "Server is already shutting down" }, 409);
         closing = true;
+        // Let the acknowledgement return before close() stops admission.
         setTimeout(() => { close().catch(error => { console.error(message(error)); process.exit(1); }); }, 25);
         return json({ status: "accepted" }, 202);
       }

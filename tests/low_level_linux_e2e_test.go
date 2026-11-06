@@ -174,7 +174,7 @@ const pending=s.next();await s.close();if(!(await pending).done)throw Error("pen
 	// SIGTERM with no remaining subscription must regain its default behavior.
 	process = startCLIWithOpenStdin(t, work, "eval", `import {subscribe} from "noe:signals";
 const s=subscribe("SIGTERM");await s.close();console.log("UNSUBSCRIBED");
-import {stdin} from "node:process";await stdin.getReader().read();`)
+import {stdin} from "noe:process";await stdin.getReader().read();`)
 	if !process.stdout.waitFor("UNSUBSCRIBED\n", 3*time.Second) {
 		t.Fatal(process.stderr.String())
 	}

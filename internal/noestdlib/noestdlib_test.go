@@ -33,7 +33,7 @@ func TestValidationHappensBeforeRegistration(t *testing.T) {
 			if _, err := rt.EvalModule("probe.mjs", `import "noe:docs"`); err == nil {
 				t.Fatal("validation registered docs before rejecting the configuration")
 			}
-			for _, name := range []string{"noe:io", "node:child_process", "child_process", "noe:process", "noe:fs", "node:fs", "node:fs/promises", "fs", "fs/promises", "noe:sockets", "noe:signals"} {
+			for _, name := range []string{"noe:io", "node:child_process", "child_process", "node:process", "process", "noe:process", "noe:fs", "node:fs", "node:fs/promises", "fs", "fs/promises", "noe:sockets", "noe:signals"} {
 				src := `import "` + name + `"`
 				if _, err := rt.EvalModule("probe.mjs", src); err == nil {
 					t.Errorf("validation registered %s before rejecting the configuration", name)
@@ -55,7 +55,7 @@ func TestDocsAreIndependentFromIOAndProcess(t *testing.T) {
 	}
 	ns, err := rt.EvalModule("docs-test.mjs", `
 		import {docs} from "noe:docs";
-		export const text = docs("node:process");
+		export const text = docs("noe:process");
 		export const typeError = (() => { try { docs(1); } catch (e) { return e.name; } })();
 		export const missing = (() => { try { docs("no-such-topic"); } catch (e) { return e.code; } })();
 	`)
@@ -63,7 +63,7 @@ func TestDocsAreIndependentFromIOAndProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	text, err := ns.Get("text")
-	if err != nil || !strings.Contains(text.String(), "Reference: `node:process`") {
+	if err != nil || !strings.Contains(text.String(), "Reference: `noe:process`") {
 		t.Fatalf("docs returned %q, %v", text.String(), err)
 	}
 	typeError, _ := ns.Get("typeError")

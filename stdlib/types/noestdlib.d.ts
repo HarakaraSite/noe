@@ -437,7 +437,13 @@ declare namespace NOEStdlib {
 
   interface ServeOptions { hostname?: string; port?: number; onError?: (error: unknown) => Response | PromiseLike<Response> }
   type FetchHandler = (request: Request) => Response | PromiseLike<Response>;
-  interface HTTPServer { readonly hostname: string; readonly port: number; readonly url: string; close(): void }
+  interface HTTPServer {
+    readonly hostname: string;
+    readonly port: number;
+    readonly url: string;
+    [Symbol.asyncDispose](): Promise<void>;
+    close(): Promise<void>;
+  }
   function serve(handler: FetchHandler): HTTPServer;
   function serve(options: ServeOptions & {fetch?: FetchHandler}, handler?: FetchHandler): HTTPServer;
 
@@ -1006,9 +1012,7 @@ declare namespace NOEStdlib {
     redirect(url: string | URL, status?: number): Response;
   }
   type RequestInfo = string | URL | Request;
-  interface FetchInit extends RequestInit {}
-  function fetch(input: RequestInfo, init?: FetchInit): Promise<Response>;
-
+  function fetch(input: RequestInfo, init?: RequestInit): Promise<Response>;
   /** A value accepted for binding to a SQLite parameter. */
   type SQLiteInputValue = null | undefined | boolean | number | bigint | string | ArrayBuffer | SharedArrayBuffer | ArrayBufferView;
   /** Positional values or a record of named values. These forms cannot be mixed. */
@@ -1083,8 +1087,11 @@ declare namespace NOEStdlib {
   interface WebSocketUpgrade { socket: WebSocket; response: Response & {readonly upgrade: string; readonly protocol?: string} }
   function upgradeWebSocket(request: Request, options?: HTTPUpgradeOptions): WebSocketUpgrade;
 
-  /** NOE extension: request headers for the opening handshake. */
-  interface WebSocketOptions { headers?: HeadersInit | null }
+  interface CreateWebSocketOptions {
+    protocols?: string | readonly string[];
+    headers?: HeadersInit;
+  }
+  function createWebSocket(url: string | URL, options?: CreateWebSocketOptions): WebSocket;
   interface WebSocketMessageEvent extends Event { data: string | ArrayBuffer | Blob; origin: string }
   interface WebSocketCloseEvent extends Event { code: number; reason: string; wasClean: boolean }
   interface WebSocketErrorEvent extends Event { error: unknown; message: string }
@@ -1111,7 +1118,7 @@ declare namespace NOEStdlib {
     close(code?: number, reason?: string): void;
   }
   interface WebSocketConstructor {
-    new(url: string | null, protocols?: string | readonly string[], options?: WebSocketOptions | null): WebSocket;
+    new(url: string | URL, protocols?: string | string[]): WebSocket;
     readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSING: 2; readonly CLOSED: 3;
   }
 
@@ -1192,23 +1199,33 @@ declare module "node:buffer" {
   const api: {Buffer: NOEStdlib.BufferConstructor};
   export default api;
 }
-declare module "node:child_process" {
+declare module "noe:process" {
   export interface ExecOptions extends NOEStdlib.ExecOptions {}
   export type ExecResult<Output = string> = NOEStdlib.ExecResult<Output>;
   export type SpawnSyncResult<Output = string> = NOEStdlib.SpawnSyncResult<Output>;
   export type ChildProcess = NOEStdlib.OwnedChildProcess;
   export type SpawnOptions = NOEStdlib.SpawnOptions;
+  export type Process = NOEStdlib.Process;
+  export type ProcessStdio = NOEStdlib.ProcessStdio;
   export import exec = NOEStdlib.exec;
   export import execFile = NOEStdlib.execFile;
   export import execFileSync = NOEStdlib.execFileSync;
   export import execSync = NOEStdlib.execSync;
   export import spawn = NOEStdlib.spawn;
   export import spawnSync = NOEStdlib.spawnSync;
+  export const stdin: NOEStdlib.ProcessStdio["stdin"];
+  export const stdout: NOEStdlib.ProcessStdio["stdout"];
+  export const stderr: NOEStdlib.ProcessStdio["stderr"];
+  export const process: NOEStdlib.Process;
   const api: {
     exec: typeof NOEStdlib.exec; execFile: typeof NOEStdlib.execFile;
     execFileSync: typeof NOEStdlib.execFileSync; execSync: typeof NOEStdlib.execSync;
     spawn: typeof NOEStdlib.spawn;
     spawnSync: typeof NOEStdlib.spawnSync;
+    stdin: NOEStdlib.ProcessStdio["stdin"];
+    stdout: NOEStdlib.ProcessStdio["stdout"];
+    stderr: NOEStdlib.ProcessStdio["stderr"];
+    process: NOEStdlib.Process;
   };
   export default api;
 }
@@ -1379,12 +1396,6 @@ declare module "noe:fs" {
   const api: NOEStdlib.FSModule;
   export default api;
 }
-declare module "node:http" {
-  export type HTTPServer = NOEStdlib.HTTPServer; export type ServeOptions = NOEStdlib.ServeOptions;
-  export import serve = NOEStdlib.serve;
-  const api: {serve: typeof NOEStdlib.serve};
-  export default api;
-}
 declare module "node:os" {
   export const arch: NOEStdlib.OSModule["arch"];
   export const cpus: NOEStdlib.OSModule["cpus"];
@@ -1437,15 +1448,6 @@ declare module "node:path/win32" {
   export const toNamespacedPath: NOEStdlib.PathAPI["toNamespacedPath"]; export const _makeLong: NOEStdlib.PathAPI["_makeLong"];
   export const delimiter: string; export const sep: string; export const posix: NOEStdlib.PathAPI; export const win32: NOEStdlib.PathAPI;
   const api: NOEStdlib.PathAPI; export default api;
-}
-declare module "node:process" {
-  export type Process = NOEStdlib.Process;
-  export type ProcessStdio = NOEStdlib.ProcessStdio;
-  export const stdin: NOEStdlib.ProcessStdio["stdin"];
-  export const stdout: NOEStdlib.ProcessStdio["stdout"];
-  export const stderr: NOEStdlib.ProcessStdio["stderr"];
-  const process: NOEStdlib.Process;
-  export default process;
 }
 declare module "node:querystring" {
   export type ParsedUrlQuery = NOEStdlib.QueryStringRecord;
@@ -1579,17 +1581,14 @@ declare module "node:zlib" {
 declare module "assert" { export * from "node:assert"; export {default} from "node:assert"; }
 declare module "async_hooks" { export * from "node:async_hooks"; export {default} from "node:async_hooks"; }
 declare module "buffer" { export * from "node:buffer"; export {default} from "node:buffer"; }
-declare module "child_process" { export * from "node:child_process"; export {default} from "node:child_process"; }
 declare module "crypto" { export * from "node:crypto"; export {default} from "node:crypto"; }
 declare module "dns" { export * from "node:dns"; export {default} from "node:dns"; }
 declare module "dns/promises" { export * from "node:dns/promises"; export {default} from "node:dns/promises"; }
 declare module "events" { export * from "node:events"; export {default} from "node:events"; }
-declare module "http" { export * from "node:http"; export {default} from "node:http"; }
 declare module "os" { export * from "node:os"; export {default} from "node:os"; }
 declare module "path" { export * from "node:path"; export {default} from "node:path"; }
 declare module "path/posix" { export * from "node:path/posix"; export {default} from "node:path/posix"; }
 declare module "path/win32" { export * from "node:path/win32"; export {default} from "node:path/win32"; }
-declare module "process" { export * from "node:process"; export {default} from "node:process"; }
 declare module "querystring" { export * from "node:querystring"; export {default} from "node:querystring"; }
 declare module "stream/web" { export * from "node:stream/web"; export {default} from "node:stream/web"; }
 declare module "string_decoder" { export * from "node:string_decoder"; export {default} from "node:string_decoder"; }
@@ -1603,11 +1602,15 @@ declare module "zlib" { export * from "node:zlib"; export {default} from "node:z
 
 declare module "noe:docs" { export import docs = NOEStdlib.docs; }
 declare module "noe:http" {
-  export import fetch = NOEStdlib.fetch;
   export import serve = NOEStdlib.serve;
-  export type FetchInit = NOEStdlib.FetchInit;
+  export import createWebSocket = NOEStdlib.createWebSocket;
+  export import upgradeWebSocket = NOEStdlib.upgradeWebSocket;
   export type HTTPServer = NOEStdlib.HTTPServer;
   export type ServeOptions = NOEStdlib.ServeOptions;
+  export type FetchHandler = NOEStdlib.FetchHandler;
+  export type CreateWebSocketOptions = NOEStdlib.CreateWebSocketOptions;
+  export type HTTPUpgradeOptions = NOEStdlib.HTTPUpgradeOptions;
+  export type WebSocketUpgrade = NOEStdlib.WebSocketUpgrade;
 }
 declare module "noe:sockets" {
   export import connect = NOEStdlib.connect; export import listen = NOEStdlib.listen;
@@ -1720,7 +1723,6 @@ declare var Worker: NOEStdlib.WorkerConstructor;
 type EventSourceInit = NOEStdlib.EventSourceInit;
 interface EventSource extends NOEStdlib.EventSource {}
 declare var EventSource: NOEStdlib.EventSourceConstructor;
-type WebSocketOptions = NOEStdlib.WebSocketOptions;
 interface WebSocket extends NOEStdlib.WebSocket {}
 declare var WebSocket: NOEStdlib.WebSocketConstructor;
 interface CryptoKey extends NOEStdlib.CryptoKey {}
@@ -1734,8 +1736,6 @@ declare var atob: (data: string) => string;
 declare var btoa: (data: string) => string;
 declare var structuredClone: <T>(value: T, options?: {transfer?: Iterable<NOEStdlib.Transferable>}) => T;
 declare var fetch: typeof NOEStdlib.fetch;
-declare var serve: typeof NOEStdlib.serve;
-declare var upgradeWebSocket: typeof NOEStdlib.upgradeWebSocket;
 declare var process: NOEStdlib.Process;
 declare var Buffer: NOEStdlib.BufferConstructor;
 declare function queueMicrotask(callback: () => void): void;

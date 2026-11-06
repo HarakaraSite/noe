@@ -61,7 +61,7 @@ fileの追記待ちやopenは呼出し側が担当します。CLIの`noe observe
 
 ## 実行方式と維持される動作
 
-task/toolは同じOS process内の別VMで実行します。`process.pid`をtaskの別プロセスIDとして使わず、task取消し・instance停止・Client/Hostの終了で回収します。`node:child_process.spawn`等で起動する本物のOS子プロセスとは区別してください。
+task/toolは同じOS process内の別VMで実行します。`process.pid`をtaskの別プロセスIDとして使わず、task取消し・instance停止・Client/Hostの終了で回収します。`noe:process.spawn`等で起動する本物のOS子プロセスとは区別してください。
 
 queueでの会話継続、instanceごとのsession ID、再委譲受付、保持結果のUTF-8範囲取得、hook、画像のmetadata-only受け渡しは維持します。通常の`run`・`eval`、credential file配置、NOEのinstruction directory、ログ保存・人間向けcontrolの使い方も維持します。
 

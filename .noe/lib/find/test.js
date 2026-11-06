@@ -2,8 +2,8 @@
 import {mkdtempSync, writeFileSync, mkdirSync, rmSync, copyFileSync, chmodSync, existsSync} from "noe:fs";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
-import process from "node:process";
-import {execFile} from "node:child_process";
+import {process} from "noe:process";
+import {execFile} from "noe:process";
 import {find} from "./find.js";
 
 const root = mkdtempSync(join(tmpdir(), "noe-find-"));

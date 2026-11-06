@@ -3,8 +3,9 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, renameSy
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { randomBytes, createHash } from "node:crypto";
-import { stdin } from "node:process";
+import { stdin } from "noe:process";
 import { save_chatgpt_credentials } from "noe:auth";
+import { serve } from "noe:http";
 
 const args = process.argv.slice(2);
 const command = args[0] || "login";
@@ -109,7 +110,7 @@ if (command === "help" || command === "--help") {
     remove(pendingFile);
     // Close outside the HTTP handler, after its callback response has flushed.
     await new Promise(resolve => setTimeout(resolve, 0));
-    server.close();
+    await server.close();
   }
 } else {
   throw new Error("Unknown auth command. Use login, complete, or help.");

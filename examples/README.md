@@ -14,7 +14,7 @@
 | [json](json/README.md) | JSONの加工、標準入力・ディレクトリ集計、処理済みファイルの移動 | 不要 |
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |
 | [sqlite](sqlite/README.md) | Asynchronous SQLite queries, prepared statements, reserved transactions, and persistence | None |
-| [http](http/README.md) | noe:httpでのローカル往復、stream upload、JSON・バイナリ取得、HTTPサーバー | ローカル例は不要、外部APIの例は接続先URLが必要 |
+| [http](http/README.md) | noe:httpのserveとglobal fetchでのローカル往復、stream upload、JSON・バイナリ取得、HTTPサーバー | ローカル例は不要、外部APIの例は接続先URLが必要 |
 | [process](process/README.md) | 常駐子プロセス、JSONL通信、パイプライン | 不要 |
 | [mcp](mcp/README.md) | 公式SDKでExa MCPへ接続、ローカルHTTP/SSE往復 | ローカル例は不要、Exa例は外部接続 |
 | [daemon](daemon/README.md) | JSでTCP待受、JSONL要求、SIGTERM終了と外部からの起動停止 | 不要 |

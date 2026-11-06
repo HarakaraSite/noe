@@ -1,5 +1,5 @@
 // Reply to JSONL requests as they arrive, without waiting for stdin EOF.
-import { stdin, stdout } from "node:process";
+import { stdin, stdout } from "noe:process";
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();

@@ -58,7 +58,7 @@ CLI単体テスト、観察とCLI入口の重点E2E、`go vet ./internal/cli`が
 
 ### <完了> NOE管理stdlibの同期コマンド失敗情報保持 — 2026-10-21
 
-利用者の実装依頼に基づき、`execFileSync`・`execSync`の失敗時にもErrorへ`code`・`stdout`・`stderr`を付ける変更とテスト・docsを追加済みです。正常時の文字列戻り値と既存メッセージは維持します。[APIの説明](../internal/apidocs/content/stdlib-child_process.md)。v1.15.1でリリースし、Linux amd64の常用バイナリへの配置と配布物の検証も完了しました。[リリース記録](releases/release-checkpoints.md)。
+利用者の実装依頼に基づき、`execFileSync`・`execSync`の失敗時にもErrorへ`code`・`stdout`・`stderr`を付ける変更とテスト・docsを追加済みです。正常時の文字列戻り値と既存メッセージは維持します。[APIの説明](../internal/apidocs/content/noe-process.md)。v1.15.1でリリースし、Linux amd64の常用バイナリへの配置と配布物の検証も完了しました。[リリース記録](releases/release-checkpoints.md)。
 
 照合根拠：[`internal/stdlib/exec.go`](../internal/stdlib/exec.go)の同期経路と[`exec_test.go`](../internal/stdlib/exec_test.go)の失敗情報・正常時互換テスト。
 
@@ -232,7 +232,7 @@ Linux amd64でローカルMCPの初期化/一覧/並列呼出し、Exaエント�
 
 エンジンは正式go-quickjs v0.29.0を固定し、汎用APIはv0.27.0のstdlibを原型とするNOE管理実装です。エンジン依存とstdlibの出自を区別し、上流stdlibの全面追随を前提にしません。`internal/noestdlib`が汎用APIを組み立て、`internal/noeprofile`と`internal/runtime`がNOE固有の設定・実行経路を接続します。
 
-通常のHTTP用途と要求・応答のストリーミングは`noe:http`を推奨入口とし、既存の`fetch`・`serve`・`node:http`も維持します。Web型・Streams・WebSocket・loopは共通実装を利用します。後続の低レベルAPI拡張は[別候補](future-candidates.md#一部完了-汎用の低レベルapi拡張と優先順位--2026-10-18)です。
+The current unreleased HTTP contract keeps standard global Fetch/WebSocket APIs and exposes only host listeners/upgrade/custom-handshake helpers through `noe:http`. Old HTTP imports and helper globals are removed; see the [current migration](development/stdlib-noe-http.md). The phase records below describe their earlier released entry points.
 
 The [current API policy](development/stdlib-api-policy.md) moves filesystem access to one `noe:fs` module; see the [migration](development/stdlib-noe-fs.md). The following records the earlier released milestone. Phases 1 and 2 were released in [v2.13.0](releases/v2.13.0.md): `open` and its `FileHandle` methods are part of `node:fs/promises`, and `noe:fs-handle` is removed without a compatibility adapter. Existing imports of `noe:fs-handle`, `{mode: ...}` options, and `readAt`/`writeAt` calls must migrate. Phase 2 adds creation/append flags, stat/truncate/sync, and Dirent, with the approved symbolic filesystem error codes and native numeric `errno`, Date-valued `mtime`, and POSIX `mode` bits. See the [phase 1](development/stdlib-fs-integration.md) and [phase 2](development/stdlib-fs-basics.md) implementation/validation and the [standard-library roadmap](development/stdlib-roadmap.md).
 

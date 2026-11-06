@@ -1,8 +1,22 @@
 import assert, {deepStrictEqual, rejects as assertRejects, strict} from "node:assert";
 import {AsyncLocalStorage} from "async_hooks";
 import bufferDefault, {Buffer} from "node:buffer";
-import childProcessDefault, {exec, execFile, spawn as spawnBare, spawnSync, type ChildProcess, type SpawnOptions} from "child_process";
-import nodeChildProcessDefault, {spawn as spawnOwned, type ChildProcess as CanonicalChildProcess, type SpawnOptions as CanonicalSpawnOptions} from "node:child_process";
+import processAPI, {
+  exec,
+  execFile,
+  execFileSync,
+  execSync,
+  process as processInfo,
+  spawn as spawnBare,
+  spawnSync,
+  stdin as processInput,
+  stdout as processOutput,
+  stderr as processError,
+  type ChildProcess,
+  type Process,
+  type ProcessStdio,
+  type SpawnOptions,
+} from "noe:process";
 import {createHash, randomBytes} from "crypto";
 import dns, {lookup as lookupCallback, resolve4 as resolve4Callback} from "node:dns";
 import * as dnsPromises from "dns/promises";
@@ -22,11 +36,8 @@ import {
   type WatchEvent,
   type WatchIterator,
 } from "noe:fs";
-import {serve as nodeServe} from "node:http";
 import {platform, cpus} from "os";
 import path, {join, posix} from "node:path";
-import processModule, {stdin as processInput, stdout as processOutput, stderr as processError, type ProcessStdio} from "node:process";
-import processBare, {stdin as bareProcessInput, stdout as bareProcessOutput, stderr as bareProcessError} from "process";
 import {parse as parseQuery} from "querystring";
 import {ReadableStream as ModuleReadableStream} from "node:stream/web";
 import {StringDecoder} from "string_decoder";
@@ -38,7 +49,17 @@ import {SHARE_ENV as WORKER_SHARE_ENV, Worker as NodeWorker} from "worker_thread
 import {gzipSync} from "zlib";
 
 import {docs} from "noe:docs";
-import {fetch as noeFetch, serve as noeServe} from "noe:http";
+import {
+  createWebSocket,
+  serve as noeServe,
+  upgradeWebSocket,
+  type CreateWebSocketOptions,
+  type FetchHandler,
+  type HTTPServer,
+  type HTTPUpgradeOptions,
+  type ServeOptions,
+  type WebSocketUpgrade,
+} from "noe:http";
 import {connect, listen} from "noe:sockets";
 import {subscribe} from "noe:signals";
 import {open as openSQLite, type SQLiteDatabase, type SQLiteOutputValue, type SQLiteParams, type SQLiteRow} from "noe:sqlite";
@@ -48,18 +69,14 @@ import {open as openSQLite, type SQLiteDatabase, type SQLiteOutputValue, type SQ
 const assertAlias: typeof import("assert") = undefined as unknown as typeof import("node:assert");
 const asyncHooksAlias: typeof import("async_hooks") = undefined as unknown as typeof import("node:async_hooks");
 const bufferAlias: typeof import("buffer") = undefined as unknown as typeof import("node:buffer");
-const childProcessAlias: typeof import("child_process") = undefined as unknown as typeof import("node:child_process");
 const cryptoAlias: typeof import("crypto") = undefined as unknown as typeof import("node:crypto");
 const dnsAlias: typeof import("dns") = undefined as unknown as typeof import("node:dns");
 const dnsPromisesAlias: typeof import("dns/promises") = undefined as unknown as typeof import("node:dns/promises");
 const eventsAlias: typeof import("events") = undefined as unknown as typeof import("node:events");
-const httpAlias: typeof import("http") = undefined as unknown as typeof import("node:http");
 const osAlias: typeof import("os") = undefined as unknown as typeof import("node:os");
 const pathAlias: typeof import("path") = undefined as unknown as typeof import("node:path");
 const pathPosixAlias: typeof import("path/posix") = undefined as unknown as typeof import("node:path/posix");
 const pathWin32Alias: typeof import("path/win32") = undefined as unknown as typeof import("node:path/win32");
-const processAlias: typeof import("process") = undefined as unknown as typeof import("node:process");
-const sameProcessDefault: typeof processModule = processBare;
 const querystringAlias: typeof import("querystring") = undefined as unknown as typeof import("node:querystring");
 const streamWebAlias: typeof import("stream/web") = undefined as unknown as typeof import("node:stream/web");
 const stringDecoderAlias: typeof import("string_decoder") = undefined as unknown as typeof import("node:string_decoder");
@@ -89,7 +106,7 @@ const widenedOptions = {encoding: "buffer"};
 const widenedFileOutput: Promise<{stdout: string | Uint8Array; stderr: string | Uint8Array}> = execFile("git", [], widenedOptions);
 const widenedShellOutput: Promise<{stdout: string | Uint8Array; stderr: string | Uint8Array}> = exec("printf test", widenedOptions);
 const widenedSyncOutput: {stdout: string | Uint8Array; stderr: string | Uint8Array; status: number; signal: string | null; error?: Error} = spawnSync("git", [], widenedOptions);
-const generalExecOptions: import("node:child_process").ExecOptions = {encoding: "buffer"};
+const generalExecOptions: import("noe:process").ExecOptions = {encoding: "buffer"};
 const generalEncodingOutput: Promise<{stdout: string | Uint8Array; stderr: string | Uint8Array}> = execFile("git", [], generalExecOptions);
 const optionalBufferOptions: {encoding?: "buffer"} = {};
 const optionalBufferOutput: Promise<{stdout: string | Uint8Array; stderr: string | Uint8Array}> = exec("printf test", optionalBufferOptions);
@@ -119,14 +136,12 @@ const fileBytes: Uint8Array = fs.readFileSync("README.md");
 const fileSize: number = fs.statSync("README.md").size;
 const asyncText: Promise<string> = readFile("README.md", "utf8");
 const names: Promise<string[]> = readdir(".");
-const server = nodeServe({port: 0}, request => Response.json({path: new URL(request.url).pathname}));
-server.close();
 const hostPlatform: string = platform();
 const cpuCount: number = cpus();
 const resolvedPath: string = join("docs", "README.md");
 const winPath: string = path.win32.join("C:\\", "tmp");
 const posixPath: string = posix.join("/tmp", "file");
-const currentDirectory: string = processModule.cwd();
+const currentDirectory: string = processInfo.cwd();
 const query = parseQuery("tag=a&tag=b");
 const tagValues: string | string[] = query.tag;
 const bytesStream = new ModuleReadableStream<Uint8Array>({
@@ -152,27 +167,28 @@ const inputStream: ReadableStream<Uint8Array> = processInput;
 const outputStream: WritableStream<Uint8Array> = processOutput;
 const errorStream: WritableStream<Uint8Array> = processError;
 const pipeResult: Promise<void> = inputStream.pipeTo(outputStream, {preventClose: true});
-const sameDefaultInput: ReadableStream<Uint8Array> = processModule.stdin!;
-const sameDefaultOutput: WritableStream<Uint8Array> = processModule.stdout!;
-const sameDefaultError: WritableStream<Uint8Array> = processModule.stderr!;
-const bareInputStream: ReadableStream<Uint8Array> = bareProcessInput;
-const bareOutputStream: WritableStream<Uint8Array> = bareProcessOutput;
-const bareErrorStream: WritableStream<Uint8Array> = bareProcessError;
-const bareProcessInputMatches: typeof processInput = bareProcessInput;
-const bareProcessOutputMatches: typeof processOutput = bareProcessOutput;
-const bareProcessErrorMatches: typeof processError = bareProcessError;
+const namespaceInput: ReadableStream<Uint8Array> = processAPI.stdin;
+const namespaceOutput: WritableStream<Uint8Array> = processAPI.stdout;
+const namespaceError: WritableStream<Uint8Array> = processAPI.stderr;
+const processInputProperty: ReadableStream<Uint8Array> = processInfo.stdin!;
+const processOutputProperty: WritableStream<Uint8Array> = processInfo.stdout!;
+const processErrorProperty: WritableStream<Uint8Array> = processInfo.stderr!;
 const globalProcessOutput: WritableStream<Uint8Array> = process.stdout!;
-const ownedOptions: CanonicalSpawnOptions = {stdout: "pipe", env: {MODE: "worker", OMIT_THIS: null}};
-const ownedChild: CanonicalChildProcess = await spawnOwned("echo", ["hello"], ownedOptions);
+const namedProcessMatchesGlobal: typeof process = processInfo;
+const typedProcessInfo: Process = processInfo;
+const defaultNamespaceProcessMatchesNamed: typeof processInfo = processAPI.process;
+const ownedOptions: SpawnOptions = {stdout: "pipe", env: {MODE: "worker", OMIT_THIS: null}};
+const ownedChild: ChildProcess = await spawnBare("echo", ["hello"], ownedOptions);
 const bareOwnedChild: ChildProcess = await spawnBare("echo", ["hello"], {stdout: "pipe"});
-const defaultSpawn: typeof spawnOwned = childProcessDefault.spawn;
-const canonicalDefaultSpawn: typeof spawnOwned = nodeChildProcessDefault.spawn;
+const defaultSpawn: typeof spawnBare = processAPI.spawn;
+const defaultCommandSync: typeof spawnSync = processAPI.spawnSync;
+const synchronousFileCommand: string = execFileSync("git", ["status", "--short"]);
+const synchronousShellCommand: string = execSync("git status --short");
 const bareChildTypeMatches: ChildProcess = ownedChild;
-const canonicalOptions: SpawnOptions = ownedOptions;
 const ownedStatus: number | null = (await ownedChild.exited).code;
 await ownedChild.close();
 await bareOwnedChild.close();
-const fetched: Promise<Response> = noeFetch("https://example.test");
+const fetched: Promise<Response> = fetch("https://example.test");
 const eventSource = new EventSource(new URL("https://example.test/events"), {withCredentials: true});
 eventSource.onmessage = event => { const data: string = event.data; const id: string = event.lastEventId; void [data, id]; };
 eventSource.addEventListener("message", event => { const data: string = event.data; void data; });
@@ -205,7 +221,28 @@ async function sqliteTypeFixture(): Promise<void> {
 }
 void sqliteTypeFixture;
 const noeServer = noeServe(request => Response.json({url: request.url}));
-noeServer.close();
+const noeServerClose: Promise<void> = noeServer.close();
+const repeatedNoeServerClose: Promise<void> = noeServer.close();
+const typedServer: HTTPServer = noeServe(request => Response.json({url: request.url}));
+const noeServerAsyncDispose: Promise<void> = typedServer[Symbol.asyncDispose]();
+async function asyncDisposableHTTPServer(): Promise<void> {
+  await using server = noeServe(request => Response.json({url: request.url}));
+  void server.url;
+}
+const serveOptions: ServeOptions = {hostname: "127.0.0.1", port: 0};
+const handler: FetchHandler = request => Response.json({url: request.url});
+const upgradeOptions: HTTPUpgradeOptions = {protocol: "chat.v1"};
+const upgrade: WebSocketUpgrade = upgradeWebSocket(new Request("http://example.test/ws"), upgradeOptions);
+const upgradedSocket: WebSocket = upgrade.socket;
+const createOptions: CreateWebSocketOptions = {
+  protocols: ["chat.v1"],
+  headers: new Headers({Authorization: "Bearer fixture"}),
+};
+const customSocket: WebSocket = createWebSocket("wss://example.test", createOptions);
+const directSocket: WebSocket = createWebSocket("wss://example.test", {
+  protocols: "chat.v1",
+  headers: [["X-Test", "value"]],
+});
 const fileHandle: FileHandle = await openFile("README.md");
 const namedModuleOpen: typeof openFile = noeFs.open;
 const defaultModuleOpen: typeof openFile = fs.open;
@@ -249,15 +286,21 @@ const timerId: number = setTimeout(() => console.log(cloned.bytes.length), 1);
 clearTimeout(timerId);
 const currentPid: number = process.pid;
 
-void [assertAlias, asyncHooksAlias, bufferAlias, childProcessAlias, cryptoAlias, dnsAlias, dnsPromisesAlias,
-  eventsAlias, httpAlias, osAlias, pathAlias, pathPosixAlias, pathWin32Alias,
-  processAlias, querystringAlias, streamWebAlias, stringDecoderAlias, timersAlias, timersPromisesAlias,
+void [assertAlias, asyncHooksAlias, bufferAlias, cryptoAlias, dnsAlias, dnsPromisesAlias,
+  eventsAlias, osAlias, pathAlias, pathPosixAlias, pathWin32Alias,
+  querystringAlias, streamWebAlias, stringDecoderAlias, timersAlias, timersPromisesAlias,
   urlAlias, utilAlias, vmAlias, workerAlias, zlibAlias, bufferValue, hash, random, command, binaryOutput,
   fileText, fileBytes, fileSize, asyncText, names, hostPlatform, cpuCount, resolvedPath, winPath, posixPath,
   currentDirectory, tagValues, decoded, timerResult, fileURL, lengthPromise, vmValue, exitCode, zipped, plainOutput, v4Records, resolverServers, binaryCommand, binaryShell,
   widenedFileOutput, widenedShellOutput, widenedSyncOutput, generalEncodingOutput, optionalBufferOutput, definiteBufferedOutput, definiteTextOutput,
-  docsText, ownedStatus, fetched,
-  defaultSpawn, canonicalDefaultSpawn, bareChildTypeMatches, canonicalOptions,
+  docsText, ownedStatus, fetched, noeServer, noeServerClose, repeatedNoeServerClose,
+  typedServer, noeServerAsyncDispose, asyncDisposableHTTPServer, upgrade, upgradedSocket,
+  customSocket, directSocket,
+  serveOptions, handler,
+  namespaceInput, namespaceOutput, namespaceError, processInputProperty, processOutputProperty,
+  processErrorProperty, namedProcessMatchesGlobal, typedProcessInfo, defaultNamespaceProcessMatchesNamed,
+  defaultSpawn, defaultCommandSync, synchronousFileCommand, synchronousShellCommand,
+  bareChildTypeMatches,
   namedModuleOpen, defaultModuleOpen, fileHandleOpenOptions,
   fileRead, positionalRead, readAtEOF, byteWrite, positionalWrite, textWrite,
   socketConnect, socketListener, response, parsedBody, streamChunk,
@@ -295,7 +338,7 @@ await chmod("notes.txt", 0o600);
 const combinedSignal: AbortSignal = AbortSignal.any(new Set([new AbortController().signal, AbortSignal.abort("stop")]));
 async function managedResources(): Promise<void> {
   const {open} = await import("noe:fs");
-  const {spawn} = await import("node:child_process");
+  const {spawn} = await import("noe:process");
   const {listen, connect} = await import("noe:sockets");
   const {subscribe} = await import("noe:signals");
   await using file = await open("value");
@@ -321,10 +364,8 @@ await watchedIterator.close();
 }
 void watchedBufferIterator;
 
-// NOE adds optional handshake headers without changing the protocols slot.
-const websocketOptions: WebSocketOptions = {headers: {Authorization: "Bearer fixture"}};
-new WebSocket("wss://example.test", ["chat.v1"], websocketOptions);
-new WebSocket("wss://example.test", undefined, {headers: new Headers({Origin: "https://app.test"})});
-new WebSocket("wss://example.test", "chat.v1", {headers: [["X-Test", "value"]]});
-new WebSocket("wss://example.test", undefined, {headers: new Map<string, string>([["X-Test", "value"]])});
-new WebSocket("wss://example.test", undefined, {headers: null});
+// The global constructor follows the standard two-argument API; use
+// createWebSocket for custom handshake headers.
+const standardSocket = new WebSocket("wss://example.test", ["chat.v1"]);
+const standardSocketURL = new WebSocket(new URL("wss://example.test"));
+void [standardSocket, standardSocketURL];

@@ -59,14 +59,14 @@ func TestProfileSpawnUsesSharedCommandEnvironmentWithoutProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := stdlib.CommandsWithSpawn(rt, nil, host.Spawn()); err != nil {
+	if err := stdlib.ProcessModule(rt, stdlib.ProcessModuleOptions{Commands: &stdlib.Run{}, Spawn: host.Spawn()}); err != nil {
 		t.Fatal(err)
 	}
 	defaultCommandJSON, _ := json.Marshal(defaultCommand)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	script := fmt.Sprintf(`
-		import {spawn} from "node:child_process";
+		import {spawn} from "noe:process";
 		const read = async (command, options) => {
 			const child = await spawn(command, [], {stdout:"pipe", stderr:"pipe", cwd:"/virtual", ...options});
 			const reader = child.stdout.getReader();
@@ -149,14 +149,14 @@ func TestProfileSpawnHonorsTimeoutForChildLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := stdlib.CommandsWithSpawn(rt, nil, host.Spawn()); err != nil {
+	if err := stdlib.ProcessModule(rt, stdlib.ProcessModuleOptions{Commands: &stdlib.Run{}, Spawn: host.Spawn()}); err != nil {
 		t.Fatal(err)
 	}
 	commandJSON, _ := json.Marshal(slowCommand)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	script := fmt.Sprintf(`
-		import {spawn} from "node:child_process";
+		import {spawn} from "noe:process";
 		(async () => {
 			const child = await spawn(%s, [], {stdin:"ignore", stdout:"ignore", stderr:"ignore"});
 			globalThis.timeoutResult = await child.exited;
@@ -223,14 +223,14 @@ func TestSpawnUsesSelectedSupervisor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := stdlib.CommandsWithSpawn(rt, nil, host.Spawn()); err != nil {
+			if err := stdlib.ProcessModule(rt, stdlib.ProcessModuleOptions{Commands: &stdlib.Run{}, Spawn: host.Spawn()}); err != nil {
 				t.Fatal(err)
 			}
 			commandJSON, _ := json.Marshal(executable)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			script := fmt.Sprintf(`
-				import {spawn} from "node:child_process";
+				import {spawn} from "noe:process";
 				(async () => {
 					try {
 						await spawn(%s, [], {stdin:"ignore", stdout:"ignore", stderr:"ignore"});

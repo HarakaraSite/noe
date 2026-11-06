@@ -65,7 +65,7 @@ func TestAwaitUsingChildClosesLiveProcessOnThrow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "memory:child-disposal", Virtual: true, Module: true, Code: `
-import {spawn} from "node:child_process";
+import {spawn} from "noe:process";
 let child;
 const reason={body:"expected"};
 try {

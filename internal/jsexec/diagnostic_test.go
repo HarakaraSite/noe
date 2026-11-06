@@ -106,7 +106,7 @@ func TestManagedCommandDiagnosticRetainsOutputAfterVMClose(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_, err := Execute(ctx, Source{Name: "memory:command-error", Virtual: true, Module: true, Code: `import {execFileSync} from "node:child_process";execFileSync("/bin/sh",["-c","printf fixture-out; printf fixture-err >&2; exit 9"]);`}, Profile{Modules: Modules{Commands: &CommandOptions{Allow: func(string, []string) error { return nil }}}})
+	_, err := Execute(ctx, Source{Name: "memory:command-error", Virtual: true, Module: true, Code: `import {execFileSync} from "noe:process";execFileSync("/bin/sh",["-c","printf fixture-out; printf fixture-err >&2; exit 9"]);`}, Profile{Modules: Modules{Commands: &CommandOptions{Allow: func(string, []string) error { return nil }}}})
 	if err == nil {
 		t.Fatal("failed command returned success")
 	}

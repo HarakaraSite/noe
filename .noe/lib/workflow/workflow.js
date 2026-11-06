@@ -1,7 +1,7 @@
 // Thin launcher: filesystem context and role settings go to one native workflow parent.
 import {existsSync, readFileSync} from "noe:fs";
 import {dirname, resolve} from "node:path";
-import process from "node:process";
+import {process} from "noe:process";
 import {fileURLToPath} from "node:url";
 import {run_agent} from "noe:agent";
 

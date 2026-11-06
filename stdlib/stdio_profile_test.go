@@ -11,7 +11,7 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
 )
 
-func TestProfileStdioAliasesShareWebStreams(t *testing.T) {
+func TestProfileStdioNamespaceSharesWebStreams(t *testing.T) {
 	for _, processInfo := range []bool{false, true} {
 		t.Run(fmt.Sprint("process-info=", processInfo), func(t *testing.T) {
 			var output, diagnostics bytes.Buffer
@@ -19,10 +19,7 @@ func TestProfileStdioAliasesShareWebStreams(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			result, err := stdlib.Execute(ctx, stdlib.Source{Name: "memory:stdio", Virtual: true, Module: true, Code: `
-import selected, {stdin,stdout,stderr} from "node:process";
-import bare, {stdin as bareInput, stdout as bareOutput, stderr as bareError} from "process";
-if (stdin!==bareInput || stdout!==bareOutput || stderr!==bareError || selected!==bare)
-  throw Error("module aliases differ");
+import selected, {stdin,stdout,stderr} from "noe:process";
 if (selected.stdin!==stdin || selected.stdout!==stdout || selected.stderr!==stderr)
   throw Error("default and named streams differ");
 if (!(stdin instanceof ReadableStream) || !(stdout instanceof WritableStream) || !(stderr instanceof WritableStream))
@@ -31,9 +28,9 @@ if (typeof stdin.read!=="undefined" || typeof stdout.write!=="undefined" || "isT
   throw Error("removed synchronous facade survived");
 const withInfo=` + fmt.Sprint(processInfo) + `;
 if (withInfo) {
-  if (process!==selected || process.stdin!==stdin || process.stdout!==stdout || process.stderr!==stderr || process.env.MARK!=="selected")
+  if (process!==selected.process || process.stdin!==stdin || process.stdout!==stdout || process.stderr!==stderr || process.env.MARK!=="selected")
     throw Error("global process streams differ");
-} else if (typeof process!=="undefined" || ["argv","env","cwd","pid"].some(key=>key in selected)) {
+} else if (typeof process!=="undefined" || ["process","argv","env","cwd","pid"].some(key=>key in selected)) {
   throw Error("stdio installed process metadata");
 }
 if (await import("noe:io").then(()=>true,()=>false)) throw Error("removed module imported");
@@ -61,8 +58,8 @@ func TestProfileMetadataDoesNotSelectStdio(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "memory:metadata", Virtual: true, Module: true, Code: `
-import processInfo from "node:process";
-const module=await import("node:process");
+import {process as processInfo} from "noe:process";
+const module=await import("noe:process");
 if (processInfo!==process || process.env.MARK!=="metadata") throw Error("process metadata");
 for (const key of ["stdin","stdout","stderr"]) {
   if (key in module || key in processInfo) throw Error("unselected stream installed: "+key);
@@ -73,7 +70,7 @@ for (const key of ["stdin","stdout","stderr"]) {
 	}
 	result, err = stdlib.Execute(ctx, stdlib.Source{Name: "memory:no-process", Virtual: true, Module: true, Code: `
 if (typeof process!=="undefined") throw Error("unselected metadata global");
-if (await import("node:process").then(()=>true,()=>false)) throw Error("unselected process module");
+if (await import("noe:process").then(()=>true,()=>false)) throw Error("unselected process module");
 `}, stdlib.Profile{Environment: stdlib.Environment{Stdin: strings.NewReader("unselected")}})
 	if err != nil || result.Code != 0 {
 		t.Fatalf("unselected result=%+v error=%s", result, stdlib.Diagnostic(err))

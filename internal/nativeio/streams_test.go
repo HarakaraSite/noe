@@ -26,10 +26,7 @@ func streamRuntime(t *testing.T, opts Options) (*quickjs.Runtime, *Host, *stdlib
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := stdlib.CommandsWithSpawn(rt, nil, h.Spawn()); err != nil {
-		t.Fatal(err)
-	}
-	if err := stdlib.ProcessStdio(rt, false, h.Stdio()); err != nil {
+	if err := stdlib.ProcessModule(rt, stdlib.ProcessModuleOptions{Commands: &stdlib.Run{}, Spawn: h.Spawn(), Stdio: h.Stdio()}); err != nil {
 		t.Fatal(err)
 	}
 	return rt, h, loop
@@ -60,7 +57,7 @@ func (i *observedInput) Read([]byte) (int, error) { i.reads.Add(1); return 0, io
 func TestImportDoesNotReadOrKeepAlive(t *testing.T) {
 	input := &observedInput{}
 	rt, _, loop := streamRuntime(t, Options{Stdin: input})
-	evalStreams(t, rt, loop, `import {stdin} from "node:process"; if (!(stdin instanceof ReadableStream)) throw Error("stream");`)
+	evalStreams(t, rt, loop, `import {stdin} from "noe:process"; if (!(stdin instanceof ReadableStream)) throw Error("stream");`)
 	if input.reads.Load() != 0 || rt.Busy() {
 		t.Fatalf("import activated input: reads=%d active=%v busy=%v", input.reads.Load(), rt.Busy(), rt.Busy())
 	}
@@ -69,7 +66,7 @@ func TestImportDoesNotReadOrKeepAlive(t *testing.T) {
 func TestPipeBinaryAndPreventClose(t *testing.T) {
 	var out bytes.Buffer
 	rt, _, loop := streamRuntime(t, Options{Stdin: bytes.NewReader([]byte{0, 255, 10, 128}), Stdout: &out})
-	evalStreams(t, rt, loop, `import {stdin, stdout} from "node:process";
+	evalStreams(t, rt, loop, `import {stdin, stdout} from "noe:process";
 await stdin.pipeTo(stdout, {preventClose:true});
 const w=stdout.getWriter(); await w.write(new Uint8Array([42])); w.releaseLock();`)
 	if !bytes.Equal(out.Bytes(), []byte{0, 255, 10, 128, 42}) {
@@ -116,7 +113,7 @@ func TestPipeAbortCancelsPendingRead(t *testing.T) {
 			return false
 		}
 	})
-	evalStreams(t, rt, loop, `import {stdin,stdout} from "node:process";
+	evalStreams(t, rt, loop, `import {stdin,stdout} from "noe:process";
 const c=new AbortController(), reason=new Error("stop read");
 const p=stdin.pipeTo(stdout,{signal:c.signal});
 const check=()=>{if(started())c.abort(reason);else setTimeout(check,0)}; check();
@@ -143,7 +140,7 @@ func TestPipeAbortCancelsPendingWrite(t *testing.T) {
 			return false
 		}
 	})
-	evalStreams(t, rt, loop, `import {stdin,stdout} from "node:process";
+	evalStreams(t, rt, loop, `import {stdin,stdout} from "noe:process";
 const c=new AbortController(), reason=new Error("stop write");
 const p=stdin.pipeTo(stdout,{signal:c.signal});
 const check=()=>{if(started())c.abort(reason);else setTimeout(check,0)}; check();

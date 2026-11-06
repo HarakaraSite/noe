@@ -45,7 +45,8 @@ type Fetch struct {
 	// one, and req.Response.Request the request it answered. Returning an
 	// error refuses it, and the script sees the refusal as a failed fetch.
 	Allow func(req *http.Request) error
-	// MaxBodyBytes caps how much of a response is read. Zero means 32 MB; a
+	// MaxBodyBytes bounds the response body accepted by fetch. A body that
+	// reaches the limit is accepted only if it ends there. Zero means 32 MB; a
 	// negative value means no limit at all. For EventSource it bounds one
 	// buffered partial event/line instead of the lifetime response.
 	MaxBodyBytes int64
@@ -329,13 +330,13 @@ func doFetch(client *http.Client, cfg *Fetch, spec *requestSpec, limit int64, lo
 	}
 	if loop == nil {
 		// Nothing to deliver the rest on, so the rest is read now.
-		defer spec.cancel()
-		defer res.Body.Close()
-		reader := io.Reader(res.Body)
-		if limit >= 0 {
-			reader = io.LimitReader(res.Body, limit)
-		}
-		data, err := io.ReadAll(reader)
+		defer func() {
+			// Stop the request before closing the body so any transport read is
+			// released by cancellation first.
+			spec.cancel()
+			_ = res.Body.Close()
+		}()
+		data, err := readResponseBody(res.Body, limit)
 		if err != nil {
 			return nil, err
 		}
@@ -362,6 +363,38 @@ func doFetch(client *http.Client, cfg *Fetch, spec *requestSpec, limit int64, lo
 		}
 	}
 	return out, nil
+}
+
+var errResponseBodyTooLarge = errors.New("response body exceeds configured limit")
+
+// readResponseBody reads at most limit bytes and checks whether the body ends
+// there. The extra byte is only a probe: it is never included in the result.
+// Content-Length is intentionally ignored because it can describe a different
+// representation from the bytes the caller actually receives.
+func readResponseBody(body io.Reader, limit int64) ([]byte, error) {
+	if limit < 0 {
+		return io.ReadAll(body)
+	}
+	data, err := io.ReadAll(io.LimitReader(body, limit))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) < limit {
+		return data, nil
+	}
+
+	var extra [1]byte
+	n, err := io.ReadFull(body, extra[:])
+	if n > 0 {
+		return nil, errResponseBodyTooLarge
+	}
+	if errors.Is(err, io.EOF) {
+		return data, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 // bodyReader is a response body still on the connection, read one chunk at a
@@ -413,16 +446,14 @@ func (b *bodyReader) read() *quickjs.Promise {
 		p.RejectError(errors.New("this body is already being read"))
 		return p
 	}
+	// Once the allowed bytes have been delivered, read one more byte to
+	// distinguish an exactly-sized body from a truncated prefix.
+	probe := b.left == 0
 	size := int64(chunkSize)
-	if b.left >= 0 && b.left < size {
+	if probe {
+		size = 1
+	} else if b.left >= 0 && b.left < size {
 		size = b.left
-	}
-	if size == 0 {
-		// The limit has been reached, which is the end as far as the script is
-		// concerned; what is left of the connection is dropped.
-		b.finish()
-		p.Resolve(nil)
-		return p
 	}
 
 	b.busy = true
@@ -431,9 +462,28 @@ func (b *bodyReader) read() *quickjs.Promise {
 	loop.Begin()
 	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
-		n, err := body.Read(buf)
+		var n int
+		var err error
+		if probe {
+			n, err = io.ReadFull(body, buf)
+		} else {
+			n, err = body.Read(buf)
+		}
 		loop.postExecution(func() {
 			b.busy = false
+			if probe {
+				b.finish()
+				if n > 0 {
+					p.RejectError(errResponseBodyTooLarge)
+					return
+				}
+				if err != nil && !errors.Is(err, io.EOF) {
+					p.RejectError(err)
+					return
+				}
+				p.Resolve(nil)
+				return
+			}
 			if n > 0 {
 				if b.left > 0 {
 					b.left -= int64(n)

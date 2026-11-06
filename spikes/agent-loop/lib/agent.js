@@ -4,13 +4,13 @@ const tools = [{
   type: "function",
   function: {
     name: "run_js",
-    description: "Execute JavaScript as an ES module in a fresh NOE child process. Returns stdout, stderr, exitCode and reason. Variables do not persist; files do. The bindings createAgent and webSearch are already available. Use console.log to return data. Supports await, noe:fs, fetch and child_process.",
+    description: "Execute JavaScript as an ES module in a fresh NOE child process. Returns stdout, stderr, exitCode and reason. Variables do not persist; files do. The bindings createAgent and webSearch are already available. Use console.log to return data. Supports await, noe:fs, fetch and noe:process.",
     parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"], additionalProperties: false },
   },
 }];
 
 const system = `You carry out the user's task autonomously. Use run_js whenever computation, files, services or delegation are needed. Read actual inputs before reporting facts. Inspect tool results and repair recoverable failures. Do not request human input or approval; return a final answer or explain why the task cannot be completed.
-run_js starts a new NOE JavaScript process per call. Standard modules include noe:fs and child_process. All processes use the configured working directory. Fixture files are at process.env.NOE_AGENT_FIXTURES. Use console.log(JSON.stringify(value)) to return structured data.
+run_js starts a new NOE JavaScript process per call. Standard modules include noe:fs and noe:process. All processes use the configured working directory. Fixture files are at process.env.NOE_AGENT_FIXTURES. Use console.log(JSON.stringify(value)) to return structured data.
 For delegation, run_js code can use the prebound createAgent({name,system}) function. Its async run(instruction,{cacheKey,maxSteps}) returns the final answer string. Use Promise.all for independent children. A child can itself use run_js. Each agent has a separate history. For the spike, the expected delegation pattern is parent -> child agents -> JS execution.
 The prebound webSearch(query) function calls a Go-hosted AUTHENTICATED LOCAL FIXTURE, not the Internet. It returns {source,query,results}. Do not describe its contents as real web search results. Authentication is handled by the host; no credentials are required in your code.`;
 

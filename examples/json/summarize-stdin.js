@@ -1,5 +1,5 @@
 // printf '[100,200,300]\n' | ./noe run examples/json/summarize-stdin.js
-import { stdin } from "node:process";
+import { stdin } from "noe:process";
 
 const values = JSON.parse(await new Response(stdin).text());
 if (!Array.isArray(values) || !values.every(value => typeof value === "number" && Number.isFinite(value))) {

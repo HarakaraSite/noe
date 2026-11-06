@@ -1354,7 +1354,7 @@ export async function beforeTool(event){
   await writeFile(`+string(readyJSON)+`,JSON.stringify({runId:event.runId,modelStepId:event.modelStepId,toolCallId:event.toolCallId}));
   const code="// Start an owned shell process tree and wait for cancellation.\n"+
     "import {writeFileSync} from 'noe:fs';\n"+
-    "import {spawn} from 'node:child_process';\n"+
+    "import {spawn} from 'noe:process';\n"+
     "const child=await spawn('sh',['-c','echo $$ > \"$1\"; sleep 120 & echo $! > \"$2\"; wait','hooks-live-tree',"+
       JSON.stringify(`+string(shellPIDJSON)+`)+","+JSON.stringify(`+string(grandchildPIDJSON)+`)+"],{stdin:'ignore',stdout:'ignore',stderr:'ignore'});\n"+
     "await child.exited;";

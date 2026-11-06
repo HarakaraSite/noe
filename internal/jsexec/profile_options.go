@@ -92,13 +92,15 @@ type FetchOptions struct {
 	// no total timeout. Explicit client settings apply to both interfaces.
 	Client *http.Client
 	Allow  func(*http.Request) error
-	// MaxBodyBytes caps fetch responses, or one buffered partial SSE event.
-	// Zero means 32 MiB; negative values disable the bound.
+	// MaxBodyBytes rejects oversized fetch response bodies, or bounds one
+	// buffered partial SSE event. Zero means 32 MiB; negative disables the bound.
 	MaxBodyBytes int64
 }
 
 type ServeOptions struct {
-	Allow        func(address string) error
+	Allow func(address string) error
+	// MaxBodyBytes rejects oversized request bodies on read. Zero selects
+	// 32 MiB; a negative value disables the bound.
 	MaxBodyBytes int64
 	ReadTimeout  time.Duration
 	IdleTimeout  time.Duration

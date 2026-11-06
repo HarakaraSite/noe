@@ -1,9 +1,14 @@
 import noeFs, {readFileSync, readdirSync, statSync, open as openFile} from "noe:fs";
-import {exec, execFile, spawnSync} from "node:child_process";
-import processModule from "node:process";
-// @ts-expect-error NOE's live spawn API is now part of node:child_process.
-import {spawn as legacySpawn} from "noe:process";
-// @ts-expect-error Standard I/O is exported from node:process, not noe:io.
+import processDefault, {exec, execFile, spawnSync, process as processInfo} from "noe:process";
+// @ts-expect-error The old Node-prefixed command module was removed.
+import {exec as legacyNodeExec} from "node:child_process";
+// @ts-expect-error The old Node-prefixed process module was removed.
+import {stdin as legacyNodeStdin} from "node:process";
+// @ts-expect-error Bare child_process is no longer a reserved NOE module name.
+import {exec as legacyBareExec} from "child_process";
+// @ts-expect-error Bare process is no longer a reserved NOE module name.
+import {stdin as legacyBareStdin} from "process";
+// @ts-expect-error Standard I/O is exported from noe:process, not noe:io.
 import {stdin as legacyStdin} from "noe:io";
 import {ReadableStream} from "node:stream/web";
 import {connect} from "noe:sockets";
@@ -18,6 +23,18 @@ import {open as openSQLite} from "noe:sqlite";
 // @ts-expect-error NOE does not declare Node's built-in SQLite module.
 import {DatabaseSync} from "node:sqlite";
 import * as sqliteModule from "noe:sqlite";
+import {createWebSocket} from "noe:http";
+
+// HTTP helpers use noe:http; node:http and its bare alias are removed.
+// @ts-expect-error NOE does not declare node:http.
+import {serve as legacyNodeServe} from "node:http";
+// @ts-expect-error NOE does not declare the bare http alias.
+import {serve as legacyBareServe} from "http";
+// @ts-expect-error noe:http does not export Fetch; use the standard global.
+import {fetch as legacyNoeFetch} from "noe:http";
+import * as noeHTTP from "noe:http";
+// @ts-expect-error noe:http has no default export.
+const noeHTTPDefault = noeHTTP.default;
 
 // Filesystem imports have moved to one NOE-owned module.
 // @ts-expect-error NOE no longer declares node:fs.
@@ -119,22 +136,30 @@ void sqliteNegativeFixture;
 // @ts-expect-error noe:sqlite has no default constructor export.
 new sqliteModule.default();
 
-if (processModule.stdin) {
+const processMetadataType: typeof process = processInfo;
+const defaultNamespaceProcessType: typeof processInfo = processDefault.process;
+// @ts-expect-error The default namespace groups exports; metadata is under its named process export.
+processDefault.cwd();
+// @ts-expect-error The default namespace groups exports; metadata is under its named process export.
+processDefault.env;
+
+if (processDefault.stdin) {
   // @ts-expect-error stdin is a byte ReadableStream; use a reader or Response.
-  processModule.stdin.read();
+  processDefault.stdin.read();
   // @ts-expect-error Web Streams do not expose the old isTTY facade.
-  processModule.stdin.isTTY;
+  processDefault.stdin.isTTY;
 }
-if (processModule.stdout) {
+if (processDefault.stdout) {
   // @ts-expect-error stdout is a byte WritableStream; use getWriter().write().
-  processModule.stdout.write("text");
+  processDefault.stdout.write("text");
   // @ts-expect-error Web Streams do not expose the old isTTY facade.
-  processModule.stdout.isTTY;
+  processDefault.stdout.isTTY;
 }
-if (processModule.stderr) {
+if (processDefault.stderr) {
   // @ts-expect-error stderr is a byte WritableStream; use getWriter().write().
-  processModule.stderr.write("text");
+  processDefault.stderr.write("text");
 }
+void [processMetadataType, defaultNamespaceProcessType, legacyNodeExec, legacyNodeStdin, legacyBareExec, legacyBareStdin];
 
 // NOE supports base64 but not Node's base64url encoding extension.
 // @ts-expect-error base64url is not implemented by Buffer
@@ -199,7 +224,7 @@ void exec("tool", options).then(({stdout}) => stdout.trim());
 // @ts-expect-error widened options produce string | Uint8Array
 spawnSync("tool", [], options).stdout.trim();
 
-const broadOptions: import("node:child_process").ExecOptions = {encoding: "buffer"};
+const broadOptions: import("noe:process").ExecOptions = {encoding: "buffer"};
 // @ts-expect-error ExecOptions.encoding can be text or buffer
 void execFile("tool", [], broadOptions).then(({stdout}) => stdout.trim());
 
@@ -237,11 +262,22 @@ noeFs.watch(".", {overflow: "discard"});
 // @ts-expect-error buffer filenames are not strings
 const wrongWatchIterator: AsyncIterableIterator<{eventType: "change" | "rename"; filename: string | null}> = noeFs.watch(".", "buffer");
 
-// @ts-expect-error handshake options are the third argument, not protocols
+// @ts-expect-error global serve is removed; import it from noe:http.
+globalThis.serve(request => new Response(request.url));
+// @ts-expect-error global upgradeWebSocket is removed; import it from noe:http.
+globalThis.upgradeWebSocket(new Request("http://example.test/ws"));
+declare const synchronousCloseServer: import("noe:http").HTTPServer;
+// @ts-expect-error Serve close returns a promise that must be awaited for completion.
+const synchronousServerCloseResult: void = synchronousCloseServer.close();
+// @ts-expect-error WebSocket requires a URL or string.
+new WebSocket(null);
+// @ts-expect-error the standard global constructor accepts only URL and protocols.
+new WebSocket("wss://example.test", ["chat.v1"], {headers: {Authorization: "Bearer fixture"}});
+// @ts-expect-error protocols are a string or string array, not a custom options object.
 new WebSocket("wss://example.test", {headers: {Authorization: "Bearer fixture"}});
-// @ts-expect-error header values must be strings in typed code
-new WebSocket("wss://example.test", undefined, {headers: {Authorization: 42}});
-// @ts-expect-error header entries must contain exactly a name and a value
-new WebSocket("wss://example.test", undefined, {headers: [["X-Test"]]});
-// @ts-expect-error the constructor does not expose a JavaScript TLS override
-new WebSocket("wss://example.test", undefined, {tls: {rejectUnauthorized: false}});
+// @ts-expect-error custom handshake header values must be strings in typed code.
+createWebSocket("wss://example.test", {headers: {Authorization: 42}});
+// @ts-expect-error header entries must contain exactly a name and a value.
+createWebSocket("wss://example.test", {headers: [["X-Test"]]});
+// @ts-expect-error the helper does not expose a JavaScript TLS override.
+createWebSocket("wss://example.test", {tls: {rejectUnauthorized: false}});

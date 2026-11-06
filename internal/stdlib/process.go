@@ -58,8 +58,8 @@ func SetExecutionExit(p *Process, exit func(int)) {
 	p.interruptExit = true
 }
 
-// Processes installs the process object, as a global and as the "process"
-// module, which is where a program looks for it either way.
+// Processes installs the selected process metadata and controls as a global.
+// ProcessModule publishes the same object through noe:process.
 func Processes(rt *quickjs.Runtime, cfg *Process) error {
 	if cfg == nil {
 		cfg = &Process{}
@@ -183,30 +183,7 @@ func Processes(rt *quickjs.Runtime, cfg *Process) error {
 	if err := rt.Set("process", p); err != nil {
 		return err
 	}
-	exports := map[string]any{"default": p}
-	return setNodeModule(rt, "process", exports)
-}
-
-// ProcessStdio publishes one set of Web Streams through the process module.
-// Metadata and the global process object are used only when explicitly selected.
-func ProcessStdio(rt *quickjs.Runtime, processInfo bool, streams map[string]quickjs.Value) error {
-	p := rt.NewObject()
-	if processInfo {
-		var err error
-		p, err = rt.Get("process")
-		if err != nil {
-			return err
-		}
-	}
-	exports := map[string]any{"default": p}
-	for _, name := range []string{"stdin", "stdout", "stderr"} {
-		value := streams[name]
-		if err := p.Set(name, value); err != nil {
-			return err
-		}
-		exports[name] = value
-	}
-	return setNodeModule(rt, "process", exports)
+	return nil
 }
 
 // listening reports whether the script listens for one of process's events.

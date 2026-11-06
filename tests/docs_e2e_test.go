@@ -35,7 +35,7 @@ func TestDocsStandaloneBinaryAndManagedEval(t *testing.T) {
 	writeFixture(t, filepath.Join(dir, "invalid.json"), "invalid configuration")
 	writeFixture(t, filepath.Join(dir, "config.json"), "{}")
 	t.Setenv("NOE_CONFIG_FILE", filepath.Join(dir, "config.json"))
-	for _, tc := range []struct{ topic, member string }{{"noe:sockets", "connect"}, {"noe:http", "fetch"}, {"noe:http", "serve"}, {"noe:agent", "hooks"}, {"noe:agent", "TaskOutcome.hookFailures"}} {
+	for _, tc := range []struct{ topic, member string }{{"noe:sockets", "connect"}, {"globals", "fetch"}, {"noe:http", "serve"}, {"noe:agent", "hooks"}, {"noe:agent", "TaskOutcome.hookFailures"}} {
 		t.Run(tc.topic+"/"+tc.member, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()

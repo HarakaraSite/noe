@@ -12,13 +12,12 @@ import (
 	"time"
 )
 
-const httpExercise = `import * as http from "noe:http";
-import * as oldHTTP from "node:http";
-import * as bareHTTP from "http";
+const httpExercise = `import {upgradeWebSocket} from "noe:http";
+import * as http from "noe:http";
 import {docs} from "noe:docs";
 export async function exerciseHTTP() {
- if(Object.keys(http).sort().join()!=="fetch,serve")throw Error("HTTP exports");
- if(http.fetch!==globalThis.fetch||http.serve!==globalThis.serve||http.serve!==oldHTTP.serve||oldHTTP.serve!==bareHTTP.default.serve)throw Error("HTTP identity");
+ if(Object.keys(http).sort().join()!=="createWebSocket,serve,upgradeWebSocket")throw Error("HTTP exports");
+ if(typeof globalThis.serve!=="undefined"||typeof globalThis.upgradeWebSocket!=="undefined")throw Error("legacy HTTP globals");
  const server=http.serve({port:0},async request=>{
   if(!(request instanceof Request)||!(request.headers instanceof Headers))throw Error("request types");
   const path=new URL(request.url).pathname;
@@ -32,12 +31,12 @@ export async function exerciseHTTP() {
   return new Response("missing",{status:404});
  });
  try {
-  const json=await http.fetch(new Request(server.url+"/json",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({value:41})}));
+  const json=await fetch(new Request(server.url+"/json",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({value:41})}));
   if(!(json instanceof Response)||!(json.headers instanceof Headers)||json.status!==201||(await json.json()).value!==42)throw Error("JSON roundtrip");
-  const binary=await http.fetch(server.url+"/binary",{method:"POST",body:ReadableStream.from([new Uint8Array([0,255]),new Uint8Array([120])])});
+  const binary=await fetch(server.url+"/binary",{method:"POST",body:ReadableStream.from([new Uint8Array([0,255]),new Uint8Array([120])])});
   if(!(binary.body instanceof ReadableStream)||(await binary.bytes()).join()!=="0,255,120"||!binary.bodyUsed)throw Error("binary streams");
   let consumed=false;try{await binary.text();}catch{consumed=true;}if(!consumed)throw Error("body reused");
-  const missing=await http.fetch(server.url+"/missing");
+  const missing=await fetch(server.url+"/missing");
   if(missing.ok||missing.status!==404||await missing.text()!=="missing")throw Error("HTTP status");
   const socket=new WebSocket(server.url.replace("http:","ws:")+"/ws");
   try {
@@ -47,8 +46,8 @@ export async function exerciseHTTP() {
     socket.onclose=resolve;
    });
   } finally {socket.close();}
- } finally {server.close();server.close();}
- return [docs("noe:http"),docs("noe:http","fetch"),docs("noe:http","serve")];
+ } finally {await server.close();await server.close();}
+ return [docs("noe:http"),docs("globals","fetch"),docs("noe:http","serve")];
 }`
 
 func TestNoeHTTPInMainWorkersAndNestedWorkers(t *testing.T) {
@@ -99,7 +98,7 @@ func TestNoeHTTPFetchAbort(t *testing.T) {
 		close(cancelled)
 	}))
 	defer server.Close()
-	source := fmt.Sprintf(`import {fetch} from "noe:http";
+	source := fmt.Sprintf(`
 const controller=new AbortController(),reason=new Error("stop HTTP body");
 const response=await fetch(%q,{signal:controller.signal});
 const reader=response.body.getReader();
@@ -122,7 +121,7 @@ console.log("HTTP body aborted");`, server.URL)
 }
 
 func TestNoeHTTPWorkerTerminationClosesListener(t *testing.T) {
-	source := `import {Worker} from "node:worker_threads";import {fetch} from "noe:http";
+	source := `import {Worker} from "node:worker_threads";
 const worker=new Worker('import {parentPort} from "node:worker_threads";import {serve} from "noe:http";const server=serve({port:0},()=>new Response("owned"));parentPort.postMessage(server.url);',{eval:true});
 let url;
 try{

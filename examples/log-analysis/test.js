@@ -1,7 +1,7 @@
 // Run with NOE; no provider, Node.js, npm, or external services.
 import { readFileSync } from "noe:fs";
 import { dirname, resolve } from "node:path";
-import process from "node:process";
+import {process} from "noe:process";
 import { analyzeJSONL, toMarkdown } from "./analyze.js";
 
 const dir = dirname(resolve(process.argv[1]));

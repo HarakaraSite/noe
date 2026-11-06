@@ -14,7 +14,7 @@ Node.jsとの完全互換を前提にせず、README・docs/api.md・docs/observ
 テストや動作確認にOSのコマンドを使って構いません。
 
 構成：
-・serve()でHTTPサーバーを起動する。
+Import `serve` explicitly with `import { serve } from "noe:http"` before starting the HTTP server.
 ・spawn_agent(..., undefined, {keepAlive:true})でagentを一体、idle状態で起動する。
 ・queue_agent()で仕事を渡し、同じagentの会話を継続する。
 ・待受agentの既定設定はprovider:"openai-chatgpt"、model:"gpt-6.1-sol"、effort:"high"。

@@ -1,7 +1,7 @@
 // Create a dedicated NOE-managed Codex image grant; active Codex credentials
 // are never read or copied by this helper.
 import { homedir } from "node:os";
-import { stdin } from "node:process";
+import { stdin } from "noe:process";
 import { join, resolve } from "node:path";
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, chmodSync, renameSync, unlinkSync } from "noe:fs";
 import { begin_codex_image_login, complete_codex_image_login } from "noe:auth";

@@ -1,13 +1,15 @@
 # プロセスと標準I/Oストリーム
 
-Use `noe docs node:child_process spawn` and `noe docs node:process stdin` for the API contract in the matching executable. Pass a member name shown in a topic overview as the second argument to open its details ([embedded reference](reference.md)).
+Use `noe docs noe:process spawn` and `noe docs noe:process stdin` for the API contract in the matching executable. Pass a member name shown in a topic overview as the second argument to open its details ([embedded reference](reference.md)).
 
-The NOE-specific `spawn` export from `node:child_process` and the standard I/O exports from `node:process` are available to run/eval, agent `run_js`, and Workers when their host capabilities are selected. `spawn` resolves its Promise after startup and exposes byte-oriented Web Streams of `Uint8Array`. Host standard I/O uses the same Web Stream types. NOE does not add Node.js EventEmitter or Node streams compatibility for standard I/O. The former `noe:io` module and the synchronous `process.stdin.read()`, `process.stdout.write()`, `process.stderr.write()`, and `isTTY` facades are removed.
+`noe:process` combines captured commands, live children, host standard I/O, and process metadata for run/eval, agent `run_js`, and Workers when their host capabilities are selected. `spawn` resolves its Promise after startup and exposes byte-oriented Web Streams of `Uint8Array`. Host standard I/O uses the same Web Stream types. NOE does not add Node.js EventEmitter or Node streams compatibility for standard I/O. The former `noe:io` module and the synchronous `process.stdin.read()`, `process.stdout.write()`, `process.stderr.write()`, and `isTTY` facades are removed.
+
+The current source removes `node:child_process`, `child_process`, `node:process`, and `process` imports without adapters. Command and stream named imports move directly to `noe:process`. Replace `import process from "node:process"` with `import {process} from "noe:process"`; the metadata/control object remains identical to global `process`. The default export is now a namespace of all selected named exports, with metadata under `.process`. `ProcessInfo`, `Stdio`, and `Commands` stay independently selectable. Function arguments, command results, stream ownership, and global process behavior are retained. This migration is unreleased; see the [implementation and migration record](development/stdlib-noe-process.md).
 
 ## 子を起動して通信する
 
 ```js
-import { spawn } from "node:child_process";
+import { spawn } from "noe:process";
 
 const child = await spawn("some-command", ["--jsonl"], {
   cwd: ".",
@@ -48,7 +50,7 @@ inheritは呼出し元のホストI/Oを使い、観察時のwriterも通りま�
 ## Host standard I/O
 
 ```js
-import { stdin, stdout } from "node:process";
+import { stdin, stdout } from "noe:process";
 
 const text = await new Response(stdin).text();
 const writer = stdout.getWriter();
@@ -75,11 +77,11 @@ await child.stdout.pipeTo(stdout, { preventClose: true });
 
 ## Worker
 
-Workers register the same `node:child_process.spawn` extension. When standard I/O is selected, their `node:process` stdin reaches immediate EOF and stdout/stderr use the configured host destinations; terminating a Worker reclaims children it started. If `Profile.Environment.Env` is set, that environment is used by default; otherwise the child inherits the host-configured default. An explicit spawn `env` replaces the whole environment.
+Workers register the same `noe:process.spawn` extension. When standard I/O is selected, their `noe:process` stdin reaches immediate EOF and stdout/stderr use the configured host destinations; terminating a Worker reclaims children it started. If `Profile.Environment.Env` is set, that environment is used by default; otherwise the child inherits the host-configured default. An explicit spawn `env` replaces the whole environment.
 
 ```js
 await (async () => {
-  const { spawn } = await import("node:child_process");
+  const { spawn } = await import("noe:process");
   const c = await spawn("some-command", [], { stdin: "ignore", stderr: "inherit" });
   try { return await new Response(c.stdout).text(); }
   finally { await c.close(); }

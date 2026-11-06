@@ -229,7 +229,7 @@ func TestManagedDiagnosticsDetachPositionCauseAndCommandBytes(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("fixture uses POSIX shell")
 		}
-		result, err := runModuleResult(t, `import {execFile} from "node:child_process";await execFile("/bin/sh",["-c","printf '\\001\\377';printf '\\002\\376' >&2;exit 9"],{encoding:"buffer"})`, Profile{Modules: Modules{Commands: &CommandOptions{Allow: func(string, []string) error { return nil }}}})
+		result, err := runModuleResult(t, `import {execFile} from "noe:process";await execFile("/bin/sh",["-c","printf '\\001\\377';printf '\\002\\376' >&2;exit 9"],{encoding:"buffer"})`, Profile{Modules: Modules{Commands: &CommandOptions{Allow: func(string, []string) error { return nil }}}})
 		if err == nil || len(result.Diagnostics) != 1 {
 			t.Fatalf("result=%#v error=%v", result, err)
 		}

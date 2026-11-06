@@ -41,6 +41,9 @@ func run() error {
 	if err := websocketHeaders(ctx); err != nil {
 		return err
 	}
+	if err := serveLifecycle(ctx); err != nil {
+		return err
+	}
 	if err := eventSource(ctx); err != nil {
 		return err
 	}
@@ -73,7 +76,7 @@ func run() error {
 	if err := os.WriteFile(filepath.Join(root, "value.mjs"), []byte(`export const value=42;`), 0600); err != nil {
 		return err
 	}
-	worker := `import {parentPort} from "node:worker_threads";import {value} from "value";import {stdin} from "node:process";if(stdin!==process.stdin)throw Error("worker stdin identity");const reader=stdin.getReader();try{if(!(await reader.read()).done)throw Error("worker stdin");}finally{reader.releaseLock();}parentPort.postMessage(value);parentPort.close();`
+	worker := `import {parentPort} from "node:worker_threads";import {value} from "value";import {stdin} from "noe:process";if(stdin!==process.stdin)throw Error("worker stdin identity");const reader=stdin.getReader();try{if(!(await reader.read()).done)throw Error("worker stdin");}finally{reader.releaseLock();}parentPort.postMessage(value);parentPort.close();`
 	if err := os.WriteFile(filepath.Join(root, "worker.mjs"), []byte(worker), 0600); err != nil {
 		return err
 	}
@@ -143,9 +146,8 @@ func commands(ctx context.Context) error {
 		return err
 	}
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[command consumer]", Virtual: true, Module: true, Code: `
-import commands, {spawn,execFile} from "node:child_process";
-import bare, {spawn as bareSpawn} from "child_process";
-if (spawn!==bareSpawn || spawn!==commands.spawn || spawn!==bare.spawn) throw Error("spawn aliases");
+import commands, {spawn,execFile} from "noe:process";
+if (spawn!==commands.spawn || execFile!==commands.execFile) throw Error("command namespace");
 const program=` + string(encoded) + `, args=["--noe-consumer-command"];
 await using child=await spawn(program,args,{stdin:"ignore",stderr:"ignore"});
 try {
@@ -155,7 +157,9 @@ try {
 const captured=await execFile(program,args,{encoding:"buffer"});
 if (Array.from(captured.stdout).join(",")!=="0,255,128,10") throw Error("captured consumer");
 if (typeof process!=="undefined") throw Error("commands installed metadata");
-if (await import("noe:process").then(()=>true,()=>false)) throw Error("removed process module");
+for (const removed of ["node:child_process","child_process","node:process","process"]) {
+  if (await import(removed).then(()=>true,()=>false)) throw Error("removed module: "+removed);
+}
 `}, stdlib.Profile{Modules: stdlib.Modules{Commands: &stdlib.CommandOptions{Allow: func(name string, _ []string) error {
 		if name != program {
 			return errors.New("unexpected command")
@@ -172,11 +176,10 @@ func stdio(ctx context.Context) error {
 	input := &borrowedInput{reader: strings.NewReader("stdio input")}
 	output := new(borrowedSink)
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[stdio consumer]", Virtual: true, Module: true, Code: `
-import selected, {stdin,stdout,stderr} from "node:process";
-import bare, {stdin as bareInput,stdout as bareOutput} from "process";
-if (selected!==bare || stdin!==bareInput || stdout!==bareOutput || selected.stdin!==stdin || selected.stdout!==stdout || selected.stderr!==stderr)
-  throw Error("stdio aliases");
-if (typeof process!=="undefined" || "env" in selected || "argv" in selected) throw Error("stdio metadata selection");
+import selected, {stdin,stdout,stderr} from "noe:process";
+if (selected.stdin!==stdin || selected.stdout!==stdout || selected.stderr!==stderr)
+  throw Error("stdio namespace");
+if (typeof process!=="undefined" || "process" in selected || "env" in selected || "argv" in selected) throw Error("stdio metadata selection");
 const stop=new AbortController(),reason={source:"consumer"};
 const combined=AbortSignal.any([stop.signal]);
 await stdin.pipeTo(stdout,{preventClose:true,signal:combined});

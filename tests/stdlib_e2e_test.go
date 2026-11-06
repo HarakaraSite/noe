@@ -11,6 +11,9 @@ func TestStdlibThroughCLI(t *testing.T) {
 	work := t.TempDir()
 	script := filepath.Join(work, "stdlib.mjs")
 	writeFixture(t, script, `import {writeFile,readFile} from "noe:fs";
+ import host, {process as current,spawn,stdin,stdout} from "noe:process";
+ if(current!==process || host.process!==current || host.spawn!==spawn || current.stdin!==stdin || current.stdout!==stdout)
+   throw Error("process namespace identity");
  import {setTimeout as sleep} from "timers/promises";
  import {Worker} from "node:worker_threads";
  if (typeof globalThis.noe !== "undefined") throw new Error("legacy global remains");
@@ -28,7 +31,7 @@ func TestStdlibThroughCLI(t *testing.T) {
 
 func TestStdlibCommandTimeoutThroughCLI(t *testing.T) {
 	for _, call := range []string{`execFileSync(process.argv[0],["eval","while(true){}"])`, `await execFile(process.argv[0],["eval","while(true){}"])`} {
-		source := `import {execFile,execFileSync} from "node:child_process";console.log("STARTED");` + call + `;console.log("AFTER");`
+		source := `import {execFile,execFileSync} from "noe:process";console.log("STARTED");` + call + `;console.log("AFTER");`
 		requireExecutionTimeout(t, runCLI(t, t.TempDir(), nil, "eval", "--timeout=200ms", source))
 	}
 }

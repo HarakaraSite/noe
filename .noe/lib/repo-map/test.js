@@ -1,8 +1,8 @@
 import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from "noe:fs";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
-import process from "node:process";
-import {execFile} from "node:child_process";
+import {process} from "noe:process";
+import {execFile} from "noe:process";
 import {repoMap} from "./repo-map.js";
 
 const root = mkdtempSync(join(tmpdir(), "noe-repo-map-"));

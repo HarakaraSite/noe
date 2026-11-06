@@ -17,7 +17,7 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
 )
 
-func websocketHeaderFixture(t *testing.T, secure bool, requests chan<- *http.Request) *httptest.Server {
+func websocketHeaderFixture(t *testing.T, secure bool, requests chan<- *http.Request, binary bool) *httptest.Server {
 	t.Helper()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests <- r.Clone(r.Context())
@@ -30,8 +30,13 @@ func websocketHeaderFixture(t *testing.T, secure bool, requests chan<- *http.Req
 		conn.SetDeadline(time.Now().Add(5 * time.Second))
 		accept := sha1.Sum([]byte(r.Header.Get("Sec-WebSocket-Key") + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
 		fmt.Fprintf(rw, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\nSec-WebSocket-Protocol: chat.v1\r\n\r\n", base64.StdEncoding.EncodeToString(accept[:]))
-		// One text message, followed by a normal close frame.
-		rw.Write([]byte{0x81, 2, 'o', 'k', 0x88, 2, 3, 232})
+		// One message, followed by a normal close frame.
+		if binary {
+			rw.Write([]byte{0x82, 3, 0, 128, 255})
+		} else {
+			rw.Write([]byte{0x81, 2, 'o', 'k'})
+		}
+		rw.Write([]byte{0x88, 2, 3, 232})
 		if err := rw.Flush(); err != nil {
 			t.Error(err)
 		}
@@ -55,7 +60,7 @@ func TestWebSocketHeadersAcrossProfilesTLSAndWorkers(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			requests := make(chan *http.Request, 1)
-			server := websocketHeaderFixture(t, test.secure, requests)
+			server := websocketHeaderFixture(t, test.secure, requests, false)
 			defer server.Close()
 			endpoint := strings.Replace(server.URL, "http", "ws", 1) + "/chat?room=fixture"
 			options := &stdlib.WebSocketsOptions{Allow: func(target *url.URL) error {
@@ -68,9 +73,11 @@ func TestWebSocketHeadersAcrossProfilesTLSAndWorkers(t *testing.T) {
 				options.TLS = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
 			}
 			profile := stdlib.Profile{Modules: stdlib.Modules{WebSockets: options}}
-			code := fmt.Sprintf(`
+			code := fmt.Sprintf(`import {createWebSocket} from "noe:http";
+
 const headers=%s;
-const socket=new WebSocket(%q,["chat.v1","other"],{headers});
+const socket=createWebSocket(%q,{protocols:["chat.v1","other"],headers});
+if(!(socket instanceof WebSocket)||socket.readyState!==WebSocket.CONNECTING||socket.binaryType!=="blob")throw Error("host factory lifecycle");
 if(headers instanceof Headers)headers.set("X-Test","changed");else if(!headers[Symbol.iterator])headers["X-Test"]="changed";
 let message;
 await new Promise((resolve,reject)=>{
@@ -114,32 +121,105 @@ await worker.terminate();if(result!=="ok")throw Error("Worker headers");`, worke
 	}
 }
 
+func TestStandardWebSocketBinaryTypesAndExtraArguments(t *testing.T) {
+	for _, mode := range []string{"blob", "arraybuffer"} {
+		t.Run(mode, func(t *testing.T) {
+			requests := make(chan *http.Request, 1)
+			server := websocketHeaderFixture(t, false, requests, true)
+			defer server.Close()
+			endpoint := strings.Replace(server.URL, "http", "ws", 1)
+			source := fmt.Sprintf(`
+const socket=new WebSocket(%q,"chat.v1",{get headers(){throw Error("nonstandard constructor options read")}});
+if(socket.binaryType!=="blob")throw Error("standard binary default");
+socket.binaryType=%q;
+const message=new Promise(resolve=>{socket.onmessage=event=>resolve(event.data)});
+const closed=new Promise((resolve,reject)=>{socket.onclose=resolve;socket.onerror=event=>reject(event.error)});
+const data=await message;
+await closed;
+if(socket.binaryType==="blob"){
+ if(!(data instanceof Blob)||(await data.bytes()).join()!=="0,128,255")throw Error("Blob message");
+}else if(!(data instanceof ArrayBuffer)||new Uint8Array(data).join()!=="0,128,255")throw Error("ArrayBuffer message");
+`, endpoint, mode)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			_, err := stdlib.Execute(ctx, stdlib.Source{Name: "[standard WebSocket]", Virtual: true, Module: true, Code: source}, stdlib.Profile{
+				Modules: stdlib.Modules{WebSockets: &stdlib.WebSocketsOptions{Allow: func(*url.URL) error { return nil }}},
+			})
+			if err != nil {
+				t.Fatal(stdlib.Diagnostic(err))
+			}
+			if request := <-requests; request.Header.Get("Authorization") != "" {
+				t.Fatal("extra constructor arguments supplied handshake headers")
+			}
+		})
+	}
+}
+
+func TestStandardWebSocketBlobEchoAndSendOrder(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[WebSocket Blob echo]", Virtual: true, Module: true, Code: `
+import {serve,upgradeWebSocket} from "noe:http";
+const server=serve({port:0},request=>{
+ const {socket,response}=upgradeWebSocket(request);
+ socket.onmessage=event=>socket.send(event.data);
+ return response;
+});
+const socket=new WebSocket(server.url.replace("http","ws"));
+try{
+ const received=[];
+ await new Promise((resolve,reject)=>{
+  socket.onopen=()=>{socket.send(new Blob([new Uint8Array([0,128,255])]));socket.send("after");};
+  socket.onerror=event=>reject(event.error);
+  socket.onmessage=event=>{
+   received.push(Promise.resolve(event.data).then(async data=>{
+    if(typeof data==="string")return data;
+    if(!(data instanceof Blob))throw Error("binary message is not Blob");
+    return (await data.bytes()).join(",");
+   }));
+   if(received.length===2)socket.close();
+  };
+  socket.onclose=resolve;
+ });
+ if((await Promise.all(received)).join("|")!=="0,128,255|after")throw Error("Blob payload or send order changed");
+}finally{socket.close();await server.close();}
+`}, stdlib.Profile{Modules: stdlib.Modules{
+		Serve:      &stdlib.ServeOptions{Allow: func(string) error { return nil }},
+		WebSockets: &stdlib.WebSocketsOptions{Allow: func(*url.URL) error { return nil }},
+	}})
+	if err != nil || result.Code != 0 {
+		t.Fatalf("result=%+v error=%s", result, stdlib.Diagnostic(err))
+	}
+}
+
 func TestWebSocketHeadersRejectInvalidInputBeforePermissionAndKeepValuesPrivate(t *testing.T) {
 	var allowed atomic.Int32
 	profile := stdlib.Profile{Modules: stdlib.Modules{WebSockets: &stdlib.WebSocketsOptions{Allow: func(*url.URL) error {
 		allowed.Add(1)
 		return errors.New("denied fixture target")
 	}}}}
-	code := `
+	code := `import {createWebSocket} from "noe:http";
+
 const endpoint="ws://127.0.0.1:1/",secret="fixture-secret";
 const invalid=[1,{headers:1},{headers:"header"},{headers:["ab"]},{headers:[["X-Test"]]},
  {headers:{"bad name":secret}},{headers:{Authorization:secret+"\r\nInjected: value"}},
  {headers:{Authorization:secret+"\u0000"}},{headers:{Authorization:secret+"\u007f"}}];
 for(const name of ["hOsT","Connection","Upgrade","Sec-WebSocket-Key","Sec-WebSocket-Version","Sec-WebSocket-Protocol","Sec-WebSocket-Extensions","Content-Length","Transfer-Encoding","Trailer"]){invalid.push({headers:{[name]:secret}})}
-for(const options of invalid){let failure;try{new WebSocket(endpoint,undefined,options)}catch(error){failure=error}
+for(const options of invalid){let failure;try{createWebSocket(endpoint,options)}catch(error){failure=error}
  if(!(failure instanceof TypeError)||String(failure).includes(secret))throw Error("invalid headers accepted or value exposed")}
 const reason={source:"getter"};
-try{new WebSocket(endpoint,undefined,{get headers(){throw reason}});throw Error("getter accepted")}catch(error){if(error!==reason)throw error}
+try{createWebSocket(endpoint,{get headers(){throw reason}});throw Error("getter accepted")}catch(error){if(error!==reason)throw error}
 let closed=false;
 const entries={*[Symbol.iterator](){try{yield ["X-Test"]}finally{closed=true}}};
-try{new WebSocket(endpoint,undefined,{headers:entries});throw Error("malformed iterable accepted")}catch(error){if(!(error instanceof TypeError)||!closed)throw error}
+try{createWebSocket(endpoint,{headers:entries});throw Error("malformed iterable accepted")}catch(error){if(!(error instanceof TypeError)||!closed)throw error}
 try{new WebSocket(endpoint,["chat\r\nInjected: value"]);throw Error("protocol accepted")}catch(error){if(!(error instanceof SyntaxError))throw error}
 `
 	_, err := stdlib.Execute(t.Context(), stdlib.Source{Name: "[invalid WebSocket headers]", Virtual: true, Module: true, Code: code}, profile)
 	if err != nil || allowed.Load() != 0 {
 		t.Fatalf("error=%s permission calls=%d", stdlib.Diagnostic(err), allowed.Load())
 	}
-	_, err = stdlib.Execute(t.Context(), stdlib.Source{Name: "[denied WebSocket headers]", Virtual: true, Module: true, Code: `new WebSocket("ws://127.0.0.1:1/",undefined,{headers:{Authorization:"Bearer fixture"}});`}, profile)
+	_, err = stdlib.Execute(t.Context(), stdlib.Source{Name: "[denied WebSocket headers]", Virtual: true, Module: true, Code: `import {createWebSocket} from "noe:http";
+createWebSocket("ws://127.0.0.1:1/",{headers:{Authorization:"Bearer fixture"}});`}, profile)
 	if err == nil || !strings.Contains(err.Error(), "denied fixture target") || allowed.Load() != 1 {
 		t.Fatalf("valid headers bypassed permission: error=%v calls=%d", err, allowed.Load())
 	}

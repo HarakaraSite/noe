@@ -13,7 +13,7 @@ Task recipes are available as details: results, files, commands, imports, http, 
 The internal input is an object with one required property. JSON tool providers use this form:
 
 ```json
-{"code":"// Read the embedded API reference.\nimport { docs } from 'noe:docs';\nconsole.log(docs('node:child_process', 'spawn'));"}
+{"code":"// Read the embedded API reference.\nimport { docs } from 'noe:docs';\nconsole.log(docs('noe:process', 'spawn'));"}
 ```
 
 The built-in openai-chatgpt provider instead accepts the JavaScript module source directly as a custom tool input, without JSON wrapping or code fences. Hooks still receive parsed `arguments: {code}`; `rawArguments` is the original source on that transport, and the original JSON string on JSON tool transports.
@@ -24,7 +24,7 @@ The result reports `stdout`, `stderr`, `exitCode`, and `reason`, plus optional `
 
 Standard output and standard error are captured independently. Each stream retains at most 64 KiB: the first 32 KiB and last 32 KiB. If a stream is larger, its text contains a truncation marker and the result includes the corresponding `stdoutOmittedBytes` or `stderrOmittedBytes` count. These byte counts describe omitted captured output, not an exit status.
 
-Use `noe:docs` from `run_js` to look up an API before using it. Use the NOE-specific `spawn` export from `node:child_process` when a child command must remain active during the call, and close owned handles in `finally`. A child process, socket, signal subscription, or other owned resource cannot continue independently after its owning tool runtime ends.
+Use `noe:docs` from `run_js` to look up an API before using it. Use the NOE-specific `spawn` export from `noe:process` when a child command must remain active during the call, and close owned handles in `finally`. A child process, socket, signal subscription, or other owned resource cannot continue independently after its owning tool runtime ends.
 
 `noe:image` has a task-specific path: `read_image(path)` returns metadata to JavaScript and attaches the image to the next model request after the tool call. Do not expect a top-level `noe run`, `eval`, or Worker to provide model vision context.
 
@@ -87,11 +87,11 @@ For async access, await readFile/readdir/stat from noe:fs. readdir returns sorte
 
 ## commands
 
-Use node:child_process execFile for a finite program with captured output. It already returns a Promise and accepts an argument array; no promisify, callback, or shell is required. The program must be installed on the host. For example, in a Git working tree:
+Use `execFile` from `noe:process` for a finite program with captured output. It already returns a Promise and accepts an argument array; no promisify, callback, or shell is required. The program must be installed on the host. For example, in a Git working tree:
 
 ~~~js
 // Read the current Git working tree status.
-import {execFile} from "node:child_process";
+import {execFile} from "noe:process";
 
 const {stdout, stderr} = await execFile("git", ["status", "--short"]);
 console.log(stdout);
@@ -102,8 +102,8 @@ Omit env to use the host-configured command environment. Supplying env replaces 
 
 ~~~js
 // Disable CGO while preserving PATH and the other environment variables.
-import {execFile} from "node:child_process";
-import process from "node:process";
+import {execFile} from "noe:process";
+import {process} from "noe:process";
 
 const {stdout} = await execFile("go", ["env", "CGO_ENABLED"], {
   env: {...process.env, CGO_ENABLED: "0"},
@@ -117,7 +117,7 @@ When installed, rg can handle file discovery (rg --files) and text search withou
 
 ~~~js
 // Search documentation and handle an empty result.
-import {execFile} from "node:child_process";
+import {execFile} from "noe:process";
 
 try {
   const {stdout} = await execFile("rg", ["-n", "--", "TODO", "docs"]);
@@ -128,7 +128,7 @@ try {
 }
 ~~~
 
-execFile rejects on a nonzero exit with code, stdout, and stderr details. execFileSync and execSync throw an Error with the same details (their output is always text); success still returns stdout as a string. exec/execSync use a shell when shell syntax is needed. spawnSync returns a status object; inspect its error before status. For a live process with incremental Web Streams, read docs("node:child_process", "spawn") instead. Owned processes cannot outlive the run_js runtime.
+execFile rejects on a nonzero exit with code, stdout, and stderr details. execFileSync and execSync throw an Error with the same details (their output is always text); success still returns stdout as a string. exec/execSync use a shell when shell syntax is needed. spawnSync returns a status object; inspect its error before status. For a live process with incremental Web Streams, read docs("noe:process", "spawn") instead. Owned processes cannot outlive the run_js runtime.
 
 ## imports
 
@@ -148,16 +148,14 @@ import.meta.url gives each file-backed module its encoded file URL and each HTTP
 
 Local and HTTP data imports use `import data from "./data.json" with {type:"json"}`, or the `"text"`/`"bytes"` types. Dynamic imports use `await import("./data.json", {with:{type:"json"}})`. Each exports only a default value; bytes are a Uint8Array over an immutable buffer. Local source bytes and HTTP response-body bytes are preserved, filenames have no suffix restriction, and a plain import still executes JavaScript. The selected filesystem or HTTP loader controls access. HTTP does not validate MIME metadata or UTF-8, remove a BOM, or transcode charsets. Text retains a leading BOM; BOM-prefixed JSON fails the current engine parser. Configured import maps support exact bare names, slash-terminated prefixes, and referrer scopes; more specific matching scopes precede outer scopes and global mappings.
 
-process.cwd() is global; alternatively import process from "node:process". The module has no named cwd export. Local file paths work without an import map, and supported built-in modules have both bare and node: names. HTTP/HTTPS ESM URL imports are enabled in the CLI profile and optional in embedded profiles, independently of fetch. The standard URL loader preserves response-body bytes regardless of Content-Type, without requiring a .js/.mjs URL suffix. Plain imports execute JavaScript; attributes select JSON/text/bytes. It performs no TypeScript transformation, npm lookup, or cross-runtime download caching; unmapped bare package imports are unavailable. Synchronous module downloads pause that runtime's JavaScript jobs and use the host execution context for cancellation. Imported module state is fresh in each run_js call. Files explicitly written to a known path can be read by later calls.
+process.cwd() is global; alternatively import `{process}` from `noe:process` when ProcessInfo is selected. The named `process` export and the global are the same object. The module's default export is a namespace of selected named exports, so metadata is at `default.process`, not `default.cwd`. Local file paths work without an import map, and supported built-in modules have their documented bare and `node:` names; NOE-specific modules use `noe:` names. HTTP/HTTPS ESM URL imports are enabled in the CLI profile and optional in embedded profiles, independently of fetch. The standard URL loader preserves response-body bytes regardless of Content-Type, without requiring a .js/.mjs URL suffix. Plain imports execute JavaScript; attributes select JSON/text/bytes. It performs no TypeScript transformation, npm lookup, or cross-runtime download caching; unmapped bare package imports are unavailable. Synchronous module downloads pause that runtime's JavaScript jobs and use the host execution context for cancellation. Imported module state is fresh in each run_js call. Files explicitly written to a known path can be read by later calls.
 
 ## http
 
-Use fetch from noe:http for HTTP requests. This example assumes a local service exposes a JSON endpoint; change the URL for the task:
+Use the standard global `fetch` for HTTP requests. This example assumes a local service exposes a JSON endpoint; change the URL for the task:
 
 ~~~js
 // Fetch JSON and report HTTP failures.
-import {fetch} from "noe:http";
-
 const response = await fetch("http://127.0.0.1:8080/data.json");
 if (!response.ok) {
   throw Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 500)}`);
@@ -165,7 +163,7 @@ if (!response.ok) {
 console.log(JSON.stringify(await response.json()));
 ~~~
 
-HTTP 4xx/5xx responses do not reject fetch by themselves; inspect response.ok/status. A transport error rejects. Consume the body once with text(), json(), or its stream. Independent requests can use Promise.all. See docs("noe:http", "fetch") for aborts, streaming, redirects, and ownership.
+HTTP 4xx/5xx responses do not reject fetch by themselves; inspect response.ok/status. A transport error rejects. Consume the body once with text(), json(), or its stream. Independent requests can use Promise.all. See docs("globals", "fetch") for aborts, streaming, response limits, redirects, and ownership.
 
 ## agents
 
@@ -217,6 +215,6 @@ console.log(JSON.stringify({array: Array.isArray(names), firstType: typeof names
 console.log(docs("noe:fs", "readdirSync"));
 ~~~
 
-Common differences: readdirSync/readdir return strings, node:process exports only default, execFile is promise-based, and fs Streams are Web Streams. Refer directly to the relevant detail when the module is known; listing all docs topics again is unnecessary.
+Common differences: readdirSync/readdir return strings, `noe:process` groups selected APIs in its default namespace and exports metadata as named `process`, execFile is promise-based, and filesystem streams are Web Streams. Refer directly to the relevant detail when the module is known; listing all docs topics again is unnecessary.
 
 Do not report an operation as successful merely because a catch block printed its error and the outer process exited with zero. Catch expected outcomes deliberately; rethrow unexpected errors. Independent tool calls can run concurrently, so put operations that depend on one another in a single ordered call or wait for their results before continuing. Keep printed output relevant; when a complete large result is needed later, save it explicitly to a known file before printing a summary.

@@ -151,7 +151,7 @@ func TestPinnedStdlibModuleReservationListMatchesRegisteredNames(t *testing.T) {
 		loaderRequests = append(loaderRequests, specifier)
 		return NewLoader(nil, "", "").Load(specifier, referrer)
 	})
-	if _, err := rt.EvalModule(filepath.Join(t.TempDir(), "main.js"), `import path from "node:path"; import {fetch,serve} from "noe:http"; globalThis.nativeBasename = path.basename("/a/b.js"); if(fetch!==globalThis.fetch||serve!==globalThis.serve)throw Error("HTTP identity");`); err != nil {
+	if _, err := rt.EvalModule(filepath.Join(t.TempDir(), "main.js"), `import path from "node:path"; import {serve} from "noe:http"; globalThis.nativeBasename = path.basename("/a/b.js"); if(typeof serve!=="function"||typeof globalThis.serve!=="undefined")throw Error("HTTP module");`); err != nil {
 		t.Fatalf("native module import: %v", err)
 	}
 	for _, request := range loaderRequests {

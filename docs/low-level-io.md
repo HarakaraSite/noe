@@ -96,6 +96,6 @@ WorkerだけがSIGTERMを購読していてもNOEプロセス全体の既定終�
 
 ## 観察出力
 
-Raw socket bytes are not copied into JSONL events automatically. Explicit writes through `console` or the `node:process` stdout/stderr Web Streams use the existing observation writer.
+Raw socket bytes are not copied into JSONL events automatically. Explicit writes through `console` or the `noe:process` stdout/stderr Web Streams use the existing observation writer.
 
 [プロセスと標準I/O](process-io.md) · [例](../examples/low-level/README.md) · [実装・検証記録](development/low-level-group2-implementation.md)

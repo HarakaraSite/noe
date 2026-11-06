@@ -182,7 +182,8 @@ func requireHTTPReceivePortReleased(t *testing.T, address string) {
 	_ = listener.Close()
 }
 
-const httpReceiveModule = `import {fetch} from "noe:http";
+const httpReceiveModule = `import {serve} from "noe:http";
+
 const fixture=%q;
 
 export function launch(mode) {
@@ -220,7 +221,7 @@ func TestNoeHTTPReceiveStreamReachesMainAndWorkersBeforeEOF(t *testing.T) {
 	}
 	files := map[string]string{
 		"node-worker.mjs": `import {parentPort,workerData,Worker} from "node:worker_threads";
-import {fetch} from "noe:http";
+
 import {launch} from "./receive.mjs";
 const own=launch(workerData.mode);
 let child=null;
@@ -232,17 +233,17 @@ if(workerData.nested){
 parentPort.postMessage({mode:workerData.mode,url:own.server.url,childUrl:childReady?.url||""});
 parentPort.on("message",async message=>{
  if(message!=="stop")return;
- own.server.close();
+ await own.server.close();
  if(child){child.postMessage("stop");await new Promise((resolve,reject)=>{child.once("message",value=>value?.done?resolve():null);child.once("error",reject);});await child.terminate();}
  parentPort.postMessage({done:true});
 });`,
 		"web-worker.mjs": `import {launch} from "./receive.mjs";
 let own;
-globalThis.onmessage=event=>{
+globalThis.onmessage=async event=>{
  if(event.data==="start"){
   own=launch("web");postMessage({mode:"web",url:own.server.url});return;
  }
- if(event.data==="stop"&&own){own.server.close();postMessage({done:true});}
+ if(event.data==="stop"&&own){await own.server.close();postMessage({done:true});}
 };`,
 	}
 	for name, source := range files {
@@ -250,7 +251,7 @@ globalThis.onmessage=event=>{
 			t.Fatal(err)
 		}
 	}
-	main := fmt.Sprintf(`import {fetch} from "noe:http";
+	main := fmt.Sprintf(`
 import {Worker} from "node:worker_threads";
 import {launch} from %q;
 const fixture=%q;
@@ -272,7 +273,7 @@ const urls={main:own.server.url,node:nodeInfo.url,nested:childReady.url,web:webI
 const published=await fetch(fixture+"/ready",{method:"POST",body:JSON.stringify(urls)});
 if(published.status!==204)throw Error("failed to publish receive URLs");
 await fetch(fixture+"/wait");
-own.server.close();
+await own.server.close();
 node.postMessage("stop");web.postMessage("stop");
 await Promise.all([nodeDone,webDone]);
 await node.terminate();await web.terminate();
@@ -399,7 +400,7 @@ func (f *httpReceiveLifecycleFixture) waitPending(t *testing.T) {
 func TestNoeHTTPReceivePendingReadStopsOnRootFailure(t *testing.T) {
 	fixture := newHTTPReceiveLifecycleFixture(t)
 	base := strconv.Quote(fixture.server.URL)
-	source := `import {fetch} from "noe:http";
+	source := `import {serve} from "noe:http";
 const fixture=` + base + `;
 const server=serve({port:0},async request=>{
  const reader=request.body.getReader();
@@ -442,11 +443,12 @@ throw new Error("HTTP_ROOT_FAILURE");`
 func TestNoeHTTPReceivePendingReadStopsOnWorkerTermination(t *testing.T) {
 	fixture := newHTTPReceiveLifecycleFixture(t)
 	base := strconv.Quote(fixture.server.URL)
-	source := `import {fetch} from "noe:http";
+	source := `
 import {Worker} from "node:worker_threads";
 const fixture=` + base + `;
-const worker=new Worker(` + strconv.Quote(`import {parentPort} from "node:worker_threads";
-import {fetch} from "noe:http";
+const worker=new Worker(` + strconv.Quote(`import {serve} from "noe:http";
+import {parentPort} from "node:worker_threads";
+
 const server=serve({port:0},async request=>{
  const reader=request.body.getReader();
  const first=await reader.read();if(first.done)throw Error("missing request prefix");

@@ -38,7 +38,8 @@ func TestSleepTimeoutAndExplicitExitThroughCLI(t *testing.T) {
 }
 
 func TestSleepDoesNotBlockServeHandlersThroughCLI(t *testing.T) {
-	p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `import {setTimeout as sleep} from "timers/promises"; const s=serve({},async request=>{
+	p := startCLIWithOpenStdin(t, t.TempDir(), "eval", `import {serve} from "noe:http";
+import {setTimeout as sleep} from "timers/promises"; const s=serve({},async request=>{
 const path=new URL(request.url).pathname;
 if(path==="/slow"){const p=sleep(60000);console.log("SLEEP_HANDLER_STARTED");await p;console.log("SLEEP_HANDLER_FINISHED");return new Response("late")}
 if(path==="/exit")process.exit(0);return new Response("fast");});console.log("SERVER_URL",s.url);`)

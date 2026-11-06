@@ -1,22 +1,33 @@
 # Standard library session handoff
 
-Updated 2026-11-06 for a session restart. This document records the current
-continuation point; the linked policy and implementation records remain the
-canonical design and validation references.
+Updated 2026-11-07 after Serve request-limit errors, asynchronous close, and
+async disposal, following the completed process/HTTP/Fetch migrations.
+This document records the current continuation point; linked policy and
+implementation records remain the canonical design and validation references.
 
 ## Repository and publication state
 
 - Repository: `/home/agent/projects/noe`, branch `main`.
-- This handoff is committed together with the `noe:fs` migration. Its parent
-  is `1d044021074768942a6e4a19e8c1d8258356107d`
-  (`feat(stdlib): add EventSource and asynchronous SQLite`).
+- This handoff is committed with the verified process/HTTP/Serve checkpoint.
+  Its parent is `295fb53` (`refactor(stdlib): consolidate filesystem APIs under
+  noe:fs`). The user requested this local commit and continued implementation
+  on 2026-11-07. No push or publication is included.
 - The latest release recorded in this checkout is v2.15.0. EventSource,
-  asynchronous SQLite, and the new filesystem migration are unreleased.
-- The user requested a local commit and this handoff. Publishing, pushing,
-  releasing, replacing installed executables, and restarting processes are
-  not part of this request.
-- No implementation work for the process or HTTP naming migrations has
-  started. Resume from the next slice below, not from the old phase-1 design.
+  asynchronous SQLite, filesystem/process/HTTP migrations, and the response
+  limit/Blob-send and Serve lifecycle corrections are unreleased.
+- Latest source candidate: `/var/tmp/noe-serve-policy-bOYsbk/noe`. Earlier
+  candidate paths below belong to their recorded slices, not the latest API.
+- The resumed request authorized continuation, and the user explicitly
+  approved the concrete process contract and deletion of its four legacy
+  imports without adapters. No push, release, installed-executable
+  replacement, or process restart is authorized by that decision.
+- The user subsequently asked for as much autonomous progress as possible
+  while asleep and explicitly allowed breaking changes. That authorization
+  covers the completed HTTP slice and correctness fixes below. No external
+  publication, installed-binary replacement, or noebot work was performed.
+- On 2026-11-07 the user explicitly requested the proposed Serve improvements:
+  request overflow errors and asynchronous close/asyncDispose. They are now
+  implemented and verified locally as described below.
 
 ## User decisions to retain
 
@@ -25,114 +36,270 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
 - Web standards and usability take priority over Node compatibility. Web
   APIs retain their standard names and semantics; NOE-specific host APIs
   use explicit `noe:` module names.
-- Preserve the shared native backends, selected capabilities, Root/Cwd/
-  ReadOnly behavior, and resource ownership. Do not restore duplicate native
+- Preserve shared native backends, independently selected capabilities,
+  Root/Cwd/ReadOnly, and resource ownership. Do not restore duplicate native
   implementations merely to restore convenient method names.
-- Explain breaking changes before each new slice. The user decides whether
-  compatibility routes are needed for that slice. Do not treat the FS
-  decision as authorization to remove all remaining Node modules.
-- For this filesystem slice, the user explicitly chose to remove all four
-  old imports without adapters and migrate NOE's own callers.
-- **noebot is handled independently by the user.** Do not keep investigating,
-  editing, or testing it for this work. An earlier read-only audit and
+- Explain breaking changes before each new slice. The latest user instruction
+  authorizes autonomous local standard-library progress with breaking changes;
+  do not repeat compatibility approval prompts within that scope. Choose
+  coherent contracts and migrate callers/types/docs/tests together. This is
+  not a reason to rename all remaining useful Node utilities without a use case.
+- For FS, the user chose removal of all four old imports without adapters.
+- For process/I/O, the user chose the contract below and removal of
+  `node:child_process`, `child_process`, `node:process`, and `process` imports
+  without adapters. Global `process` is retained. Its module form is now
+  the named `process` export; the default export is the module namespace.
+- **noebot is handled independently by the user.** Do not investigate, edit,
+  or test it for this work. An earlier read-only FS audit and
   [migration memo](noebot-noe-fs-migration.md) are available if requested.
 - Documentation and explanatory source text are English; user replies may
-  be Japanese. Follow repository AGENTS.md, including reuse of completed
-  validation when the tested source and dependencies have not changed.
+  be Japanese. Follow AGENTS.md, including reuse of completed validation
+  when the tested source and dependencies have not changed.
+
+## Completed Serve limits and lifecycle slice
+
+See [implementation and migration](stdlib-serve-lifecycle.md) and the current
+[embedded reference](../../internal/apidocs/content/noe-http.md).
+
+- Request body overflow now rejects with `RangeError` and
+  `code: "ERR_HTTP_BODY_TOO_LARGE"`. Exact-bound bodies succeed after actual
+  EOF is verified with at most one extra probe byte. Zero retains the 32 MiB
+  default and negative now means unlimited instead of an empty body.
+- Uncaught overflow produces 413 before response headers. `onError` can
+  supply another response. Once response streaming starts, overflow fails
+  that transfer rather than turning a prefix into successful completion.
+- HWM0 demand, bounded native reads, data/terminal-error ordering, GET/HEAD,
+  Expect: 100-continue, early responses without implicit drains, and input
+  cancellation/cleanup remain on the existing shared backend.
+- `server.close()` now returns one shared `Promise<void>`, resolving to
+  undefined after cleanup. It closes handler admission immediately and
+  waits off the JS owner, allowing active handlers and timers to finish.
+  The existing five-second graceful allowance and forced fallback remain.
+- `server[Symbol.asyncDispose]()` delegates to close. `await using` cleans
+  up on normal and exceptional scope exit. Runtime/execution/Worker force
+  cleanup remains independent of a pending graceful close.
+- Initiate close and return a Response from a shutdown handler; await close
+  outside its own handler/response producer. Upgraded WebSockets keep their
+  separate ownership. No closeSync alias or public Go field is added.
+- NOE callers, public types, current guides/bundled reference, auth helper,
+  HTTP examples, agent-server shutdown, and external consumers are migrated.
+  Older phase/release records retain their original contracts. Noebot was
+  not investigated, edited, or tested.
+
+## Serve validation and evidence
+
+Validation is complete. Evidence: `/var/tmp/noe-serve-policy-bOYsbk`.
+
+- Full `internal/stdlib` and public `stdlib` suites, affected module-map,
+  composition, execution, runtime, and CLI packages. Focused public tests
+  cover shared Promise/undefined completion, active handler/timer progress,
+  handler-initiated close, port reuse, normal/exceptional disposal, the
+  graceful deadline, and cancellation during close.
+- Receive tests cover actual EOF/overflow, negative/unlimited reads,
+  collector/stream RangeError and code, default 413/custom onError, transfer
+  abort after headers, data/terminal errors, and cancelled Expect probes.
+- Relevant real-CLI Serve/HTTP/WebSocket/EventSource/docs E2E, Worker/fixture
+  agent paths, targeted race checks, agent-server normal/graceful/SIGINT
+  cleanup, auth-helper help, TypeScript/API catalog/lint/vet all passed.
+- `consumer/` contains checkout and independent module-artifact consumers
+  with CGO disabled and six release-target builds. The consumer exercises
+  async disposal, receive overflow, and a handler completing its response
+  after initiating close. After this runtime snapshot, standalone reference
+  member headings were added; only docs/catalog tests changed and were
+  checked separately with a fresh candidate. Do not repeat native consumer
+  cross-builds solely for those documentation additions.
+- The first focused lifecycle check exposed incorrect void-promise encoding
+  (nil becomes null and zero Value becomes numeric zero in this engine).
+  Capturing actual global undefined on the owner fixed it; the focused
+  recheck and full public suite passed. No unresolved failure remains.
+- Bounded independent static review found no actionable finding in graceful/
+  force overlap, owner-thread hooks and Promise settlement, handler/body I/O
+  joining, cap probing, cancellation, or streamed-response failure.
+- `verification.json` records commands and resolutions;
+  `source-manifest.json` records the final working-tree hashes. `baseline/`
+  preserves the prior HTTP artifact source for this slice's comparison.
+
+The fresh candidate is `/var/tmp/noe-serve-policy-bOYsbk/noe`, including the
+final bundled close/disposal details. It is not installed. The process/HTTP
+and earlier native filesystem evidence below remain reusable for unchanged
+implementation. No push, release, installed-binary replacement, or running
+service restart was performed.
+
+## Completed HTTP/WebSocket slice and response corrections
+
+See [HTTP implementation and migration](stdlib-noe-http.md),
+[Fetch limit correction](stdlib-fetch-body-limit.md), and the
+[embedded host reference](../../internal/apidocs/content/noe-http.md).
+
+- `noe:http` now exposes only host helpers, with no default/fetch export:
+  Serve selects `serve`; WebSockets selects `createWebSocket`; both also
+  select `upgradeWebSocket`. Fetch-only does not install this module.
+- `node:http`, bare `http`, and installed global serve/upgradeWebSocket are
+  removed without adapters. Bare `http` can be import-mapped; reserved
+  prefixes remain independent. Standard Fetch, Request/Response, WebSocket,
+  EventSource, and Streams stay global.
+- Custom handshake headers now use synchronous
+  `createWebSocket(url, {protocols, headers})`. It returns the same WebSocket
+  class in CONNECTING state, using the existing validation/snapshot,
+  authorization, TLS, events, native backend, and execution cleanup.
+- The standard constructor has its two-argument surface. Its old third
+  argument no longer supplies headers. Default binaryType is now `"blob"`;
+  callers requiring raw buffers explicitly set `"arraybuffer"`.
+- A final data-flow check found existing Blob sends were text-coerced. They
+  now synchronously enter the native binary queue through the built-in Blob
+  byte storage, preserving payload snapshots and message order. Default-Blob
+  client/server echo plus a following text message is tested. File inherits
+  the same supported path.
+- Fetch response overflow now rejects in buffered/no-loop and streaming
+  paths, instead of succeeding with a prefix. Exact cap is allowed after
+  actual EOF; the check probes at most one extra byte, does not trust
+  Content-Length, and releases the owned response. Zero stays 32 MiB and
+  negative stays unlimited. Abort during the boundary wait releases the peer.
+- Go options, dependencies, command/filesystem backends, and WebSocket native
+  transports were unchanged by that slice. The subsequent Serve slice below
+  replaces its former request-prefix cap and synchronous close contract.
+- NOE's callers, hidden instructions, authentication helper, examples,
+  declarations, references, and public consumers are migrated. Historical
+  phase/release text keeps its original contracts.
+
+## HTTP/Fetch validation and evidence
+
+Validation is complete. Evidence: `/var/tmp/noe-http-policy-8FsuKH`.
+
+- Individual command JSON/logs and `verification.json` cover core/public
+  standard-library suites, affected integration packages, TypeScript/API
+  catalog/lint/vet, selected HTTP/Serve/WebSocket/EventSource/docs E2E,
+  targeted race checks, affected agent-server scenarios, auth help, and
+  standalone bundled docs. New tests cover all eight capability selections,
+  standard Blob/ArrayBuffer delivery, header-factory identity/validation,
+  exact/over-limit reads and cancellation while the EOF probe is blocked.
+- Initial full-suite failures were stale test bindings/import concatenation
+  and a former docs wording assertion. Focused final rechecks passed; other
+  successful tests were reused rather than repeating complete suites.
+- The final Blob-send correction passed the WebSocket-focused tests,
+  targeted race check, and real-CLI four-mode header E2E. An independent
+  bounded static review and one narrow Blob-send re-review found no blocker.
+- `consumer-final/` is the final checkout/module-artifact consumer snapshot,
+  including authenticated binary Blob echo, with CGO disabled and all six
+  release-target builds. The earlier `consumer/` is intermediate evidence.
+- `source-manifest.json` records the final working-tree hashes. It includes
+  the previously completed process migration, whose code is preserved.
+
+The final fresh candidate is
+`/var/tmp/noe-http-policy-8FsuKH/noe-final`; the earlier `noe` candidate predates
+Blob-send correction. Neither is installed. Do not test new APIs with `./noe`
+or an installed binary unless rebuilt. No external provider or noebot test
+was run. Unchanged native filesystem/process results from earlier slices
+remain reusable.
+
+## Completed process and standard I/O slice
+
+See [implementation, migration, and verification](stdlib-noe-process.md) and
+[embedded API reference](../../internal/apidocs/content/noe-process.md).
+
+- One `noe:process` module is installed if ProcessInfo, Stdio, or Commands
+  is selected. With none selected it is absent. All three capabilities
+  remain independently selectable, including in Workers.
+- Commands exports `exec`, `execFile`, `execFileSync`, `execSync`, `spawn`,
+  and `spawnSync` with their existing signatures, results, environment/cwd,
+  authorization, timeout, output limits, and child ownership.
+- Stdio exports the same `stdin`, `stdout`, and `stderr` byte Web Streams.
+  Workers retain immediate stdin EOF and configured output destinations.
+  Closing stream endpoints does not close borrowed host readers/writers.
+- ProcessInfo exports named `process`, identical to global `process`.
+  Arguments, environment snapshot, metadata, clocks, exit/exitCode,
+  nextTick, events, and Worker exit behavior remain. With Stdio selected,
+  process stream properties are the same named stream instances.
+- The default object contains the selected named exports. Metadata is at
+  `default.process`, not `default.env` or `default.cwd`; commands do not
+  become properties of global `process`.
+- All four legacy imports are removed without adapters. Bare `process` and
+  `child_process` can now be import-mapped. `node:`/`noe:` prefixes remain
+  reserved independently, including removed names.
+- `internal/stdlib/process_module.go` composes metadata/captured commands;
+  `internal/noestdlib` completes the same module with the native live-child
+  and stdio adapters before user imports. No native backend, public Go
+  configuration field, or dependency changed.
+- NOE callers, hidden libraries/instructions, auth helpers, examples, public
+  Go consumers, types, and current references are migrated. The MCP spike's
+  NOE transport is migrated; its Node server keeps Node imports. Historical
+  release/phase records retain their original contracts.
+
+## Process validation and evidence
+
+Validation is complete for this slice. Local evidence:
+`/var/tmp/noe-process-policy-6fHylF`.
+
+- Individual JSON/log files and `verification.json`: full core stdlib and
+  native-I/O suites, public stdlib suite, affected integration/API catalog
+  packages, selected real-CLI/Worker/fixture-agent process-I/O E2E, five
+  affected offline libraries, affected example scenarios, auth-helper help,
+  standalone bundled docs, lint, and vet.
+- All eight capability selections verify exact exports, namespace/global
+  identities, and removed imports. Existing permission, cwd/environment,
+  cancellation, borrowing, Worker, disposal, and explicit-helper checks pass.
+- `consumer/`: checkout and standalone module-artifact public consumers ran
+  with CGO disabled. The artifact consumer compiled for all six release
+  targets. Dependencies are unchanged from the completed FS slice.
+- TypeScript positive/negative fixtures and the embedded API catalog suite
+  passed. The initial integration failure was an export-inventory wording
+  mismatch in the new docs; the inventory was fixed and the full runtime
+  suite passed. No unresolved runtime failure remains.
+- Independent bounded static review found no core-composition blocker.
+- `source-manifest.json` records the final working-tree source hashes.
+
+The fresh temporary candidate is
+`/var/tmp/noe-process-policy-6fHylF/noe`. It is not installed. Do not use
+`./noe` or an installed executable as evidence for these unreleased APIs
+without rebuilding. The official MCP SDK spike was not rerun; its transport
+change is an import replacement. Noebot was not investigated or validated.
+
+Reuse completed results for unchanged code. Do not rerun all unit/E2E or
+long-running checks merely for a local commit, version bump, or release
+instruction.
 
 ## Completed filesystem slice
 
-See [implementation, migration, and verification](stdlib-noe-fs.md) and the
-[embedded API reference](../../internal/apidocs/content/noe-fs.md).
+See [implementation and verification](stdlib-noe-fs.md) and the
+[embedded reference](../../internal/apidocs/content/noe-fs.md).
+Only `noe:fs` is registered, with direct async operations, explicit Sync
+helpers, concise FileHandle `read`/`readAt`/`write`/`writeAt`, options-based
+`open`, and iterator-only watching. All four old FS imports are removed.
+Native ownership, positional/append behavior, Root/Cwd/ReadOnly, shutdown,
+partial-I/O errors, and borrowed Go filesystem views remain as documented.
+The complete FS evidence remains at `/var/tmp/noe-fs-policy-aj2_zwmi`;
+process naming changes do not invalidate unchanged native filesystem tests.
 
-- Only `noe:fs` is registered. `node:fs`, `node:fs/promises`, `fs`, and
-  `fs/promises` were removed; no compatibility adapters remain. Bare FS
-  names can now be mapped by import maps; `node:`/`noe:` prefixes remain
-  reserved independently.
-- Async operations are direct exports. Explicit Sync helpers and a default
-  namespace object remain; there is no `promises` property or submodule.
-- `open(path, {flags = "r", mode = 0o666} = {})` returns the shared FileHandle.
-  Positional string flags are rejected.
-- `read(length = 16384)` and `readAt(position, length)` return Uint8Array
-  data; `write(data)` and `writeAt(position, data)` return byte counts.
-  Native write snapshots, partial-I/O errors, close admission/draining,
-  shutdown cleanup, stat, sync, and async disposal are retained.
-- Non-append positional I/O preserves the cursor. Append-handle `writeAt`
-  ignores its supplied position, writes at EOF, and advances the cursor.
-  `truncate` rejects negative lengths without changing the file.
-- `watch` returns the existing async iterator. The EventEmitter facade and
-  its Go hooks were removed. Native registration starts at first `next()`;
-  close/return/asyncDispose and existing AbortSignal behavior remain.
-- Async `chmod` pairs with `chmodSync`, including its existing integer
-  conversion and permission mask. No new range validation was added.
-- Examples, hidden `.noe/lib` code, embedded examples/instructions, tests,
-  public Go consumers, TypeScript declarations, and current references were
-  migrated. Historical phase and release records retain their old contracts.
-- Native file/watch backends, public Go configuration fields, and
-  dependencies did not change. Stream helpers still open files synchronously.
+## Next continuation
 
-## Validation and evidence
+The filesystem/process/HTTP entrance migrations, Fetch response-overflow and
+Blob-send corrections, and Serve limits/lifecycle are implemented and
+validated locally. No required runtime blocker remains in the approved
+slices. They are included in the local checkpoint commit with this handoff;
+no release or publication instruction was given.
 
-Validation is complete for this slice. Local evidence:
-`/var/tmp/noe-fs-policy-aj2_zwmi`.
+Remaining Node utilities, Buffer, and process metadata methods are
+use-case-driven work. Avoid wholesale rename churn merely to eliminate Node
+names. Useful existing contracts can remain until a concrete migration is
+justified. The latest permission allows local breaking changes without
+another compatibility prompt, while preserving noebot/publication/install
+boundaries. Prefer concrete caller evidence for the next implementation.
+Web Crypto expansion and WebSocketStream remain use-case driven as below.
 
-- `source-manifest.json`: checked source hashes before the commit handoff.
-  The commit adds documentation only after that verified snapshot.
-- `verification.json` and individual command JSON/log files: full
-  `internal/stdlib` unit tests; affected integration packages; targeted native
-  and public-profile race checks; selected CLI/Worker/fixture-agent E2E;
-  final watch and standalone-docs E2E; six offline libraries; Go vet and lint.
-- `consumer/`: public stdlib checkout and standalone module-artifact
-  consumers ran with CGO disabled and compiled for all six release targets.
-  Public agentlib portable and Go-host consumers also passed.
-- TypeScript positive/negative fixtures and full public stdlib/API catalog
-  tests passed. Initial integration failures were stale import-map/docs
-  expectations; the affected gates were corrected and passed. Do not treat
-  the earlier failed log as an unresolved runtime failure.
-- Independent bounded review found no runtime blocker. Three documentation
-  mismatches were fixed and confirmed in one change-only re-review.
-
-The candidate CLI is `/var/tmp/noe-fs-policy-aj2_zwmi/noe-final`; it is not
-installed. Its runtime code matches the checked implementation; some bundled
-reference wording was corrected afterward. Build a fresh temporary candidate
-if the next slice needs the latest bundled docs. Do not use `./noe` or the
-installed executable as evidence for source-only APIs without rebuilding.
-
-Reuse these results for unchanged code. Run checks appropriate to the next
-actual modification; do not repeat all unit/E2E/race checks for a commit or
-release instruction alone.
-
-## Next slice: process and standard I/O
-
-1. Read the policy, then inspect the current `node:child_process`/bare
-   `child_process` and `node:process`/bare `process` surfaces. They expose
-   NOE's Promise/Web Streams behavior. Global process metadata also exists.
-2. Propose a coherent `noe:process` contract for commands, live children,
-   standard I/O, and metadata. Exact grouping and legacy entrance removal
-   are still undecided. Keep ProcessInfo, Stdio, and Commands capability
-   selection independent, and preserve main/Worker and borrowed-I/O rules.
-3. Explain import, signature, return-shape, or global changes before
-   implementation and obtain the slice's compatibility decision. The user
-   expects progress toward this direction but has not approved a specific
-   process migration contract yet.
-4. Migrate NOE's callers, public types, references, and consumers alongside
-   implementation. Leave noebot to its owner.
-
-After process/I/O, review host HTTP/listener/upgrade helpers and nonstandard
-extensions. Keep standard global `fetch` and Web APIs. Remaining Node
-utilities and globals are demand-driven work, not a wholesale rename.
+Reuse the completed results for unchanged source/dependencies. A version,
+commit, or release instruction alone is not a reason to repeat all unit,
+E2E, race, or consumer cross-builds. Use the latest fresh temporary candidate
+for source-only APIs; installed executables still describe their own release.
 
 ## Other already completed or deferred work
 
 - EventSource is a standard global with reconnection/cancellation and shared
   Fetch ownership; see [implementation](stdlib-eventsource.md).
 - SQLite uses the approved asynchronous `noe:sqlite` API; see
-  [implementation and limitations](stdlib-sqlite.md). The filesystem naming
-  change does not require a SQLite redesign.
+  [implementation and limitations](stdlib-sqlite.md).
 - Web Crypto expansion and WebSocketStream remain use-case driven. The
-  broader [roadmap](stdlib-roadmap.md) still applies under the newer policy.
-- Separate known improvement candidate, outside this completed slice:
-  Fetch's configured response-body limit currently presents a successful
-  prefix rather than rejecting an oversized body read. An earlier local
-  probe is `/var/tmp/noe-api-direction-7odu19wj/probe.go`. This has not been
-  fixed or included in the FS migration; assess it as its own work item.
+  broader [roadmap](stdlib-roadmap.md) applies under the newer policy.
+- The former Fetch response-prefix improvement candidate is now fixed and
+  verified; see the correction above. The old exploratory probe at
+  `/var/tmp/noe-api-direction-7odu19wj/probe.go` is historical evidence, not
+  a current unresolved failure.

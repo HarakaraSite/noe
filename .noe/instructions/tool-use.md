@@ -16,7 +16,7 @@ When a signature, return shape, supported operation, or resource lifetime is unf
 
 ```js
 import {docs} from "noe:docs";
-console.log(docs("node:child_process", "execFile"));
+console.log(docs("noe:process", "execFile"));
 ```
 
 Use docs() for the topic index, docs(topic) for an overview, and docs(topic, member) for a known detail. The run_js recipes are results, files, commands, imports, http, agents, and failures. Select a known topic or recipe directly rather than listing the index again.

@@ -1,5 +1,5 @@
 // Local content search for NOE. No Node.js, npm, or shell invocation.
-import {spawn} from "node:child_process";
+import {spawn} from "noe:process";
 
 const encoder = new TextEncoder();
 const bytes = value => encoder.encode(JSON.stringify(value)).length;

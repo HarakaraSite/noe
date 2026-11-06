@@ -32,7 +32,7 @@ export function afterTool(e){record(e,"first");return {result:{kept:true}};}
 `, ran))
 	writePhaseHook(t, cwd, "fails.mjs", common+`
 import {writeFileSync} from "noe:fs";
-import {execFile} from "node:child_process";
+import {execFile} from "noe:process";
 export async function beforeModelRequest(e,api){
  record(e,"fails");
  await api.context.setRuntimeInfo({key:"partial",text:"kept runtime info after failure"});

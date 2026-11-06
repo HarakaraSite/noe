@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn } from "noe:process";
 
 // NoeTransport implements the SDK Transport contract with newline-delimited
 // JSON over a child process's standard streams. The caller owns process

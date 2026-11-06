@@ -10,27 +10,25 @@ Availability: This is the complete reference, not a report of the current runtim
 
 Public-definition source: internal/stdlib/stdlib.go, internal/jsexec/profile.go. Reading this reference evaluates no target module and makes no provider request.
 
-NOE exposes the 25 built-in Node-style modules listed below from its NOE-maintained standard library, based on go-quickjs v0.27.0. Each module is registered under its canonical node: ID and bare alias; both names resolve to the same implementation. A reserved node: prefix does not make other Node modules available. NOE-specific modules are documented separately. Each module page lists the actual named exports, including default. Details are included only for documented members.
+NOE exposes the supported built-in Node-style and NOE-specific modules listed below. Supported Node-style modules use their canonical `node:` IDs and selected bare aliases; NOE-specific modules use `noe:` IDs. A reserved `node:` prefix does not make other Node modules available. Each module page lists its actual named exports, including default. Details are included only for documented members.
 
-For HTTP, prefer `import { fetch, serve } from "noe:http"`. That NOE module shares the existing global functions and Web types. Use `noe:fs` for filesystem APIs.
+Use the standard global `fetch()` for HTTP requests. Import NOE-specific listener and WebSocket helpers such as `serve`, `createWebSocket`, and `upgradeWebSocket` from `noe:http`; the module is installed only when Serve or WebSockets is selected. Use `noe:fs` for filesystem APIs.
 
 | Module | Summary |
 | --- | --- |
 | node:assert | Assertions for values and errors. |
 | node:async_hooks | Async execution context and hooks. |
 | node:buffer | Byte buffers and base64 helpers. |
-| node:child_process | Captured child commands and owned child processes with byte-stream Web Streams. |
 | node:crypto | Hashes, randomness, key derivation, and limited Web Crypto. |
 | node:dns | System resolver lookup functions. |
 | node:dns/promises | Promise-oriented system resolver API. |
 | node:events | EventEmitter and once. |
 | noe:fs | Filesystem operations, handles, watching, and Web Streams. |
-| node:http | HTTP serve backed by Request/Response. |
+| noe:process | Captured commands, owned child processes, selected process metadata, and host standard I/O Web Streams. |
 | node:os | Selected host information. |
 | node:path | POSIX path operations plus both path namespaces. |
 | node:path/posix | Explicit POSIX path operations. |
 | node:path/win32 | Explicit Windows path operations. |
-| node:process | Process metadata and host standard I/O Web Streams. |
 | node:querystring | Legacy query-string parsing and serialization. |
 | node:stream/web | Web Streams constructors. |
 | node:string_decoder | UTF-8 decoding across byte chunks. |
@@ -44,9 +42,9 @@ For HTTP, prefer `import { fetch, serve } from "noe:http"`. That NOE module shar
 
 ### Runtime behavior
 
-The local command-line runtime selects these modules through its execution profile. A Go host selects filesystem, process metadata, standard I/O, commands, DNS, fetch, serving, WebSockets, and Workers independently; `noe:docs` remains a full catalog even when a capability is disabled. `node:process` is installed when either process metadata or standard I/O is selected. The global `process` object and metadata require ProcessInfo; named standard I/O exports require Stdio. `noe:fs` requires the filesystem capability and uses the same filesystem view for its async, sync, handle, watch, and stream operations. `node:child_process` requires the command capability. `child_process.execFile` already returns a promise. `noe:fs.createReadStream` and `noe:fs.createWriteStream` return Web Streams, not Node streams. Workers load through the selected execution's loader factory, whose contract is documented in node:worker_threads.
+The local command-line runtime selects these modules through its execution profile. A Go host selects filesystem, process metadata, standard I/O, commands, DNS, fetch, serving, WebSockets, and Workers independently; `noe:docs` remains a full catalog even when a capability is disabled. `noe:process` is installed when Commands, ProcessInfo, or Stdio is selected; with none of them it is absent. Commands select the six command exports, ProcessInfo selects the named `process` export and the global process object, and Stdio selects the named stream exports. The default namespace contains exactly the selected named exports, so process metadata is under `default.process`. The named process export is the same object as global `process`; its stream properties are present when Stdio is also selected. `noe:fs` requires the filesystem capability and uses the same filesystem view for its async, sync, handle, watch, and stream operations. `execFile` already returns a promise. `noe:fs.createReadStream` and `noe:fs.createWriteStream` return Web Streams, not Node streams. Workers load through the selected execution's loader factory, whose contract is documented in node:worker_threads.
 
-Use `open` from `noe:fs` for reads and writes through an open file handle, and noe:sockets for raw TCP/Unix byte streams. HTTP and WebSocket APIs handle requests and messages, not raw byte-stream sockets. The WebSockets capability selects the WebSocket client and server APIs; it is distinct from NOE's raw network socket module. Fetch also enables the global EventSource API for SSE subscriptions. Use the NOE-specific `spawn` export from node:child_process for owned child-process handles. See globals for APIs installed directly on globalThis.
+Use `open` from `noe:fs` for reads and writes through an open file handle, and `noe:sockets` for raw TCP/Unix byte streams. HTTP and WebSocket APIs handle requests and messages, not raw byte-stream sockets. The WebSockets capability selects the WebSocket client and server APIs; it is distinct from NOE's raw network socket module. Fetch also enables the global EventSource API for SSE subscriptions. Use the NOE-specific `spawn` export from `noe:process` for owned child-process handles. See globals for APIs installed directly on globalThis.
 
 ### Source basis
 

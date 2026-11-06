@@ -14,7 +14,7 @@ This page lists globals provided by the pinned go-quickjs engine and the NOE-mai
 
 ### NOE and Node-style globals
 
-console writes to the run's configured stdout/stderr. process is the NOE process object described in node:process. crypto and performance are also globals. Buffer is also available from node:buffer. fetch, Request, Response, and Headers use the Web request/response shape. serve starts an HTTP server. WebSocket opens a WebSocket client; upgradeWebSocket upgrades a request handled by serve. Worker starts a local Worker runtime. Callback timers are setTimeout, setInterval, clearTimeout, and clearInterval; queueMicrotask schedules a microtask. setImmediate is exported by node:timers, not installed globally.
+console writes to the run's configured stdout/stderr. process is the NOE process object described in noe:process. crypto and performance are also globals. Buffer is also available from node:buffer. fetch, Request, Response, and Headers use the Web request/response shape. WebSocket opens a WebSocket client. Worker starts a local Worker runtime. Callback timers are setTimeout, setInterval, clearTimeout, and clearInterval; queueMicrotask schedules a microtask. setImmediate is exported by node:timers, not installed globally.
 
 ### Web API globals
 
@@ -26,7 +26,7 @@ The pinned QuickJS runtime also exposes these language and host globals: Aggrega
 
 ### Exact globalThis inventory
 
-`AbortController`, `AbortSignal`, `AggregateError`, `Array`, `ArrayBuffer`, `AsyncDisposableStack`, `Atomics`, `BigInt`, `BigInt64Array`, `BigUint64Array`, `Blob`, `Boolean`, `BroadcastChannel`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `CryptoKey`, `DOMException`, `DataView`, `Date`, `DecompressionStream`, `DisposableStack`, `Error`, `ErrorEvent`, `EvalError`, `Event`, `EventSource`, `EventTarget`, `File`, `FinalizationRegistry`, `Float16Array`, `Float32Array`, `Float64Array`, `FormData`, `Function`, `Headers`, `Infinity`, `Int16Array`, `Int32Array`, `Int8Array`, `Intl`, `Iterator`, `JSON`, `Map`, `Math`, `MessageChannel`, `MessageEvent`, `MessagePort`, `NaN`, `Number`, `Object`, `Promise`, `Proxy`, `RangeError`, `ReadableStream`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `ReferenceError`, `Reflect`, `RegExp`, `Request`, `Response`, `Set`, `ShadowRealm`, `SharedArrayBuffer`, `String`, `SuppressedError`, `Symbol`, `SyntaxError`, `Temporal`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TypeError`, `URIError`, `URL`, `URLPattern`, `URLSearchParams`, `Uint16Array`, `Uint32Array`, `Uint8Array`, `Uint8ClampedArray`, `WeakMap`, `WeakRef`, `WeakSet`, `WebSocket`, `Worker`, `WritableStream`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearInterval`, `clearTimeout`, `console`, `crypto`, `decodeURI`, `decodeURIComponent`, `encodeURI`, `encodeURIComponent`, `escape`, `eval`, `fetch`, `globalThis`, `isFinite`, `isNaN`, `parseFloat`, `parseInt`, `performance`, `process`, `queueMicrotask`, `serve`, `setInterval`, `setTimeout`, `structuredClone`, `undefined`, `unescape`, `upgradeWebSocket`
+`AbortController`, `AbortSignal`, `AggregateError`, `Array`, `ArrayBuffer`, `AsyncDisposableStack`, `Atomics`, `BigInt`, `BigInt64Array`, `BigUint64Array`, `Blob`, `Boolean`, `BroadcastChannel`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `CryptoKey`, `DOMException`, `DataView`, `Date`, `DecompressionStream`, `DisposableStack`, `Error`, `ErrorEvent`, `EvalError`, `Event`, `EventSource`, `EventTarget`, `File`, `FinalizationRegistry`, `Float16Array`, `Float32Array`, `Float64Array`, `FormData`, `Function`, `Headers`, `Infinity`, `Int16Array`, `Int32Array`, `Int8Array`, `Intl`, `Iterator`, `JSON`, `Map`, `Math`, `MessageChannel`, `MessageEvent`, `MessagePort`, `NaN`, `Number`, `Object`, `Promise`, `Proxy`, `RangeError`, `ReadableStream`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `ReferenceError`, `Reflect`, `RegExp`, `Request`, `Response`, `Set`, `ShadowRealm`, `SharedArrayBuffer`, `String`, `SuppressedError`, `Symbol`, `SyntaxError`, `Temporal`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TypeError`, `URIError`, `URL`, `URLPattern`, `URLSearchParams`, `Uint16Array`, `Uint32Array`, `Uint8Array`, `Uint8ClampedArray`, `WeakMap`, `WeakRef`, `WeakSet`, `WebSocket`, `Worker`, `WritableStream`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearInterval`, `clearTimeout`, `console`, `crypto`, `decodeURI`, `decodeURIComponent`, `encodeURI`, `encodeURIComponent`, `escape`, `eval`, `fetch`, `globalThis`, `isFinite`, `isNaN`, `parseFloat`, `parseInt`, `performance`, `process`, `queueMicrotask`, `setInterval`, `setTimeout`, `structuredClone`, `undefined`, `unescape`
 
 ## ReadableStream
 
@@ -100,8 +100,6 @@ The writer owns the stream until released. A rejected write propagates through t
 
 ## fetch
 
-For explicit imports, use `import { fetch } from "noe:http"`. It is the same function as this global.
-
 Syntax: fetch(input, init = {}) -> Promise<Response>. input may be a URL/string or Request; init supports method, headers, body, and signal. The promise rejects for network, permission, or abort errors. HTTP error status codes still resolve to a Response; inspect response.ok or response.status. Consume the body once with text(), json(), arrayBuffer(), or bytes(), or read response.body incrementally.
 
 ~~~js
@@ -112,7 +110,7 @@ const data = await response.json();
 
 NOE enables outbound fetch with its host HTTP client. A ReadableStream request body is sent incrementally and must yield Uint8Array chunks; empty chunks are skipped. The next read waits until the current chunk has been written to the request body. This bounds the NOE upload bridge to one in-flight chunk, not queues in the source stream, HTTP transport, operating system, or peer. Upload bodies are one-shot: an already-used or locked stream is rejected before sending. Passing a Request to fetch consumes the selected body; constructing a Request from an unused Request transfers its body. Use clone() explicitly before consumption when two branches are needed.
 
-The 32 MiB limit applies to response-body reads, not uploads. AbortSignal cancels an in-progress upload or response-body read. If final response headers arrive before upload EOF, NOE stops the unfinished upload and returns a readable Response; this does not provide general full-duplex HTTP. A stream body is not replayed for a 307 or 308 redirect; the host client may follow 301, 302, or 303 by continuing with a bodyless request. Other redirect and cache behavior follows the host client; broader Node/browser redirect and cache options are not implemented.
+The configured `MaxBodyBytes` limit applies to response-body reads, not uploads. `0` selects the 32 MiB default; a negative value disables the limit. Reads and body collectors reject if they consume bytes beyond the cap, while a body exactly at the cap succeeds. AbortSignal cancels an in-progress upload or response-body read. If final response headers arrive before upload EOF, NOE stops the unfinished upload and returns a readable Response; this does not provide general full-duplex HTTP. A stream body is not replayed for a 307 or 308 redirect; the host client may follow 301, 302, or 303 by continuing with a bodyless request. Other redirect and cache behavior follows the host client; broader Node/browser redirect and cache options are not implemented.
 
 ## Request
 
@@ -138,32 +136,6 @@ console.log(response.status, await response.json());
 ~~~
 
 Body consumption is one-shot. For a stream body, closing or cancelling its consumer controls when upstream data finishes or is released.
-
-## serve
-
-For explicit imports, use `import { serve } from "noe:http"`. It is the same function as this global.
-
-Syntax: serve(options, handler) -> server, or serve(handler) -> server. options supports hostname (default 127.0.0.1) and port (default 0, asking the OS for a free port); options.fetch may supply the handler. The handler receives a Web Request and must return a Response, synchronously or as a promise. The server has hostname, port, url, and close().
-
-~~~js
-const server = serve({ port: 0 }, async (request) => {
-  const { pathname } = new URL(request.url);
-  return new Response(pathname);
-});
-try {
-  console.log(server.url);
-} finally {
-  server.close();
-}
-~~~
-
-Serving uses NOE's event loop and keeps the run alive until close() or runtime shutdown. The handler receives the Request after headers arrive, before body EOF. GET and HEAD requests have no JavaScript body. For other requests, `request.body` is null when the HTTP server knows there is no body; otherwise it is a ReadableStream, even when an unknown-length body is empty. Its source has a high-water mark of zero and reads a bounded chunk only when JavaScript pulls. The bridge does not read ahead without demand; transport, operating-system, and tee/clone buffering are outside this bound.
-
-In Go `Serve` configuration, `MaxBodyBytes: 0` means the 32 MiB default, a positive value returns only that prefix followed by normal EOF, and a negative value gives JavaScript an empty body. Reaching the cap does not produce a 413 response or change the received `Content-Length` header. This setting is not a JavaScript option. Request body convenience methods use the shared one-shot rules and collect the bytes they consume; use `request.body` and a reader for incremental processing. A malformed or truncated body discovered after dispatch rejects a body read. A caught error can be used to choose a response if the connection remains usable; an uncaught handler error follows the existing `onError`/500 path.
-
-The incoming body remains usable while a returned Response stream is being sent, so the response producer may read `request.body`. Once sending finishes or fails, remaining input is closed. Cancelling the body closes the JavaScript stream and prevents new reads, but it does not cancel response production; a native read already in progress may be released when response sending finishes. With `Expect: 100-continue`, the server sends `100 Continue` before reading body bytes. For a streaming Response, NOE waits until final headers flush before its response pump requests a chunk. A zero-high-water-mark producer such as `new Response(request.body)` can therefore wait for that flush; if the handler cancels a pending body read, NOE interrupts it before flushing final headers. The gate does not stop a producer's `start()`, its own early pull, or another reader started by the handler, so such a read may delay final headers while it waits for input. This ordering does not provide general full-duplex HTTP; `fetch()` still stops an unfinished upload when final response headers arrive.
-
-Handler failures produce a 500 response; options.onError may return a Response. The default bind address is loopback; hostname can choose another interface. `close()` is synchronous and idempotent, waits up to five seconds for graceful shutdown, and then force-closes remaining HTTP connections. Runtime shutdown also force-closes the listener and its active connections.
 
 ## EventSource
 
@@ -213,7 +185,7 @@ responsible for its own authentication behavior.
 
 ## WebSocket
 
-Syntax: new WebSocket(url, protocols?, options?). It opens a WebSocket connection, reports open/message/error/close events, and sends text or binary messages with send(data). close(code = 1000, reason = "") starts closing. The default binaryType is arraybuffer.
+Syntax: `new WebSocket(url, protocols?)`. It opens a WebSocket connection, reports open/message/error/close events, and sends text or binary messages with `send(data)`. `close(code = 1000, reason = "")` starts closing. The default `binaryType` is `"blob"`; set `socket.binaryType = "arraybuffer"` to receive binary messages as ArrayBuffers.
 
 ~~~js
 const socket = new WebSocket("wss://example.com/feed");
@@ -221,39 +193,7 @@ socket.addEventListener("open", () => socket.send("hello"));
 socket.addEventListener("message", (event) => console.log(event.data));
 ~~~
 
-NOE adds an optional third argument `{headers}` for the opening handshake.
-Keep the second argument for subprotocols, using `undefined` when none are
-needed. Headers may be a record, an iterable of name/value pairs, or a
-Headers instance. They are copied synchronously, so later changes do not
-affect the connection. Header iteration/coercion exceptions propagate before
-connecting. This is a NOE extension to the browser constructor.
-
-~~~js
-const socket = new WebSocket("wss://example.com/feed", ["chat.v1"], {
-  headers: {
-    Authorization: "Bearer <token>",
-    Origin: "https://app.example",
-  },
-});
-~~~
-
-Names must be HTTP tokens. Values reject CR, LF, NUL, and other HTTP control
-bytes except HTAB; leading/trailing spaces and tabs are trimmed. Invalid
-headers throw TypeError before permission checks or connection allocation,
-and these validation errors omit header values. Host, Connection, Upgrade,
-Sec-WebSocket-Key, Sec-WebSocket-Version, Sec-WebSocket-Protocol,
-Sec-WebSocket-Extensions, Content-Length, Transfer-Encoding, and Trailer
-are generated or owned by the handshake and cannot be supplied here.
-Use url and protocols for the corresponding connection fields. Duplicate
-pair entries are sent as repeated fields; Headers uses its own iteration
-semantics. Invalid protocol tokens throw SyntaxError before connecting.
-
-The selected WebSockets URL policy, TLS configuration, handshake timeout,
-and runtime ownership also apply to connections with custom headers. Custom
-headers work in Workers and embedded profiles with WebSockets selected,
-independently of fetch. Credentials are supplied explicitly by the script.
-
-A WebSocket carries complete protocol messages, not raw TCP bytes. NOE enables outbound WebSockets. For a server, use serve with upgradeWebSocket(request) and return the provided 101 Response; the helper requires an HTTP server in the same runtime. Close the socket when it is no longer needed.
+A WebSocket carries complete protocol messages, not raw TCP bytes. NOE enables outbound WebSockets when the host selects that capability. For custom handshake headers, import `createWebSocket` from `noe:http`; for server-side upgrades, import `upgradeWebSocket` from `noe:http`. See the `noe:http` reference for their capability requirements and details. Close the socket when it is no longer needed.
 
 ## Error.stack
 

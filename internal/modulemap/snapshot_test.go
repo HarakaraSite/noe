@@ -75,13 +75,13 @@ func TestLoadUsesMapFileParent(t *testing.T) {
 	}
 }
 
-func TestRemovedFilesystemBareNamesCanBeMapped(t *testing.T) {
+func TestRemovedHostBareNamesCanBeMapped(t *testing.T) {
 	base := t.TempDir()
-	snapshot, err := Parse([]byte(`{"imports":{"fs":"./user-fs.js","fs/promises":"./user-async-fs.js"}}`), base)
+	snapshot, err := Parse([]byte(`{"imports":{"fs":"./user-fs.js","fs/promises":"./user-async-fs.js","process":"./user-process.js","child_process":"./user-commands.js","http":"./user-http.js"}}`), base)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for specifier, target := range map[string]string{"fs": "user-fs.js", "fs/promises": "user-async-fs.js"} {
+	for specifier, target := range map[string]string{"fs": "user-fs.js", "fs/promises": "user-async-fs.js", "process": "user-process.js", "child_process": "user-commands.js", "http": "user-http.js"} {
 		got, err := snapshot.Resolve(specifier, filepath.Join(base, "main.js"))
 		if err != nil || got != filepath.Join(base, target) {
 			t.Fatalf("Resolve(%q)=%q error=%v", specifier, got, err)

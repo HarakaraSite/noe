@@ -37,7 +37,7 @@ func TestCombinedSignalCancelsNativeStdinAndPreservesBorrowedInput(t *testing.T)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "memory:combined-stdin", Virtual: true, Module: true, Code: `
-import {stdin} from "node:process";
+import {stdin} from "noe:process";
 const controller=new AbortController();
 const signal=AbortSignal.any([controller.signal]);
 const sink=new WritableStream();

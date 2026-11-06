@@ -2,6 +2,7 @@ import { spawn_agent, queue_agent, observe_agent, steer_agent, cancel_task, stop
 import { analyze_log } from "noe:agent-log";
 import { readFile, stat } from "noe:fs";
 import { setTimeout as sleep } from "node:timers/promises";
+import { serve } from "noe:http";
 
 const terminal = new Set(["completed", "failed", "cancelled"]);
 const message = error => String(error?.message || error);
@@ -219,6 +220,8 @@ export async function startAgentServer(options, html) {
     closing = true;
     if (timer !== null) clearTimeout(timer);
     closePromise = (async () => {
+      // The /shutdown route defers this call until after its response returns.
+      const serverClose = server?.close();
       try {
         if (restartPromise) await restartPromise;
         await locked(async () => {
@@ -236,8 +239,7 @@ export async function startAgentServer(options, html) {
           await sleep(25);
         }
       } finally {
-        // Do not invoke close synchronously from its own HTTP handler.
-        if (server) server.close();
+        if (serverClose) await serverClose;
       }
     })();
     return closePromise;
@@ -288,6 +290,7 @@ export async function startAgentServer(options, html) {
         method(request, ["POST"]);
         if (closing) throw new HTTPError(409, "Server is already shutting down");
         closing = true;
+        // Let the acknowledgement return before close() stops admission.
         setTimeout(() => { close().catch(error => { console.error(message(error)); process.exit(1); }); }, 25);
         return json({ status: "accepted" }, 202);
       }

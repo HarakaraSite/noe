@@ -51,8 +51,9 @@ changing NOE does not authorize editing or deploying noebot.
 | Slice | Direction | Status |
 | --- | --- | --- |
 | Filesystem | One asynchronous-first `noe:fs`; explicit Sync helpers, iterator watching, concise FileHandle read/write and readAt/writeAt. | Implemented and verified locally, unreleased; all four old FS imports removed without adapters. See [implementation and migration](stdlib-noe-fs.md). |
-| Processes and standard I/O | Move Promise/Web Streams command, lifecycle, and host-I/O APIs to a coherent `noe:process` contract. Evaluate global process metadata separately. | Next; exact grouping and breaking changes still require a slice decision. |
-| HTTP helpers and nonstandard extensions | Keep standard Fetch/WebSocket APIs; review listener helpers, upgrade helpers, and constructor extensions for explicit NOE entrances such as `noe:http`. | Follow-up; no removal authorized by the filesystem decision. |
+| Processes and standard I/O | One `noe:process` namespace for independently selected commands, standard I/O, and the named `process` metadata/control object. Global `process` retains its current behavior. | Implemented and verified locally, unreleased; all four old process/command imports removed without adapters. See [implementation and migration](stdlib-noe-process.md). |
+| HTTP helpers and nonstandard extensions | Global standard Fetch/WebSocket APIs; explicit `noe:http` listener, upgrade, and custom-handshake helpers. | Implemented and verified locally, unreleased, under the user's autonomous/breaking-change approval. Old HTTP imports/helper globals and constructor-header extension removed. See [migration](stdlib-noe-http.md) and separate [Fetch response-limit correction](stdlib-fetch-body-limit.md). |
+| HTTP server limits and lifecycle | Request overflow errors, asynchronous idempotent close, and async disposal over the shared server backend. | Implemented and verified locally, unreleased. See [Serve lifecycle and migration](stdlib-serve-lifecycle.md). |
 | Remaining Node modules and globals | Review Buffer/process and utility module names against actual callers and semantic differences. | Demand-driven; avoid churn with no clear usability benefit. |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource

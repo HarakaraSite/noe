@@ -8,9 +8,9 @@ Check saved JavaScript when creating or changing it:
 biome lint task.js
 ```
 
-The configuration checks syntax, undefined variables, const reassignment, unreachable code, and duplicate keys, arguments, or declarations. Supported NOE globals such as `serve` are registered. Agent helpers are module exports: import them from `noe:agent` in both saved scripts and run_js snippets.
+The configuration checks syntax, undefined variables, const reassignment, unreachable code, and duplicate keys, arguments, or declarations. Host-specific helpers such as `serve` are module exports: import them from `noe:http`. Agent helpers are module exports too: import them from `noe:agent` in both saved scripts and run_js snippets.
 
-For a long snippet that needs a pre-execution check, save it in a temporary directory and run `biome lint /path/to/snippet.js` from the workspace root. Short reads and check invocations do not need recursive checking. From run_js, use `execFile("biome", ["lint", path])` from `node:child_process` and inspect stdout/stderr on failure.
+For a long snippet that needs a pre-execution check, save it in a temporary directory and run `biome lint /path/to/snippet.js` from the workspace root. Short reads and check invocations do not need recursive checking. From run_js, use `execFile("biome", ["lint", path])` from `noe:process` and inspect stdout/stderr on failure.
 
 Use `biome format --write task.js` only when formatting is wanted. Use lint for checks, and do not expand scope solely for formatting differences.
 

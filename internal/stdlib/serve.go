@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib/internal/wsproto"
@@ -27,8 +26,8 @@ type Serve struct {
 	// Allow is asked before a listener is opened, with the address it would
 	// listen on. Nil refuses everything, which is what a zero value means.
 	Allow func(address string) error
-	// MaxBodyBytes returns at most this request-body prefix, ending normally.
-	// Zero means 32 MiB; a negative value exposes an empty body.
+	// MaxBodyBytes rejects oversized request bodies when they are read.
+	// Zero means 32 MiB; a negative value disables the bound.
 	MaxBodyBytes int64
 	// ReadTimeout and IdleTimeout bound a connection that says nothing. Zero
 	// means the defaults below, which are there because a server with none is
@@ -42,10 +41,10 @@ type Serve struct {
 	upgrade func(token string, conn net.Conn, br *bufio.Reader, protocol string)
 }
 
-// Servers installs serve, which starts an HTTP server whose handler is a
+// Servers builds serve, which starts an HTTP server whose handler is a
 // function from a Request to a Response:
 //
-//	import {serve} from "http"
+//	import {serve} from "noe:http"
 //
 //	const server = serve({port: 8080}, async (request) => {
 //	    const {pathname} = new URL(request.url)
@@ -60,7 +59,7 @@ type Serve struct {
 //
 // The server keeps the loop running until it is closed, so a program whose last
 // act is to start one does not exit.
-func Servers(rt *quickjs.Runtime, cfg *Serve) error {
+func Servers(rt *quickjs.Runtime, cfg *Serve) (quickjs.Value, error) {
 	if cfg == nil {
 		cfg = &Serve{}
 	}
@@ -68,23 +67,13 @@ func Servers(rt *quickjs.Runtime, cfg *Serve) error {
 
 	host := rt.NewObject()
 	if err := host.Set("listen", s.listen); err != nil {
-		return err
+		return quickjs.Value{}, err
 	}
 	api, err := evalWithHost(rt, "<http>", serveJS, host)
 	if err != nil {
-		return err
+		return quickjs.Value{}, err
 	}
-	serve, err := api.Get("serve")
-	if err != nil {
-		return err
-	}
-	exports := map[string]any{"serve": serve, "default": map[string]any{"serve": serve}}
-	if err := setNodeModule(rt, "http", exports); err != nil {
-		return err
-	}
-	// A global too: a script that serves is usually the whole program, and
-	// asking it to import one function for that is ceremony.
-	return rt.Set("serve", serve)
+	return api.Get("serve")
 }
 
 type servers struct {
@@ -142,6 +131,10 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 	if !dispatch.IsFunction() {
 		return quickjs.Value{}, s.rt.Throw(s.rt.NewError("TypeError",
 			"serve needs a function to handle requests"))
+	}
+	undefined, err := s.rt.Get("undefined")
+	if err != nil {
+		return quickjs.Value{}, err
 	}
 
 	hostname := "127.0.0.1"
@@ -231,24 +224,46 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 		unhook()
 		return quickjs.Value{}, err
 	}
-	var closeOnce sync.Once
-	scriptClose := func() {
-		closeOnce.Do(func() {
-			lifetime.stopAdmission()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Runtime hook removal and promise settlement stay on the JS owner.
+	removeHooks := func() {
+		stopWatch()
+		unhook()
+		if removeScopeCleanup != nil {
+			removeScopeCleanup()
+		}
+	}
+	var closed *quickjs.Promise
+	scriptClose := func() *quickjs.Promise {
+		if closed != nil {
+			return closed
+		}
+		closed = s.rt.NewPromise()
+		lifetime.stopAdmission()
+		// The close operation holds the loop until its completion is posted,
+		// independently of the listener's keepalive released by lifetime.wait.
+		loop.Begin()
+		if err := loop.Go(func(ctx context.Context) {
+			defer loop.Done()
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 			if err := srv.Shutdown(ctx); err != nil {
 				force()
 			} else {
+				// Shutdown can precede Serve's listener registration.
 				listener.Close()
 				lifetime.wait()
 			}
-			stopWatch()
-			unhook()
-			if removeScopeCleanup != nil {
-				removeScopeCleanup()
-			}
-		})
+			loop.postExecution(func() {
+				removeHooks()
+				closed.Resolve(undefined)
+			})
+		}); err != nil {
+			loop.Done()
+			force()
+			removeHooks()
+			closed.RejectError(err)
+		}
+		return closed
 	}
 
 	out := s.rt.NewObject()
@@ -259,7 +274,8 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 		out.Set("url", fmt.Sprintf("http://%s", net.JoinHostPort(addr.IP.String(), fmt.Sprint(addr.Port)))),
 		out.Set("close", scriptClose),
 	); err != nil {
-		scriptClose()
+		force()
+		removeHooks()
 		return quickjs.Value{}, err
 	}
 	return out, nil
@@ -590,11 +606,15 @@ const serveJS = `(function (host) {
               }
             } catch (ignored) {}
           }
-          done({status: 500, headers: [["content-type", "text/plain"]],
-                body: new TextEncoder().encode("Internal Server Error")});
+          const tooLarge = e && e.code === "ERR_HTTP_BODY_TOO_LARGE";
+          done({status: tooLarge ? 413 : 500, headers: [["content-type", "text/plain"]],
+                body: new TextEncoder().encode(tooLarge ? "Payload Too Large" : "Internal Server Error")});
           if (typeof console !== "undefined") console.error(e);
         }
       })();
+    });
+    Object.defineProperty(server, Symbol.asyncDispose, {
+      value() { return server.close(); },
     });
     return server;
   }

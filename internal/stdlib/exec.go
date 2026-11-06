@@ -20,7 +20,7 @@ import (
 // do anything the user can, whatever else it was refused. The zero value allows
 // nothing, and Allow decides for every attempt:
 //
-//	stdlib.Commands(rt, &stdlib.Run{
+//	stdlib.Install(rt, stdlib.Config{Run: &stdlib.Run{
 //	    Loop:  loop,
 //	    Allow: func(name string, args []string) error {
 //	        if name != "git" {
@@ -28,7 +28,7 @@ import (
 //	        }
 //	        return nil
 //	    },
-//	})
+//	}})
 type Run struct {
 	// Loop is where the result is delivered for the promise form. Without one
 	// the work is done before the call returns.
@@ -54,28 +54,9 @@ type Run struct {
 	MaxOutputBytes int
 }
 
-// Commands installs the "child_process" module.
-//
-// What is there is what can be done without streams: a program is started, it
-// runs to completion, and its output comes back whole.
-//
-//	import {execFileSync, execFile} from "child_process"
-//	const branch = execFileSync("git", ["branch", "--show-current"]).trim()
-//	const {stdout} = await execFile("git", ["status", "--short"])
-func Commands(rt *quickjs.Runtime, cfg *Run) error {
-	return commands(rt, cfg, quickjs.Value{})
-}
-
-// CommandsWithSpawn composes captured commands and the execution-owned Web
-// Streams adapter into one module. Call it before evaluating user modules.
-func CommandsWithSpawn(rt *quickjs.Runtime, cfg *Run, spawn quickjs.Value) error {
-	return commands(rt, cfg, spawn)
-}
-
-func commands(rt *quickjs.Runtime, cfg *Run, spawn quickjs.Value) error {
-	if cfg == nil {
-		cfg = &Run{}
-	}
+// commandExports reuses the captured-command runner and native live-child
+// adapter. ProcessModule composes these with independently selected host APIs.
+func commandExports(rt *quickjs.Runtime, cfg *Run, spawn quickjs.Value) map[string]any {
 	r := &runner{rt: rt, cfg: cfg}
 
 	exports := map[string]any{
@@ -88,8 +69,7 @@ func commands(rt *quickjs.Runtime, cfg *Run, spawn quickjs.Value) error {
 	if spawn.IsFunction() {
 		exports["spawn"] = spawn
 	}
-	exports["default"] = copyExports(exports)
-	return setNodeModule(rt, "child_process", exports)
+	return exports
 }
 
 type runner struct {

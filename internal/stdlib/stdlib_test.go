@@ -39,6 +39,9 @@ func run(t *testing.T, cfg stdlib.Config, src string) (string, string) {
 	if err := stdlib.Install(rt, cfg); err != nil {
 		t.Fatal(err)
 	}
+	if cfg.Serve != nil || cfg.Sockets != nil {
+		bindHTTPModule(t, rt)
+	}
 	if err := requireWorkerThreads(rt); err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +56,19 @@ func run(t *testing.T, cfg stdlib.Config, src string) (string, string) {
 		t.Fatalf("loop: %v", err)
 	}
 	return strings.TrimRight(out.String(), "\n"), strings.TrimRight(errOut.String(), "\n")
+}
+
+// Script-mode fixtures obtain the explicit host namespace through the Go
+// module API. Product runtimes do not install these test-only bindings.
+func bindHTTPModule(t *testing.T, rt *quickjs.Runtime) {
+	t.Helper()
+	module, err := rt.RequireModule("noe:http", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Set("httpModule", module); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestConsole(t *testing.T) {
@@ -945,7 +961,7 @@ func TestServe(t *testing.T) {
 		Serve: &stdlib.Serve{Allow: func(string) error { return nil }},
 	}, `
 		;(async () => {
-			const server = serve({port: 0}, async (req) => {
+			const server = httpModule.serve({port: 0}, async (req) => {
 				const {pathname, searchParams} = new URL(req.url)
 				switch (pathname) {
 					case "/hello": return new Response("hello " + searchParams.get("who"))
@@ -974,7 +990,7 @@ func TestServe(t *testing.T) {
 			console.log((await fetch(base + "/missing")).status)
 			console.log((await fetch(base + "/boom")).status)
 
-			server.close()
+			await server.close()
 		})()
 	`)
 	want := strings.Join([]string{
@@ -1007,8 +1023,9 @@ func TestServeHoldsTheLoop(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	bindHTTPModule(t, rt)
 	if _, err := rt.Eval(`
-		const server = serve({port: 0}, () => new Response("x"))
+		const server = httpModule.serve({port: 0}, () => new Response("x"))
 		globalThis.stop = () => server.close()
 		setTimeout(() => { console.log("still running"); stop() }, 20)
 	`); err != nil {
@@ -1031,7 +1048,7 @@ func TestServeNeedsPermission(t *testing.T) {
 			return errors.New("not on " + addr)
 		}},
 	}, `
-		try { serve({port: 0}, () => new Response("x")) }
+		try { httpModule.serve({port: 0}, () => new Response("x")) }
 		catch (e) { console.log("refused:", e.message) }
 	`)
 	if !strings.HasPrefix(out, "refused: not on ") {
@@ -1061,7 +1078,7 @@ func TestCommands(t *testing.T) {
 		},
 	}}, fmt.Sprintf(`
 		;(async () => {
-			const cp = (await import("child_process")).default
+			const cp = (await import("noe:process")).default
 			console.log((%s).trim())
 
 			const {stdout} = await %s
@@ -1090,7 +1107,7 @@ func TestCommands(t *testing.T) {
 // value means.
 func TestCommandsRefusedByDefault(t *testing.T) {
 	out, _ := run(t, stdlib.Config{Run: &stdlib.Run{}}, `
-		import("child_process").then(({default: cp}) => {
+		import("noe:process").then(({default: cp}) => {
 			try { cp.execFileSync("echo", ["hi"]) } catch (e) { console.log(e.message) }
 		})
 	`)
@@ -1112,7 +1129,7 @@ func TestCommandsEnvironment(t *testing.T) {
 		Env:   map[string]string{"GIVEN": "yes", "PATH": os.Getenv("PATH"), "ComSpec": os.Getenv("ComSpec"), "SYSTEMROOT": os.Getenv("SYSTEMROOT")},
 		Allow: func(string, []string) error { return nil },
 	}}, fmt.Sprintf(`
-		import("child_process").then(({default: cp}) => {
+		import("noe:process").then(({default: cp}) => {
 			console.log(cp.execFileSync(%q, %s).trim())
 		})
 	`, shell, args))
@@ -1465,7 +1482,7 @@ func TestStreamingBodies(t *testing.T) {
 
 			// Over the network: a handler that answers with a stream, read back
 			// through fetch as a stream.
-			const server = serve({port: 0}, async (request) => {
+			const server = httpModule.serve({port: 0}, async (request) => {
 				const sent = await request.text()
 				return new Response(ReadableStream.from(
 					[...sent].map(ch => new TextEncoder().encode(ch.toUpperCase()))))
@@ -1481,7 +1498,7 @@ func TestStreamingBodies(t *testing.T) {
 				body: ReadableStream.from([new TextEncoder().encode("de")]),
 			})
 			console.log(await echo.text())
-			server.close()
+			await server.close()
 		})()
 	`)
 	want := strings.Join([]string{
@@ -1783,10 +1800,12 @@ func TestFetchBodyLimit(t *testing.T) {
 	defer srv.Close()
 
 	out, _ := run(t, stdlib.Config{Fetch: &stdlib.Fetch{MaxBodyBytes: 1024}}, `
-		fetch("`+srv.URL+`").then(r => r.text()).then(t => console.log(t.length))
+		fetch("`+srv.URL+`").then(r => r.text()).then(
+			() => console.log("unexpected success"),
+			error => console.log((error.cause?.message || error.message).includes("limit") ? "body limit rejected" : error.message))
 	`)
-	if out != "1024" {
-		t.Errorf("out = %q, want the body cut off at the limit", out)
+	if out != "body limit rejected" {
+		t.Errorf("out = %q, want oversized response rejection", out)
 	}
 }
 
@@ -1803,7 +1822,7 @@ func TestServeStreamsTheAnswer(t *testing.T) {
 			let clientHasRead
 			const read = new Promise(resolve => { clientHasRead = resolve })
 
-			const server = serve({port: 0}, () => new Response(new ReadableStream({
+			const server = httpModule.serve({port: 0}, () => new Response(new ReadableStream({
 				async start(controller) {
 					controller.enqueue(enc.encode("first "))
 					// Nothing more is made until the client has taken that.
@@ -1826,7 +1845,7 @@ func TestServeStreamsTheAnswer(t *testing.T) {
 			// that the client can tell a short answer from a whole one.
 			let clientHasSome
 			const some = new Promise(resolve => { clientHasSome = resolve })
-			const broken = serve({port: 0}, () => new Response(new ReadableStream({
+			const broken = httpModule.serve({port: 0}, () => new Response(new ReadableStream({
 				async start(controller) {
 					controller.enqueue(enc.encode("partial"))
 					await some
@@ -1844,8 +1863,8 @@ func TestServeStreamsTheAnswer(t *testing.T) {
 				console.log("cut off")
 			}
 
-			server.close()
-			broken.close()
+			await server.close()
+			await broken.close()
 		})()
 	`)
 	want := strings.Join([]string{
@@ -1902,12 +1921,12 @@ func TestFileStreams(t *testing.T) {
 			console.log(zlib.gunzipSync(packed).length === total)
 
 			// Serving a file is the stream handed straight to a Response.
-			const server = serve({port: 0}, () =>
+			const server = httpModule.serve({port: 0}, () =>
 				new Response(fs.createReadStream("/big.txt"),
 					{headers: {"content-type": "text/plain"}}))
 			const res = await fetch(server.url)
 			console.log((await res.text()).length)
-			server.close()
+			await server.close()
 
 			// A file that is not there fails rather than producing nothing.
 			try {
@@ -1955,7 +1974,7 @@ func TestFormDataAndBlobs(t *testing.T) {
 
 			// A server that reads what a form posted, file and all. Both the
 			// ways a form is sent arrive as the same thing.
-			const server = serve({port: 0}, async (request) => {
+			const server = httpModule.serve({port: 0}, async (request) => {
 				const type = request.headers.get("content-type") || ""
 				// A body that is not a form is answered with what it said it
 				// was, which is how the blob below is checked.
@@ -1984,7 +2003,7 @@ func TestFormDataAndBlobs(t *testing.T) {
 				body: new Blob(["x"], {type: "text/csv"}),
 			})
 			console.log(await typed.text())
-			server.close()
+			await server.close()
 		})()
 	`)
 	want := strings.Join([]string{
@@ -2009,11 +2028,12 @@ func TestWebSockets(t *testing.T) {
 		Sockets: &stdlib.WebSockets{Allow: func(*url.URL) error { return nil }},
 	}, `
 		;(async () => {
-			const server = serve({port: 0}, (request) => {
+			const server = httpModule.serve({port: 0}, (request) => {
 				if (new URL(request.url).pathname !== "/chat") {
 					return new Response("not here", {status: 404})
 				}
-				const {socket, response} = upgradeWebSocket(request)
+				const {socket, response} = httpModule.upgradeWebSocket(request)
+				socket.binaryType = "arraybuffer"
 				socket.onopen = () => socket.send("welcome")
 				socket.onmessage = (e) => {
 					if (typeof e.data !== "string") {
@@ -2029,6 +2049,7 @@ func TestWebSockets(t *testing.T) {
 
 			const said = []
 			const ws = new WebSocket(server.url.replace("http", "ws") + "/chat")
+			ws.binaryType = "arraybuffer"
 			ws.addEventListener("open", () => {
 				console.log("open", ws.readyState === WebSocket.OPEN)
 				ws.send("hello")
@@ -2044,7 +2065,7 @@ func TestWebSockets(t *testing.T) {
 				console.log(said.join(" | "))
 				resolve()
 			}))
-			server.close()
+			await server.close()
 		})()
 	`)
 	want := strings.Join([]string{
@@ -2100,9 +2121,9 @@ func TestWebSocketUpgradeNeedsAnAsk(t *testing.T) {
 		Sockets: &stdlib.WebSockets{Allow: func(*url.URL) error { return nil }},
 	}, `
 		;(async () => {
-			const server = serve({port: 0}, (request) => {
+			const server = httpModule.serve({port: 0}, (request) => {
 				try {
-					const {response} = upgradeWebSocket(request)
+					const {response} = httpModule.upgradeWebSocket(request)
 					return response
 				} catch (e) {
 					return new Response(e.message, {status: 400})
@@ -2110,7 +2131,7 @@ func TestWebSocketUpgradeNeedsAnAsk(t *testing.T) {
 			})
 			const res = await fetch(server.url)
 			console.log(res.status, await res.text())
-			server.close()
+			await server.close()
 		})()
 	`)
 	if want := "400 this request did not ask for a socket"; out != want {
@@ -2131,10 +2152,10 @@ func TestNothingIsLeftBehind(t *testing.T) {
 			Sockets: &stdlib.WebSockets{Allow: func(*url.URL) error { return nil }},
 		}, `
 			;(async () => {
-				const server = serve({port: 0}, (request) => {
+				const server = httpModule.serve({port: 0}, (request) => {
 					const {pathname} = new URL(request.url)
 					if (pathname === "/ws") {
-						const {socket, response} = upgradeWebSocket(request)
+						const {socket, response} = httpModule.upgradeWebSocket(request)
 						socket.onmessage = (e) => { socket.send(e.data); socket.close() }
 						return response
 					}
@@ -2153,7 +2174,7 @@ func TestNothingIsLeftBehind(t *testing.T) {
 						ws.onclose = resolve
 					})
 				}
-				server.close()
+				await server.close()
 				console.log("done")
 			})()
 		`)
@@ -2283,7 +2304,7 @@ func TestLoopRunsWaitAsync(t *testing.T) {
 }
 
 // TestModulesHaveOneDefaultAndNamedExport pins module identity for the
-// standard Node compatibility modules and the noe:fs facade.
+// standard Node compatibility modules and NOE's host modules.
 func TestModulesHaveOneDefaultAndNamedExport(t *testing.T) {
 	out, _ := run(t, stdlib.Config{
 		FS:      &stdlib.FS{Root: t.TempDir()},
@@ -2296,8 +2317,10 @@ func TestModulesHaveOneDefaultAndNamedExport(t *testing.T) {
 			const out = [];
 			const fs = await import("noe:fs");
 			out.push("noe:fs " + (fs.default.readFileSync === fs.readFileSync && fs.default.readFile === fs.readFile && !("promises" in fs.default)));
+			const host = await import("noe:process");
+			out.push("noe:process " + (host.process === process && host.default.process === process && host.execSync === host.default.execSync && !("execSync" in process)));
 			for (const [name, key] of [["path", "join"], ["path/posix", "join"], ["path/win32", "join"],
-				["os", "platform"], ["child_process", "execSync"], ["http", "serve"], ["process", null]]) {
+				["os", "platform"]]) {
 				const a = await import(name), b = await import("node:" + name);
 				const same = a.default === b.default && (key === null || (a[key] === b[key] && a[key] === a.default[key]));
 				out.push(name + " " + same);
@@ -2305,7 +2328,7 @@ func TestModulesHaveOneDefaultAndNamedExport(t *testing.T) {
 		console.log(out.join(" "));
 		})();
 	`)
-	if want := "noe:fs true path true path/posix true path/win32 true os true child_process true http true process true"; out != want {
+	if want := "noe:fs true noe:process true path true path/posix true path/win32 true os true"; out != want {
 		t.Errorf("got %q, want %q", out, want)
 	}
 }

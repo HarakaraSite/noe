@@ -14,10 +14,23 @@ This is a NOE-specific API decision, not an upstream bug fix or compatibility
 claim. The shared filesystem backend and native resource ownership remain.
 See the [filesystem migration](../../docs/development/stdlib-noe-fs.md).
 
-NOE also adds http.go: Install registers `noe:http` using the existing fetch and
-serve function values enabled by its configuration. It adds no transport,
-constructors, or permissions; the upstream globals and node:http remain available.
-The added http_test.go covers this module's registration and capability boundaries.
+Process metadata, standard I/O, and command helpers now use `noe:process`,
+with independently selected exports and the retained global metadata object.
+See the [process migration](../../docs/development/stdlib-noe-process.md).
+
+`http.go` now registers host-only `serve`, `createWebSocket`, and
+`upgradeWebSocket` helpers according to the selected Serve/WebSockets
+capabilities. Standard Fetch and WebSocket remain globals. The old HTTP modules,
+serve/upgrade globals, and constructor header extension are removed; the
+WebSocket binary default is Blob. Shared transports, policies, loop ownership,
+and cleanup remain. See the [HTTP migration](../../docs/development/stdlib-noe-http.md).
+`http_test.go` covers all capability combinations and removed entrances.
+
+Fetch response limits now reject overflow after a one-byte EOF probe instead of
+returning a successful prefix; zero retains the 32 MiB default and negative
+limits remain unlimited. See the [correction](../../docs/development/stdlib-fetch-body-limit.md).
+The subsequent [Serve lifecycle slice](../../docs/development/stdlib-serve-lifecycle.md)
+likewise rejects request-body overflow and adds asynchronous close/disposal.
 
 ## Origin and license
 
@@ -119,9 +132,9 @@ testdata/pathcorpus_node.js
 7. The HTTP server's receive path is a NOE-local adaptation. It dispatches a
    Web Request before the body reaches EOF and exposes the Go request body as
    a demand-driven ReadableStream with a zero high-water mark and a bounded
-   native read buffer. `Serve.MaxBodyBytes` retains its existing behavior:
-   zero selects the 32 MiB default, a positive value exposes that prefix with
-   normal EOF, and a negative value exposes an empty body. The original
+   native read buffer. `Serve.MaxBodyBytes` now uses zero for the 32 MiB
+   default, a positive cap with actual overflow errors, and a negative value
+   for unlimited input. Exact-length input succeeds after an EOF probe. The original
    `Content-Length` is not rewritten. Body reads remain available while a
    returned Response stream is being sent, then outstanding input is stopped
    and cleaned up before the Go handler returns. For HTTP/1, the bridge uses
@@ -650,3 +663,9 @@ visible to and instrumented by the debugger. Upstream's behavior of hiding
 those scripts is not preserved. Debugger-enabled runtimes are not rejected.
 This difference must be considered before offering the library to external
 hosts. No engine fork or private-access workaround is included.
+
+HTTP server close now returns one shared promise and waits for graceful
+shutdown off the JS owner, with the same five-second forced fallback.
+Symbol.asyncDispose delegates to close; runtime force cleanup remains
+independent. Request overflow maps to a coded RangeError and, when uncaught
+before response headers, a 413 response. See the Serve lifecycle record above.

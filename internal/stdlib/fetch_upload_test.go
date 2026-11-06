@@ -60,7 +60,7 @@ func TestFetchUploadArrivesBeforeProducerEOF(t *testing.T) {
 	defer server.Close()
 	out, stderr := runUpload(t, stdlib.Config{Fetch: &stdlib.Fetch{Client: &http.Client{Timeout: 5 * time.Second}}}, fmt.Sprintf(`
 (async()=>{
- const {fetch}=await import("noe:http");let pulls=0;
+ let pulls=0;
  const stream=new ReadableStream({async pull(c){
   if(pulls++===0)c.enqueue(new Uint8Array([0,255]));
   else {if(await(await fetch(%q+"/ack")).text()!=="ready")throw Error("ack");

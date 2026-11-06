@@ -45,7 +45,7 @@
 
 | グループ | 現在の状態 | 残る検討 |
 | --- | --- | --- |
-| 1：プロセスと標準I/O | **完了**。`node:child_process.spawn`の子プロセスハンドルと`node:process`のホスト標準I/O Web Streams | [公開契約](process-io.md)・[実装記録](development/process-io-implementation.md)を参照 |
+| 1：プロセスと標準I/O | **完了**。`noe:process.spawn`の子プロセスハンドルと`noe:process`のホスト標準I/O Web Streams | [公開契約](process-io.md)・[実装記録](development/process-io-implementation.md)を参照 |
 | 2: Add APIs for specific needs | **Completed.** FileHandle operations are part of `noe:fs`; `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides OS signal subscriptions. | See the [current contracts](low-level-io.md) and the [original implementation record](development/low-level-group2-implementation.md). Filesystem [phase 1](development/stdlib-fs-integration.md) and [phase 2](development/stdlib-fs-basics.md) were released in [v2.13.0](releases/v2.13.0.md), including FileHandle stat/truncate/sync, creation/append flags, Dirent, and approved error/metadata normalization. |
 | 3：後続候補 | **未完了**。ファイル変更通知、端末操作 | ポーリングやCLIと比較。TTY判定・サイズ・raw mode・PTYは別々に評価 |
 
@@ -55,7 +55,7 @@
 
 ### <一部完了> MCPクライアントの利用整備 — 2026-10-18
 
-**JSで外部MCPツールを呼ぶ経路は検証済みです。** 公式SDKのClientをESMへbundleし、`node:child_process`を使う独自JS stdio transportを組み合わせた[スパイク](../scripts/spikes/process-io-mcp/README.md)があります。main・Worker・fixture agentの`run_js`で、初期化、tool一覧、並行呼出し、要求と応答の対応付け、大きなUTF-8応答、異常終了と子の回収を確認しました（[import mapの検証記録](development/local-import-map-implementation.md)）。
+**JSで外部MCPツールを呼ぶ経路は検証済みです。** 公式SDKのClientをESMへbundleし、`noe:process`を使う独自JS stdio transportを組み合わせた[スパイク](../scripts/spikes/process-io-mcp/README.md)があります。main・Worker・fixture agentの`run_js`で、初期化、tool一覧、並行呼出し、要求と応答の対応付け、大きなUTF-8応答、異常終了と子の回収を確認しました（[import mapの検証記録](development/local-import-map-implementation.md)）。
 
 Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動かします。専用のGo製MCP APIは追加していません。2026-10-24に[Exa公式HTTPサーバーとローカルfixtureを使う通常利用例](../examples/mcp/README.md)を追加しました。SDKの事前bundleとimport mapでの配置、URLと任意keyファイルの指定を案内しています。製品としてのSDK自動配布・設定・接続先管理は未決定です。スパイクがあることと、製品として組込みMCPクライアントを提供していることは区別します。
 
@@ -67,7 +67,7 @@ Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動�
 
 現在の説明対象は、go-quickjs v0.27.0由来のNOE管理stdlibです。`execFile`のPromise、fsのWeb Streams、Node形式Workerのtype option、spawnSyncの起動失敗時statusなどの差異も該当topicに説明しました。全APIの個別詳細や全差異の列挙は完了条件にせず、実際の誤用や利用用途を基に説明を追加します。この「一部完了」は継続改善の分類であり、上記の既知差異に未説明の固定残件があるという意味ではありません。
 
-照合根拠：[`stdlib-child_process.md`](../internal/apidocs/content/stdlib-child_process.md)・[`noe-fs.md`](../internal/apidocs/content/noe-fs.md)・[`stdlib-worker-threads.md`](../internal/apidocs/content/stdlib-worker-threads.md)と[`docs_test.go`](../internal/runtime/docs_test.go)。
+照合根拠：[`noe-process.md`](../internal/apidocs/content/noe-process.md)・[`noe-fs.md`](../internal/apidocs/content/noe-fs.md)・[`stdlib-worker-threads.md`](../internal/apidocs/content/stdlib-worker-threads.md)と[`docs_test.go`](../internal/runtime/docs_test.go)。
 
 ### <一部完了> Web検索と検索APIの認証ラッパー — 2026-10-17
 
@@ -215,7 +215,7 @@ NOE内の親子agentは既存の起動・観察・操作APIで連携でき、こ
 
 Workerのloaderは`noe:agent`を受け付けません。通常JSからのagent起動は既に非同期で、並行起動や親子の委譲のためにWorker対応を足す必要はありません。必要ならWorkerからmainへメッセージを送り、mainでagentを呼ぶ構成を取れます。
 
-重い計算・解析の途中から直接agentを呼ぶ用途で中継が実際の不便になった時に検討します。module登録だけでなく、Host/Client scope・認証への接続、Worker終了時の取消しと所有関係も決めます。`node:child_process.spawn`・`node:process` stdioのWorker対応や、MCPクライアントのWorker検証とは別の残件です。
+重い計算・解析の途中から直接agentを呼ぶ用途で中継が実際の不便になった時に検討します。module登録だけでなく、Host/Client scope・認証への接続、Worker終了時の取消しと所有関係も決めます。`noe:process.spawn`・`noe:process` stdioのWorker対応や、MCPクライアントのWorker検証とは別の残件です。
 
 照合根拠：[`NOE Profile`](../internal/noeprofile/profile.go)はWorkerへagent bindingを導入せず、[`import_map_test.go`](../internal/runtime/import_map_test.go)もこの制約を検証する。
 

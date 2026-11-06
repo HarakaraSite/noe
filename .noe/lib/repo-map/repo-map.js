@@ -1,8 +1,8 @@
 // Language-independent repository overview for NOE. Reads names/metadata only.
 import {existsSync, lstatSync, readdirSync, statSync} from "noe:fs";
 import {resolve, join} from "node:path";
-import process from "node:process";
-import {spawn} from "node:child_process";
+import {process} from "noe:process";
+import {spawn} from "noe:process";
 
 const encoder = new TextEncoder();
 const byteSize = value => encoder.encode(JSON.stringify(value)).length;

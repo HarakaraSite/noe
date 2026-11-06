@@ -227,7 +227,7 @@ func (w *abortableEventSink) WriteContext(ctx context.Context, p []byte) (int, e
 func TestEventsStreamAbortWithNoRecordBytesAllowsContinuation(t *testing.T) {
 	out := &abortableEventSink{marker: filepath.Join(t.TempDir(), "write-started")}
 	var diagnostic bytes.Buffer
-	source := `import {stdout} from "node:process"; import {existsSync} from "noe:fs";
+	source := `import {stdout} from "noe:process"; import {existsSync} from "noe:fs";
 const c=new AbortController(),reason=new Error("expected abort");
 const source=new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode("blocked"));controller.close()}});
 const p=source.pipeTo(stdout,{signal:c.signal});

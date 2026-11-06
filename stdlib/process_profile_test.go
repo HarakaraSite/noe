@@ -26,6 +26,55 @@ func TestProfileCommandHelper(t *testing.T) {
 	os.Exit(7)
 }
 
+func TestProfileProcessCapabilityCombinations(t *testing.T) {
+	for selection := range 8 {
+		info, stdio, commands := selection&1 != 0, selection&2 != 0, selection&4 != 0
+		t.Run(fmt.Sprintf("info=%v/stdio=%v/commands=%v", info, stdio, commands), func(t *testing.T) {
+			modules := stdlib.Modules{ProcessInfo: info, Stdio: stdio}
+			if commands {
+				modules.Commands = &stdlib.CommandOptions{}
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			result, err := stdlib.Execute(ctx, stdlib.Source{Name: "memory:process-selection", Virtual: true, Module: true, Code: fmt.Sprintf(`
+const info=%v, stdio=%v, commands=%v;
+const api=await import("noe:process").catch(()=>null);
+if (Boolean(api)!==(info||stdio||commands)) throw Error("module availability");
+if ((typeof process!=="undefined")!==info) throw Error("metadata global selection");
+if (api) {
+  const expected=["default"];
+  if (info) expected.push("process");
+  if (stdio) expected.push("stdin","stdout","stderr");
+  if (commands) expected.push("exec","execFile","execFileSync","execSync","spawn","spawnSync");
+  if (Object.keys(api).sort().join()!==expected.sort().join()) throw Error("selected exports: "+Object.keys(api));
+  const named=expected.filter(key=>key!=="default");
+  if (Object.keys(api.default).sort().join()!==named.sort().join()) throw Error("namespace shape");
+  for (const key of named) if (api[key]!==api.default[key]) throw Error("namespace identity: "+key);
+  if ("env" in api.default || "cwd" in api.default) throw Error("metadata flattened into namespace");
+  if (info) {
+    if (api.process!==globalThis.process || api.process.env.MARK!=="metadata") throw Error("metadata identity");
+    for (const key of ["stdin","stdout","stderr"]) {
+      if ((key in api.process)!==stdio || (stdio && api.process[key]!==api[key])) throw Error("metadata streams");
+    }
+    if ("spawn" in api.process || "execFile" in api.process) throw Error("commands leaked into global");
+    api.process.exitCode=3;
+    if (process.exitCode!==3) throw Error("exitCode identity");
+    process.exitCode=0;
+  }
+}
+for (const removed of ["node:child_process","child_process","node:process","process"]) {
+  if (await import(removed).then(()=>true,()=>false)) throw Error("removed module: "+removed);
+}
+`, info, stdio, commands)}, stdlib.Profile{
+				Environment: stdlib.Environment{Env: map[string]string{"MARK": "metadata"}}, Modules: modules,
+			})
+			if err != nil || result.Code != 0 {
+				t.Fatalf("capability result=%+v error=%s", result, stdlib.Diagnostic(err))
+			}
+		})
+	}
+}
+
 func TestProfileStreamingAndCapturedCommandsAgree(t *testing.T) {
 	program, err := os.Executable()
 	if err != nil {
@@ -38,12 +87,11 @@ func TestProfileStreamingAndCapturedCommandsAgree(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "memory:commands", Virtual: true, Module: true, Code: `
-import commands, {spawn, execFile, execFileSync} from "node:child_process";
-import bare, {spawn as bareSpawn} from "child_process";
-if (spawn!==bareSpawn || spawn!==commands.spawn || spawn!==bare.spawn || commands.execFile!==execFile)
-  throw Error("command aliases differ");
+import commands, {spawn, execFile, execFileSync} from "noe:process";
+if (spawn!==commands.spawn || commands.execFile!==execFile || commands.execFileSync!==execFileSync)
+  throw Error("command namespace differs");
 if (typeof process!=="undefined") throw Error("commands installed process metadata");
-for (const removed of ["noe:process", "noe:io"]) {
+for (const removed of ["node:child_process", "child_process", "node:process", "process", "noe:io"]) {
   if (await import(removed).then(()=>true,()=>false)) throw Error("unexpected module: "+removed);
 }
 const program=` + string(encodedProgram) + `;
@@ -87,7 +135,7 @@ func TestProfileCommandAuthorizationIncludesSpawn(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "memory:denied-commands", Virtual: true, Module: true, Code: `
-import {spawn,execFile} from "node:child_process";
+import {spawn,execFile} from "noe:process";
 for (const run of [spawn,execFile]) {
   const error=await run("denied-command").then(()=>null,error=>error);
   if (!error || !error.message.includes("fixture command denied")) throw Error("command bypassed authorization");

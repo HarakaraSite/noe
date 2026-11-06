@@ -312,7 +312,7 @@ func TestWorkerTerminateStopsAHostCall(t *testing.T) {
 	}
 	worker := `
 		import { parentPort } from "node:worker_threads";
-		const cp = (await import("child_process")).default;
+		const cp = (await import("noe:process")).default;
 		parentPort.postMessage("sleeping");
 		try { ` + sleep + ` } catch (e) { parentPort.postMessage("caught " + e.message) }
 		parentPort.postMessage("after");`

@@ -282,13 +282,16 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 			return err
 		}
 	}
+	httpExports := make(map[string]quickjs.Value)
 	if cfg.Serve != nil {
 		if cfg.Serve.Loop == nil {
 			cfg.Serve.Loop = cfg.Loop
 		}
-		if err := Servers(rt, cfg.Serve); err != nil {
+		serve, err := Servers(rt, cfg.Serve)
+		if err != nil {
 			return err
 		}
+		httpExports["serve"] = serve
 	}
 	if cfg.Sockets != nil {
 		if cfg.Sockets.Loop == nil {
@@ -299,17 +302,21 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 		if cfg.Sockets.Serve == nil {
 			cfg.Sockets.Serve = cfg.Serve
 		}
-		if err := Sockets(rt, cfg.Sockets); err != nil {
+		helpers, err := Sockets(rt, cfg.Sockets)
+		if err != nil {
 			return err
+		}
+		for name, value := range helpers {
+			httpExports[name] = value
 		}
 	}
 	if cfg.Run != nil {
 		if cfg.Run.Loop == nil {
 			cfg.Run.Loop = cfg.Loop
 		}
-		if err := Commands(rt, cfg.Run); err != nil {
-			return err
-		}
 	}
-	return installHTTP(rt, cfg)
+	if err := ProcessModule(rt, ProcessModuleOptions{ProcessInfo: cfg.Process != nil, Commands: cfg.Run}); err != nil {
+		return err
+	}
+	return installHTTP(rt, httpExports)
 }

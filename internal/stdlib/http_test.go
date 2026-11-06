@@ -3,6 +3,7 @@ package stdlib_test
 import (
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
 
@@ -11,35 +12,49 @@ import (
 )
 
 func TestHTTPModuleConfiguration(t *testing.T) {
-	for _, tc := range []struct {
-		name         string
-		fetch, serve bool
-		keys         string
-	}{
-		{"both", true, true, "fetch,serve"},
-		{"fetch", true, false, "fetch"},
-		{"serve", false, true, "serve"},
-		{"neither", false, false, ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	for selection := range 8 {
+		fetch, serve, sockets := selection&1 != 0, selection&2 != 0, selection&4 != 0
+		t.Run(string(rune('0'+selection)), func(t *testing.T) {
 			rt := quickjs.New()
 			defer rt.Close()
-			// A host-provided global must not turn a disabled capability into an export.
-			if _, err := rt.Eval(`globalThis.fetch=()=>"host fetch";globalThis.serve=()=>"host serve";`); err != nil {
+			loop := stdlib.NewLoop(rt)
+			defer loop.Close()
+			// A host-provided standard function must not select a host module.
+			if _, err := rt.Eval(`globalThis.fetch=()=>"host fetch";`); err != nil {
 				t.Fatal(err)
 			}
-			cfg := stdlib.Config{}
-			if tc.fetch {
+			cfg := stdlib.Config{Loop: loop}
+			var expected []string
+			if fetch {
 				cfg.Fetch = &stdlib.Fetch{}
 			}
-			if tc.serve {
+			if serve {
 				cfg.Serve = &stdlib.Serve{}
+				expected = append(expected, "serve")
 			}
+			if sockets {
+				cfg.Sockets = &stdlib.WebSockets{}
+				expected = append(expected, "createWebSocket")
+				if serve {
+					expected = append(expected, "upgradeWebSocket")
+				}
+			}
+			sort.Strings(expected)
+			wantKeys := strings.Join(expected, ",")
 			if err := stdlib.Install(rt, cfg); err != nil {
 				t.Fatal(err)
 			}
+			for _, removed := range []string{"node:http", "http"} {
+				if _, err := rt.RequireModule(removed, ""); err == nil {
+					t.Fatalf("removed HTTP module %s still installed", removed)
+				}
+			}
+			absent, err := rt.Eval(`typeof serve==="undefined" && typeof upgradeWebSocket==="undefined"`)
+			if err != nil || !absent.Bool() {
+				t.Fatalf("host helpers leaked into globals: %v", err)
+			}
 			module, err := rt.RequireModule("noe:http", "")
-			if tc.keys == "" {
+			if wantKeys == "" {
 				if err == nil {
 					t.Fatal("HTTP module installed without a configured capability")
 				}
@@ -52,11 +67,11 @@ func TestHTTPModuleConfiguration(t *testing.T) {
 				t.Fatal(err)
 			}
 			keys, err := rt.Eval(`Object.keys(httpModule).sort().join(",")`)
-			if err != nil || keys.String() != tc.keys {
-				t.Fatalf("exports=%v err=%v, want %s", keys, err, tc.keys)
+			if err != nil || keys.String() != wantKeys {
+				t.Fatalf("exports=%v err=%v, want %s", keys, err, wantKeys)
 			}
-			for _, name := range strings.Split(tc.keys, ",") {
-				value, err := rt.Eval(`httpModule.` + name + `===globalThis.` + name)
+			for _, name := range expected {
+				value, err := rt.Eval(`typeof httpModule.` + name + `==="function"`)
 				if err != nil || !value.Bool() {
 					t.Fatalf("%s lost function identity: %v", name, err)
 				}
@@ -77,7 +92,7 @@ func TestHTTPModuleUsesConfiguredPermissions(t *testing.T) {
 			return errors.New("listen denied")
 		}},
 	}, `(async()=>{
- const {fetch,serve}=await import("noe:http");
+ const {serve}=await import("noe:http");
  try{await fetch("http://127.0.0.1:1/");throw Error("fetch allowed");}
  catch(e){if(e.cause?.message!=="outbound denied")throw e;}
  try{serve({port:0},()=>new Response("unexpected"));throw Error("serve allowed");}

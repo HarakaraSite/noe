@@ -37,14 +37,14 @@ func TestNoeHTTPUploadAgentConsultsFetchDocsAndSavesRunJSResult(t *testing.T) {
 		case 1:
 			return hookToolReply(map[string]string{
 				"lookup": `// Read fetch's request-stream contract.
-const {docs}=await import("noe:docs");console.log(docs("noe:http","fetch"));`,
+const {docs}=await import("noe:docs");console.log(docs("globals","fetch"));`,
 			}, "lookup"), nil
 		case 2:
 			if len(toolResults) != 1 || !strings.Contains(toolResults[0], "Uint8Array") || !strings.Contains(strings.ToLower(toolResults[0]), "stream") {
 				return provider.Response{}, fmt.Errorf("fetch streaming documentation was not delivered to run_js: %q", toolResults)
 			}
-			code := fmt.Sprintf(`// Upload a stream only after consulting noe:http.fetch.
-import {fetch} from "noe:http";
+			code := fmt.Sprintf(`// Upload a stream only after consulting the global fetch contract.
+
 import {writeFileSync} from "noe:fs";
 const base=%q, output=%q;
 const storage=new Uint8Array([99,0,255,17,88]);
@@ -88,7 +88,7 @@ console.log(JSON.stringify(result));`, fixture.baseURL(), artifact)
 	defer cancel()
 	var stdout, stderr bytes.Buffer
 	source := `import {run_agent} from "noe:agent";
-const result=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:3},"Consult the noe:http fetch docs, stream a binary upload, save its result, and report completion.");
+const result=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:3},"Consult the global fetch docs, stream a binary upload, save its result, and report completion.");
 if(result.lastResult?.state!=="completed")throw Error(JSON.stringify(result.lastResult));
 console.log(result.lastResult.answer);`
 	code, err := Execute(ctx, Source{Name: filepath.Join(dir, "main.mjs"), Code: source}, Options{

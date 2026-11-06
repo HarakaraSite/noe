@@ -17,8 +17,6 @@
 	},
 	"javascript": {
 		"globals": [
-			"serve",
-			"upgradeWebSocket",
 			"ShadowRealm",
 			"Temporal",
 			"AsyncDisposableStack",

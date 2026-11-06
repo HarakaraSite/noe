@@ -6,13 +6,13 @@
 
 NOEは固定したgo-quickjs v0.29.0をJavaScriptエンジンに使い、go-quickjs v0.27.0のstdlibを原型とするNOE管理の標準ライブラリを有効にします。通常ビルドでは実験的JITを有効にしません。Web APIとNode形式APIを利用できます。各APIはNOEが管理する実装に従い、Node.js全体との互換性を保証するものではありません。
 
-NOE-specific entry points include CLI commands, NOE modules, and host APIs. `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers. The standard `node:process` module exposes host standard I/O as Web Streams when Stdio is selected. The selected `node:child_process` module includes NOE's live `spawn` extension when the command capability is enabled. Filesystem access is provided by the NOE-specific `noe:fs` module. Agent, model, decision, image, authentication, and saved-event modules are available only in the main runtime when selected by the host. See [migration from the old API](#旧apiからの移行) and the [migration implementation record](archive/increment-12.md).
+NOE-specific entry points include CLI commands, NOE modules, and host APIs. `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers. `noe:process` exposes independently selected command functions, host standard I/O Web Streams, and the named `process` metadata/control object. Its default is a namespace of the selected named exports; global `process` remains the metadata/control object. Filesystem access is provided by `noe:fs`. Agent, model, decision, image, authentication, and saved-event modules are available only in the main runtime when selected by the host. See [process migration](development/stdlib-noe-process.md), [migration from the old API](#旧apiからの移行), and the [migration implementation record](archive/increment-12.md).
 
 v2.3.0以降のrun_js返却data・診断・明示importへの移行は[実行結果と診断](execution-results.md)を参照してください。
 
 ## 利用できる機能と権限
 
-Web APIにはURL、Fetch、Request/Response/Headers、Web Streams、タイマー、WebSocket、Worker、cryptoなどがあります。Node形式の組み込みモジュールには、たとえば`assert`、`buffer`、`child_process`、`dns`、`events`、`http`、`os`、`path`、`process`、`timers`、`timers/promises`、`url`、`util`、`vm`、`worker_threads`、`zlib`があります。暗号機能はWeb Cryptoと`crypto`から利用できます。APIごとの未実装機能や差異は、NOE管理の`internal/stdlib`と、そのバイナリに内蔵したdocsを参照してください。
+Web APIs include URL, Fetch, Request/Response/Headers, Web Streams, timers, WebSocket, Worker, and crypto. Remaining Node-style modules include `assert`, `buffer`, `dns`, `events`, `os`, `path`, `timers`, `timers/promises`, `url`, `util`, `vm`, `worker_threads`, and `zlib`. Cryptography is available through Web Crypto and `crypto`. Host processes and files use `noe:process` and `noe:fs`; HTTP listeners and WebSocket host helpers use `noe:http`. Consult the bundled docs and NOE-maintained `internal/stdlib` for supported contracts and differences.
 
 NOEは次のホスト機能をスクリプトに渡します。
 
@@ -24,7 +24,7 @@ NOEは次のホスト機能をスクリプトに渡します。
 - HTTPサーバーの待受
 - Workersとメッセージング
 
-Workers receive the same host-selected standard-library capabilities. NOE modules `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers; `noe:agent`, `noe:decision`, `noe:image`, and `noe:auth` are not. When Stdio is selected, `node:process` exports byte streams and Worker stdin reaches immediate EOF while output uses the host destinations. The command capability exposes the NOE-specific `spawn` export from `node:child_process`. File handles are exposed through `noe:fs`. NOE is not a sandbox: scripts run with the operating-system permissions of the process that started NOE.
+Workers receive the same host-selected standard-library capabilities. NOE modules `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers; `noe:agent`, `noe:decision`, `noe:image`, and `noe:auth` are not. When Stdio is selected, `noe:process` exports byte streams and Worker stdin reaches immediate EOF while output uses the host destinations. The command capability exposes the NOE-specific `spawn` export from `noe:process`. File handles are exposed through `noe:fs`. NOE is not a sandbox: scripts run with the operating-system permissions of the process that started NOE.
 
 原型であるgo-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
@@ -275,7 +275,7 @@ traceにはrun ID、親run ID、agent名、model、status、duration（nanosecon
 
 ## 子プロセスと標準I/Oストリーム
 
-The NOE-specific `spawn` export from `node:child_process` supports live child-process I/O, exit observation, termination, and cleanup. `node:process` exposes host stdin/stdout/stderr as Web Streams when Stdio is selected; use the standard `pipeTo` method to connect streams. Both APIs are available to ordinary JavaScript, `run_js`, and Workers when the host selects their capabilities. See the [process and standard I/O guide](process-io.md) for the public contract and examples. `spawn` does not add Node.js EventEmitter or Node streams APIs.
+The NOE-specific `spawn` export from `noe:process` supports live child-process I/O, exit observation, termination, and cleanup. `noe:process` exposes host stdin/stdout/stderr as Web Streams when Stdio is selected; use the standard `pipeTo` method to connect streams. Both APIs are available to ordinary JavaScript, `run_js`, and Workers when the host selects their capabilities. See the [process and standard I/O guide](process-io.md) for the public contract and examples. `spawn` does not add Node.js EventEmitter or Node streams APIs.
 
 `noe:fs.open` provides `FileHandle.read()`/`write()` for sequential I/O and `readAt()`/`writeAt()` for positional I/O. `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides an AsyncIterator subscription. See [file handles, sockets, and signals](low-level-io.md) for the current contracts and resource lifecycles.
 
@@ -299,7 +299,7 @@ The NOE-specific `spawn` export from `node:child_process` supports live child-pr
 
 `process.argv`は実行ファイル名、スクリプト名、スクリプト引数の順です。スクリプト引数は`process.argv.slice(2)`で取得できます。`process.env`は起動時の環境変数、`process.cwd()`はカレントディレクトリです。`process.exit(code)`で現在のJavaScript実行を終了し、終了コードを指定できます。task/toolではそのVMを終了します。
 
-When Stdio is selected, `node:process` exports `stdin` as a byte `ReadableStream`. Read all input as text with `await new Response(stdin).text()`, or use a stream reader for incremental processing. The former synchronous `process.stdin.read()` facade is removed; see the [process and standard I/O guide](process-io.md).
+When Stdio is selected, `noe:process` exports `stdin` as a byte `ReadableStream`. Read all input as text with `await new Response(stdin).text()`, or use a stream reader for incremental processing. The former synchronous `process.stdin.read()` facade is removed; see the [process and standard I/O guide](process-io.md).
 
 ファイルのPromise APIは`noe:fs`からimportできます。
 
@@ -343,10 +343,10 @@ console.log("done");
 
 ## Fetch
 
-HTTP送受信の推奨入口は`noe:http`です。`import { fetch, serve } from "noe:http"`で、既存globalと同じ関数を利用できます。default exportはありません。`fetch()`はWeb Fetch APIです。`Request`・`Response`・`Headers`を使い、レスポンス本文は`text()`、`json()`、`arrayBuffer()`、`bytes()`、またはReadableStreamで読み取れます。レスポンス本文は一度だけ読み取れます。HTTP 4xx・5xxもResponseとして返るため、必要に応じて`response.ok`を確認してください。
+Use the standard global `fetch()` for outbound HTTP. `Request`, `Response`, `Headers`, and Web Streams use the shared Web API implementation. Consume each response body once with `text()`, `json()`, `arrayBuffer()`, `bytes()`, or its ReadableStream. HTTP 4xx/5xx responses still resolve; inspect `response.ok`. Host-only listener and WebSocket helpers are explicit imports from `noe:http`, which has no default or `fetch` export.
 
 ```js
-import { fetch } from "noe:http";
+
 
 const response = await fetch("https://example.com/api/data");
 if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -357,7 +357,7 @@ console.log(value);
 JSONを送信する例です。
 
 ```js
-import { fetch } from "noe:http";
+
 
 const response = await fetch("https://example.com/api/items", {
   method: "POST",
@@ -369,7 +369,9 @@ console.log(response.status, await response.text());
 
 `ReadableStream`を要求bodyに渡すと、`Uint8Array`チャンクを全量収集せず逐次送信できます。bodyは一度だけ使え、途中で応答headersが届くと未完了の送信を止めてResponseを返します。`serve`はheaders受信後、本文EOFを待たずにhandlerへRequestを渡します。GET・HEAD以外では、bodyが既知の空なら`request.body`はnull、本文ありまたは長さ不明ならReadableStreamです。body readerはJavaScriptのpullに応じてbounded readを行い、readがなければNOE bridgeは先読みしません。未知長の空bodyは空のstreamとしてEOFになります。
 
-受信streamはone-shotです。`text()`や`json()`などのbody methodは従来どおり内容を収集します。Go `Serve.MaxBodyBytes`の既定値は32 MiBで、正の設定値ではそのprefixの後に正常EOF、負の値では空bodyになります。超過しても413にはせず、受信した`Content-Length`は変更しません。この値はJavaScript optionではありません。read errorはbody readをrejectし、handlerで捕捉できます。cancelはbodyのreadを止めますが、returned Responseの生成・送信は継続できます。Response streamは送信完了までrequest.bodyを読めます。`Expect: 100-continue`では先に100応答を送り、Response streamのpumpは最終headersのflush後に需要を出します。これにより`new Response(request.body)`のようなHWM 0 sourceはflush後に読取りを開始できます。handlerがpending readをcancelした場合は最終headersのflush前にそのreadを中断します。利用者streamの`start()`や先行pull、別readerの読取りは制御しません。全二重HTTPは保証せず、`fetch`の途中応答によるupload停止も従来どおりです。既定値、redirect、abort、closeとresponse本文上限の詳細は`noe docs noe:http`で確認できます。
+Incoming request bodies are one-shot; body methods collect the consumed bytes. `ServeOptions.MaxBodyBytes` defaults to 32 MiB (`0`), negative disables the bound, and positive sets a finite cap. Reading beyond the cap rejects with `RangeError` and code `ERR_HTTP_BODY_TOO_LARGE`; exactly the cap succeeds once EOF is established. Uncaught overflow produces 413 before response headers are sent, and `onError` may provide a different Response. Once a response stream has started, a body-read failure aborts that transfer. No Content-Length is rewritten. A caller that deliberately stops reading a prefix does not trigger an implicit drain. Cancel stops input reads while response production may continue, and a Response stream can read the Request until response sending ends. Existing `Expect: 100-continue` and demand-driven stream ordering remain. See `noe docs noe:http serve` for the full receive contract.
+
+Fetch response reads now reject when actual body bytes exceed the configured `FetchOptions.MaxBodyBytes` cap, instead of reporting a successful truncated prefix. Exactly the cap is allowed when the peer reaches EOF; zero selects 32 MiB and negative values disable the cap. A streaming reader may receive the permitted prefix before a later read rejects. Serve applies a separate request-body limit with overflow errors as described below. See the [limit fix](development/stdlib-fetch-body-limit.md).
 
 ## HTTPサーバー
 
@@ -388,9 +390,9 @@ const server = serve({ port: 8080 }, async request => {
 console.log(server.url);
 ```
 
-リクエスト本文はWeb Request APIで読み、応答は必ずResponseで返します。JSONの応答には`Response.json(value)`を使えます。従来のglobal fetch/serveと`node:http`・`http`のserveも維持しています。Request・Response・StreamsとWebSocketは既存globalを共有します。WebSocketはWebSocket APIと、サーバー側では`serve`を通じて利用できます。 NOE adds `new WebSocket(url, protocols, {headers})` for explicit handshake headers, including Authorization and Origin; this optional third argument works in Workers and Go embedding. See the [header contract](development/stdlib-websocket-headers.md).
+Handlers receive Web Requests and return Responses; use `Response.json(value)` for JSON. `serve` and `upgradeWebSocket` are named imports from `noe:http`. Their globals and the old `node:http`/`http` modules have been removed. Standard global `new WebSocket(url, protocols?)` opens a client; use `createWebSocket(url, {protocols, headers})` from `noe:http` for custom handshake headers. It returns the same WebSocket type in CONNECTING state, with the same events and ownership. The standard binary default is now `"blob"`; set `socket.binaryType = "arraybuffer"` explicitly when needed. See the [current HTTP migration](development/stdlib-noe-http.md).
 
-`server.close()`は同期的に受付を停止し、処理中のHTTPリクエスト終了を最大5秒待った後、残る接続を強制終了します。停止を求めるリクエスト自身のハンドラーから同期的に呼ぶと、そのハンドラーの完了を待つことになります。応答が完了した後の別の処理から呼んでください。これは旧`noe.serve()`の非同期停止とは異なる動作です。
+`await server.close()` waits for HTTP listener/handler cleanup without blocking JavaScript. Close stops new handler admission immediately, allows up to five seconds for graceful completion, then forces remaining HTTP connections closed. Repeated calls return the same Promise, resolving to undefined after cleanup. Runtime cancellation and Worker termination retain an independent forced path. A shutdown handler can call `server.close()` and return its response; await completion outside that handler. `await using server = serve(...)` invokes the same close protocol on normal or exceptional scope exit. See the [Serve lifecycle migration](development/stdlib-serve-lifecycle.md).
 
 The global `EventSource` API receives server-sent events over HTTP/HTTPS,
 including named events, automatic reconnection, and Last-Event-ID. Close a
@@ -439,7 +441,7 @@ const answer = snapshot.lastResult?.answer;
 | `noe.env.get(name)` | `process.env[name]` |
 | `noe.cwd()` | `process.cwd()` |
 | `noe.exit(code)` | `process.exit(code)` |
-| `noe.readStdin()` | `await new Response(stdin).text()` after importing `stdin` from `node:process` |
+| `noe.readStdin()` | `await new Response(stdin).text()` after importing `stdin` from `noe:process` |
 | `noe.readTextFile(path)` | `noe:fs`の`readFile(path, "utf8")` |
 | `noe.writeTextFile(path, text)` | `noe:fs`の`writeFile(path, text)` |
 | `noe.readFile(path)`・`noe.writeFile(path, data)` | `noe:fs`の`readFile`・`writeFile` |

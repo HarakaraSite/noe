@@ -1,5 +1,5 @@
 // Filename discovery for NOE. No npm dependencies or shell invocation.
-import {spawn} from "node:child_process";
+import {spawn} from "noe:process";
 import {lstat} from "noe:fs";
 import {relative, resolve} from "node:path";
 

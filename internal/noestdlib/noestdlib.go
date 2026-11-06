@@ -113,19 +113,14 @@ func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings,
 			return nil, installErr
 		}
 		result.native = host
-		if cfg.Native.Stdio {
-			if err := stdlib.ProcessStdio(rt, core.Process != nil, host.Stdio()); err != nil {
-				closeAdapters()
-				return nil, err
-			}
-		}
-		if cfg.Native.Commands {
-			// Complete the module before any user imports it. The same function
-			// is published through the named/default and bare/node: entry points.
-			if err := stdlib.CommandsWithSpawn(rt, core.Run, host.Spawn()); err != nil {
-				closeAdapters()
-				return nil, err
-			}
+		// Complete the single namespace before any user imports it. Each
+		// capability keeps its own selection and native resource ownership.
+		if err := stdlib.ProcessModule(rt, stdlib.ProcessModuleOptions{
+			ProcessInfo: core.Process != nil, Commands: core.Run,
+			Stdio: host.Stdio(), Spawn: host.Spawn(),
+		}); err != nil {
+			closeAdapters()
+			return nil, err
 		}
 	}
 	return result, nil

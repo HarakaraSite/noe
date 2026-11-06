@@ -55,10 +55,10 @@ func run() error {
 	defer view.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	code := `import {execFileSync} from "node:child_process";globalThis.result=execFileSync("/bin/sh",["-c","printf command-ok"]);`
+	code := `import {execFileSync} from "noe:process";globalThis.result=execFileSync("/bin/sh",["-c","printf command-ok"]);`
 	if state := os.Getenv("NOE_TEST_LEAK_STATE"); state != "" {
 		value, _ := json.Marshal(state)
-		code = `import {execFileSync} from "node:child_process";execFileSync("/bin/sh",["-c",'echo $$ > "$1"; sleep 300 & echo $! >> "$1"; wait',"sh",` + string(value) + `]);`
+		code = `import {execFileSync} from "noe:process";execFileSync("/bin/sh",["-c",'echo $$ > "$1"; sleep 300 & echo $! >> "$1"; wait',"sh",` + string(value) + `]);`
 	}
 	_, err = rt.EvalModuleContext(ctx, "command.mjs", code)
 	if err != nil {

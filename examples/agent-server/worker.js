@@ -1,5 +1,5 @@
 // Internal worker: started by server.js with --observe --events, not directly.
-import { stdin } from "node:process";
+import { stdin } from "noe:process";
 import { startAgentServer } from "./app.js";
 
 // Bootstrap travels over stdin, separate from the human-readable stdout.

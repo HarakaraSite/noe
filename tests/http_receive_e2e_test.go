@@ -128,7 +128,8 @@ func requireE2EHTTPReceiveClientStopped(t *testing.T, conn net.Conn) {
 
 func TestNoeHTTPReceivePrefixBeforeEOFThroughCLI(t *testing.T) {
 	fixture := newE2EHTTPReceiveFixture(t)
-	source := fmt.Sprintf(`import {fetch} from "noe:http";
+	source := fmt.Sprintf(`import {serve} from "noe:http";
+
 const fixture=%q;let resolveDone;
 const done=new Promise(resolve=>{resolveDone=resolve;});
 const server=serve({port:0},async request=>{
@@ -140,7 +141,7 @@ const server=serve({port:0},async request=>{
 console.log("SERVER_URL",server.url);
 const result=await done;
 await fetch(fixture+"/wait");
-server.close();
+await server.close();
 console.log("RECEIVE_RESULT",JSON.stringify(result));`, fixture.server.URL)
 	process := startCLIWithOpenStdin(t, t.TempDir(), "eval", source)
 	address := waitServeURL(t, process)
@@ -164,7 +165,8 @@ console.log("RECEIVE_RESULT",JSON.stringify(result));`, fixture.server.URL)
 }
 
 func pendingCLIReceiveSource() string {
-	return `const server=serve({port:0},async request=>{
+	return `import {serve} from "noe:http";
+const server=serve({port:0},async request=>{
  const reader=request.body.getReader();
  const first=await reader.read();if(first.done)throw Error("missing initial body byte");
  const pending=reader.read();

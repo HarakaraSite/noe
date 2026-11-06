@@ -1,4 +1,4 @@
-import { fetch, serve } from "noe:http";
+import { serve } from "noe:http";
 import { writeFile } from "noe:fs";
 
 const args = process.argv.slice(2);
@@ -64,5 +64,5 @@ try {
     console.log(JSON.stringify({ status: response.status, responseBytes: received.byteLength }));
   }
 } finally {
-  if (server !== undefined) server.close();
+  if (server !== undefined) await server.close();
 }

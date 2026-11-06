@@ -42,6 +42,14 @@ under `node:process` Web Streams. It adds `AbortSignal.any` and asynchronous
 resource disposal. The former `noe:process`, `noe:io`, and synchronous stdio
 interfaces are removed; see the [migration notes](docs/releases/v2.14.0.md).
 
+The unreleased source now consolidates commands, standard I/O, and metadata
+under `noe:process`, with no adapters for those four Node process imports.
+Global `process` remains available when selected; its module form is
+`import {process} from "noe:process"`. See the
+[process migration](docs/development/stdlib-noe-process.md). HTTP listeners and
+WebSocket host helpers now use explicit `noe:http` imports; standard Fetch
+and WebSocket remain globals. See the [HTTP migration](docs/development/stdlib-noe-http.md).
+
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
 

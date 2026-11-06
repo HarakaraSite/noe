@@ -113,6 +113,8 @@ func TestCatalogNavigationAndIsolation(t *testing.T) {
 	}
 	for _, name := range []string{
 		"noe:agent/api", "noe:agent/hooks", "noe:agent/internal", "noe:io", "node:net",
+		"node:child_process", "child_process", "node:process", "process",
+		"node:http", "http",
 		"node:fs", "node:fs/promises", "fs", "fs/promises", "noe:fs-handle", "../../instructions.md",
 	} {
 		if _, err := Lookup(name, ""); err == nil {
@@ -126,9 +128,32 @@ func TestCatalogNavigationAndIsolation(t *testing.T) {
 	if fsTopic == nil || len(fsTopic.info.Aliases) != 0 {
 		t.Fatal("filesystem reference must use the single noe:fs topic without aliases")
 	}
+	processTopic := builtin.entries["noe:process"]
+	if processTopic == nil || len(processTopic.info.Aliases) != 0 {
+		t.Fatal("process reference must use the single noe:process topic without aliases")
+	}
+	for _, detail := range []string{"process", "cwd", "env", "argv", "exit", "stdin", "stdout", "stderr", "execFile", "spawn", "ChildProcess.close"} {
+		if _, err := Lookup("noe:process", detail); err != nil {
+			t.Errorf("missing process detail %s: %v", detail, err)
+		}
+	}
 	for _, detail := range []string{"open", "FileHandle.readAt", "FileHandle.writeAt", "watch", "createReadStream"} {
 		if _, err := Lookup("noe:fs", detail); err != nil {
 			t.Errorf("missing filesystem detail %s: %v", detail, err)
+		}
+	}
+	for _, detail := range []string{"serve", "createWebSocket", "upgradeWebSocket", "HTTPServer.close", "HTTPServer[Symbol.asyncDispose]"} {
+		if _, err := Lookup("noe:http", detail); err != nil {
+			t.Errorf("missing HTTP helper detail %s: %v", detail, err)
+		}
+	}
+	httpOverview, err := Lookup("noe:http", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"no default export", "no `fetch` export", "Fetch alone does not install it", "Serve selects `serve`", "WebSockets selects `createWebSocket`"} {
+		if !strings.Contains(httpOverview, marker) {
+			t.Errorf("HTTP reference overview omits %q", marker)
 		}
 	}
 	fsOverview, err := Lookup("noe:fs", "")

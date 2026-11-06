@@ -1,6 +1,6 @@
 # Official MCP SDK with a NOE process transport
 
-This spike separates the official SDK `Client` export from the NOE transport. It pins `@modelcontextprotocol/sdk` **1.32.1** and esbuild **0.25.12**. The generated bundle exports the SDK client; [`noe-transport.js`](noe-transport.js) remains a normal ESM module that imports `spawn` from `node:child_process`. No SDK patch or product MCP API is involved.
+This spike separates the official SDK `Client` export from the NOE transport. It pins `@modelcontextprotocol/sdk` **1.32.1** and esbuild **0.25.12**. The generated bundle exports the SDK client; [`noe-transport.js`](noe-transport.js) remains a normal ESM module that imports `spawn` from `noe:process`. No SDK patch or product MCP API is involved.
 
 The SDK's local `shared/transport.d.ts` contract is `start()`, `send(message, options?)`, and `close()`, with `onmessage`, `onerror`, and `onclose` callbacks. The transport uses newline-delimited JSON on piped standard streams. Its caller supplies `command`, `args`, and `cwd`; it does not infer either the NOE executable or server entry from `process.argv`. EOF, malformed JSON, stream errors, and child startup failure notify `onerror` and `onclose`, allowing the SDK to reject pending RPCs. Normal close sends stdin EOF, waits briefly for `child.exited`, and calls `child.close()` for cleanup; fatal paths also close the child.
 

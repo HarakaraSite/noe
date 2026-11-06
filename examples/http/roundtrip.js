@@ -1,4 +1,4 @@
-import { fetch, serve } from "noe:http";
+import { serve } from "noe:http";
 
 // Exchange JSON over loopback, consume the response, then release the listener.
 const server = serve({ port: 0 }, async request => {
@@ -14,5 +14,5 @@ try {
   if (!response.ok) throw new Error("HTTP " + response.status);
   console.log(JSON.stringify(await response.json()));
 } finally {
-  server.close();
+  await server.close();
 }

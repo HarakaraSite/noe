@@ -41,14 +41,16 @@ type WebSockets struct {
 	TLS *tls.Config
 }
 
-// Sockets installs WebSocket, and upgradeWebSocket where there is a server to
-// accept one on.
+// Sockets installs the standard WebSocket global and returns selected host
+// helpers for publication through noe:http.
 //
 //	const socket = new WebSocket("wss://example.com/feed")
 //	socket.addEventListener("message", (e) => console.log(e.data))
 //	socket.addEventListener("open", () => socket.send("hello"))
 //
 // On the other side, a handler answers a request by taking it over:
+//
+//	import {serve, upgradeWebSocket} from "noe:http"
 //
 //	serve({port: 8080}, (request) => {
 //	    const {socket, response} = upgradeWebSocket(request)
@@ -59,12 +61,12 @@ type WebSockets struct {
 // What arrives is a message, not a stream of bytes: the protocol's frames, its
 // fragments and its pings are handled here, and what the script sees is what
 // the other end sent.
-func Sockets(rt *quickjs.Runtime, cfg *WebSockets) error {
+func Sockets(rt *quickjs.Runtime, cfg *WebSockets) (map[string]quickjs.Value, error) {
 	if cfg == nil {
 		cfg = &WebSockets{}
 	}
 	if cfg.Loop == nil {
-		return errors.New("stdlib: sockets need an event loop to deliver on")
+		return nil, errors.New("stdlib: sockets need an event loop to deliver on")
 	}
 	h := &wsHost{rt: rt, cfg: cfg, pending: map[string]*socket{}}
 
@@ -74,7 +76,7 @@ func Sockets(rt *quickjs.Runtime, cfg *WebSockets) error {
 		"reserve": h.reserve,
 		"serving": cfg.Serve != nil,
 	}); err != nil {
-		return err
+		return nil, err
 	}
 	if cfg.Serve != nil {
 		// The server hands a taken-over connection back here, which is the
@@ -84,18 +86,27 @@ func Sockets(rt *quickjs.Runtime, cfg *WebSockets) error {
 
 	api, err := evalWithHost(rt, "<websocket>", webSocketJS, host)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for _, name := range []string{"WebSocket", "upgradeWebSocket"} {
+	webSocket, err := api.Get("WebSocket")
+	if err != nil {
+		return nil, err
+	}
+	if err := rt.Set("WebSocket", webSocket); err != nil {
+		return nil, err
+	}
+	helpers := make(map[string]quickjs.Value)
+	for _, name := range []string{"createWebSocket", "upgradeWebSocket"} {
+		if name == "upgradeWebSocket" && cfg.Serve == nil {
+			continue
+		}
 		v, err := api.Get(name)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if err := rt.Set(name, v); err != nil {
-			return err
-		}
+		helpers[name] = v
 	}
-	return nil
+	return helpers, nil
 }
 
 type wsHost struct {
@@ -598,26 +609,27 @@ const webSocketJS = `(function (host) {
   "use strict";
 
   const CONNECTING = 0, OPEN = 1, CLOSING = 2, CLOSED = 3;
+  const acceptedSocket = Symbol("accepted socket");
+  const customHandshake = Symbol("custom handshake");
 
   class WebSocket extends EventTarget {
-    constructor(url, protocols, options = {}) {
+    constructor(url, protocols = []) {
       super();
-      this.url = url === null ? "" : String(url);
+      const accepted = url === acceptedSocket;
+      this.url = accepted ? "" : String(url);
       this.readyState = CONNECTING;
       this.protocol = "";
       this.extensions = "";
       this.bufferedAmount = 0;
-      // The web defaults to a Blob, which is a copy of a copy for the common
-      // case of reading the bytes; this hands over the bytes.
-      this.binaryType = "arraybuffer";
+      this.binaryType = "blob";
       this.onopen = null;
       this.onmessage = null;
       this.onerror = null;
       this.onclose = null;
-      if (url !== null) {
+      if (!accepted) {
         this._drive(host.connect(this.url, protocols === undefined ? []
           : (Array.isArray(protocols) ? protocols.map(value => String(value)) : [String(protocols)]),
-          requestHeaders(options)));
+          arguments[2] === customHandshake ? requestHeaders(arguments[3]) : []));
       }
     }
 
@@ -673,7 +685,9 @@ const webSocketJS = `(function (host) {
         throw new DOMException_("the socket is not open yet");
       }
       if (this.readyState !== OPEN) return;
-      this._handle.send(data);
+      // NOE's Blob stores its immutable bytes synchronously. The native queue
+      // snapshots them, preserving message order alongside text/buffer sends.
+      this._handle.send(typeof Blob !== "undefined" && data instanceof Blob ? data._bytes : data);
     }
 
     close(code, reason) {
@@ -686,6 +700,16 @@ const webSocketJS = `(function (host) {
       };
       this._handle.close(this._closing.code, this._closing.reason);
     }
+  }
+
+  // The host factory keeps handshake extensions out of the standard global
+  // constructor while returning the same WebSocket type and lifecycle.
+  function createWebSocket(url, options = {}) {
+    if (options == null) options = {};
+    if (typeof options !== "object" && typeof options !== "function") {
+      throw new TypeError("WebSocket options must be an object");
+    }
+    return new WebSocket(url, options.protocols, customHandshake, options);
   }
 
   // Snapshot headers before connecting; only Go strings leave this runtime.
@@ -744,7 +768,7 @@ const webSocketJS = `(function (host) {
       throw new TypeError("this request did not ask for a socket");
     }
     const reserved = host.reserve();
-    const socket = new WebSocket(null);
+    const socket = new WebSocket(acceptedSocket);
     socket._drive(reserved.handle);
 
     const response = new Response(null, {status: 101});
@@ -757,5 +781,5 @@ const webSocketJS = `(function (host) {
     return {socket, response};
   }
 
-  return {WebSocket, upgradeWebSocket};
+  return {WebSocket, createWebSocket, upgradeWebSocket};
 })`

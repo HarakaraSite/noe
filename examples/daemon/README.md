@@ -59,7 +59,7 @@ cat /tmp/noe-daemon.log
 
 端末を閉じた後も動かしたい場合はtmuxやOSのサービス管理を使います。
 これはshellから独立したNOEプロセスを起動する例です。
-`node:child_process.spawn()`の子は作成したruntimeに所有され、親終了後の独立実行にはなりません。
+Children started with `noe:process.spawn()` belong to the runtime that created them and cannot continue independently after it exits.
 
 ## 通信形式
 

@@ -3,7 +3,7 @@ import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from "noe:fs";
 import {readdir} from "noe:fs";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
-import {execFile} from "node:child_process";
+import {execFile} from "noe:process";
 import {ls, read_file, write_file, edit_file} from "./files.js";
 
 const root = mkdtempSync(join(tmpdir(), "noe-files-"));

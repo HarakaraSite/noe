@@ -42,11 +42,20 @@ func newReceiveRig(t *testing.T, limit int64, handler string) *receiveRig {
 			done <- err
 			return
 		}
+		module, err := rt.RequireModule("noe:http", "")
+		if err != nil {
+			done <- err
+			return
+		}
+		if err := rt.Set("httpModule", module); err != nil {
+			done <- err
+			return
+		}
 		if err := rt.Set("notify", func(message string) { rig.notices <- message }); err != nil {
 			done <- err
 			return
 		}
-		source := `const server=serve({port:0,onError(error){notify("error:"+error.message);return new Response("handled",{status:422});}},` + handler + `);`
+		source := `const server=httpModule.serve({port:0,onError(error){notify("error:"+error.message);return new Response("handled",{status:422});}},` + handler + `);`
 		if _, err := rt.Eval(source); err != nil {
 			done <- err
 			return
@@ -175,7 +184,7 @@ func TestServeEarlyResponseDoesNotDrainProducer(t *testing.T) {
 	}{
 		{"unread", `request=>new Response("accepted")`, 0, "", 200, "accepted"},
 		{"partial", `async request=>{await request.body.getReader().read();return new Response("partial");}`, 0, "ab", 200, "partial"},
-		{"cap", `async request=>new Response(await request.text())`, 2, "ab", 200, "ab"},
+		{"bounded prefix", `async request=>new Response((await request.body.getReader().read()).value)`, 2, "ab", 200, "ab"},
 		{"cancel", `async request=>{const reader=request.body.getReader();const pending=reader.read();notify("reading");await reader.cancel();await pending;return new Response("cancelled");}`, 0, "", 200, "cancelled"},
 		{"onError", `request=>{throw Error("broken")}`, 0, "", 422, "handled"},
 	}
@@ -299,19 +308,23 @@ func TestServeBodyBoundedReadAndTerminalBytes(t *testing.T) {
 		p := &serveReadProbe{data: bytes.Repeat([]byte{42}, serveReadSize+2), err: io.EOF}
 		b := &serveBody{body: p, remaining: limit}
 		var got []byte
+		var terminal error
 		for {
 			chunk, err := b.read()
 			got = append(got, chunk...)
-			if err == io.EOF {
-				break
-			}
 			if err != nil {
-				t.Fatal(err)
+				terminal = err
+				break
 			}
 		}
 		want := limit
 		if want < 0 {
-			want = 0
+			want = serveReadSize + 2
+			if terminal != io.EOF {
+				t.Fatalf("unlimited terminal=%v", terminal)
+			}
+		} else if !errors.Is(terminal, errServeBodyTooLarge) {
+			t.Fatalf("limit=%d terminal=%v, want overflow", limit, terminal)
 		}
 		if int64(len(got)) != want {
 			t.Fatalf("limit=%d got=%d", limit, len(got))
@@ -482,22 +495,16 @@ func TestServeNormalEOFReusesConnection(t *testing.T) {
 	}
 }
 
-func TestServeSynchronousCloseForcesPendingInput(t *testing.T) {
+func TestServeAsyncCloseRespondsWithPendingInput(t *testing.T) {
 	rig := newReceiveRig(t, 0, `async request=>{const reader=request.body.getReader();reader.read().catch(()=>{});notify("closing");server.close();return new Response("late")}`)
-	conn, _ := receiveConn(t, rig, "Content-Length: 20\r\n")
+	_, reader := receiveConn(t, rig, "Content-Length: 20\r\n")
 	rig.notice(t, "closing")
-	started := time.Now()
-	buffer := make([]byte, 1)
-	_, err := conn.Read(buffer)
-	elapsed := time.Since(started)
-	if err == nil {
-		t.Fatal("pending input connection remained open")
-	}
-	if elapsed < 4*time.Second || elapsed > 7*time.Second {
-		t.Fatalf("forced shutdown delay=%v error=%v", elapsed, err)
+	response := receiveResponse(t, reader)
+	if response.StatusCode != http.StatusOK || receiveText(t, response) != "late" {
+		t.Fatalf("shutdown handler response=%s", response.Status)
 	}
 	rig.stop()
-	// Force-close must release the listener as well as the pending body.
+	// Both pending body reads and the owned listener must be released.
 	listener, err := net.Listen("tcp", strings.TrimPrefix(rig.url, "http://"))
 	if err != nil {
 		t.Fatal(err)
@@ -622,8 +629,8 @@ func TestServeJSBodyReadsOnlyOnDemand(t *testing.T) {
 			finished <- err
 			return
 		}
-		rt.Set("serve", serve)
-		_, err = rt.Eval(`serve(async request=>{await Promise.resolve();await checkpoint("no demand");const reader=request.body.getReader();const first=await reader.read();if(first.value.length!==6)throw Error("bytes");await checkpoint("one pull");await reader.cancel();return new Response("ok");})`)
+		rt.Set("httpModule", map[string]any{"serve": serve})
+		_, err = rt.Eval(`httpModule.serve(async request=>{await Promise.resolve();await checkpoint("no demand");const reader=request.body.getReader();const first=await reader.read();if(first.value.length!==6)throw Error("bytes");await checkpoint("one pull");await reader.cancel();return new Response("ok");})`)
 		if err != nil {
 			finished <- err
 			return

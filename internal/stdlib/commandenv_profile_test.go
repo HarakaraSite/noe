@@ -43,7 +43,7 @@ func TestNodeCommandsShareSelectedCwdEnvAndRelativePATH(t *testing.T) {
 	commandJSON, _ := json.Marshal(defaultCommand)
 	out, _ := run(t, config, fmt.Sprintf(`
 		(async () => {
-			const cp = (await import("node:child_process")).default;
+			const cp = (await import("noe:process")).default;
 			const selected = cp.execFileSync("probe", [], {cwd:"/virtual"}).trim();
 			const spawned = cp.spawnSync("probe", [], {cwd:"/virtual", env:{PATH:"../override-bin", MARK:"spawn"}}).stdout.trim();
 			const shell = cp.execSync("probe", {cwd:"/virtual", env:{PATH:"../override-bin", MARK:"shell"}}).trim();

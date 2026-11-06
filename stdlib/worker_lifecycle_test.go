@@ -35,11 +35,11 @@ func TestManagedNestedWorkersOwnInitializationAndEmptyStdin(t *testing.T) {
 	var output bytes.Buffer
 	var initialized, cleaned atomic.Int32
 	sources := map[string]string{
-		"./child.mjs": `import {parentPort,Worker} from "node:worker_threads";import {stdin} from "node:process";import {docs} from "noe:docs";
- if(!(await stdin.getReader().read()).done || !docs("node:process"))throw Error("child extras");
+		"./child.mjs": `import {parentPort,Worker} from "node:worker_threads";import {stdin} from "noe:process";import {docs} from "noe:docs";
+ if(!(await stdin.getReader().read()).done || !docs("noe:process"))throw Error("child extras");
  const w=new Worker("./grand.mjs",{type:"module"});const value=await new Promise((ok,fail)=>{w.once("message",ok);w.once("error",fail)});parentPort.postMessage("child:"+value);`,
-		"./grand.mjs": `import {parentPort} from "node:worker_threads";import {stdin} from "node:process";import {docs} from "noe:docs";
- if(!(await stdin.getReader().read()).done || !docs("node:process"))throw Error("grandchild extras");parentPort.postMessage("grand");`,
+		"./grand.mjs": `import {parentPort} from "node:worker_threads";import {stdin} from "noe:process";import {docs} from "noe:docs";
+ if(!(await stdin.getReader().read()).done || !docs("noe:process"))throw Error("grandchild extras");parentPort.postMessage("grand");`,
 	}
 	profile := stdlib.Profile{Environment: stdlib.Environment{Stdin: input, Stdout: &output}, Modules: stdlib.Modules{Stdio: true, Workers: &stdlib.WorkerOptions{Max: -1}},
 		Initialize: func(context.Context, *stdlib.Bindings) (func(), error) {
@@ -75,7 +75,7 @@ func TestWorkerInitializerFailureLeavesParentOutputUsable(t *testing.T) {
 		}
 		return cleanup, nil
 	}}
-	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[worker failure]", Virtual: true, Module: true, Code: `import {Worker} from "node:worker_threads";import {stdout} from "node:process";
+	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[worker failure]", Virtual: true, Module: true, Code: `import {Worker} from "node:worker_threads";import {stdout} from "noe:process";
  const w=new Worker("throw Error('must not execute')",{eval:true,type:"module"});
  const message=await new Promise(ok=>w.once("error",e=>ok(e.message)));if(!message.includes("worker initializer sentinel"))throw Error(message);
  console.log("parent alive");const writer=stdout.getWriter();await writer.write(new TextEncoder().encode("native alive"));writer.releaseLock();`}, profile)

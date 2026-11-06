@@ -36,12 +36,12 @@ func TestNoeHTTPAgentConsultsDocsAndRunsRoundtrip(t *testing.T) {
 				return provider.Response{}, fmt.Errorf("HTTP reference was not delivered")
 			}
 			return hookToolReply(map[string]string{"roundtrip": `// Exchange JSON over loopback and close the listener.
-import {fetch,serve} from "noe:http";
+import {serve} from "noe:http";
 const server=serve({port:0},async r=>Response.json({value:(await r.json()).value*2}));
 try{
  const response=await fetch(server.url,{method:"POST",body:JSON.stringify({value:21})});
  console.log(JSON.stringify(await response.json()));
-}finally{server.close();}`}, "roundtrip"), nil
+}finally{await server.close();}`}, "roundtrip"), nil
 		}
 		if step != 3 || len(toolResults) != 2 {
 			return provider.Response{}, fmt.Errorf("HTTP roundtrip result missing")

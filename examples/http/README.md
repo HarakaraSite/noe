@@ -4,7 +4,7 @@
 
 コマンドはリポジトリのルートで、ビルド済みの`./noe`を使って実行します。
 
-HTTPの入口は`import { fetch, serve } from "noe:http"`です。既存globalの同名関数と同じ実装を使います。API契約は`./noe docs noe:http`で確認できます。`fetch`の要求bodyと`serve`の受信bodyは、どちらも`Uint8Array`を返す`ReadableStream`で逐次処理できます。`serve`は本文EOFを待たずにhandlerを起動し、JavaScriptがbodyを読むときに受信します。
+Use the standard global `fetch()` for HTTP requests and import the listener helper with `import { serve } from "noe:http"`. The API contract is available through `./noe docs noe:http`. Fetch request bodies and `serve` request bodies can be processed incrementally as `ReadableStream` values of `Uint8Array` chunks. `serve` starts its handler before body EOF and reads the request as JavaScript consumes it.
 
 ## ローカルでJSONを往復する
 
@@ -12,7 +12,7 @@ HTTPの入口は`import { fetch, serve } from "noe:http"`です。既存global�
 ./noe run examples/http/roundtrip.js
 ```
 
-外部サービスや認証なしで、port 0のloopback serverへJSONをPOSTし、`{"value":42}`を表示して終了します。応答の消費後にfinallyでserverをcloseします。
+Without an external service or credentials, POST JSON to a port-0 loopback server, print `{"value":42}`, and exit after `finally` awaits server shutdown.
 
 ## Receive server-sent events
 
@@ -36,7 +36,7 @@ DEMO_DIR=$(mktemp -d)
 ./noe run --timeout 5s examples/http/download-file.js https://example.com/image.png "$DEMO_DIR/image.png"
 ```
 
-JSONは解析して整形保存し、バイナリは文字列に変換せず保存します。`noe:http`の`fetch()`のレスポンスbodyは一度だけ読み取ります。どちらの例もHTTPエラーを実行失敗にします。
+JSON is parsed and saved with formatting, while binary data is saved without converting it to text. The response body from the global `fetch()` is read once. Both examples treat HTTP error statuses as failures.
 
 ## JSON APIへのリクエスト
 
@@ -71,7 +71,7 @@ port 0のloopback serverへ有限のbinary streamを送り、handlerが`request.
 {"bytes":[0,255,17,34,128,0,255],"byteCount":7,"sum":689}
 ```
 
-例は受信bodyのstreaming処理と有限の送受信を示します。例の完走だけでは、handlerが本文EOFより前に起動してprefixを観測したことは証明しません。その順序の確認には、NOEの`fetch`とは独立したHTTP clientを使います。受信上限、空body、read error、cancel、`Expect: 100-continue`、応答中のinput lifetimeは`./noe docs noe:http serve`を参照してください。
+These examples show streamed request-body processing and finite transfers. A successful run alone does not prove that the handler started before body EOF and observed a prefix; verify that ordering with an HTTP client independent of NOE's `fetch`. For receive caps, empty bodies, read errors, cancellation, `Expect: 100-continue`, and request-body lifetime during a response, see `./noe docs noe:http serve`.
 
 ## HTTPサーバー
 

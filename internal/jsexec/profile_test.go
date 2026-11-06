@@ -96,7 +96,7 @@ func TestAttachSnapshotsEnvironmentAndIsolatesConcurrentExecutions(t *testing.T)
 			}
 			if evalErr == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-				_, moduleErr := rt.EvalModuleContext(ctx, "no-stdio.mjs", `import {stdin} from "node:process"`)
+				_, moduleErr := rt.EvalModuleContext(ctx, "no-stdio.mjs", `import {stdin} from "noe:process"`)
 				cancel()
 				if moduleErr == nil {
 					evalErr = errors.New("unselected standard input was importable")
@@ -231,7 +231,7 @@ func TestProfileSelectsStdioWithoutAddingOtherNativeModules(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 	ns, err := rt.EvalModuleContext(ctx, "selected-stdio.mjs", `
-		import {stdin, stdout, stderr} from "node:process";
+		import {stdin, stdout, stderr} from "noe:process";
 		export const selected = stdin && stdout && stderr;
 	`)
 	cancel()
@@ -249,7 +249,7 @@ func TestProfileSelectsStdioWithoutAddingOtherNativeModules(t *testing.T) {
 	if !processMissing.Bool() {
 		t.Fatal("stdio selection installed process metadata")
 	}
-	for _, specifier := range []string{"node:child_process", "child_process", "noe:process", "noe:fs", "node:fs", "node:fs/promises", "fs", "fs/promises", "noe:sockets", "noe:signals"} {
+	for _, specifier := range []string{"node:child_process", "child_process", "node:process", "process", "noe:fs", "node:fs", "node:fs/promises", "fs", "fs/promises", "noe:sockets", "noe:signals"} {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_, err := rt.EvalModuleContext(ctx, "unselected-"+strings.NewReplacer(":", "-", "/", "-").Replace(specifier)+".mjs", `import `+fmt.Sprintf("%q", specifier))
 		cancel()

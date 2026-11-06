@@ -14,7 +14,7 @@ func TestAgentCLITimeoutStopsGeneratedProcessGroup(t *testing.T) {
 	work := t.TempDir()
 	server := agentAPIFixture(t, func(context.Context, agentChatRequest) agentModelReply {
 		code := `import {writeFileSync} from "noe:fs";
-import {execFile} from "node:child_process";
+import {execFile} from "noe:process";
 writeFileSync("tool-ready","ready");
 await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"runner","shell.pid","grandchild.pid"]);`
 		return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("wait", code)}}}, FinishReason: "tool_calls"}
@@ -38,7 +38,7 @@ writeFileSync("parent-ready","ready");
 const child=await run_agent({name:"nested"},"nested child");console.log(child.lastResult.answer);`
 		if agentUser(req) == "nested child" {
 			code = `import {writeFileSync} from "noe:fs";
-import {execFile} from "node:child_process";
+import {execFile} from "noe:process";
 writeFileSync("child-ready","ready");
 await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"runner","shell.pid","grandchild.pid"]);`
 		}

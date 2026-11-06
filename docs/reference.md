@@ -6,7 +6,7 @@
 noe docs
 noe docs stdlib
 noe docs noe:fs
-noe docs node:child_process execFile
+noe docs noe:process execFile
 noe docs noe:sockets connect
 ```
 
@@ -50,8 +50,10 @@ noe docs noe:run_js agents
 noe docs noe:fs readdirSync
 ```
 
-The agent instructions include common operations and API differences. `noe:fs.readdirSync`/`readdir` return names by default; `{withFileTypes:true}` returns Dirent objects with type predicates.`process.cwd()`はglobalまたはdefault importした`process`から呼びます。`execFile`は既にPromiseを返すので、`promisify`やcallbackは不要です。
+The agent instructions include common operations and API differences. `noe:fs.readdirSync`/`readdir` return names by default; `{withFileTypes:true}` returns Dirent objects with type predicates.Use global `process` or `import {process} from "noe:process"` for `process.cwd()`. `execFile`は既にPromiseを返すので、`promisify`やcallbackは不要です。
 
 ## HTTPの契約を調べる
 
-`noe docs noe:http fetch`と`noe docs noe:http serve`で、推奨入口の英文API契約を参照できます。既存globalと同じ関数を使い、要求bodyのstreamingと一回限りの所有権、需要駆動の受信stream、上限と読取りerror、応答streaming、`Expect: 100-continue`、cancelと`server.close()`の寿命も説明しています。
+Use `noe docs globals fetch` for standard Fetch, request/response streams, abort, and response-body overflow errors. Use `noe docs noe:http serve`, `noe docs noe:http upgradeWebSocket`, and `noe docs noe:http createWebSocket` for host listeners and WebSocket helpers. These helpers are explicit imports rather than globals; the old HTTP modules and `noe:http.fetch` export are removed. See the [HTTP migration](development/stdlib-noe-http.md).
+
+`noe docs noe:http HTTPServer.close` and `noe docs noe:http "HTTPServer[Symbol.asyncDispose]"` describe asynchronous server cleanup. Request-limit overflow and migration from synchronous close are recorded in the [Serve lifecycle contract](development/stdlib-serve-lifecycle.md).

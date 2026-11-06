@@ -79,7 +79,7 @@ func TestSyncCommandFailureDetails(t *testing.T) {
 					Env:            map[string]string{"NOE_SYNC_COMMAND_HELPER": tc.mode},
 					MaxOutputBytes: tc.limit,
 				}}, fmt.Sprintf(`
-     import("node:child_process").then(cp => {
+     import("noe:process").then(cp => {
       // Synchronous output remains text, even with encoding: "buffer".
       const options = {encoding: "buffer"};
       const want = %s;
@@ -120,7 +120,7 @@ func TestSyncCommandSuccessCompatibility(t *testing.T) {
 			out, errOut := run(t, stdlib.Config{Run: &stdlib.Run{
 				Allow: func(string, []string) error { return nil },
 			}}, fmt.Sprintf(`
-    import("child_process").then(cp => {
+    import("noe:process").then(cp => {
      for (const encoding of [undefined, "buffer"]) {
       const options = {cwd: %s, env: {NOE_SYNC_COMMAND_HELPER:"success", VALUE:"provided"}, input:"input 日本語", encoding};
       const output = %s;
@@ -156,7 +156,7 @@ func TestSyncCommandStartFailureDetails(t *testing.T) {
 			name, _ := json.Marshal(missing)
 			message, _ := json.Marshal(tc.message)
 			out, errOut := run(t, stdlib.Config{Run: &stdlib.Run{Allow: tc.allow}}, fmt.Sprintf(`
-    import("node:child_process").then(cp => {
+    import("noe:process").then(cp => {
      let caught = false;
      try { cp.execFileSync(%s); } catch (e) {
       caught = true;
@@ -190,7 +190,7 @@ func TestSyncCommandTimeoutDetails(t *testing.T) {
 		Env:     map[string]string{"NOE_SYNC_COMMAND_HELPER": "timeout"},
 		Timeout: 2 * time.Second,
 	}}, fmt.Sprintf(`
-  import("node:child_process").then(cp => {
+  import("noe:process").then(cp => {
    const options = {};
    let caught = false;
    try { %s; } catch (e) {
@@ -215,7 +215,7 @@ func TestCommandResultIncludesSignal(t *testing.T) {
 	out, errOut := run(t, stdlib.Config{Run: &stdlib.Run{
 		Allow: func(string, []string) error { return nil },
 	}}, `
-  import("node:child_process").then(async cp => {
+  import("noe:process").then(async cp => {
    const result = cp.spawnSync("/bin/sh", ["-c", "kill -TERM $$"]);
    if (result.status !== -1 || result.signal !== "SIGTERM")
     throw Error("wrong sync signal result: " + JSON.stringify(result));
@@ -258,7 +258,7 @@ func TestCommandsUseExplicitSupervisor(t *testing.T) {
 		Allow:      func(string, []string) error { return nil },
 		Supervisor: supervisor,
 	}}, fmt.Sprintf(`
-  import("node:child_process").then(async cp => {
+  import("noe:process").then(async cp => {
    const path = %s, args = %s;
    const fail = error => !error || !error.message.includes("start process supervisor") ||
     !error.message.includes(%s);

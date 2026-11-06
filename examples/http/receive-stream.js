@@ -1,4 +1,4 @@
-import { fetch, serve } from "noe:http";
+import { serve } from "noe:http";
 
 const chunks = [
   new Uint8Array([0, 255, 17]),
@@ -55,5 +55,5 @@ try {
   }
   console.log(JSON.stringify(result));
 } finally {
-  server.close();
+  await server.close();
 }

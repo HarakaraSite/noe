@@ -15,6 +15,8 @@ import (
 
 const serveReadSize = 32 << 10
 
+var errServeBodyTooLarge = errors.New("request body exceeds configured limit")
+
 // Match the ASCII token boundaries used by Go's request.expectsContinue.
 // Header.Get intentionally reads the same first field value that Go uses.
 func serveExpectsContinue(header http.Header) bool {
@@ -110,7 +112,7 @@ func (b *serveBody) read() ([]byte, error) {
 		b.mu.Unlock()
 		return nil, err
 	}
-	if b.remaining <= 0 || b.eof {
+	if b.eof {
 		b.mu.Unlock()
 		return nil, io.EOF
 	}
@@ -118,8 +120,12 @@ func (b *serveBody) read() ([]byte, error) {
 		b.mu.Unlock()
 		return nil, errors.New("the request body already has a pending read")
 	}
+	// A negative limit is unlimited. At a finite boundary, read at most one
+	// byte so exact EOF remains successful while actual excess is an error.
 	n := int64(serveReadSize)
-	if b.remaining < n {
+	if b.remaining == 0 {
+		n = 1
+	} else if b.remaining > 0 && b.remaining < n {
 		n = b.remaining
 	}
 	b.reading = true
@@ -134,7 +140,13 @@ func (b *serveBody) read() ([]byte, error) {
 	if b.closed || b.canceled {
 		return nil, errors.New("the request body is closed")
 	}
-	b.remaining -= int64(nread)
+	if nread > 0 && b.remaining == 0 {
+		b.nextErr = errServeBodyTooLarge
+		return nil, errServeBodyTooLarge
+	}
+	if b.remaining > 0 {
+		b.remaining -= int64(nread)
+	}
 	if err == io.EOF {
 		b.eof = true
 	}
@@ -158,6 +170,10 @@ func (b *serveBody) reader(rt *quickjs.Runtime, loop *Loop) func() *quickjs.Prom
 					p.RejectError(errors.New("the request body is closed"))
 				case err == io.EOF:
 					p.Resolve(nil)
+				case errors.Is(err, errServeBodyTooLarge):
+					value := rt.NewError("RangeError", errServeBodyTooLarge.Error())
+					_ = value.Set("code", "ERR_HTTP_BODY_TOO_LARGE")
+					p.Reject(value)
 				case err != nil:
 					p.RejectError(err)
 				default:

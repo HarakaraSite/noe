@@ -98,10 +98,11 @@ func TestCloseStopsHostWork(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	bindHTTPModule(t, rt)
 	v, err := rt.Eval(fmt.Sprintf(`
 		fetch(%q).catch(() => {});
-		import("child_process").then(({default: cp}) => cp.execFile(%q, ["-test.run=^TestHelperHeartbeat$"]).catch(() => {}));
-		serve({port: 0, hostname: "127.0.0.1"}, () => new Response("hi")).port`,
+		import("noe:process").then(({default: cp}) => cp.execFile(%q, ["-test.run=^TestHelperHeartbeat$"]).catch(() => {}));
+		httpModule.serve({port: 0, hostname: "127.0.0.1"}, () => new Response("hi")).port`,
 		remote.URL, exe))
 	if err != nil {
 		t.Fatal(err)
@@ -196,6 +197,7 @@ func TestCloseReleasesBeforeReturning(t *testing.T) {
 	if err := rt.Set("slowDisk", func() { time.Sleep(30 * time.Millisecond) }); err != nil {
 		t.Fatal(err)
 	}
+	bindHTTPModule(t, rt)
 	v, err := rt.Eval(fmt.Sprintf(`
 		import("noe:fs").then(async ({default: fs}) => {
 			const reader = fs.createReadStream("/big.txt").getReader();
@@ -205,9 +207,9 @@ func TestCloseReleasesBeforeReturning(t *testing.T) {
 			await writer.getWriter().write(new Uint8Array([1, 2, 3]));
 			streamsOpen();
 		});
-		import("child_process").then(({default: cp}) => cp.execFile(%q, ["-test.run=^TestHelperHeartbeat$"]).catch(() => {}));
+		import("noe:process").then(({default: cp}) => cp.execFile(%q, ["-test.run=^TestHelperHeartbeat$"]).catch(() => {}));
 		new require_worker_threads.Worker("./beat.mjs");
-		serve({port: 0, hostname: "127.0.0.1"}, () => new Response("hi")).port`, exe))
+		httpModule.serve({port: 0, hostname: "127.0.0.1"}, () => new Response("hi")).port`, exe))
 	if err != nil {
 		t.Fatal(err)
 	}

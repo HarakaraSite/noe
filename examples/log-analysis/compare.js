@@ -1,6 +1,6 @@
 // Usage: noe run examples/log-analysis/compare.js [options] FILE...
 import { readFileSync } from "noe:fs";
-import process from "node:process";
+import {process} from "noe:process";
 import { analyzeJSONL, toMarkdown } from "./analyze.js";
 
 const usage = "Usage: noe run examples/log-analysis/compare.js [--format json|markdown] [--below 0..1] [--] FILE...";

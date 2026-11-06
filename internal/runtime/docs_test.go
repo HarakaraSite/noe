@@ -17,13 +17,13 @@ import (
 )
 
 func TestDocsRuntimeContractAndCatalogExports(t *testing.T) {
-	want, err := apidocs.Lookup("node:child_process", "execFile")
+	want, err := apidocs.Lookup("noe:process", "execFile")
 	if err != nil {
 		t.Fatal(err)
 	}
 	encoded, _ := json.Marshal(want)
 	source := `import {docs} from "noe:docs";
-if(docs("child_process","execFile") !== ` + string(encoded) + `)throw Error("lookup differs");
+if(docs("noe:process","execFile") !== ` + string(encoded) + `)throw Error("lookup differs");
 if(docs(undefined)!==docs())throw Error("optional arguments");
 for(const call of [()=>docs(null),()=>docs(1),()=>docs("noe:fs",{}),()=>docs("noe:fs",undefined,"extra")]) {
  let thrown=false;try{call()}catch(e){if(!(e instanceof TypeError))throw e;thrown=true}if(!thrown)throw Error("type validation");

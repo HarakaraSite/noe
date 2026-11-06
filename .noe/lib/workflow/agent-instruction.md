@@ -10,7 +10,7 @@ Use this only when the user explicitly selects the standalone development workfl
 
 ~~~js
 // Await the workflow from the target repository root.
-import {execFile} from "node:child_process";
+import {execFile} from "noe:process";
 const args = [
   "run",
   "/absolute/path/to/target/.noe/lib/workflow/run.js",

@@ -20,7 +20,8 @@ func TestNoeHTTPReceiveAgentRunJSSavesResultClosesServerAndAnswers(t *testing.T)
 	fixture := newHTTPReceiveFixture(t, "agent")
 	dir := t.TempDir()
 	artifact := filepath.Join(dir, "receive-result.json")
-	code := fmt.Sprintf(`import {fetch} from "noe:http";
+	code := fmt.Sprintf(`import {serve} from "noe:http";
+
 import {writeFile} from "noe:fs";
 const fixture=%q, output=%q;
 let resolveReceived;
@@ -43,7 +44,7 @@ const ready=await fetch(fixture+"/ready",{method:"POST",body:JSON.stringify({age
 if(ready.status!==204)throw Error("could not publish receive listener");
 const result=await received;
 await fetch(fixture+"/wait");
-server.close();
+await server.close();
 await writeFile(output,JSON.stringify(result));
 console.log(JSON.stringify(result));`, fixture.server.URL, artifact)
 

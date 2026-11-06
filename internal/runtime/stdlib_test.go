@@ -38,7 +38,7 @@ func TestStdlibFilesProcessTimersAndModules(t *testing.T) {
  import {setTimeout as delay} from "node:timers/promises";
  import {createHash} from "node:crypto";
  import * as dns from "dns/promises";
- import * as http from "http";
+ import * as http from "noe:http";
  import * as vm from "vm";
  import * as zlib from "zlib";
  import * as util from "util";
@@ -71,7 +71,8 @@ func TestStdlibFilesProcessTimersAndModules(t *testing.T) {
 }
 
 func TestStdlibHTTPAndWebSocket(t *testing.T) {
-	source := `const server = serve({port:0}, async request => {
+	source := `import {serve,upgradeWebSocket} from "noe:http";
+const server = serve({port:0}, async request => {
   const pathname = new URL(request.url).pathname;
   if (pathname === "/socket") {
    const {socket, response} = upgradeWebSocket(request);
@@ -102,7 +103,7 @@ func TestStdlibHTTPAndWebSocket(t *testing.T) {
   socket.onmessage = e => { if (e.data !== "echo") reject(Error("websocket")); socket.close(); };
   socket.onclose = resolve;
  });
- server.close();
+ await server.close();
  console.log("http and websocket ready");`
 	if out := runStdlib(t, source, Options{}); out != "http and websocket ready\n" {
 		t.Fatal(out)
@@ -130,7 +131,7 @@ func TestStdlibCommandsAndWorkers(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "worker.mjs"), []byte(`import {parentPort} from "node:worker_threads"; import {value} from "./value.mjs"; parentPort.postMessage(value);`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	source := `import {execFile, execFileSync} from "node:child_process";
+	source := `import {execFile, execFileSync} from "noe:process";
  import {Worker} from "node:worker_threads";
  const command = ` + string(command) + `;
  if (execFileSync(command, ["-test.run=^TestStdlibCommandHelper$"]) !== "child ready") throw Error("sync command");
@@ -170,7 +171,8 @@ try {
 func TestStdlibRootErrorsStopContinuousWork(t *testing.T) {
 	for _, source := range []string{
 		`setInterval(()=>{},1); throw Error("root failure")`,
-		`serve({port:0},()=>new Response("x")); throw Error("root failure")`,
+		`import {serve} from "noe:http";
+serve({port:0},()=>new Response("x")); throw Error("root failure")`,
 		`setTimeout(()=>{throw Error("root failure")},1); await new Promise(()=>{})`,
 	} {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)

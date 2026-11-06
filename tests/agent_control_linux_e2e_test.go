@@ -27,7 +27,7 @@ await run_agent({name:"nested"},"nested child");`
 		if agentUser(req) == "nested child" {
 			code = `// Run a shell with a long-lived descendant.
 import {writeFileSync} from "noe:fs";
-import {execFile} from "node:child_process";
+import {execFile} from "noe:process";
 writeFileSync("child-ready","ready");
 await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"runner","shell.pid","grandchild.pid"]);`
 		}

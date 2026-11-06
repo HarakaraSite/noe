@@ -1,5 +1,5 @@
 // Exchange several requests with one persistent NOE child process.
-import { spawn } from "node:child_process";
+import { spawn } from "noe:process";
 import { resolve, dirname, join } from "node:path";
 
 const child = await spawn(resolve(process.argv[0]), [

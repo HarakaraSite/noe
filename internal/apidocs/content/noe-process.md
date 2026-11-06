@@ -1,35 +1,120 @@
-# node:child_process
+# noe:process
 
 ### API information
 
-Reference: `node:child_process`; aliases: `child_process`. Owner: noestdlib.
+Reference: `noe:process`. Owner: noestdlib.
 
 Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
 
-Availability: Requires Profile.Modules.Commands.
+Availability: Installed when any of Profile.Modules.Commands, Profile.Modules.ProcessInfo, or Profile.Modules.Stdio is selected. If none is selected, the module is absent. Commands, ProcessInfo, and Stdio select their own named exports independently. Workers receive empty stdin (immediate EOF) and use the configured output destinations.
 
-Public-definition source: internal/stdlib/exec.go, internal/nativeio/host.go, internal/nativeio/js/streams.js, and their composition in internal/noestdlib/noestdlib.go. Reading this reference evaluates no target module and makes no provider request.
+Public-definition and capability composition: internal/stdlib/process_module.go defines the consolidated module and its selected export sets; internal/stdlib/exec.go, internal/stdlib/process.go, internal/nativeio/host.go, and internal/nativeio/js/streams.js provide the existing implementations. internal/noestdlib/noestdlib.go composes the module. Reading this reference evaluates no target module and makes no provider request.
 
-Runs captured commands and starts owned child processes. execFile invokes a program directly; exec and execSync pass a command string through the platform shell. `spawn` is an NOE-specific API that starts a live child and returns Web Streams; it is not the Node.js EventEmitter or Node streams API.
+`noe:process` groups NOE's captured command helpers, owned child-process handles, process metadata, and host standard I/O Web Streams. It is not a Node.js compatibility facade: `spawn` uses Web Streams, and standard I/O does not provide Node stream or EventEmitter compatibility.
 
 ### Exports
 
-`default`, `exec`, `execFile`, `execFileSync`, `execSync`, `spawn`, `spawnSync`
+`default`, `exec`, `execFile`, `execFileSync`, `execSync`, `process`, `spawn`, `spawnSync`, `stderr`, `stdin`, `stdout`
 
-The default export object includes the same functions, including `spawn`.
+Commands selects `exec`, `execFile`, `execFileSync`, `execSync`, `spawn`, and `spawnSync`. ProcessInfo selects the named `process` object, which is the same object as the global `process`. Stdio selects `stdin`, `stdout`, and `stderr`. The named process object keeps its existing metadata, controls, and events; when Stdio is also selected, its stream properties are the same Web Stream instances as the corresponding named exports.
+
+The default export is a namespace object containing exactly the selected named exports. For example, with ProcessInfo selected, metadata is under `default.process`; `default.env` and `default.cwd` are not exports. With ProcessInfo only, the default namespace contains `process`; with Stdio only it contains `stdin`, `stdout`, and `stderr`; with Commands only it contains the six command functions. Type-only exports do not appear in the runtime namespace. These declarations describe the possible surface but do not imply that the current runtime selected every capability.
 
 ### Type exports
 
-`ExecOptions`, `ExecResult`, `SpawnSyncResult`, `ChildProcess`, `SpawnOptions`
+`ExecOptions`, `ExecResult`, `SpawnSyncResult`, `ChildProcess`, `SpawnOptions`, `Process`, `ProcessStdio`
 
-`spawn(command, args = [], options = {}) -> Promise<ChildProcess>` starts a local program directly without invoking a shell. It is an NOE-specific extension to this module. The returned handle uses Web Streams of `Uint8Array`; it does not expose Node.js child-process events or Node streams. Use HTTP/WebSocket APIs for web traffic and noe:sockets for raw TCP/Unix byte streams.
+Process metadata examples that import `{process}` or use the global `process` also require ProcessInfo. Standard I/O examples require Stdio. Command examples require Commands.
+
+## process
+
+The named `process` export is the same object as the global `process`. It exposes NOE's arguments, environment, working directory, process ID, platform details, controls, and existing process events. Its mutable `exitCode` and other current metadata behavior are unchanged. When Stdio is selected, `process.stdin`, `process.stdout`, and `process.stderr` are the same Web Stream instances as the named stream exports.
+
+## cwd
+
+Syntax: process.cwd() -> string. It returns the working directory captured for this NOE run.
+
+~~~js
+import {process} from "noe:process";
+
+console.log(process.cwd());
+~~~
+
+## env
+
+process.env is an object containing the environment variables present when NOE created the runtime. It can be read or changed as a JavaScript object, but changing it does not mutate the parent shell's environment.
+
+~~~js
+import {process} from "noe:process";
+
+console.log(process.env.HOME ?? "(unset)");
+~~~
+
+NOE passes its configured environment to child programs; set a child call's env option when that call needs a different environment.
+
+## argv
+
+process.argv has the shape [executable, source, ...scriptArgs]. For noe run script.js one, the source is script.js and the remaining entry is one.
+
+~~~js
+import {process} from "noe:process";
+
+console.log(process.argv.slice(2));
+~~~
+
+## exit
+
+Syntax: process.exit(code = 0). It requests termination of the current NOE runtime with the numeric exit code. In the main runtime NOE records the requested code and closes its runtime; inside a Worker it ends that Worker.
+
+~~~js
+import {process} from "noe:process";
+
+if (!process.env.API_TOKEN) process.exit(2);
+~~~
+
+This ends the run and its owned runtime resources. Set process.exitCode when the script should finish naturally with a non-zero code.
+
+## stdin
+
+Availability: Requires Profile.Modules.Stdio. `stdin` is a `ReadableStream<Uint8Array>` for the configured host input. It is demand-driven; importing it does not start reading. Workers receive immediate EOF.
+
+~~~js
+import { stdin } from "noe:process";
+
+const text = await new Response(stdin).text();
+~~~
+
+Use a stream reader or async iteration to process bytes incrementally. A standard input stream can be consumed once.
+
+## stdout
+
+Availability: Requires Profile.Modules.Stdio. `stdout` is a `WritableStream<Uint8Array>` for the configured host output. Writes are asynchronous and complete when the host writer accepts the bytes.
+
+~~~js
+import { stdout } from "noe:process";
+
+const writer = stdout.getWriter();
+try {
+  await writer.write(new TextEncoder().encode("hello\n"));
+} finally {
+  writer.releaseLock();
+}
+~~~
+
+When ProcessInfo is also selected, `process.stdout` is the same stream instance. Closing this stream endpoint does not close the caller's borrowed host writer.
+
+## stderr
+
+Availability: Requires Profile.Modules.Stdio. `stderr` is a `WritableStream<Uint8Array>` for the configured host error output. It has the same byte, ownership, and lifecycle behavior as `stdout`.
+
+When ProcessInfo is also selected, `process.stderr` is the same stream instance. Use `TextEncoder` when writing text. For stream connections, use Web Streams `pipeTo`; see the `node:stream/web` reference.
 
 ## execFile
 
 Syntax: execFile(file, args = [], options = {}) -> Promise<{stdout, stderr}>. file is an executable name or path; args is an argument array. Supported options are cwd, env, input, and encoding. Output is text unless encoding: "buffer" requests Uint8Array values. The promise rejects with an Error carrying code, stdout, and stderr on start failure, timeout, runtime shutdown, or a non-zero exit. NOE uses a 32 MiB capture limit per output stream and does not set a command timeout.
 
 ~~~js
-import { execFile } from "node:child_process";
+import { execFile } from "noe:process";
 
 const { stdout } = await execFile("git", ["rev-parse", "--show-toplevel"]);
 console.log(stdout.trim());
@@ -40,8 +125,7 @@ execFile already returns a promise; do not wrap it with promisify or pass a Node
 Omitting env uses the host-configured command environment. Supplying env replaces that environment; it does not merge individual variables. Executable lookup also uses the selected environment's PATH. To add or override a variable while preserving the runtime's visible environment, copy process.env first. For example, with Go installed:
 
 ~~~js
-import {execFile} from "node:child_process";
-import process from "node:process";
+import {execFile, process} from "noe:process";
 
 const {stdout} = await execFile("go", ["env", "CGO_ENABLED"], {
   env: {...process.env, CGO_ENABLED: "0"},
@@ -58,7 +142,7 @@ Syntax: execFileSync(file, args = [], options = {}) -> string. It waits for the 
 The error outputs are strings, including empty strings when nothing was captured. Both the success result and error outputs remain text even if encoding: "buffer" is supplied; synchronous execution does not support buffer encoding. Capture is limited to 32 MiB per output stream in NOE. code is the process exit code on a normal exit and -1 on a timeout or some abnormal terminations. As with execFile, a failure before the process starts currently has code: 0; this does not mean success. Runtime shutdown still interrupts execution.
 
 ~~~js
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "noe:process";
 
 const branch = execFileSync("git", ["branch", "--show-current"]).trim();
 console.log(branch);
@@ -77,7 +161,7 @@ try {
 Syntax: exec(command, options = {}) -> Promise<{stdout, stderr}>. The command string is passed to /bin/sh -c on Unix-like systems or cmd.exe on Windows. It has the same captured-output, rejection, encoding, and runtime-lifetime behavior as execFile.
 
 ~~~js
-import { exec } from "node:child_process";
+import { exec } from "noe:process";
 
 const { stdout } = await exec("printf '%s\\n' ready");
 console.log(stdout.trim());
@@ -90,7 +174,7 @@ Use execFile with an argument array when shell syntax is unnecessary.
 Syntax: execSync(command, options = {}) -> string. The command string is passed to the same platform shell as exec. Success returns stdout as text; failures throw an Error with code, stdout, and stderr, with the same options, text-only output, capture limits, and failure-code conventions as execFileSync.
 
 ~~~js
-import { execSync } from "node:child_process";
+import { execSync } from "noe:process";
 
 try {
   console.log(execSync("git status --short").trim());
@@ -106,7 +190,7 @@ Use execFileSync with an argument array when shell syntax is unnecessary.
 Syntax: spawnSync(file, args = [], options = {}) -> {status, stdout, stderr, error?}. It waits for completion. For a started process, status reports its exit code (or -1 for some abnormal terminations). In this pinned version, a launch failure can return status: 0 with an error property. Always inspect error before interpreting status; status: 0 alone does not prove success. Output is text unless encoding: "buffer" requests Uint8Array values.
 
 ~~~js
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "noe:process";
 
 const result = spawnSync("git", ["status", "--short"]);
 if (result.error) throw result.error;
@@ -127,8 +211,10 @@ Options:
 
 All three streams default to pipes. Consume stdout and stderr concurrently when both are piped, or choose `inherit`/`ignore` for an unused stream. Convert text explicitly with `TextEncoder` and `TextDecoder`.
 
+This example also uses global `process.argv`, so it requires ProcessInfo in addition to Commands.
+
 ~~~js
-import { spawn } from "node:child_process";
+import { spawn } from "noe:process";
 
 const child = await spawn(process.argv[0], ["eval", "console.log('child output')"], {
   stdout: "pipe",
@@ -185,4 +271,4 @@ Explicit `close()` and execution-owned cleanup remain available.
 
 ### Source basis
 
-NOE-maintained implementation: captured commands are in internal/stdlib, based on github.com/go-quickjs/go-quickjs@v0.27.0/stdlib; live process handles are in internal/nativeio. internal/noestdlib composes both implementations into one module. NOE installs this module through internal/runtime/stdlib.go and reserves its bare-name alias through internal/modulemap/builtins.go.
+NOE-maintained implementation: the public process module and capability composition are in internal/stdlib/process_module.go; captured commands are in internal/stdlib and based on github.com/go-quickjs/go-quickjs@v0.27.0/stdlib; process metadata, standard I/O, and live process handles are in internal/stdlib and internal/nativeio. internal/noestdlib composes the selected capabilities into the single module.

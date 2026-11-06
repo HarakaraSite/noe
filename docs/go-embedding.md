@@ -76,23 +76,28 @@ resolvers, clients, providers, and callbacks remain borrowed.
 
 | `Modules` field | Capability |
 | --- | --- |
-| `ProcessInfo` | Process metadata, `process.cwd()`, `process.env`, and the global `process` object |
-| `Stdio` | Named `node:process` standard I/O Web Streams and the selected environment's streams |
+| `ProcessInfo` | Named `noe:process` metadata/control object `process`, identical to the global `process` object |
+| `Stdio` | Named `noe:process` standard I/O Web Streams and the selected environment's streams |
 | `FS` | `noe:fs`; `FileSystemOptions` selects `Root` and `ReadOnly` |
-| `Commands` | `node:child_process` captured commands and NOE-specific Web Streams `spawn`; options select `Allow`, timeout, output limit, and optional `Supervisor` |
+| `Commands` | `noe:process` captured commands and NOE-specific Web Streams `spawn`; options select `Allow`, timeout, output limit, and optional `Supervisor` |
 | `DNS`, `Fetch`, `Serve`, `WebSockets` | The corresponding network capability and its limits/callbacks |
 | `RawSockets`, `Signals` | `noe:sockets` and `noe:signals` |
 | `Workers`, `OS` | Worker runtimes and selected host-information behavior |
 | `Random`, `WindowsPaths` | Random source and path interpretation for the execution |
 
-`ProcessInfo` and `Stdio` are independent. With Stdio alone, `node:process`
-exports the streams and a default object containing them, but there is no
-global `process` or process metadata. With ProcessInfo alone, the default and
-global process objects provide metadata but have no standard I/O properties,
-and the named stream exports are absent. With both selected, the default and
-global process `stdin`, `stdout`, and `stderr` properties are the same Web
-Stream objects as the named exports. Workers receive empty stdin (immediate
-EOF) and share the configured output destinations.
+`ProcessInfo`, `Stdio`, and `Commands` are independent. Any one selects
+`noe:process`; its default is a namespace containing the selected named
+exports. With ProcessInfo, `import {process} from "noe:process"` returns the
+same metadata/control object as the global `process`, also reachable through
+the namespace's `process` property. With Stdio alone, the namespace contains
+only streams and there is no global `process`. With Commands alone, it
+contains only command functions. Selecting ProcessInfo does not select
+streams or commands. When Stdio and ProcessInfo are both selected,
+`process.stdin`, `process.stdout`, and `process.stderr` are the named Web
+Streams. Commands remain namespace exports rather than properties of global
+`process`. Workers receive empty stdin (immediate EOF) and share the configured
+output destinations. The old `node:process`, `process`, `node:child_process`,
+and `child_process` module entrances have been removed.
 
 The same `Environment` supplies cwd, arguments, environment variables, and
 standard streams to selected modules. `Env == nil` means an empty environment;
@@ -164,28 +169,68 @@ termination cancel requests, reads, and reconnect timers. Low-level
 expose EventSource. See the
 [implementation record](development/stdlib-eventsource.md).
 
-## WebSocket handshake headers
+## HTTP server lifetime and receive limits
 
-Select `Modules.WebSockets` with a URL `Allow` callback. JavaScript can then
-use the NOE extension `new WebSocket(url, protocols, {headers})` to supply
-Authorization, Origin, Cookie, or application-specific request fields. Omit
-subprotocols with `undefined`. Headers are a per-constructor snapshot of a
-record, iterable of name/value pairs, or Headers instance.
+Select `Modules.Serve` for the explicit `serve` export from `noe:http`.
+`ServeOptions.MaxBodyBytes == 0` selects 32 MiB, a negative value disables the
+limit, and a positive value bounds the actual request bytes consumed. Body
+reads/collectors reject overflow with a RangeError carrying
+`ERR_HTTP_BODY_TOO_LARGE`; exact-length bodies succeed after EOF is verified.
+Uncaught overflow before response headers produces 413; `onError` can override
+that response. If response streaming has begun, the transfer fails instead.
+Early responses do not automatically drain input or validate an unread body.
 
 ```js
-const socket = new WebSocket("wss://example.com/feed", undefined, {
-  headers: { Authorization: "Bearer <token>" }
+import {serve} from "noe:http";
+
+await using server = serve({port: 0}, request => Response.json({url: request.url}));
+console.log(server.url);
+```
+
+`server.close()` returns the same `Promise<void>` on repeated calls and
+`Symbol.asyncDispose` delegates to it. It closes handler admission immediately,
+waits off the JS owner for active HTTP requests, then forces remaining
+connections after at most five seconds. Await it when completion matters.
+A handler can start close and return its Response; waiting for its own close
+inside that handler waits on its own completion. Runtime cancellation,
+execution cleanup, and Worker termination still force native cleanup
+independently. Public Go option fields and dependencies are unchanged.
+See the [implementation and migration](development/stdlib-serve-lifecycle.md).
+
+## WebSocket handshake headers
+
+Select `Modules.WebSockets` with a URL `Allow` callback. Its host helper is
+`createWebSocket(url, {protocols, headers})` from `noe:http`. It returns the
+same global WebSocket type synchronously in CONNECTING state, with normal
+events and close behavior. Headers are snapshotted from a record, iterable
+of name/value pairs, or Headers instance before authorization/allocation.
+
+```js
+import {createWebSocket} from "noe:http";
+
+const socket = createWebSocket("wss://example.com/feed", {
+  headers: {Authorization: "Bearer <token>"},
 });
 ```
 
-The existing Go WebSockets options provide URL policy, TLS configuration,
-message limits, and handshake timeout. Custom headers use that same
-configuration in main runtimes and Workers; selecting Fetch is independent.
-The handshake owns Host, Connection, Upgrade, its Sec-WebSocket negotiation
-fields, and HTTP body-framing fields. Invalid or managed headers throw before
-a connection is allocated; invalid protocol tokens throw SyntaxError.
-See the [implementation and compatibility record](development/stdlib-websocket-headers.md)
-for the exact owned-field list and supported shapes.
+The standard global constructor remains `new WebSocket(url, protocols?)`;
+its old third-argument header extension is removed. The binary default is
+now `"blob"`; select `socket.binaryType = "arraybuffer"` for raw buffers.
+The same Go WebSockets URL policy, TLS, message limit, handshake timeout,
+Worker behavior, and execution cleanup apply to both creation paths.
+The handshake manages Host, Connection, Upgrade, Sec-WebSocket negotiation,
+and HTTP body-framing fields. Invalid or managed headers throw before
+allocation; invalid protocol tokens throw SyntaxError. See the
+[current HTTP contract](development/stdlib-noe-http.md).
+
+`Modules.Serve` independently selects `noe:http.serve`; Serve plus WebSockets
+also selects `upgradeWebSocket`. Neither helper is installed globally.
+Fetch remains independent and global; Fetch alone does not select `noe:http`.
+There is no default or fetch export, and `node:http`/`http` are removed.
+`FetchOptions.MaxBodyBytes` rejects actual response-body overflow. Exactly the
+cap is allowed after EOF; zero means 32 MiB and negative means unlimited.
+A reader can receive the allowed prefix before the next read detects excess.
+Serve applies an independent request-body cap with the same zero/default and negative/unlimited conventions; see the server lifecycle section above.
 
 ## Load local modules
 

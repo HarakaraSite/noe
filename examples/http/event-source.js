@@ -28,5 +28,5 @@ try {
   });
 } finally {
   source.close();
-  server.close();
+  await server.close();
 }

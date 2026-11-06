@@ -122,10 +122,10 @@ func (f *uploadTestFixture) requireBodies(t *testing.T, labels ...string) {
 
 func (f *uploadTestFixture) baseURL() string { return f.server.URL }
 
-const uploadExerciseModule = `import * as http from "noe:http";
+const uploadExerciseModule = `
 const base = %q;
 export async function upload(label) {
- if (http.fetch !== globalThis.fetch) throw Error("fetch identity changed");
+ if (fetch !== globalThis.fetch) throw Error("fetch identity changed");
  const storage = new Uint8Array([99,0,255,17,88]);
  const prefix = storage.subarray(1,4);
  const remainder = new Uint8Array([34,128,0,255]);
@@ -140,7 +140,7 @@ export async function upload(label) {
    controller.close();
   }
  }, {highWaterMark:0});
- const response = await http.fetch(base + "/upload?label=" + label, {method:"POST",body});
+ const response = await fetch(base + "/upload?label=" + label, {method:"POST",body});
  const text = await response.text();
  if (response.status !== 200 || text !== "received") throw Error("upload response: " + response.status + " " + text);
  return text;
