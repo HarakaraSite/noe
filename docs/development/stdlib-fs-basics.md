@@ -113,6 +113,10 @@ the supported subset; they do not imply implementation of the full Node API.
 
 ## Deferred noebot API adoption
 
+The consolidated [NOE v2.14.0 migration instructions](noebot-v2.14.0-migration.md)
+assign the new minimum version, required import changes, validation, and
+deployment ordering. The assessment below preserves the earlier context.
+
 Recorded on 2026-11-05 for a later consolidated instruction in the noebot
 repository. The remote `main` was rechecked at
 `45de74771d9c048448afb1e7f1039b0b45a01443`. Implementation is deferred to

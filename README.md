@@ -34,12 +34,12 @@ No C toolchain required.
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.13.0 release notes](docs/releases/v2.13.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.13.0)
+[v2.14.0 release notes](docs/releases/v2.14.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.14.0)
 
-v2.13.0 unifies filesystem handles under `node:fs/promises`, adds creation,
-append, metadata, sync, and Dirent operations, and reduces agent-library
-serialization and SSE overhead. This includes breaking filesystem API and
-result changes; see the [migration notes](docs/releases/v2.13.0.md).
+v2.14.0 unifies process spawning under `node:child_process` and standard I/O
+under `node:process` Web Streams. It adds `AbortSignal.any` and asynchronous
+resource disposal. The former `noe:process`, `noe:io`, and synchronous stdio
+interfaces are removed; see the [migration notes](docs/releases/v2.14.0.md).
 
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
@@ -54,7 +54,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.13.0
+# noe v2.14.0
 ```
 
 The examples below assume the repository root is your working directory.
