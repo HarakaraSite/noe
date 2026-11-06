@@ -8,19 +8,54 @@ Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source dist
 
 Availability: Requires Profile.Modules.FS.
 
-Public-definition source: internal/stdlib/fs.go. Reading this reference evaluates no target module and makes no provider request.
+Public-definition source: internal/stdlib/fs.go. Watching also uses internal/stdlib/fs_watch.go and fs_watch.js. Reading this reference evaluates no target module and makes no provider request.
 
 Provides promise-returning file, metadata, and open-handle operations. Every listed export is present on both the module namespace and its default object. readFile returns bytes unless an encoding is supplied; write operations accept strings or byte data.
 
 ### Exports
 
-`appendFile`, `copyFile`, `default`, `lstat`, `mkdir`, `mkdtemp`, `open`, `readFile`, `readdir`, `readlink`, `realpath`, `rename`, `rm`, `rmdir`, `stat`, `unlink`, `writeFile`
+`appendFile`, `copyFile`, `default`, `lstat`, `mkdir`, `mkdtemp`, `open`, `readFile`, `readdir`, `readlink`, `realpath`, `rename`, `rm`, `rmdir`, `stat`, `unlink`, `watch`, `writeFile`
 
 These are ordinary promises, not Node callback APIs. Use node:fs for synchronous methods and Web Streams, and open from this module for reads and writes through an open file handle. `open` is the same function through `node:fs/promises`, `fs/promises`, `node:fs.promises`, and the default `node:fs` object's `promises` property.
 
 Directory listings return name strings by default. Use `{withFileTypes: true}` for `Dirent` objects with entry-type predicates.
 
 Filesystem errors from synchronous methods, promise methods, FileHandle operations, and Web Streams share one shape. OS errors use symbolic string `code` values such as `ENOENT`, `EEXIST`, and `EBADF`; `errno`, when available, is the original positive platform OS number, which varies by platform. Errors may include `path`, `dest`, and `syscall` when the underlying operation provides them. Paths are projected relative to the configured filesystem root. The custom codes `ERR_INVALID_ARG`, `ERR_READ_ONLY`, `ERR_FILE_CLOSED`, and fallback `ERR_IO` remain available. Partial FileHandle I/O errors also retain `bytesRead` or `bytesWritten` and the original `buffer`.
+
+## watch
+
+`watch(path, options?) -> WatchIterator<{eventType, filename}>`. Returns an
+async iterator immediately; native registration starts at its first `next()`.
+Argument validation is immediate. Each value has `eventType: "rename" | "change"`
+and a basename filename (`string`, Buffer with `encoding:"buffer"`, or null).
+Use `for await` to receive notifications. Breaking the loop calls `return()`
+and closes observation. The iterator also has `close() -> Promise<void>` and
+`[Symbol.asyncDispose]() -> Promise<void>` for explicit or `await using` cleanup.
+These cleanup helpers are NOE additions. Close settles pending reads as done.
+
+Options and operating-system caveats match `node:fs.watch`: nonrecursive file
+or directory observation, UTF-8 or buffer filenames, `persistent` (default true),
+`signal`, `maxQueue` (default 2048), and `overflow:"ignore" | "error"` (default
+ignore). Queue overflow in error mode rejects with `ERR_FS_WATCH_QUEUE_OVERFLOW`.
+Native registration failures reject `next()` with normal filesystem errors.
+The target is resolved within the selected Root/Cwd; ReadOnly permits watching.
+
+Aborting the signal rejects pending reads with an Error named `AbortError`,
+code `ABORT_ERR`, and the exact original reason in `cause`. A pre-aborted signal
+rejects the first read without registering a native watch. Subsequent reads
+are done. Synthetic abort events do not cancel observation. Runtime teardown
+closes native resources without waiting for JS delivery.
+
+~~~js
+import {watch} from "node:fs/promises";
+
+await using changes = watch(".", {signal: AbortSignal.timeout(10000)});
+try {
+  for await (const event of changes) console.log(event.eventType, event.filename);
+} catch (error) {
+  if (error.name !== "AbortError") throw error;
+}
+~~~
 
 ## open
 

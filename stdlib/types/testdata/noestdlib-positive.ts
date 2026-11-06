@@ -8,6 +8,8 @@ import dns, {lookup as lookupCallback, resolve4 as resolve4Callback} from "node:
 import * as dnsPromises from "dns/promises";
 import {EventEmitter, once} from "events";
 import fs, {promises as fsPromises, readFileSync, statSync} from "node:fs";
+import {watch as watchFiles} from "node:fs";
+import {watch as watchFileEvents, WatchEvent, WatchIterator} from "node:fs/promises";
 import fsPromisesDefault, {
   FileHandleRead,
   FileHandleReadOptions,
@@ -286,3 +288,23 @@ async function managedResources(): Promise<void> {
   void [listener, connection, subscription, disposable, disposed];
 }
 void [combinedSignal, managedResources];
+
+// Watch callbacks and iterators retain their selected filename representation.
+const watchedText = watchFiles(".", (_type, filename) => { const text: string | null = filename; void text; });
+const watchedBytes = watchFiles(".", {encoding: "buffer", persistent: false}, (_type, filename) => {
+  const bytes: import("node:buffer").Buffer | null = filename; void bytes;
+});
+watchedText.on("change", (_type, filename) => { const text: string | null = filename; void text; });
+watchedBytes.unref().ref().close();
+const watchedStringEncoding = fs.watch(".", "utf-8");
+const watchedIterator: WatchIterator = watchFileEvents(".", {signal: AbortSignal.any([]), maxQueue: 32, overflow: "error"});
+const watchedBufferIterator: WatchIterator<import("node:buffer").Buffer> = fsPromises.watch(".", "buffer");
+for await (const event of watchedIterator) { const typed: WatchEvent = event; void typed; break; }
+await watchedBufferIterator.return();
+await watchedIterator.close();
+{
+  await using scopedWatcher = watchedText;
+  await using scopedEvents = watchFileEvents(".", {recursive: false});
+  void [scopedWatcher, scopedEvents];
+}
+void watchedStringEncoding;

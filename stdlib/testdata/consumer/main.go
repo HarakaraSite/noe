@@ -47,6 +47,9 @@ func run() error {
 	if err := stdio(ctx); err != nil {
 		return err
 	}
+	if err := watchFilesystem(ctx); err != nil {
+		return err
+	}
 	root, err := os.MkdirTemp("", "noe-public-stdlib-")
 	if err != nil {
 		return err

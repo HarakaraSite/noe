@@ -16,8 +16,12 @@ file-type, permission, and special bits in `mode`.
 
 Phases 3 and 4 were released in [v2.14.0](../releases/v2.14.0.md). The process, standard-I/O, and cancellation
 sections below record their implementation and compatibility details.
-The next planned phase is filesystem watching. Consumer rollout is covered
-by the [noebot migration instructions](noebot-v2.14.0-migration.md).
+Phase 5 core filesystem watching is now implemented and locally verified,
+but not released; see the [watch implementation record](stdlib-fs-watch.md).
+The initial scope is nonrecursive, with callback and async-iterator APIs,
+cancellation, and resource cleanup. The next planned phase is source maps.
+The v2.14.0 consumer rollout is covered by the
+[noebot migration instructions](noebot-v2.14.0-migration.md).
 
 ## Phases
 

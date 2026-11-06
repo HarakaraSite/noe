@@ -1,4 +1,4 @@
-import {readFileSync, readdirSync, statSync} from "node:fs";
+import fs, {readFileSync, readdirSync, statSync} from "node:fs";
 import {exec, execFile, spawnSync} from "node:child_process";
 import processModule from "node:process";
 // @ts-expect-error NOE's live spawn API is now part of node:child_process.
@@ -156,3 +156,19 @@ AbortSignal.any({});
 declare const disposalFile: import("node:fs/promises").FileHandle;
 // @ts-expect-error disposal completes asynchronously
 const synchronousDisposal: number = disposalFile[Symbol.asyncDispose]();
+
+// Unsupported watch modes and invalid watch argument shapes are excluded.
+// @ts-expect-error filesystem watch paths are strings
+fs.watch(new URL("file:///tmp"));
+// @ts-expect-error recursive watching is not supported
+fs.watch(".", {recursive: true});
+// @ts-expect-error watch encoding must be supported
+fs.watch(".", {encoding: "hex"});
+// @ts-expect-error watch signals must be genuine AbortSignal values
+fs.promises.watch(".", {signal: {aborted: false}});
+// @ts-expect-error queue size is numeric
+fs.promises.watch(".", {maxQueue: "large"});
+// @ts-expect-error overflow selects a supported policy
+fs.promises.watch(".", {overflow: "discard"});
+// @ts-expect-error buffer filenames are not strings
+const wrongWatchIterator: AsyncIterableIterator<{eventType: "change" | "rename"; filename: string | null}> = fs.promises.watch(".", "buffer");

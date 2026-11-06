@@ -375,6 +375,45 @@ declare namespace NOEStdlib {
     write(text: string, position?: number | null, encoding?: "utf8" | "utf-8"): Promise<FileHandleWrite<string>>;
     close(): Promise<void>;
   }
+  type WatchEncoding = "utf8" | "utf-8" | "buffer";
+  type WatchEventType = "rename" | "change";
+  interface WatchOptions<E extends WatchEncoding = "utf8"> {
+    encoding?: E;
+    persistent?: boolean;
+    recursive?: false;
+    signal?: AbortSignal;
+    maxQueue?: number;
+    overflow?: "ignore" | "error";
+    throwIfNoEntry?: true;
+  }
+  type WatchListener<T = string> = (eventType: WatchEventType, filename: T | null) => void;
+  interface WatchEvent<T = string> { eventType: WatchEventType; filename: T | null }
+  interface FSWatcher<T = string> extends EventEmitter {
+    close(): void;
+    ref(): this;
+    unref(): this;
+    [Symbol.asyncDispose](): Promise<void>;
+    on(name: "change", listener: WatchListener<T>): this;
+    on(name: PropertyKey, listener: EventCallback): this;
+    once(name: "change", listener: WatchListener<T>): this;
+    once(name: PropertyKey, listener: EventCallback): this;
+  }
+  interface WatchIterator<T = string> extends AsyncIterableIterator<WatchEvent<T>> {
+    close(): Promise<void>;
+    return(value?: unknown): Promise<IteratorResult<WatchEvent<T>>>;
+    [Symbol.asyncDispose](): Promise<void>;
+  }
+  interface FSWatch {
+    (path: string, listener: WatchListener): FSWatcher;
+    (path: string, options?: WatchOptions<"utf8" | "utf-8"> | "utf8" | "utf-8" | null, listener?: WatchListener): FSWatcher;
+    (path: string, options: (WatchOptions<"buffer"> & {encoding: "buffer"}) | "buffer", listener?: WatchListener<Buffer>): FSWatcher<Buffer>;
+    (path: string, options: WatchOptions<WatchEncoding> | WatchEncoding | null, listener?: WatchListener<string | Buffer>): FSWatcher<string | Buffer>;
+  }
+  interface FSPromisesWatch {
+    (path: string, options?: WatchOptions<"utf8" | "utf-8"> | "utf8" | "utf-8" | null): WatchIterator;
+    (path: string, options: (WatchOptions<"buffer"> & {encoding: "buffer"}) | "buffer"): WatchIterator<Buffer>;
+    (path: string, options: WatchOptions<WatchEncoding> | WatchEncoding | null): WatchIterator<string | Buffer>;
+  }
   interface FSModule {
     readonly Dirent: DirentConstructor;
     appendFileSync(path: string, data: FileData): void;
@@ -399,9 +438,11 @@ declare namespace NOEStdlib {
     statSync(path: string): FileInfo;
     unlinkSync(path: string): void;
     writeFileSync(path: string, data: FileData): void;
+    readonly watch: FSWatch;
     readonly promises: FSPromisesAPI;
   }
   interface FSPromisesAPI {
+    readonly watch: FSPromisesWatch;
     appendFile(path: string, data: FileData): Promise<void>;
     copyFile(from: string, to: string): Promise<void>;
     open(path: string, flags?: FileHandleFlags, mode?: number): Promise<FileHandle>;
@@ -1240,6 +1281,10 @@ declare module "node:events" {
   export default EventEmitter;
 }
 declare module "node:fs" {
+  export type FSWatcher<T = string> = NOEStdlib.FSWatcher<T>;
+  export type WatchOptions<E extends NOEStdlib.WatchEncoding = "utf8"> = NOEStdlib.WatchOptions<E>;
+  export type WatchEventType = NOEStdlib.WatchEventType;
+  export const watch: NOEStdlib.FSWatch;
   export type Dirent = NOEStdlib.Dirent;
   export const Dirent: NOEStdlib.DirentConstructor;
   export type FileInfo = NOEStdlib.FileInfo; export type FileSystemError = NOEStdlib.FileSystemError; export type FileData = NOEStdlib.FileData;
@@ -1269,6 +1314,10 @@ declare module "node:fs" {
   export default api;
 }
 declare module "node:fs/promises" {
+  export type WatchOptions<E extends NOEStdlib.WatchEncoding = "utf8"> = NOEStdlib.WatchOptions<E>;
+  export type WatchEvent<T = string> = NOEStdlib.WatchEvent<T>;
+  export type WatchIterator<T = string> = NOEStdlib.WatchIterator<T>;
+  export const watch: NOEStdlib.FSPromisesWatch;
   export type Dirent = NOEStdlib.Dirent;
   export type FileInfo = NOEStdlib.FileInfo; export type FileSystemError = NOEStdlib.FileSystemError; export type FileData = NOEStdlib.FileData;
   export type FileHandle = NOEStdlib.FileHandle; export type FileHandleFlags = NOEStdlib.FileHandleFlags;

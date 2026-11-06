@@ -98,6 +98,18 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	if err != nil {
 		return err
 	}
+	watchAPI, err := f.installWatchValues()
+	if err != nil {
+		return err
+	}
+	watch, err := watchAPI.Get("watch")
+	if err != nil {
+		return err
+	}
+	watchPromises, err := watchAPI.Get("watchPromises")
+	if err != nil {
+		return err
+	}
 
 	sync := map[string]any{
 		"readFileSync": func(p string, enc quickjs.Value) (any, error) {
@@ -129,7 +141,8 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	// reads what it needs out of the runtime here and then does its work with
 	// plain Go data, which is what lets the work happen off this goroutine.
 	promises := map[string]any{
-		"open": open,
+		"open":  open,
+		"watch": watchPromises,
 		"readFile": func(p string, enc quickjs.Value) *quickjs.Promise {
 			text := encodingOf(enc) != ""
 			return f.promise(func() (any, error) {
@@ -216,6 +229,7 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 
 	exports := make(map[string]any, len(sync)+5)
 	exports["Dirent"] = dirent
+	exports["watch"] = watch
 	for k, v := range sync {
 		exports[k] = v
 	}
