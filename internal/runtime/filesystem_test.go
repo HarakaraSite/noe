@@ -14,8 +14,8 @@ func TestStdlibFilesystemPromises(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	source := `import fs from "node:fs";
-import {mkdir, readdir, rename, rm, stat} from "node:fs/promises";
+	source := `import fs from "noe:fs";
+import {mkdir, readdir, rename, rm, stat} from "noe:fs";
 const root = ` + jsString(t, dir) + `;
 const before = ` + jsString(t, file) + `;
 const after = ` + jsString(t, filepath.Join(dir, "after.txt")) + `;
@@ -26,7 +26,7 @@ if (!names.includes("before.txt") || !names.includes("created")) throw Error("re
 const info = await stat(before);
 if (!info.isFile() || info.size !== 9 || fs.statSync(before).size !== 9) throw Error("stat");
 await rename(before, after);
-if (await fs.promises.readFile(after, "utf8") !== "日本語") throw Error("rename");
+if (await fs.readFile(after, "utf8") !== "日本語") throw Error("rename");
 await rm(after);
 await rm(` + jsString(t, filepath.Join(dir, "created")) + `, {recursive:true});
 if (fs.existsSync(before) || fs.existsSync(after) || fs.existsSync(` + jsString(t, filepath.Join(dir, "created")) + `)) throw Error("remove");

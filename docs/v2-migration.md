@@ -49,7 +49,7 @@ POSIXコマンドの通常起動は直接実行です。ホストSIGKILL時の�
 `commandId`は`spawn_agent`の初回受付または`queue_agent`のreceiptから取得します。`runId`はsteerなど実行中runの識別子であり、`cancel_task`のcommandIdと置き換えられません。
 
 ```js
-import {readFile} from "node:fs/promises";
+import {readFile} from "noe:fs";
 import {analyze_log} from "noe:agent-log";
 
 const input = await readFile("events.jsonl", "utf8");

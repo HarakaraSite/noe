@@ -78,7 +78,7 @@ resolvers, clients, providers, and callbacks remain borrowed.
 | --- | --- |
 | `ProcessInfo` | Process metadata, `process.cwd()`, `process.env`, and the global `process` object |
 | `Stdio` | Named `node:process` standard I/O Web Streams and the selected environment's streams |
-| `FS` | `node:fs` and `node:fs/promises`; `FileSystemOptions` selects `Root` and `ReadOnly` |
+| `FS` | `noe:fs`; `FileSystemOptions` selects `Root` and `ReadOnly` |
 | `Commands` | `node:child_process` captured commands and NOE-specific Web Streams `spawn`; options select `Allow`, timeout, output limit, and optional `Supervisor` |
 | `DNS`, `Fetch`, `Serve`, `WebSockets` | The corresponding network capability and its limits/callbacks |
 | `RawSockets`, `Signals` | `noe:sockets` and `noe:signals` |

@@ -41,7 +41,7 @@ func TestImportMapRuntimeAndInMemoryEntry(t *testing.T) {
 	var out bytes.Buffer
 	source := `import * as lib from "app/lib"; export {value} from "app/lib";
  const again=await import("app/again");
- console.log(lib.value,lib===again,typeof (await import("node:fs")).readFileSync);`
+ console.log(lib.value,lib===again,typeof (await import("noe:fs")).readFileSync);`
 	code, err := Execute(context.Background(), Source{filepath.Join(dir, "consumer/main.js"), source}, Options{Cwd: dir, Stdout: &out, ImportMap: snapshot})
 	if err != nil || code != 0 || out.String() != "42 true function\n" {
 		t.Fatalf("code=%d err=%v out=%q", code, err, out.String())
@@ -65,7 +65,7 @@ func TestImportMapRuntimeAndInMemoryEntry(t *testing.T) {
 func TestImportMapCachesCanonicalSourceWithinExecution(t *testing.T) {
 	dir, snapshot := importMapFixture(t)
 	source := `const first=await import("app/lib");
-const {unlinkSync}=await import("node:fs");
+const {unlinkSync}=await import("noe:fs");
 unlinkSync(` + jsString(t, filepath.Join(dir, "vendor/lib.mjs")) + `);
 const second=await import("app/again"), third=await import("app/lib");
 if(first!==second || second!==third)throw Error("canonical module cache lost");`
@@ -105,7 +105,7 @@ func TestImportMapWorkerRetainsImportedLibrary(t *testing.T) {
 	if err := os.WriteFile(worker, []byte(source), 0600); err != nil {
 		t.Fatal(err)
 	}
-	main := `import {Worker} from "node:worker_threads";import {unlinkSync} from "node:fs";
+	main := `import {Worker} from "node:worker_threads";import {unlinkSync} from "noe:fs";
  const worker=new Worker("./worker.mjs");
  await new Promise((resolve,reject)=>{worker.on("error",reject);worker.on("message",message=>{if(message==="ready"){unlinkSync("vendor/lib.mjs");worker.postMessage("continue")}else{if(message!==true)reject(Error("namespace changed"));else resolve()}})});
  await worker.terminate();console.log("retained");`

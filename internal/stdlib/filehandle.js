@@ -10,78 +10,52 @@
     if (!Number.isSafeInteger(value) || value < 0) invalid(name + " must be a nonnegative safe integer");
     return value;
   }
-  function position(value) {
-    return value === undefined || value === null ? null : integer(value, "position");
-  }
   function options(value) {
+    if (value === undefined) return {};
     if (value === null || typeof value !== "object" || Array.isArray(value)) invalid("options must be an object");
     return value;
   }
-  function fileMode(value) {
+  function mode(value) {
     if (!Number.isSafeInteger(value) || value < 0 || value > 0o777) invalid("mode must be an integer from 0 through 0o777");
     return value;
   }
-  function bytes(buffer) {
-    if (!ArrayBuffer.isView(buffer)) invalid("buffer must be an ArrayBuffer view");
-    return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-  }
-  function range(buffer, offset, length, pos) {
-    const view = bytes(buffer);
-    offset = integer(offset === undefined ? 0 : offset, "offset");
-    length = integer(length === undefined ? view.byteLength - offset : length, "length");
-    if (offset > view.byteLength || length > view.byteLength - offset) invalid("offset and length must fit the buffer");
-    return {buffer, view, offset, length, position: position(pos)};
+  function bytes(value) {
+    if (!ArrayBuffer.isView(value)) invalid("data must be an ArrayBuffer view or string");
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
   }
   function handle(value) {
     return {
-      read(buffer, offset, length, pos) {
+      read(length = 16384) {
         try {
-          if (buffer === undefined || !ArrayBuffer.isView(buffer)) {
-            const opts = options(buffer === undefined ? {} : buffer);
-            buffer = opts.buffer === undefined ? new Uint8Array(16384) : opts.buffer;
-            ({offset, length, position: pos} = opts);
-          } else if (offset !== null && typeof offset === "object") {
-            ({offset, length, position: pos} = options(offset));
-          }
-          const r = range(buffer, offset, length, pos);
-          return value.read(r.position, r.length).then(result => {
-            r.view.set(result.data, r.offset);
-            return {bytesRead: result.bytesRead, buffer};
-          }, error => {
-            if (error.data !== undefined) {
-              r.view.set(error.data, r.offset);
-              delete error.data;
-              error.buffer = buffer;
-            }
-            throw error;
-          });
+          integer(length, "length");
+          return value.read(null, length).then(result => result.data);
         } catch (error) { return Promise.reject(error); }
       },
-      write(buffer, offset, length, pos) {
+      readAt(position, length) {
         try {
-          let writing;
-          if (typeof buffer === "string") {
-            const at = position(offset);
-            if (length !== undefined && length !== "utf8" && length !== "utf-8") invalid("only UTF-8 string writes are supported");
-            writing = value.write(at, buffer);
-          } else {
-            if (offset !== null && typeof offset === "object") {
-              ({offset, length, position: pos} = options(offset));
-            }
-            const r = range(buffer, offset, length, pos);
-            writing = value.write(r.position, r.view.subarray(r.offset, r.offset + r.length));
-          }
-          return writing.then(bytesWritten => ({bytesWritten, buffer}), error => {
-            if (error.bytesWritten !== undefined) error.buffer = buffer;
-            throw error;
-          });
+          integer(position, "position");
+          integer(length, "length");
+          return value.read(position, length).then(result => result.data);
+        } catch (error) { return Promise.reject(error); }
+      },
+      write(data) {
+        try {
+          if (typeof data === "string") return value.write(null, data);
+          return value.write(null, bytes(data));
+        } catch (error) { return Promise.reject(error); }
+      },
+      writeAt(position, data) {
+        try {
+          integer(position, "position");
+          if (typeof data === "string") return value.write(position, data);
+          return value.write(position, bytes(data));
         } catch (error) { return Promise.reject(error); }
       },
       stat() { return value.stat(); },
       truncate(length = 0) {
         try {
-          if (!Number.isSafeInteger(length)) invalid("length must be a safe integer");
-          return value.truncate(Math.max(0, length));
+          integer(length, "length");
+          return value.truncate(length);
         } catch (error) { return Promise.reject(error); }
       },
       sync() { return value.sync(); },
@@ -89,12 +63,15 @@
       async [Symbol.asyncDispose]() { await this.close(); },
     };
   }
-  function open(path, flags = "r", mode = 0o666) {
+  function open(path, suppliedOptions) {
     try {
       if (typeof path !== "string" || path.length === 0 || path.includes("\0")) invalid("path must be a nonempty string without NUL");
-      if (!["r", "r+", "w", "wx", "w+", "wx+", "a", "ax", "a+", "ax+"].includes(flags)) invalid("unsupported file open flags");
-      mode = fileMode(mode);
-      return native.open(path, flags, mode).then(handle);
+      const {flags = "r", mode: permissions = 0o666} = options(suppliedOptions);
+      if (typeof flags !== "string" || !["r", "r+", "w", "wx", "w+", "wx+", "a", "ax", "a+", "ax+"].includes(flags)) {
+        invalid("unsupported file open flags");
+      }
+      mode(permissions);
+      return native.open(path, flags, permissions).then(handle);
     } catch (error) { return Promise.reject(error); }
   }
   return {open, handle};

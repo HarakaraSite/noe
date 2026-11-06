@@ -33,7 +33,7 @@ func TestValidationHappensBeforeRegistration(t *testing.T) {
 			if _, err := rt.EvalModule("probe.mjs", `import "noe:docs"`); err == nil {
 				t.Fatal("validation registered docs before rejecting the configuration")
 			}
-			for _, name := range []string{"noe:io", "node:child_process", "child_process", "noe:process", "node:fs", "node:fs/promises", "noe:sockets", "noe:signals"} {
+			for _, name := range []string{"noe:io", "node:child_process", "child_process", "noe:process", "noe:fs", "node:fs", "node:fs/promises", "fs", "fs/promises", "noe:sockets", "noe:signals"} {
 				src := `import "` + name + `"`
 				if _, err := rt.EvalModule("probe.mjs", src); err == nil {
 					t.Errorf("validation registered %s before rejecting the configuration", name)

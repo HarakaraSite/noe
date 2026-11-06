@@ -6,6 +6,14 @@ runtime, Workers, and managed task/run_js processes now install this snapshot.
 Runtime adoption preserves the imported API surface and configuration; its
 wiring lives in internal/runtime and the integration test helpers.
 
+The current [NOE API policy](../../docs/development/stdlib-api-policy.md)
+subsequently changes host API naming deliberately. Filesystem access now uses
+only `noe:fs`, with direct asynchronous operations, explicit Sync helpers,
+iterator watching, and simplified FileHandle read/write and readAt/writeAt.
+This is a NOE-specific API decision, not an upstream bug fix or compatibility
+claim. The shared filesystem backend and native resource ownership remain.
+See the [filesystem migration](../../docs/development/stdlib-noe-fs.md).
+
 NOE also adds http.go: Install registers `noe:http` using the existing fetch and
 serve function values enabled by its configuration. It adds no transport,
 constructors, or permissions; the upstream globals and node:http remain available.

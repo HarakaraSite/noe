@@ -75,6 +75,20 @@ func TestLoadUsesMapFileParent(t *testing.T) {
 	}
 }
 
+func TestRemovedFilesystemBareNamesCanBeMapped(t *testing.T) {
+	base := t.TempDir()
+	snapshot, err := Parse([]byte(`{"imports":{"fs":"./user-fs.js","fs/promises":"./user-async-fs.js"}}`), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for specifier, target := range map[string]string{"fs": "user-fs.js", "fs/promises": "user-async-fs.js"} {
+		got, err := snapshot.Resolve(specifier, filepath.Join(base, "main.js"))
+		if err != nil || got != filepath.Join(base, target) {
+			t.Fatalf("Resolve(%q)=%q error=%v", specifier, got, err)
+		}
+	}
+}
+
 func TestResolveLocalFormsWithoutSnapshot(t *testing.T) {
 	dir := t.TempDir()
 	referrer := filepath.Join(dir, "nested", "main.js")

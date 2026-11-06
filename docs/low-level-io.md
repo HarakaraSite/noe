@@ -1,14 +1,14 @@
 # File handles, sockets, and OS signals
 
-Use `noe docs node:fs/promises open` and `noe docs node:fs/promises FileHandle.read` for the file handle contract. Use `noe docs noe:sockets` and `noe docs noe:signals` for the NOE socket and signal APIs. Member names from a topic overview select detailed entries in the embedded reference ([guide](reference.md)).
+Use `noe docs noe:fs open` and `noe docs noe:fs FileHandle.read` for the file handle contract. Use `noe docs noe:sockets` and `noe docs noe:signals` for the NOE socket and signal APIs. Member names from a topic overview select detailed entries in the embedded reference ([guide](reference.md)).
 
 The socket and signal APIs in this guide are available from v1.8.0.
 
-`noe:sockets` and `noe:signals` are NOE extensions available to run/eval, agent `run_js`, and Workers. They use the operating-system permissions of the NOE process. The standard `node:fs`, `node:fs/promises`, HTTP, and process APIs remain available through their selected capabilities.
+`noe:sockets` and `noe:signals` are NOE extensions available to run/eval, agent `run_js`, and Workers. They use the operating-system permissions of the NOE process. The `noe:fs`, HTTP, and process APIs are available through their selected capabilities.
 
 ## Open files
 
-`open` from `node:fs/promises` returns a `FileHandle` for an existing file. Use its `read()` and `write()` methods for sequential or positional byte I/O, then call `close()`. The handle contract, supported overloads, returned buffers, and errors are documented in the embedded `node:fs/promises` reference. Open handles do not keep an evaluation alive; runtime cleanup closes remaining handles.
+`open(path, {flags:"r"})` from `noe:fs` returns a FileHandle; creation and append flags are also supported. `read(length)` returns a Uint8Array and `write(data)` returns a byte count. Use `readAt(position, length)` and `writeAt(position, data)` for positional I/O without moving the cursor. `truncate` rejects negative lengths. Close handles explicitly or use `await using`. The complete contract and errors are documented in the embedded `noe:fs` reference. Open handles do not keep an evaluation alive; runtime cleanup closes remaining handles.
 
 ## TCP・Unixソケットで通信する
 

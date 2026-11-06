@@ -13,7 +13,7 @@ import (
 func TestAgentCLITimeoutStopsGeneratedProcessGroup(t *testing.T) {
 	work := t.TempDir()
 	server := agentAPIFixture(t, func(context.Context, agentChatRequest) agentModelReply {
-		code := `import {writeFileSync} from "node:fs";
+		code := `import {writeFileSync} from "noe:fs";
 import {execFile} from "node:child_process";
 writeFileSync("tool-ready","ready");
 await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"runner","shell.pid","grandchild.pid"]);`
@@ -33,11 +33,11 @@ func TestAgentParentTimeoutStopsNestedProcessGroups(t *testing.T) {
 	work := t.TempDir()
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		code := `import {run_agent} from "noe:agent";
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 writeFileSync("parent-ready","ready");
 const child=await run_agent({name:"nested"},"nested child");console.log(child.lastResult.answer);`
 		if agentUser(req) == "nested child" {
-			code = `import {writeFileSync} from "node:fs";
+			code = `import {writeFileSync} from "noe:fs";
 import {execFile} from "node:child_process";
 writeFileSync("child-ready","ready");
 await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"runner","shell.pid","grandchild.pid"]);`

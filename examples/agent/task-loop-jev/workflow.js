@@ -1,4 +1,4 @@
-import { readFile, writeFile, appendFile } from "node:fs/promises";
+import { readFile, writeFile, appendFile } from "noe:fs";
 import { run_agent, spawn_agent, queue_agent, wait_task, stop_agent } from "noe:agent";
 import { spawn } from "node:child_process";
 import { decide } from "noe:decision";

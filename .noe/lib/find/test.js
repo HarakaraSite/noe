@@ -1,5 +1,5 @@
 // Run: ./noe run .noe/lib/find/test.js (fd, GNU find, and ln required).
-import {mkdtempSync, writeFileSync, mkdirSync, rmSync, copyFileSync, chmodSync, existsSync} from "node:fs";
+import {mkdtempSync, writeFileSync, mkdirSync, rmSync, copyFileSync, chmodSync, existsSync} from "noe:fs";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
 import process from "node:process";

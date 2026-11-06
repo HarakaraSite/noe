@@ -117,7 +117,7 @@ func TestDecisionOpenRouterLive(t *testing.T) {
 				case "image":
 					state = json.RawMessage(`[]`)
 					questions = imageQuestions
-					prelude = `const {readFile}=await import("node:fs/promises"); const {Buffer}=await import("node:buffer"); const image=Buffer.from(await readFile(` + string(imagePath) + `)).toString("base64");`
+					prelude = `const {readFile}=await import("noe:fs"); const {Buffer}=await import("node:buffer"); const image=Buffer.from(await readFile(` + string(imagePath) + `)).toString("base64");`
 				}
 				request, _ := json.Marshal(map[string]any{"provider": "openrouter", "model": model, "state": state, "questions": questions})
 				source := `import {decide} from "noe:decision";` + prelude + `const request=` + string(request) + `;`

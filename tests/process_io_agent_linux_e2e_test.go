@@ -32,7 +32,7 @@ func TestProcessIOAgentRunInterruptReapsGeneratedProcessTree(t *testing.T) {
 			t.Errorf("unexpected additional model call")
 			return agentModelReply{Content: "unexpected second model call"}
 		}
-		code := `import {writeFileSync} from "node:fs";
+		code := `import {writeFileSync} from "noe:fs";
 import {spawn} from "node:child_process";
 writeFileSync("agent-run-js-ready","ready");
 await spawn("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"agent-process-io","agent-shell.pid","agent-grandchild.pid"],{stdin:"ignore",stdout:"ignore",stderr:"ignore"});
@@ -44,7 +44,7 @@ await new Promise(()=>{});`
 	env["NOE_AGENT_TRACE"] = ""
 	eventPath := filepath.Join(work, "events.jsonl")
 	source := `import {spawn_agent,observe_agent,cancel_task,wait_task} from "noe:agent";
-import {readFile} from "node:fs/promises";
+import {readFile} from "noe:fs";
 const spawned=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",name:"process-io"},"start a process tree and leave it running");
 const commandId=spawned.commandId;
 if(!commandId)throw Error("spawn did not return its accepted commandId");
@@ -151,7 +151,7 @@ func TestProcessIOAgentParentCancellationReapsSpawnTreesWithInheritedAndIgnoredP
 					t.Errorf("unexpected additional model call")
 					return agentModelReply{Content: "unexpected second model call"}
 				}
-				code := `import {writeFileSync} from "node:fs";
+				code := `import {writeFileSync} from "noe:fs";
 import {spawn} from "node:child_process";
 writeFileSync("parent-run-js-ready","ready");
 await spawn("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"parent-process-io","parent-shell.pid","parent-grandchild.pid"],{stdin:"ignore",stdout:` + strconv.Quote(tc.stdout) + `,stderr:` + strconv.Quote(tc.stderr) + `});

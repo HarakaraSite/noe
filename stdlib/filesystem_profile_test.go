@@ -12,7 +12,7 @@ import (
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
-func TestProfileNodeFilesystemHandlesAgree(t *testing.T) {
+func TestProfileFilesystemHandlesAgree(t *testing.T) {
 	for _, readOnly := range []bool{false, true} {
 		name := "writable"
 		if readOnly {
@@ -44,25 +44,26 @@ func TestProfileNodeFilesystemHandlesAgree(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			source, err := view.Prepare(stdlib.Source{Name: "memory:fs", Module: true, Virtual: true, Code: `
-import fs from "node:fs";
-import fsPromises, {open as nodeOpen} from "node:fs/promises";
-import barePromises, {open as bareOpen} from "fs/promises";
-if (nodeOpen!==bareOpen||nodeOpen!==fs.promises.open||nodeOpen!==fsPromises.open||nodeOpen!==barePromises.open) throw new Error("open aliases differ");
+import fs from "noe:fs";
+import {open} from "noe:fs";
+if (open!==fs.open || "promises" in fs) throw new Error("filesystem namespace differs");
+for (const name of ["node:fs","node:fs/promises","fs","fs/promises"]) {
+ if (await import(name).then(()=>true,()=>false)) throw new Error("legacy module survived: "+name);
+}
 const node=fs.readFileSync("value","utf8");
-const file=await nodeOpen("/sub/value");
-const buffer=new Uint8Array(3);
-const read=await file.read(buffer,0,buffer.byteLength,0);
-if (read.buffer!==buffer||read.bytesRead!==3) throw new Error("read result does not retain its buffer");
-const handleText=new TextDecoder().decode(read.buffer.subarray(0,read.bytesRead));
+const file=await open("/sub/value");
+const read=await file.readAt(0,3);
+if (!(read instanceof Uint8Array)||read.length!==3) throw new Error("read result is not bytes");
+const handleText=new TextDecoder().decode(read);
 await file.close();
 if (readOnlyCase) {
   let nodeDenied=false, handleDenied=false;
   try { fs.writeFileSync("value","bad"); } catch(error) { nodeDenied=error.message.includes("read-only"); }
-  try { await nodeOpen("value","r+"); } catch(error) { handleDenied=error.code==="ERR_READ_ONLY"; }
+  try { await open("value",{flags:"r+"}); } catch(error) { handleDenied=error.code==="ERR_READ_ONLY"; }
   if (!nodeDenied || !handleDenied) throw new Error("inconsistent read-only policy");
 } else {
-  const writable=await nodeOpen("value","r+");
-  await writable.write(new TextEncoder().encode("new"),0,3,0);
+  const writable=await open("value",{flags:"r+"});
+  await writable.writeAt(0,new TextEncoder().encode("new"));
   await writable.close();
 }
 globalThis.fsResult=handleText+"|"+node+"|"+fs.readFileSync("/sub/value","utf8");
@@ -121,8 +122,8 @@ func TestProfileFilesystemAPIsRejectOutwardSymlinks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	source, err := view.Prepare(stdlib.Source{Name: "memory:links", Module: true, Virtual: true, Code: `
-import fs from "node:fs";
-import {open} from "node:fs/promises";
+import fs from "noe:fs";
+import {open} from "noe:fs";
 let nodeDenied=false,handleDenied=false;
 try { fs.readFileSync("out/value"); } catch(error) { nodeDenied=error.message.includes("root"); }
 try { await open("out/value"); } catch(error) { handleDenied=error.message.includes("root"); }

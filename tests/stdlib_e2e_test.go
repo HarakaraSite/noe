@@ -10,7 +10,7 @@ import (
 func TestStdlibThroughCLI(t *testing.T) {
 	work := t.TempDir()
 	script := filepath.Join(work, "stdlib.mjs")
-	writeFixture(t, script, `import {writeFile,readFile} from "node:fs/promises";
+	writeFixture(t, script, `import {writeFile,readFile} from "noe:fs";
  import {setTimeout as sleep} from "timers/promises";
  import {Worker} from "node:worker_threads";
  if (typeof globalThis.noe !== "undefined") throw new Error("legacy global remains");

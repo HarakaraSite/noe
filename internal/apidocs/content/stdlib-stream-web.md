@@ -10,7 +10,7 @@ Availability: Installed by stdlib.Profile in main runtimes and Workers. Operatio
 
 Public-definition source: internal/stdlib/streams.go. Reading this reference evaluates no target module and makes no provider request.
 
-Exports Web Streams classes and strategies, including text encoding/decoding streams. They are used by node:fs file streams, fetch response bodies, and process standard streams.
+Exports Web Streams classes and strategies, including text encoding/decoding streams. They are used by noe:fs file streams, fetch response bodies, and process standard streams.
 
 ### Exports
 

@@ -173,7 +173,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 }
 
 func runDocs(args []string, stdout, stderr io.Writer) int {
-	const help = "Usage: noe docs [topic [member]]\n\nRead the API reference bundled with this executable. No arguments lists topics.\nExamples: noe docs node:fs; noe docs noe:sockets connect\n"
+	const help = "Usage: noe docs [topic [member]]\n\nRead the API reference bundled with this executable. No arguments lists topics.\nExamples: noe docs noe:fs; noe docs noe:sockets connect\n"
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Fprint(stdout, help)
 		return 0

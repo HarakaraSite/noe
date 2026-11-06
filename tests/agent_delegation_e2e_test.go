@@ -119,7 +119,7 @@ run_agent({name:"right",model:"fixture/override",maxTokens:321,effort:"low",syst
 				if instruction == "right" {
 					file = "b.json"
 				}
-				code := `import {readFile} from "node:fs/promises";console.log(JSON.parse(await readFile("` + file + `","utf8")).reduce((a,b)=>a+b,0));`
+				code := `import {readFile} from "noe:fs";console.log(JSON.parse(await readFile("` + file + `","utf8")).reduce((a,b)=>a+b,0));`
 				return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("calculate", code)}}}, FinishReason: "tool_calls"}
 			}
 			got := agentToolResult(t, req.Messages[len(req.Messages)-1])
@@ -260,7 +260,7 @@ func TestAgentFailedRunDoesNotCancelIndependentRun(t *testing.T) {
 		}
 	})
 	defer server.Close()
-	result := runCLI(t, work, agentCLIEnv(t, server.URL), "eval", `import {run_agent} from "noe:agent";import {writeFileSync} from "node:fs";
+	result := runCLI(t, work, agentCLIEnv(t, server.URL), "eval", `import {run_agent} from "noe:agent";import {writeFileSync} from "noe:fs";
 const config={provider:"openrouter",model:"fixture/model",effort:"auto"};
 const bad=run_agent(config,"bad").then(snapshot=>{if(snapshot.lastResult.state!=="failed")throw Error(JSON.stringify(snapshot));writeFileSync("bad-finished","1");return "failed"});
 const good=run_agent(config,"good").then(snapshot=>snapshot.lastResult.answer);console.log(JSON.stringify(await Promise.all([bad,good])));`)
@@ -286,7 +286,7 @@ func TestAgentSpawnedChildSurvivesToolExitAndIsReclaimedWithParent(t *testing.T)
 		if len(req.Messages) == 2 {
 			code := `import {spawn_agent} from "noe:agent";
 const {agentId}=await spawn_agent({name:"abandoned"},"blocked child",{keepAlive:true});
-const {writeFileSync,existsSync}=await import("node:fs");writeFileSync("child.json",JSON.stringify({agentId}));
+const {writeFileSync,existsSync}=await import("noe:fs");writeFileSync("child.json",JSON.stringify({agentId}));
 while(!existsSync("child-started")) await new Promise(r=>setTimeout(r,5));
 process.exit(9);`
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("exit", code)}}}, FinishReason: "tool_calls"}
@@ -294,7 +294,7 @@ process.exit(9);`
 		got := agentToolResult(t, req.Messages[len(req.Messages)-1])
 		if got.ExitCode == 9 && got.Reason == "failed" {
 			code := `import {observe_agent,queue_agent} from "noe:agent";
-const {readFileSync}=await import("node:fs");
+const {readFileSync}=await import("noe:fs");
 const {agentId}=JSON.parse(readFileSync("child.json","utf8"));
 const snapshot=await observe_agent({agentId});
 if(snapshot.state!=="running"||!snapshot.currentRunId)throw Error(JSON.stringify(snapshot));

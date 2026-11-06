@@ -33,7 +33,7 @@ for(const bad of [null,[],{kind:"other"},{provider:""},{unexpected:true}]){
 	source += `
 const decisions=await list_models({kind:"decision"});
 if(decisions.length!==3)throw Error("decision catalog");
-const {writeFileSync}=await import("node:fs");
+const {writeFileSync}=await import("noe:fs");
 writeFileSync(` + jsString(t, config) + `,"invalid");
 if((await list_models({kind:"decision"})).length!==3)throw Error("catalog snapshot changed");`
 	code, err := Execute(context.Background(), Source{filepath.Join(dir, "snapshot.js"), source}, opts)

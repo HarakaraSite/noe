@@ -1,5 +1,5 @@
 // Focused offline check for launcher configuration, parent instructions, and task termination.
-import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from "node:fs";
+import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from "noe:fs";
 import {join, resolve} from "node:path";
 import process from "node:process";
 import {fileURLToPath} from "node:url";

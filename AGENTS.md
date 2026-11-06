@@ -4,6 +4,14 @@
 
 Write explanatory text, including documentation, external instructions, and tool descriptions, in English unless the user explicitly requests another language. Replies to the user are exempt from this rule.
 
+## Standard library design
+
+Read the [standard library API policy](docs/development/stdlib-api-policy.md)
+before changing standard-library public contracts. It is the current design
+reference; earlier phase records describe their historical decisions.
+For the current continuation point, read the
+[standard library session handoff](docs/development/stdlib-handoff.md).
+
 ## 検証とリリースの進め方
 
 - 作業順は「ローカル修正 → テスト → リリース検証 → 軽いCI」とする。

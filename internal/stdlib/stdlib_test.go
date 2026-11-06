@@ -233,7 +233,7 @@ func TestPath(t *testing.T) {
 func TestFilesSync(t *testing.T) {
 	dir := t.TempDir()
 	out, _ := run(t, stdlib.Config{FS: &stdlib.FS{Root: dir}}, `
-		import("fs").then(({default: fs}) => {
+		import("noe:fs").then(({default: fs}) => {
 			fs.writeFileSync("/hello.txt", "hello")
 			console.log(fs.readFileSync("/hello.txt", "utf8"))
 			console.log(fs.existsSync("/hello.txt"), fs.existsSync("/nope.txt"))
@@ -276,11 +276,11 @@ func TestFilesSync(t *testing.T) {
 	}
 }
 
-func TestFilesPromises(t *testing.T) {
+func TestFilesAsync(t *testing.T) {
 	dir := t.TempDir()
 	out, _ := run(t, stdlib.Config{FS: &stdlib.FS{Root: dir}}, `
 		;(async () => {
-			const fs = (await import("fs/promises")).default
+			const fs = (await import("noe:fs")).default
 			await fs.writeFile("/a.txt", "from a promise")
 			console.log(await fs.readFile("/a.txt", "utf8"))
 			const st = await fs.stat("/a.txt")
@@ -292,7 +292,7 @@ func TestFilesPromises(t *testing.T) {
 	`)
 	want := "from a promise\n14 true\n[ 'a.txt' ]\n0"
 	if out != want {
-		t.Errorf("fs.promises output =\n%s\nwant\n%s", out, want)
+		t.Errorf("async fs output =\n%s\nwant\n%s", out, want)
 	}
 }
 
@@ -316,7 +316,7 @@ func TestFilesRootConfines(t *testing.T) {
 	}
 
 	out, _ := run(t, stdlib.Config{FS: &stdlib.FS{Root: inside}}, `
-		import("fs").then(({default: fs}) => {
+		import("noe:fs").then(({default: fs}) => {
 			for (const p of ["../outside/secret.txt", "/../outside/secret.txt",
 			                 "/a/../../outside/secret.txt", "link.txt"]) {
 				try { fs.readFileSync(p, "utf8"); console.log("READ " + p) }
@@ -335,7 +335,7 @@ func TestFilesReadOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, _ := run(t, stdlib.Config{FS: &stdlib.FS{Root: dir, ReadOnly: true}}, `
-		import("fs").then(({default: fs}) => {
+		import("noe:fs").then(({default: fs}) => {
 			console.log(fs.readFileSync("/r.txt", "utf8"))
 			try { fs.writeFileSync("/w.txt", "no"); console.log("wrote") }
 			catch (e) { console.log("refused: " + e.message) }
@@ -546,8 +546,8 @@ func TestNothingIsAmbient(t *testing.T) {
 			t.Errorf("%s = %q, want undefined", src, v.String())
 		}
 	}
-	if _, err := rt.EvalModule("main.js", `import "fs"`); err == nil {
-		t.Error("importing fs should have failed")
+	if _, err := rt.EvalModule("main.js", `import "noe:fs"`); err == nil {
+		t.Error("importing noe:fs without filesystem capability should have failed")
 	}
 }
 
@@ -1874,7 +1874,7 @@ func TestFileStreams(t *testing.T) {
 		Serve: &stdlib.Serve{Allow: func(string) error { return nil }},
 	}, `
 		;(async () => {
-			const fs = (await import("fs")).default
+			const fs = (await import("noe:fs")).default
 
 			// Read in pieces: more than one, and the whole of it.
 			let pieces = 0, total = 0
@@ -2282,11 +2282,9 @@ func TestLoopRunsWaitAsync(t *testing.T) {
 	}
 }
 
-// TestNodeModulesAreOneModule pins that a module of node's installed under
-// its name and its node: name is one module: the same default, and a named
-// export the default's property of the same name. Each name was its own
-// module, with objects and functions of its own.
-func TestNodeModulesAreOneModule(t *testing.T) {
+// TestModulesHaveOneDefaultAndNamedExport pins module identity for the
+// standard Node compatibility modules and the noe:fs facade.
+func TestModulesHaveOneDefaultAndNamedExport(t *testing.T) {
 	out, _ := run(t, stdlib.Config{
 		FS:      &stdlib.FS{Root: t.TempDir()},
 		Process: &stdlib.Process{},
@@ -2296,16 +2294,18 @@ func TestNodeModulesAreOneModule(t *testing.T) {
 	}, `
 		(async () => {
 			const out = [];
-			for (const [name, key] of [["fs", "readFileSync"], ["fs/promises", "readFile"], ["path", "join"], ["path/posix", "join"], ["path/win32", "join"],
+			const fs = await import("noe:fs");
+			out.push("noe:fs " + (fs.default.readFileSync === fs.readFileSync && fs.default.readFile === fs.readFile && !("promises" in fs.default)));
+			for (const [name, key] of [["path", "join"], ["path/posix", "join"], ["path/win32", "join"],
 				["os", "platform"], ["child_process", "execSync"], ["http", "serve"], ["process", null]]) {
 				const a = await import(name), b = await import("node:" + name);
 				const same = a.default === b.default && (key === null || (a[key] === b[key] && a[key] === a.default[key]));
 				out.push(name + " " + same);
 			}
-			console.log(out.join(" "));
+		console.log(out.join(" "));
 		})();
 	`)
-	if want := "fs true fs/promises true path true path/posix true path/win32 true os true child_process true http true process true"; out != want {
+	if want := "noe:fs true path true path/posix true path/win32 true os true child_process true http true process true"; out != want {
 		t.Errorf("got %q, want %q", out, want)
 	}
 }

@@ -24,7 +24,7 @@ func TestProviderRetryKeepsHistoryToolsHooksAndEvents(t *testing.T) {
 		attempt := calls.Add(1)
 		if attempt == 1 {
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("once", `// Record one completed tool execution.
-import {appendFile} from "node:fs/promises"; await appendFile("tool-count", "x");`)}}}, FinishReason: "tool_calls"}
+import {appendFile} from "noe:fs"; await appendFile("tool-count", "x");`)}}}, FinishReason: "tool_calls"}
 		}
 		body, _ := json.Marshal(req)
 		if attempt == 2 {
@@ -42,20 +42,20 @@ import {appendFile} from "node:fs/promises"; await appendFile("tool-count", "x")
 			return agentModelReply{Deltas: []map[string]any{
 				{"reasoning": "partial-thinking"},
 				{"tool_calls": []any{agentTool("discarded", `// This incomplete tool call must never execute.
-import {writeFile} from "node:fs/promises"; await writeFile("should-not-run", "bad");`)}},
+import {writeFile} from "noe:fs"; await writeFile("should-not-run", "bad");`)}},
 			}, FinishReason: "tool_calls", OmitDone: true}
 		default:
 			return agentModelReply{Content: "retry succeeded"}
 		}
 	})
 	defer server.Close()
-	writeFixture(t, filepath.Join(work, "hooks.mjs"), `import {appendFile} from "node:fs/promises";
+	writeFixture(t, filepath.Join(work, "hooks.mjs"), `import {appendFile} from "noe:fs";
 async function record(phase) { await appendFile("hooks.log", phase+"\n"); }
 export async function beforeModelRequest() { await record("beforeModelRequest"); }
 export async function afterModelResponse() { await record("afterModelResponse"); }
 export async function beforeTool() { await record("beforeTool"); }
 export async function afterTool() { await record("afterTool"); }`)
-	source := `import {run_agent} from "noe:agent"; import {writeFile} from "node:fs/promises";
+	source := `import {run_agent} from "noe:agent"; import {writeFile} from "noe:fs";
 const result=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:2,
 hooks:["./hooks.mjs"],executionLimits:{providerCalls:2}},"run one tool and finish");
 if(result.lastResult?.state!=="completed"||result.lastResult.answer!=="retry succeeded")throw Error(JSON.stringify(result));

@@ -1,4 +1,4 @@
-import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from "node:fs";
+import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from "noe:fs";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
 import process from "node:process";

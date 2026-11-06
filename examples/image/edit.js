@@ -1,5 +1,5 @@
 // Edit actual source-image bytes. Authentication stays in the NOE host.
-import { mkdirSync } from "node:fs";
+import { mkdirSync } from "noe:fs";
 import { dirname } from "node:path";
 import { edit_image } from "noe:image";
 

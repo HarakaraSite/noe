@@ -1,5 +1,5 @@
 // Usage: noe run examples/log-analysis/compare.js [options] FILE...
-import { readFileSync } from "node:fs";
+import { readFileSync } from "noe:fs";
 import process from "node:process";
 import { analyzeJSONL, toMarkdown } from "./analyze.js";
 

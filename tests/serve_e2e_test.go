@@ -139,7 +139,7 @@ func TestServeAsyncIOConcurrencyBinaryAndCloseThroughCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := filepath.Join(work, "server.js")
-	writeFixture(t, script, `import {readFile} from "node:fs/promises";
+	writeFixture(t, script, `import {readFile} from "noe:fs";
 const server = serve({}, async request => {
   const path = new URL(request.url).pathname;
   if(path === "/slow") return new Response(await (await fetch(`+strconv.Quote(upstream.URL)+`)).text());

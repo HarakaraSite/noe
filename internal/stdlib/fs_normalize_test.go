@@ -12,10 +12,10 @@ import (
 func TestFilesystemErrorCodesAcrossEntryPoints(t *testing.T) {
 	cwd := t.TempDir()
 	rt, _, loop := fileRuntime(t, cwd)
-	evalFiles(t, rt, loop, `import fs from "node:fs";
-import * as promises from "node:fs/promises";
+	evalFiles(t, rt, loop, `import fs from "noe:fs";
+import * as asyncFS from "noe:fs";
 const checks=[()=>fs.readFileSync("missing"),()=>fs.statSync("missing"),()=>fs.lstatSync("missing"),()=>fs.readdirSync("missing"),()=>fs.unlinkSync("missing"),()=>fs.realpathSync("missing"),()=>fs.readlinkSync("missing"),()=>fs.copyFileSync("missing","copy"),()=>fs.renameSync("missing","renamed"),()=>fs.mkdirSync("missing/child"),
- ()=>promises.readFile("missing"),()=>promises.stat("missing"),()=>promises.readdir("missing"),()=>promises.unlink("missing"),()=>promises.rename("missing","renamed"),()=>promises.open("missing"),
+ ()=>asyncFS.readFile("missing"),()=>asyncFS.stat("missing"),()=>asyncFS.readdir("missing"),()=>asyncFS.unlink("missing"),()=>asyncFS.rename("missing","renamed"),()=>asyncFS.open("missing"),
  ()=>new Response(fs.createReadStream("missing")).text(),()=>fs.createWriteStream("missing/child").getWriter().write(new Uint8Array([1]))];
 for(const call of checks){
  let failure;try{await call()}catch(error){failure=error}
@@ -26,7 +26,7 @@ try{fs.readdirSync(".",{withFileTypes:"bad"});throw Error("invalid options accep
 const marker=new Error("getter marker");
 const options={get withFileTypes(){throw marker}};
 try{fs.readdirSync(".",options)}catch(error){if(error!==marker)throw Error("sync JS exception identity lost")}
-try{await promises.readdir(".",options)}catch(error){if(error!==marker)throw Error("promise JS exception identity lost")}
+try{await asyncFS.readdir(".",options)}catch(error){if(error!==marker)throw Error("async JS exception identity lost")}
 `)
 }
 
@@ -48,8 +48,8 @@ func TestFilesystemMetadataDateAndMode(t *testing.T) {
 	if err := rt.Set("linked", linked); err != nil {
 		t.Fatal(err)
 	}
-	evalFiles(t, rt, loop, `import fs from "node:fs";
-import {stat,lstat,open} from "node:fs/promises";
+	evalFiles(t, rt, loop, `import fs from "noe:fs";
+import {stat,lstat,open} from "noe:fs";
 const f=await open("file");
 try{
  const values=[fs.statSync("file"),fs.lstatSync("file"),await stat("file"),await lstat("file"),await f.stat()];
@@ -68,12 +68,12 @@ try{
 }
 
 func TestFilesystemCodedErrorsKeepGoCause(t *testing.T) {
-	for _, source := range []string{`fs.readFileSync("missing")`, `fs.promises.readFile("missing")`} {
+	for _, source := range []string{`fs.readFileSync("missing")`, `fs.readFile("missing")`} {
 		t.Run(source, func(t *testing.T) {
 			rt, _, loop := fileRuntime(t, t.TempDir())
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			importing, err := rt.Eval(`import("node:fs")`)
+			importing, err := rt.Eval(`import("noe:fs")`)
 			if err != nil {
 				t.Fatal(err)
 			}

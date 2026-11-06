@@ -29,7 +29,7 @@ func writeRuntimeHookFixture(t *testing.T, cwd string) string {
 	}
 	log := filepath.Join(cwd, "module-loads.txt")
 	source := fmt.Sprintf(`import {label} from "./dependency.mjs";
-import {readFileSync,writeFileSync,existsSync} from "node:fs";
+import {readFileSync,writeFileSync,existsSync} from "noe:fs";
 let loads = 0;
 const path = %q;
 writeFileSync(path, (existsSync(path) ? readFileSync(path,"utf8") : "") + label + ":" + (++loads) + "\n");
@@ -175,7 +175,7 @@ func TestHookScopedAPIDefaultsAndAcceptedChildLifetime(t *testing.T) {
 	marker := filepath.Join(cwd, "hook-child.json")
 	hook := fmt.Sprintf(`import {withHookAPI} from "noe:agent/hooks";
 import {observe_agent} from "noe:agent";
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 let retained, childId, groupId;
 await withHookAPI(async api => {
   groupId=(await api.execution.get()).groupId;

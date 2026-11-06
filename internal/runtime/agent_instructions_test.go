@@ -84,7 +84,7 @@ func TestAgentBehaviorInstructionsCanBeReplacedAndRemoved(t *testing.T) {
 		return agentAnswer(input + " done"), nil
 	})
 	source := fmt.Sprintf(`import {run_agent} from "noe:agent";
-import {writeFileSync,unlinkSync} from "node:fs";
+import {writeFileSync,unlinkSync} from "noe:fs";
 const config={provider:"openrouter",model:"fixture/model",effort:"auto",system:"USER_SYSTEM"};
 async function run(instruction) {
  const result=await run_agent(config,instruction);
@@ -156,7 +156,7 @@ func TestAgentInstructionsFreezeParentAndReloadChild(t *testing.T) {
 		if input == "parent" && n == 1 {
 			code := fmt.Sprintf(`// Change instruction files and start a child with its own snapshot.
 import {run_agent} from "noe:agent";
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 writeFileSync(%q,"GLOBAL_VERSION_ONE");
 writeFileSync(%q,"WORKSPACE_VERSION_ONE");
 const child=await run_agent({system:"CHILD_EXPLICIT"},"child");
@@ -167,7 +167,7 @@ console.log(child.lastResult.answer);`, common, workspace)
 		return agentAnswer(input + " done"), nil
 	})
 	source := fmt.Sprintf(`import {run_agent} from "noe:agent";
-import {readFile} from "node:fs/promises";
+import {readFile} from "noe:fs";
 const system=(await Promise.all([%q,%q].map(path=>readFile(path,"utf8")))).join("\n\n");
 const result=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",system,maxSteps:2},"parent");
 if(result.lastResult?.state!=="completed") throw Error(JSON.stringify(result));
@@ -241,7 +241,7 @@ func TestAgentInstructionsLazyIdleFailureAndFrozenQueue(t *testing.T) {
 		return agentAnswer("done"), nil
 	})
 	source := fmt.Sprintf(`import {spawn_agent,queue_agent,observe_agent,stop_agent} from "noe:agent";
-import {unlink,mkdir,writeFile} from "node:fs/promises";
+import {unlink,mkdir,writeFile} from "noe:fs";
 const dir=%q;
 const config={provider:"openrouter",model:"fixture/model",effort:"auto",system:"QUEUE_EXPLICIT"};
 let {agentId}=await spawn_agent(config,undefined,{keepAlive:true});

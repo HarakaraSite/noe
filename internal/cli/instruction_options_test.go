@@ -130,7 +130,7 @@ func TestCLIInstructionComposition(t *testing.T) {
 	defer server.Close()
 	agentFixtureSettings(t, server.URL)
 	source := fmt.Sprintf(`import {run_agent} from "noe:agent";
-import {readFileSync} from "node:fs";
+import {readFileSync} from "noe:fs";
 if(process.cwd()!==%q || readFileSync("cwd-proof","utf8")!=="cwd-ok") throw Error("cwd changed");
 const r=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto",system:"EXPLICIT_SYSTEM"},"hello");
 if(r.lastResult?.state!=="completed") throw Error(JSON.stringify(r));`, cwd)

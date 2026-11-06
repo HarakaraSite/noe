@@ -170,7 +170,7 @@ func TestAgentOutputTruncationStillAllowsCancellation(t *testing.T) {
 	work := t.TempDir()
 	ready := filepath.Join(work, "ready")
 	encoded, _ := json.Marshal(ready)
-	tool := verboseToolSource + `const {writeFile}=await import("node:fs/promises");
+	tool := verboseToolSource + `const {writeFile}=await import("noe:fs");
 await writeFile(` + string(encoded) + `,"ready");
 setInterval(()=>{},1000);await new Promise(()=>{});`
 	var calls atomic.Int32
@@ -186,7 +186,7 @@ setInterval(()=>{},1000);await new Promise(()=>{});`
 	env := agentCLIEnv(t, server.URL)
 	env["NOE_AGENT_TRACE"] = ""
 	script := `import {spawn_agent,queue_agent,cancel_task,wait_task,stop_agent} from "noe:agent";
-import {readFile} from "node:fs/promises";
+import {readFile} from "noe:fs";
 const worker=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",name:"output-cancel"},undefined,{keepAlive:true});
 const commandId="output-cancel-task";
 await queue_agent({agentId:worker.agentId,commandId,instruction:"emit verbose output and wait"});

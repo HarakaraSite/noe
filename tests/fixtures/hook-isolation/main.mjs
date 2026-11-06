@@ -1,6 +1,6 @@
 // Read completed answers and hook metadata without an event file.
 import { run_agent, wait_task, read_task_result } from "noe:agent";
-import { writeFileSync } from "node:fs";
+import { writeFileSync } from "noe:fs";
 
 const snapshot = await run_agent({
   provider: "openrouter",

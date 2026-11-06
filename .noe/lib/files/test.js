@@ -1,6 +1,6 @@
 // Run with NOE; tests exercise real filesystem reads and directory traversal.
-import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from "node:fs";
-import {readdir} from "node:fs/promises";
+import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from "noe:fs";
+import {readdir} from "noe:fs";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
 import {execFile} from "node:child_process";

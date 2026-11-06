@@ -19,7 +19,7 @@ import (
 func TestHooksContextNotificationHistoryMeasuresPreviousRequest(t *testing.T) {
 	cwd := t.TempDir()
 	path := filepath.Join(cwd, "snapshots.jsonl")
-	writePhaseHook(t, cwd, "context.mjs", fmt.Sprintf(`import {existsSync,readFileSync,writeFileSync} from "node:fs";
+	writePhaseHook(t, cwd, "context.mjs", fmt.Sprintf(`import {existsSync,readFileSync,writeFileSync} from "noe:fs";
 const path=%q;
 let before=0;
 export async function beforeModelRequest(event,api) {

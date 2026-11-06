@@ -9,12 +9,12 @@ import (
 	"testing"
 )
 
-const extendedFilesystemScript = `import fs,{Dirent} from "node:fs";
-import {open,readdir,readFile} from "node:fs/promises";
+const extendedFilesystemScript = `import fs,{Dirent} from "noe:fs";
+import {open,readdir,readFile} from "noe:fs";
 const path="新-file.bin";
 const missing=await open("missing-file.bin").then(()=>null,error=>error);
 if(missing?.code!=="ENOENT"||typeof missing.errno!=="number"||missing.errno<=0)throw Error("filesystem error code and errno");
-const file=await open(path,"wx+",0o600);
+const file=await open(path,{flags:"wx+",mode:0o600});
 try{
  const metadata=await file.stat();
  if(!(metadata.mtime instanceof Date)||metadata.mtime.getTime()!==Math.trunc(metadata.mtimeMs))throw Error("Date and mtimeMs metadata");
@@ -24,13 +24,12 @@ try{
  await file.sync();
  if((await file.stat()).size!==3)throw Error("descriptor metadata");
  await file.write("z");
- const buffer=new Uint8Array(7);
- const result=await file.read(buffer,{position:0});
- if(result.bytesRead!==7||buffer.join()!=="97,98,99,0,0,0,122")throw Error("truncate changed cursor or lost zero fill");
+ const bytes=await file.readAt(0,7);
+ if(bytes.length!==7||bytes.join()!=="97,98,99,0,0,0,122")throw Error("truncate changed cursor or lost zero fill");
 }finally{await file.close()}
-const append=await open(path,"a+");try{await append.write("!",0);await append.sync()}finally{await append.close()}
+const append=await open(path,{flags:"a+"});try{await append.writeAt(0,"!");await append.sync()}finally{await append.close()}
 if((await readFile(path)).length!==8)throw Error("append honored explicit position");
-const exists=await open(path,"wx").then(()=>null,error=>error);
+const exists=await open(path,{flags:"wx"}).then(()=>null,error=>error);
 if(exists?.code!=="EEXIST"||typeof exists.errno!=="number"||exists.errno<=0)throw Error("exclusive create error code and errno");
 for(const entries of [fs.readdirSync(".",{withFileTypes:true}),await readdir(".",{withFileTypes:true})]){
  const entry=entries.find(item=>item.name===path);

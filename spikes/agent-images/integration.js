@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { writeFile } from "noe:fs";
 import { run_agent } from "noe:agent";
 import { generate_image } from "noe:image";
 

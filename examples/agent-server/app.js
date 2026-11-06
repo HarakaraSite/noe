@@ -1,6 +1,6 @@
 import { spawn_agent, queue_agent, observe_agent, steer_agent, cancel_task, stop_agent, wait_task } from "noe:agent";
 import { analyze_log } from "noe:agent-log";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat } from "noe:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const terminal = new Set(["completed", "failed", "cancelled"]);

@@ -32,7 +32,7 @@ Use `noe:docs` from `run_js` to look up an API before using it. Use the NOE-spec
 
 ~~~js
 // Return a structured directory count.
-import {readdirSync} from "node:fs";
+import {readdirSync} from "noe:fs";
 export default {count: readdirSync(".").length};
 ~~~
 
@@ -57,11 +57,11 @@ Only outputBytes is accepted, as an integer from 1024 to 262144 bytes (1–256 K
 
 ## files
 
-Read and write whole files with node:fs or node:fs/promises. Supply "utf8" when text is wanted; reads otherwise return bytes. This example assumes input.json contains an array and creates or replaces summary.json:
+Read and write whole files with noe:fs or noe:fs. Supply "utf8" when text is wanted; reads otherwise return bytes. This example assumes input.json contains an array and creates or replaces summary.json:
 
 ~~~js
 // Read records and save a summary.
-import {readFileSync, writeFileSync} from "node:fs";
+import {readFileSync, writeFileSync} from "noe:fs";
 
 const rows = JSON.parse(readFileSync("input.json", "utf8"));
 const summary = {count: rows.length};
@@ -69,11 +69,11 @@ writeFileSync("summary.json", JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary));
 ~~~
 
-readdirSync(path) returns string names, not Node Dirent objects. The withFileTypes option is not implemented. Use statSync for metadata; use lstatSync if the symbolic link itself matters:
+readdirSync(path) returns sorted string names by default. Pass `{withFileTypes: true}` for Dirent objects; use statSync for metadata and lstatSync if the symbolic link itself matters:
 
 ~~~js
 // List directory entries with their types.
-import {readdirSync, statSync} from "node:fs";
+import {readdirSync, statSync} from "noe:fs";
 import {join} from "node:path";
 
 const dir = "docs";
@@ -83,7 +83,7 @@ console.log(JSON.stringify(readdirSync(dir).map(name => ({
 }))));
 ~~~
 
-For async access, await readFile/readdir/stat from node:fs/promises. readdir also returns string names. Group independent async work with Promise.all when useful; keep dependent reads and writes ordered. For recursive walks, choose a policy for symbolic links rather than unintentionally following directory links in a cycle. See docs("node:fs", "readdirSync"), docs("node:fs", "statSync"), or docs("node:fs/promises", "readdir") for the exact contracts.
+For async access, await readFile/readdir/stat from noe:fs. readdir returns sorted string names by default and Dirent objects with `{withFileTypes: true}`. Group independent async work with Promise.all when useful; keep dependent reads and writes ordered. For recursive walks, choose a policy for symbolic links rather than unintentionally following directory links in a cycle. See docs("noe:fs", "readdirSync"), docs("noe:fs", "statSync"), or docs("noe:fs", "readdir") for the exact contracts.
 
 ## commands
 
@@ -209,12 +209,12 @@ A failed run_js result can still contain useful stdout and stderr. Read diagnost
 
 ~~~js
 // Inspect the directory listing type and its documented contract.
-import {readdirSync} from "node:fs";
+import {readdirSync} from "noe:fs";
 import {docs} from "noe:docs";
 
 const names = readdirSync("docs");
 console.log(JSON.stringify({array: Array.isArray(names), firstType: typeof names[0]}));
-console.log(docs("node:fs", "readdirSync"));
+console.log(docs("noe:fs", "readdirSync"));
 ~~~
 
 Common differences: readdirSync/readdir return strings, node:process exports only default, execFile is promise-based, and fs Streams are Web Streams. Refer directly to the relevant detail when the module is known; listing all docs topics again is unnecessary.

@@ -1,7 +1,6 @@
 ((api) => {
   const combine = globalThis.AbortSignal?.any;
   const done = value => ({value, done: true});
-  let Watcher;
 
   function invalid(message, unsupported = false) {
     const error = unsupported ? new Error(message) : new TypeError(message);
@@ -60,78 +59,7 @@
     return error;
   }
 
-  function watcherClass() {
-    if (Watcher) return Watcher;
-    const EventEmitter = api.events();
-    Watcher = class FSWatcher extends EventEmitter {
-      #native;
-      #options;
-      #closed = false;
-      #closing;
-      #abort;
-
-      constructor(options, listener) {
-        super();
-        this.#options = options;
-        if (listener !== undefined) this.on("change", listener);
-        this.#abort = () => this.close();
-        if (options.signal?.aborted) {
-          this.close();
-          return;
-        }
-        this.#native = open(options);
-        options.signal?.addEventListener("abort", this.#abort, {once: true});
-        this.#pump().catch(error => {
-          try { this.close(); } finally { api.report(error); }
-        });
-      }
-
-      async #pump() {
-        while (!this.#closed) {
-          let item;
-          try {
-            item = await this.#native.next();
-          } catch (error) {
-            if (this.#closed) return;
-            this.close();
-            this.emit("error", error);
-            return;
-          }
-          if (this.#closed) return;
-          if (item.done) {
-            this.close();
-            return;
-          }
-          const {eventType, filename} = eventOf(item, this.#options);
-          this.emit("change", eventType, filename);
-        }
-      }
-
-      close() {
-        if (this.#closed) return;
-        this.#closed = true;
-        this.#options.signal?.removeEventListener("abort", this.#abort);
-        this.#native?.close();
-        this.#closing = Promise.resolve().then(() => {
-          try { this.emit("close"); } catch (error) { api.report(error); }
-        });
-      }
-
-      ref() { if (!this.#closed) this.#native?.ref(); return this; }
-      unref() { if (!this.#closed) this.#native?.unref(); return this; }
-      async [Symbol.asyncDispose]() { this.close(); await this.#closing; }
-    };
-    return Watcher;
-  }
-
-  function watch(path, options, listener) {
-    if (typeof options === "function") { listener = options; options = undefined; }
-    if (listener !== undefined && typeof listener !== "function") invalid("watch listener must be a function");
-    const parsed = optionsFor(path, options);
-    return new (watcherClass())(parsed, listener);
-  }
-
-  function watchPromises(path, options) {
+  function watch(path, options) {
     const parsed = optionsFor(path, options);
     let native, closed = false, failure, unreported = false, pending = 0;
     const onAbort = () => {
@@ -184,5 +112,5 @@
     };
   }
 
-  return {watch, watchPromises};
+  return {watch};
 })

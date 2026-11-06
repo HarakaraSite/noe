@@ -39,7 +39,7 @@ with the selected filesystem or another caller-owned source before calling
 `analyze_log`.
 
 ```js
-import { readFile } from "node:fs/promises";
+import { readFile } from "noe:fs";
 import { analyze_log } from "noe:agent-log";
 
 const text = await readFile(".noe/events/latest.jsonl", "utf8");

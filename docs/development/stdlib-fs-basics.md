@@ -1,6 +1,10 @@
 # Filesystem API integration: phase 2
 
-[Roadmap](stdlib-roadmap.md) · [Phase 1](stdlib-fs-integration.md) · [FileHandle reference](../../internal/apidocs/content/stdlib-fs-promises.md)
+This record describes the earlier released API. For the current `noe:fs`
+contract, see the [2026-11-06 migration](stdlib-noe-fs.md) and
+[API policy](stdlib-api-policy.md).
+
+[Roadmap](stdlib-roadmap.md) · [Phase 1](stdlib-fs-integration.md) · [FileHandle reference](../../internal/apidocs/content/noe-fs.md)
 
 2026-11-05. Phase 2 was implemented and locally verified from base `e4368d2`,
 then released in [v2.13.0](../releases/v2.13.0.md). Publication and local

@@ -11,8 +11,8 @@ import (
 )
 
 var mkdtempAPIs = []struct{ name, module, call string }{
-	{"sync", "node:fs", "fs.mkdtempSync(prefix)"},
-	{"promise", "node:fs/promises", "await fs.mkdtemp(prefix)"},
+	{"sync", "noe:fs", "fs.mkdtempSync(prefix)"},
+	{"async", "noe:fs", "await fs.mkdtemp(prefix)"},
 }
 
 func TestFilesMkdtempPrefix(t *testing.T) {

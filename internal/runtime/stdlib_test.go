@@ -31,8 +31,8 @@ func TestStdlibFilesProcessTimersAndModules(t *testing.T) {
 	dir := t.TempDir()
 	name, _ := json.Marshal(filepath.Join(dir, "data.txt"))
 	cwd, _ := json.Marshal(dir)
-	source := `import fs from "node:fs";
- import {readFile, writeFile} from "fs/promises";
+	source := `import fs from "noe:fs";
+ import {readFile, writeFile} from "noe:fs";
  import path from "path";
  import os from "node:os";
  import {setTimeout as delay} from "node:timers/promises";

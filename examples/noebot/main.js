@@ -1,5 +1,5 @@
 // Thin consumer only. Install the private noebot artifact separately.
-import fs from 'node:fs';
+import fs from 'noe:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 

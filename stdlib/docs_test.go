@@ -24,8 +24,9 @@ func TestDocsReferenceDoesNotLoadOptionalAPIs(t *testing.T) {
 import {docs} from "noe:docs";
 const agent = docs("noe:agent");
 if (!agent.includes("agent/types/noeagentlib.d.ts") || !agent.includes("Requires an agent")) throw Error("missing agent contract");
-const fs = docs("fs");
-if (fs !== docs("node:fs") || !fs.includes("stdlib/types/noestdlib.d.ts") || !fs.includes("Profile.Modules.FS")) throw Error("missing filesystem contract");
+const fs = docs("noe:fs");
+if (!fs.includes("stdlib/types/noestdlib.d.ts") || !fs.includes("Profile.Modules.FS") || !fs.includes("FileHandle.readAt")) throw Error("missing filesystem contract");
+if (!docs("noe:fs", "FileHandle.readAt").includes("readAt(position, length)")) throw Error("missing positional file read reference");
 if (!docs("noe:http").includes("Only the selected functions are exported")) throw Error("conditional exports lost");
 if (!docs("noe:model").includes("generate_image")) throw Error("model re-export lost");
 `}, profile)

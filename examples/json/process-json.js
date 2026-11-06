@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "fs/promises";
+import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "noe:fs";
 import { join } from "path";
 
 // Copy inputs into a work directory first: this example moves processed files.

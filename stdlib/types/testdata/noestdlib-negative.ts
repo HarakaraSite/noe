@@ -1,4 +1,4 @@
-import fs, {readFileSync, readdirSync, statSync} from "node:fs";
+import noeFs, {readFileSync, readdirSync, statSync, open as openFile} from "noe:fs";
 import {exec, execFile, spawnSync} from "node:child_process";
 import processModule from "node:process";
 // @ts-expect-error NOE's live spawn API is now part of node:child_process.
@@ -7,7 +7,6 @@ import {spawn as legacySpawn} from "noe:process";
 import {stdin as legacyStdin} from "noe:io";
 import {ReadableStream} from "node:stream/web";
 import {connect} from "noe:sockets";
-import {open as openFile} from "node:fs/promises";
 import {subscribe} from "noe:signals";
 import {MessagePort, Worker as NodeWorker} from "node:worker_threads";
 import bufferDefault from "node:buffer";
@@ -19,6 +18,16 @@ import {open as openSQLite} from "noe:sqlite";
 // @ts-expect-error NOE does not declare Node's built-in SQLite module.
 import {DatabaseSync} from "node:sqlite";
 import * as sqliteModule from "noe:sqlite";
+
+// Filesystem imports have moved to one NOE-owned module.
+// @ts-expect-error NOE no longer declares node:fs.
+import {readFileSync as legacyNodeRead} from "node:fs";
+// @ts-expect-error NOE no longer declares node:fs/promises.
+import {open as legacyNodeOpen} from "node:fs/promises";
+// @ts-expect-error NOE no longer declares the fs alias.
+import {readFileSync as legacyBareRead} from "fs";
+// @ts-expect-error NOE no longer declares the fs/promises alias.
+import {open as legacyBareOpen} from "fs/promises";
 
 // @ts-expect-error EventSource needs a URL.
 new EventSource();
@@ -55,19 +64,23 @@ stream.getReader({mode: "byob"});
 // @ts-expect-error UDP sockets are unsupported
 connect({network: "udp", host: "127.0.0.1", port: 53});
 
-const file = await openFile("file.txt", "r+");
-// The former NOE extension and its positional-only methods were removed.
+const file = await openFile("file.txt", {flags: "r+"});
+// The former noe:fs-handle module remains removed; positional operations are on noe:fs.FileHandle.
 // @ts-expect-error noe:fs-handle has no supported declaration
 import {open as legacyOpen} from "noe:fs-handle";
-// @ts-expect-error FileHandle exposes read(), not readAt()
-void file.readAt(0, 1);
-// @ts-expect-error FileHandle exposes write(), not writeAt()
-void file.writeAt(0, new Uint8Array([1]));
-// Only existing-file read and read/write flags are supported.
-// @ts-expect-error the object-style mode option was removed
-void openFile("file.txt", {mode: "r+"});
-// @ts-expect-error synchronous-open flag variants are not implemented
-void openFile("file.txt", "rs");
+const readAtResult: Uint8Array = await file.readAt(0, 1);
+const writeAtResult: number = await file.writeAt(0, new Uint8Array([1]));
+// Open accepts an options object; positional string flags are rejected.
+// @ts-expect-error open options are an object, not positional flags
+void openFile("file.txt", "r+");
+// @ts-expect-error open flags are limited to the supported set
+void openFile("file.txt", {flags: "rs"});
+// @ts-expect-error open mode must be a number
+void openFile("file.txt", {flags: "r+", mode: "0600"});
+// @ts-expect-error read accepts a length, not a Node buffer tuple
+void file.read(new Uint8Array(1));
+// @ts-expect-error write accepts exactly the data value
+void file.write("text", 0);
 
 // Signal support is platform-dependent and the public name set is explicit.
 // @ts-expect-error SIGQUIT is not part of the supported subscription surface
@@ -200,25 +213,29 @@ AbortSignal.any([new AbortController()]);
 AbortSignal.any("signal");
 // @ts-expect-error any requires an iterable of signals
 AbortSignal.any({});
-declare const disposalFile: import("node:fs/promises").FileHandle;
+declare const disposalFile: import("noe:fs").FileHandle;
 // @ts-expect-error disposal completes asynchronously
 const synchronousDisposal: number = disposalFile[Symbol.asyncDispose]();
 
 // Unsupported watch modes and invalid watch argument shapes are excluded.
 // @ts-expect-error filesystem watch paths are strings
-fs.watch(new URL("file:///tmp"));
+noeFs.watch(new URL("file:///tmp"));
 // @ts-expect-error recursive watching is not supported
-fs.watch(".", {recursive: true});
+noeFs.watch(".", {recursive: true});
 // @ts-expect-error watch encoding must be supported
-fs.watch(".", {encoding: "hex"});
+noeFs.watch(".", {encoding: "hex"});
+// @ts-expect-error noe:fs exposes no promises sub-object
+noeFs.promises;
+// @ts-expect-error watching is an async iterator, not an EventEmitter callback API
+noeFs.watch(".", (_type, _filename) => {});
 // @ts-expect-error watch signals must be genuine AbortSignal values
-fs.promises.watch(".", {signal: {aborted: false}});
+noeFs.watch(".", {signal: {aborted: false}});
 // @ts-expect-error queue size is numeric
-fs.promises.watch(".", {maxQueue: "large"});
+noeFs.watch(".", {maxQueue: "large"});
 // @ts-expect-error overflow selects a supported policy
-fs.promises.watch(".", {overflow: "discard"});
+noeFs.watch(".", {overflow: "discard"});
 // @ts-expect-error buffer filenames are not strings
-const wrongWatchIterator: AsyncIterableIterator<{eventType: "change" | "rename"; filename: string | null}> = fs.promises.watch(".", "buffer");
+const wrongWatchIterator: AsyncIterableIterator<{eventType: "change" | "rename"; filename: string | null}> = noeFs.watch(".", "buffer");
 
 // @ts-expect-error handshake options are the third argument, not protocols
 new WebSocket("wss://example.test", {headers: {Authorization: "Bearer fixture"}});

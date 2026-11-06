@@ -249,7 +249,7 @@ func TestProfileSelectsStdioWithoutAddingOtherNativeModules(t *testing.T) {
 	if !processMissing.Bool() {
 		t.Fatal("stdio selection installed process metadata")
 	}
-	for _, specifier := range []string{"node:child_process", "child_process", "noe:process", "node:fs", "node:fs/promises", "noe:sockets", "noe:signals"} {
+	for _, specifier := range []string{"node:child_process", "child_process", "noe:process", "noe:fs", "node:fs", "node:fs/promises", "fs", "fs/promises", "noe:sockets", "noe:signals"} {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_, err := rt.EvalModuleContext(ctx, "unselected-"+strings.NewReplacer(":", "-", "/", "-").Replace(specifier)+".mjs", `import `+fmt.Sprintf("%q", specifier))
 		cancel()

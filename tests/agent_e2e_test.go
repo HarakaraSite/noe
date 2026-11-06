@@ -233,7 +233,7 @@ func TestAgentSpawnedRootKeepsProcessAliveUntilTaskCompletes(t *testing.T) {
 	}()
 	env := agentCLIEnv(t, server.URL)
 	env["NOE_AGENT_TRACE"] = ""
-	source := `import {spawn_agent} from "noe:agent";import {writeFileSync} from "node:fs";
+	source := `import {spawn_agent} from "noe:agent";import {writeFileSync} from "noe:fs";
 const spawned=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",name:"spawned"},"spawned task");
 writeFileSync("script-finished",spawned.agentId);console.log("root script finished");`
 	done := make(chan cliResult, 1)
@@ -315,7 +315,7 @@ func TestAgentCLIReadsFilesAndPreservesToolHistory(t *testing.T) {
 			t.Errorf("settings: %+v", req)
 		}
 		if calls.Add(1) == 1 {
-			callA := agentTool("sum", `import {readFile} from "node:fs/promises";const values=JSON.parse(await readFile("numbers.json","utf8"));console.log(JSON.stringify({count:values.length,total:values.reduce((a,b)=>a+b,0),average:values.reduce((a,b)=>a+b,0)/values.length}));globalThis.onlyThisProcess=true;`)
+			callA := agentTool("sum", `import {readFile} from "noe:fs";const values=JSON.parse(await readFile("numbers.json","utf8"));console.log(JSON.stringify({count:values.length,total:values.reduce((a,b)=>a+b,0),average:values.reduce((a,b)=>a+b,0)/values.length}));globalThis.onlyThisProcess=true;`)
 			callB := agentTool("isolation", `console.log(typeof globalThis.onlyThisProcess);`)
 			callB["index"] = 1
 			return agentModelReply{Deltas: []map[string]any{{"reasoning_details": []any{map[string]any{"type": "reasoning.text", "id": "r1", "index": 0, "text": "reason", "vendor_extension": map[string]any{"keep": true}}}, "tool_calls": []any{callA, callB}}}, FinishReason: "tool_calls"}

@@ -22,7 +22,7 @@ func TestRunTransformsJSONWithEnvironmentArgumentsAndNestedImports(t *testing.T)
 	writeFixture(t, filepath.Join(work, "scripts", "lib", "decorate.js"), `import { label } from "./nested/label.js"; export const decorate = value => ({ ...value, label, processed: true });`)
 	script := filepath.Join(work, "scripts", "main.js")
 	writeFixture(t, script, `import { decorate } from "./lib/decorate.js";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "noe:fs";
 const args = process.argv.slice(2);
 const [input, output] = args;
 const value = JSON.parse(await readFile(input, "utf8"));
@@ -199,7 +199,7 @@ func TestHTTPGetPostResponsesAndErrors(t *testing.T) {
 
 	work := t.TempDir()
 	script := filepath.Join(work, "http.js")
-	writeFixture(t, script, `import { writeFile } from "node:fs/promises";
+	writeFixture(t, script, `import { writeFile } from "noe:fs";
 const base = process.env.NOE_E2E_URL;
 const textResponse = await fetch(base + "/text");
 const firstText = await textResponse.text();
@@ -282,7 +282,7 @@ func TestStartedIOCompletesBeforeExit(t *testing.T) {
 	defer server.Close()
 	work := t.TempDir()
 	script := filepath.Join(work, "pending.js")
-	writeFixture(t, script, `import { writeFile } from "node:fs/promises";
+	writeFixture(t, script, `import { writeFile } from "noe:fs";
 writeFile("file-result.txt", "file complete");
 fetch(process.env.NOE_E2E_URL).then(response => response.text()).then(text => writeFile("http-result.txt", text));
 console.log("script returned");
@@ -307,8 +307,8 @@ func TestFileReadAndWriteFailuresReject(t *testing.T) {
 	for _, tc := range []struct {
 		name, source, marker string
 	}{
-		{name: "read", source: `import { readFile } from "node:fs/promises"; await readFile("missing-input.txt", "utf8");`, marker: "missing-input.txt"},
-		{name: "write", source: `import { writeFile } from "node:fs/promises"; await writeFile("missing-directory/output.txt", "x");`, marker: "missing-directory"},
+		{name: "read", source: `import { readFile } from "noe:fs"; await readFile("missing-input.txt", "utf8");`, marker: "missing-input.txt"},
+		{name: "write", source: `import { writeFile } from "noe:fs"; await writeFile("missing-directory/output.txt", "x");`, marker: "missing-directory"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			work := t.TempDir()

@@ -18,7 +18,7 @@ func TestHooksIsolateFourPhasesAndKeepLastValidValues(t *testing.T) {
 	cwd := t.TempDir()
 	logPath := filepath.Join(cwd, "order")
 	ran := filepath.Join(cwd, "tool-once")
-	common := fmt.Sprintf(`import {appendFileSync} from "node:fs";
+	common := fmt.Sprintf(`import {appendFileSync} from "noe:fs";
 function record(e,label){appendFileSync(%q,label+":"+e.phase+"\n");}
 `, logPath)
 	writePhaseHook(t, cwd, "first.mjs", common+fmt.Sprintf(`
@@ -26,12 +26,12 @@ export function beforeModelRequest(e){record(e,"first"); return {ignored:1};}
 export function afterModelResponse(e){record(e,"first"); return {ignored:2};}
 export function beforeTool(e){
  record(e,"first");
- return {arguments:{code:'// Execute the effective tool once.\nimport {appendFileSync} from "node:fs";appendFileSync('+JSON.stringify(%q)+',"x");console.log("effective execution");'}};
+ return {arguments:{code:'// Execute the effective tool once.\nimport {appendFileSync} from "noe:fs";appendFileSync('+JSON.stringify(%q)+',"x");console.log("effective execution");'}};
 }
 export function afterTool(e){record(e,"first");return {result:{kept:true}};}
 `, ran))
 	writePhaseHook(t, cwd, "fails.mjs", common+`
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 import {execFile} from "node:child_process";
 export async function beforeModelRequest(e,api){
  record(e,"fails");

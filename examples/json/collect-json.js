@@ -1,4 +1,4 @@
-import { lstat, readFile, readdir } from "fs/promises";
+import { lstat, readFile, readdir } from "noe:fs";
 import { join } from "path";
 
 // ./noe run examples/json/collect-json.js examples/json/data/numbers

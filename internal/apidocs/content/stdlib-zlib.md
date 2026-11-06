@@ -23,7 +23,7 @@ The create* helpers produce Web Compression/Decompression streams. Synchronous f
 Both stream classes expose readable and writable sides. DecompressionStream produces Uint8Array chunks incrementally, including before compressed-input EOF. Consume the readable side while writing: a slow or absent reader can hold write() and close() promises pending. Piping drives both sides together:
 
 ~~~js
-import {createReadStream, createWriteStream} from "node:fs";
+import {createReadStream, createWriteStream} from "noe:fs";
 
 await createReadStream("archive.gz")
   .pipeThrough(new DecompressionStream("gzip"))

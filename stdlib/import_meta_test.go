@@ -83,7 +83,7 @@ func TestImportMetaLocalModuleRelativeAssetsAndIdentity(t *testing.T) {
 	importMetaWrite(t, leaf, "export const url=import.meta.url;")
 	// node:url currently returns a slash-prefixed drive pathname on Windows;
 	// adapt that existing API rather than testing a new fs URL-input contract.
-	importMetaWrite(t, dep, `import fs from "node:fs";
+	importMetaWrite(t, dep, `import fs from "noe:fs";
 import {fileURLToPath} from "node:url";
 import {url as leaf} from "./leaf.mjs";
 export const url=import.meta.url;
@@ -194,7 +194,7 @@ func TestImportMetaEmbeddingVirtualAndRootedFilesystem(t *testing.T) {
 				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
 				source, err := view.Prepare(stdlib.Source{Name: name, Virtual: virtual, Module: true, Code: `import {url as dep} from "./dep.mjs";
-import fs from "node:fs";
+import fs from "noe:fs";
 import {fileURLToPath} from "node:url";
 const asset=new URL("./asset.txt",import.meta.url);
 let path=fileURLToPath(asset);

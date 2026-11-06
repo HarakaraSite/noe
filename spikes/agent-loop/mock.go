@@ -9,7 +9,7 @@ import (
 // mockProvider scripts named demo scenarios. It is deliberately not a model.
 type mockProvider struct{}
 
-const sumCode = `const {readFile}=await import("fs/promises");
+const sumCode = `const {readFile}=await import("noe:fs");
 const values=JSON.parse(await readFile(process.env.NOE_AGENT_FIXTURES+"/%s.json","utf8"));
 console.log(JSON.stringify({count:values.length,total:values.reduce((a,b)=>a+b,0),average:values.reduce((a,b)=>a+b,0)/values.length}));`
 const delegateCode = `const children = ["left","right"].map(name=>createAgent({name}));

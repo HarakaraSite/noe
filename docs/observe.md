@@ -179,7 +179,7 @@ hook失敗の保持・取得はJSONLの有無に依存しません。live `lastR
 保存ログは呼出側が読み、`noe:agent-log`へJSONLのstringまたはUint8Arrayを渡します。解析はHost・provider・file pathに依存しません。
 
 ```js
-import { readFile } from "node:fs/promises";
+import { readFile } from "noe:fs";
 import { analyze_log } from "noe:agent-log";
 
 const query = { runId: "実際のrunId" };

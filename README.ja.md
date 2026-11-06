@@ -70,7 +70,7 @@ CGO_ENABLED=0 go build -o noe ./cmd/noe
 
 短い確認には`eval`、スクリプトの実行には`run`を使います。ES modules・`async/await`・ファイル操作・Fetch・HTTP待受・子プロセスを利用できます。JSON加工、レポート、ダウンロードなどは[実行例](examples/README.md)を参照してください。
 
-`./noe docs`、`./noe docs node:fs`、`./noe docs noe:sockets connect`で、実行バイナリと同じ版の英文API説明を参照できます。JSとagentからは`import { docs } from "noe:docs"`で同じ本文を取得します（[使い方](docs/reference.md)）。v1.8.0以降で利用できます。
+`./noe docs`、`./noe docs noe:fs`、`./noe docs noe:sockets connect`で、実行バイナリと同じ版の英文API説明を参照できます。JSとagentからは`import { docs } from "noe:docs"`で同じ本文を取得します（[使い方](docs/reference.md)）。v1.8.0以降で利用できます。
 
 ## agentを実行する
 

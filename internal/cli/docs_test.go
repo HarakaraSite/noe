@@ -38,7 +38,7 @@ func TestDocsUsageAndErrors(t *testing.T) {
 		{[]string{"docs"}, 0},
 		{[]string{"docs", "--help"}, 0},
 		{[]string{"docs", "node:not-a-module"}, 2},
-		{[]string{"docs", "node:fs", "not-a-detail"}, 2},
+		{[]string{"docs", "noe:fs", "not-a-detail"}, 2},
 		{[]string{"docs", "one", "two", "three"}, 2},
 	} {
 		var stdout, stderr bytes.Buffer

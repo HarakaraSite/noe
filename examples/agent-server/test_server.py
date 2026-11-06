@@ -535,7 +535,7 @@ class AgentServerTests(unittest.TestCase):
         correction = "tool correction"
         final_correction = "boundary correction"
         code = ('// Wait for a deterministic test release marker.\n'
-                'import {writeFileSync,existsSync} from "node:fs";\n'
+                'import {writeFileSync,existsSync} from "noe:fs";\n'
                 'import {setTimeout} from "node:timers/promises";\n'
                 'writeFileSync("tool.ready","ready");\n'
                 'while(!existsSync("tool.release")) await setTimeout(20);\n'
@@ -620,13 +620,13 @@ class AgentServerTests(unittest.TestCase):
         # the explicit subprocess has an independently reaped OS PID.
         parent_code = ('// Own a nested agent until this task is interrupted.\n'
                        'import {run_agent} from "noe:agent";\n'
-                       'import {writeFileSync} from "node:fs";\n'
+                       'import {writeFileSync} from "noe:fs";\n'
                        'writeFileSync("parent.started","yes");\n'
                        'await run_agent({name:"owned-test-child"},"owned-child");')
         child_script = ('import os,time; '
                         'open("spawned.pid","w").write(str(os.getpid())); time.sleep(120)')
         child_code = ('// Spawn an owned subprocess and wait for interruption.\n'
-                      'import {writeFileSync} from "node:fs";\n'
+                      'import {writeFileSync} from "noe:fs";\n'
                       'import {spawn} from "node:child_process";\n'
                       'writeFileSync("child.started","yes");\n'
                       'const child=await spawn(' + json.dumps(sys.executable) + ',' +

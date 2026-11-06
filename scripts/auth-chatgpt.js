@@ -1,5 +1,5 @@
 // Register or renew a ChatGPT account for NOE; tokens are never printed.
-import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, renameSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, renameSync, unlinkSync } from "noe:fs";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { randomBytes, createHash } from "node:crypto";

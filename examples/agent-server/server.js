@@ -1,5 +1,5 @@
 // ./noe run examples/agent-server/server.js [--port 8080] [--provider ...] [--model ...] [--effort ...]
-import { readFile } from "node:fs/promises";
+import { readFile } from "noe:fs";
 import { dirname, resolve } from "node:path";
 import { startAgentWrapper } from "./wrapper.js";
 

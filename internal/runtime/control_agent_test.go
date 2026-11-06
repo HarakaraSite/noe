@@ -54,7 +54,7 @@ func TestPublicSteerAgentControlsAnActiveTask(t *testing.T) {
 		}
 	}
 	source := fmt.Sprintf(`import {spawn_agent,observe_agent,steer_agent} from "noe:agent";
-import {existsSync} from "node:fs";
+import {existsSync} from "noe:fs";
 const providerStarted=%q;
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"public-steer",effort:"auto",maxSteps:2,cacheKey:"public-steer-cache"},"initial instruction");
 let snapshot;

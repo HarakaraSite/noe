@@ -1,5 +1,5 @@
 // List Exa's official MCP tools, or explicitly request one web search.
-import { readFile } from "node:fs/promises";
+import { readFile } from "noe:fs";
 import { withMCP } from "./client.js";
 
 const usage = "Usage: noe run --import-map examples/mcp/import-map.json examples/mcp/exa.js [list | search QUERY...]";

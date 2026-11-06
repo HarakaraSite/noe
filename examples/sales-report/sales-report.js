@@ -1,5 +1,5 @@
 import { summarizeSales, formatReport } from "./lib/sales.js";
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile } from "noe:fs";
 
 const args = process.argv.slice(2);
 const outputPrefix = args[0] ?? "/tmp/noe-sales-report";

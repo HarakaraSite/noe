@@ -3,7 +3,7 @@
 // The API key is read from disk only when a request runs; importing this module
 // performs no file reads and no network requests.
 
-import { readFile } from "fs/promises";
+import { readFile } from "noe:fs";
 import { homedir } from "os";
 import { join } from "path";
 

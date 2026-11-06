@@ -107,14 +107,14 @@ func run() error {
 	}
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[consumer]", Virtual: true, Module: true, Code: `
 import {value} from "value";import {Worker} from "node:worker_threads";import {docs} from "noe:docs";
-import {open,readdir} from "node:fs/promises";
+import {open,readdir} from "noe:fs";
 if(value!==42||process.env.SELECTED!=="yes"||process.cwd()!=="/"||await new Response(process.stdin).text()!=="borrowed input")throw Error("environment");
 const missing=await open("missing.mjs").then(()=>null,error=>error);if(missing?.code!=="ENOENT"||typeof missing.errno!=="number"||missing.errno<=0)throw Error("filesystem error normalization");
-const file=await open("value.mjs");try{const buffer=new Uint8Array(6);const result=await file.read(buffer);if(result.bytesRead!==6||result.buffer!==buffer)throw Error("standard FS handle");}finally{await file.close();}
-const created=await open("created.bin","wx+",0o600);
-try{const exists=await open("created.bin","wx").then(()=>null,error=>error);if(exists?.code!=="EEXIST"||typeof exists.errno!=="number"||exists.errno<=0)throw Error("existing-file error normalization");const metadata=await created.stat();if(!(metadata.mtime instanceof Date)||metadata.mtime.getTime()!==Math.trunc(metadata.mtimeMs)||(metadata.mode&0o170000)!==0o100000)throw Error("FileHandle metadata normalization");await created.write("data");await created.truncate(2);await created.sync();if((await created.stat()).size!==2)throw Error("FileHandle metadata");}finally{await created.close();}
+const file=await open("value.mjs");try{const bytes=await file.read(6);if(!(bytes instanceof Uint8Array)||bytes.length!==6)throw Error("NOE FS handle");}finally{await file.close();}
+const created=await open("created.bin",{flags:"wx+",mode:0o600});
+try{const exists=await open("created.bin",{flags:"wx"}).then(()=>null,error=>error);if(exists?.code!=="EEXIST"||typeof exists.errno!=="number"||exists.errno<=0)throw Error("existing-file error normalization");const metadata=await created.stat();if(!(metadata.mtime instanceof Date)||metadata.mtime.getTime()!==Math.trunc(metadata.mtimeMs)||(metadata.mode&0o170000)!==0o100000)throw Error("FileHandle metadata normalization");await created.write("data");await created.truncate(2);await created.sync();if((await created.stat()).size!==2)throw Error("FileHandle metadata");}finally{await created.close();}
 let scopedFile;
-{await using owned=await open("scoped.bin","wx+");scopedFile=owned;await owned.write("scoped");}
+{await using owned=await open("scoped.bin",{flags:"wx+"});scopedFile=owned;await owned.write("scoped");}
 if((await scopedFile.stat().then(()=>null,error=>error))?.code!=="ERR_FILE_CLOSED")throw Error("await using file disposal");
 const entries=await readdir("/",{withFileTypes:true});if(!entries.some(entry=>entry.name==="created.bin"&&entry.isFile()))throw Error("Dirent consumer");
 if(await (await fetch(endpoint)).text()!=="loopback response")throw Error("fetch");

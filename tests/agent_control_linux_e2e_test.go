@@ -21,12 +21,12 @@ func TestAgentHumanRunInterruptReapsNestedProcessGroups(t *testing.T) {
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		code := `// Delegate to a child task that runs a process group.
 import {run_agent} from "noe:agent";
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 writeFileSync("parent-ready","ready");
 await run_agent({name:"nested"},"nested child");`
 		if agentUser(req) == "nested child" {
 			code = `// Run a shell with a long-lived descendant.
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 import {execFile} from "node:child_process";
 writeFileSync("child-ready","ready");
 await execFile("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"runner","shell.pid","grandchild.pid"]);`

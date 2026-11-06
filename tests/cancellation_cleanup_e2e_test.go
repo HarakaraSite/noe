@@ -10,14 +10,14 @@ import (
 )
 
 const cancellationCleanupSource = `
-import {open,readFile} from "node:fs/promises";
+import {open,readFile} from "noe:fs";
 const stop=new AbortController(),reason={source:"user"};
 const signal=AbortSignal.any(new Set([stop.signal]));
 let started;
 const reading=new Promise(resolve=>{started=resolve;});
 let cancelled=false,aborted=false,file,writing;
 {
-  await using owned=await open("owned.bin","wx+");
+  await using owned=await open("owned.bin",{flags:"wx+"});
   file=owned;
   const source=new ReadableStream({
     pull(){started();return new Promise(()=>{});},
@@ -31,7 +31,7 @@ let cancelled=false,aborted=false,file,writing;
   if(failure!==reason || !cancelled || !aborted || source.locked || sink.locked)throw Error("combined cancellation");
   writing=file.write("scoped bytes");
 }
-if((await writing).bytesWritten!==12 || await readFile("owned.bin","utf8")!=="scoped bytes")throw Error("admitted write disposal");
+if((await writing)!==12 || await readFile("owned.bin","utf8")!=="scoped bytes")throw Error("admitted write disposal");
 if((await file.stat().then(()=>null,error=>error))?.code!=="ERR_FILE_CLOSED")throw Error("await using did not close file");
 console.log("combined cancellation and disposal passed");
 `

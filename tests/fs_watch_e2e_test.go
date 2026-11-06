@@ -10,26 +10,25 @@ import (
 )
 
 const fsWatchSource = `
-import fs,{watch} from "node:fs";
-import {watch as events} from "node:fs/promises";
+import fs,{watch} from "noe:fs";
 const controller=new AbortController();
 {
- await using changes=events(".",{signal:AbortSignal.any([controller.signal])});
+ await using changes=watch(".",{signal:AbortSignal.any([controller.signal])});
  const next=changes.next();
  fs.writeFileSync("watched.txt","initial");
  const event=await next;
  if(event.done||event.value.filename!=="watched.txt")throw Error("watch event "+JSON.stringify(event));
 }
-let closed=0;
+let changes;
 {
- await using callback=watch("watched.txt");
- callback.on("close",()=>{closed++});
- const changed=new Promise((resolve,reject)=>{callback.once("change",resolve);callback.on("error",reject)});
+ await using owned=watch("watched.txt");
+ changes=owned;
+ const changed=owned.next();
  fs.appendFileSync("watched.txt","updated");
- if(await changed!=="change")throw Error("callback event");
+ if((await changed).value.eventType!=="change")throw Error("iterator event");
 }
-if(closed!==1)throw Error("watch callback disposal");
-const canceled=events(".",{signal:controller.signal});
+if(!(await changes.next()).done)throw Error("watch iterator disposal");
+const canceled=watch(".",{signal:controller.signal});
 const pending=canceled.next().then(()=>null,error=>error);
 controller.abort(0);
 const failure=await pending;
@@ -92,9 +91,8 @@ console.log(result.lastResult.answer);`)
 
 func TestFilesystemWatchUnreferencedExit(t *testing.T) {
 	for _, source := range []string{
-		`import {watch} from "node:fs";watch(".",{persistent:false});console.log("unreferenced watch");`,
-		`import {watch} from "node:fs";watch(".").unref();console.log("unreferenced watch");`,
-		`import {watch} from "node:fs/promises";watch(".",{persistent:false}).next();console.log("unreferenced watch");`,
+		`import {watch} from "noe:fs";watch(".");console.log("unreferenced watch");`,
+		`import {watch} from "noe:fs";watch(".",{persistent:false}).next();console.log("unreferenced watch");`,
 	} {
 		result := runCLI(t, t.TempDir(), nil, "eval", source)
 		requireExit(t, result, 0)

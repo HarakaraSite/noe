@@ -1,5 +1,9 @@
 # Filesystem watching implementation
 
+This record describes the earlier released API. For the current `noe:fs`
+contract, see the [2026-11-06 migration](stdlib-noe-fs.md) and
+[API policy](stdlib-api-policy.md).
+
 [Development guide](README.md) · [Standard library roadmap](stdlib-roadmap.md)
 
 2026-11-06, based on NOE v2.14.0. Phase 5 adds nonrecursive file and directory

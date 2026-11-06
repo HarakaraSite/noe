@@ -115,7 +115,7 @@ noestdlibの[宣言](../stdlib/types/noestdlib.d.ts)とnoeagentlibの[宣言](..
 `generated/noe-task.js`:
 
 ```js
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync } from "noe:fs";
 import { list_models } from "noe:agent";
 
 const directories = readdirSync(".").filter(name => statSync(name).isDirectory());

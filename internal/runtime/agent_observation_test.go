@@ -45,7 +45,7 @@ func TestObserveAgentReadsFinalAndCursorWithoutProvider(t *testing.T) {
 	encodedPath, _ := json.Marshal(path)
 	source := `const fixturePath=` + string(encodedPath) + `;
 import {analyze_log} from "noe:agent-log";
-import {readFileSync} from "node:fs";
+import {readFileSync} from "noe:fs";
 const observe_agent=options=>analyze_log(readFileSync(fixturePath,"utf8"),options);
 const options={runId:"child"};
 const first=await observe_agent(options);
@@ -57,7 +57,7 @@ const again=await observe_agent({...options,cursor:first.cursor});
 if(again.events.length!==0 || again.finalText!==first.finalText) throw Error("cursor lost snapshot state");
 const missing=await observe_agent({...options,runId:"later"});
 if(missing.status!=="unknown")throw Error("unknown run state");
-const fs=await import("fs/promises");
+const fs=await import("noe:fs");
 const before=await fs.readFile(fixturePath,"utf8");
 const added=[{type:"agent.started",seq:6},{type:"agent.final",seq:7,text:"later done"},{type:"agent.completed",seq:8}]
   .map(e=>JSON.stringify({...e,version:1,executionId:"exec",runId:"later"})).join("\n")+"\n";

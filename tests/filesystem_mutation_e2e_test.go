@@ -13,7 +13,7 @@ import (
 func TestFileMutationLifecycleThroughCLI(t *testing.T) {
 	work := t.TempDir()
 	writeFixture(t, filepath.Join(work, "existing.txt"), "old")
-	source := `import {mkdir,writeFile,readFile,rename,unlink,rmdir} from "node:fs/promises";
+	source := `import {mkdir,writeFile,readFile,rename,unlink,rmdir} from "noe:fs";
 await mkdir("親/子", {recursive:true});
 await mkdir(process.cwd() + "/親/子", {recursive:true});
 await writeFile("親/子/元.txt", "雪\n");
@@ -47,7 +47,7 @@ func TestFileMutationLinksAndNonDestructiveErrors(t *testing.T) {
 	if err := os.Symlink("target.txt", filepath.Join(work, "link")); err != nil {
 		t.Fatal(err)
 	}
-	got := runCLI(t, work, nil, "eval", `import {rename,unlink} from "node:fs/promises"; await rename("link", "moved-link"); await unlink("moved-link");`)
+	got := runCLI(t, work, nil, "eval", `import {rename,unlink} from "noe:fs"; await rename("link", "moved-link"); await unlink("moved-link");`)
 	requireExit(t, got, 0)
 	if got.stdout != "" || got.stderr != "" {
 		t.Fatalf("link operations: %+v", got)
@@ -59,10 +59,10 @@ func TestFileMutationLinksAndNonDestructiveErrors(t *testing.T) {
 		t.Fatalf("link not removed: %v", err)
 	}
 	for _, source := range []string{
-		`import {mkdir} from "node:fs/promises"; await mkdir("target.txt/child", {recursive:true})`,
-		`import {rename} from "node:fs/promises"; await rename("missing", "renamed")`,
-		`import {unlink} from "node:fs/promises"; await unlink("missing")`,
-		`import {rmdir} from "node:fs/promises"; await rmdir("not-empty")`,
+		`import {mkdir} from "noe:fs"; await mkdir("target.txt/child", {recursive:true})`,
+		`import {rename} from "noe:fs"; await rename("missing", "renamed")`,
+		`import {unlink} from "noe:fs"; await unlink("missing")`,
+		`import {rmdir} from "noe:fs"; await rmdir("not-empty")`,
 	} {
 		failed := runCLI(t, work, nil, "eval", source)
 		requireExit(t, failed, 1)

@@ -699,7 +699,7 @@ func runHooksLiveL1(t *testing.T, artifactRoot, keyFile string) {
 	numbersPath, _ := json.Marshal(filepath.Join(c.work, "numbers.json"))
 	resultPath, _ := json.Marshal(filepath.Join(c.work, "result.json"))
 	snapshotPath, _ := json.Marshal(filepath.Join(c.work, "result-summary.json"))
-	c.write("hooks.js", `import {appendFile} from "node:fs/promises";
+	c.write("hooks.js", `import {appendFile} from "noe:fs";
 const receiptPath=`+string(receiptPath)+`;
 async function receipt(phase,event,extra={}){
   const row={phase,activityId:event.activityId,invocationId:event.invocationId,groupId:event.groupId,
@@ -719,7 +719,7 @@ export async function beforeTool(event){
   await receipt("beforeTool",event);
   if(event.toolName!=="run_js") return;
   const code="// Read the authorized fixture and write its computed result.\n"+
-    "import {readFile,writeFile} from 'node:fs/promises';\n"+
+    "import {readFile,writeFile} from 'noe:fs';\n"+
     "const values=JSON.parse(await readFile("+JSON.stringify(`+string(numbersPath)+`)+",'utf8')).values;\n"+
     "const total=values.reduce((sum,value)=>sum+value,0);\n"+
     "const result={count:values.length,total,average:total/values.length};\n"+
@@ -733,7 +733,7 @@ export async function afterTool(event){
 }
 `)
 	main := `import {run_agent} from "noe:agent";
-import {writeFile} from "node:fs/promises";
+import {writeFile} from "noe:fs";
 const result=await run_agent({provider:"opencode-go",model:"deepseek-v4.1-flash",effort:"auto",name:"hooks-live-l1",
   hooks:["./hooks.js"],contextBudget:{inputTokens:16000},executionLimits:{providerCalls:8,agentStarts:1,queuedTasks:0,hookCalls:40},
   maxTokens:4096,maxSteps:4},
@@ -932,8 +932,8 @@ func runHooksLiveL2(t *testing.T, artifactRoot, keyFile string) {
 	receiptsPath, _ := json.Marshal(filepath.Join(c.work, "hook-receipts.jsonl"))
 	rootMarker, _ := json.Marshal(filepath.Join(c.work, "root-spawned.once"))
 	childMarker, _ := json.Marshal(filepath.Join(c.work, "child-spawned.once"))
-	c.write("hooks.js", `import {appendFile} from "node:fs/promises";
-import {existsSync as fileExists,writeFileSync} from "node:fs";
+	c.write("hooks.js", `import {appendFile} from "noe:fs";
+import {existsSync as fileExists,writeFileSync} from "noe:fs";
 const receiptPath=`+string(receiptsPath)+`;
 async function receipt(phase,event,extra={}){
   await appendFile(receiptPath,JSON.stringify({phase,activityId:event.activityId,invocationId:event.invocationId,
@@ -963,7 +963,7 @@ export async function beforeTool(event){
 export async function afterTool(event){await receipt("afterTool",event);return {result:event.result};}
 `)
 	main := `import {spawn_agent,observe_agent,queue_agent,stop_agent} from "noe:agent";
-import {readFile} from "node:fs/promises";
+import {readFile} from "noe:fs";
 const receiptPath=` + string(receiptsPath) + `;
 const config={provider:"opencode-go",model:"deepseek-v4.1-flash",effort:"auto",name:"root-live",
   hooks:["./hooks.js"],executionLimits:{providerCalls:14,agentStarts:3,queuedTasks:1,hookCalls:100},maxTokens:4096,maxSteps:4};
@@ -1155,8 +1155,8 @@ func runHooksLiveSteer(t *testing.T, artifactRoot, keyFile string) {
 	readyJSON, _ := json.Marshal(readyPath)
 	releaseJSON, _ := json.Marshal(releasePath)
 	receiptJSON, _ := json.Marshal(filepath.Join(c.work, "hook-receipts.jsonl"))
-	c.write("hooks.js", `import {appendFile} from "node:fs/promises";
-import {existsSync,writeFileSync} from "node:fs";
+	c.write("hooks.js", `import {appendFile} from "noe:fs";
+import {existsSync,writeFileSync} from "noe:fs";
 const receiptPath=`+string(receiptJSON)+`;
 async function receipt(phase,event){await appendFile(receiptPath,JSON.stringify({phase,activityId:event.activityId,groupId:event.groupId,agentId:event.agentId,runId:event.runId,modelStepId:event.modelStepId,requestId:event.requestId})+"\n");}
 export async function beforeModelRequest(event){
@@ -1247,7 +1247,7 @@ func runHooksLiveHookCancel(t *testing.T, artifactRoot, keyFile string) {
 	readyPath := filepath.Join(c.work, "hook-ready.json")
 	readyJSON, _ := json.Marshal(readyPath)
 	receiptJSON, _ := json.Marshal(filepath.Join(c.work, "hook-receipts.jsonl"))
-	c.write("hooks.js", `import {appendFile,writeFile} from "node:fs/promises";
+	c.write("hooks.js", `import {appendFile,writeFile} from "noe:fs";
 async function receipt(phase,event,extra={}){await appendFile(`+string(receiptJSON)+`,JSON.stringify({phase,activityId:event.activityId,groupId:event.groupId,agentId:event.agentId,runId:event.runId,modelStepId:event.modelStepId,requestId:event.requestId,...extra})+"\n");}
 export async function afterModelResponse(event,api){
   await receipt("afterModelResponse",event);
@@ -1346,14 +1346,14 @@ func runHooksLiveToolCancel(t *testing.T, artifactRoot, keyFile string) {
 	shellPIDJSON, _ := json.Marshal(shellPIDPath)
 	grandchildPIDJSON, _ := json.Marshal(grandchildPIDPath)
 	receiptJSON, _ := json.Marshal(filepath.Join(c.work, "hook-receipts.jsonl"))
-	c.write("hooks.js", `import {appendFile,writeFile} from "node:fs/promises";
+	c.write("hooks.js", `import {appendFile,writeFile} from "noe:fs";
 async function receipt(phase,event){await appendFile(`+string(receiptJSON)+`,JSON.stringify({phase,activityId:event.activityId,groupId:event.groupId,agentId:event.agentId,runId:event.runId,modelStepId:event.modelStepId,requestId:event.requestId,toolCallId:event.toolCallId})+"\n");}
 export async function beforeTool(event){
   await receipt("beforeTool",event);
   if(event.toolName!=="run_js") return;
   await writeFile(`+string(readyJSON)+`,JSON.stringify({runId:event.runId,modelStepId:event.modelStepId,toolCallId:event.toolCallId}));
   const code="// Start an owned shell process tree and wait for cancellation.\n"+
-    "import {writeFileSync} from 'node:fs';\n"+
+    "import {writeFileSync} from 'noe:fs';\n"+
     "import {spawn} from 'node:child_process';\n"+
     "const child=await spawn('sh',['-c','echo $$ > \"$1\"; sleep 120 & echo $! > \"$2\"; wait','hooks-live-tree',"+
       JSON.stringify(`+string(shellPIDJSON)+`)+","+JSON.stringify(`+string(grandchildPIDJSON)+`)+"],{stdin:'ignore',stdout:'ignore',stderr:'ignore'});\n"+
@@ -1467,8 +1467,8 @@ func runHooksLiveL4(t *testing.T, artifactRoot, keyFile string) {
 	c := newHooksLiveCase(t, artifactRoot, "l4-shared-limit-isolation", keyFile)
 	actionsPath, _ := json.Marshal(filepath.Join(c.work, "hook-actions.jsonl"))
 	firedPath, _ := json.Marshal(filepath.Join(c.work, "hook-fired.once"))
-	c.write("hooks.js", `import {appendFile,writeFile} from "node:fs/promises";
-import {existsSync,writeFileSync} from "node:fs";
+	c.write("hooks.js", `import {appendFile,writeFile} from "noe:fs";
+import {existsSync,writeFileSync} from "noe:fs";
 export async function afterModelResponse(event,api){
   if(existsSync(`+string(firedPath)+`)) return;
   writeFileSync(`+string(firedPath)+`,"started");

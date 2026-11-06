@@ -1,6 +1,6 @@
 import { transform } from "./lib/transform.js";
 
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile } from "noe:fs";
 
 const args = process.argv.slice(2);
 if (args.length !== 2) {

@@ -19,7 +19,7 @@ import (
 func TestProcessIOBlockedStdoutWriteCancelsOnSIGINT(t *testing.T) {
 	work := t.TempDir()
 	source := `import {stdout} from "node:process";
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 writeFileSync("stream-ready", "ready");
 const writer=stdout.getWriter(), chunk=new Uint8Array(64*1024);
 while(true) await writer.write(chunk);`
@@ -83,7 +83,7 @@ while(true) await writer.write(chunk);`
 func TestProcessIOBlockedStdoutWriteCancelsOnTimeout(t *testing.T) {
 	work := t.TempDir()
 	source := `import {stdout} from "node:process";
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 writeFileSync("stream-ready", "ready");
 const writer=stdout.getWriter(), chunk=new Uint8Array(64*1024);
 while(true) await writer.write(chunk);`
@@ -140,7 +140,7 @@ func TestProcessIOWorkerTerminateStopsActiveSpawn(t *testing.T) {
 	grandchildPath := filepath.Join(work, "worker-grandchild.pid")
 	defer processIOKillPIDFiles(shellPath, grandchildPath)
 	workerSource := `import {parentPort} from "node:worker_threads";
-import {readFile} from "node:fs/promises";
+import {readFile} from "noe:fs";
 import {spawn} from "node:child_process";
 const shellPath=` + strconv.Quote(shellPath) + `, grandchildPath=` + strconv.Quote(grandchildPath) + `;
 await spawn("sh",["-c",'echo $$ > "$1"; sleep 60 & echo $! > "$2"; wait',"process-io-worker",shellPath,grandchildPath],{stdin:"ignore",stdout:"ignore",stderr:"ignore"});

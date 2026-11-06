@@ -6,13 +6,13 @@
 
 NOEは固定したgo-quickjs v0.29.0をJavaScriptエンジンに使い、go-quickjs v0.27.0のstdlibを原型とするNOE管理の標準ライブラリを有効にします。通常ビルドでは実験的JITを有効にしません。Web APIとNode形式APIを利用できます。各APIはNOEが管理する実装に従い、Node.js全体との互換性を保証するものではありません。
 
-NOE-specific entry points include CLI commands, NOE modules, and host APIs. `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers. The standard `node:process` module exposes host standard I/O as Web Streams when Stdio is selected. The selected `node:child_process` module includes NOE's live `spawn` extension when the command capability is enabled. File handles are provided by the standard `node:fs/promises` module. Agent, model, decision, image, authentication, and saved-event modules are available only in the main runtime when selected by the host. See [migration from the old API](#旧apiからの移行) and the [migration implementation record](archive/increment-12.md).
+NOE-specific entry points include CLI commands, NOE modules, and host APIs. `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers. The standard `node:process` module exposes host standard I/O as Web Streams when Stdio is selected. The selected `node:child_process` module includes NOE's live `spawn` extension when the command capability is enabled. Filesystem access is provided by the NOE-specific `noe:fs` module. Agent, model, decision, image, authentication, and saved-event modules are available only in the main runtime when selected by the host. See [migration from the old API](#旧apiからの移行) and the [migration implementation record](archive/increment-12.md).
 
 v2.3.0以降のrun_js返却data・診断・明示importへの移行は[実行結果と診断](execution-results.md)を参照してください。
 
 ## 利用できる機能と権限
 
-Web APIにはURL、Fetch、Request/Response/Headers、Web Streams、タイマー、WebSocket、Worker、cryptoなどがあります。Node形式の組み込みモジュールには、たとえば`assert`、`buffer`、`child_process`、`dns`、`events`、`fs`、`fs/promises`、`http`、`os`、`path`、`process`、`timers`、`timers/promises`、`url`、`util`、`vm`、`worker_threads`、`zlib`があります。暗号機能はWeb Cryptoと`crypto`から利用できます。APIごとの未実装機能や差異は、NOE管理の`internal/stdlib`と、そのバイナリに内蔵したdocsを参照してください。
+Web APIにはURL、Fetch、Request/Response/Headers、Web Streams、タイマー、WebSocket、Worker、cryptoなどがあります。Node形式の組み込みモジュールには、たとえば`assert`、`buffer`、`child_process`、`dns`、`events`、`http`、`os`、`path`、`process`、`timers`、`timers/promises`、`url`、`util`、`vm`、`worker_threads`、`zlib`があります。暗号機能はWeb Cryptoと`crypto`から利用できます。APIごとの未実装機能や差異は、NOE管理の`internal/stdlib`と、そのバイナリに内蔵したdocsを参照してください。
 
 NOEは次のホスト機能をスクリプトに渡します。
 
@@ -24,7 +24,7 @@ NOEは次のホスト機能をスクリプトに渡します。
 - HTTPサーバーの待受
 - Workersとメッセージング
 
-Workers receive the same host-selected standard-library capabilities. NOE modules `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers; `noe:agent`, `noe:decision`, `noe:image`, and `noe:auth` are not. When Stdio is selected, `node:process` exports byte streams and Worker stdin reaches immediate EOF while output uses the host destinations. The command capability exposes the NOE-specific `spawn` export from `node:child_process`. File handles are exposed through `node:fs/promises`. NOE is not a sandbox: scripts run with the operating-system permissions of the process that started NOE.
+Workers receive the same host-selected standard-library capabilities. NOE modules `noe:sockets`, `noe:signals`, `noe:http`, and `noe:docs` are available in Workers; `noe:agent`, `noe:decision`, `noe:image`, and `noe:auth` are not. When Stdio is selected, `node:process` exports byte streams and Worker stdin reaches immediate EOF while output uses the host destinations. The command capability exposes the NOE-specific `spawn` export from `node:child_process`. File handles are exposed through `noe:fs`. NOE is not a sandbox: scripts run with the operating-system permissions of the process that started NOE.
 
 原型であるgo-quickjs v0.27.0のWorker数は既定で同時64個ですが、NOEは`Workers.Max: -1`を指定し、従来どおりWorker数の上限を設けません。これはJavaScriptのWorkerの設定で、agentの委譲数とは別です。
 
@@ -277,7 +277,7 @@ traceにはrun ID、親run ID、agent名、model、status、duration（nanosecon
 
 The NOE-specific `spawn` export from `node:child_process` supports live child-process I/O, exit observation, termination, and cleanup. `node:process` exposes host stdin/stdout/stderr as Web Streams when Stdio is selected; use the standard `pipeTo` method to connect streams. Both APIs are available to ordinary JavaScript, `run_js`, and Workers when the host selects their capabilities. See the [process and standard I/O guide](process-io.md) for the public contract and examples. `spawn` does not add Node.js EventEmitter or Node streams APIs.
 
-`node:fs/promises.open` provides `FileHandle.read()` and `write()` for sequential or positional file I/O. `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides an AsyncIterator subscription. See [file handles, sockets, and signals](low-level-io.md) for the current contracts and resource lifecycles.
+`noe:fs.open` provides `FileHandle.read()`/`write()` for sequential I/O and `readAt()`/`writeAt()` for positional I/O. `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides an AsyncIterator subscription. See [file handles, sockets, and signals](low-level-io.md) for the current contracts and resource lifecycles.
 
 ## 意思決定モデル：`noe:decision`
 
@@ -301,7 +301,7 @@ The NOE-specific `spawn` export from `node:child_process` supports live child-pr
 
 When Stdio is selected, `node:process` exports `stdin` as a byte `ReadableStream`. Read all input as text with `await new Response(stdin).text()`, or use a stream reader for incremental processing. The former synchronous `process.stdin.read()` facade is removed; see the [process and standard I/O guide](process-io.md).
 
-ファイルのPromise APIは`fs/promises`からimportできます。
+ファイルのPromise APIは`noe:fs`からimportできます。
 
 | API | 動作 |
 | --- | --- |
@@ -319,7 +319,7 @@ Filesystem errors across synchronous calls, promises, FileHandles, and Web Strea
 `readdir(path)` returns names; `readdir(path, {withFileTypes: true})` returns Dirent objects. `stat`はシンボリックリンクの参照先、`lstat`はリンク自身を調べます。パスの解決はファイル操作時のカレントディレクトリが基準です。
 
 ```js
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile } from "noe:fs";
 
 const inputPath = process.argv[2];
 const outputPath = process.argv[3];
@@ -440,12 +440,12 @@ const answer = snapshot.lastResult?.answer;
 | `noe.cwd()` | `process.cwd()` |
 | `noe.exit(code)` | `process.exit(code)` |
 | `noe.readStdin()` | `await new Response(stdin).text()` after importing `stdin` from `node:process` |
-| `noe.readTextFile(path)` | `fs/promises`の`readFile(path, "utf8")` |
-| `noe.writeTextFile(path, text)` | `fs/promises`の`writeFile(path, text)` |
-| `noe.readFile(path)`・`noe.writeFile(path, data)` | `fs/promises`の`readFile`・`writeFile` |
+| `noe.readTextFile(path)` | `noe:fs`の`readFile(path, "utf8")` |
+| `noe.writeTextFile(path, text)` | `noe:fs`の`writeFile(path, text)` |
+| `noe.readFile(path)`・`noe.writeFile(path, data)` | `noe:fs`の`readFile`・`writeFile` |
 | `noe.readDir(path)` | `readdir(path)`で名前を取得し、`lstat()`で各項目を判定 |
 | `noe.stat(path)` | `stat(path)` |
-| `noe.mkdir`・`noe.rename`・`noe.remove` | `fs/promises`の`mkdir`・`rename`・`rm` |
+| `noe.mkdir`・`noe.rename`・`noe.remove` | `noe:fs`の`mkdir`・`rename`・`rm` |
 | `noe.sleep(ms)` | `timers/promises`の`setTimeout(ms)` |
 | `noe.fetch(url, options)` | グローバルの`fetch(url, options)` |
 | `noe.serve(options, handler)` | グローバルの`serve(options, handler)` |

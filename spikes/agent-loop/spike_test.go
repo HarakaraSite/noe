@@ -251,7 +251,7 @@ func TestCancellationStopsNestedProcessesAndModelCalls(t *testing.T) {
 	script := `import {rpc} from "../lib/host.js";
 const {runId}=await rpc("/run/start",{name:"owner"});
 await rpc("/js",{runId,code:
- 'const {writeFile}=await import("fs/promises"); const {readFile}=await import("fs/promises");'+
+ 'const {writeFile}=await import("noe:fs"); const {readFile}=await import("noe:fs");'+
  'const stat=await readFile("/proc/self/stat","utf8"); await writeFile("pid",stat.split(" ")[0]);'+
  'await createAgent({name:"left"}).run("wait");'});`
 	done := make(chan jsResult, 1)

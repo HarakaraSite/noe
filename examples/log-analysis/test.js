@@ -1,5 +1,5 @@
 // Run with NOE; no provider, Node.js, npm, or external services.
-import { readFileSync } from "node:fs";
+import { readFileSync } from "noe:fs";
 import { dirname, resolve } from "node:path";
 import process from "node:process";
 import { analyzeJSONL, toMarkdown } from "./analyze.js";

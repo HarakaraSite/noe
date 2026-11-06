@@ -1,5 +1,5 @@
 import { fetch, serve } from "noe:http";
-import { writeFile } from "node:fs/promises";
+import { writeFile } from "noe:fs";
 
 const args = process.argv.slice(2);
 if (args.length > 2) {

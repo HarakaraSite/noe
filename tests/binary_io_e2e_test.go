@@ -31,7 +31,7 @@ func TestBinaryFileRoundtripViewsAndSnapshotsThroughCLI(t *testing.T) {
 	}
 	writeFixture(t, filepath.Join(work, "protected.bin"), "keep")
 	script := filepath.Join(work, "binary.js")
-	writeFixture(t, script, `import { readFile, writeFile } from "node:fs/promises";
+	writeFixture(t, script, `import { readFile, writeFile } from "noe:fs";
 const bytes = await readFile(process.argv[2]);
 if (!(bytes instanceof Uint8Array) || bytes.length !== 256) throw new Error("typed input");
 const pending = writeFile("部分.bin", bytes.subarray(1,255));
@@ -91,7 +91,7 @@ func TestBinaryHTTPDownloadExampleAndEval(t *testing.T) {
 		}
 	}
 	url := strconv.Quote(server.URL)
-	got := runCLI(t, work, nil, "eval", `import { writeFile } from "node:fs/promises";
+	got := runCLI(t, work, nil, "eval", `import { writeFile } from "noe:fs";
 const r = await fetch(`+url+`);
 const downloaded = await r.bytes(); const saved = downloaded.slice(); downloaded.fill(0);
 await writeFile("cached.bin", saved); console.log("cached bytes saved");`)

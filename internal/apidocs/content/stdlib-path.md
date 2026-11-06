@@ -16,7 +16,7 @@ Computes path strings without reading the filesystem. NOE's bare path module use
 
 `_makeLong`, `basename`, `default`, `delimiter`, `dirname`, `extname`, `format`, `isAbsolute`, `join`, `normalize`, `parse`, `posix`, `relative`, `resolve`, `sep`, `toNamespacedPath`, `win32`
 
-resolve and relative use process.cwd() when available. This module transforms path text only; node:fs and node:fs/promises perform file I/O.
+resolve and relative use process.cwd() when available. This module transforms path text only; noe:fs and noe:fs perform file I/O.
 
 ## join
 

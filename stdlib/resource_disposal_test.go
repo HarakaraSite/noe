@@ -16,14 +16,14 @@ func TestAwaitUsingFileHandleDrainsWritesAndClosesOnThrow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "memory:file-disposal", Virtual: true, Module: true, Code: `
-import {open,readFile} from "node:fs/promises";
+import {open,readFile} from "noe:fs";
 let file,writing;
 {
-  await using owned=await open("value","wx+");
+  await using owned=await open("value",{flags:"wx+"});
   file=owned;
   writing=file.write("retained bytes");
 }
-if ((await writing).bytesWritten!==14 || await readFile("value","utf8")!=="retained bytes") throw Error("disposal lost an admitted write");
+if ((await writing)!==14 || await readFile("value","utf8")!=="retained bytes") throw Error("disposal lost an admitted write");
 if ((await file.stat().then(()=>null,error=>error))?.code!=="ERR_FILE_CLOSED") throw Error("file survived disposal");
 if(await file[Symbol.asyncDispose]()!==undefined) throw Error("disposal returned a value");
 const reason={body:"expected"};

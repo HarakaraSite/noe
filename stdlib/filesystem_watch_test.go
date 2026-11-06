@@ -12,7 +12,7 @@ import (
 )
 
 func TestProfileFilesystemWatchDetachPreservesBorrowedRuntime(t *testing.T) {
-	for _, expression := range []string{`watch(".")`, `events(".")`} {
+	for _, expression := range []string{`watch(".")`, `fs.watch(".")`} {
 		t.Run(expression, func(t *testing.T) {
 			rt := quickjs.New()
 			loop := stdlib.NewLoop(rt)
@@ -29,8 +29,8 @@ func TestProfileFilesystemWatchDetachPreservesBorrowedRuntime(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			source, err := bindings.Prepare(stdlib.Source{Name: "memory:watch-detach", Virtual: true, Module: true, Code: `
-import {watch} from "node:fs";
-import {watch as events} from "node:fs/promises";
+import {watch} from "noe:fs";
+import fs from "noe:fs";
 globalThis.ownedWatch=` + expression + `;
 if(typeof ownedWatch.next==="function")globalThis.pendingWatch=ownedWatch.next();
 `})
@@ -72,8 +72,8 @@ func TestProfileFilesystemWatchUsesVirtualCwd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[virtual watch]", Virtual: true, Module: true, Code: `
-import fs from "node:fs";
-import {watch} from "node:fs/promises";
+import fs from "noe:fs";
+import {watch} from "noe:fs";
 await using changes=watch(".");
 const next=changes.next();fs.writeFileSync("entry","value");
 const event=await next;

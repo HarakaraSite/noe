@@ -1,5 +1,5 @@
 // Run with NOE. Exercises real rg/grep output and automatic missing-rg fallback.
-import {mkdtempSync, writeFileSync, mkdirSync, rmSync, copyFileSync, chmodSync, existsSync} from "node:fs";
+import {mkdtempSync, writeFileSync, mkdirSync, rmSync, copyFileSync, chmodSync, existsSync} from "noe:fs";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
 import process from "node:process";

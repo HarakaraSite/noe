@@ -59,7 +59,7 @@ func TestImportMapCLIValidationAndOptionBoundaries(t *testing.T) {
 		}
 	}
 	bad := filepath.Join(t.TempDir(), "map.json")
-	if err := os.WriteFile(bad, []byte(`{"imports":{"fs":"./never-read.js"}}`), 0600); err != nil {
+	if err := os.WriteFile(bad, []byte(`{"imports":{"noe:fs":"./never-read.js"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	args := []string{"eval", "--import-map", bad, `console.log("must not execute")`}

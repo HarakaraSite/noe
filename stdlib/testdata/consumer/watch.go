@@ -20,8 +20,8 @@ func watchFilesystem(ctx context.Context) error {
 		return err
 	}
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[watch consumer]", Virtual: true, Module: true, Code: `
-import fs from "node:fs";
-import {watch} from "node:fs/promises";
+import fs from "noe:fs";
+import {watch} from "noe:fs";
 let denied;try{fs.writeFileSync("config","denied")}catch(error){denied=error}
 if(denied?.code!=="ERR_READ_ONLY")throw Error("watch profile lost read-only policy");
 {

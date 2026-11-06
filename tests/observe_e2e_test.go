@@ -42,7 +42,7 @@ func TestObserveRecordedRunThroughHumanCLIAndLogParser(t *testing.T) {
 		t.Fatalf("human output:\n%s", human.stdout)
 	}
 	encodedID, _ := json.Marshal(runID)
-	script := `import {readFile} from "node:fs/promises";
+	script := `import {readFile} from "noe:fs";
 import {analyze_log} from "noe:agent-log";
 const text=await readFile("events.jsonl","utf8");
 const first=analyze_log(text,{runId:` + string(encodedID) + `});

@@ -45,7 +45,7 @@ const {docs}=await import("noe:docs");console.log(docs("noe:http","fetch"));`,
 			}
 			code := fmt.Sprintf(`// Upload a stream only after consulting noe:http.fetch.
 import {fetch} from "noe:http";
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 const base=%q, output=%q;
 const storage=new Uint8Array([99,0,255,17,88]);
 let pull=0;

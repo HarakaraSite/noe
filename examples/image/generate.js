@@ -1,6 +1,6 @@
 import { generate_image } from "noe:image";
 import { dirname, resolve } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir } from "noe:fs";
 
 const [
   provider = "openrouter",

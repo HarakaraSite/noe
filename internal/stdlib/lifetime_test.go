@@ -177,7 +177,7 @@ func TestCloseReleasesBeforeReturning(t *testing.T) {
 			Env:   map[string]string{"GO_QUICKJS_HEARTBEAT": heartbeat, "SYSTEMROOT": os.Getenv("SYSTEMROOT")},
 		},
 		Workers: workerFiles(map[string]string{"./beat.mjs": `
-			import fs from "fs";
+			import fs from "noe:fs";
 			setInterval(() => fs.appendFileSync("/wbeat", "."), 5);`}),
 	}); err != nil {
 		t.Fatal(err)
@@ -197,7 +197,7 @@ func TestCloseReleasesBeforeReturning(t *testing.T) {
 		t.Fatal(err)
 	}
 	v, err := rt.Eval(fmt.Sprintf(`
-		import("fs").then(async ({default: fs}) => {
+		import("noe:fs").then(async ({default: fs}) => {
 			const reader = fs.createReadStream("/big.txt").getReader();
 			await reader.read();
 			slowDisk();

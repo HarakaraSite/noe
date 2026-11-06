@@ -1,5 +1,5 @@
 import { fetch } from "noe:http";
-import { writeFile } from "fs/promises";
+import { writeFile } from "noe:fs";
 
 // ./noe run --timeout 10s examples/http/download-file.js URL output-file
 const args = process.argv.slice(2);

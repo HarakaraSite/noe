@@ -1,5 +1,5 @@
 // Run with NOE. All HTTP requests use a stub; no real key or paid API is used.
-import {mkdtempSync, writeFileSync, rmSync} from "node:fs";
+import {mkdtempSync, writeFileSync, rmSync} from "noe:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {search, getContents} from "./exa.js";

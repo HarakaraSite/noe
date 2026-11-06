@@ -46,7 +46,7 @@
 | グループ | 現在の状態 | 残る検討 |
 | --- | --- | --- |
 | 1：プロセスと標準I/O | **完了**。`node:child_process.spawn`の子プロセスハンドルと`node:process`のホスト標準I/O Web Streams | [公開契約](process-io.md)・[実装記録](development/process-io-implementation.md)を参照 |
-| 2: Add APIs for specific needs | **Completed.** FileHandle operations are part of `node:fs/promises`; `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides OS signal subscriptions. | See the [current contracts](low-level-io.md) and the [original implementation record](development/low-level-group2-implementation.md). Filesystem [phase 1](development/stdlib-fs-integration.md) and [phase 2](development/stdlib-fs-basics.md) were released in [v2.13.0](releases/v2.13.0.md), including FileHandle stat/truncate/sync, creation/append flags, Dirent, and approved error/metadata normalization. |
+| 2: Add APIs for specific needs | **Completed.** FileHandle operations are part of `noe:fs`; `noe:sockets` provides TCP/Unix connections and listeners, and `noe:signals` provides OS signal subscriptions. | See the [current contracts](low-level-io.md) and the [original implementation record](development/low-level-group2-implementation.md). Filesystem [phase 1](development/stdlib-fs-integration.md) and [phase 2](development/stdlib-fs-basics.md) were released in [v2.13.0](releases/v2.13.0.md), including FileHandle stat/truncate/sync, creation/append flags, Dirent, and approved error/metadata normalization. |
 | 3：後続候補 | **未完了**。ファイル変更通知、端末操作 | ポーリングやCLIと比較。TTY判定・サイズ・raw mode・PTYは別々に評価 |
 
 `execFile`は既に非同期、ファイルの逐次I/Oも既存stdlibで利用可能です。第1グループの追加価値は実行中の入出力・終了観察・停止をハンドルで扱えることです。Ctrl+Cの取消しは既にあり、JSへのOSシグナル配送は別候補です。元QuickJSのfd番号・`dup`・readiness callbackの再現は要件にしません。
@@ -67,7 +67,7 @@ Node/npm/esbuildはbundleの事前作成に使い、実行時はNOEがJSを動�
 
 現在の説明対象は、go-quickjs v0.27.0由来のNOE管理stdlibです。`execFile`のPromise、fsのWeb Streams、Node形式Workerのtype option、spawnSyncの起動失敗時statusなどの差異も該当topicに説明しました。全APIの個別詳細や全差異の列挙は完了条件にせず、実際の誤用や利用用途を基に説明を追加します。この「一部完了」は継続改善の分類であり、上記の既知差異に未説明の固定残件があるという意味ではありません。
 
-照合根拠：[`stdlib-child_process.md`](../internal/apidocs/content/stdlib-child_process.md)・[`stdlib-fs.md`](../internal/apidocs/content/stdlib-fs.md)・[`stdlib-worker-threads.md`](../internal/apidocs/content/stdlib-worker-threads.md)と[`docs_test.go`](../internal/runtime/docs_test.go)。
+照合根拠：[`stdlib-child_process.md`](../internal/apidocs/content/stdlib-child_process.md)・[`noe-fs.md`](../internal/apidocs/content/noe-fs.md)・[`stdlib-worker-threads.md`](../internal/apidocs/content/stdlib-worker-threads.md)と[`docs_test.go`](../internal/runtime/docs_test.go)。
 
 ### <一部完了> Web検索と検索APIの認証ラッパー — 2026-10-17
 

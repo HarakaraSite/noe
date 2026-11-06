@@ -21,13 +21,13 @@ func TestHooksSharedProviderLimitReapsParallelRunJSProcess(t *testing.T) {
 	ready := filepath.Join(cwd, "child.pid")
 	wait := fmt.Sprintf(`// Keep an owned child process alive until group cancellation.
 const {spawn}=await import("node:child_process");
-const {writeFileSync}=await import("node:fs");
+const {writeFileSync}=await import("noe:fs");
 const child=await spawn("/bin/sh",["-c","exec sleep 60"],{stdin:"ignore",stdout:"ignore",stderr:"ignore"});
 writeFileSync(%q,String(child.pid));
 await child.exited;`, ready)
 	trip := fmt.Sprintf(`// Wait for the parallel child, then consume the shared model budget.
 import {run_agent} from "noe:agent";
-const {existsSync}=await import("node:fs");
+const {existsSync}=await import("noe:fs");
 while(!existsSync(%q)) await new Promise(resolve=>setTimeout(resolve,5));
 await run_agent({name:"budget-child"},"request beyond group budget");`, ready)
 	var calls atomic.Int32

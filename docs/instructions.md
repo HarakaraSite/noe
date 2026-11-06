@@ -75,7 +75,7 @@ An import map is separate and can be selected with `--import-map`. Adding Markdo
 `system` is a string. The caller can read and concatenate selected files in a chosen order:
 
 ```js
-import {readFile} from "node:fs/promises";
+import {readFile} from "noe:fs";
 import {run_agent} from "noe:agent";
 
 const files = ["./AGENTS.md", "./rules.md"];

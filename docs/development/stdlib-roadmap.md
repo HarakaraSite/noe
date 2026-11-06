@@ -1,5 +1,16 @@
 # Standard library integration and expansion roadmap
 
+The [API policy approved on 2026-11-06](stdlib-api-policy.md) governs new work:
+Web standards and usability take priority; NOE-specific host APIs use `noe:`
+names. Earlier phase decisions below are historical. The first policy
+application is the [migration to `noe:fs`](stdlib-noe-fs.md), followed by process
+and host-I/O naming, then HTTP helpers. Expansion phases remain available.
+
+The `noe:fs` migration is implemented and verified locally, unreleased. NOE's
+examples, hidden libraries, runtime/Worker fixtures, public Go consumers,
+types, and references use the single new entrance. noebot migration is being
+handled independently by its owner.
+
 [Development guide](README.md) · [Feature candidates](../future-candidates.md) · [Earlier txiki.js comparison](txikijs-comparison-20261024.md)
 
 2026-11-05. Proposed sequence for integrating NOE's standard-library APIs
@@ -140,8 +151,7 @@ consumers, are recorded in the [phase 1 validation](stdlib-fs-integration.md).
 
 Current filesystem contracts and implementation entry points:
 
-- [node:fs](../../internal/apidocs/content/stdlib-fs.md)
-- [node:fs/promises](../../internal/apidocs/content/stdlib-fs-promises.md)
+- [noe:fs](../../internal/apidocs/content/noe-fs.md)
 - [Shared filesystem backend](../../internal/filesystem/filesystem.go)
 - [Profile installation](../../internal/noestdlib/noestdlib.go)
 

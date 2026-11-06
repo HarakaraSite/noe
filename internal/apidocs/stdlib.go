@@ -10,7 +10,7 @@ package apidocs
 // NOE-maintained implementation and Object.keys(await import(...)) in NOE.
 func stdlibTopics() []topicSpec {
 	return []topicSpec{
-		{ID: "stdlib", Kind: "index", Summary: "The 26 built-in Node-style modules installed by NOE, their scope, and important runtime differences.", File: "stdlib.md"},
+		{ID: "stdlib", Kind: "index", Summary: "Built-in Node-style and NOE-specific modules, their scope, and important runtime differences.", File: "stdlib.md"},
 		{ID: "globals", Kind: "global", Summary: "Global APIs supplied by the pinned go-quickjs engine and NOE-maintained standard library, with streams, network, server, abort, and timer details.", File: "stdlib-globals.md"},
 		{ID: "node:assert", Kind: "module", Summary: "Synchronous assertion helpers for checking values and thrown errors.", File: "stdlib-assert.md", Aliases: []string{"assert"}},
 		{ID: "node:async_hooks", Kind: "module", Summary: "Tracks async execution context for values that must follow work across promises and timers.", File: "stdlib-async-hooks.md", Aliases: []string{"async_hooks"}},
@@ -20,8 +20,7 @@ func stdlibTopics() []topicSpec {
 		{ID: "node:dns", Kind: "module", Summary: "System resolver queries with callbacks; use node:dns/promises for Promise-based queries.", File: "stdlib-dns.md", Aliases: []string{"dns"}},
 		{ID: "node:dns/promises", Kind: "module", Summary: "Promise-oriented DNS resolver module.", File: "stdlib-dns-promises.md", Aliases: []string{"dns/promises"}},
 		{ID: "node:events", Kind: "module", Summary: "Provides a small EventEmitter implementation and a promise helper.", File: "stdlib-events.md", Aliases: []string{"events"}},
-		{ID: "node:fs", Kind: "module", Summary: "Reads and writes files synchronously or as Web Streams.", File: "stdlib-fs.md", Aliases: []string{"fs"}},
-		{ID: "node:fs/promises", Kind: "module", Summary: "Provides promise-returning file, metadata, and open-handle operations.", File: "stdlib-fs-promises.md", Aliases: []string{"fs/promises"}},
+		{ID: "noe:fs", Kind: "module", Summary: "Provides asynchronous and synchronous filesystem operations, open handles, async iteration for watching, and Web Streams.", File: "noe-fs.md"},
 		{ID: "node:http", Kind: "module", Summary: "Provides an HTTP server backed by the Web Request and Response APIs.", File: "stdlib-http.md", Aliases: []string{"http"}},
 		{ID: "node:os", Kind: "module", Summary: "Reports selected host system information.", File: "stdlib-os.md", Aliases: []string{"os"}},
 		{ID: "node:path", Kind: "module", Summary: "Computes path strings without reading the filesystem.", File: "stdlib-path.md", Aliases: []string{"path"}},

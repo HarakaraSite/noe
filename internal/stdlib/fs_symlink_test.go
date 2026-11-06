@@ -110,9 +110,9 @@ func TestFilesLinkEntries(t *testing.T) {
 						if rooted {
 							cfg.Root, path = root, "/"+parent
 						}
-						module, suffix := "fs", "Sync"
+						module, suffix := "noe:fs", "Sync"
 						if api == "promises" {
-							module, suffix = "fs/promises", ""
+							suffix = ""
 						}
 						out, _ := run(t, stdlib.Config{FS: cfg}, filesLinkScript(module, path, strings.ReplaceAll(tc.code, "$", suffix)))
 						if want := tc.output + "ok"; out != want {
@@ -185,9 +185,9 @@ func TestFilesLinkEntriesRefused(t *testing.T) {
 								t.Skipf("symlinks unavailable: %v", err)
 							}
 						}
-						module, suffix := "fs", "Sync"
+						module, suffix := "noe:fs", "Sync"
 						if api == "promises" {
-							module, suffix = "fs/promises", ""
+							suffix = ""
 						}
 						out, _ := run(t, stdlib.Config{FS: &stdlib.FS{Root: root, ReadOnly: readonly}}, filesLinkScript(module, path, strings.ReplaceAll(tc.code, "$", suffix)))
 						want := "outside the permitted root"
@@ -216,9 +216,9 @@ func TestFilesLinkEntriesReadOnlyReads(t *testing.T) {
 	for _, api := range []string{"sync", "promises"} {
 		t.Run(api, func(t *testing.T) {
 			root := filesLinkFixture(t)
-			module, suffix := "fs", "Sync"
+			module, suffix := "noe:fs", "Sync"
 			if api == "promises" {
-				module, suffix = "fs/promises", ""
+				suffix = ""
 			}
 			// The configured root itself may also be a symbolic link.
 			cfg := &stdlib.FS{Root: filepath.Join(root, "parent"), ReadOnly: true}

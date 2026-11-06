@@ -19,7 +19,7 @@ func TestStdlibBinaryFilesRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	source := `import {readFile, writeFile} from "node:fs/promises";
+	source := `import {readFile, writeFile} from "noe:fs";
 const first = await readFile(` + jsString(t, input) + `);
 const second = await readFile(` + jsString(t, input) + `);
 if (!(first instanceof Uint8Array) || first.length !== 256 || !first.every((value, index) => value === index)) throw Error("read bytes");

@@ -1,6 +1,6 @@
 // Filename discovery for NOE. No npm dependencies or shell invocation.
 import {spawn} from "node:child_process";
-import {lstat} from "node:fs/promises";
+import {lstat} from "noe:fs";
 import {relative, resolve} from "node:path";
 
 const encoder = new TextEncoder();

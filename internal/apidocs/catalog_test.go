@@ -111,13 +111,34 @@ func TestCatalogNavigationAndIsolation(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"noe:agent/api", "noe:agent/hooks", "noe:agent/internal", "noe:io", "node:net", "../../instructions.md"} {
+	for _, name := range []string{
+		"noe:agent/api", "noe:agent/hooks", "noe:agent/internal", "noe:io", "node:net",
+		"node:fs", "node:fs/promises", "fs", "fs/promises", "noe:fs-handle", "../../instructions.md",
+	} {
 		if _, err := Lookup(name, ""); err == nil {
 			t.Fatalf("unexpected public topic: %s", name)
 		}
 	}
-	if _, err := Lookup("node:fs", "unlistedMember"); err == nil || !strings.Contains(err.Error(), "does not imply an unsupported API") {
+	if _, err := Lookup("noe:fs", "unlistedMember"); err == nil || !strings.Contains(err.Error(), "does not imply an unsupported API") {
 		t.Fatal("missing detail must be distinguished from runtime support")
+	}
+	fsTopic := builtin.entries["noe:fs"]
+	if fsTopic == nil || len(fsTopic.info.Aliases) != 0 {
+		t.Fatal("filesystem reference must use the single noe:fs topic without aliases")
+	}
+	for _, detail := range []string{"open", "FileHandle.readAt", "FileHandle.writeAt", "watch", "createReadStream"} {
+		if _, err := Lookup("noe:fs", detail); err != nil {
+			t.Errorf("missing filesystem detail %s: %v", detail, err)
+		}
+	}
+	fsOverview, err := Lookup("noe:fs", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"`noe:fs`", "`chmod`", "`FileHandle.readAt`", "`FileHandle.writeAt`", "no `promises` property"} {
+		if !strings.Contains(fsOverview, marker) {
+			t.Errorf("filesystem reference overview omits %q", marker)
+		}
 	}
 	topics := Topics()
 	originalID := topics[0].ID

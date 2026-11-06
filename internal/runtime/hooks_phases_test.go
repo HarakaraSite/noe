@@ -68,7 +68,7 @@ func hookActivity(event events.Event) string { id, _ := event["activityId"].(str
 func TestHooksLogicalStepSelfSteerAndFinalCandidate(t *testing.T) {
 	cwd := t.TempDir()
 	logPath := filepath.Join(cwd, "hooks.jsonl")
-	common := fmt.Sprintf(`import {existsSync,readFileSync,writeFileSync} from "node:fs";
+	common := fmt.Sprintf(`import {existsSync,readFileSync,writeFileSync} from "noe:fs";
 const path=%q;
 function record(event) {
  if(!event.invocationId || !event.activityId || !event.groupId || !event.runId || !event.modelStepId || !event.hookId || event.role!=="root" || event.agentDepth!==0) throw Error("invalid hook metadata: "+JSON.stringify(event));
@@ -257,11 +257,11 @@ func hookToolReply(codes map[string]string, order ...string) provider.Response {
 func TestHooksParallelToolsPreserveRawFactsAndCallOrder(t *testing.T) {
 	cwd := t.TempDir()
 	gate := filepath.Join(cwd, "fast-complete")
-	hook := fmt.Sprintf(`import {writeFileSync} from "node:fs";
+	hook := fmt.Sprintf(`import {writeFileSync} from "noe:fs";
 export async function beforeTool(event) {
  const slow=event.toolCallId==="slow";
  const code="// Execute patched "+event.toolCallId+" tool.\n"+
-  'import {existsSync,writeFileSync} from "node:fs";\n'+
+  'import {existsSync,writeFileSync} from "noe:fs";\n'+
   (slow?'while(!existsSync('+JSON.stringify(%q)+')) await new Promise(resolve=>setTimeout(resolve,5));\n':'')+
   'console.log("raw '+event.toolCallId+'");';
  return {arguments:{code}};
@@ -400,7 +400,7 @@ func TestHooksFailurePreservesExecutedResultAndCompletesParallelTool(t *testing.
 	ready := filepath.Join(cwd, "waiting-tool-ready")
 	release := filepath.Join(cwd, "waiting-tool-release")
 	ran := filepath.Join(cwd, "executed-once")
-	writePhaseHook(t, cwd, "fails.mjs", fmt.Sprintf(`import {existsSync,writeFileSync} from "node:fs";
+	writePhaseHook(t, cwd, "fails.mjs", fmt.Sprintf(`import {existsSync,writeFileSync} from "noe:fs";
 export async function afterTool(event) {
  if(event.toolCallId!=="fails") return;
  while(!existsSync(%q)) await new Promise(resolve=>setTimeout(resolve,5));
@@ -408,10 +408,10 @@ export async function afterTool(event) {
  throw Error("after hook fixture failed");
 }`, ready, release))
 	failureCode := fmt.Sprintf(`// Record completed execution exactly once.
-import {existsSync,readFileSync,writeFileSync} from "node:fs";
+import {existsSync,readFileSync,writeFileSync} from "noe:fs";
 const path=%q;writeFileSync(path,(existsSync(path)?readFileSync(path,"utf8"):"")+"x");console.log("actual success");`, ran)
 	waitCode := fmt.Sprintf(`// Complete after the sibling hook releases this parallel tool.
-import {existsSync,writeFileSync} from "node:fs";
+import {existsSync,writeFileSync} from "noe:fs";
 writeFileSync(%q,"ready");while(!existsSync(%q)) await new Promise(resolve=>setTimeout(resolve,5));
 console.log("sibling success");`, ready, release)
 	var mu sync.Mutex
@@ -529,7 +529,7 @@ func TestHooksInterruptReapsStuckCallbackAndOwnedChild(t *testing.T) {
 			cwd := t.TempDir()
 			ready := filepath.Join(cwd, "hook-ready.json")
 			writePhaseHook(t, cwd, "recovered.mjs", `export function beforeModelRequest(){throw Error("recover before cancellation");}`)
-			writePhaseHook(t, cwd, "stuck.mjs", fmt.Sprintf(`import {writeFileSync} from "node:fs";
+			writePhaseHook(t, cwd, "stuck.mjs", fmt.Sprintf(`import {writeFileSync} from "noe:fs";
 export async function beforeModelRequest(event,api) {
  const {agentId}=await api.agents.spawn_agent({name:"hung-hook-child",hooks:[]},undefined,{keepAlive:true});
  writeFileSync(%q,JSON.stringify({agentId,runId:event.runId,commandId:event.commandId}));
@@ -548,7 +548,7 @@ export async function beforeModelRequest(event,api) {
 			settings := agentTestOptions(p)
 			settings.Observe = func(event events.Event) { eventMu.Lock(); observed = append(observed, event); eventMu.Unlock() }
 			source := fmt.Sprintf(`import {spawn_agent,observe_agent,stop_agent,cancel_task} from "noe:agent";
-import {existsSync,readFileSync} from "node:fs";
+import {existsSync,readFileSync} from "noe:fs";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",hooks:["./recovered.mjs","./stuck.mjs"]},"interrupt stuck hook");
 while(!existsSync(%q)) await new Promise(resolve=>setTimeout(resolve,5));
 const ready=JSON.parse(readFileSync(%q,"utf8"));
@@ -619,7 +619,7 @@ func TestHooksApplySteersBeforeAndDuringPreparationWithoutRefiring(t *testing.T)
 		"moduleReady": filepath.Join(cwd, "module-ready"), "moduleRelease": filepath.Join(cwd, "module-release"),
 		"hookReady": filepath.Join(cwd, "hook-ready"), "hookRelease": filepath.Join(cwd, "hook-release"),
 	})
-	writePhaseHook(t, cwd, "gates.mjs", fmt.Sprintf(`import {existsSync,writeFileSync} from "node:fs";
+	writePhaseHook(t, cwd, "gates.mjs", fmt.Sprintf(`import {existsSync,writeFileSync} from "noe:fs";
 const paths=%s;
 writeFileSync(paths.moduleReady,"ready");
 while(!existsSync(paths.moduleRelease)) await new Promise(resolve=>setTimeout(resolve,5));
@@ -642,7 +642,7 @@ export async function beforeModelRequest(event) {
 	settings := agentTestOptions(p)
 	settings.Observe = func(event events.Event) { eventMu.Lock(); observed = append(observed, event); eventMu.Unlock() }
 	source := fmt.Sprintf(`import {spawn_agent,observe_agent,steer_agent} from "noe:agent";
-import {existsSync,writeFileSync,readFileSync} from "node:fs";
+import {existsSync,writeFileSync,readFileSync} from "noe:fs";
 const paths=%s;
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:1,hooks:["./gates.mjs"]},"initial");
 while(!existsSync(paths.moduleReady)) await new Promise(resolve=>setTimeout(resolve,5));

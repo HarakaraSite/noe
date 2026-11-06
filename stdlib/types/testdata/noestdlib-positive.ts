@@ -7,18 +7,21 @@ import {createHash, randomBytes} from "crypto";
 import dns, {lookup as lookupCallback, resolve4 as resolve4Callback} from "node:dns";
 import * as dnsPromises from "dns/promises";
 import {EventEmitter, once} from "events";
-import fs, {promises as fsPromises, readFileSync, statSync} from "node:fs";
-import {watch as watchFiles} from "node:fs";
-import {watch as watchFileEvents, WatchEvent, WatchIterator} from "node:fs/promises";
-import fsPromisesDefault, {
-  FileHandleRead,
-  FileHandleReadOptions,
-  FileHandleWrite,
-  FileSystemError,
-  open as nodeFsOpen,
-} from "node:fs/promises";
-import {FileHandle, open as bareFsOpen, readFile, readdir} from "fs/promises";
-import bareFsPromisesDefault from "fs/promises";
+import fs, * as noeFs from "noe:fs";
+import {
+  appendFile,
+  chmod,
+  open as openFile,
+  readFile,
+  readdir,
+  watch,
+  type FileHandle,
+  type FileHandleFlags,
+  type FileHandleOpenOptions,
+  type FileSystemError,
+  type WatchEvent,
+  type WatchIterator,
+} from "noe:fs";
 import {serve as nodeServe} from "node:http";
 import {platform, cpus} from "os";
 import path, {join, posix} from "node:path";
@@ -50,8 +53,6 @@ const cryptoAlias: typeof import("crypto") = undefined as unknown as typeof impo
 const dnsAlias: typeof import("dns") = undefined as unknown as typeof import("node:dns");
 const dnsPromisesAlias: typeof import("dns/promises") = undefined as unknown as typeof import("node:dns/promises");
 const eventsAlias: typeof import("events") = undefined as unknown as typeof import("node:events");
-const fsAlias: typeof import("fs") = undefined as unknown as typeof import("node:fs");
-const fsPromisesAlias: typeof import("fs/promises") = undefined as unknown as typeof import("node:fs/promises");
 const httpAlias: typeof import("http") = undefined as unknown as typeof import("node:http");
 const osAlias: typeof import("os") = undefined as unknown as typeof import("node:os");
 const pathAlias: typeof import("path") = undefined as unknown as typeof import("node:path");
@@ -113,9 +114,9 @@ lookupCallback("", (_error, address) => {
     void noAddress;
   }
 });
-const fileText: string = readFileSync("README.md", "utf8");
-const fileBytes: Uint8Array = readFileSync("README.md");
-const fileSize: number = statSync("README.md").size;
+const fileText: string = fs.readFileSync("README.md", "utf8");
+const fileBytes: Uint8Array = fs.readFileSync("README.md");
+const fileSize: number = fs.statSync("README.md").size;
 const asyncText: Promise<string> = readFile("README.md", "utf8");
 const names: Promise<string[]> = readdir(".");
 const server = nodeServe({port: 0}, request => Response.json({path: new URL(request.url).pathname}));
@@ -145,7 +146,7 @@ const worker = new NodeWorker("./worker.mjs", {name: "fixture", env: WORKER_SHAR
 const exitCode: Promise<number | undefined> = worker.terminate();
 const zipped: Uint8Array = gzipSync(bytes);
 
-const docsText: string = docs("node:fs/promises", "open");
+const docsText: string = docs("noe:fs", "open");
 const standardStreams: ProcessStdio = {stdin: processInput, stdout: processOutput, stderr: processError};
 const inputStream: ReadableStream<Uint8Array> = processInput;
 const outputStream: WritableStream<Uint8Array> = processOutput;
@@ -205,32 +206,18 @@ async function sqliteTypeFixture(): Promise<void> {
 void sqliteTypeFixture;
 const noeServer = noeServe(request => Response.json({url: request.url}));
 noeServer.close();
-const fileHandle: FileHandle = await nodeFsOpen("README.md");
-const bareFsPromiseOpen: typeof nodeFsOpen = bareFsOpen;
-const namedNodeFsPromiseOpen: typeof nodeFsOpen = fs.promises.open;
-const namedNodeFsPromisesImportOpen: typeof nodeFsOpen = fsPromises.open;
-const defaultNodeFsPromiseOpen: typeof nodeFsOpen = fsPromisesDefault.open;
-const defaultBareFsPromiseOpen: typeof nodeFsOpen = bareFsPromisesDefault.open;
+const fileHandle: FileHandle = await openFile("README.md");
+const namedModuleOpen: typeof openFile = noeFs.open;
+const defaultModuleOpen: typeof openFile = fs.open;
+const fileHandleFlags: FileHandleFlags = "r+";
+const fileHandleOpenOptions: FileHandleOpenOptions = {flags: fileHandleFlags, mode: 0o600};
 const readBuffer = new Uint8Array(8);
-const fileRead = await fileHandle.read(readBuffer, 0, readBuffer.byteLength, 0);
-const sameReadBuffer: Uint8Array = fileRead.buffer;
-const optionRead = await fileHandle.read(readBuffer, {offset: 1, length: 2, position: 1});
-const sameOptionReadBuffer: Uint8Array = optionRead.buffer;
-const defaultRead = await fileHandle.read();
-const defaultReadBuffer: Uint8Array = defaultRead.buffer;
-const dataView = new DataView(new ArrayBuffer(4));
-const viewOptions: FileHandleReadOptions<DataView> = {buffer: dataView, offset: 0, length: 4, position: 0};
-const viewRead = await fileHandle.read(viewOptions);
-const typedViewRead: FileHandleRead<DataView> = viewRead;
-const sameDataView: DataView = viewRead.buffer;
-const readCount: number = fileRead.bytesRead;
-const byteWrite = await fileHandle.write(readBuffer, {offset: 0, length: 2, position: 0});
-const sameWriteBuffer: Uint8Array = byteWrite.buffer;
-const positionalWrite = await fileHandle.write(readBuffer, 0, 2, 0);
-const samePositionalWriteBuffer: Uint8Array = positionalWrite.buffer;
-const textWrite = await fileHandle.write("text", 0, "utf-8");
-const typedTextWrite: FileHandleWrite<string> = textWrite;
-const sameText: string = textWrite.buffer;
+const fileRead: Uint8Array = await fileHandle.read(readBuffer.byteLength);
+const positionalRead: Uint8Array = await fileHandle.readAt(1, 2);
+const readAtEOF: Uint8Array = await fileHandle.readAt(0, 0);
+const byteWrite: number = await fileHandle.write(readBuffer);
+const positionalWrite: number = await fileHandle.writeAt(0, readBuffer.subarray(0, 2));
+const textWrite: number = await fileHandle.write("text");
 await fileHandle.close();
 const socketConnect = connect({network: "tcp", host: "127.0.0.1", port: 9000});
 const socketListener = listen({network: "unix", path: "/tmp/noe.sock"});
@@ -263,22 +250,21 @@ clearTimeout(timerId);
 const currentPid: number = process.pid;
 
 void [assertAlias, asyncHooksAlias, bufferAlias, childProcessAlias, cryptoAlias, dnsAlias, dnsPromisesAlias,
-  eventsAlias, fsAlias, fsPromisesAlias, httpAlias, osAlias, pathAlias, pathPosixAlias, pathWin32Alias,
+  eventsAlias, httpAlias, osAlias, pathAlias, pathPosixAlias, pathWin32Alias,
   processAlias, querystringAlias, streamWebAlias, stringDecoderAlias, timersAlias, timersPromisesAlias,
   urlAlias, utilAlias, vmAlias, workerAlias, zlibAlias, bufferValue, hash, random, command, binaryOutput,
   fileText, fileBytes, fileSize, asyncText, names, hostPlatform, cpuCount, resolvedPath, winPath, posixPath,
   currentDirectory, tagValues, decoded, timerResult, fileURL, lengthPromise, vmValue, exitCode, zipped, plainOutput, v4Records, resolverServers, binaryCommand, binaryShell,
   widenedFileOutput, widenedShellOutput, widenedSyncOutput, generalEncodingOutput, optionalBufferOutput, definiteBufferedOutput, definiteTextOutput,
-  docsText, ownedStatus, fetched, readCount, sameReadBuffer, sameOptionReadBuffer, defaultReadBuffer, sameDataView,
+  docsText, ownedStatus, fetched,
   defaultSpawn, canonicalDefaultSpawn, bareChildTypeMatches, canonicalOptions,
-  typedViewRead, sameWriteBuffer, samePositionalWriteBuffer, typedTextWrite, sameText,
-  bareFsPromiseOpen, namedNodeFsPromiseOpen, namedNodeFsPromisesImportOpen,
-  defaultNodeFsPromiseOpen, defaultBareFsPromiseOpen,
+  namedModuleOpen, defaultModuleOpen, fileHandleOpenOptions,
+  fileRead, positionalRead, readAtEOF, byteWrite, positionalWrite, textWrite,
   socketConnect, socketListener, response, parsedBody, streamChunk,
   digest, compressed, transformed, currentPid];
 
 // FileHandle metadata, resizing, and durable flush are promise operations.
-const openCreated = await nodeFsOpen("created.bin", "wx+", 0o600);
+const openCreated = await openFile("created.bin", {flags: "wx+", mode: 0o600});
 const handleInfo: NOEStdlib.FileInfo = await openCreated.stat();
 const handleMtime: Date = handleInfo.mtime;
 const handleMtimeMs: number = handleInfo.mtimeMs;
@@ -302,11 +288,13 @@ const isEntryFile: boolean | undefined = asyncDirents[0]?.isFile();
 const variableDirents: string[] | NOEStdlib.Dirent[] = fs.readdirSync(".", {withFileTypes: Math.random() > 0.5});
 void [handleInfo, handleMtime, handleMtimeMs, fileKindBits, filePermissionBits, filesystemError,
   entryNames, entryParent, isEntryFile, variableDirents];
+await appendFile("notes.txt", "more\n");
+await chmod("notes.txt", 0o600);
 
 // Combined cancellation and the engine's explicit resource-management syntax.
 const combinedSignal: AbortSignal = AbortSignal.any(new Set([new AbortController().signal, AbortSignal.abort("stop")]));
 async function managedResources(): Promise<void> {
-  const {open} = await import("node:fs/promises");
+  const {open} = await import("noe:fs");
   const {spawn} = await import("node:child_process");
   const {listen, connect} = await import("noe:sockets");
   const {subscribe} = await import("noe:signals");
@@ -321,25 +309,17 @@ async function managedResources(): Promise<void> {
 }
 void [combinedSignal, managedResources];
 
-// Watch callbacks and iterators retain their selected filename representation.
-const watchedText = watchFiles(".", (_type, filename) => { const text: string | null = filename; void text; });
-const watchedBytes = watchFiles(".", {encoding: "buffer", persistent: false}, (_type, filename) => {
-  const bytes: import("node:buffer").Buffer | null = filename; void bytes;
-});
-watchedText.on("change", (_type, filename) => { const text: string | null = filename; void text; });
-watchedBytes.unref().ref().close();
-const watchedStringEncoding = fs.watch(".", "utf-8");
-const watchedIterator: WatchIterator = watchFileEvents(".", {signal: AbortSignal.any([]), maxQueue: 32, overflow: "error"});
-const watchedBufferIterator: WatchIterator<import("node:buffer").Buffer> = fsPromises.watch(".", "buffer");
+// Watch iterators retain their selected filename representation.
+const watchedIterator: WatchIterator = watch(".", {signal: AbortSignal.any([]), maxQueue: 32, overflow: "error"});
+const watchedBufferIterator: WatchIterator<import("node:buffer").Buffer> = watch(".", "buffer");
 for await (const event of watchedIterator) { const typed: WatchEvent = event; void typed; break; }
 await watchedBufferIterator.return();
 await watchedIterator.close();
 {
-  await using scopedWatcher = watchedText;
-  await using scopedEvents = watchFileEvents(".", {recursive: false});
-  void [scopedWatcher, scopedEvents];
+  await using scopedEvents = watch(".", {recursive: false});
+  void scopedEvents;
 }
-void watchedStringEncoding;
+void watchedBufferIterator;
 
 // NOE adds optional handshake headers without changing the protocols slot.
 const websocketOptions: WebSocketOptions = {headers: {Authorization: "Bearer fixture"}};

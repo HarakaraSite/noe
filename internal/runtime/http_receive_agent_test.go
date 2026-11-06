@@ -21,7 +21,7 @@ func TestNoeHTTPReceiveAgentRunJSSavesResultClosesServerAndAnswers(t *testing.T)
 	dir := t.TempDir()
 	artifact := filepath.Join(dir, "receive-result.json")
 	code := fmt.Sprintf(`import {fetch} from "noe:http";
-import {writeFile} from "node:fs/promises";
+import {writeFile} from "noe:fs";
 const fixture=%q, output=%q;
 let resolveReceived;
 const received=new Promise(resolve=>{resolveReceived=resolve;});

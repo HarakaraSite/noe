@@ -39,7 +39,7 @@ declare namespace NOEStdlib {
     syscall?: string;
     bytesRead?: number;
     bytesWritten?: number;
-    buffer?: ArrayBufferView | string;
+    data?: Uint8Array;
   }
 
   interface FileInfo {
@@ -352,27 +352,16 @@ declare namespace NOEStdlib {
   interface FileWriteOptions { flags?: string }
   type FileData = string | Uint8Array | ArrayBuffer | ArrayBufferView;
   type FileHandleFlags = "r" | "r+" | "w" | "wx" | "w+" | "wx+" | "a" | "ax" | "a+" | "ax+";
-  interface FileHandleIOOptions { offset?: number; length?: number; position?: number | null }
-  interface FileHandleReadOptions<B extends ArrayBufferView = Uint8Array> extends FileHandleIOOptions {
-    buffer?: B;
-  }
-  interface FileHandleRead<B extends ArrayBufferView = Uint8Array> { bytesRead: number; buffer: B }
-  type FileHandleWriteOptions = FileHandleIOOptions;
-  interface FileHandleWrite<B extends ArrayBufferView | string = ArrayBufferView | string> {
-    bytesWritten: number;
-    buffer: B;
-  }
+  interface FileHandleOpenOptions { flags?: FileHandleFlags; mode?: number }
   interface FileHandle {
     [Symbol.asyncDispose](): Promise<void>;
     stat(): Promise<FileInfo>;
     truncate(length?: number): Promise<void>;
     sync(): Promise<void>;
-    read<B extends ArrayBufferView>(buffer: B, offset?: number, length?: number, position?: number | null): Promise<FileHandleRead<B>>;
-    read<B extends ArrayBufferView>(buffer: B, options?: FileHandleIOOptions): Promise<FileHandleRead<B>>;
-    read<B extends ArrayBufferView = Uint8Array>(options?: FileHandleReadOptions<B>): Promise<FileHandleRead<B>>;
-    write<B extends ArrayBufferView>(buffer: B, offset?: number, length?: number, position?: number | null): Promise<FileHandleWrite<B>>;
-    write<B extends ArrayBufferView>(buffer: B, options?: FileHandleIOOptions): Promise<FileHandleWrite<B>>;
-    write(text: string, position?: number | null, encoding?: "utf8" | "utf-8"): Promise<FileHandleWrite<string>>;
+    read(length?: number): Promise<Uint8Array>;
+    readAt(position: number, length: number): Promise<Uint8Array>;
+    write(data: string | ArrayBufferView): Promise<number>;
+    writeAt(position: number, data: string | ArrayBufferView): Promise<number>;
     close(): Promise<void>;
   }
   type WatchEncoding = "utf8" | "utf-8" | "buffer";
@@ -386,36 +375,18 @@ declare namespace NOEStdlib {
     overflow?: "ignore" | "error";
     throwIfNoEntry?: true;
   }
-  type WatchListener<T = string> = (eventType: WatchEventType, filename: T | null) => void;
   interface WatchEvent<T = string> { eventType: WatchEventType; filename: T | null }
-  interface FSWatcher<T = string> extends EventEmitter {
-    close(): void;
-    ref(): this;
-    unref(): this;
-    [Symbol.asyncDispose](): Promise<void>;
-    on(name: "change", listener: WatchListener<T>): this;
-    on(name: PropertyKey, listener: EventCallback): this;
-    once(name: "change", listener: WatchListener<T>): this;
-    once(name: PropertyKey, listener: EventCallback): this;
-  }
   interface WatchIterator<T = string> extends AsyncIterableIterator<WatchEvent<T>> {
     close(): Promise<void>;
     return(value?: unknown): Promise<IteratorResult<WatchEvent<T>>>;
     [Symbol.asyncDispose](): Promise<void>;
   }
   interface FSWatch {
-    (path: string, listener: WatchListener): FSWatcher;
-    (path: string, options?: WatchOptions<"utf8" | "utf-8"> | "utf8" | "utf-8" | null, listener?: WatchListener): FSWatcher;
-    (path: string, options: (WatchOptions<"buffer"> & {encoding: "buffer"}) | "buffer", listener?: WatchListener<Buffer>): FSWatcher<Buffer>;
-    (path: string, options: WatchOptions<WatchEncoding> | WatchEncoding | null, listener?: WatchListener<string | Buffer>): FSWatcher<string | Buffer>;
-  }
-  interface FSPromisesWatch {
     (path: string, options?: WatchOptions<"utf8" | "utf-8"> | "utf8" | "utf-8" | null): WatchIterator;
     (path: string, options: (WatchOptions<"buffer"> & {encoding: "buffer"}) | "buffer"): WatchIterator<Buffer>;
     (path: string, options: WatchOptions<WatchEncoding> | WatchEncoding | null): WatchIterator<string | Buffer>;
   }
-  interface FSModule {
-    readonly Dirent: DirentConstructor;
+  interface FileSystemSyncAPI {
     appendFileSync(path: string, data: FileData): void;
     chmodSync(path: string, mode: number): void;
     copyFileSync(from: string, to: string): void;
@@ -438,17 +409,17 @@ declare namespace NOEStdlib {
     statSync(path: string): FileInfo;
     unlinkSync(path: string): void;
     writeFileSync(path: string, data: FileData): void;
-    readonly watch: FSWatch;
-    readonly promises: FSPromisesAPI;
   }
-  interface FSPromisesAPI {
-    readonly watch: FSPromisesWatch;
+  interface FSModule extends FileSystemSyncAPI {
+    readonly Dirent: DirentConstructor;
+    readonly watch: FSWatch;
     appendFile(path: string, data: FileData): Promise<void>;
+    chmod(path: string, mode: number): Promise<void>;
     copyFile(from: string, to: string): Promise<void>;
-    open(path: string, flags?: FileHandleFlags, mode?: number): Promise<FileHandle>;
     lstat(path: string): Promise<FileInfo>;
     mkdir(path: string, options?: {recursive?: boolean}): Promise<void>;
     mkdtemp(prefix: string): Promise<string>;
+    open(path: string, options?: FileHandleOpenOptions): Promise<FileHandle>;
     readFile(path: string): Promise<Uint8Array>;
     readFile(path: string, encoding: string | {encoding: string}): Promise<string>;
     readdir(path: string, options?: {withFileTypes?: false}): Promise<string[]>;
@@ -1353,16 +1324,39 @@ declare module "node:events" {
   export import once = NOEStdlib.once;
   export default EventEmitter;
 }
-declare module "node:fs" {
-  export type FSWatcher<T = string> = NOEStdlib.FSWatcher<T>;
-  export type WatchOptions<E extends NOEStdlib.WatchEncoding = "utf8"> = NOEStdlib.WatchOptions<E>;
-  export type WatchEventType = NOEStdlib.WatchEventType;
-  export const watch: NOEStdlib.FSWatch;
+declare module "noe:fs" {
   export type Dirent = NOEStdlib.Dirent;
   export const Dirent: NOEStdlib.DirentConstructor;
-  export type FileInfo = NOEStdlib.FileInfo; export type FileSystemError = NOEStdlib.FileSystemError; export type FileData = NOEStdlib.FileData;
-  export type FileReadOptions = NOEStdlib.FileReadOptions; export type FileWriteOptions = NOEStdlib.FileWriteOptions;
-  export type FSPromisesAPI = NOEStdlib.FSPromisesAPI;
+  export type FileInfo = NOEStdlib.FileInfo;
+  export type FileSystemError = NOEStdlib.FileSystemError;
+  export type FileData = NOEStdlib.FileData;
+  export type FileReadOptions = NOEStdlib.FileReadOptions;
+  export type FileWriteOptions = NOEStdlib.FileWriteOptions;
+  export type FileHandle = NOEStdlib.FileHandle;
+  export type FileHandleFlags = NOEStdlib.FileHandleFlags;
+  export type FileHandleOpenOptions = NOEStdlib.FileHandleOpenOptions;
+  export type WatchOptions<E extends NOEStdlib.WatchEncoding = "utf8"> = NOEStdlib.WatchOptions<E>;
+  export type WatchEvent<T = string> = NOEStdlib.WatchEvent<T>;
+  export type WatchEventType = NOEStdlib.WatchEventType;
+  export type WatchIterator<T = string> = NOEStdlib.WatchIterator<T>;
+  export const watch: NOEStdlib.FSWatch;
+  export const appendFile: NOEStdlib.FSModule["appendFile"];
+  export const chmod: NOEStdlib.FSModule["chmod"];
+  export const copyFile: NOEStdlib.FSModule["copyFile"];
+  export const lstat: NOEStdlib.FSModule["lstat"];
+  export const mkdir: NOEStdlib.FSModule["mkdir"];
+  export const mkdtemp: NOEStdlib.FSModule["mkdtemp"];
+  export const open: NOEStdlib.FSModule["open"];
+  export const readFile: NOEStdlib.FSModule["readFile"];
+  export const readdir: NOEStdlib.FSModule["readdir"];
+  export const readlink: NOEStdlib.FSModule["readlink"];
+  export const realpath: NOEStdlib.FSModule["realpath"];
+  export const rename: NOEStdlib.FSModule["rename"];
+  export const rm: NOEStdlib.FSModule["rm"];
+  export const rmdir: NOEStdlib.FSModule["rmdir"];
+  export const stat: NOEStdlib.FSModule["stat"];
+  export const unlink: NOEStdlib.FSModule["unlink"];
+  export const writeFile: NOEStdlib.FSModule["writeFile"];
   export const appendFileSync: NOEStdlib.FSModule["appendFileSync"];
   export const chmodSync: NOEStdlib.FSModule["chmodSync"];
   export const copyFileSync: NOEStdlib.FSModule["copyFileSync"];
@@ -1382,40 +1376,7 @@ declare module "node:fs" {
   export const statSync: NOEStdlib.FSModule["statSync"];
   export const unlinkSync: NOEStdlib.FSModule["unlinkSync"];
   export const writeFileSync: NOEStdlib.FSModule["writeFileSync"];
-  export const promises: NOEStdlib.FSPromisesAPI;
   const api: NOEStdlib.FSModule;
-  export default api;
-}
-declare module "node:fs/promises" {
-  export type WatchOptions<E extends NOEStdlib.WatchEncoding = "utf8"> = NOEStdlib.WatchOptions<E>;
-  export type WatchEvent<T = string> = NOEStdlib.WatchEvent<T>;
-  export type WatchIterator<T = string> = NOEStdlib.WatchIterator<T>;
-  export const watch: NOEStdlib.FSPromisesWatch;
-  export type Dirent = NOEStdlib.Dirent;
-  export type FileInfo = NOEStdlib.FileInfo; export type FileSystemError = NOEStdlib.FileSystemError; export type FileData = NOEStdlib.FileData;
-  export type FileHandle = NOEStdlib.FileHandle; export type FileHandleFlags = NOEStdlib.FileHandleFlags;
-  export type FileHandleIOOptions = NOEStdlib.FileHandleIOOptions;
-  export type FileHandleRead<B extends ArrayBufferView = Uint8Array> = NOEStdlib.FileHandleRead<B>;
-  export type FileHandleReadOptions<B extends ArrayBufferView = Uint8Array> = NOEStdlib.FileHandleReadOptions<B>;
-  export type FileHandleWrite<B extends ArrayBufferView | string = ArrayBufferView | string> = NOEStdlib.FileHandleWrite<B>;
-  export type FileHandleWriteOptions = NOEStdlib.FileHandleWriteOptions;
-  export const appendFile: NOEStdlib.FSPromisesAPI["appendFile"];
-  export const copyFile: NOEStdlib.FSPromisesAPI["copyFile"];
-  export const open: NOEStdlib.FSPromisesAPI["open"];
-  export const lstat: NOEStdlib.FSPromisesAPI["lstat"];
-  export const mkdir: NOEStdlib.FSPromisesAPI["mkdir"];
-  export const mkdtemp: NOEStdlib.FSPromisesAPI["mkdtemp"];
-  export const readFile: NOEStdlib.FSPromisesAPI["readFile"];
-  export const readdir: NOEStdlib.FSPromisesAPI["readdir"];
-  export const readlink: NOEStdlib.FSPromisesAPI["readlink"];
-  export const realpath: NOEStdlib.FSPromisesAPI["realpath"];
-  export const rename: NOEStdlib.FSPromisesAPI["rename"];
-  export const rm: NOEStdlib.FSPromisesAPI["rm"];
-  export const rmdir: NOEStdlib.FSPromisesAPI["rmdir"];
-  export const stat: NOEStdlib.FSPromisesAPI["stat"];
-  export const unlink: NOEStdlib.FSPromisesAPI["unlink"];
-  export const writeFile: NOEStdlib.FSPromisesAPI["writeFile"];
-  const api: NOEStdlib.FSPromisesAPI;
   export default api;
 }
 declare module "node:http" {
@@ -1614,7 +1575,7 @@ declare module "node:zlib" {
   const api: NOEStdlib.ZlibAPI; export default api;
 }
 
-/* The 26 reserved bare specifiers are aliases for their node:-prefixed forms. */
+/* Reserved bare specifiers alias their node:-prefixed forms. */
 declare module "assert" { export * from "node:assert"; export {default} from "node:assert"; }
 declare module "async_hooks" { export * from "node:async_hooks"; export {default} from "node:async_hooks"; }
 declare module "buffer" { export * from "node:buffer"; export {default} from "node:buffer"; }
@@ -1623,8 +1584,6 @@ declare module "crypto" { export * from "node:crypto"; export {default} from "no
 declare module "dns" { export * from "node:dns"; export {default} from "node:dns"; }
 declare module "dns/promises" { export * from "node:dns/promises"; export {default} from "node:dns/promises"; }
 declare module "events" { export * from "node:events"; export {default} from "node:events"; }
-declare module "fs" { export * from "node:fs"; export {default} from "node:fs"; }
-declare module "fs/promises" { export * from "node:fs/promises"; export {default} from "node:fs/promises"; }
 declare module "http" { export * from "node:http"; export {default} from "node:http"; }
 declare module "os" { export * from "node:os"; export {default} from "node:os"; }
 declare module "path" { export * from "node:path"; export {default} from "node:path"; }

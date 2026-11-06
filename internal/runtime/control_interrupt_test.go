@@ -92,7 +92,7 @@ func TestPublicCancelTaskKeepsKeepAliveAndQueuedTasks(t *testing.T) {
 		eventMu.Unlock()
 	}
 	source := fmt.Sprintf(`import {spawn_agent,queue_agent,observe_agent,cancel_task,stop_agent} from "noe:agent";
-import {existsSync} from "node:fs";
+import {existsSync} from "noe:fs";
 const providerStarted=%q;
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"run-interrupt",effort:"auto"},undefined,{keepAlive:true});
 for(const [instruction,commandId] of [["hold until interrupted","hold"],["continue one","next"],["continue two","last"]]) await queue_agent({agentId,instruction,commandId});
@@ -187,7 +187,7 @@ func TestPublicStopAgentCancelsBusyTaskAndQueue(t *testing.T) {
 		}
 	}
 	source := fmt.Sprintf(`import {spawn_agent,queue_agent,observe_agent,stop_agent} from "noe:agent";
-import {existsSync} from "node:fs";
+import {existsSync} from "noe:fs";
 const providerStarted=%q;
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"agent-interrupt",effort:"auto"},undefined,{keepAlive:true});
 for(const [instruction,commandId] of [["block instance","busy"],["cancel queued one","queued-1"],["cancel queued two","queued-2"]]) await queue_agent({agentId,instruction,commandId});
@@ -305,7 +305,7 @@ func TestPublicCancelTaskRejectsAfterFinalCommit(t *testing.T) {
 		}
 	}
 	source := fmt.Sprintf(`import {spawn_agent,observe_agent,cancel_task} from "noe:agent";
-import {writeFileSync,existsSync} from "node:fs";
+import {writeFileSync,existsSync} from "noe:fs";
 const {agentId,commandId}=await spawn_agent({provider:"openrouter",model:"fixture/model",name:"final-interrupt",effort:"auto"},"finish normally");
 let snapshot;
 for(let i=0;i<10000;i++){snapshot=await observe_agent({agentId});if(snapshot.currentRunId)break;await new Promise(resolve=>setTimeout(resolve,1));}

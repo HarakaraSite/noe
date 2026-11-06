@@ -1,4 +1,4 @@
-import {readdir, lstat, readFile, writeFile, mkdir} from "node:fs/promises";
+import {readdir, lstat, readFile, writeFile, mkdir} from "noe:fs";
 import {join, resolve, dirname} from "node:path";
 
 function integer(value, minimum, name) {

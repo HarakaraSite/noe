@@ -246,13 +246,13 @@ func TestScopesAndMarshalJSONAreIndependentRoundTrip(t *testing.T) {
 
 func TestReservedBuiltinsBypassGlobalAndScopedPrefixes(t *testing.T) {
 	base := t.TempDir()
-	snapshot, err := Parse([]byte(`{"imports":{"fs/":"./fake-fs/","node":"./fake-node/","noe":"./fake-noe/"},"scopes":{"./app/":{"fs/":"./scoped-fs/"}}}`), base)
+	snapshot, err := Parse([]byte(`{"imports":{"dns/":"./fake-dns/","node":"./fake-node/","noe":"./fake-noe/"},"scopes":{"./app/":{"dns/":"./scoped-dns/"}}}`), base)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, test := range []struct{ specifier, referrer string }{
-		{"fs/promises", filepath.Join(base, "app", "main.js")},
-		{"fs/promises", filepath.Join(base, "outside.js")},
+		{"dns/promises", filepath.Join(base, "app", "main.js")},
+		{"dns/promises", filepath.Join(base, "outside.js")},
 		{"node:fs", filepath.Join(base, "outside.js")},
 		{"noe:agent", filepath.Join(base, "outside.js")},
 	} {

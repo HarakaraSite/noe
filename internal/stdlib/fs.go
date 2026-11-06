@@ -40,26 +40,19 @@ type FS struct {
 	Loop *Loop
 }
 
-// Files installs "fs" and "fs/promises", including their "node:" aliases.
+// Files installs the single "noe:fs" module. Async operations are direct
+// named exports alongside explicit synchronous helpers:
 //
-// The synchronous half is what node calls readFileSync and friends; the
-// promise half is fs.promises, and also the default export's promises
-// property, so the shapes a program is written against both work:
+//	import {readFile, writeFile, readFileSync} from "noe:fs"
+//	const text = await readFile("in.txt", "utf8")
+//	writeFileSync("out.txt", text)
 //
-//	import fs from "fs"
-//	const text = fs.readFileSync("in.txt", "utf8")
-//	await fs.promises.writeFile("out.txt", text)
+// Files can also be read and written a piece at a time, or exposed as web
+// streams:
 //
-// A file can also be read and written a piece at a time, which is what serving
-// something larger than memory needs:
-//
-//	new Response(fs.createReadStream("big.bin"))
-//
-// Those two are the web's streams rather than node's -- there are no node
-// streams here -- so they are read with for-await and joined with pipeTo.
-//
-// A path is a string; contents are a string when an encoding is given and a
-// Uint8Array when it is not, which is what node does with Buffer.
+//	const file = await open("big.bin")
+//	const bytes = await file.read(16384)
+//	new Response(createReadStream("big.bin"))
 func Files(rt *quickjs.Runtime, cfg *FS) error {
 	if cfg == nil {
 		cfg = &FS{}
@@ -106,10 +99,6 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	if err != nil {
 		return err
 	}
-	watchPromises, err := watchAPI.Get("watchPromises")
-	if err != nil {
-		return err
-	}
 
 	sync := map[string]any{
 		"readFileSync": func(p string, enc quickjs.Value) (any, error) {
@@ -137,12 +126,11 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 		"mkdtempSync":  func(p string) (string, error) { v, err := f.mkdtemp(p); return filesystemResult(f, v, err) },
 	}
 
-	// The promise half runs the same operations, named as node names them. Each
-	// reads what it needs out of the runtime here and then does its work with
-	// plain Go data, which is what lets the work happen off this goroutine.
-	promises := map[string]any{
+	// Async operations are named exports on noe:fs. Each reads what it needs
+	// from the runtime and then works with plain Go data off this goroutine.
+	async := map[string]any{
 		"open":  open,
-		"watch": watchPromises,
+		"watch": watch,
 		"readFile": func(p string, enc quickjs.Value) *quickjs.Promise {
 			text := encodingOf(enc) != ""
 			return f.promise(func() (any, error) {
@@ -202,6 +190,9 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 		"readlink": func(p string) *quickjs.Promise {
 			return f.promise(func() (any, error) { return f.readlink(p) })
 		},
+		"chmod": func(p string, mode float64) *quickjs.Promise {
+			return f.promise(func() (any, error) { return nil, f.chmod(p, mode) })
+		},
 		"mkdtemp": func(prefix string) *quickjs.Promise {
 			return f.promise(func() (any, error) { return f.mkdtemp(prefix) })
 		},
@@ -227,10 +218,12 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 		return err
 	}
 
-	exports := make(map[string]any, len(sync)+5)
+	exports := make(map[string]any, len(sync)+len(async)+4)
 	exports["Dirent"] = dirent
-	exports["watch"] = watch
 	for k, v := range sync {
+		exports[k] = v
+	}
+	for k, v := range async {
 		exports[k] = v
 	}
 	for _, name := range []string{"createReadStream", "createWriteStream"} {
@@ -240,20 +233,30 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 		}
 		exports[name] = v
 	}
-	exports["promises"] = promises
-	def := copyExports(exports)
-	exports["default"] = def
+	exports["default"] = copyExports(exports)
+	return setFSModule(rt, exports)
+}
 
-	if err := setNodeModule(rt, "fs", exports); err != nil {
-		return err
+func setFSModule(rt *quickjs.Runtime, exports map[string]any) error {
+	values := make(map[string]quickjs.Value, len(exports))
+	for name, value := range exports {
+		if name == "default" {
+			continue
+		}
+		encoded, err := rt.Encode(value)
+		if err != nil {
+			return err
+		}
+		values[name] = encoded
 	}
-	// fs/promises is a module of its own, as it is in node.
-	pexports := make(map[string]any, len(promises)+1)
-	for k, v := range promises {
-		pexports[k] = v
+	if value, ok := exports["default"]; ok {
+		def, err := nodeDefault(rt, value, values)
+		if err != nil {
+			return err
+		}
+		values["default"] = def
 	}
-	pexports["default"] = copyExports(pexports)
-	return setNodeModule(rt, "fs/promises", pexports)
+	return rt.SetModuleValues("noe:fs", values)
 }
 
 // fsHost keeps JS conversion separate from the shared Go filesystem.

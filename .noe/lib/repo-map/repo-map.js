@@ -1,5 +1,5 @@
 // Language-independent repository overview for NOE. Reads names/metadata only.
-import {existsSync, lstatSync, readdirSync, statSync} from "node:fs";
+import {existsSync, lstatSync, readdirSync, statSync} from "noe:fs";
 import {resolve, join} from "node:path";
 import process from "node:process";
 import {spawn} from "node:child_process";

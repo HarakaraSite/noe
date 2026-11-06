@@ -74,7 +74,7 @@ func TestImageRunJSAutoAttachmentAndQueueContinuation(t *testing.T) {
 		calls++
 		if calls == 1 {
 			return decisionTool(`// Read the image without logging its metadata
-const {read_image}=await import("noe:image");await read_image(` + string(encodedPath) + `);const fs=await import("node:fs");fs.writeFileSync(` + string(encodedPath) + `,"changed");`), nil
+const {read_image}=await import("noe:image");await read_image(` + string(encodedPath) + `);const fs=await import("noe:fs");fs.writeFileSync(` + string(encodedPath) + `,"changed");`), nil
 		}
 		urls := runtimeImageParts(r.Messages)
 		if len(urls) != 1 {

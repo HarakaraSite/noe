@@ -245,7 +245,7 @@ console.log("committed result proof");`}, "completed-tool"), nil
 					return provider.Response{}, errors.New("fixture provider failure")
 				}
 				return hookToolReply(map[string]string{"incomplete-tool": fmt.Sprintf(`// Wait for interruption.
-import {writeFileSync} from "node:fs";
+import {writeFileSync} from "noe:fs";
 writeFileSync(%q,"ready");
 await new Promise(resolve=>setTimeout(resolve,30000));`, started)}, "incomplete-tool"), nil
 			})
@@ -257,7 +257,7 @@ const ack=await cancel_task({agentId,commandId:active.currentCommandId});
 if(ack.status!=="accepted")throw Error(JSON.stringify(ack));`, started)
 			}
 			source := `import {spawn_agent,queue_agent,observe_agent,stop_agent,cancel_task} from "noe:agent";
-import {existsSync} from "node:fs";
+import {existsSync} from "noe:fs";
 const {agentId}=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",maxSteps:2},"original unfinished task",{keepAlive:true});
 await queue_agent({agentId,instruction:"resume after interruption or failure",commandId:"resume"});
 ` + interrupt + `

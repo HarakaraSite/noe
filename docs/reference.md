@@ -5,7 +5,7 @@
 ```sh
 noe docs
 noe docs stdlib
-noe docs node:fs
+noe docs noe:fs
 noe docs node:child_process execFile
 noe docs noe:sockets connect
 ```
@@ -13,8 +13,8 @@ noe docs noe:sockets connect
 引数なしで全canonical topic IDとkind・短い概要・CLI/JSの参照方法を載せた一覧、topicを指定すると概要と詳細memberの一覧、memberも指定するとtopic名・短い概要・該当する型宣言/availabilityの条件と指定detailを表示します。member取得では全overviewや他memberの説明を繰り返しません。返却objectの操作も、表示されたIDで参照できます。
 
 ```sh
-noe docs node:fs/promises open
-noe docs node:fs/promises FileHandle.read
+noe docs noe:fs open
+noe docs noe:fs FileHandle.read
 noe docs noe:sockets Connection.close
 ```
 
@@ -23,10 +23,10 @@ noe docs noe:sockets Connection.close
 ```js
 import { docs } from "noe:docs";
 console.log(docs());
-console.log(docs("node:fs/promises", "FileHandle.read"));
+console.log(docs("noe:fs", "FileHandle.read"));
 ```
 
-`docs()`は同期でMarkdown文字列を返します。全文を一度に読む必要はありません。module概要で用途と制約を確認し、必要なmemberを選んでください。`fs`などの対応するbare名も`node:fs`と同じ本文を返します。
+`docs()`は同期でMarkdown文字列を返します。全文を一度に読む必要はありません。module概要で用途と制約を確認し、必要なmemberを選んでください。For remaining Node-style modules, documented bare aliases return the same reference. Filesystem access uses only `noe:fs`.
 
 stdlibは全対応moduleの概要とexport一覧を収録し、よく使うAPIから個別詳細を整備しています。個別詳細が未収録でも、そのAPIが未対応とは限りません。未登録のtopic/memberでは、CLIはstderrに説明を出して終了コード2、JSは`code: "ERR_DOC_NOT_FOUND"`のErrorをthrowします。JSで引数型が違う場合はTypeErrorです。
 
@@ -47,10 +47,10 @@ docsの索引は両方を案内します。情報取得で対象moduleを実行�
 ```sh
 noe docs noe:run_js files
 noe docs noe:run_js agents
-noe docs node:fs readdirSync
+noe docs noe:fs readdirSync
 ```
 
-agentの初期指示にも、よく使う操作の短い例とNode互換APIの注意点を含めています。`readdirSync`/`readdir`は文字列配列を返し、Nodeの`withFileTypes`には対応しません。型の判定には`statSync`/`stat`を使います。`process.cwd()`はglobalまたはdefault importした`process`から呼びます。`execFile`は既にPromiseを返すので、`promisify`やcallbackは不要です。
+The agent instructions include common operations and API differences. `noe:fs.readdirSync`/`readdir` return names by default; `{withFileTypes:true}` returns Dirent objects with type predicates.`process.cwd()`はglobalまたはdefault importした`process`から呼びます。`execFile`は既にPromiseを返すので、`promisify`やcallbackは不要です。
 
 ## HTTPの契約を調べる
 

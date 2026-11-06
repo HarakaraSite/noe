@@ -13,8 +13,6 @@ var standardLibraryBareModules = map[string]struct{}{
 	"dns":             {},
 	"dns/promises":    {},
 	"events":          {},
-	"fs":              {},
-	"fs/promises":     {},
 	"http":            {},
 	"os":              {},
 	"path":            {},

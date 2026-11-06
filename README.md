@@ -14,6 +14,11 @@ Run NOE from the command line, or embed its runtime and agents directly
 in your Go application. Powered by QuickJS through go-quickjs.
 No C toolchain required.
 
+NOE prioritizes Web standards and convenient host APIs. Standard Web APIs use
+their standard names; NOE-specific host APIs use explicit `noe:` modules.
+See the [standard library API policy](docs/development/stdlib-api-policy.md)
+and the [filesystem migration](docs/development/stdlib-noe-fs.md).
+
 ## What you can do
 
 - **Automate with JavaScript.** Work with files, HTTP, streams, and
@@ -70,7 +75,7 @@ The examples below assume the repository root is your working directory.
 
 Use `eval` for short checks and `run` for scripts. Scripts support ES modules, `async/await`, files, Fetch, HTTP serving, and child processes. See the [examples](examples/README.md) for JSON processing, reports, downloads, and more.
 
-Read the English API reference bundled with your executable using `./noe docs`, `./noe docs node:fs`, or `./noe docs noe:sockets connect`. Scripts and agents can read the same reference through `import { docs } from "noe:docs"`.
+Read the English API reference bundled with your executable using `./noe docs`, `./noe docs noe:fs`, or `./noe docs noe:sockets connect`. Scripts and agents can read the same reference through `import { docs } from "noe:docs"`.
 
 ## Run an agent
 

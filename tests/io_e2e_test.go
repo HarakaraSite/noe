@@ -310,7 +310,7 @@ func TestFilesystemPromisesDirectoryAndStatMetadataThroughCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := filepath.Join(work, "metadata.js")
-	writeFixture(t, script, `import {readdir,stat,lstat} from "node:fs/promises";
+	writeFixture(t, script, `import {readdir,stat,lstat} from "noe:fs";
 const entries = await readdir(".");
 const nested = await readdir("folder");
 const empty = await readdir("empty");
@@ -381,8 +381,8 @@ func TestFilesystemErrorsThroughCLI(t *testing.T) {
 	for _, tc := range []struct {
 		name, source, marker string
 	}{
-		{name: "readdir", source: `import {readdir} from "node:fs/promises"; await readdir("missing-directory");`, marker: "missing-directory"},
-		{name: "stat", source: `import {stat} from "node:fs/promises"; await stat("missing-file");`, marker: "missing-file"},
+		{name: "readdir", source: `import {readdir} from "noe:fs"; await readdir("missing-directory");`, marker: "missing-directory"},
+		{name: "stat", source: `import {stat} from "noe:fs"; await stat("missing-file");`, marker: "missing-file"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			script := filepath.Join(t.TempDir(), "failure.js")
