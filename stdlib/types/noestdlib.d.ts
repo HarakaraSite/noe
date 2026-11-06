@@ -1041,6 +1041,8 @@ declare namespace NOEStdlib {
   interface WebSocketUpgrade { socket: WebSocket; response: Response & {readonly upgrade: string; readonly protocol?: string} }
   function upgradeWebSocket(request: Request, options?: HTTPUpgradeOptions): WebSocketUpgrade;
 
+  /** NOE extension: request headers for the opening handshake. */
+  interface WebSocketOptions { headers?: HeadersInit | null }
   interface WebSocketMessageEvent extends Event { data: string | ArrayBuffer | Blob; origin: string }
   interface WebSocketCloseEvent extends Event { code: number; reason: string; wasClean: boolean }
   interface WebSocketErrorEvent extends Event { error: unknown; message: string }
@@ -1067,7 +1069,7 @@ declare namespace NOEStdlib {
     close(code?: number, reason?: string): void;
   }
   interface WebSocketConstructor {
-    new(url: string | null, protocols?: string | readonly string[]): WebSocket;
+    new(url: string | null, protocols?: string | readonly string[], options?: WebSocketOptions | null): WebSocket;
     readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSING: 2; readonly CLOSED: 3;
   }
 
@@ -1670,6 +1672,7 @@ interface DecompressionStream extends NOEStdlib.DecompressionStream {}
 declare var DecompressionStream: NOEStdlib.DecompressionStreamConstructor;
 interface Worker extends NOEStdlib.Worker {}
 declare var Worker: NOEStdlib.WorkerConstructor;
+type WebSocketOptions = NOEStdlib.WebSocketOptions;
 interface WebSocket extends NOEStdlib.WebSocket {}
 declare var WebSocket: NOEStdlib.WebSocketConstructor;
 interface CryptoKey extends NOEStdlib.CryptoKey {}

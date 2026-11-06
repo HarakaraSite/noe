@@ -388,7 +388,7 @@ const server = serve({ port: 8080 }, async request => {
 console.log(server.url);
 ```
 
-リクエスト本文はWeb Request APIで読み、応答は必ずResponseで返します。JSONの応答には`Response.json(value)`を使えます。従来のglobal fetch/serveと`node:http`・`http`のserveも維持しています。Request・Response・StreamsとWebSocketは既存globalを共有します。WebSocketはWebSocket APIと、サーバー側では`serve`を通じて利用できます。
+リクエスト本文はWeb Request APIで読み、応答は必ずResponseで返します。JSONの応答には`Response.json(value)`を使えます。従来のglobal fetch/serveと`node:http`・`http`のserveも維持しています。Request・Response・StreamsとWebSocketは既存globalを共有します。WebSocketはWebSocket APIと、サーバー側では`serve`を通じて利用できます。 NOE adds `new WebSocket(url, protocols, {headers})` for explicit handshake headers, including Authorization and Origin; this optional third argument works in Workers and Go embedding. See the [header contract](development/stdlib-websocket-headers.md).
 
 `server.close()`は同期的に受付を停止し、処理中のHTTPリクエスト終了を最大5秒待った後、残る接続を強制終了します。停止を求めるリクエスト自身のハンドラーから同期的に呼ぶと、そのハンドラーの完了を待つことになります。応答が完了した後の別の処理から呼んでください。これは旧`noe.serve()`の非同期停止とは異なる動作です。
 

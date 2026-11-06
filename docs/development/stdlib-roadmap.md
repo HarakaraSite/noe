@@ -23,10 +23,13 @@ cancellation, and resource cleanup. Phase 6 source maps are committed as
 `baa984d` and locally verified, but not released; see the
 [source map record](stdlib-source-maps.md). Mapping is enabled by default as
 approved by the user. Phase 7 local and HTTP JSON/text/bytes imports and import-map
-prefixes/scopes are implemented, verified, and committed, but not released.
+prefixes/scopes are committed as `fd8702b` and verified, but not released.
 See the [module-loading record](stdlib-module-loading.md), including the
 approved HTTP raw-body policy and its MIME/UTF-8/BOM compatibility changes.
-The next planned phase is Web Crypto expansion (phase 8).
+The user chose to defer Web Crypto (phase 8) until concrete SDK requirements
+justify an algorithm/key-format addition. Phase 9.1 custom WebSocket
+headers are committed and locally verified, but unreleased; EventSource follows separately, while WebSocketStream remains
+use-case driven. See the [header implementation record](stdlib-websocket-headers.md).
 The v2.14.0 consumer rollout is covered by the
 [noebot migration instructions](noebot-v2.14.0-migration.md).
 

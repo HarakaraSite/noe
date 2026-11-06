@@ -172,3 +172,12 @@ fs.promises.watch(".", {maxQueue: "large"});
 fs.promises.watch(".", {overflow: "discard"});
 // @ts-expect-error buffer filenames are not strings
 const wrongWatchIterator: AsyncIterableIterator<{eventType: "change" | "rename"; filename: string | null}> = fs.promises.watch(".", "buffer");
+
+// @ts-expect-error handshake options are the third argument, not protocols
+new WebSocket("wss://example.test", {headers: {Authorization: "Bearer fixture"}});
+// @ts-expect-error header values must be strings in typed code
+new WebSocket("wss://example.test", undefined, {headers: {Authorization: 42}});
+// @ts-expect-error header entries must contain exactly a name and a value
+new WebSocket("wss://example.test", undefined, {headers: [["X-Test"]]});
+// @ts-expect-error the constructor does not expose a JavaScript TLS override
+new WebSocket("wss://example.test", undefined, {tls: {rejectUnauthorized: false}});

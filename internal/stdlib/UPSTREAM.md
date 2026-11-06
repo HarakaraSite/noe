@@ -219,6 +219,17 @@ testdata/pathcorpus_node.js
     text/compression streams. The public declarations include the transformer's
     cancel hook. These are NOE-local changes.
 
+18. WebSocket accepts a NOE-specific optional third constructor argument
+    `{headers}`. Records, iterable pairs, and Headers are normalized on the
+    runtime owner and copied into one connection's Go header map before
+    asynchronous work. HTTP name/value validation and handshake-owned fields
+    are checked before allocation. The HTTP handshake appends custom fields
+    through `http.Header.Write`. Protocol names now require token syntax
+    before entering their generated field. Existing URL policy, TLS,
+    lifecycle, and Worker profile wiring apply. See the
+    [implementation record](../../docs/development/stdlib-websocket-headers.md).
+    No upstream request or engine change is part of this addition.
+
 The initial snapshot import did not intentionally change HTTP behavior, body
 limits, timeouts, module names, exports, or protocols. Subsequent NOE-local
 changes should be recorded here with their rationale and validation. Upstream

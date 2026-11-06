@@ -308,3 +308,11 @@ await watchedIterator.close();
   void [scopedWatcher, scopedEvents];
 }
 void watchedStringEncoding;
+
+// NOE adds optional handshake headers without changing the protocols slot.
+const websocketOptions: WebSocketOptions = {headers: {Authorization: "Bearer fixture"}};
+new WebSocket("wss://example.test", ["chat.v1"], websocketOptions);
+new WebSocket("wss://example.test", undefined, {headers: new Headers({Origin: "https://app.test"})});
+new WebSocket("wss://example.test", "chat.v1", {headers: [["X-Test", "value"]]});
+new WebSocket("wss://example.test", undefined, {headers: new Map<string, string>([["X-Test", "value"]])});
+new WebSocket("wss://example.test", undefined, {headers: null});

@@ -109,6 +109,29 @@ that avoids running application initialization twice. A self-helper instead
 requires every dependency init function to be safe to run again. Other helper
 executables can use the same dispatcher. Windows uses Job Objects.
 
+## WebSocket handshake headers
+
+Select `Modules.WebSockets` with a URL `Allow` callback. JavaScript can then
+use the NOE extension `new WebSocket(url, protocols, {headers})` to supply
+Authorization, Origin, Cookie, or application-specific request fields. Omit
+subprotocols with `undefined`. Headers are a per-constructor snapshot of a
+record, iterable of name/value pairs, or Headers instance.
+
+```js
+const socket = new WebSocket("wss://example.com/feed", undefined, {
+  headers: { Authorization: "Bearer <token>" }
+});
+```
+
+The existing Go WebSockets options provide URL policy, TLS configuration,
+message limits, and handshake timeout. Custom headers use that same
+configuration in main runtimes and Workers; selecting Fetch is independent.
+The handshake owns Host, Connection, Upgrade, its Sec-WebSocket negotiation
+fields, and HTTP body-framing fields. Invalid or managed headers throw before
+a connection is allocated; invalid protocol tokens throw SyntaxError.
+See the [implementation and compatibility record](development/stdlib-websocket-headers.md)
+for the exact owned-field list and supported shapes.
+
 ## Load local modules
 
 `stdlib.FileLoader(imports)` returns a `LoaderFactory` that creates a fresh

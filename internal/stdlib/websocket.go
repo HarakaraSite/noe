@@ -152,7 +152,7 @@ func (h *wsHost) limit() int {
 // connect opens a socket to a URL and hands back the object the script drives
 // it through. The dialling happens on another goroutine, so the call returns
 // before the connection exists and the script waits on opened.
-func (h *wsHost) connect(rawURL string, protocols quickjs.Value) (quickjs.Value, error) {
+func (h *wsHost) connect(rawURL string, protocols, headerPairs quickjs.Value) (quickjs.Value, error) {
 	target, err := url.Parse(rawURL)
 	if err != nil {
 		return quickjs.Value{}, h.rt.Throw(h.rt.NewError("SyntaxError",
@@ -163,6 +163,16 @@ func (h *wsHost) connect(rawURL string, protocols quickjs.Value) (quickjs.Value,
 	default:
 		return quickjs.Value{}, h.rt.Throw(h.rt.NewError("SyntaxError",
 			"a socket needs a ws: or wss: URL, not "+target.Scheme+":"))
+	}
+	headers, err := readWebSocketHeaders(headerPairs)
+	if err != nil {
+		return quickjs.Value{}, h.rt.Throw(h.rt.NewError("TypeError", err.Error()))
+	}
+	names := stringsOf(protocols)
+	for _, name := range names {
+		if !webSocketHeaderToken(name) {
+			return quickjs.Value{}, h.rt.Throw(h.rt.NewError("SyntaxError", "invalid WebSocket protocol name"))
+		}
 	}
 	if h.cfg.Allow == nil {
 		return quickjs.Value{}, h.rt.Throw(h.rt.NewError("Error",
@@ -176,7 +186,6 @@ func (h *wsHost) connect(rawURL string, protocols quickjs.Value) (quickjs.Value,
 	if err != nil {
 		return quickjs.Value{}, err
 	}
-	names := stringsOf(protocols)
 	timeout := h.cfg.HandshakeTimeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
@@ -188,7 +197,7 @@ func (h *wsHost) connect(rawURL string, protocols quickjs.Value) (quickjs.Value,
 	loop.Begin()
 	if err := loop.Go(func(ctx context.Context) {
 		defer loop.Done()
-		conn, protocol, err := dialWebSocket(ctx, target, names, timeout, tlsCfg, limit)
+		conn, protocol, err := dialWebSocket(ctx, target, names, headers, timeout, tlsCfg, limit)
 		var removeConnCleanup func()
 		if err == nil && conn != nil {
 			if scope := loop.executionScope(); scope != nil {
@@ -511,7 +520,7 @@ func (s *socket) releaseLoop() {
 
 // dialWebSocket opens the connection and does the handshake. It touches no
 // JavaScript value, which is what lets it run on another goroutine.
-func dialWebSocket(ctx context.Context, target *url.URL, protocols []string, timeout time.Duration, tlsCfg *tls.Config, limit int) (*wsproto.Conn, string, error) {
+func dialWebSocket(ctx context.Context, target *url.URL, protocols []string, headers http.Header, timeout time.Duration, tlsCfg *tls.Config, limit int) (*wsproto.Conn, string, error) {
 	host := target.Host
 	if target.Port() == "" {
 		if target.Scheme == "wss" {
@@ -552,6 +561,10 @@ func dialWebSocket(ctx context.Context, target *url.URL, protocols []string, tim
 	if len(protocols) > 0 {
 		fmt.Fprintf(&req, "Sec-WebSocket-Protocol: %s\r\n", strings.Join(protocols, ", "))
 	}
+	if err := headers.Write(&req); err != nil {
+		conn.Close()
+		return nil, "", err
+	}
 	req.WriteString("\r\n")
 	if _, err := conn.Write([]byte(req.String())); err != nil {
 		conn.Close()
@@ -587,7 +600,7 @@ const webSocketJS = `(function (host) {
   const CONNECTING = 0, OPEN = 1, CLOSING = 2, CLOSED = 3;
 
   class WebSocket extends EventTarget {
-    constructor(url, protocols) {
+    constructor(url, protocols, options = {}) {
       super();
       this.url = url === null ? "" : String(url);
       this.readyState = CONNECTING;
@@ -603,7 +616,8 @@ const webSocketJS = `(function (host) {
       this.onclose = null;
       if (url !== null) {
         this._drive(host.connect(this.url, protocols === undefined ? []
-          : (Array.isArray(protocols) ? protocols : [String(protocols)])));
+          : (Array.isArray(protocols) ? protocols.map(value => String(value)) : [String(protocols)]),
+          requestHeaders(options)));
       }
     }
 
@@ -672,6 +686,32 @@ const webSocketJS = `(function (host) {
       };
       this._handle.close(this._closing.code, this._closing.reason);
     }
+  }
+
+  // Snapshot headers before connecting; only Go strings leave this runtime.
+  function requestHeaders(options) {
+    if (options == null) return [];
+    if (typeof options !== "object" && typeof options !== "function") {
+      throw new TypeError("WebSocket options must be an object");
+    }
+    const headers = options.headers;
+    if (headers == null) return [];
+    if (typeof headers !== "object" && typeof headers !== "function") {
+      throw new TypeError("WebSocket headers must be a record or iterable of pairs");
+    }
+    const iterator = headers[Symbol.iterator];
+    if (iterator != null) {
+      if (typeof iterator !== "function") throw new TypeError("WebSocket headers must be iterable");
+      return Array.from({[Symbol.iterator]() { return Reflect.apply(iterator, headers, []); }}, pair => {
+        if (pair === null || (typeof pair !== "object" && typeof pair !== "function")) {
+          throw new TypeError("WebSocket header entries must be pairs");
+        }
+        const values = Array.from(pair);
+        if (values.length !== 2) throw new TypeError("WebSocket header entries must be pairs");
+        return [String(values[0]), String(values[1])];
+      });
+    }
+    return Object.entries(headers).map(([name, value]) => [name, String(value)]);
   }
 
   // The browsers throw an InvalidStateError here, a DOMException -- or,

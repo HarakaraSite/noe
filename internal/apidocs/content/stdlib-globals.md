@@ -167,13 +167,45 @@ Handler failures produce a 500 response; options.onError may return a Response. 
 
 ## WebSocket
 
-Syntax: new WebSocket(url, protocols?). It opens a WebSocket connection, reports open/message/error/close events, and sends text or binary messages with send(data). close(code = 1000, reason = "") starts closing. The default binaryType is arraybuffer.
+Syntax: new WebSocket(url, protocols?, options?). It opens a WebSocket connection, reports open/message/error/close events, and sends text or binary messages with send(data). close(code = 1000, reason = "") starts closing. The default binaryType is arraybuffer.
 
 ~~~js
 const socket = new WebSocket("wss://example.com/feed");
 socket.addEventListener("open", () => socket.send("hello"));
 socket.addEventListener("message", (event) => console.log(event.data));
 ~~~
+
+NOE adds an optional third argument `{headers}` for the opening handshake.
+Keep the second argument for subprotocols, using `undefined` when none are
+needed. Headers may be a record, an iterable of name/value pairs, or a
+Headers instance. They are copied synchronously, so later changes do not
+affect the connection. Header iteration/coercion exceptions propagate before
+connecting. This is a NOE extension to the browser constructor.
+
+~~~js
+const socket = new WebSocket("wss://example.com/feed", ["chat.v1"], {
+  headers: {
+    Authorization: "Bearer <token>",
+    Origin: "https://app.example",
+  },
+});
+~~~
+
+Names must be HTTP tokens. Values reject CR, LF, NUL, and other HTTP control
+bytes except HTAB; leading/trailing spaces and tabs are trimmed. Invalid
+headers throw TypeError before permission checks or connection allocation,
+and these validation errors omit header values. Host, Connection, Upgrade,
+Sec-WebSocket-Key, Sec-WebSocket-Version, Sec-WebSocket-Protocol,
+Sec-WebSocket-Extensions, Content-Length, Transfer-Encoding, and Trailer
+are generated or owned by the handshake and cannot be supplied here.
+Use url and protocols for the corresponding connection fields. Duplicate
+pair entries are sent as repeated fields; Headers uses its own iteration
+semantics. Invalid protocol tokens throw SyntaxError before connecting.
+
+The selected WebSockets URL policy, TLS configuration, handshake timeout,
+and runtime ownership also apply to connections with custom headers. Custom
+headers work in Workers and embedded profiles with WebSockets selected,
+independently of fetch. Credentials are supplied explicitly by the script.
 
 A WebSocket carries complete protocol messages, not raw TCP bytes. NOE enables outbound WebSockets. For a server, use serve with upgradeWebSocket(request) and return the provided 101 Response; the helper requires an HTTP server in the same runtime. Close the socket when it is no longer needed.
 
