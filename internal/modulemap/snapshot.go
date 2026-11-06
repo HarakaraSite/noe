@@ -1,5 +1,5 @@
 // Package modulemap resolves local and HTTP/HTTPS ECMAScript modules using
-// immutable import-map snapshots. It implements only exact bare mappings.
+// immutable import-map snapshots with bare mappings and scopes.
 package modulemap
 
 import (
@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // Snapshot is an immutable, absolute-target import map. Its entries are kept
@@ -16,6 +17,7 @@ import (
 type Snapshot struct {
 	virtual bool
 	imports map[string]string
+	scopes  map[string]map[string]string
 }
 
 // Load reads and validates an import map. Relative targets are resolved from
@@ -53,7 +55,7 @@ func parse(data []byte, baseDir string, virtual bool) (*Snapshot, error) {
 
 	fields := make([]string, 0, len(object))
 	for name := range object {
-		if name != "imports" {
+		if name != "imports" && name != "scopes" {
 			fields = append(fields, name)
 		}
 	}
@@ -73,46 +75,88 @@ func parse(data []byte, baseDir string, virtual bool) (*Snapshot, error) {
 
 	imports := make(map[string]string)
 	if raw, exists := object["imports"]; exists {
-		entries, ok := raw.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("import map field %q must be an object", "imports")
+		var err error
+		imports, err = parseMappings(raw, base, virtual, "import map imports")
+		if err != nil {
+			return nil, err
 		}
-		keys := make([]string, 0, len(entries))
-		for key := range entries {
+	}
+
+	scopes := make(map[string]map[string]string)
+	if raw, exists := object["scopes"]; exists {
+		rawScopes, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("import map field %q must be an object", "scopes")
+		}
+		keys := make([]string, 0, len(rawScopes))
+		for key := range rawScopes {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
-			value, ok := entries[key].(string)
-			if !ok {
-				return nil, fmt.Errorf("import map key %q target must be a string", key)
-			}
-			if err := validateImportKey(key); err != nil {
-				return nil, fmt.Errorf("import map key %q: %w", key, err)
-			}
-			resolve := resolveTarget
-			if virtual {
-				resolve = virtualTarget
-			}
-			target, err := resolve(value, base)
+			normalized, err := canonicalScope(key, base, virtual)
 			if err != nil {
-				return nil, fmt.Errorf("import map key %q target %q: %w", key, value, err)
+				return nil, fmt.Errorf("import map scope %q: %w", key, err)
 			}
-			imports[key] = target
+			if _, exists := scopes[normalized]; exists {
+				return nil, fmt.Errorf("import map scopes contain duplicate normalized key %q", normalized)
+			}
+			mappings, err := parseMappings(rawScopes[key], base, virtual, "import map scope "+fmt.Sprintf("%q", key))
+			if err != nil {
+				return nil, err
+			}
+			scopes[normalized] = mappings
 		}
 	}
-	return &Snapshot{imports: imports, virtual: virtual}, nil
+	return &Snapshot{imports: imports, scopes: scopes, virtual: virtual}, nil
+}
+
+func parseMappings(raw any, base string, virtual bool, context string) (map[string]string, error) {
+	entries, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s must be an object", context)
+	}
+	mappings := make(map[string]string, len(entries))
+	keys := make([]string, 0, len(entries))
+	for key := range entries {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		value, ok := entries[key].(string)
+		if !ok {
+			return nil, fmt.Errorf("%s key %q target must be a string", context, key)
+		}
+		if err := validateImportKey(key); err != nil {
+			return nil, fmt.Errorf("%s key %q: %w", context, key, err)
+		}
+		target, err := resolveMappingTarget(value, base, virtual, strings.HasSuffix(key, "/"))
+		if err != nil {
+			return nil, fmt.Errorf("%s key %q target %q: %w", context, key, value, err)
+		}
+		mappings[key] = target
+	}
+	return mappings, nil
 }
 
 // Resolve turns an import specifier into its canonical local path or HTTP/HTTPS
-// module ID. A bare specifier must have an exact entry in this snapshot.
+// module ID, using the most specific matching scope before top-level imports.
 func (s *Snapshot) Resolve(specifier, referrer string) (string, error) {
 	if specifier == "" {
 		return "", fmt.Errorf("module specifier is empty")
 	}
-	if s != nil {
-		if target, ok := s.imports[specifier]; ok {
-			return target, nil
+	if s != nil && !isReservedBuiltinSpecifier(specifier) {
+		if len(s.scopes) > 0 {
+			if referrerID, ok := canonicalReferrer(referrer, s.virtual); ok {
+				for _, scope := range matchingScopes(s.scopes, referrerID, s.virtual) {
+					if target, matched, err := resolveMapping(scope, specifier, s.virtual); matched {
+						return target, err
+					}
+				}
+			}
+		}
+		if target, matched, err := resolveMapping(s.imports, specifier, s.virtual); matched {
+			return target, err
 		}
 	}
 
@@ -154,14 +198,23 @@ func (s *Snapshot) Resolve(specifier, referrer string) (string, error) {
 // MarshalJSON returns a transportable snapshot whose targets are absolute.
 func (s *Snapshot) MarshalJSON() ([]byte, error) {
 	imports := map[string]string{}
+	scopes := map[string]map[string]string{}
 	if s != nil {
 		for key, value := range s.imports {
 			imports[key] = value
 		}
+		for scope, mappings := range s.scopes {
+			copy := make(map[string]string, len(mappings))
+			for key, value := range mappings {
+				copy[key] = value
+			}
+			scopes[scope] = copy
+		}
 	}
 	return json.Marshal(struct {
-		Imports map[string]string `json:"imports"`
-	}{Imports: imports})
+		Imports map[string]string            `json:"imports"`
+		Scopes  map[string]map[string]string `json:"scopes"`
+	}{Imports: imports, Scopes: scopes})
 }
 
 func absoluteDirectory(path string) (string, error) {
@@ -183,9 +236,6 @@ func validateImportKey(key string) error {
 		isRelativeSpecifier(key) || isWindowsAbsolutePath(key) || isDriveRelativePath(key) || isFileURL(key) {
 		return fmt.Errorf("path and URL remapping is unsupported; key must be a bare specifier")
 	}
-	if key[len(key)-1] == '/' {
-		return fmt.Errorf("prefix mappings are unsupported; key must be an exact bare specifier")
-	}
 	if key == "node:" || hasPrefixFold(key, "node:") {
 		return fmt.Errorf("node: module names are reserved")
 	}
@@ -205,8 +255,18 @@ func validateImportKey(key string) error {
 }
 
 func resolveTarget(target, base string) (string, error) {
+	return resolveMappingTarget(target, base, false, false)
+}
+
+func resolveMappingTarget(target, base string, virtual, prefix bool) (string, error) {
 	if target == "" {
 		return "", fmt.Errorf("target must not be empty")
+	}
+	if prefix && !hasRequiredPrefixSeparator(target, virtual) {
+		return "", fmt.Errorf("prefix target must end in '/' (or a native Windows separator)")
+	}
+	if virtual {
+		return virtualMappingTarget(target, base)
 	}
 	if IsHTTPURL(target) {
 		return CanonicalHTTPURL(target)
@@ -239,18 +299,10 @@ func resolveTarget(target, base string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := validateModuleExtension(resolved); err != nil {
-		return "", err
+	if hasTargetDirectorySeparator(target) {
+		resolved = appendTargetSeparator(resolved, false)
 	}
 	return resolved, nil
-}
-
-func validateModuleExtension(path string) error {
-	ext := filepath.Ext(path)
-	if ext != ".js" && ext != ".mjs" {
-		return fmt.Errorf("module path must end in .js or .mjs, got %q", ext)
-	}
-	return nil
 }
 
 // decodeUniqueJSON uses JSON v2's strict document parser, which rejects
@@ -273,4 +325,20 @@ func (s *Snapshot) Imports() map[string]string {
 		entries[key] = value
 	}
 	return entries
+}
+
+// Scopes returns an independent copy of the normalized scoped mappings.
+func (s *Snapshot) Scopes() map[string]map[string]string {
+	if s == nil {
+		return nil
+	}
+	scopes := make(map[string]map[string]string, len(s.scopes))
+	for scope, mappings := range s.scopes {
+		copy := make(map[string]string, len(mappings))
+		for key, value := range mappings {
+			copy[key] = value
+		}
+		scopes[scope] = copy
+	}
+	return scopes
 }

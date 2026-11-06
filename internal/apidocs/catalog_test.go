@@ -147,7 +147,8 @@ func TestMemberDetailsKeepRunJSExecutionAndImportContext(t *testing.T) {
 		"configured import-map alias", "local file without an alias",
 		"HTTP/HTTPS ESM URL imports are enabled in the CLI profile",
 		"optional in embedded profiles, independently of fetch",
-		"JavaScript MIME types and text/plain",
+		"preserves response-body bytes regardless of Content-Type",
+		"attributes select JSON/text/bytes",
 		"no TypeScript transformation, npm lookup, or cross-runtime download caching",
 		"fresh in each run_js call",
 	} {

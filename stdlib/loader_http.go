@@ -1,17 +1,14 @@
 package stdlib
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"math"
-	"mime"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/modulemap"
 )
@@ -81,14 +78,6 @@ func httpModuleReader(ctx context.Context, options ModuleHTTPOptions) modulemap.
 		if retained(finalID) {
 			return "", finalID, nil
 		}
-		contentType := response.Header.Get("Content-Type")
-		mediaType, _, err := mime.ParseMediaType(contentType)
-		if err != nil {
-			return "", "", fmt.Errorf("module %q: invalid Content-Type %q: %w", finalID, contentType, err)
-		}
-		if !moduleMediaType(strings.ToLower(mediaType)) {
-			return "", "", fmt.Errorf("module %q: unsupported Content-Type %q", finalID, contentType)
-		}
 		maxBytes := options.MaxBodyBytes
 		if maxBytes == 0 {
 			maxBytes = defaultModuleBodyBytes
@@ -104,10 +93,9 @@ func httpModuleReader(ctx context.Context, options ModuleHTTPOptions) modulemap.
 		if maxBytes >= 0 && int64(len(data)) > maxBytes {
 			return "", "", fmt.Errorf("module %q exceeds body limit of %d bytes", finalID, maxBytes)
 		}
-		data = bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})
-		if !utf8.Valid(data) {
-			return "", "", fmt.Errorf("module %q: source is not valid UTF-8", finalID)
-		}
+		// Like local files, response-body bytes belong to the engine's requested
+		// import type. Content-Type does not select or restrict interpretation;
+		// preserve BOMs and invalid UTF-8 for text and immutable byte modules.
 		return string(data), finalID, nil
 	}
 }
@@ -134,19 +122,4 @@ func canonicalModuleRequest(req *http.Request) error {
 	}
 	req.URL, err = url.Parse(id)
 	return err
-}
-
-func moduleMediaType(value string) bool {
-	switch value {
-	case "application/ecmascript", "application/javascript",
-		"application/x-ecmascript", "application/x-javascript",
-		"text/ecmascript", "text/javascript",
-		"text/javascript1.0", "text/javascript1.1", "text/javascript1.2",
-		"text/javascript1.3", "text/javascript1.4", "text/javascript1.5",
-		"text/jscript", "text/livescript", "text/x-ecmascript",
-		"text/x-javascript", "text/plain":
-		return true
-	default:
-		return false
-	}
 }

@@ -1,6 +1,7 @@
 package modulemap
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,12 +105,24 @@ func TestLoadUsesInMemoryEntrySource(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsNonESMExtension(t *testing.T) {
-	loader := NewLoader(nil, "", "")
-	for _, path := range []string{"./module", "./module.cjs", "./module.ts"} {
-		if _, _, err := loader.Load(path, filepath.Join(t.TempDir(), "main.js")); err == nil || !strings.Contains(err.Error(), ".js or .mjs") {
-			t.Errorf("Load(%q) error = %v", path, err)
+func TestLoaderPreservesDataRegardlessOfExtension(t *testing.T) {
+	dir := t.TempDir()
+	data := []byte{0xef, 0xbb, 0xbf, 0, 0xff, 0x80, '\n'}
+	reads := 0
+	loader := NewReaderLoader(nil, "", "", func(name string) ([]byte, error) {
+		reads++
+		return data, nil
+	})
+	for _, name := range []string{"module", "module.json", "module.txt", "module.bin", "module.cjs", "module.ts"} {
+		for range 2 {
+			got, id, err := loader.Load("./"+name, filepath.Join(dir, "main.js"))
+			if err != nil || id != filepath.Join(dir, name) || !bytes.Equal([]byte(got), data) {
+				t.Fatalf("Load(%q) = (%x, %q, %v)", name, got, id, err)
+			}
 		}
+	}
+	if reads != 6 {
+		t.Fatalf("data reads = %d, want one per canonical resource", reads)
 	}
 }
 
@@ -179,9 +192,10 @@ func TestLocalLoaderRejectsHTTPWithoutFilesystemRead(t *testing.T) {
 		if len(reads) != 1 || reads[0] != localID {
 			t.Fatalf("local reads = %v; want [%s]", reads, localID)
 		}
-		// Local extension validation still applies when the importer is remote.
-		if _, _, err := loader.Load(fileURL(t, strings.TrimSuffix(localID, ".mjs")+".ts"), "https://example.invalid/main.js"); err == nil || !strings.Contains(err.Error(), ".js or .mjs") {
-			t.Fatalf("remote to local extension error = %v", err)
+		// A remote importer can read local data through its selected filesystem.
+		dataID := strings.TrimSuffix(localID, ".mjs") + ".bin"
+		if _, id, err := loader.Load(fileURL(t, dataID), "https://example.invalid/main.js"); err != nil || id != dataID {
+			t.Fatalf("remote to local data = %q, %v", id, err)
 		}
 	}
 }

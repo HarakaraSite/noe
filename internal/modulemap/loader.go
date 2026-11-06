@@ -97,8 +97,6 @@ func (l *Loader) load(specifier, referrer string, localOnly bool) (source, resol
 		if l.remote == nil {
 			return "", "", fmt.Errorf("HTTP/HTTPS module loading is unsupported by the local module loader: %q", resolved)
 		}
-	} else if err := validateModuleExtension(resolved); err != nil {
-		return "", "", err
 	}
 
 	l.mu.Lock()
@@ -137,6 +135,8 @@ func (l *Loader) load(specifier, referrer string, localOnly bool) (source, resol
 	if err != nil {
 		return "", "", fmt.Errorf("read module %q: %w", resolved, err)
 	}
+	// Interpretation belongs to the engine's import type. Preserve raw bytes
+	// for text and immutable byte modules, including BOMs and invalid UTF-8.
 	source = string(data)
 	l.sources[resolved] = source
 	return source, resolved, nil

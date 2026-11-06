@@ -576,6 +576,28 @@ on owned resource wrappers are not part of this proposed upstream slice.
 Current upstream main and duplicate issues/PRs have not been checked; an
 upstream contribution remains deferred. No issue or PR has been submitted.
 
+### Engine loader API limitation: typed module requests (2026-11-06)
+
+The pinned engine v0.32.0 implements static and dynamic JSON, text, and bytes
+import attributes. Its public synchronous `ModuleLoader` and asynchronous
+`ModuleRequest` expose specifier/referrer, without the requested type. A host
+cannot choose HTTP MIME validation or body transformation from those attributes.
+
+The user ruled out requesting upstream changes and approved a NOE-only HTTP
+policy: pass response-body bytes unchanged, just as with local files, and
+leave type interpretation to the existing engine. HTTP MIME and UTF-8
+validation and leading-BOM removal are removed. Text retains a BOM; bytes
+preserves all response-body bytes; BOM-prefixed JSON is rejected by the
+current engine. HTTP status, request/redirect policy, size limits, and host
+cancellation retain their existing roles. Transport decompression still applies.
+
+This resolves NOE's HTTP data-import work without an engine patch or upstream
+API change. No upstream request is planned and no issue or PR was submitted.
+Relevant pinned sources are `quickjs.go` (`ModuleLoader`, `ModuleRequest`) and
+`internal/vm/module.go` (`loadTypedModule`, `makeTypedModule`). NOE coverage is
+in [loader_http_data_test.go](../../stdlib/loader_http_data_test.go); the policy
+and compatibility record is in [phase 7](../../docs/development/stdlib-module-loading.md).
+
 ## Evaluation and debugger difference
 
 Upstream evaluates its own scripts with debugger instrumentation disabled,

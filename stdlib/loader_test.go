@@ -67,8 +67,13 @@ func TestFileLoaderDoesNotGrantFilesystemAndRejectsRootEscape(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile = stdlib.Profile{Modules: stdlib.Modules{FS: &stdlib.FileSystemOptions{Root: root}}, NewLoader: stdlib.FileLoader(nil)}
-	_, err = stdlib.Execute(t.Context(), stdlib.Source{Name: "[root escape]", Virtual: true, Module: true, Code: `import "./escape.mjs";`}, profile)
-	if err == nil {
-		t.Fatal("loader bypassed selected root")
+	for _, code := range []string{
+		`import "./escape.mjs";`,
+		`import data from "./escape.mjs" with {type:"bytes"};`,
+	} {
+		_, err = stdlib.Execute(t.Context(), stdlib.Source{Name: "[root escape]", Virtual: true, Module: true, Code: code}, profile)
+		if err == nil {
+			t.Fatal("loader bypassed selected root")
+		}
 	}
 }

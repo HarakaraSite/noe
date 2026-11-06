@@ -71,6 +71,11 @@ func TestModuleLoaderWorkerEntryPureResolutionAndDependencyHTTP(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
+		if r.URL.Path == "/data" {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"value":42}`)
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "export const value=42;")
 	}))
@@ -90,7 +95,7 @@ func TestModuleLoaderWorkerEntryPureResolutionAndDependencyHTTP(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	worker := fmt.Sprintf(`import {value} from %q;postMessage(value);close();`, server.URL)
+	worker := fmt.Sprintf(`import {value} from %q;import data from %q with {type:"json"};if(data.value!==value)throw Error("worker HTTP data");postMessage(value);close();`, server.URL, server.URL+"/data")
 	if err := os.WriteFile(filepath.Join(root, "worker.mjs"), []byte(worker), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +105,7 @@ func TestModuleLoaderWorkerEntryPureResolutionAndDependencyHTTP(t *testing.T) {
 		Loader:      stdlib.ModuleLoader(stdlib.LoaderOptions{Imports: map[string]string{"local-entry": "./worker.mjs"}, HTTP: &stdlib.ModuleHTTPOptions{Client: server.Client()}}),
 	}
 	result := executeURLTest(t, profile, `const w=new Worker("local-entry",{type:"module"});export default await new Promise((ok,fail)=>{w.onmessage=e=>ok(e.data);w.onerror=e=>fail(Error(e.message));});`)
-	if string(result.Data) != "42" || requests.Load() != 1 {
+	if string(result.Data) != "42" || requests.Load() != 2 {
 		t.Fatalf("local Worker alias/dependency data=%s requests=%d", result.Data, requests.Load())
 	}
 }

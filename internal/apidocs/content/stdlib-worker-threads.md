@@ -16,13 +16,13 @@ Runs JavaScript in additional QuickJS runtimes and exchanges structured-clone me
 
 `BroadcastChannel`, `MessageChannel`, `MessagePort`, `SHARE_ENV`, `Worker`, `default`, `getEnvironmentData`, `isMainThread`, `isMarkedAsUntransferable`, `markAsUntransferable`, `parentPort`, `receiveMessageOnPort`, `resourceLimits`, `setEnvironmentData`, `threadId`, `workerData`
 
-In a Worker, parentPort and workerData describe that Worker; on the main thread both are null. NOE accepts local .js/.mjs files or inline source with eval: true, and blocks agent-control modules.
+In a Worker, parentPort and workerData describe that Worker; on the main thread both are null. NOE accepts local JavaScript source files or inline source with eval: true, and blocks agent-control modules.
 
 ## Worker
 
 Syntax: new Worker(filename, options = {}). In NOE, a file name must be relative (./ or ../), absolute, or a local file: URL. options.workerData is structured-cloned into workerData; options.argv, options.env, options.name, and options.transferList configure the Worker. With eval: true, filename is source text. The returned EventEmitter-like Worker emits online, message, error, and exit.
 
-The Node-style constructor ignores options.type in this pinned version. With eval: true, source runs as a script when it parses as one; module-only syntax, such as static imports or top-level await, is detected and evaluated as an ES module. options.type does not override this selection. NOE loads local .js/.mjs Worker files as ES modules through its file loader. The global Web Worker constructor has a separate type option; do not transfer its option contract to node:worker_threads.Worker.
+The Node-style constructor ignores options.type in this pinned version. With eval: true, source runs as a script when it parses as one; module-only syntax, such as static imports or top-level await, is detected and evaluated as an ES module. options.type does not override this selection. NOE loads local Worker source files as ES modules through its file loader, without a filename suffix requirement. Imports inside them can use JSON/text/bytes attributes; the Worker entry itself executes JavaScript. The global Web Worker constructor has a separate type option; do not transfer its option contract to node:worker_threads.Worker.
 
 ~~~js
 import { Worker } from "node:worker_threads";

@@ -13,16 +13,19 @@ import (
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
-// LoaderOptions selects exact import mappings and optional HTTP loading.
-// Imports and HTTP option values are copied by ModuleLoader.
+// LoaderOptions selects bare import mappings, referrer scopes, and optional HTTP loading.
+// Imports, nested Scopes maps, and HTTP option values are copied by ModuleLoader.
 type LoaderOptions struct {
 	Imports map[string]string
+	Scopes  map[string]map[string]string
 	HTTP    *ModuleHTTPOptions
 }
 
 // ModuleHTTPOptions enables HTTP/HTTPS imports independently of FS and Fetch.
 // Client and Allow are borrowed. MaxBodyBytes is 0 for the default 32 MiB,
 // negative for no limit, and otherwise limits the decompressed source body.
+// Response-body bytes are preserved without MIME/UTF-8 validation or BOM
+// removal. The engine interprets them according to the import's type.
 type ModuleHTTPOptions struct {
 	Client       *http.Client
 	Allow        func(*http.Request) error
@@ -37,7 +40,7 @@ type moduleLoaderProvider struct {
 // ModuleLoader returns an immutable provider. Each NewLoader call creates
 // independent runtime-local sources; no download cache is shared across runs.
 func ModuleLoader(options LoaderOptions) ModuleLoaderProvider {
-	p := &moduleLoaderProvider{data: encodeImports(options.Imports)}
+	p := &moduleLoaderProvider{data: encodeImportMap(options.Imports, options.Scopes)}
 	if options.HTTP != nil {
 		v := *options.HTTP
 		p.http = &v
@@ -56,28 +59,32 @@ func (p *moduleLoaderProvider) NewLoader(ctx context.Context, origin Origin) (qu
 	return newModuleLoader(ctx, origin, p.data, p.http)
 }
 
-// FileLoader snapshots exact bare-specifier mappings and creates a fresh local
+// FileLoader snapshots exact and prefix bare-specifier mappings and creates a fresh local
 // file loader for each execution. Relative map targets use that execution's
 // cwd. Imports read only its selected filesystem; the helper grants no access
 // of its own. A nil map enables ordinary relative/absolute local file imports.
 // HTTP/HTTPS targets are rejected; enabling Fetch does not change this.
 func FileLoader(imports map[string]string) LoaderFactory {
-	data := encodeImports(imports)
+	data := encodeImportMap(imports, nil)
 	return func(ctx context.Context, origin Origin) (quickjs.ModuleLoader, error) {
 		return newModuleLoader(ctx, origin, data, nil)
 	}
 }
 
-func encodeImports(imports map[string]string) []byte {
-	entries := make(map[string]string, len(imports))
-	for name, target := range imports {
-		entries[name] = target
-	}
+func encodeImportMap(imports map[string]string, scopes map[string]map[string]string) []byte {
 	// JSON encoding also isolates concurrent factories from caller mutations.
 	data, _ := json.Marshal(struct {
-		Imports map[string]string `json:"imports"`
-	}{entries})
+		Imports map[string]string            `json:"imports"`
+		Scopes  map[string]map[string]string `json:"scopes,omitempty"`
+	}{Imports: importsOrEmpty(imports), Scopes: scopes})
 	return data
+}
+
+func importsOrEmpty(imports map[string]string) map[string]string {
+	if imports == nil {
+		return map[string]string{}
+	}
+	return imports
 }
 
 func newModuleLoader(ctx context.Context, origin Origin, data []byte, options *ModuleHTTPOptions) (quickjs.ModuleLoader, error) {
@@ -91,9 +98,15 @@ func newModuleLoader(ctx context.Context, origin Origin, data []byte, options *M
 		return nil, err
 	}
 	if options == nil {
-		for key, target := range snapshot.Imports() {
-			if modulemap.IsHTTPURL(target) {
-				return nil, fmt.Errorf("HTTP/HTTPS target for import map key %q is unsupported by the local module loader", key)
+		maps := []map[string]string{snapshot.Imports()}
+		for _, imports := range snapshot.Scopes() {
+			maps = append(maps, imports)
+		}
+		for _, imports := range maps {
+			for key, target := range imports {
+				if modulemap.IsHTTPURL(target) {
+					return nil, fmt.Errorf("HTTP/HTTPS target for import map key %q is unsupported by the local module loader", key)
+				}
 			}
 		}
 	}

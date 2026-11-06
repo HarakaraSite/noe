@@ -112,8 +112,8 @@ executables can use the same dispatcher. Windows uses Job Objects.
 ## Load local modules
 
 `stdlib.FileLoader(imports)` returns a `LoaderFactory` that creates a fresh
-loader for each runtime. The string map maps exact bare specifiers to local
-file targets; targets are anchored to that execution's cwd and read through
+loader for each runtime. The string map maps exact bare specifiers and
+slash-terminated prefixes to local file targets; targets are anchored to that execution's cwd and read through
 its selected filesystem. The factory snapshots the map. With a nil map,
 relative and absolute local file imports still work. To load local files, also
 select `Modules.FS`; the loader does not grant filesystem access by itself.
@@ -132,6 +132,23 @@ The loader and module cache are execution-local. File entry imports resolve
 relative to their referrer. A virtual entry's relative import uses the profile
 cwd. Root and Worker executions receive fresh loaders; the factory can be
 called concurrently and must not share QuickJS values between runtimes.
+
+JSON, text, and bytes imports use `with {type: "json"}`, `"text"`, or
+`"bytes"`; dynamic imports use `{with: {type: "json"}}`. Source bytes are
+preserved and interpretation belongs to the engine. Filenames have no suffix
+restriction. A plain import still executes JavaScript, without TypeScript
+conversion or CommonJS support.
+
+Use `ModuleLoader(LoaderOptions{Imports: ..., Scopes: ...})` for referrer
+scopes. Scope paths and targets are relative to the execution cwd; directory
+scope keys end in `/`, while other keys match an exact referrer. The provider
+copies both levels of Scopes at construction. An HTTP target anywhere in a
+map requires a non-nil HTTP option. Rooted filesystem execution paths are
+used for local scopes, and virtual entries use `<virtual-entry>.mjs` under
+cwd. See [import-map resolution and data examples](import-map.md).
+
+`LoaderOptions.Scopes` is a new public field. Existing keyed Go literals
+remain valid; callers using unkeyed literals must switch to field names.
 
 ## Module metadata
 
@@ -178,13 +195,19 @@ Clients and callbacks remain borrowed and must support the intended
 concurrency. Maps and option values are copied; module sources are retained
 only within each runtime. No cross-runtime download cache is added.
 
-The standard loader accepts JavaScript MIME types and text/plain, including
-parameterized Content-Type. URL extensions are not restricted. Source is
-UTF-8, with a leading UTF-8 BOM removed; this is not TypeScript/JSX conversion
-or npm lookup. Remote relative dependencies use the final response URL.
-Standard Worker entries remain local, including URL aliases being rejected
-before an entry request. See [URL import](url-import.md) for identity,
-redirect, response validation, and trust details.
+The standard loader passes HTTP response-body bytes unchanged to the engine.
+Content-Type and charset do not select or restrict the import type; missing
+or malformed MIME metadata is accepted. A plain import executes JavaScript,
+while explicit import attributes select JSON, text, or bytes. URL suffixes
+are unrestricted. There is no UTF-8 validation, BOM removal, charset conversion,
+TypeScript/JSX conversion, or npm lookup. Transport decompression still
+applies, so bytes reflects `http.Response.Body`, not compressed wire bytes.
+Text retains its leading BOM, and BOM-prefixed JSON fails the pinned engine's
+parser. See [HTTP source interpretation](url-import.md#http-source-interpretation)
+for the compatibility changes from earlier MIME/UTF-8/BOM handling.
+Remote relative dependencies use the final response URL. Standard Worker
+entries remain local, including URL aliases being rejected before an entry
+request. See [URL import](url-import.md) for identity, redirects, and limits.
 
 `ModuleLoaderProvider` supplies both `NewLoader(context.Context, Origin)`
 and `URLImports() URLImportSupport`. Providers are borrowed by Profile

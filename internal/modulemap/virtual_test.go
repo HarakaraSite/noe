@@ -38,3 +38,35 @@ func TestVirtualLoaderKeepsWindowsRootNamespaceIndependentOfHostVolume(t *testin
 		}
 	}
 }
+
+func TestVirtualPrefixesAndScopesStayInRootNamespace(t *testing.T) {
+	snapshot, err := ParseVirtual([]byte(`{"imports":{
+		"assets/":"/workspace/assets/",
+		"backslash/":"\\workspace\\data\\"
+	},"scopes":{
+		"/workspace/app/":{"assets/":"/workspace/app-assets/","entry":"/workspace/entry.data"}
+	}}`), "/workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct{ specifier, referrer, want string }{
+		{"assets/image.bin", "/workspace/other.mjs", "/workspace/assets/image.bin"},
+		{"assets/image.bin", "/workspace/app/main.mjs", "/workspace/app-assets/image.bin"},
+		{"backslash/template.txt", "/workspace/other.mjs", "/workspace/data/template.txt"},
+		{"entry", "/workspace/app/main.mjs", "/workspace/entry.data"},
+	} {
+		got, err := snapshot.Resolve(test.specifier, test.referrer)
+		if err != nil || got != test.want {
+			t.Errorf("Resolve(%q from %q) = %q, %v; want %q", test.specifier, test.referrer, got, err, test.want)
+		}
+	}
+	if _, err := snapshot.Resolve("assets/../outside", "/workspace/other.mjs"); err == nil || !strings.Contains(err.Error(), "does not contain suffix") {
+		t.Fatalf("virtual prefix backtracking error = %v", err)
+	}
+}
+
+func TestVirtualHTTPPrefixRequiresURLSlashSeparator(t *testing.T) {
+	if _, err := ParseVirtual([]byte(`{"imports":{"remote/":"https://cdn.test/pkg\\"}}`), "/workspace"); err == nil || !strings.Contains(err.Error(), "prefix target must end in") {
+		t.Fatalf("HTTP prefix target with native backslash error = %v", err)
+	}
+}

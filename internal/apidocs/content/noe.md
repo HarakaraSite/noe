@@ -2,7 +2,7 @@
 
 NOE (No Ordinary Engine) is a JavaScript runtime and managed agent execution environment written in Go. It uses go-quickjs, a pure-Go implementation based on QuickJS-NG, and embeds the API reference for the runtime version in this binary.
 
-NOE uses the pinned go-quickjs ECMAScript engine and supplies supported Web and Node-style APIs through its own maintained standard library, based on go-quickjs v0.27.0. These APIs follow the NOE-maintained implementation; NOE does not promise compatibility with all of Node.js. Node-style built-ins can be imported by their supported bare name or `node:` name. npm installation, HTTP module imports, and implicit package discovery are unavailable.
+NOE uses the pinned go-quickjs ECMAScript engine and supplies supported Web and Node-style APIs through its own maintained standard library, based on go-quickjs v0.27.0. These APIs follow the NOE-maintained implementation; NOE does not promise compatibility with all of Node.js. Node-style built-ins can be imported by their supported bare name or `node:` name. HTTP/HTTPS module imports are enabled by the CLI and selected explicitly by Go hosts; imports support JavaScript and explicit JSON/text/bytes types. npm installation and implicit package discovery are unavailable.
 
 NOE also provides modules for agents, model requests, saved-event analysis, decisions, images, authentication, child processes, HTTP, sockets, and signals. Host standard I/O is exposed through `node:process`. File handles are available through the standard `node:fs/promises` API. The managed-agent `run_js` tool executes code in a fresh, owned NOE runtime for each call. NOE manages agent and tool lifecycles and resources created by an evaluation; model inference is performed by the selected provider.
 

@@ -52,12 +52,14 @@ func TestModuleHTTPValidatesResponsesAndClosesOwnedBodies(t *testing.T) {
 	}{
 		{"plain BOM", "Text/Plain; charset=utf-8", "\xef\xbb\xbfexport const value=1;", 200, 0, ""},
 		{"partial success", "application/javascript", "export {};", 206, 0, ""},
-		{"missing MIME", "", "export {};", 200, 0, "invalid Content-Type"},
-		{"invalid MIME", "text/plain; charset=\"", "export {};", 200, 0, "invalid Content-Type"},
-		{"HTML not JS", "text/html", "export {};", 200, 0, "unsupported Content-Type"},
+		{"missing MIME", "", "export {};", 200, 0, ""},
+		{"invalid MIME", "text/plain; charset=\"", "export {};", 200, 0, ""},
+		{"HTML MIME", "text/html", "export {};", 200, 0, ""},
+		{"JSON MIME", "application/json", `{"value":42}`, 200, 0, ""},
+		{"binary MIME", "image/png", "\xef\xbb\xbf\x00\xff\x80", 200, 0, ""},
 		{"non-success", "text/plain", "export {};", 503, 0, "HTTP status 503"},
 		{"unresolved redirect", "text/plain", "export {};", 302, 0, "HTTP status 302"},
-		{"invalid UTF-8", "text/plain", "export const v='\xff';", 200, 0, "not valid UTF-8"},
+		{"invalid UTF-8", "text/plain", "export const v='\xff';", 200, 0, ""},
 		{"body limit", "text/plain", "export {};", 200, 3, "body limit of 3"},
 		{"exact limit", "text/plain", "export {};", 200, 10, ""},
 		{"unlimited", "text/plain", "export {};", 200, -1, ""},
@@ -71,7 +73,7 @@ func TestModuleHTTPValidatesResponsesAndClosesOwnedBodies(t *testing.T) {
 			loader := moduleTestLoader(t, &stdlib.ModuleHTTPOptions{Client: client, MaxBodyBytes: tc.limit})
 			source, id, err := loader("https://example.invalid/module.js", "/entry.js")
 			if tc.want == "" {
-				if err != nil || source != strings.TrimPrefix(tc.body, "\xef\xbb\xbf") || id != "https://example.invalid/module.js" {
+				if err != nil || source != tc.body || id != "https://example.invalid/module.js" {
 					t.Fatalf("source=%q id=%q error=%v", source, id, err)
 				}
 			} else if err == nil || !strings.Contains(err.Error(), tc.want) || !strings.Contains(err.Error(), "/entry.js") {

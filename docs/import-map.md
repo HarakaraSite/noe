@@ -1,80 +1,146 @@
-# ESMとimport map
+# Modules and import maps
 
-自作JSや動作確認済みのESMを名前でimportできます。ローカルpathに加え、現在のソースではHTTP/HTTPSの絶対URLもtargetへ指定できます（[URL import](url-import.md)）。`run`・`eval`で同じJSONを指定します。
+Import JavaScript, verified ESM libraries, and JSON/text/bytes data by explicit
+path, URL, or mapped name. HTTP/HTTPS imports are available through the CLI;
+Go hosts enable them explicitly. See [URL imports](url-import.md).
+The data-import and prefix/scope additions described here are not released yet.
 
 ```sh
 ./noe run --import-map examples/import-map/import-map.json examples/import-map/main.js
 ./noe eval --import-map examples/import-map/import-map.json 'import {sum} from "app/math"; console.log(sum([1,2,3]))'
 ```
 
-`--import-map path`と`--import-map=path`に対応します。optionはscriptやevalのコードより前に置きます。script名以後と`--`以後は従来どおり引数として渡します。自動探索や環境変数によるmap指定はありません。共通mapを使う場合も`--import-map ~/.config/noe/import-map.json`で明示します。
+`--import-map path` and `--import-map=path` must precede the script or eval
+source. Arguments after the script name or `--` remain application arguments.
+There is no automatic map discovery or environment-variable setting.
+The map filename is relative to the startup cwd; relative targets inside it
+are relative to **the map's directory**. Dependencies' relative imports use
+**the importing module's location**.
 
-## 配置と名前解決
+## Exact names, prefixes, and scopes
 
-```text
-project/
-  config/import-map.json
-  lib/math.mjs
-  scripts/task.js
-```
-
-`config/import-map.json`：
+For a map at `project/config/import-map.json`:
 
 ```json
 {
   "imports": {
-    "app/math": "../lib/math.mjs"
+    "app/math": "../lib/math.mjs",
+    "app/": "../lib/",
+    "settings": "../data/default.json"
+  },
+  "scopes": {
+    "../lib/special/": {
+      "settings": "../data/special.json"
+    }
   }
 }
 ```
 
-`scripts/task.js`：
+`app/math` matches the exact rule. `app/tools/format.mjs` uses `app/` and
+loads `project/lib/tools/format.mjs`. Prefix keys and targets must end in `/` (native Windows path targets also
+accept a trailing `\`); exact rules win, then the longest matching prefix. A matching prefix cannot
+backtrack above its target directory. Targets are resolved once, without
+following other aliases.
+
+The scope changes `settings` for modules inside `project/lib/special/`.
+Scopes ending in `/` match that directory and its descendants; other scopes
+match only the exact referrer. Try the most specific matching scope, then its
+matching outer scopes, then top-level `imports`. A scope's relative targets
+are still relative to the map's directory. HTTP/HTTPS scopes match canonical
+referrer URLs, including a redirect's final URL. Local file URLs and native
+absolute paths are also supported. Virtual entries such as eval/run_js use
+the synthetic `<virtual-entry>.mjs` path under their execution cwd for scope
+matching, while retaining their original diagnostic names.
+
+Map keys are bare names, including package-like names such as `@app/tools/`.
+Path/URL keys, `integrity`, null blockers, map merging, and npm/package.json
+resolution are unsupported. Parsing remains strict: duplicate JSON keys,
+normalized duplicate scopes, invalid target types, and unknown fields are
+errors. Built-in `node:`/`noe:` names and exact standard-library bare names
+are reserved; a prefix cannot replace a reserved built-in either. Unused
+files and URLs are not read during map validation.
+
+This is a supported subset of the [HTML import-map model](https://html.spec.whatwg.org/multipage/webappapis.html#import-maps),
+with native filesystem paths and strict configuration errors.
+
+## JSON, text, and bytes
+
+Data uses explicit import attributes with either static or dynamic
+imports. Each data module has one `default` export.
 
 ```js
-import { sum } from "app/math";
-console.log(sum([1, 2, 3]));
+import settings from "settings" with { type: "json" };
+import template from "./templates/email" with { type: "text" };
+import payload from "./payload.bin" with { type: "bytes" };
+
+const { default: other } = await import("./other.json", {
+  with: { type: "json" }
+});
 ```
 
-mapファイルの指定は起動時のcwd基準、map内の相対targetは**mapのあるディレクトリ基準**です。ライブラリ内部の相対importは**そのライブラリのファイル基準**になります。利用するscriptの配置が変わっても、aliasのtargetは変わりません。
+JSON uses the engine's JavaScript JSON semantics, including mutable object
+values. Text exports a JavaScript string. Bytes exports a `Uint8Array` over
+an immutable ArrayBuffer; copy it before modifying it. Local source bytes and HTTP response-body bytes are passed intact, including
+a BOM or bytes that are not valid UTF-8. The engine
+interprets the source according to its requested type.
 
-対応する指定は以下です。
+Local filenames no longer require `.js` or `.mjs`. A plain import still means
+JavaScript; a `.json` suffix alone does not select JSON. There is no extension
+completion, directory-index lookup, CommonJS loader, or TypeScript/JSX
+conversion. Native Windows drive/UNC paths retain their existing behavior;
+drive-relative paths are unsupported. Local `file:` URLs allow an empty or
+`localhost` authority, without queries/fragments. Literal `#` and `%` remain
+part of native filenames and must be encoded in file URLs.
 
-- 組込み名：`node:fs`・`fs`・`noe:agent`等。既存の意味を保ち、mapから上書きできません。
-- mapの完全一致bare名：`app/math`・`@example/helpers`等。targetはローカルpath/file URLまたはHTTP/HTTPS絶対URL。
-- HTTP/HTTPS URL：直接importとURL targetに対応。URLの拡張子は不問で、リモートmodule内の相対importはそのURL基準。
-- 相対path：`./lib.js`・`../lib.mjs`。
-- OSの絶対path、ローカル`file:` URL：空authorityまたは`localhost`。URLのquery・fragment・非ローカルauthorityは未対応です。
+HTTP uses the same raw-source model. Content-Type, charset, and filename do
+not select or restrict the import type; even missing or malformed MIME
+metadata does not reject an otherwise valid HTTP response. Standard HTTP
+transport decompression still applies, so bytes are the bytes returned by
+`http.Response.Body`, rather than the compressed wire representation.
+No charset conversion, UTF-8 validation, or BOM removal is performed by the
+loader. Text retains a leading BOM; BOM-prefixed JSON is rejected by the
+current engine, just as with local files. A plain import always asks for
+JavaScript, including responses labelled as JSON, HTML, or binary data.
+See the [HTTP compatibility details](url-import.md#http-source-interpretation)
+and [implementation record](development/stdlib-module-loading.md).
 
-ローカルファイルは`.js`か`.mjs`を明示します。URL側にはこの制限を適用しません。拡張子補完、ディレクトリのindex探索は行いません。Windowsのdrive絶対pathとnative UNC pathも扱います。drive相対pathは未対応です。通常path中の`#`・`%`はファイル名の一部で、file URLの場合はpercent-encodingを使います。
+## Workers and agents
 
-初回のmap形式はtop-levelの`imports`だけです。末尾`/`のprefix、`scopes`、`integrity`、nullによるblock、複数mapのmerge、path/URL自体のremap、別aliasへの連鎖は未対応として診断します。HTML Standardのimport map全体を実装したものではありません。
+The immutable map, including prefixes and scopes, is captured at startup and
+passed to Workers, agent task bootstrap, each run_js, and child agents.
+Editing or deleting the original map does not change an active execution.
+Tell an agent the mapped names and library APIs it should use; the complete
+map is not sent to its provider.
 
-重複keyや型不一致、組込み名との衝突は起動時エラーです。未使用targetの存在や構文は起動時に調べず、実際のimport時に確認します。
+Worker dependency imports use the map. Standard Worker entries remain local;
+HTTP URLs and aliases targeting them are rejected before an entry request.
+Global Worker keeps its existing local alias route; node Worker keeps its
+existing string-path validation. Worker entries execute JavaScript, while
+imports inside them can use data attributes. `noe:agent`, `noe:decision`, and
+`noe:auth` remain unavailable inside Workers. Arbitrary spawned programs do
+not automatically inherit CLI options.
 
-## agentとWorkerへの継承
+## Source lifetime and compatibility
 
-起動時にmapのtargetを絶対化し、変更不能の対応表にします。同じ対応表をWorker、agentのtask bootstrap、各`run_js`、子agentへ渡します。元mapを実行中に編集・削除しても再読込みしません。agentの一時ソースからも`await import("app/math")`を使えます。モデルへは使わせたいaliasとAPIをタスクかsystem指示で伝えてください。
+Each runtime reads a resource on its first successful load and retains that
+raw source. Aliases resolving to the same canonical ID and import type share
+a namespace and value; the same resource imported with a different type has
+a different namespace. JavaScript side effects execute once per module.
+Failed file reads can be retried. Root, Worker, and agent runtimes have fresh
+source caches; restart the runtime to observe later file changes.
 
-```js
-import { run_agent } from "noe:agent";
+An Execute in-memory entry is retained. Worker entry self-import through a
+new alias after deleting the entry can still fail; imported Worker dependencies
+are retained normally. Local IDs are lexical absolute paths, without unifying
+symlinks, hardlinks, or filesystem case aliases. Remote IDs use the final
+canonical URL under the [URL identity rules](url-import.md).
 
-const snapshot = await run_agent(
-  { provider: "openrouter", model: "deepseek/deepseek-v4.1-flash", effort: "auto" },
-  'run_jsでapp/mathのsum([10,20,30])を実行して結果を報告してください。'
-);
-console.log(snapshot.lastResult.answer);
-```
+Ordinary valid JavaScript imports need no source migration. HTTP loading
+now accepts all MIME metadata and preserves response-body bytes; see the
+[HTTP behavior changes](url-import.md#http-source-interpretation). Code relying on an
+extension-validation failure now reaches filesystem loading and engine
+parsing. Go hosts can use `LoaderOptions.Scopes`; external unkeyed
+`LoaderOptions` literals must use field names after the new field is added.
+The [Go embedding guide](go-embedding.md) describes capability selection.
 
-Workerの**内部のimport**にmapを使えます。標準loaderのWorker入口はローカルです。global Workerの既存local target alias経路は維持し、node Workerの文字列path検査は変更しません。HTTP/HTTPSの直接URLやURL target aliasを入口にする対応はなく、取得前に拒否します。Workerからの`noe:agent`・`noe:decision`・`noe:auth`利用は引き続き未対応です。任意の`node:child_process.spawn()`で起動する外部プログラムへはoptionを自動注入しません。
-
-## ソースの寿命と互換性
-
-固定するのは対応表です。ライブラリ一式を起動時にsnapshot化する機能ではありません。root・Worker・各agentプロセスは独立したruntimeで、最初のimport時にファイル/URLのsourceを読みます。未使用のURL targetには接続しません。同一runtimeでは読取り済みsourceとmoduleを再利用し、別alias・別referrerでも同じnamespaceになり、副作用は一度だけ実行されます。ファイルを変更して反映するには新しいruntime/プロセスを起動します。読取りに失敗したファイルは、作成後に再試行できます。
-
-Executeのin-memory入口も保持します。Worker入口はstdlibの専用読込みhookを通るため、この保持保証の対象外です。Worker入口そのものを削除し、その入口を新aliasから自己importすると失敗しうる点は残ります。Workerがimportした依存ライブラリは保持対象です。
-
-ローカルmodule IDは字句上の絶対pathで統一します。リモートmodule IDは正規化した最終URLで、同じruntime内のsource/module保持を行います。URLのquery/fragment・redirectは[URL import](url-import.md)の規則に従います。symlink・hardlink・filesystemの大小文字による別名まで統合する保証はありません。永続cacheやruntime間のsource/JS Value共有はありません。
-
-ESM形式でも、必要なホストAPIがNOEにあるかは別途確認が必要です。npm/package.json/node_modules探索、CommonJS loader、TypeScript変換は提供しません。HTTP/HTTPSから取得したESMも、必要なAPIがNOEにあることを別途確認します。外部ツールで準備したbundleと、NOE向けに適合させたJSを利用できます。[MCP SDKの分割例](../scripts/spikes/process-io-mcp/README.md)を参照してください。
-
-[API](api.md) · [実装・検証記録](development/local-import-map-implementation.md)
+[API](api.md) · [Phase 7 implementation](development/stdlib-module-loading.md) · [Original implementation record](development/local-import-map-implementation.md)

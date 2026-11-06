@@ -19,11 +19,14 @@ sections below record their implementation and compatibility details.
 Phase 5 core filesystem watching is committed as `10a8f70` and locally verified,
 but not released; see the [watch implementation record](stdlib-fs-watch.md).
 The initial scope is nonrecursive, with callback and async-iterator APIs,
-cancellation, and resource cleanup. Phase 6 source maps are also implemented
-and locally verified, but not released; see the
+cancellation, and resource cleanup. Phase 6 source maps are committed as
+`baa984d` and locally verified, but not released; see the
 [source map record](stdlib-source-maps.md). Mapping is enabled by default as
-approved by the user. The next planned phase is module loading: JSON/text/bytes
-imports, followed by import-map prefix mappings and scopes.
+approved by the user. Phase 7 local and HTTP JSON/text/bytes imports and import-map
+prefixes/scopes are implemented, verified, and committed, but not released.
+See the [module-loading record](stdlib-module-loading.md), including the
+approved HTTP raw-body policy and its MIME/UTF-8/BOM compatibility changes.
+The next planned phase is Web Crypto expansion (phase 8).
 The v2.14.0 consumer rollout is covered by the
 [noebot migration instructions](noebot-v2.14.0-migration.md).
 

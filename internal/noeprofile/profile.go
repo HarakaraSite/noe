@@ -82,6 +82,7 @@ func Profile(options ProfileOptions) (stdlib.Profile, error) {
 	}
 	profile.Loader = stdlib.ModuleLoader(stdlib.LoaderOptions{
 		Imports: options.ImportMap.Imports(),
+		Scopes:  options.ImportMap.Scopes(),
 		HTTP:    &stdlib.ModuleHTTPOptions{},
 	})
 	profile.Initialize = func(ctx context.Context, view *stdlib.Bindings) (func(), error) {

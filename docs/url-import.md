@@ -1,6 +1,7 @@
 # HTTP/HTTPSのESMをimportする
 
 NOE v2.8.0以降で利用できます。既存のv2.7.1以前の配布版には含まれません。
+JSON/text/bytes imports and the raw-body policy below are unreleased phase 7 additions.
 
 CLIのrun/eval、agentのrun_js、ローカル入口のmodule Workerで、HTTP/HTTPS URLをESMの依存としてimportできます。CLIは既定で有効、Goへ組み込む場合はホストが明示的に選びます。
 
@@ -13,9 +14,9 @@ console.log(chunk([1, 2, 3], 2));
 const lib = await import("https://esm.sh/lodash-es@4.17.21");
 ```
 
-URL末尾の.js/.mjsは必須ではありません。別の拡張子も扱いますが、本文は常にJavaScriptのESMです。.ts/.jsxというURLを指定しても、その構文を変換しません。
+URL filenames have no suffix restriction. A plain import executes JavaScript; explicit import attributes select JSON, text, or bytes. No TypeScript/JSX conversion is performed.
 
-完全一致bare名のtargetに絶対URLを設定できます。
+Absolute URLs can be targets of exact and prefix bare mappings, including referrer scopes.
 
 ```json
 {
@@ -33,14 +34,14 @@ import { chunk } from "lodash";
 ./noe run --import-map examples/url-import/import-map.json examples/url-import/mapped.js
 ```
 
-mapは起動時に読み、対応表をWorker・親子agent・各run_jsへ継承します。未使用targetには接続しません。map内の相対targetは引き続きローカルmap文書のディレクトリ基準です。prefix/scopes/URL keyのremap等は[import mapガイド](import-map.md)の制限を維持します。
+mapは起動時に読み、対応表をWorker・親子agent・各run_jsへ継承します。未使用targetには接続しません。map内の相対targetは引き続きローカルmap文書のディレクトリ基準です。Exact and prefix mappings and referrer scopes are supported; see the [import-map guide](import-map.md) for the supported subset.
 
 [公開ESMの実行例](../examples/url-import/README.md)は外部サービスに接続します。npm探索・package管理・任意ライブラリの動作保証とは別です。
 
 ## 依存の解決とmoduleの同一性
 
 - リモートmodule内の./・../・/・//・query/fragment参照はそのmoduleのURLを基準に解決します。/dep.jsはOSのrootではなく、配信元originのpathです。
-- redirect後は最終URLをmodule IDと相対importの基準にします。同じ最終IDへ到達する元URL・alias・直接URLは、同じruntimeで同じnamespaceになります。
+- redirect後は最終URLをmodule IDと相対importの基準にします。同じ最終IDへ到達する元URL・alias・直接URLは、同じruntimeで同じnamespaceになります（when imported with the same type）。
 - scheme/hostは小文字化し、既定portを除去、空pathを/へ、literal dot segmentを解決します。queryの順序・pathのescapeの意味は変えません。ブラウザのURL正規化全体やsymlink等の同一性を保証するものではありません。
 - query違い、非空fragment違いは別moduleです。fragmentはHTTP request targetへ送りません。空fragmentはfragmentなしと同じIDです。
 - redirect Locationがfragmentを省略すれば前のfragmentを継承し、#を明示すれば空を含め置換します。
@@ -58,15 +59,46 @@ v2.8.1以降では、URL moduleの`import.meta.url`にredirect後のcanonical UR
 query/fragmentを含むmodule identityや、assetを取得するための権限は変わりません。
 ローカル・仮想entry・Workerの値は[import.meta.urlガイド](import-meta.md)を参照してください。
 
-## HTTPとソース形式
+## HTTP source interpretation
 
-GETの2xxレスポンスを扱い、JavaScript MIMEとtext/plainを受理します。Content-Typeは大小文字を区別せず、text/plain; charset=utf-8等のパラメータを扱います。JavaScript MIMEはHTMLのJavaScript MIME essence集合です。
+GET responses with a 2xx status supply their response-body bytes unchanged.
+Content-Type is neither validated nor used to infer the import type. Missing,
+malformed, and arbitrary MIME metadata are accepted. A plain import always
+executes JavaScript; explicit import attributes select JSON, text, or bytes:
 
-Content-Type欠落・不正・他のMIME、非2xx、ネットワーク失敗、本文上限、不正UTF-8は読込みエラーです。拡張子による救済や本文sniffing、TS/JSON/Wasmへの自動切替はしません。
+```js
+import settings from "https://example.com/settings.json" with { type: "json" };
+import template from "https://example.com/template" with { type: "text" };
+import payload from "https://example.com/payload.bin" with { type: "bytes" };
+const { default: more } = await import("https://example.com/more", {
+  with: { type: "json" }
+});
+```
 
-sourceはUTF-8として読み、先頭のUTF-8 BOMは除去します。charset宣言による別encodingへの変換はしません。構文・評価エラーはJavaScriptのエラーとして、元のURL/referrer等とともに診断します。
+The loader performs no UTF-8 validation, BOM removal, charset conversion, or
+content sniffing. The existing engine interprets the bytes using the requested
+type, just as for local sources. Text retains a leading BOM. Bytes preserves
+all response-body bytes, including a BOM, zero bytes, and invalid UTF-8, in an
+immutable Uint8Array buffer. BOM-prefixed JSON is rejected by the pinned
+engine; JavaScript continues to accept a leading BOM through its lexer.
 
-標準設定は1要求30秒のtimeout、展開後の本文32MiB上限です。Goホストはclientと上限を変更できます。NOEは独自retryや条件付きGETを行わず、provider/authのAPI keyを自動送信しません。
+Each runtime retains one raw source per final canonical URL. Different import
+types share those source bytes but have separate engine namespaces; aliases
+of the same URL and type share values. A type-specific parsing failure does
+not alter the raw source used by other types. Transport decompression still
+applies: byte imports reflect `http.Response.Body`, not compressed wire bytes.
+
+**Compatibility:** this replaces the previous JavaScript/text MIME allowlist,
+strict UTF-8 check, and leading-BOM removal. Responses formerly rejected for
+MIME metadata can now reach engine parsing. JavaScript source can execute
+regardless of its response MIME. Text now retains a BOM, and JSON previously
+served with a BOM through a text MIME now fails engine parsing. Invalid
+UTF-8 reaches the engine rather than failing at the HTTP loader.
+
+Non-2xx responses, request/body failures, and body limits remain load errors.
+The default client timeout is 30 seconds and the default decompressed-body
+limit is 32 MiB. Go hosts select the client, request/redirect policy, and size
+limit. Provider credentials are not automatically attached to module requests.
 
 ## 同期読込みと取消し
 
@@ -80,6 +112,7 @@ module loaderは同期です。**ダウンロード中は同じruntimeのJS job/
 - 標準loaderのWorker入口はローカルです。直接URLとURLを指すaliasは入口用HTTP取得前に拒否します。同じWorker内の依存importはHTTP/HTTPSを利用できます。
 - global Workerの既存local target alias入口は維持します。node:worker_threads.Workerの文字列path形式は変更しません。
 - URLコードも実行先Profileの権限で動きます。CLIは起動ユーザーのOS権限を持つ既存モデルです。sandbox・origin隔離・コードの安全性保証ではありません。信頼する配信元だけを使ってください。
+
 
 ## Goホストで明示的に有効にする
 
@@ -110,7 +143,8 @@ result, err := stdlib.Execute(ctx, source, profile)
 | 設定 | 意味 |
 | --- | --- |
 | Profile.Loader | loader生成と能力metadataを一体で持つModuleLoaderProvider |
-| LoaderOptions.Imports | 完全一致map。省略しても絶対URLを直接import可能 |
+| LoaderOptions.Imports | Exact and slash-prefix bare mappings; optional for direct absolute URL imports |
+| LoaderOptions.Scopes | Referrer-specific mappings with directory or exact-file scope keys |
 | LoaderOptions.HTTP | nilならURL import無効、非nilならHTTP/HTTPSを有効化 |
 | ModuleHTTPOptions.Client | 借用HTTP client。nilは30秒timeout付きclient。提供clientの設定を変更・closeしない |
 | ModuleHTTPOptions.Allow | 初回要求と各redirect先への許可callback。ホストclientのCheckRedirectも尊重 |

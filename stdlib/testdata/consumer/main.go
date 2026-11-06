@@ -50,6 +50,9 @@ func run() error {
 	if err := watchFilesystem(ctx); err != nil {
 		return err
 	}
+	if err := dataImports(ctx); err != nil {
+		return err
+	}
 	if err := mappedExecution(ctx); err != nil {
 		return err
 	}

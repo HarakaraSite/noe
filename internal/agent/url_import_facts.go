@@ -5,7 +5,7 @@ package agent
 func URLImportFacts(support string) string {
 	switch support {
 	case "enabled":
-		return "HTTP/HTTPS ESM URL imports: enabled. Individual URLs remain subject to host policy; arbitrary package compatibility is not implied. NOE's standard URL loader accepts JavaScript MIME types and text/plain, does not transpile TypeScript or discover npm packages, and does not share downloaded source across runtimes. Its synchronous loads pause that runtime's JavaScript jobs; cancellation is driven by the host execution context."
+		return "HTTP/HTTPS ESM URL imports: enabled. Individual URLs remain subject to host policy; arbitrary package compatibility is not implied. NOE's standard URL loader preserves response-body bytes for JavaScript and explicit JSON/text/bytes imports without MIME validation, UTF-8 validation, or BOM removal. It does not transpile TypeScript or discover npm packages, and does not share downloaded source across runtimes. Its synchronous loads pause that runtime's JavaScript jobs; cancellation is driven by the host execution context."
 	case "disabled":
 		return "HTTP/HTTPS ESM URL imports: disabled by the selected execution profile."
 	default:

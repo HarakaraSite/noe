@@ -18,9 +18,10 @@ func TestImportMapAgentSnapshotDelegationAndRootIsolation(t *testing.T) {
 	paths := map[string]string{}
 	for _, suffix := range []string{"A", "B"} {
 		paths[suffix] = filepath.Join(work, "maps", suffix+".json")
-		writeFixture(t, paths[suffix], `{"imports":{"app/value":"../lib/`+suffix+`.mjs"}}`)
+		writeFixture(t, paths[suffix], `{"imports":{"app/":"../lib/shared/"},"scopes":{"../lib/shared/":{"choice":"../lib/`+suffix+`.mjs"}}}`)
 		writeFixture(t, filepath.Join(work, "lib", suffix+".mjs"), `export const value="`+suffix+`";`)
 	}
+	writeFixture(t, filepath.Join(work, "lib", "shared", "value"), `export {value} from "choice";`)
 	var started, calls atomic.Int32
 	both := make(chan struct{})
 	server := agentAPIFixture(t, func(ctx context.Context, req agentChatRequest) agentModelReply {
