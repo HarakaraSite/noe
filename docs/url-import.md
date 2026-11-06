@@ -1,7 +1,7 @@
 # HTTP/HTTPSのESMをimportする
 
 NOE v2.8.0以降で利用できます。既存のv2.7.1以前の配布版には含まれません。
-JSON/text/bytes imports and the raw-body policy below are unreleased phase 7 additions.
+JSON/text/bytes imports and the raw-body policy below are available in [v2.15.0](releases/v2.15.0.md).
 
 CLIのrun/eval、agentのrun_js、ローカル入口のmodule Workerで、HTTP/HTTPS URLをESMの依存としてimportできます。CLIは既定で有効、Goへ組み込む場合はホストが明示的に選びます。
 

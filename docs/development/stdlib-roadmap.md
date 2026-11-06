@@ -16,20 +16,17 @@ file-type, permission, and special bits in `mode`.
 
 Phases 3 and 4 were released in [v2.14.0](../releases/v2.14.0.md). The process, standard-I/O, and cancellation
 sections below record their implementation and compatibility details.
-Phase 5 core filesystem watching is committed as `10a8f70` and locally verified,
-but not released; see the [watch implementation record](stdlib-fs-watch.md).
-The initial scope is nonrecursive, with callback and async-iterator APIs,
-cancellation, and resource cleanup. Phase 6 source maps are committed as
-`baa984d` and locally verified, but not released; see the
-[source map record](stdlib-source-maps.md). Mapping is enabled by default as
-approved by the user. Phase 7 local and HTTP JSON/text/bytes imports and import-map
-prefixes/scopes are committed as `fd8702b` and verified, but not released.
-See the [module-loading record](stdlib-module-loading.md), including the
-approved HTTP raw-body policy and its MIME/UTF-8/BOM compatibility changes.
+Phases 5–7 and phase 9.1 are included in [v2.15.0](../releases/v2.15.0.md):
+filesystem watching (`10a8f70`), default source maps (`baa984d`), data imports
+and import-map prefixes/scopes (`fd8702b`), and WebSocket handshake headers
+(`7db6835`). See the [watch](stdlib-fs-watch.md),
+[source-map](stdlib-source-maps.md), [module-loading](stdlib-module-loading.md),
+and [header](stdlib-websocket-headers.md) implementation records. The HTTP
+raw-body policy includes the approved MIME/UTF-8/BOM behavior changes.
+
 The user chose to defer Web Crypto (phase 8) until concrete SDK requirements
-justify an algorithm/key-format addition. Phase 9.1 custom WebSocket
-headers are committed and locally verified, but unreleased; EventSource follows separately, while WebSocketStream remains
-use-case driven. See the [header implementation record](stdlib-websocket-headers.md).
+justify an algorithm/key-format addition. EventSource follows the header work
+separately, while WebSocketStream remains use-case driven.
 The v2.14.0 consumer rollout is covered by the
 [noebot migration instructions](noebot-v2.14.0-migration.md).
 
@@ -230,7 +227,7 @@ were performed for this slice.
 
 2026-11-05, based on `64bd5c4`. After committing the process-entry slice,
 the user approved standard-I/O integration without compatibility adapters.
-Implementation and local validation are complete; this slice is not released.
+Implementation and local validation are complete; released in v2.14.0.
 
 | Previous surface | Approved replacement |
 | --- | --- |
@@ -328,7 +325,7 @@ NOE binaries and running applications were not replaced or restarted.
 
 ## Cancellation and cleanup: phase 4
 
-2026-11-06, based on `eb460bf`. Implemented and locally verified; not released.
+2026-11-06, based on `eb460bf`. Implemented and locally verified; released in v2.14.0.
 The pipe cancellation work was completed during phase 3. This phase adds
 combined abort signals and asynchronous disposal to existing owned resources.
 

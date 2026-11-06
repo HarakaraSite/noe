@@ -3,7 +3,7 @@
 Import JavaScript, verified ESM libraries, and JSON/text/bytes data by explicit
 path, URL, or mapped name. HTTP/HTTPS imports are available through the CLI;
 Go hosts enable them explicitly. See [URL imports](url-import.md).
-The data-import and prefix/scope additions described here are not released yet.
+Data imports and prefix/scope mappings are available in [v2.15.0](releases/v2.15.0.md).
 
 ```sh
 ./noe run --import-map examples/import-map/import-map.json examples/import-map/main.js

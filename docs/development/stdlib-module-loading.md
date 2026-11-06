@@ -3,7 +3,7 @@
 [Roadmap](stdlib-roadmap.md) · [User guide](../import-map.md) · [Go embedding](../go-embedding.md)
 
 Implemented locally on 2026-11-06 after phase 6 was committed as `baa984d`.
-This phase is committed and locally verified, but not released.
+This phase is included in [v2.15.0](../releases/v2.15.0.md).
 
 ## Implementation
 
@@ -187,5 +187,5 @@ passed on Linux:
 
 Logs, exact-source manifests, consumer artifacts, and check results are under
 `/var/tmp/noe-http-data-m4spw6b5/`. This supersedes the earlier HTTP MIME rejection
-checks and deferred-HTTP notes. The implementation is committed and locally verified, but unreleased. No paid provider, upstream request, engine change, installed-binary
+checks and deferred-HTTP notes. The implementation is included in v2.15.0. No paid provider, upstream request, engine change, installed-binary
 replacement, or service restart was performed.

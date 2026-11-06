@@ -5,7 +5,7 @@
 2026-11-06, based on NOE v2.14.0. Phase 5 adds nonrecursive file and directory
 watching through the existing filesystem modules. This is an additive API;
 no preexisting import, method, result, or noebot caller needs migration.
-Implemented and locally verified; not released.
+Implemented and locally verified; included in [v2.15.0](../releases/v2.15.0.md).
 
 ## API and shared backend
 

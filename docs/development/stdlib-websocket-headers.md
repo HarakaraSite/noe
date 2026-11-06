@@ -4,8 +4,7 @@
 
 The user chose Web communication work before Web Crypto, starting with custom
 WebSocket request headers. EventSource and WebSocketStream are separate
-follow-ups. The implementation is committed and locally verified; this feature has not
-been released.
+follow-ups. The implementation is included in [v2.15.0](../releases/v2.15.0.md).
 
 ## Contract
 
@@ -112,5 +111,5 @@ The implementation and local verification are complete:
 Execution evidence is from Linux, with loopback WS/WSS fixtures rather than
 paid providers or external services. Logs, source manifests, and public Go
 consumer artifacts are under `/var/tmp/noe-websocket-headers-syq4pang/`.
-The implementation is committed and locally verified, but unreleased. Installed binaries,
+The implementation is included in v2.15.0. Installed binaries,
 services, the engine dependency, and upstream repositories were not changed.

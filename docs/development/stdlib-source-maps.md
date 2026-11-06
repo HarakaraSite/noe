@@ -5,7 +5,7 @@
 2026-11-06, based on filesystem-watch commit `10a8f70`. Phase 6 connects the
 pinned engine's source-map support to NOE-owned VMs. The user approved enabling
 it by default after being told that mapped Error stacks change displayed source
-names and positions. Implemented and locally verified; not released.
+names and positions. Implemented and locally verified; included in [v2.15.0](../releases/v2.15.0.md).
 
 ## Behavior and compatibility
 
