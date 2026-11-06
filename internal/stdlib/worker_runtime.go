@@ -63,6 +63,8 @@ func runWorker(ctx context.Context, cfg Config, w *workerContext, wh *workerHand
 	var err error
 	if cfg.Workers != nil && cfg.Workers.New != nil {
 		rt, err = cfg.Workers.New()
+	} else if cfg.Workers != nil && cfg.Workers.NewWithContext != nil {
+		rt, err = cfg.Workers.NewWithContext(ctx)
 	} else {
 		rt = quickjs.New()
 	}

@@ -85,6 +85,8 @@ type DiagnosticPosition = executionresult.Position
 // DiagnosticEncodedBytes represents binary command output in a diagnostic.
 type DiagnosticEncodedBytes = executionresult.EncodedBytes
 
+// NewRuntime creates an owned VM with source-mapped error stacks. Inline maps
+// need no capability; local sidecars use only the selected filesystem.
 func NewRuntime(ctx context.Context, profile Profile) (*Runtime, error) {
 	return jsexec.NewRuntime(ctx, profile)
 }

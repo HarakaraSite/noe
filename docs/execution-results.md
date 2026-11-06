@@ -114,3 +114,15 @@ if result.Data != nil {
 4. afterToolの任意加工結果とraw runner結果を区別し、diagnosticsを落とすhookがあれば目的に応じて更新する。
 
 Biome/tscの利用は任意の既存ツールのままです。この変更でchecker、導入処理、新しい実行前ゲートは追加しません。
+
+## Source maps in diagnostic stacks
+
+The unreleased checkout enables source maps by default for NOE-owned VMs.
+Runtime Error stacks in `diagnostics[].stack` and human-readable diagnostics
+can report original source locations. CLI, Worker error transfer, and managed
+agent tool results use the engine's mapping. Missing or invalid maps fall back
+to generated-code locations. Diagnostic code/stage/message fields, exit codes,
+exception details, result budgets, and native Go causes retain their contracts.
+Syntax-error `position` remains the generated engine position; no positions
+are guessed from stack text. `Error.prepareStackTrace` retains generated
+CallSites. See the [implementation record](development/stdlib-source-maps.md).

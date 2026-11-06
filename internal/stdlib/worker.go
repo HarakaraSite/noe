@@ -19,9 +19,13 @@ import (
 // the worker rather than the program, and it has no stdin.
 type Workers struct {
 	// New makes a worker's runtime, as the host makes its own: with the
-	// same options, and the same module loader. Nil makes one with
-	// quickjs.New, which can import nothing but the modules installed here.
+	// same options and module loader. Nil selects NewWithContext when supplied,
+	// otherwise quickjs.New with only the modules installed here.
 	New func() (*quickjs.Runtime, error)
+
+	// NewWithContext receives the worker's lifetime when New is nil. Hosts
+	// use it for VM options whose loaders must stop with that worker.
+	NewWithContext func(context.Context) (*quickjs.Runtime, error)
 
 	// Installed is called with a worker's runtime once everything the
 	// Config asks for is installed in it, for the host to add what it adds to

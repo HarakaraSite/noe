@@ -255,3 +255,43 @@ executable, connection, or combined-IO settings.
 ## Structured execution results
 
 Managed module execution also returns `Result.Data` (detached JSON, nil for no default export) and `Result.Diagnostics`. Explicit null is JSON `null`, not absence. Existing Code/error handling and `Diagnostic(err)` remain available. Plain-script completion and Worker entry execution keep their existing behavior. The [result and migration guide](execution-results.md) describes the S4 development contract, cancellation, JSON conversion, and separate diagnostics.
+
+## Source maps in diagnostics
+
+In the unreleased checkout, `NewRuntime` and `Execute` enable source maps by
+default. Runtime Error stacks use original file/function names and positions
+from inline application/json data URLs or readable local sidecars named by
+`sourceMappingURL`. The selected FS capability controls sidecar access, including
+Root and ReadOnly. No remote map or original source file is fetched. Missing,
+invalid, or unreadable maps fall back to generated-code positions. Structured
+`Result.Diagnostics[].Stack` and `Diagnostic(err)` retain the mapped stack after
+the VM closes. Custom `Error.prepareStackTrace` retains generated CallSites;
+syntax-error Position remains the generated position supplied by the engine.
+
+`Attach` preserves the engine options of the caller-owned VM. To enable mapping
+there, supply `quickjs.WithSourceMaps` at VM construction and delegate its loader
+to the attached view. This snippet uses `errors`, the public `stdlib` package,
+and `github.com/go-quickjs/go-quickjs`:
+
+```go
+var view *stdlib.Bindings
+rt := quickjs.New(quickjs.WithSourceMaps(func(script, reference string) ([]byte, string, error) {
+    if view == nil {
+        return nil, "", errors.New("bindings are not attached")
+    }
+    return view.ReadSourceMap(script, reference)
+}))
+loop := stdlib.NewLoop(rt)
+attached, err := stdlib.Attach(rt, loop, profile)
+if err != nil {
+    return err
+}
+view = attached
+```
+
+`ReadSourceMap` uses the view's context and filesystem and refuses reads after
+`view.Close()`. Inline data works without FS. External maps require local
+absolute or file-URL script IDs; opaque or remote IDs support inline maps.
+Keep the usual owner-thread evaluation and explicit view/loop/VM cleanup.
+The [source map implementation record](development/stdlib-source-maps.md)
+describes supported references, diagnostic compatibility, and verification.

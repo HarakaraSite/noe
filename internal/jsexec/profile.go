@@ -34,6 +34,13 @@ type bindingsState struct {
 	closed bool
 }
 
+// preparedEnvironment shares the owned runtime's one normalization with its
+// VM constructor and Attach. Caller-owned VMs normalize inside Attach instead.
+type preparedEnvironment struct {
+	env     Environment
+	backend *filesystem.Backend
+}
+
 // Bindings is a borrowed view of one attached execution. Its methods that
 // interact with QuickJS must be called on the runtime owner.
 type Bindings struct {
@@ -62,10 +69,10 @@ type Bindings struct {
 // Attach installs a profile into a caller-owned runtime and loop. It does not
 // close either borrowed object, including when setup fails.
 func Attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile) (*Bindings, error) {
-	return attach(rt, loop, profile, false, nil, nil)
+	return attach(rt, loop, profile, false, nil, nil, nil)
 }
 
-func attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile, worker bool, workerConfig *lower.Config, parent context.Context) (_ *Bindings, err error) {
+func attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile, worker bool, workerConfig *lower.Config, parent context.Context, prepared *preparedEnvironment) (_ *Bindings, err error) {
 	if rt == nil {
 		return nil, errors.New("stdlib: runtime is required")
 	}
@@ -79,9 +86,15 @@ func attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile, worker bool,
 		return nil, fmt.Errorf("stdlib: execution is closed: %w", err)
 	}
 
-	profile, env, backend, err := normalize(profile)
-	if err != nil {
-		return nil, err
+	var env Environment
+	var backend *filesystem.Backend
+	if prepared != nil {
+		env, backend = prepared.env, prepared.backend
+	} else {
+		profile, env, backend, err = normalize(profile)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if worker && workerConfig != nil {
 		cwd, args, values := lower.ExecutionEnvironment(*workerConfig)
@@ -139,7 +152,7 @@ func attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile, worker bool,
 		// its own cancellable facade and gets empty input.
 		workerProfile.Environment.Stdout, workerProfile.Environment.Stderr = env.Stdout, env.Stderr
 		workerInstall = func(workerRT *quickjs.Runtime, workerLoop *lower.Loop, config lower.Config) (lower.WorkerInstallation, error) {
-			view, installErr := attach(workerRT, workerLoop, workerProfile, true, &config, nil)
+			view, installErr := attach(workerRT, workerLoop, workerProfile, true, &config, nil, nil)
 			if installErr != nil {
 				return lower.WorkerInstallation{}, installErr
 			}

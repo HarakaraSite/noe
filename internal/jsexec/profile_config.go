@@ -1,11 +1,13 @@
 package jsexec
 
 import (
+	"context"
 	"crypto/tls"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
 	"forge.harakara.site/littleisland/noe/v2/internal/noestdlib"
 	lower "forge.harakara.site/littleisland/noe/v2/internal/stdlib"
+	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 func lowerConfig(profile Profile, env Environment, backend *filesystem.Backend, loop *lower.Loop) (lower.Config, noestdlib.NativeModules, error) {
@@ -53,7 +55,13 @@ func lowerConfig(profile Profile, env Environment, backend *filesystem.Backend, 
 		cfg.Sockets = &lower.WebSockets{Loop: loop, Allow: modules.WebSockets.Allow, Serve: socketServe, MaxMessageBytes: modules.WebSockets.MaxMessageBytes, HandshakeTimeout: modules.WebSockets.HandshakeTimeout, TLS: tlsConfig}
 	}
 	if modules.Workers != nil {
-		cfg.Workers = &lower.Workers{Max: modules.Workers.Max}
+		cfg.Workers = &lower.Workers{
+			Max: modules.Workers.Max,
+			NewWithContext: func(ctx context.Context) (*quickjs.Runtime, error) {
+				rt, _ := newProfileVM(ctx, backend, modules.FS != nil)
+				return rt, nil
+			},
+		}
 	}
 	selection := noestdlib.NativeModules{
 		Stdio: modules.Stdio, Commands: modules.Commands != nil,

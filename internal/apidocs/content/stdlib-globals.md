@@ -177,6 +177,23 @@ socket.addEventListener("message", (event) => console.log(event.data));
 
 A WebSocket carries complete protocol messages, not raw TCP bytes. NOE enables outbound WebSockets. For a server, use serve with upgradeWebSocket(request) and return the provided 101 Response; the helper requires an HTTP server in the same runtime. Close the socket when it is no longer needed.
 
+## Error.stack
+
+NOE-owned execution runtimes enable source maps by default. A
+`//# sourceMappingURL=...` annotation can map runtime Error stacks to original
+file names, function names, lines, and columns. Inline application/json data
+URLs work without filesystem access; relative local sidecars use the selected
+filesystem, including its Root and ReadOnly policy. Maps are loaded lazily and
+cached by the engine for that VM. Missing, unreadable, or malformed maps leave
+generated-code locations intact. The diagnostic stack is retained after VM
+cleanup in CLI and managed agent executions; Worker Error stacks are mapped
+before transfer to their parent.
+
+Remote and opaque script IDs support inline maps. External HTTP maps are not
+fetched. `Error.prepareStackTrace` still receives generated CallSites, and
+syntax-error positions retain the engine's generated location. Source maps
+describe already generated JavaScript; they do not execute TypeScript.
+
 ## AbortController
 
 new AbortController() creates a controller with a signal. Call abort(reason?) once to mark it aborted, set its reason, and dispatch an abort event. Pass the signal to fetch or another API that accepts one.

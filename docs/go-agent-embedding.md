@@ -263,3 +263,13 @@ returns unsupported rather than using a built-in account. Existing custom
 services gain no new required method. `model.Options.CodexAuth` selects trusted
 OAuth issuer/client/callback options; `Options.Credentials` continues to select
 credential files by provider ID. Construction/catalog access remains lazy.
+
+## Source maps in managed execution
+
+The unreleased checkout enables source maps in the fresh task and run_js VMs
+created from a Runtime profile, including their Workers. Inline maps need no
+FS capability; local sidecars use the selected Runtime filesystem. Mapped
+stacks are returned in diagnostics and remain available after execution closes.
+Providers, tool-result budgets, exit codes, and native Go causes retain their
+existing contracts. See the [Go source map setup](go-embedding.md#source-maps-in-diagnostics)
+and [implementation record](development/stdlib-source-maps.md).

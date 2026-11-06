@@ -52,7 +52,14 @@ func NewRuntime(ctx context.Context, profile Profile) (*Runtime, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	rt := quickjs.New()
+	// Fix relative filesystem paths once before the VM and its diagnostic
+	// loader are created. Attach receives this same normalized profile.
+	profile, env, backend, err := normalize(profile)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	rt, stopMaps := newProfileVM(ctx, backend, profile.Modules.FS != nil)
 	helperName := fmt.Sprintf("noe:internal/jsexec/%d", nextRuntimeID.Add(1))
 	r := &Runtime{rt: rt, ctx: ctx, cancel: cancel, loop: lower.NewLoop(rt), helperName: helperName}
 	rt.OnClose(r.loop.Close)
@@ -93,7 +100,10 @@ func NewRuntime(ctx context.Context, profile Profile) (*Runtime, error) {
 		}
 	}
 	if err == nil {
-		r.bindings, err = attach(rt, r.loop, profile, false, nil, ctx)
+		r.bindings, err = attach(rt, r.loop, profile, false, nil, ctx, &preparedEnvironment{env: env, backend: backend})
+	}
+	if err == nil {
+		err = r.bindings.scope.AddCleanup(stopMaps)
 	}
 	if err != nil {
 		err = retainException(err)

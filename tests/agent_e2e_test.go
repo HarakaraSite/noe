@@ -45,6 +45,7 @@ type agentExecutionResult struct {
 		Code    string `json:"code"`
 		Stage   string `json:"stage"`
 		Message string `json:"message"`
+		Stack   string `json:"stack,omitempty"`
 	} `json:"diagnostics,omitempty"`
 }
 

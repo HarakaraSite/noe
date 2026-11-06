@@ -16,10 +16,14 @@ file-type, permission, and special bits in `mode`.
 
 Phases 3 and 4 were released in [v2.14.0](../releases/v2.14.0.md). The process, standard-I/O, and cancellation
 sections below record their implementation and compatibility details.
-Phase 5 core filesystem watching is now implemented and locally verified,
+Phase 5 core filesystem watching is committed as `10a8f70` and locally verified,
 but not released; see the [watch implementation record](stdlib-fs-watch.md).
 The initial scope is nonrecursive, with callback and async-iterator APIs,
-cancellation, and resource cleanup. The next planned phase is source maps.
+cancellation, and resource cleanup. Phase 6 source maps are also implemented
+and locally verified, but not released; see the
+[source map record](stdlib-source-maps.md). Mapping is enabled by default as
+approved by the user. The next planned phase is module loading: JSON/text/bytes
+imports, followed by import-map prefix mappings and scopes.
 The v2.14.0 consumer rollout is covered by the
 [noebot migration instructions](noebot-v2.14.0-migration.md).
 

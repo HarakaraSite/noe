@@ -65,6 +65,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | JSによるExa MCPクライアントとソケットデーモンの利用例 | [実装・検証記録](mcp-daemon-examples.md) |
 | txiki.jsとの機能差と今後の改善の参考 | [比較調査（2026-10-24）](txikijs-comparison-20261024.md) |
 | Standard library API integration and expansion | [Roadmap, filesystem milestone, and process integration](stdlib-roadmap.md) |
+| Source maps in runtime diagnostics | [Default mapping, capability boundaries, and verification](stdlib-source-maps.md) |
 | Filesystem watching | [API, lifecycle, compatibility, and validation](stdlib-fs-watch.md) |
 | noebot adoption of NOE v2.14.0 | [Required migration, verification, rollout, and optional improvements](noebot-v2.14.0-migration.md) |
 | go-quickjs v0.28.0の取り込み | [計画・レビュー・検証記録](go-quickjs-v0.28.0-plan.md) |
