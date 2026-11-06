@@ -3507,3 +3507,58 @@ records, published-consumer manifests, and installed-binary hashes.
 Passing implementation source suites were reused. Native execution is Linux
 amd64; the other five targets received build/checksum verification.
 This documentation-only follow-up preserves the immutable release tag.
+
+## v2.15.0 preparation — 2026-11-06
+
+The user authorized committing WebSocket headers and publishing a release.
+The checked feature commits are filesystem watching `10a8f70`, default source
+maps `baa984d`, data imports/prefixes/scopes `fd8702b`, and WebSocket headers
+`7db6835`. See [release notes](v2.15.0.md) for behavior and compatibility.
+
+All 54 changed Go/JS/declaration/module paths since v2.14.0 match the combined
+implementation manifests. The sole additional production-Go adjustment is the
+CLI Version string. The workflow/profile and engine remain unchanged; native
+watching adds fsnotify v1.10.1. Go 1.27.2, official go-quickjs v0.32.0,
+go-intl v0.8.0, and disabled JIT remain selected.
+
+### Reused implementation verification
+
+- Filesystem watching: affected units/race, CLI/Worker/agent paths, capability
+  and cleanup checks, external consumers and six-target builds, declarations,
+  vet, and independent review. Evidence: `/tmp/noe-fs-watch-7lk4w_xp/`.
+- Source maps: affected units/race, run/eval/Worker/events/agent diagnostics,
+  selected-filesystem boundaries, public stdlib/agent consumers and cross
+  builds, vet, and bounded review. Evidence: `/tmp/noe-source-maps-qy4kygxm/`.
+- Data imports and import maps: local/HTTP raw bytes, canonical-ID/type cache
+  identity, nested scope/prefix resolution, CLI/Workers/parent-child agents,
+  filesystem/HTTP capability boundaries, units/race, public consumers, vet,
+  and resolution review. Evidence: `/var/tmp/noe-module-loading-5rpc_di3/`
+  and final HTTP policy `/var/tmp/noe-http-data-m4spw6b5/`.
+- WebSocket headers: affected units, WS/WSS main/Worker profile and snapshot
+  checks, race, CLI/Worker/fixture-agent exchange, standalone public Go module,
+  TypeScript fixtures, vet, and bounded review/re-review. Evidence:
+  `/var/tmp/noe-websocket-headers-syq4pang/`.
+
+### Lightweight release verification
+
+Clean native candidate: `9312fd30a497e6005231d8f9220a3ef65d853236`.
+Its release-flags build passed, with CGO disabled, the expected revision,
+`vcs.modified=false`, official engine/Intl versions, fsnotify v1.10.1, and no JIT
+build tag. The configured-version unit test passed. Candidate smoke passed
+version/arithmetic, watcher construction/disposal, inline source mapping,
+local JSON/text/bytes through map prefixes/scopes, HTTP raw-body data imports
+(including BOM behavior), and authenticated WebSocket exchange/clean close.
+All seven checks exited zero with empty stderr.
+
+The public module import paths retain `/v2`. Source suites are reused rather
+than repeated for release preparation. CI will build the six distribution
+artifacts, create SHA256SUMS, and publish the immutable selected tag; it will
+not rerun source tests. Published assets/build metadata, native smoke, and
+clean external Go modules will be checked after publication.
+
+Release helpers, source continuity, clean candidate, and smoke records are at
+`/var/tmp/noe-v2.15.0-release-e2jll9xq/`. Local executable placement and service
+restarts are not part of this publication. The inspected repository/user
+executables still report v2.13.0. No provider or login requests were made.
+Native execution is Linux amd64. Other targets receive CI build/checksum
+verification, with the existing later-artifact dist/ vcs.modified limitation.
