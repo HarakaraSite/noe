@@ -1115,6 +1115,7 @@ declare namespace NOEStdlib {
     removeEventListener(type: "error", listener: EventListener<WebSocketErrorEvent>): void;
     removeEventListener(type: "close", listener: EventListener<WebSocketCloseEvent>): void;
     send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
+    /** Cancels opening in CONNECTING; validates the code and UTF-8 reason before changing state. */
     close(code?: number, reason?: string): void;
   }
   interface WebSocketConstructor {

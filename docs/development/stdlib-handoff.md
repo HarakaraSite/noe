@@ -1,21 +1,24 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after Serve request-limit errors, asynchronous close, and
-async disposal, following the completed process/HTTP/Fetch migrations.
+Updated 2026-11-07 after WebSocket opening cancellation and close validation,
+following the completed filesystem/process/HTTP/Fetch/Serve migrations.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
 
 ## Repository and publication state
 
 - Repository: `/home/agent/projects/noe`, branch `main`.
-- This handoff is committed with the verified process/HTTP/Serve checkpoint.
-  Its parent is `295fb53` (`refactor(stdlib): consolidate filesystem APIs under
-  noe:fs`). The user requested this local commit and continued implementation
-  on 2026-11-07. No push or publication is included.
+- The verified process/HTTP/Serve checkpoint is `3997dc0`
+  (`refactor(stdlib): consolidate host APIs and async HTTP lifecycle`),
+  following filesystem commit `295fb53`. The user requested a local commit
+  and continued implementation on 2026-11-07. This handoff accompanies the
+  subsequent verified WebSocket lifecycle correction. No push or publication
+  is included.
 - The latest release recorded in this checkout is v2.15.0. EventSource,
   asynchronous SQLite, filesystem/process/HTTP migrations, and the response
-  limit/Blob-send and Serve lifecycle corrections are unreleased.
-- Latest source candidate: `/var/tmp/noe-serve-policy-bOYsbk/noe`. Earlier
+  limit/Blob-send, Serve lifecycle, and WebSocket opening corrections are
+  unreleased.
+- Latest source candidate: `/var/tmp/noe-websocket-lifecycle-P6J6DU/noe`. Earlier
   candidate paths below belong to their recorded slices, not the latest API.
 - The resumed request authorized continuation, and the user explicitly
   approved the concrete process contract and deletion of its four legacy
@@ -55,6 +58,59 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
 - Documentation and explanatory source text are English; user replies may
   be Japanese. Follow AGENTS.md, including reuse of completed validation
   when the tested source and dependencies have not changed.
+
+## Completed WebSocket opening lifecycle correction
+
+See [implementation and migration](stdlib-websocket-lifecycle.md).
+
+- Closing during CONNECTING now cancels outbound dialing/handshake and
+  rejects opening on the owner. Error precedes unclean close (1006), and
+  both handlers observe CLOSED. Later results cannot reopen or deliver
+  messages; messages are suppressed outside OPEN.
+- The opening timeout covers TCP/TLS/HTTP together. Context cancellation
+  interrupts a connected peer's blocked HTTP handshake, so execution and
+  Worker cleanup do not wait for the configured handshake timeout.
+- Completed handshakes remain owned while queued for owner delivery,
+  including legacy loops without an execution scope. Scoped cleanup and
+  active-socket hooks retain the shared native backend and Go-only force
+  cleanup. Closing a reserved upgrade removes its token before attachment.
+- Close arguments now use unsigned-short clamp conversion, permitted code
+  checks, and the 123-byte UTF-8 reason limit. Invalid calls throw before
+  changing state, including calls on CLOSING/CLOSED sockets. Callers must
+  stop sending reserved/out-of-range codes or oversized reasons.
+- Existing established-close default code 1000, native FIFO, and short
+  forced-close allowance remain. A full wire closing-handshake redesign is
+  outside this correction. No capability, public Go field, or dependency
+  was added. Types, references, real CLI fixtures, and the independent
+  public consumer are updated.
+
+## WebSocket lifecycle validation and evidence
+
+Validation is complete. Evidence: `/var/tmp/noe-websocket-lifecycle-P6J6DU`.
+
+- A detached `3997dc0` checkout reproduced both CONNECTING close and
+  execution cancellation waiting on a held HTTP handshake. Each failed
+  within a bounded test and released its peer during cleanup. A separate
+  deterministic test reproduced a successful handshake queued before
+  close leaking the loop hold. These failures are fixed in the current tree.
+- Public regression tests pass for held-response close/cancellation,
+  Worker termination while opening, close validation in OPEN/CLOSED, and
+  reserved-upgrade close before attachment. Core tests cover a completed
+  handshake queued before explicit close or borrowed execution cleanup.
+- Existing WebSocket/TLS/custom-header/binary and noe:http tests pass;
+  affected core/public tests also pass with the race detector. Real CLI
+  run/eval/Worker/fixture-agent modes cover immediate close and validation.
+- Separate checkout and independent module-artifact public Go consumers
+  build and run with CGO disabled. They include immediate CONNECTING close
+  and argument validation. Prior six-target builds remain reusable: there
+  are no dependency or platform-specific changes in this correction.
+- TypeScript fixtures, embedded API catalog, vet, and whitespace checks
+  pass. Bounded independent static review of cancellation, delivery,
+  ownership, reservations, and validation found no actionable finding.
+- Command logs/JSON, `verification.json`, and `source-manifest.json` record
+  the final evidence. `baseline/` and `baseline-checkout/` preserve the
+  comparison source. No push, release, installed-binary replacement,
+  running service restart, or noebot work occurred.
 
 ## Completed Serve limits and lifecycle slice
 
@@ -119,8 +175,9 @@ Validation is complete. Evidence: `/var/tmp/noe-serve-policy-bOYsbk`.
   `source-manifest.json` records the final working-tree hashes. `baseline/`
   preserves the prior HTTP artifact source for this slice's comparison.
 
-The fresh candidate is `/var/tmp/noe-serve-policy-bOYsbk/noe`, including the
-final bundled close/disposal details. It is not installed. The process/HTTP
+The Serve candidate is `/var/tmp/noe-serve-policy-bOYsbk/noe`, including the
+final bundled close/disposal details; the newer WebSocket candidate above
+supersedes it. It is not installed. The process/HTTP
 and earlier native filesystem evidence below remain reusable for unchanged
 implementation. No push, release, installed-binary replacement, or running
 service restart was performed.
@@ -273,10 +330,11 @@ process naming changes do not invalidate unchanged native filesystem tests.
 ## Next continuation
 
 The filesystem/process/HTTP entrance migrations, Fetch response-overflow and
-Blob-send corrections, and Serve limits/lifecycle are implemented and
-validated locally. No required runtime blocker remains in the approved
-slices. They are included in the local checkpoint commit with this handoff;
-no release or publication instruction was given.
+Blob-send corrections, Serve limits/lifecycle, and WebSocket opening
+cancellation/close validation are implemented and validated locally.
+No required runtime blocker remains in these approved slices. The previous
+checkpoint is `3997dc0`; this handoff accompanies the next local correction.
+No release or publication instruction was given.
 
 Remaining Node utilities, Buffer, and process metadata methods are
 use-case-driven work. Avoid wholesale rename churn merely to eliminate Node

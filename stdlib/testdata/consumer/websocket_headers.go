@@ -34,6 +34,27 @@ try{
   socket.onerror=event=>reject(event.error);
   socket.onclose=event=>received&&binary&&event.wasClean&&event.code===1000&&socket.protocol==="chat.v1"?resolve():reject(Error("WebSocket consumer failed"));
  });
+ const pending=createWebSocket(server.url.replace("http","ws"),{headers:{Authorization:"Bearer fixture","X-Client":"noe"}});
+ const events=[];
+ const stopped=new Promise((resolve,reject)=>{
+  pending.onopen=()=>reject(Error("cancelled socket opened"));
+  pending.onmessage=()=>reject(Error("cancelled socket received a message"));
+  pending.onerror=()=>{events.push("error");if(pending.readyState!==WebSocket.CLOSED)reject(Error("error before CLOSED"))};
+  pending.onclose=event=>{
+   events.push("close");
+   if(pending.readyState!==WebSocket.CLOSED||event.code!==1006||event.wasClean||events.join()!=="error,close")reject(Error("connecting close lifecycle"));
+   else resolve();
+  };
+ });
+ for(const [operation,name] of [
+  [()=>pending.send("early"),"InvalidStateError"],
+  [()=>pending.close(1006),"InvalidAccessError"],
+  [()=>pending.close(1000,"あ".repeat(42)),"SyntaxError"],
+ ]){
+  let thrown=false;try{operation()}catch(error){if(error.name!==name)throw error;thrown=true}
+  if(!thrown||pending.readyState!==WebSocket.CONNECTING)throw Error("WebSocket validation");
+ }
+ pending.close();await stopped;
 }finally{await server.close()}
 if(typeof fetch!=="undefined")throw Error("WebSocket consumer enabled fetch");
 export default "ok";`}, stdlib.Profile{Modules: stdlib.Modules{

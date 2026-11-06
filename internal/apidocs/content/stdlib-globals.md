@@ -193,6 +193,8 @@ socket.addEventListener("open", () => socket.send("hello"));
 socket.addEventListener("message", (event) => console.log(event.data));
 ~~~
 
+Closing while CONNECTING cancels opening and reports error then an unclean close (1006), with CLOSED visible in both handlers. It cannot later open. Supplied close codes must normalize to 1000 or 3000–4999; invalid codes throw InvalidAccessError. Reasons over 123 UTF-8 bytes throw SyntaxError. Validation precedes state changes, including repeated close calls.
+
 A WebSocket carries complete protocol messages, not raw TCP bytes. NOE enables outbound WebSockets when the host selects that capability. For custom handshake headers, import `createWebSocket` from `noe:http`; for server-side upgrades, import `upgradeWebSocket` from `noe:http`. See the `noe:http` reference for their capability requirements and details. Close the socket when it is no longer needed.
 
 ## Error.stack

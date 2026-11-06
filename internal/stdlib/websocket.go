@@ -35,7 +35,7 @@ type WebSockets struct {
 	Serve *Serve
 	// MaxMessageBytes bounds one message. Zero means 16 MB.
 	MaxMessageBytes int
-	// HandshakeTimeout bounds how long opening one may take. Zero means 30s.
+	// HandshakeTimeout bounds the complete TCP/TLS/HTTP opening. Zero means 30s.
 	HandshakeTimeout time.Duration
 	// TLS is the configuration for a wss connection. Nil uses the defaults.
 	TLS *tls.Config
@@ -132,9 +132,11 @@ type socket struct {
 	conn   *wsproto.Conn
 	// unwatch stops the connection being closed with the loop, and unhook
 	// with the runtime, once it has been closed anyway.
-	unwatch     func() bool
-	unhook      func()
-	scopeUnhook func()
+	unwatch      func() bool
+	unhook       func()
+	scopeUnhook  func()
+	openCancel   context.CancelFunc
+	pendingToken string
 
 	mu     sync.Mutex
 	queue  []outgoing
@@ -143,7 +145,9 @@ type socket struct {
 
 	// reading is true while a read is outstanding, since only one may be.
 	reading bool
-	ended   bool
+	// ended stops delivery; finished also accounts for native hook cleanup.
+	ended    bool
+	finished bool
 	// released says the hold this socket put on the loop has been given back.
 	released bool
 }
@@ -205,12 +209,19 @@ func (h *wsHost) connect(rawURL string, protocols, headerPairs quickjs.Value) (q
 	limit := h.limit()
 
 	loop := h.cfg.Loop
+	openingCtx, cancel := context.WithCancel(loopContext(loop))
+	s.openCancel = cancel
 	loop.Begin()
-	if err := loop.Go(func(ctx context.Context) {
+	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
-		conn, protocol, err := dialWebSocket(ctx, target, names, headers, timeout, tlsCfg, limit)
+		conn, protocol, err := dialWebSocket(openingCtx, target, names, headers, timeout, tlsCfg, limit)
 		var removeConnCleanup func()
+		var stopDelivery func() bool
 		if err == nil && conn != nil {
+			// Delivery can be discarded during shutdown, including on a legacy
+			// loop without an execution scope. Keep the connection cancellable
+			// until start installs its active-connection hooks on the owner.
+			stopDelivery = context.AfterFunc(openingCtx, conn.Close)
 			if scope := loop.executionScope(); scope != nil {
 				removeConnCleanup, err = scope.AddCleanupHandle(func() { conn.Close() })
 				if err != nil {
@@ -220,15 +231,34 @@ func (h *wsHost) connect(rawURL string, protocols, headerPairs quickjs.Value) (q
 			}
 		}
 		loop.postExecution(func() {
+			if removeConnCleanup != nil {
+				defer removeConnCleanup()
+			}
+			if stopDelivery != nil {
+				stopDelivery()
+			}
+			defer s.cancelOpening()
+			if s.ended {
+				if conn != nil {
+					conn.Close()
+				}
+				return
+			}
+			if err == nil {
+				err = openingCtx.Err()
+			}
 			if err != nil {
+				if conn != nil {
+					conn.Close()
+				}
 				s.opened.RejectError(err)
 				s.finish()
 				return
 			}
-			if removeConnCleanup != nil {
-				removeConnCleanup()
+			if err := s.start(conn); err != nil {
+				s.opened.RejectError(err)
+				return
 			}
-			s.start(conn)
 			o := s.rt.NewObject()
 			o.Set("protocol", protocol)
 			s.opened.Resolve(o)
@@ -252,6 +282,7 @@ func (h *wsHost) reserve() (quickjs.Value, error) {
 		return quickjs.Value{}, err
 	}
 	h.pending[token] = s
+	s.pendingToken = token
 
 	v, err := s.value()
 	if err != nil {
@@ -269,11 +300,15 @@ func (h *wsHost) reserve() (quickjs.Value, error) {
 func (h *wsHost) attach(token string, conn net.Conn, br *bufio.Reader, protocol string) {
 	s := h.pending[token]
 	delete(h.pending, token)
-	if s == nil {
+	if s == nil || s.ended {
 		conn.Close()
 		return
 	}
-	s.start(wsproto.NewConn(conn, br, false, h.limit()))
+	s.pendingToken = ""
+	if err := s.start(wsproto.NewConn(conn, br, false, h.limit())); err != nil {
+		s.opened.RejectError(err)
+		return
+	}
 	o := s.rt.NewObject()
 	o.Set("protocol", protocol)
 	s.opened.Resolve(o)
@@ -314,7 +349,11 @@ func (s *socket) value() (quickjs.Value, error) {
 
 // start takes ownership of an open connection and begins writing whatever the
 // script has queued.
-func (s *socket) start(conn *wsproto.Conn) {
+func (s *socket) start(conn *wsproto.Conn) error {
+	if s.ended {
+		conn.Close()
+		return errors.New("the socket was closed before the connection opened")
+	}
 	s.conn = conn
 	// The loop is held open while the socket is: a program whose last act is
 	// to open one is waiting for what comes back.
@@ -324,9 +363,10 @@ func (s *socket) start(conn *wsproto.Conn) {
 	s.unwatch = context.AfterFunc(loopContext(s.loop), conn.Close)
 	s.unhook = s.rt.OnClose(conn.Close)
 	if err := s.loop.Go(func(context.Context) { s.writing() }); err != nil {
-		conn.Close()
 		s.finish()
+		return err
 	}
+	return nil
 }
 
 // writing is the one goroutine that writes to the connection, so that messages
@@ -438,7 +478,11 @@ func (s *socket) receive() *quickjs.Promise {
 
 // closeWith says goodbye and stops.
 func (s *socket) closeWith(code quickjs.Value, reason quickjs.Value) {
+	if s.ended {
+		return
+	}
 	if s.conn == nil {
+		s.opened.RejectError(errors.New("the socket was closed before the connection opened"))
 		s.finish()
 		return
 	}
@@ -494,10 +538,16 @@ func (s *socket) closeWith(code quickjs.Value, reason quickjs.Value) {
 
 // finish marks the socket over and lets the loop go.
 func (s *socket) finish() {
-	if s.ended {
+	if s.finished {
 		return
 	}
+	s.finished = true
 	s.ended = true
+	s.cancelOpening()
+	if s.pendingToken != "" {
+		delete(s.host.pending, s.pendingToken)
+		s.pendingToken = ""
+	}
 	s.mu.Lock()
 	s.closed = true
 	s.mu.Unlock()
@@ -520,6 +570,13 @@ func (s *socket) finish() {
 	s.releaseLoop()
 }
 
+func (s *socket) cancelOpening() {
+	if s.openCancel != nil {
+		s.openCancel()
+		s.openCancel = nil
+	}
+}
+
 // releaseLoop undoes the Begin that start made, once.
 func (s *socket) releaseLoop() {
 	if s.conn == nil || s.released {
@@ -532,6 +589,8 @@ func (s *socket) releaseLoop() {
 // dialWebSocket opens the connection and does the handshake. It touches no
 // JavaScript value, which is what lets it run on another goroutine.
 func dialWebSocket(ctx context.Context, target *url.URL, protocols []string, headers http.Header, timeout time.Duration, tlsCfg *tls.Config, limit int) (*wsproto.Conn, string, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	host := target.Host
 	if target.Port() == "" {
 		if target.Scheme == "wss" {
@@ -541,7 +600,7 @@ func dialWebSocket(ctx context.Context, target *url.URL, protocols []string, hea
 		}
 	}
 
-	dialer := &net.Dialer{Timeout: timeout}
+	dialer := &net.Dialer{}
 	var conn net.Conn
 	var err error
 	if target.Scheme == "wss" {
@@ -552,7 +611,24 @@ func dialWebSocket(ctx context.Context, target *url.URL, protocols []string, hea
 	if err != nil {
 		return nil, "", err
 	}
-	conn.SetDeadline(time.Now().Add(timeout))
+	// DialContext stops governing plain TCP after it connects. Cancellation
+	// must also interrupt the HTTP handshake's blocked reads and writes.
+	closed := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		conn.Close()
+		close(closed)
+	})
+	var stopOnce sync.Once
+	stopHandshake := func() {
+		stopOnce.Do(func() {
+			if !stop() {
+				<-closed
+			}
+		})
+	}
+	defer stopHandshake()
+	deadline, _ := ctx.Deadline()
+	conn.SetDeadline(deadline)
 
 	key, err := wsproto.Key()
 	if err != nil {
@@ -598,6 +674,13 @@ func dialWebSocket(ctx context.Context, target *url.URL, protocols []string, hea
 		conn.Close()
 		return nil, "", errors.New("the server's answer is not a websocket handshake")
 	}
+	// Join a racing cancellation before handing the connection to its next
+	// owner, so this handshake watcher cannot close a healthy active socket.
+	stopHandshake()
+	if err := ctx.Err(); err != nil {
+		conn.Close()
+		return nil, "", err
+	}
 	// The deadline was for the handshake; what follows has no time limit of
 	// its own, since a socket is meant to stay open.
 	conn.SetDeadline(time.Time{})
@@ -640,6 +723,9 @@ const webSocketJS = `(function (host) {
       let ending = null;
       try {
         const opened = await handle.opened;
+        if (this.readyState !== CONNECTING) {
+          throw new Error("the socket was closed before the connection opened");
+        }
         this.protocol = (opened && opened.protocol) || "";
         this.readyState = OPEN;
         this._fire("open", {});
@@ -650,12 +736,14 @@ const webSocketJS = `(function (host) {
             ending = {code: message.code, reason: message.reason, clean: true};
             break;
           }
+          if (this.readyState !== OPEN) continue;
           this._fire("message", {
             data: message.type === "text" ? message.data : this._binary(message.data),
             origin: this.url,
           });
         }
       } catch (e) {
+        this.readyState = CLOSED;
         this._fire("error", {error: e, message: String((e && e.message) || e)});
         ending = {code: 1006, reason: String((e && e.message) || e), clean: false};
       }
@@ -691,11 +779,28 @@ const webSocketJS = `(function (host) {
     }
 
     close(code, reason) {
+      // WebIDL clamps an unsigned short, rounding ties to the even integer.
+      let number = 1000;
+      if (code !== undefined) {
+        const value = +code;
+        const bounded = Number.isNaN(value) ? 0 : Math.min(65535, Math.max(0, value));
+        const lower = Math.floor(bounded);
+        number = bounded - lower === 0.5
+          ? lower + (lower % 2) : Math.round(bounded);
+        if (number !== 1000 && (number < 3000 || number > 4999)) {
+          throw new DOMException_("invalid WebSocket close code", "InvalidAccessError");
+        }
+      }
+      if (typeof reason === "symbol") throw new TypeError("a close reason must be a string");
+      const text = reason === undefined ? "" : String(reason).toWellFormed();
+      if (new TextEncoder().encode(text).byteLength > 123) {
+        throw new DOMException_("WebSocket close reason exceeds 123 UTF-8 bytes", "SyntaxError");
+      }
       if (this.readyState === CLOSED || this.readyState === CLOSING) return;
       this.readyState = CLOSING;
       this._closing = {
-        code: code === undefined ? 1000 : Number(code),
-        reason: reason === undefined ? "" : String(reason),
+        code: number,
+        reason: text,
         clean: true,
       };
       this._handle.close(this._closing.code, this._closing.reason);
@@ -738,12 +843,11 @@ const webSocketJS = `(function (host) {
     return Object.entries(headers).map(([name, value]) => [name, String(value)]);
   }
 
-  // The browsers throw an InvalidStateError here, a DOMException -- or,
-  // where the web APIs were left out, the nearest thing there is.
-  function DOMException_(message) {
-    if (typeof DOMException === "function") return new DOMException(message, "InvalidStateError");
+  // Use the same named error where an embedder supplies only EventTarget.
+  function DOMException_(message, name = "InvalidStateError") {
+    if (typeof DOMException === "function") return new DOMException(message, name);
     const e = new Error(message);
-    e.name = "InvalidStateError";
+    e.name = name;
     return e;
   }
 

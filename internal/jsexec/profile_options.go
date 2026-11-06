@@ -107,8 +107,10 @@ type ServeOptions struct {
 }
 
 type WebSocketsOptions struct {
-	Allow            func(target *url.URL) error
-	MaxMessageBytes  int
+	Allow           func(target *url.URL) error
+	MaxMessageBytes int
+	// HandshakeTimeout bounds TCP dialing, TLS, and HTTP upgrade together.
+	// Zero selects 30 seconds; execution cancellation also stops opening.
 	HandshakeTimeout time.Duration
 	TLS              *tls.Config
 }
