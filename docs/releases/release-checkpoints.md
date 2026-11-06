@@ -3562,3 +3562,48 @@ restarts are not part of this publication. The inspected repository/user
 executables still report v2.13.0. No provider or login requests were made.
 Native execution is Linux amd64. Other targets receive CI build/checksum
 verification, with the existing later-artifact dist/ vcs.modified limitation.
+
+## v2.15.0 publication — 2026-11-06
+
+- Annotated tag `v2.15.0` points to
+  `8ba4067db0458cd618b7c360505c46ef0c67e837`, matching the peeled remote tag
+  and release workflow source. Only preparation documentation differs from
+  the clean candidate `9312fd3`.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/54)
+  succeeded (API run ID 235), using the existing six-target build/checksum/
+  upload job without repeating source suites.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.15.0)
+  is published, neither draft nor prerelease (Release ID 168). Its body
+  matches the tagged English [release notes](v2.15.0.md).
+
+All seven assets were downloaded and all six binary hashes match SHA256SUMS.
+Build metadata confirms the expected tag revision, target OS/architecture,
+CGO_ENABLED=0, official go-quickjs v0.32.0 and checksum, go-intl v0.8.0,
+fsnotify v1.10.1, and no quickjs_jit build tag. Linux amd64 reports
+`noe v2.15.0`, `vcs.modified=false`, and SHA256
+`a73fa313bf960fee028e404ccdf1ea7e9de475126a8fe0526ac7d86130eaea35`.
+The other five artifacts retain the existing dist/ vcs.modified=true
+limitation; their revision, dependencies, settings, and hashes match.
+
+The published Linux amd64 binary passed all seven focused checks:
+version/arithmetic, native watcher construction/disposal, inline source-map
+stack mapping, local JSON/text/bytes imports through prefixes/scopes, HTTP
+raw-body imports and BOM behavior, and authenticated WebSocket exchange with
+clean close. Every check exited zero with empty stderr. Native execution on
+other targets was not performed.
+
+Clean external modules fetched public stdlib@v2.15.0 and agent@v2.15.0
+using direct module resolution, without replacements or a synthetic proxy.
+Both passed go mod verify. The stdlib consumer exercised the public runtime,
+including watching, source maps, local/HTTP data imports, and WebSocket
+headers. The agent consumer passed portable and Go-host modes. MVS selected
+the official engine/Intl versions and disabled-JIT VM files. All 55 changed
+Go/JS/declaration/module paths since v2.14.0 match both downloaded modules.
+
+The implementation feature commits are `10a8f70`, `baa984d`, `fd8702b`, and
+`7db6835`. This documentation-only publication record does not move the tag.
+Evidence, assets, source manifests, build metadata, smoke results, and clean
+public Go consumers are at `/var/tmp/noe-v2.15.0-release-e2jll9xq/`.
+Local repository/user executables were verified unchanged at v2.13.0; this
+publication did not place binaries, restart applications, modify noebot, or
+make paid provider/login requests.
