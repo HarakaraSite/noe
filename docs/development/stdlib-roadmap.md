@@ -14,8 +14,7 @@ milestone. The approved API uses symbolic filesystem error codes with the
 positive platform OS number in `errno`, `mtime` as a Date, and canonical POSIX
 file-type, permission, and special bits in `mode`.
 
-Phases 3 and 4 are implemented, locally verified, and prepared for
-[v2.14.0](../releases/v2.14.0.md). The process, standard-I/O, and cancellation
+Phases 3 and 4 were released in [v2.14.0](../releases/v2.14.0.md). The process, standard-I/O, and cancellation
 sections below record their implementation and compatibility details.
 The next planned phase is filesystem watching. Consumer rollout is covered
 by the [noebot migration instructions](noebot-v2.14.0-migration.md).

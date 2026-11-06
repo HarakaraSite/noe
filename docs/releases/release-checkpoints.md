@@ -3398,9 +3398,9 @@ v2.13.0. See the [release notes](v2.14.0.md),
 The public Go API/import paths retain the existing `/v2` module line.
 
 Checked clean native candidate: `3f8d4934c7f581dc34d2ca43ace275f4fb3910e6`.
-All 59 changed Go/JS/module paths match the finalized phase 4 source manifest,
-including removed paths, except for the CLI Version string updated for this
-release. Go 1.27.2, go-quickjs v0.32.0, go-intl v0.8.0, disabled JIT, both
+All 59 feature Go/JS/module paths match the finalized phase 4 source manifest,
+including removed paths. The only additional production-Go change is the CLI
+Version string updated for this release. Go 1.27.2, go-quickjs v0.32.0, go-intl v0.8.0, disabled JIT, both
 dependency files, the distribution profile, and the six-target CI workflow
 are unchanged.
 
@@ -3456,3 +3456,54 @@ The existing dist/ output-provenance limitation remains: later CI binaries
 can report vcs.modified=true after earlier outputs are created. Revision,
 dependency, target, and published hash checks still apply. Native execution
 is Linux amd64; the other five targets receive build/checksum verification.
+
+
+## v2.14.0 publication and coordinated rollout — 2026-11-06
+
+- Annotated tag `v2.14.0` points to `d62723041863523283f2d750bd83be9d4feee00e`, matching the
+  peeled remote tag and successful workflow revision. Only preparation
+  documentation differs from the verified native candidate `3f8d493`.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/53) succeeded (API run ID 234) using the
+  unchanged six-target build/checksum/upload job.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.14.0) is published, neither draft nor prerelease
+  (Release ID 167). Its body matches the tagged English
+  [release notes](v2.14.0.md).
+
+All seven assets were downloaded. Every binary matches SHA256SUMS, its expected
+OS/architecture and CGO_ENABLED=0, the tag revision, official go-quickjs v0.32.0,
+and go-intl v0.8.0, without quickjs_jit. Linux amd64 reports `noe v2.14.0`,
+`vcs.modified=false`, and SHA256
+`5cff27e4e6d837f8a08a0eb193e0629807b2a5215dae0b773d4f7ec9f88f4235`.
+The other five targets retain the existing dist/ output-provenance limitation
+(`vcs.modified=true`); revision, dependency, target, and checksum checks pass.
+
+The published Linux amd64 asset passed all ten focused native smoke cases:
+version/arithmetic, regexp/JSON/switch, image/model/auth/Worker/node:vm exports,
+both authentication helpers' offline help, filesystem migration, spawn
+migration/status/disposal, stdio with combined cancellation and pipe shutdown,
+and await-using file disposal. Every check exited 0 with empty stderr.
+No provider requests or login flows were needed for release verification.
+
+Clean external modules fetched stdlib@v2.14.0 and agent@v2.14.0 directly,
+without replacements or a synthetic proxy. Both passed go mod verify; agent
+ran in portable and gohost modes. MVS selected official go-quickjs v0.32.0
+and go-intl v0.8.0, and both consumers selected disabled JIT VM code.
+All 60 changed Go/JS/module paths since v2.13.0 match the downloaded modules
+or are absent when removed. These comprise the 59 feature paths checked
+before version preparation plus the CLI version update.
+
+The consolidated [noebot instructions](../development/noebot-v2.14.0-migration.md)
+cover the two required spawn-import edits, the new minimum NOE version,
+validation commands, coordinated deployment/rollback, and the previously
+recorded optional filesystem adoption and cancellation considerations.
+The actual noebot repositories and running services were not changed.
+Repository `./noe` and `/home/agent/.local/bin/noe` were verified unchanged
+on v2.13.0 with their published hash. Executable placement is part of the
+coordinated noebot rollout because old noebot imports fail under v2.14.0.
+
+Evidence is retained at `/tmp/noe-v2.14.0-release-zghyjsva/results.json`, with source continuity,
+candidate/published smoke, Actions/Release metadata, all assets and build
+records, published-consumer manifests, and installed-binary hashes.
+Passing implementation source suites were reused. Native execution is Linux
+amd64; the other five targets received build/checksum verification.
+This documentation-only follow-up preserves the immutable release tag.
