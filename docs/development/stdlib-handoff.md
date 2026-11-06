@@ -12,19 +12,20 @@ implementation records remain the canonical design and validation references.
   filesystem `295fb53`, process/HTTP/Serve `3997dc0`, WebSocket opening
   `248e74a`, and connected closing `617cfcd`.
 - On 2026-11-07 the user explicitly authorized releasing the completed work.
-  Release v2.16.0 is being prepared from those checkpoints. Push, annotated
-  tagging, CI distribution, and published-asset/module verification are
-  authorized. Publication results are recorded in
-  [release checkpoints](../releases/release-checkpoints.md).
+  v2.16.0 is now published from annotated tag revision
+  `797b9fbfa9884cabdd682fdf79afc2d80015fae5`. CI run 55 (API 236) succeeded;
+  all six downloaded checksums/build metadata, native smoke, and direct
+  published stdlib/agent consumers passed. See
+  [release checkpoints](../releases/release-checkpoints.md#v2160-publication--2026-11-07).
 - See [v2.16.0 notes](../releases/v2.16.0.md) and the consolidated
   [migration guide](../releases/v2.16.0-migration.md). The public Go module
   remains `/v2`; JavaScript import and behavior changes have no adapters.
-- Latest implementation candidate:
-  `/var/tmp/noe-websocket-close-apjtaav1/noe`. Release candidates, downloaded
-  assets, continuity checks, and public-consumer evidence are kept at
-  `/var/tmp/noe-v2.16.0-release-e9ux2qxa`. Use its release candidate or
-  verified published asset for the new version; installed binaries keep
-  their own release until separately replaced.
+- Latest verified published native binary:
+  `/var/tmp/noe-v2.16.0-release-e9ux2qxa/assets/noe-linux-amd64`.
+  That directory also retains the clean candidate, all downloaded assets,
+  continuity checks, and published-consumer evidence. Earlier implementation
+  candidates below remain historical slice evidence. Installed binaries keep
+  their previous versions and were verified unchanged.
 - The user independently handles noebot. Executable installation and running
   service restart are not part of this publication. Previous slice decisions
   authorized local progress and breaking changes; the latest release request
@@ -392,7 +393,7 @@ cancellation/close validation, and connected closing/blocked-send cleanup
 are implemented and validated locally. No required runtime blocker remains
 in these approved slices. The preceding checkpoints are `3997dc0` and
 `248e74a`; this handoff accompanies the next local correction.
-The user has now authorized v2.16.0 publication; see the state above.
+v2.16.0 publication and verification are complete; see the state above.
 
 Remaining Node utilities, Buffer, and process metadata methods are
 use-case-driven work. Avoid wholesale rename churn merely to eliminate Node

@@ -3676,3 +3676,50 @@ Native execution verification is Linux amd64. Other targets receive existing
 implementation compilation plus CI build/checksum verification. This release
 does not install binaries, restart services, modify noebot, or make provider
 or login requests.
+
+## v2.16.0 publication — 2026-11-07
+
+- Annotated tag `v2.16.0` points to
+  `797b9fbfa9884cabdd682fdf79afc2d80015fae5`, matching the peeled remote tag
+  and CI source. Only the preparation record differs from clean native
+  candidate `2634c76`; the validated runtime source is unchanged.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/55)
+  succeeded (API run ID 236, job 257), building all six targets and publishing
+  checksums/assets without repeating local source suites.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.16.0)
+  is published, neither draft nor prerelease (Release ID 169). Its body
+  matches the tagged English release notes.
+
+All seven assets were downloaded. All six binary hashes match SHA256SUMS.
+Build metadata confirms the expected tag revision and target OS/architecture,
+CGO_ENABLED=0, official go-quickjs v0.32.0 and checksum, go-intl v0.8.0,
+fsnotify v1.10.1, SQLite driver v0.36.0/translated SQLite v6.4.35401, and no
+quickjs_jit tag. The Linux amd64 SHA256 is
+`13782c9bf8c30c64808da7a9fd577d978e8e123928d7dfbc41cfaae8b601849e`;
+it reports `vcs.modified=false`. Other artifacts retain the existing generated-
+dist/ `vcs.modified=true` limitation; their tag revisions, settings,
+dependencies, and checksums match.
+
+The downloaded Linux amd64 binary passed the same eight native checks as the
+candidate: version/arithmetic, filesystem/process migration and removed imports,
+asynchronous HTTP close, EventSource, SQLite bigint/BLOB/transaction/rollback,
+authenticated WebSocket exchange/clean empty close, and bundled docs. Each
+exited zero with empty stderr. Native execution on other targets was not
+performed.
+
+Clean external modules fetched stdlib@v2.16.0 and agent@v2.16.0 through direct
+module resolution, without checkout replacements or a synthetic proxy. Both
+passed go mod verify; stdlib and portable/Go-host agent consumers ran
+successfully. Engine/Intl versions and disabled-JIT VM files match the release.
+For both downloaded modules, all 195 changed in-module Go/JS/declaration/
+dependency paths match the tag. Three additional changed paths belong to a
+nested experimental module and are correctly excluded from the parent Go
+module archive. The published-source verification helper was corrected to
+handle that exclusion; successful runtime checks were reused.
+
+Publication evidence, downloaded assets, build metadata, smoke records,
+module manifests, and helpers are at
+`/var/tmp/noe-v2.16.0-release-e9ux2qxa`. Repository/user executables match
+their pre-release hashes and versions. This documentation-only result record
+does not move the release tag. No installed executable replacement, service
+restart, noebot change, or paid provider/login request was performed.
