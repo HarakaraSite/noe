@@ -1037,6 +1037,77 @@ declare namespace NOEStdlib {
   type RequestInfo = string | URL | Request;
   interface FetchInit extends RequestInit {}
   function fetch(input: RequestInfo, init?: FetchInit): Promise<Response>;
+
+  /** A value accepted for binding to a SQLite parameter. */
+  type SQLiteInputValue = null | undefined | boolean | number | bigint | string | ArrayBuffer | SharedArrayBuffer | ArrayBufferView;
+  /** Positional values or a record of named values. These forms cannot be mixed. */
+  type SQLiteParams = readonly SQLiteInputValue[] | Readonly<Record<string, SQLiteInputValue>>;
+  type SQLiteOutputValue = null | number | bigint | string | Uint8Array;
+  /** Rows are returned as null-prototype objects at runtime. */
+  type SQLiteRow = Record<string, SQLiteOutputValue>;
+  interface SQLiteOpenOptions {
+    readOnly?: boolean;
+    /** The lock wait timeout in milliseconds. */
+    busyTimeout?: number;
+    signal?: AbortSignal;
+  }
+  interface SQLiteOperationOptions { signal?: AbortSignal }
+  interface SQLiteTransactionOptions extends SQLiteOperationOptions { mode?: "deferred" | "immediate" | "exclusive" }
+  interface SQLiteRunResult { changes: number | bigint; lastInsertRowid: number | bigint }
+  interface SQLiteQueryMethods {
+    exec(sql: string, options?: SQLiteOperationOptions): Promise<void>;
+    run(sql: string, params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRunResult>;
+    get(sql: string, params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRow | undefined>;
+    all(sql: string, params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRow[]>;
+    prepare(sql: string, options?: SQLiteOperationOptions): Promise<SQLiteStatement>;
+  }
+  interface SQLiteStatement {
+    readonly sql: string;
+    readonly closed: boolean;
+    run(params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRunResult>;
+    get(params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRow | undefined>;
+    all(params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRow[]>;
+    close(): Promise<void>;
+    [Symbol.asyncDispose](): Promise<void>;
+  }
+  interface SQLiteTransaction extends SQLiteQueryMethods {}
+  interface SQLiteDatabase extends SQLiteQueryMethods {
+    readonly path: string;
+    readonly readOnly: boolean;
+    readonly closed: boolean;
+    /**
+     * Runs a transaction and resolves to the callback's result. SQL errors mark
+     * the transaction for rollback even if caught; statements prepared through
+     * the transaction handle are invalid after the callback returns.
+     */
+    transaction<T>(callback: (tx: SQLiteTransaction) => T | PromiseLike<T>, options?: SQLiteTransactionOptions): Promise<Awaited<T>>;
+    close(): Promise<void>;
+    [Symbol.asyncDispose](): Promise<void>;
+  }
+  /** Opens an in-memory database when path is omitted. */
+  function sqliteOpen(path?: string, options?: SQLiteOpenOptions): Promise<SQLiteDatabase>;
+
+  interface EventSourceInit { withCredentials?: boolean }
+  interface EventSourceMessageEvent extends MessageEvent { readonly data: string }
+  interface EventSource extends EventTarget {
+    readonly url: string;
+    readonly withCredentials: boolean;
+    readonly readyState: number;
+    readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSED: 2;
+    onopen: EventListener<Event> | null;
+    onmessage: EventListener<EventSourceMessageEvent> | null;
+    onerror: EventListener<Event> | null;
+    addEventListener(type: "message", listener: EventListener<EventSourceMessageEvent>, options?: {once?: boolean}): void;
+    addEventListener(type: string, listener: EventListener, options?: {once?: boolean}): void;
+    removeEventListener(type: "message", listener: EventListener<EventSourceMessageEvent>): void;
+    removeEventListener(type: string, listener: EventListener): void;
+    close(): void;
+  }
+  interface EventSourceConstructor {
+    new(url: string | URL, options?: EventSourceInit | null): EventSource;
+    readonly prototype: EventSource;
+    readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSED: 2;
+  }
   interface HTTPUpgradeOptions { protocol?: string }
   interface WebSocketUpgrade { socket: WebSocket; response: Response & {readonly upgrade: string; readonly protocol?: string} }
   function upgradeWebSocket(request: Request, options?: HTTPUpgradeOptions): WebSocketUpgrade;
@@ -1585,6 +1656,21 @@ declare module "noe:sockets" {
   export type Address = NOEStdlib.SocketAddress; export type ConnectOptions = NOEStdlib.ConnectOptions; export type ListenOptions = NOEStdlib.ListenOptions;
 }
 declare module "noe:signals" { export import subscribe = NOEStdlib.subscribe; export type SignalName = NOEStdlib.SignalName; export type SignalSubscription = NOEStdlib.SignalSubscription; }
+declare module "noe:sqlite" {
+  export import open = NOEStdlib.sqliteOpen;
+  export type SQLiteInputValue = NOEStdlib.SQLiteInputValue;
+  export type SQLiteParams = NOEStdlib.SQLiteParams;
+  export type SQLiteOutputValue = NOEStdlib.SQLiteOutputValue;
+  export type SQLiteRow = NOEStdlib.SQLiteRow;
+  export type SQLiteOpenOptions = NOEStdlib.SQLiteOpenOptions;
+  export type SQLiteOperationOptions = NOEStdlib.SQLiteOperationOptions;
+  export type SQLiteTransactionOptions = NOEStdlib.SQLiteTransactionOptions;
+  export type SQLiteRunResult = NOEStdlib.SQLiteRunResult;
+  export type SQLiteQueryMethods = NOEStdlib.SQLiteQueryMethods;
+  export type SQLiteStatement = NOEStdlib.SQLiteStatement;
+  export type SQLiteTransaction = NOEStdlib.SQLiteTransaction;
+  export type SQLiteDatabase = NOEStdlib.SQLiteDatabase;
+}
 
 /* NOE Web and Node-compatible globals. These declarations expose the
  * implemented subset; Profile and Worker selection determine runtime presence. */
@@ -1672,6 +1758,9 @@ interface DecompressionStream extends NOEStdlib.DecompressionStream {}
 declare var DecompressionStream: NOEStdlib.DecompressionStreamConstructor;
 interface Worker extends NOEStdlib.Worker {}
 declare var Worker: NOEStdlib.WorkerConstructor;
+type EventSourceInit = NOEStdlib.EventSourceInit;
+interface EventSource extends NOEStdlib.EventSource {}
+declare var EventSource: NOEStdlib.EventSourceConstructor;
 type WebSocketOptions = NOEStdlib.WebSocketOptions;
 interface WebSocket extends NOEStdlib.WebSocket {}
 declare var WebSocket: NOEStdlib.WebSocketConstructor;

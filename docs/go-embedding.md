@@ -109,6 +109,61 @@ that avoids running application initialization twice. A self-helper instead
 requires every dependency init function to be safe to run again. Other helper
 executables can use the same dispatcher. Windows uses Job Objects.
 
+## Asynchronous SQLite
+
+`noe:sqlite` is a built-in Promise API in managed runtimes and Workers.
+An in-memory database needs no FS capability; a persistent database uses
+`Modules.FS` and its existing Root, Cwd and ReadOnly policy. No new public Go
+option is added, and the module does not grant filesystem access on its own.
+
+```js
+import {open} from "noe:sqlite";
+await using db = await open();
+await db.exec("CREATE TABLE data(value TEXT)");
+await db.run("INSERT INTO data VALUES(?)", ["hello"]);
+const row = await db.get("SELECT value FROM data");
+```
+
+SQL executes on Go workers rather than the runtime owner. Each connection is
+serialized, and callback transactions reserve the connection through commit
+or rollback. AbortSignal cancels queries; execution shutdown and Worker
+termination cancel, join and close owned database resources. The VM, Loop,
+and filesystem backend remain borrowed. Handles cannot be transferred to
+another runtime. The selected driver is CGO-free.
+
+See the [API reference](../internal/apidocs/content/noe-sqlite.md) and
+[implementation record](development/stdlib-sqlite.md) for transaction-scoped
+handles, typed values, supported SQL operations, and filesystem limitations.
+
+## Server-sent events
+
+Selecting `Modules.Fetch` also enables the global `EventSource` constructor,
+in main runtimes and Workers. It uses the selected Fetch client and checks
+`FetchOptions.Allow` on every attempt and redirect. There is no new public Go
+option or separate network grant.
+
+```js
+const source = new EventSource("https://example.com/events");
+source.onmessage = event => console.log(event.lastEventId, event.data);
+// End the subscription explicitly when it is no longer needed.
+source.close();
+```
+
+The default EventSource client has no lifetime timeout. An explicitly supplied
+client retains its timeout, transport, redirect policy, and TLS configuration;
+the borrowed client is neither modified nor closed. `withCredentials: true`
+uses that client's cookie jar, while false disables the jar for this
+subscription. NOE does not implement a browser origin/CORS model or add
+provider credentials. Standard EventSource has no headers or POST body option.
+
+`MaxBodyBytes` bounds buffered partial SSE events/lines, with the existing
+32 MiB default and negative value for no limit. It does not cap the total
+bytes received over a subscription. `close()`, execution close, and Worker
+termination cancel requests, reads, and reconnect timers. Low-level
+`internal/stdlib.Network` additionally needs WebAPIs and Timers installed to
+expose EventSource. See the
+[implementation record](development/stdlib-eventsource.md).
+
 ## WebSocket handshake headers
 
 Select `Modules.WebSockets` with a URL `Allow` callback. JavaScript can then

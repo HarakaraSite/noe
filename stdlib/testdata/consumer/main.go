@@ -41,6 +41,12 @@ func run() error {
 	if err := websocketHeaders(ctx); err != nil {
 		return err
 	}
+	if err := eventSource(ctx); err != nil {
+		return err
+	}
+	if err := sqlite(ctx); err != nil {
+		return err
+	}
 	if err := urlImports(ctx); err != nil {
 		return err
 	}

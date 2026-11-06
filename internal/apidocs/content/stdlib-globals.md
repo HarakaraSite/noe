@@ -18,7 +18,7 @@ console writes to the run's configured stdout/stderr. process is the NOE process
 
 ### Web API globals
 
-AbortController, AbortSignal, Blob, BroadcastChannel, ByteLengthQueuingStrategy, CompressionStream, CountQueuingStrategy, CryptoKey, DOMException, DecompressionStream, ErrorEvent, Event, EventTarget, File, FormData, Headers, MessageChannel, MessageEvent, MessagePort, ReadableStream, ReadableStreamDefaultController, ReadableStreamDefaultReader, Request, Response, TextDecoder, TextDecoderStream, TextEncoder, TextEncoderStream, TransformStream, URL, URLPattern, URLSearchParams, WebSocket, Worker, WritableStream, and WritableStreamDefaultWriter.
+AbortController, AbortSignal, Blob, BroadcastChannel, ByteLengthQueuingStrategy, CompressionStream, CountQueuingStrategy, CryptoKey, DOMException, DecompressionStream, ErrorEvent, Event, EventSource, EventTarget, File, FormData, Headers, MessageChannel, MessageEvent, MessagePort, ReadableStream, ReadableStreamDefaultController, ReadableStreamDefaultReader, Request, Response, TextDecoder, TextDecoderStream, TextEncoder, TextEncoderStream, TransformStream, URL, URLPattern, URLSearchParams, WebSocket, Worker, WritableStream, and WritableStreamDefaultWriter.
 
 ### ECMAScript and QuickJS globals
 
@@ -26,7 +26,7 @@ The pinned QuickJS runtime also exposes these language and host globals: Aggrega
 
 ### Exact globalThis inventory
 
-`AbortController`, `AbortSignal`, `AggregateError`, `Array`, `ArrayBuffer`, `AsyncDisposableStack`, `Atomics`, `BigInt`, `BigInt64Array`, `BigUint64Array`, `Blob`, `Boolean`, `BroadcastChannel`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `CryptoKey`, `DOMException`, `DataView`, `Date`, `DecompressionStream`, `DisposableStack`, `Error`, `ErrorEvent`, `EvalError`, `Event`, `EventTarget`, `File`, `FinalizationRegistry`, `Float16Array`, `Float32Array`, `Float64Array`, `FormData`, `Function`, `Headers`, `Infinity`, `Int16Array`, `Int32Array`, `Int8Array`, `Intl`, `Iterator`, `JSON`, `Map`, `Math`, `MessageChannel`, `MessageEvent`, `MessagePort`, `NaN`, `Number`, `Object`, `Promise`, `Proxy`, `RangeError`, `ReadableStream`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `ReferenceError`, `Reflect`, `RegExp`, `Request`, `Response`, `Set`, `ShadowRealm`, `SharedArrayBuffer`, `String`, `SuppressedError`, `Symbol`, `SyntaxError`, `Temporal`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TypeError`, `URIError`, `URL`, `URLPattern`, `URLSearchParams`, `Uint16Array`, `Uint32Array`, `Uint8Array`, `Uint8ClampedArray`, `WeakMap`, `WeakRef`, `WeakSet`, `WebSocket`, `Worker`, `WritableStream`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearInterval`, `clearTimeout`, `console`, `crypto`, `decodeURI`, `decodeURIComponent`, `encodeURI`, `encodeURIComponent`, `escape`, `eval`, `fetch`, `globalThis`, `isFinite`, `isNaN`, `parseFloat`, `parseInt`, `performance`, `process`, `queueMicrotask`, `serve`, `setInterval`, `setTimeout`, `structuredClone`, `undefined`, `unescape`, `upgradeWebSocket`
+`AbortController`, `AbortSignal`, `AggregateError`, `Array`, `ArrayBuffer`, `AsyncDisposableStack`, `Atomics`, `BigInt`, `BigInt64Array`, `BigUint64Array`, `Blob`, `Boolean`, `BroadcastChannel`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `CryptoKey`, `DOMException`, `DataView`, `Date`, `DecompressionStream`, `DisposableStack`, `Error`, `ErrorEvent`, `EvalError`, `Event`, `EventSource`, `EventTarget`, `File`, `FinalizationRegistry`, `Float16Array`, `Float32Array`, `Float64Array`, `FormData`, `Function`, `Headers`, `Infinity`, `Int16Array`, `Int32Array`, `Int8Array`, `Intl`, `Iterator`, `JSON`, `Map`, `Math`, `MessageChannel`, `MessageEvent`, `MessagePort`, `NaN`, `Number`, `Object`, `Promise`, `Proxy`, `RangeError`, `ReadableStream`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `ReferenceError`, `Reflect`, `RegExp`, `Request`, `Response`, `Set`, `ShadowRealm`, `SharedArrayBuffer`, `String`, `SuppressedError`, `Symbol`, `SyntaxError`, `Temporal`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TypeError`, `URIError`, `URL`, `URLPattern`, `URLSearchParams`, `Uint16Array`, `Uint32Array`, `Uint8Array`, `Uint8ClampedArray`, `WeakMap`, `WeakRef`, `WeakSet`, `WebSocket`, `Worker`, `WritableStream`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearInterval`, `clearTimeout`, `console`, `crypto`, `decodeURI`, `decodeURIComponent`, `encodeURI`, `encodeURIComponent`, `escape`, `eval`, `fetch`, `globalThis`, `isFinite`, `isNaN`, `parseFloat`, `parseInt`, `performance`, `process`, `queueMicrotask`, `serve`, `setInterval`, `setTimeout`, `structuredClone`, `undefined`, `unescape`, `upgradeWebSocket`
 
 ## ReadableStream
 
@@ -164,6 +164,52 @@ In Go `Serve` configuration, `MaxBodyBytes: 0` means the 32 MiB default, a posit
 The incoming body remains usable while a returned Response stream is being sent, so the response producer may read `request.body`. Once sending finishes or fails, remaining input is closed. Cancelling the body closes the JavaScript stream and prevents new reads, but it does not cancel response production; a native read already in progress may be released when response sending finishes. With `Expect: 100-continue`, the server sends `100 Continue` before reading body bytes. For a streaming Response, NOE waits until final headers flush before its response pump requests a chunk. A zero-high-water-mark producer such as `new Response(request.body)` can therefore wait for that flush; if the handler cancels a pending body read, NOE interrupts it before flushing final headers. The gate does not stop a producer's `start()`, its own early pull, or another reader started by the handler, so such a read may delay final headers while it waits for input. This ordering does not provide general full-duplex HTTP; `fetch()` still stops an unfinished upload when final response headers arrive.
 
 Handler failures produce a 500 response; options.onError may return a Response. The default bind address is loopback; hostname can choose another interface. `close()` is synchronous and idempotent, waits up to five seconds for graceful shutdown, and then force-closes remaining HTTP connections. Runtime shutdown also force-closes the listener and its active connections.
+
+## EventSource
+
+Syntax: `new EventSource(url, {withCredentials: false})`. EventSource receives
+UTF-8 server-sent events from an absolute HTTP/HTTPS URL. It is available in
+NOE main runtimes, Workers, and agent JavaScript. Embedded hosts select
+`Profile.Modules.Fetch`; a Loop is required. No additional Go option is needed.
+
+```js
+const source = new EventSource("https://example.com/events");
+source.onmessage = event => console.log(event.lastEventId, event.data);
+source.addEventListener("update", event => console.log(event.data));
+// When the subscription is no longer needed:
+source.close();
+```
+
+`url`, `withCredentials`, and `readyState` are read-only. The constructor and
+instances expose `CONNECTING = 0`, `OPEN = 1`, and `CLOSED = 2`. `onopen`,
+`onmessage`, and `onerror` are event-handler properties; named events use
+`addEventListener`. Received messages are MessageEvents with string `data`,
+`lastEventId`, and the final response URL's `origin`.
+
+Successful responses require HTTP 200 and `text/event-stream`. Clean EOF and
+transient transport failures reconnect after 3 seconds unless the stream's
+`retry:` field changes the interval. Completed event blocks update the
+`Last-Event-ID` sent on reconnection. Other HTTP statuses, including 204,
+invalid MIME types, refused host permissions, and parser buffer overflow end
+the subscription with `readyState = CLOSED` and an `error` event. Reconnecting
+errors have state CONNECTING. Error events expose no response body or HTTP
+credentials. `close()` synchronously sets CLOSED, cancels pending connection
+or body reads, clears reconnect timers, and emits no close event.
+
+Connections use Fetch's selected HTTP client and request/redirect policy.
+The default EventSource client has no total connection timeout; an explicitly
+provided client's timeout still applies. `FetchOptions.MaxBodyBytes` bounds
+one buffered partial SSE event/line (32 MiB by default, negative disables the
+bound), rather than the lifetime stream. The borrowed client is not modified
+or closed. Execution shutdown and Worker termination cancel owned requests
+and discard pending delivery and reconnect timers.
+
+This is the standard GET-based API: no custom headers or POST body option is
+provided. NOE has no document base URL, browser cookie store, or CORS origin
+model. `withCredentials: true` enables a Go host's supplied HTTP client cookie
+jar; false disables that jar for this subscription. It creates no cookies or
+provider authentication automatically. A host's custom transport remains
+responsible for its own authentication behavior.
 
 ## WebSocket
 

@@ -1122,6 +1122,13 @@ const webAPIsJS = `(function (host) {
     addListener.call(target, type, h.listener);
   }
 
+  // Separately installed Web interfaces use the same handler bookkeeping as
+  // EventTarget. The internal symbol keeps callbacks in registration order
+  // without hiding on* getters or duplicating the dispatcher's fallback.
+  Object.defineProperty(EventTarget, Symbol.for("noe.stdlib.eventHandlers"), {
+    value: Object.freeze({get: getHandler, set: setHandler}),
+  });
+
   const abortSignalData = new WeakMap();
   const abortSignalFinalizer = new FinalizationRegistry(links => {
     for (const link of links) {

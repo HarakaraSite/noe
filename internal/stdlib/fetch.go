@@ -37,8 +37,8 @@ type Fetch struct {
 	// running and wrong for anything else. Stream uploads are incremental
 	// with a loop; without one they are collected before synchronous IO.
 	Loop *Loop
-	// Client makes the requests. Nil uses a client with a sensible timeout
-	// rather than http.DefaultClient, which has none.
+	// Client makes the requests. Nil gives fetch a sensible timeout and
+	// EventSource no total timeout for its long-lived subscription.
 	Client *http.Client
 	// Allow is asked about every request before it is made, each a redirect
 	// leads to included: req.Response is the redirect for one that follows
@@ -46,11 +46,13 @@ type Fetch struct {
 	// error refuses it, and the script sees the refusal as a failed fetch.
 	Allow func(req *http.Request) error
 	// MaxBodyBytes caps how much of a response is read. Zero means 32 MB; a
-	// negative value means no limit at all.
+	// negative value means no limit at all. For EventSource it bounds one
+	// buffered partial event/line instead of the lifetime response.
 	MaxBodyBytes int64
 }
 
-// Network installs Headers, Request and Response, and fetch.
+// Network installs Headers, Request and Response, and fetch. With network
+// authority and a Loop it also installs EventSource for streaming SSE requests.
 //
 // The three types are data -- a Request holds metadata and a body --
 // so they need no capability and a nil cfg installs those alone, which is what
@@ -178,6 +180,9 @@ func Network(rt *quickjs.Runtime, cfg *Fetch) error {
 		if err := rt.Set(name, v); err != nil {
 			return err
 		}
+	}
+	if !typesOnly && cfg.Loop != nil {
+		return eventSources(rt, cfg)
 	}
 	return nil
 }

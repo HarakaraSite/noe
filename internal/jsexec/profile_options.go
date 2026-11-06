@@ -86,9 +86,14 @@ type DNSOptions struct {
 	Timeout  time.Duration
 }
 
+// FetchOptions enables fetch and EventSource through the same network policy.
 type FetchOptions struct {
-	Client       *http.Client
-	Allow        func(*http.Request) error
+	// Client is borrowed. Nil gives fetch a 30-second timeout and EventSource
+	// no total timeout. Explicit client settings apply to both interfaces.
+	Client *http.Client
+	Allow  func(*http.Request) error
+	// MaxBodyBytes caps fetch responses, or one buffered partial SSE event.
+	// Zero means 32 MiB; negative values disable the bound.
 	MaxBodyBytes int64
 }
 

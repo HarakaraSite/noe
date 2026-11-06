@@ -245,6 +245,11 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 			return err
 		}
 	}
+	if cfg.Loop != nil && !cfg.NoWebAPIs {
+		if err := installSQLite(rt, cfg); err != nil {
+			return err
+		}
+	}
 	if cfg.Process != nil {
 		if err := Processes(rt, cfg.Process); err != nil {
 			return err

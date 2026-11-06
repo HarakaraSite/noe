@@ -38,6 +38,7 @@ import {docs} from "noe:docs";
 import {fetch as noeFetch, serve as noeServe} from "noe:http";
 import {connect, listen} from "noe:sockets";
 import {subscribe} from "noe:signals";
+import {open as openSQLite, type SQLiteDatabase, type SQLiteOutputValue, type SQLiteParams, type SQLiteRow} from "noe:sqlite";
 
 // Every registered bare name resolves to the same declared surface as its
 // node:-prefixed canonical name.
@@ -171,6 +172,37 @@ const ownedStatus: number | null = (await ownedChild.exited).code;
 await ownedChild.close();
 await bareOwnedChild.close();
 const fetched: Promise<Response> = noeFetch("https://example.test");
+const eventSource = new EventSource(new URL("https://example.test/events"), {withCredentials: true});
+eventSource.onmessage = event => { const data: string = event.data; const id: string = event.lastEventId; void [data, id]; };
+eventSource.addEventListener("message", event => { const data: string = event.data; void data; });
+eventSource.addEventListener("update", event => { const type: string = event.type; void type; });
+const eventSourceOpen: 1 = eventSource.OPEN;
+const eventSourceClosed: 2 = EventSource.CLOSED;
+eventSource.close();
+async function sqliteTypeFixture(): Promise<void> {
+  await using database = await openSQLite();
+  const typedDatabase: SQLiteDatabase = database;
+  const controller = new AbortController();
+  const blob = new Uint8Array([1, 2, 3]);
+  const positional: SQLiteParams = [null, undefined, true, 1, 2n, "value", blob.buffer, new DataView(new ArrayBuffer(4))];
+  const named: SQLiteParams = {id: 2n, value: blob, shared: new SharedArrayBuffer(4)};
+  await database.exec("CREATE TABLE sample (id INTEGER, value BLOB)", {signal: controller.signal});
+  const result = await database.run("INSERT INTO sample VALUES (?, ?)", [2n, blob], {signal: controller.signal});
+  const changes: number | bigint = result.changes;
+  const insertedId: number | bigint = result.lastInsertRowid;
+  const row: SQLiteRow | undefined = await database.get("SELECT id, value FROM sample WHERE id = ?", [2n]);
+  const value: SQLiteOutputValue | undefined = row?.value;
+  const rows: SQLiteRow[] = await database.all("SELECT id, value FROM sample", named);
+  const statement = await database.prepare("SELECT id, value FROM sample WHERE id = ?");
+  const statementRow: SQLiteRow | undefined = await statement.get(positional);
+  await statement.close();
+  const committed: bigint = await database.transaction(async tx => {
+    await tx.run("INSERT INTO sample VALUES (?, ?)", {id: 3n, value: blob});
+    return 3n;
+  }, {mode: "immediate", signal: controller.signal});
+  void [typedDatabase, changes, insertedId, value, rows, statementRow, committed];
+}
+void sqliteTypeFixture;
 const noeServer = noeServe(request => Response.json({url: request.url}));
 noeServer.close();
 const fileHandle: FileHandle = await nodeFsOpen("README.md");

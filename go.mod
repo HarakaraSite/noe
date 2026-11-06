@@ -6,6 +6,7 @@ require (
 	github.com/OpenRouterTeam/go-sdk v0.9.61
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-quickjs/go-quickjs v0.32.0
+	github.com/ncruces/go-sqlite3 v0.36.0
 	github.com/openai/openai-go/v3 v3.79.0
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
@@ -14,6 +15,8 @@ require (
 require (
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/go-quickjs/go-intl v0.8.0 // indirect
+	github.com/ncruces/go-sqlite3-wasm/v6 v6.4.35401 // indirect
+	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/spyzhov/ajson v0.9.6 // indirect
 	github.com/tidwall/gjson v1.20.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect

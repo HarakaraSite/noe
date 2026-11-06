@@ -14,6 +14,18 @@ HTTPの入口は`import { fetch, serve } from "noe:http"`です。既存global�
 
 外部サービスや認証なしで、port 0のloopback serverへJSONをPOSTし、`{"value":42}`を表示して終了します。応答の消費後にfinallyでserverをcloseします。
 
+## Receive server-sent events
+
+```sh
+./noe run examples/http/event-source.js
+```
+
+This local example needs no credentials or external service. It receives a
+message and a named `done` event, prints `1 hello` and `done completed`, then
+closes both the EventSource and the server. EventSource is a global API;
+`serve` comes from `noe:http`. Use `./noe docs globals EventSource` for its
+reconnection, lifecycle, and authentication contract.
+
 ## HTTPダウンロード
 
 URLは利用するAPI・ファイルに置き換えてください。保存先の親ディレクトリは事前に用意します。

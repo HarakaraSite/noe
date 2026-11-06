@@ -66,6 +66,8 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | txiki.jsとの機能差と今後の改善の参考 | [比較調査（2026-10-24）](txikijs-comparison-20261024.md) |
 | Standard library API integration and expansion | [Roadmap, filesystem milestone, and process integration](stdlib-roadmap.md) |
 | WebSocket handshake headers | [Constructor extension, owned fields, compatibility, and validation](stdlib-websocket-headers.md) |
+| Server-sent event subscriptions | [EventSource, reconnection, Fetch authority, and lifecycle](stdlib-eventsource.md) |
+| Asynchronous local SQL storage | [SQLite API, transaction reservations, filesystem policy, and verification](stdlib-sqlite.md) |
 | Data imports and import-map expansion | [Local/HTTP JSON/text/bytes, prefixes, scopes, and compatibility](stdlib-module-loading.md) |
 | Source maps in runtime diagnostics | [Default mapping, capability boundaries, and verification](stdlib-source-maps.md) |
 | Filesystem watching | [API, lifecycle, compatibility, and validation](stdlib-fs-watch.md) |

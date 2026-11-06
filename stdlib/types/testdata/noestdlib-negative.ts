@@ -15,6 +15,25 @@ import dns from "node:dns";
 import dnsPromises from "node:dns/promises";
 import {lookup as lookupCallback, resolve4 as resolve4Callback} from "node:dns";
 import {resolve4} from "node:dns/promises";
+import {open as openSQLite} from "noe:sqlite";
+// @ts-expect-error NOE does not declare Node's built-in SQLite module.
+import {DatabaseSync} from "node:sqlite";
+import * as sqliteModule from "noe:sqlite";
+
+// @ts-expect-error EventSource needs a URL.
+new EventSource();
+// @ts-expect-error EventSource only supports its standard options.
+new EventSource("https://example.test/events", {headers: {Authorization: "fixture"}});
+// @ts-expect-error EventSource credentials mode is boolean.
+new EventSource("https://example.test/events", {withCredentials: "true"});
+const events = new EventSource("https://example.test/events");
+// @ts-expect-error EventSource state is read-only.
+events.readyState = EventSource.CLOSED;
+events.onmessage = event => {
+  // @ts-expect-error SSE message data is decoded text.
+  const bytes: Uint8Array = event.data;
+  void bytes;
+};
 
 // The implemented file API returns text only when an encoding is supplied.
 // @ts-expect-error encoded reads are text, not bytes
@@ -58,6 +77,34 @@ subscribe("SIGQUIT");
 // @ts-expect-error NOE does not register node:net
 import type {Socket} from "node:net";
 void (undefined as unknown as Socket);
+
+async function sqliteNegativeFixture(): Promise<void> {
+  const database = await openSQLite(":memory:");
+  // @ts-expect-error database metadata is read-only.
+  database.readOnly = true;
+  // @ts-expect-error closed is controlled by the resource lifecycle.
+  database.closed = true;
+  // @ts-expect-error query methods are asynchronous.
+  const synchronousRow: import("noe:sqlite").SQLiteRow | undefined = database.get("SELECT 1");
+  // @ts-expect-error SQL input values do not include symbols.
+  await database.run("SELECT ?", [Symbol("invalid")]);
+  // @ts-expect-error busyTimeout is measured in milliseconds as a number.
+  await openSQLite("db.sqlite", {busyTimeout: "quick"});
+  // @ts-expect-error transaction mode must be one of the supported SQLite modes.
+  await database.transaction(tx => tx.exec("SELECT 1"), {mode: "serializable"});
+  // @ts-expect-error transaction handles expose query methods, not close().
+  await database.transaction(tx => tx.close());
+  const statement = await database.prepare("SELECT 1");
+  // @ts-expect-error statement closed is controlled by the resource lifecycle.
+  statement.closed = true;
+  // @ts-expect-error row output values are not guaranteed to be strings.
+  const stringValue: string = (await statement.get())!.value;
+  void [synchronousRow, stringValue];
+  await database.close();
+}
+void sqliteNegativeFixture;
+// @ts-expect-error noe:sqlite has no default constructor export.
+new sqliteModule.default();
 
 if (processModule.stdin) {
   // @ts-expect-error stdin is a byte ReadableStream; use a reader or Response.

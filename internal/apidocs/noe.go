@@ -12,6 +12,7 @@ func noeTopics() []topicSpec {
 		{ID: "noe:image", Kind: "module", Summary: "Read images for an agent request and generate image files with an explicit model.", File: "noe-image.md"},
 		{ID: "noe:auth", Kind: "module", Summary: "Validate and save a completed ChatGPT sign-in result.", File: "noe-auth.md"},
 		{ID: "noe:http", Kind: "module", Summary: "Fetch HTTP resources and serve requests with shared Web types and response streams.", File: "noe-http.md"},
+		{ID: "noe:sqlite", Kind: "module", Summary: "Use asynchronous SQLite databases, prepared statements, and reserved transactions with shared filesystem policy.", File: "noe-sqlite.md"},
 		{ID: "noe:sockets", Kind: "module", Summary: "Open TCP or Unix stream sockets and listeners as byte streams.", File: "noe-sockets.md"},
 		{ID: "noe:signals", Kind: "module", Summary: "Subscribe to supported operating-system signals as an async iterator.", File: "noe-signals.md"},
 	}

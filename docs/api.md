@@ -392,6 +392,26 @@ console.log(server.url);
 
 `server.close()`は同期的に受付を停止し、処理中のHTTPリクエスト終了を最大5秒待った後、残る接続を強制終了します。停止を求めるリクエスト自身のハンドラーから同期的に呼ぶと、そのハンドラーの完了を待つことになります。応答が完了した後の別の処理から呼んでください。これは旧`noe.serve()`の非同期停止とは異なる動作です。
 
+The global `EventSource` API receives server-sent events over HTTP/HTTPS,
+including named events, automatic reconnection, and Last-Event-ID. Close a
+subscription with `source.close()`. It is available in Workers and with
+`Modules.Fetch` in Go embedding. See the
+[EventSource contract](development/stdlib-eventsource.md) and the
+[local example](../examples/http/event-source.js).
+
+## SQLite
+
+`noe:sqlite` provides asynchronous open, exec/run/get/all, prepared statements,
+and callback transactions. SQL runs away from the JS event loop; transactions
+reserve their connection until commit or rollback. Use `await using` for
+database and statement cleanup. Memory databases need no FS capability;
+file databases share the selected FS Root, Cwd, and ReadOnly policy.
+
+See the [SQLite API](../internal/apidocs/content/noe-sqlite.md),
+[local example](../examples/sqlite/README.md), and
+[implementation record](development/stdlib-sqlite.md). This is a NOE-specific
+Promise API; Node's synchronous `node:sqlite` is not installed.
+
 ## 旧APIからの移行
 
 v1.16.0からv2.0.0へのGo組み込み・停止・ログ観察の変更は、[v2移行ガイド](v2-migration.md)を参照してください。以下は、さらに以前の`createAgent`や`noe.*`を使うスクリプト向けの移行です。

@@ -230,6 +230,25 @@ testdata/pathcorpus_node.js
     [implementation record](../../docs/development/stdlib-websocket-headers.md).
     No upstream request or engine change is part of this addition.
 
+19. EventSource is a NOE-local addition, enabled by Fetch with WebAPIs and an
+    event loop. It shares the selected HTTP transport, per-request/redirect
+    policy and execution ownership. The JavaScript layer parses UTF-8 SSE,
+    emits standard Event/MessageEvent values, reconnects with Last-Event-ID,
+    and cancels reads and reconnect timers on close. Buffer limits apply per
+    partial event, rather than per lifetime connection. The default SSE client
+    has no total timeout; caller clients retain their settings. No engine
+    change or upstream request is involved. See the
+    [implementation record](../../docs/development/stdlib-eventsource.md).
+
+20. `noe:sqlite` is a NOE-specific asynchronous addition, using the CGO-free
+    ncruces SQLite implementation and a scoped Go VFS. It is separate from
+    Node's synchronous `node:sqlite` API. Connections share the selected FS
+    Root/Cwd/ReadOnly policy, while memory databases require no FS grant.
+    Per-connection queues reserve callback transactions through cleanup;
+    Go-owned work runs off the VM owner and stops with its execution. See the
+    [implementation record](../../docs/development/stdlib-sqlite.md).
+    No engine change or upstream request is part of this addition.
+
 The initial snapshot import did not intentionally change HTTP behavior, body
 limits, timeouts, module names, exports, or protocols. Subsequent NOE-local
 changes should be recorded here with their rationale and validation. Upstream
