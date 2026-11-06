@@ -1115,7 +1115,8 @@ declare namespace NOEStdlib {
     removeEventListener(type: "error", listener: EventListener<WebSocketErrorEvent>): void;
     removeEventListener(type: "close", listener: EventListener<WebSocketCloseEvent>): void;
     send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
-    /** Cancels opening in CONNECTING; validates the code and UTF-8 reason before changing state. */
+    /** Starts graceful close (empty frame with no arguments); cancels opening in CONNECTING.
+     * Validates arguments first. Completion is reported by the close event, using the peer's code/reason. */
     close(code?: number, reason?: string): void;
   }
   interface WebSocketConstructor {

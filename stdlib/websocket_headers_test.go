@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -39,6 +40,16 @@ func websocketHeaderFixture(t *testing.T, secure bool, requests chan<- *http.Req
 		rw.Write([]byte{0x88, 2, 3, 232})
 		if err := rw.Flush(); err != nil {
 			t.Error(err)
+		}
+		// Finish the peer handshake instead of dropping TCP immediately after
+		// sending Close: the client must be able to write its masked response.
+		var head [2]byte
+		if _, err := io.ReadFull(rw, head[:]); err == nil {
+			n := int(head[1] & 0x7f)
+			if head[1]&0x80 != 0 {
+				n += 4
+			}
+			_, _ = io.CopyN(io.Discard, rw, int64(n))
 		}
 	})
 	if secure {

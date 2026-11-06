@@ -2028,6 +2028,8 @@ func TestWebSockets(t *testing.T) {
 		Sockets: &stdlib.WebSockets{Allow: func(*url.URL) error { return nil }},
 	}, `
 		;(async () => {
+			let serverCloseCode, finishServerClose;
+			const serverClosed = new Promise(resolve => { finishServerClose = resolve });
 			const server = httpModule.serve({port: 0}, (request) => {
 				if (new URL(request.url).pathname !== "/chat") {
 					return new Response("not here", {status: 404})
@@ -2043,7 +2045,7 @@ func TestWebSockets(t *testing.T) {
 					if (e.data === "bye") { socket.close(4001, "as you asked"); return }
 					socket.send("you said: " + e.data)
 				}
-				socket.onclose = (e) => console.log("the server saw", e.code)
+				socket.onclose = (e) => { serverCloseCode = e.code; finishServerClose() }
 				return response
 			})
 
@@ -2060,11 +2062,11 @@ func TestWebSockets(t *testing.T) {
 					? e.data : [...new Uint8Array(e.data)].join("-"))
 				if (said.length === 3) ws.send("bye")
 			})
-			await new Promise(resolve => ws.addEventListener("close", (e) => {
-				console.log("closed", e.code, JSON.stringify(e.reason), e.wasClean)
-				console.log(said.join(" | "))
-				resolve()
-			}))
+			const closed = await new Promise(resolve => ws.addEventListener("close", resolve))
+			await serverClosed
+			console.log("the server saw", serverCloseCode)
+			console.log("closed", closed.code, JSON.stringify(closed.reason), closed.wasClean)
+			console.log(said.join(" | "))
 			await server.close()
 		})()
 	`)

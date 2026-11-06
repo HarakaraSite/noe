@@ -15,7 +15,7 @@ const server=serve({hostname:"127.0.0.1",port:0},request=>{
  if(request.headers.get("authorization")!=="Bearer fixture"||request.headers.get("x-client")!=="noe")return new Response("header mismatch",{status:401});
  const {socket,response}=upgradeWebSocket(request,{protocol:"chat.v1"});
  socket.onopen=()=>socket.send("authenticated");
- socket.onmessage=event=>{if(event.data==="done")socket.close(1000,"done")};
+ socket.onmessage=event=>{if(event.data==="empty"){socket.close();return;}if(event.data==="done")socket.close(1000,"done")};
  return response;
 });
 try{
@@ -48,6 +48,15 @@ try{
   if(!thrown||pending.readyState!==WebSocket.CONNECTING)throw Error("WebSocket validation");
  }
  pending.close();await stopped;
+ const empty=createWebSocket(server.url.replace("http","ws"),{headers:{Authorization:"Bearer fixture","X-Client":"noe"}});
+ await new Promise((resolve,reject)=>{
+  empty.onopen=()=>empty.send("empty");
+  empty.onerror=event=>reject(event.error);
+  empty.onclose=event=>{
+   if(!event.wasClean||event.code!==1005||event.reason!==""||empty.readyState!==WebSocket.CLOSED)reject(Error("empty close handshake"));
+   else resolve();
+  };
+ });
  console.log("WebSocket headers passed");
 }finally{await server.close()}
 `

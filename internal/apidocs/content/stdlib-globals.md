@@ -185,7 +185,7 @@ responsible for its own authentication behavior.
 
 ## WebSocket
 
-Syntax: `new WebSocket(url, protocols?)`. It opens a WebSocket connection, reports open/message/error/close events, and sends text or binary messages with `send(data)`. `close(code = 1000, reason = "")` starts closing. The default `binaryType` is `"blob"`; set `socket.binaryType = "arraybuffer"` to receive binary messages as ArrayBuffers.
+Syntax: `new WebSocket(url, protocols?)`. It opens a WebSocket connection, reports open/message/error/close events, and sends text or binary messages with `send(data)`. `close(code?, reason?)` starts closing and returns undefined. The default `binaryType` is `"blob"`; set `socket.binaryType = "arraybuffer"` to receive binary messages as ArrayBuffers.
 
 ~~~js
 const socket = new WebSocket("wss://example.com/feed");
@@ -194,6 +194,8 @@ socket.addEventListener("message", (event) => console.log(event.data));
 ~~~
 
 Closing while CONNECTING cancels opening and reports error then an unclean close (1006), with CLOSED visible in both handlers. It cannot later open. Supplied close codes must normalize to 1000 or 3000–4999; invalid codes throw InvalidAccessError. Reasons over 123 UTF-8 bytes throw SyntaxError. Validation precedes state changes, including repeated close calls.
+
+For an established socket, `close()` keeps CLOSING while the native queue flushes and the peer replies. NOE bounds this phase to five seconds. A no-argument call sends an empty close frame; use `close(1000)` to send that explicit status. Close events report the first peer code/reason (1005 for an empty frame, 1006 and an empty reason if none arrived). `wasClean` requires a successful close frame in both directions before native cleanup. Missing replies, invalid close frames, and transport failures are unclean. Native error details remain on the error event. Execution cancellation and Worker termination interrupt blocked I/O independently of graceful close.
 
 A WebSocket carries complete protocol messages, not raw TCP bytes. NOE enables outbound WebSockets when the host selects that capability. For custom handshake headers, import `createWebSocket` from `noe:http`; for server-side upgrades, import `upgradeWebSocket` from `noe:http`. See the `noe:http` reference for their capability requirements and details. Close the socket when it is no longer needed.
 

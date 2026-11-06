@@ -129,7 +129,10 @@ type socket struct {
 
 	// opened settles when the handshake has finished, one way or the other.
 	opened *quickjs.Promise
-	conn   *wsproto.Conn
+	// closing settles on the owner after transport cleanup. Forced teardown
+	// leaves JS settlement to the execution that still owns the runtime.
+	closing *quickjs.Promise
+	conn    *wsproto.Conn
 	// unwatch stops the connection being closed with the loop, and unhook
 	// with the runtime, once it has been closed anyway.
 	unwatch      func() bool
@@ -138,13 +141,32 @@ type socket struct {
 	openCancel   context.CancelFunc
 	pendingToken string
 
-	mu     sync.Mutex
-	queue  []outgoing
-	signal chan struct{}
-	closed bool
+	mu            sync.Mutex
+	queue         []outgoing
+	signal        chan struct{}
+	closed        bool
+	closeWriting  bool
+	wireSent      bool
+	wireReceived  bool
+	wireComplete  bool
+	wirePayload   []byte
+	handshakeDone chan struct{}
+	readMu        sync.Mutex
+
+	// Published protocol state is owner-only; native wire progress uses mu.
+	closeStarted bool
+	closePayload []byte
+	closeStop    chan struct{}
+	closeWritten bool
+	peerClosed   bool
+	peerCode     int
+	peerReason   string
+	settled      bool
+	failure      error
 
 	// reading is true while a read is outstanding, since only one may be.
-	reading bool
+	reading  bool
+	draining bool
 	// ended stops delivery; finished also accounts for native hook cleanup.
 	ended    bool
 	finished bool
@@ -156,6 +178,8 @@ type outgoing struct {
 	op   byte
 	data []byte
 }
+
+const webSocketCloseTimeout = 5 * time.Second
 
 func (h *wsHost) limit() int {
 	if h.cfg.MaxMessageBytes > 0 {
@@ -316,11 +340,13 @@ func (h *wsHost) attach(token string, conn net.Conn, br *bufio.Reader, protocol 
 
 func (h *wsHost) newSocket() (*socket, error) {
 	s := &socket{
-		rt:     h.rt,
-		loop:   h.cfg.Loop,
-		host:   h,
-		opened: h.rt.NewPromise(),
-		signal: make(chan struct{}, 1),
+		rt:            h.rt,
+		loop:          h.cfg.Loop,
+		host:          h,
+		opened:        h.rt.NewPromise(),
+		closing:       h.rt.NewPromise(),
+		handshakeDone: make(chan struct{}),
+		signal:        make(chan struct{}, 1),
 	}
 	if scope := h.cfg.Loop.executionScope(); scope != nil {
 		var err error
@@ -338,6 +364,7 @@ func (s *socket) value() (quickjs.Value, error) {
 	o := s.rt.NewObject()
 	if err := errors.Join(
 		o.Set("opened", s.opened.Value()),
+		o.Set("closed", s.closing.Value()),
 		o.Set("receive", s.receive),
 		o.Set("send", s.send),
 		o.Set("close", s.closeWith),
@@ -362,7 +389,7 @@ func (s *socket) start(conn *wsproto.Conn) error {
 	// before its Close returns.
 	s.unwatch = context.AfterFunc(loopContext(s.loop), conn.Close)
 	s.unhook = s.rt.OnClose(conn.Close)
-	if err := s.loop.Go(func(context.Context) { s.writing() }); err != nil {
+	if err := s.loop.Go(func(ctx context.Context) { s.writing(ctx) }); err != nil {
 		s.finish()
 		return err
 	}
@@ -371,25 +398,91 @@ func (s *socket) start(conn *wsproto.Conn) error {
 
 // writing is the one goroutine that writes to the connection, so that messages
 // leave in the order the script sent them.
-func (s *socket) writing() {
+func (s *socket) writing(ctx context.Context) {
 	for {
-		s.mu.Lock()
-		queue := s.queue
-		s.queue = nil
-		closed := s.closed
-		s.mu.Unlock()
-
-		for _, m := range queue {
-			if err := s.conn.WriteMessage(m.op, m.data); err != nil {
-				s.conn.Close()
-				return
-			}
-		}
-		if closed {
+		if ctx.Err() != nil {
 			return
 		}
-		<-s.signal
+		s.mu.Lock()
+		if len(s.queue) == 0 {
+			closed := s.closed
+			s.mu.Unlock()
+			if closed {
+				return
+			}
+			select {
+			case <-s.signal:
+			case <-ctx.Done():
+				return
+			}
+			continue
+		}
+		m := s.queue[0]
+		s.queue[0] = outgoing{}
+		s.queue = s.queue[1:]
+		if m.op == wsproto.OpClose {
+			s.closeWriting = true
+		}
+		s.mu.Unlock()
+
+		if err := s.conn.WriteMessage(m.op, m.data); err != nil {
+			s.conn.Close()
+			s.loop.postExecution(func() { s.failClose(err) })
+			return
+		}
+		if m.op == wsproto.OpClose {
+			s.recordCloseFrame(true, nil)
+			s.loop.postExecution(func() {
+				s.closeWritten = true
+				s.maybeCompleteClose()
+			})
+			return
+		}
 	}
+}
+
+// Native completion stops the deadline even while JavaScript is busy. Both
+// workers record successful frames before posting their owner-side results.
+func (s *socket) recordCloseFrame(sent bool, payload []byte) {
+	s.mu.Lock()
+	if sent {
+		s.wireSent = true
+	} else {
+		s.wireReceived = true
+		s.wirePayload = append([]byte(nil), payload...)
+	}
+	complete := s.wireSent && s.wireReceived && !s.wireComplete
+	if complete {
+		s.wireComplete = true
+		close(s.handshakeDone)
+	}
+	s.mu.Unlock()
+	if complete {
+		s.conn.Close()
+	}
+}
+
+// Closing has a native reader even when the JS owner is busy. Serialize it
+// with an ordinary read and retain the first validated peer close result.
+func (s *socket) readMessage() (byte, []byte, error) {
+	s.readMu.Lock()
+	defer s.readMu.Unlock()
+	s.mu.Lock()
+	received, payload := s.wireReceived, s.wirePayload
+	s.mu.Unlock()
+	if received {
+		return wsproto.OpClose, payload, nil
+	}
+	op, payload, err := s.conn.ReadMessage()
+	if err == nil && op == wsproto.OpClose {
+		if _, _, err = wsproto.ParseClose(payload); err == nil {
+			s.recordCloseFrame(false, payload)
+		}
+	}
+	if err != nil {
+		s.conn.Close()
+	}
+	return op, payload, err
 }
 
 // send queues a message. The script's bytes are copied, since the writing
@@ -424,11 +517,11 @@ func (s *socket) enqueue(m outgoing) {
 	}
 }
 
-// receive answers with the next message, or null when the socket has ended.
+// receive answers with the next message or a transition to the closing result.
 func (s *socket) receive() *quickjs.Promise {
 	p := s.rt.NewPromise()
-	if s.ended || s.conn == nil {
-		p.Resolve(nil)
+	if s.ended || s.closeStarted || s.conn == nil {
+		s.deliverClosing(p)
 		return p
 	}
 	if s.reading {
@@ -437,32 +530,44 @@ func (s *socket) receive() *quickjs.Promise {
 	}
 	s.reading = true
 
-	loop, conn := s.loop, s.conn
+	loop := s.loop
 	loop.Begin()
 	if err := loop.Go(func(context.Context) {
 		defer loop.Done()
-		op, payload, err := conn.ReadMessage()
+		op, payload, err := s.readMessage()
 		loop.postExecution(func() {
 			s.reading = false
+			if s.ended {
+				s.deliverClosing(p)
+				return
+			}
 			if err != nil {
-				s.finish()
-				// A connection that ended without a close frame ended badly,
-				// and the script is told which.
-				p.RejectError(err)
+				s.failClose(err)
+				s.deliverClosing(p)
+				return
+			}
+			if op == wsproto.OpClose {
+				code, reason := wsproto.CloseInfo(payload)
+				s.peerClosed, s.peerCode, s.peerReason = true, code, reason
+				if s.failure != nil {
+					s.completeClose(s.failure)
+				} else {
+					s.beginClosing(payload, true)
+					s.maybeCompleteClose()
+				}
+				s.deliverClosing(p)
+				return
+			}
+			if s.failure != nil {
+				s.failClose(s.failure)
+				s.deliverClosing(p)
 				return
 			}
 			out := s.rt.NewObject()
-			switch op {
-			case wsproto.OpClose:
-				code, reason := wsproto.CloseInfo(payload)
-				s.finish()
-				out.Set("type", "close")
-				out.Set("code", code)
-				out.Set("reason", reason)
-			case wsproto.OpBinary:
+			if op == wsproto.OpBinary {
 				out.Set("type", "binary")
 				out.Set("data", s.rt.NewBytes(payload))
-			default:
+			} else {
 				out.Set("type", "text")
 				out.Set("data", string(payload))
 			}
@@ -471,14 +576,22 @@ func (s *socket) receive() *quickjs.Promise {
 	}); err != nil {
 		loop.Done()
 		s.reading = false
-		p.RejectError(err)
+		s.completeClose(err)
+		s.deliverClosing(p)
 	}
 	return p
 }
 
-// closeWith says goodbye and stops.
+func (s *socket) deliverClosing(p *quickjs.Promise) {
+	out := s.rt.NewObject()
+	out.Set("type", "closing")
+	p.Resolve(out)
+}
+
+// closeWith starts the closing handshake after the previously accepted sends.
+// Zero means no status code, so a no-argument close has an empty wire payload.
 func (s *socket) closeWith(code quickjs.Value, reason quickjs.Value) {
-	if s.ended {
+	if s.ended || s.closeStarted {
 		return
 	}
 	if s.conn == nil {
@@ -486,54 +599,169 @@ func (s *socket) closeWith(code quickjs.Value, reason quickjs.Value) {
 		s.finish()
 		return
 	}
-	n := 1000
-	if code.Kind() == quickjs.KindNumber {
-		n = code.Int()
+	n := code.Int()
+	var payload []byte
+	if n != 0 {
+		payload = append(payload, byte(n>>8), byte(n))
+		payload = append(payload, reason.String()...)
 	}
-	text := ""
-	if reason.Kind() == quickjs.KindString {
-		text = reason.String()
-	}
-	conn := s.conn
-	s.mu.Lock()
-	already := s.closed
-	s.mu.Unlock()
-	if already {
+	s.beginClosing(payload, false)
+}
+
+// beginClosing is owner-only. Peer close discards unsent data and prioritizes
+// the close response after the one frame that may already be writing.
+func (s *socket) beginClosing(payload []byte, peer bool) {
+	if s.ended {
 		return
 	}
-	// The goodbye goes through the queue so that it follows whatever was sent
-	// before it rather than overtaking it.
-	payload := make([]byte, 0, 2+len(text))
-	payload = append(payload, byte(n>>8), byte(n))
-	payload = append(payload, text...)
-	s.enqueue(outgoing{op: wsproto.OpClose, data: payload})
-
+	first := !s.closeStarted
+	if first {
+		s.closeStarted = true
+		s.closePayload = append([]byte(nil), payload...)
+	}
 	s.mu.Lock()
-	s.closed = true
+	if first {
+		s.closed = true
+		if peer {
+			s.queue = nil
+		}
+		s.queue = append(s.queue, outgoing{op: wsproto.OpClose, data: s.closePayload})
+	} else if peer && !s.closeWriting {
+		s.queue = []outgoing{{op: wsproto.OpClose, data: s.closePayload}}
+	}
 	s.mu.Unlock()
 	select {
 	case s.signal <- struct{}{}:
 	default:
 	}
-	// The connection is dropped shortly after, whatever the other end does
-	// with the goodbye.
-	loop := s.loop
+	if !first {
+		return
+	}
+
+	s.closeStop = make(chan struct{})
+	loop, conn, stop := s.loop, s.conn, s.closeStop
 	loop.Begin()
 	if err := loop.Go(func(ctx context.Context) {
 		defer loop.Done()
-		timer := time.NewTimer(50 * time.Millisecond)
+		timer := time.NewTimer(webSocketCloseTimeout)
 		defer timer.Stop()
 		select {
-		case <-timer.C:
+		case <-stop:
+			return
+		case <-s.handshakeDone:
+			return
 		case <-ctx.Done():
+			conn.Close()
+			return
+		case <-timer.C:
+			select {
+			case <-s.handshakeDone:
+				return
+			default:
+			}
+			conn.Close()
+			loop.postExecution(func() {
+				s.failClose(errors.New("the WebSocket closing handshake timed out"))
+			})
 		}
-		conn.Close()
 	}); err != nil {
 		loop.Done()
-		conn.Close()
+		s.completeClose(err)
 	}
-	s.releaseLoop()
-	s.ended = true
+	if !peer && !s.ended {
+		s.drainClosing()
+	}
+}
+
+func (s *socket) drainClosing() {
+	s.draining = true
+	loop := s.loop
+	loop.Begin()
+	if err := loop.Go(func(context.Context) {
+		defer loop.Done()
+		for {
+			op, payload, err := s.readMessage()
+			if err == nil && op != wsproto.OpClose {
+				continue
+			}
+			loop.postExecution(func() {
+				s.draining = false
+				if s.ended {
+					return
+				}
+				if err != nil {
+					if s.failure != nil {
+						err = s.failure
+					}
+					s.completeClose(err)
+					return
+				}
+				s.peerClosed = true
+				s.peerCode, s.peerReason = wsproto.CloseInfo(payload)
+				if s.failure != nil {
+					s.completeClose(s.failure)
+				} else {
+					s.beginClosing(payload, true)
+					s.maybeCompleteClose()
+				}
+			})
+			return
+		}
+	}); err != nil {
+		loop.Done()
+		s.draining = false
+		s.failClose(err)
+	}
+}
+
+// An outstanding read may already contain the peer's first Close frame.
+// Let that result reach the owner before fixing the terminal code/reason.
+func (s *socket) failClose(err error) {
+	if s.ended {
+		return
+	}
+	if s.failure == nil {
+		s.failure = err
+	}
+	s.conn.Close()
+	if !s.reading && !s.draining {
+		s.completeClose(s.failure)
+	}
+}
+
+func (s *socket) maybeCompleteClose() {
+	if s.closeWritten && s.peerClosed {
+		s.completeClose(s.failure)
+	}
+}
+
+// completeClose settles protocol results only on the owner. Native force
+// cleanup continues to use finish directly and never touches JS promises.
+func (s *socket) completeClose(err error) {
+	if s.settled || s.finished {
+		return
+	}
+	s.settled = true
+	clean := err == nil && s.closeWritten && s.peerClosed
+	code, reason := 1006, ""
+	if s.peerClosed {
+		code, reason = s.peerCode, s.peerReason
+	} else {
+		s.mu.Lock()
+		if s.wireReceived {
+			code, reason = wsproto.CloseInfo(s.wirePayload)
+		}
+		s.mu.Unlock()
+	}
+	s.finish()
+	out := s.rt.NewObject()
+	out.Set("code", code)
+	out.Set("reason", reason)
+	out.Set("clean", clean)
+	if err != nil {
+		out.Set("error", s.rt.NewError("Error", err.Error()))
+	}
+	s.closing.Resolve(out)
 }
 
 // finish marks the socket over and lets the loop go.
@@ -548,8 +776,13 @@ func (s *socket) finish() {
 		delete(s.host.pending, s.pendingToken)
 		s.pendingToken = ""
 	}
+	if s.closeStop != nil {
+		close(s.closeStop)
+		s.closeStop = nil
+	}
 	s.mu.Lock()
 	s.closed = true
+	s.queue = nil
 	s.mu.Unlock()
 	select {
 	case s.signal <- struct{}{}:
@@ -731,9 +964,14 @@ const webSocketJS = `(function (host) {
         this._fire("open", {});
         for (;;) {
           const message = await handle.receive();
-          if (message === null || message === undefined) break;
-          if (message.type === "close") {
-            ending = {code: message.code, reason: message.reason, clean: true};
+          if (message.type === "closing") {
+            this.readyState = CLOSING;
+            const outcome = await handle.closed;
+            ending = {code: outcome.code, reason: outcome.reason, clean: outcome.clean};
+            if (outcome.error) {
+              this.readyState = CLOSED;
+              this._fire("error", {error: outcome.error, message: String(outcome.error.message)});
+            }
             break;
           }
           if (this.readyState !== OPEN) continue;
@@ -745,12 +983,10 @@ const webSocketJS = `(function (host) {
       } catch (e) {
         this.readyState = CLOSED;
         this._fire("error", {error: e, message: String((e && e.message) || e)});
-        ending = {code: 1006, reason: String((e && e.message) || e), clean: false};
+        ending = {code: 1006, reason: "", clean: false};
       }
       this.readyState = CLOSED;
-      // A socket that was closed from this end reports what this end said;
-      // 1005 means neither end said anything at all.
-      const end = ending || this._closing || {code: 1005, reason: "", clean: true};
+      const end = ending || {code: 1006, reason: "", clean: false};
       this._fire("close", {code: end.code, reason: end.reason, wasClean: end.clean});
     }
 
@@ -798,12 +1034,7 @@ const webSocketJS = `(function (host) {
       }
       if (this.readyState === CLOSED || this.readyState === CLOSING) return;
       this.readyState = CLOSING;
-      this._closing = {
-        code: number,
-        reason: text,
-        clean: true,
-      };
-      this._handle.close(this._closing.code, this._closing.reason);
+      this._handle.close(code === undefined && reason === undefined ? 0 : number, text);
     }
   }
 

@@ -1,6 +1,6 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after WebSocket opening cancellation and close validation,
+Updated 2026-11-07 after WebSocket connected closing and blocked-send cleanup,
 following the completed filesystem/process/HTTP/Fetch/Serve migrations.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
@@ -11,14 +11,15 @@ implementation records remain the canonical design and validation references.
 - The verified process/HTTP/Serve checkpoint is `3997dc0`
   (`refactor(stdlib): consolidate host APIs and async HTTP lifecycle`),
   following filesystem commit `295fb53`. The user requested a local commit
-  and continued implementation on 2026-11-07. This handoff accompanies the
-  subsequent verified WebSocket lifecycle correction. No push or publication
-  is included.
+  and continued implementation on 2026-11-07. The next opening correction is
+  `248e74a` (`fix(stdlib): cancel WebSocket opening when closed`). This handoff
+  accompanies the subsequent verified connected-closing correction.
+  No push or publication is included.
 - The latest release recorded in this checkout is v2.15.0. EventSource,
   asynchronous SQLite, filesystem/process/HTTP migrations, and the response
-  limit/Blob-send, Serve lifecycle, and WebSocket opening corrections are
-  unreleased.
-- Latest source candidate: `/var/tmp/noe-websocket-lifecycle-P6J6DU/noe`. Earlier
+  limit/Blob-send, Serve lifecycle, and WebSocket opening/connected-closing
+  corrections are unreleased.
+- Latest source candidate: `/var/tmp/noe-websocket-close-apjtaav1/noe`. Earlier
   candidate paths below belong to their recorded slices, not the latest API.
 - The resumed request authorized continuation, and the user explicitly
   approved the concrete process contract and deletion of its four legacy
@@ -59,6 +60,66 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   be Japanese. Follow AGENTS.md, including reuse of completed validation
   when the tested source and dependencies have not changed.
 
+## Completed WebSocket connected close and interruption correction
+
+See [contract and migration](stdlib-websocket-closing.md).
+
+- Native transport Close interrupts a blocked writer without taking its
+  serialization mutex. Concurrent closes still wait for the single native
+  close. Idle writers observe context cancellation as well as queue signals.
+- Established close remains synchronous at the API boundary and enters
+  CLOSING immediately. It flushes earlier accepted sends, sends one close
+  frame, and allows five seconds for the frame exchange. Peer-initiated
+  closing discards unsent data and prioritizes the response after an
+  in-flight frame. Runtime/execution/Worker force cleanup stays independent.
+- `close()` now sends an empty frame; `close(1000)` sends an explicit normal
+  status. Close events report the first peer code/reason, with 1005 for an
+  empty frame and 1006/empty reason when no peer close arrived. `wasClean`
+  requires successful close frames in both directions before native cleanup.
+  Diagnostics remain on the error event rather than the close reason.
+- Invalid close payloads and fragmented/oversized control frames fail instead
+  of being labelled clean. Local closing has a serialized native reader that
+  progresses while the JS owner is busy. Native completion stops the deadline
+  before owner publication; an in-flight read/drain retains the first peer
+  result even if a failure callback arrives earlier.
+- The same global/factory/upgrade class, grants, native transport, and
+  capability selections remain. No public Go field, dependency, or new JS
+  method was added. Current docs/types and CLI/public-consumer fixtures
+  reflect the changed default wire payload and completion behavior.
+
+## Connected WebSocket validation and evidence
+
+Validation is complete. Evidence: `/var/tmp/noe-websocket-close-apjtaav1`.
+
+- A deterministic unread-pipe write barrier reproduced the baseline native
+  deadlock; the fixed native tests and race checks pass. Seven public
+  regressions also reproduced old behavior at detached `248e74a`. A separate
+  baseline full-suite pass is incidental evidence, not a requirement to
+  repeat every unchanged test for this correction.
+- Eight public regressions cover delayed ACK and FIFO sends, empty no-code
+  close, actual peer ACK, abrupt EOF, missing-reply timeout, simultaneous
+  distinct peer results, and blocked-send cancellation in main and Worker.
+  Peer fixtures hold unread payloads behind explicit cleanup barriers.
+- Native owner-paused tests cover close before another receive, ordinary
+  data queued before the ACK, and failure during an in-flight peer read.
+  Existing opening, header/TLS, binary, and capability tests also pass.
+- Final affected native/core/public tests pass with the race detector.
+  Real CLI run/eval/Worker/fixture-agent modes and independent checkout/
+  module-artifact Go consumers pass, including authenticated Blob exchange
+  and a clean empty peer close. No platform/dependency change requires
+  repeating the prior six-target builds.
+- TypeScript fixtures, embedded catalog/reference checks, vet, and whitespace
+  checks pass. Evidence includes command logs/JSON, verification and source
+  manifests, baseline source, and independent-consumer artifacts.
+- Independent review found an intermediate busy-owner timeout and a weak
+  cancellation fixture; both were corrected. The same 5.5-second busy-handler
+  reproduction now reports the peer's code/reason and clean true. The drain
+  handoff, failure ordering, and force cleanup were re-reviewed with no
+  remaining actionable finding. Initial/final reproduction notes are saved.
+- Candidate: `/var/tmp/noe-websocket-close-apjtaav1/noe`, not installed.
+  No noebot work, push, release, executable replacement, or service restart
+  was performed.
+
 ## Completed WebSocket opening lifecycle correction
 
 See [implementation and migration](stdlib-websocket-lifecycle.md).
@@ -78,11 +139,10 @@ See [implementation and migration](stdlib-websocket-lifecycle.md).
   checks, and the 123-byte UTF-8 reason limit. Invalid calls throw before
   changing state, including calls on CLOSING/CLOSED sockets. Callers must
   stop sending reserved/out-of-range codes or oversized reasons.
-- Existing established-close default code 1000, native FIFO, and short
-  forced-close allowance remain. A full wire closing-handshake redesign is
-  outside this correction. No capability, public Go field, or dependency
-  was added. Types, references, real CLI fixtures, and the independent
-  public consumer are updated.
+- This opening checkpoint retained the former established-close policy.
+  The newer connected correction above replaces its default code 1000 and
+  short drop allowance. No capability, public Go field, or dependency was
+  added by either correction.
 
 ## WebSocket lifecycle validation and evidence
 
@@ -330,10 +390,11 @@ process naming changes do not invalidate unchanged native filesystem tests.
 ## Next continuation
 
 The filesystem/process/HTTP entrance migrations, Fetch response-overflow and
-Blob-send corrections, Serve limits/lifecycle, and WebSocket opening
-cancellation/close validation are implemented and validated locally.
-No required runtime blocker remains in these approved slices. The previous
-checkpoint is `3997dc0`; this handoff accompanies the next local correction.
+Blob-send corrections, Serve limits/lifecycle, WebSocket opening
+cancellation/close validation, and connected closing/blocked-send cleanup
+are implemented and validated locally. No required runtime blocker remains
+in these approved slices. The preceding checkpoints are `3997dc0` and
+`248e74a`; this handoff accompanies the next local correction.
 No release or publication instruction was given.
 
 Remaining Node utilities, Buffer, and process metadata methods are

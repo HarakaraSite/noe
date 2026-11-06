@@ -13,6 +13,8 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
+	"unicode/utf8"
 )
 
 // It is here rather than behind a dependency because it is small: a frame is a
@@ -55,8 +57,9 @@ type Conn struct {
 	// there is by announcing a large one.
 	limit int
 
-	wmu    sync.Mutex
-	closed bool
+	wmu       sync.Mutex
+	closed    atomic.Bool
+	closeOnce sync.Once
 }
 
 // NewConn speaks the protocol over conn, reading through br if it is not
@@ -140,6 +143,9 @@ func (c *Conn) readFrame() (bool, byte, []byte, error) {
 	if length < 0 || length > int64(c.limit) {
 		return false, 0, nil, errors.New("the frame is larger than this runtime will read")
 	}
+	if op&0x08 != 0 && (!fin || length > 125) {
+		return false, 0, nil, errors.New("a control frame must be final and no larger than 125 bytes")
+	}
 
 	var key [4]byte
 	if masked {
@@ -163,7 +169,7 @@ func (c *Conn) readFrame() (bool, byte, []byte, error) {
 func (c *Conn) WriteMessage(op byte, data []byte) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	if c.closed {
+	if c.closed.Load() {
 		return errors.New("the socket is closed")
 	}
 
@@ -222,15 +228,13 @@ func (c *Conn) SendClose(code int, reason string) error {
 	return c.WriteMessage(OpClose, payload)
 }
 
-// Close closes the connection, once.
+// Close interrupts outstanding I/O by closing the transport without waiting
+// for the write mutex. Concurrent calls wait for the single native close.
 func (c *Conn) Close() {
-	c.wmu.Lock()
-	already := c.closed
-	c.closed = true
-	c.wmu.Unlock()
-	if !already {
+	c.closeOnce.Do(func() {
+		c.closed.Store(true)
 		c.conn.Close()
-	}
+	})
 }
 
 // CloseInfo reads the code and reason out of a close frame's payload.
@@ -239,6 +243,29 @@ func CloseInfo(payload []byte) (int, string) {
 		return 1005, ""
 	}
 	return int(binary.BigEndian.Uint16(payload)), string(payload[2:])
+}
+
+// ParseClose validates and parses a close frame payload. The empty payload
+// means no status code was sent; 1005 is returned as the local sentinel.
+func ParseClose(payload []byte) (int, string, error) {
+	if len(payload) == 0 {
+		return 1005, "", nil
+	}
+	if len(payload) > 125 {
+		return 0, "", errors.New("a close frame payload cannot exceed 125 bytes")
+	}
+	if len(payload) < 2 {
+		return 0, "", errors.New("a close frame payload must be empty or contain a status code")
+	}
+	code := int(binary.BigEndian.Uint16(payload[:2]))
+	if code < 1000 || code >= 5000 || code == 1004 || code == 1005 || code == 1006 || code == 1015 {
+		return 0, "", fmt.Errorf("invalid WebSocket close status code %d", code)
+	}
+	reason := payload[2:]
+	if !utf8.Valid(reason) {
+		return 0, "", errors.New("a close reason must be valid UTF-8")
+	}
+	return code, string(reason), nil
 }
 
 // Key is a fresh client key, which is not a secret: it is there so that a

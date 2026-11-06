@@ -55,6 +55,7 @@ changing NOE does not authorize editing or deploying noebot.
 | HTTP helpers and nonstandard extensions | Global standard Fetch/WebSocket APIs; explicit `noe:http` listener, upgrade, and custom-handshake helpers. | Implemented and verified locally, unreleased, under the user's autonomous/breaking-change approval. Old HTTP imports/helper globals and constructor-header extension removed. See [migration](stdlib-noe-http.md) and separate [Fetch response-limit correction](stdlib-fetch-body-limit.md). |
 | HTTP server limits and lifecycle | Request overflow errors, asynchronous idempotent close, and async disposal over the shared server backend. | Implemented and verified locally, unreleased. See [Serve lifecycle and migration](stdlib-serve-lifecycle.md). |
 | WebSocket opening lifecycle | Cancel pending handshakes, prevent late attachment, and validate close arguments. | Implemented and verified locally under the autonomous approval; see [lifecycle correction](stdlib-websocket-lifecycle.md). |
+| WebSocket connected lifecycle | Interrupt blocked writes and complete the close exchange with peer-derived results. | Implemented and verified locally under the approved continuation; see [connected close](stdlib-websocket-closing.md). |
 | Remaining Node modules and globals | Review Buffer/process and utility module names against actual callers and semantic differences. | Demand-driven; avoid churn with no clear usability benefit. |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource

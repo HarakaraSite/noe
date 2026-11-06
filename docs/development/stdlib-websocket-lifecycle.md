@@ -25,9 +25,10 @@ an unused connection immediately no longer waits for a successful handshake.
 The host factory retains its synchronous return, custom-header snapshot,
 URL authorization, TLS settings, and standard WebSocket identity.
 
-The established-connection close policy is unchanged: the existing default
-code 1000, native FIFO send queue, and short forced-close allowance remain.
-This slice does not redesign the complete wire closing handshake.
+At the opening-correction checkpoint, the established close policy retained
+code 1000 by default and a short forced-close allowance. The subsequent
+[connected closing correction](stdlib-websocket-closing.md) replaces that
+policy with a completed frame exchange and an empty no-argument close.
 
 ## Native ownership and cancellation
 
