@@ -3,7 +3,7 @@
 2026-11-06. This fixes the known response-limit issue recorded in the earlier
 standard-library handoff. It accompanies, but is independent of, the
 [host HTTP entrance migration](stdlib-noe-http.md). The user authorized the
-breaking behavior change. Implementation is local and unreleased.
+breaking behavior change. This implementation is included in v2.16.0.
 
 ## Behavior
 

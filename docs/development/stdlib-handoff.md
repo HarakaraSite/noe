@@ -8,30 +8,27 @@ implementation records remain the canonical design and validation references.
 ## Repository and publication state
 
 - Repository: `/home/agent/projects/noe`, branch `main`.
-- The verified process/HTTP/Serve checkpoint is `3997dc0`
-  (`refactor(stdlib): consolidate host APIs and async HTTP lifecycle`),
-  following filesystem commit `295fb53`. The user requested a local commit
-  and continued implementation on 2026-11-07. The next opening correction is
-  `248e74a` (`fix(stdlib): cancel WebSocket opening when closed`). This handoff
-  accompanies the subsequent verified connected-closing correction.
-  No push or publication is included.
-- The latest release recorded in this checkout is v2.15.0. EventSource,
-  asynchronous SQLite, filesystem/process/HTTP migrations, and the response
-  limit/Blob-send, Serve lifecycle, and WebSocket opening/connected-closing
-  corrections are unreleased.
-- Latest source candidate: `/var/tmp/noe-websocket-close-apjtaav1/noe`. Earlier
-  candidate paths below belong to their recorded slices, not the latest API.
-- The resumed request authorized continuation, and the user explicitly
-  approved the concrete process contract and deletion of its four legacy
-  imports without adapters. No push, release, installed-executable
-  replacement, or process restart is authorized by that decision.
-- The user subsequently asked for as much autonomous progress as possible
-  while asleep and explicitly allowed breaking changes. That authorization
-  covers the completed HTTP slice and correctness fixes below. No external
-  publication, installed-binary replacement, or noebot work was performed.
-- On 2026-11-07 the user explicitly requested the proposed Serve improvements:
-  request overflow errors and asynchronous close/asyncDispose. They are now
-  implemented and verified locally as described below.
+- Verified implementation checkpoints are EventSource/SQLite `1d04402`,
+  filesystem `295fb53`, process/HTTP/Serve `3997dc0`, WebSocket opening
+  `248e74a`, and connected closing `617cfcd`.
+- On 2026-11-07 the user explicitly authorized releasing the completed work.
+  Release v2.16.0 is being prepared from those checkpoints. Push, annotated
+  tagging, CI distribution, and published-asset/module verification are
+  authorized. Publication results are recorded in
+  [release checkpoints](../releases/release-checkpoints.md).
+- See [v2.16.0 notes](../releases/v2.16.0.md) and the consolidated
+  [migration guide](../releases/v2.16.0-migration.md). The public Go module
+  remains `/v2`; JavaScript import and behavior changes have no adapters.
+- Latest implementation candidate:
+  `/var/tmp/noe-websocket-close-apjtaav1/noe`. Release candidates, downloaded
+  assets, continuity checks, and public-consumer evidence are kept at
+  `/var/tmp/noe-v2.16.0-release-e9ux2qxa`. Use its release candidate or
+  verified published asset for the new version; installed binaries keep
+  their own release until separately replaced.
+- The user independently handles noebot. Executable installation and running
+  service restart are not part of this publication. Previous slice decisions
+  authorized local progress and breaking changes; the latest release request
+  adds publication authority without changing these boundaries.
 
 ## User decisions to retain
 
@@ -395,7 +392,7 @@ cancellation/close validation, and connected closing/blocked-send cleanup
 are implemented and validated locally. No required runtime blocker remains
 in these approved slices. The preceding checkpoints are `3997dc0` and
 `248e74a`; this handoff accompanies the next local correction.
-No release or publication instruction was given.
+The user has now authorized v2.16.0 publication; see the state above.
 
 Remaining Node utilities, Buffer, and process metadata methods are
 use-case-driven work. Avoid wholesale rename churn merely to eliminate Node

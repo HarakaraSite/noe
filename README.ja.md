@@ -35,20 +35,14 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.14.0 release notes](docs/releases/v2.14.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.14.0)
+[v2.16.0 release notes](docs/releases/v2.16.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.16.0)
 
-v2.14.0 unifies process spawning under `node:child_process` and standard I/O
-under `node:process` Web Streams. It adds `AbortSignal.any` and asynchronous
-resource disposal. The former `noe:process`, `noe:io`, and synchronous stdio
-interfaces are removed; see the [migration notes](docs/releases/v2.14.0.md).
-
-The unreleased source now consolidates commands, standard I/O, and metadata
-under `noe:process`, with no adapters for those four Node process imports.
-Global `process` remains available when selected; its module form is
-`import {process} from "noe:process"`. See the
-[process migration](docs/development/stdlib-noe-process.md). HTTP listeners and
-WebSocket host helpers now use explicit `noe:http` imports; standard Fetch
-and WebSocket remain globals. See the [HTTP migration](docs/development/stdlib-noe-http.md).
+v2.16.0 adds EventSource and asynchronous SQLite, and consolidates filesystem,
+process, and HTTP host APIs under `noe:fs`, `noe:process`, and `noe:http`.
+It also corrects HTTP body limits and graceful HTTP/WebSocket shutdown.
+Old filesystem/process/HTTP imports are removed without adapters; read the
+[upgrade guide](docs/releases/v2.16.0-migration.md) before updating scripts.
+Standard Fetch, WebSocket, and global `process` retain their global names.
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。
@@ -62,7 +56,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.14.0
+# noe v2.16.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。

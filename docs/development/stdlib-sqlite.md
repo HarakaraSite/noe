@@ -5,7 +5,7 @@
 2026-11-06. Phase 10 introduces SQLite through the NOE-specific asynchronous
 `noe:sqlite` module. The user selected a Promise API after comparing the
 synchronous Node API with the needs of NOE's event loop and long-lived services.
-Implementation and local verification are complete; it is not yet released.
+Implementation and verification are complete; it is included in v2.16.0.
 
 ## API and execution model
 

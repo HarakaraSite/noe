@@ -4,7 +4,7 @@
 [HTTP entrance migration](stdlib-noe-http.md), with breaking changes allowed.
 This implements the current [API policy](stdlib-api-policy.md) through the
 existing listener, body-reader, loop, and execution ownership machinery.
-Implementation is local and unreleased.
+This implementation is included in v2.16.0.
 
 ## Incoming request-body limits
 

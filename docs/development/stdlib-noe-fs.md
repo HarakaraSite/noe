@@ -3,8 +3,8 @@
 2026-11-06. This slice applies the approved
 [standard library API policy](stdlib-api-policy.md). The user approved one
 `noe:fs` module and removal of `node:fs`, `node:fs/promises`, `fs`, and
-`fs/promises`, without compatibility adapters. Implementation is local and
-unreleased. The process and HTTP migrations are separate slices.
+`fs/promises`, without compatibility adapters. This migration is included in v2.16.0. The process and HTTP migrations are
+documented separately.
 
 ## Public contract
 

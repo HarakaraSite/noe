@@ -3,7 +3,7 @@
 2026-11-06. The user authorized autonomous standard-library continuation and
 breaking changes. This slice applies the [API policy](stdlib-api-policy.md):
 standard Web APIs retain their global entrances, and host-specific functions
-use explicit NOE modules. Implementation is local and unreleased.
+use explicit NOE modules. This implementation is included in v2.16.0.
 
 ## Contract and migration
 

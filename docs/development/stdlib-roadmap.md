@@ -6,7 +6,7 @@ names. Earlier phase decisions below are historical. The first policy
 application is the [migration to `noe:fs`](stdlib-noe-fs.md), followed by process
 and host-I/O naming, then HTTP helpers. Expansion phases remain available.
 
-The `noe:fs` migration is implemented and verified locally, unreleased. NOE's
+The `noe:fs` migration is included in v2.16.0. NOE's
 examples, hidden libraries, runtime/Worker fixtures, public Go consumers,
 types, and references use the single new entrance. noebot migration is being
 handled independently by its owner.
@@ -41,13 +41,13 @@ after the header work, while WebSocketStream remains use-case driven.
 The v2.14.0 consumer rollout is covered by the
 [noebot migration instructions](noebot-v2.14.0-migration.md).
 
-Phase 9.2 is implemented and verified locally, not yet released: standard EventSource, named events, close,
+Phase 9.2 is included in v2.16.0: standard EventSource, named events, close,
 reconnection, and shared Fetch authority/ownership. See the
 [EventSource implementation record](stdlib-eventsource.md). This addition does
 not require migrating existing consumers. WebSocketStream remains deferred
 until a concrete application needs it.
 
-Phase 10's SQLite slice is implemented and verified locally, not yet released,
+Phase 10's SQLite slice is included in v2.16.0,
 through the approved asynchronous `noe:sqlite`
 API. Memory databases require no filesystem grant; file databases share the
 existing FS policy. See the [SQLite implementation record](stdlib-sqlite.md).

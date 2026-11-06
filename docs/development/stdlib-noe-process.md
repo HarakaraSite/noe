@@ -5,7 +5,7 @@
 concrete contract, the user approved one `noe:process` module and removal of
 `node:child_process`, `child_process`, `node:process`, and `process` imports
 without compatibility adapters. Global `process` remains available when
-selected. This migration is local and unreleased.
+selected. This migration is included in v2.16.0.
 
 ## Public contract
 
