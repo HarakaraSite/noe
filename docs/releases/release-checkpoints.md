@@ -3385,3 +3385,74 @@ assets/build records, published smoke, public consumers, and installation.
 Passing source-suite results were reused. Native runtime verification is
 Linux amd64; the other five targets received build/checksum verification.
 This documentation-only follow-up preserves the immutable release tag.
+
+
+## v2.14.0 preparation — 2026-11-06
+
+The user authorized release publication and a consolidated noebot instruction.
+This release contains process integration `64bd5c4`, standard-I/O integration
+`eb460bf`, and combined cancellation/asynchronous disposal `02b4bb7` after
+v2.13.0. See the [release notes](v2.14.0.md),
+[roadmap](../development/stdlib-roadmap.md), and
+[noebot migration instructions](../development/noebot-v2.14.0-migration.md).
+The public Go API/import paths retain the existing `/v2` module line.
+
+Checked clean native candidate: `3f8d4934c7f581dc34d2ca43ace275f4fb3910e6`.
+All 59 changed Go/JS/module paths match the finalized phase 4 source manifest,
+including removed paths, except for the CLI Version string updated for this
+release. Go 1.27.2, go-quickjs v0.32.0, go-intl v0.8.0, disabled JIT, both
+dependency files, the distribution profile, and the six-target CI workflow
+are unchanged.
+
+### Reused implementation evidence
+
+- Process integration: affected internal/public/runtime units, focused race,
+  process CLI/E2E, aliases and capability separation, external consumers and
+  six-target builds, library/noebot suites, declarations, API docs, lint, vet,
+  and independent review. Evidence:
+  `/tmp/noe-process-integration-863auo4a/results.json`.
+- Standard-I/O integration and pipe shutdown: affected units, focused race,
+  ProcessIO/low-level/HTTP/stdin CLI E2E, external consumers and six-target
+  builds, library/noebot suites, authentication helper fixtures, declarations,
+  docs, lint, vet, and independent review. Evidence:
+  `/tmp/noe-stdio-integration-dkaizbjk/results.json`.
+- Combined cancellation and resource disposal: affected units, focused race
+  and GC/lifetime checks, CLI run/eval/Worker/events/fixture-agent E2E, external
+  consumers and six-target builds, declarations, API docs, JS lint, vet, and
+  independent review. Temporary remote noebot revision
+  `45de74771d9c048448afb1e7f1039b0b45a01443` passed 208 checks with only the
+  two spawn imports changed. Evidence:
+  `/tmp/noe-cancellation-cleanup-v90s154r/results.json`.
+
+| Lightweight release verification | Result |
+| --- | --- |
+| Configured CLI version test, CGO disabled | PASS |
+| Clean release-flags native build | PASS; candidate above, vcs.modified=false |
+| Candidate version/arithmetic, regexp/JSON/switch | PASS |
+| Candidate image/model/auth/Worker/node:vm exports | PASS |
+| Authentication helpers' offline help | PASS |
+| Filesystem migration and await-using disposal | PASS |
+| Spawn aliases, removed module, output/status, repeated disposal | PASS |
+| Standard-I/O aliases, input/output, removed synchronous/module entry points | PASS |
+| Combined signal reason, synthetic events, pending pipe cancellation and lock release | PASS |
+| Dependency/build metadata and disabled JIT | PASS |
+| Selected documentation links | PASS, 328 local references |
+| Source manifests and diff formatting | PASS |
+
+Release helpers, source continuity records, the clean candidate, and focused
+smoke results are under `/tmp/noe-v2.14.0-release-zghyjsva`.
+CI builds and publishes the immutable tag without repeating source suites.
+Published checksums/build records, native behavior, and clean external Go
+consumers will be checked after publication.
+
+The remote noebot main was rechecked at the same revision. No real noebot
+repository or running service is changed by this release. The existing
+shared NOE executable remains installed until noebot's rollout coordinates
+its required import/minimum-version changes with the v2.14.0 executable.
+Both repository `./noe` and `/home/agent/.local/bin/noe` are kept on v2.13.0.
+The migration instructions include the earlier optional filesystem work.
+
+The existing dist/ output-provenance limitation remains: later CI binaries
+can report vcs.modified=true after earlier outputs are created. Revision,
+dependency, target, and published hash checks still apply. Native execution
+is Linux amd64; the other five targets receive build/checksum verification.
