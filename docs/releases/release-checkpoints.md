@@ -3607,3 +3607,72 @@ public Go consumers are at `/var/tmp/noe-v2.15.0-release-e2jll9xq/`.
 Local repository/user executables were verified unchanged at v2.13.0; this
 publication did not place binaries, restart applications, modify noebot, or
 make paid provider/login requests.
+
+## v2.16.0 preparation — 2026-11-07
+
+The user authorized releasing the completed standard-library work. The
+implementation checkpoints are EventSource/SQLite `1d04402`, filesystem
+`295fb53`, process/HTTP/Serve `3997dc0`, WebSocket opening `248e74a`, and
+connected close/interruption `617cfcd`. See [release notes](v2.16.0.md) and
+the consolidated [migration guide](v2.16.0-migration.md) for breaking imports,
+namespace defaults, body limits, asynchronous shutdown, and close events.
+
+All 198 changed Go/JS/declaration/module paths since v2.15.0 match the final
+implementation manifest, except the checked CLI Version string update.
+The release workflow/profile are unchanged. SQLite adds ncruces/go-sqlite3
+v0.36.0 and its translated SQLite dependencies; Go 1.27.2, official
+QuickJS v0.32.0, Intl v0.8.0, and disabled JIT remain selected.
+
+### Reused implementation evidence
+
+- EventSource: parsing/reconnection/IDs/terminal failures, Fetch capability,
+  body and timer cancellation, TLS/cookies, Worker cleanup, race and CLI/
+  fixture-agent checks. `/var/tmp/noe-eventsource-q6gsfklc`.
+- SQLite: queue/transaction/rollback, types/BLOB/int64, Root/Cwd/ReadOnly and
+  sidecars, cancellation and Worker cleanup, external consumers, CGO-free
+  candidate and six-target compilation. `/var/tmp/noe-sqlite-w4mhlx_e`.
+- Filesystem/process/HTTP migrations: full affected core/public/integration
+  suites, capability selections, native ownership, cancellation, types,
+  examples/hidden libraries, consumer artifacts and six-target builds.
+  `/var/tmp/noe-fs-policy-aj2_zwmi`, `/var/tmp/noe-process-policy-6fHylF`,
+  and `/var/tmp/noe-http-policy-8FsuKH`.
+- Serve limits/async close/disposal: exact/over-limit streaming behavior,
+  handler progress, shared close promise, graceful deadline/forced cleanup,
+  race, real CLI/Worker/agent paths and consumers.
+  `/var/tmp/noe-serve-policy-bOYsbk`.
+- WebSocket lifecycle: opening cancellation, late delivery, blocked-write
+  interruption, queued sends, peer ACK and code/reason/wasClean, native
+  progress while JS is busy, Worker cancellation, final affected race and
+  CLI/consumer checks. `/var/tmp/noe-websocket-lifecycle-P6J6DU` and
+  `/var/tmp/noe-websocket-close-apjtaav1`.
+
+Every listed slice has a passed verification record. New release preparation
+changes version and documentation only; unchanged source suites, race/E2E,
+consumer cross-builds, and long waits were not repeated for this release.
+
+### Lightweight release verification
+
+Clean candidate revision: `2634c7608542bb8356eb03d5de35b238936cec4e`.
+The CGO-disabled release-flags build passed with the expected revision,
+`vcs.modified=false`, target metadata, official engine/Intl and SQLite
+versions, and no quickjs_jit tag. The configured-version unit test passed.
+
+Eight native checks passed with zero exits and empty stderr: version,
+arithmetic, filesystem/process imports and command execution (including
+rejection of all ten removed imports), shared asynchronous HTTP close,
+EventSource messages/named events, SQLite bigint/BLOB/transaction/rollback,
+authenticated WebSocket exchange and clean empty close, and bundled docs.
+Both README release entries and the English release/migration notes are
+updated. Relative-link/whitespace checks and a scoped independent docs review
+passed without actionable findings.
+
+The public Go packages retain `/v2`. CI will build the six distribution
+binaries, create SHA256SUMS, and publish the selected immutable annotated tag
+without repeating local source suites. Downloaded artifacts, metadata, smoke,
+and direct published-module consumers are verified after publication.
+
+Evidence and helpers: `/var/tmp/noe-v2.16.0-release-e9ux2qxa`.
+Native execution verification is Linux amd64. Other targets receive existing
+implementation compilation plus CI build/checksum verification. This release
+does not install binaries, restart services, modify noebot, or make provider
+or login requests.
