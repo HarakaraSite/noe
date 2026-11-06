@@ -1051,12 +1051,17 @@ const webAPIsJS = `(function (host) {
       const key = String(type);
       if (!this._listeners.has(key)) this._listeners.set(key, []);
       this._listeners.get(key).push({fn, once: !!options.once});
+      changeAbortListenerCount(this, key, 1);
     }
     removeEventListener(type, fn) {
-      const list = this._listeners.get(String(type));
+      const key = String(type);
+      const list = this._listeners.get(key);
       if (!list) return;
       const at = list.findIndex(l => l.fn === fn);
-      if (at >= 0) list.splice(at, 1);
+      if (at >= 0) {
+        list.splice(at, 1);
+        changeAbortListenerCount(this, key, -1);
+      }
     }
     dispatchEvent(event) {
       event.target = this;
@@ -1117,12 +1122,136 @@ const webAPIsJS = `(function (host) {
     addListener.call(target, type, h.listener);
   }
 
+  const abortSignalData = new WeakMap();
+  const abortSignalFinalizer = new FinalizationRegistry(links => {
+    for (const link of links) {
+      const source = link.source.deref();
+      if (!source) continue;
+      const data = abortSignalData.get(source);
+      if (data) data.dependents.delete(link.dependent);
+    }
+  });
+
+  function retainAbortSignal(signal) {
+    const data = abortSignalData.get(signal);
+    if (!data || !data.dependent || data.retained || data.abortListenerCount === 0 || data.links.length === 0) return;
+    data.retained = true;
+    for (const link of data.links) {
+      const source = link.source.deref();
+      const sourceData = source && abortSignalData.get(source);
+      if (sourceData) sourceData.retainedDependents.add(signal);
+    }
+  }
+
+  function releaseAbortSignal(signal) {
+    const data = abortSignalData.get(signal);
+    if (!data || !data.retained) return;
+    data.retained = false;
+    for (const link of data.links) {
+      const source = link.source.deref();
+      const sourceData = source && abortSignalData.get(source);
+      if (sourceData) sourceData.retainedDependents.delete(signal);
+    }
+  }
+
+  function changeAbortListenerCount(target, type, delta) {
+    if (type !== "abort") return;
+    const data = abortSignalData.get(target);
+    if (!data || !data.dependent) return;
+    data.abortListenerCount = Math.max(0, data.abortListenerCount + delta);
+    if (data.abortListenerCount > 0) retainAbortSignal(target);
+    else releaseAbortSignal(target);
+  }
+
+  function unlinkAbortSignal(signal) {
+    const data = abortSignalData.get(signal);
+    if (!data || data.links.length === 0) return;
+    releaseAbortSignal(signal);
+    const links = data.links;
+    data.links = [];
+    data.sources = [];
+    abortSignalFinalizer.unregister(signal);
+    for (const link of links) {
+      const source = link.source.deref();
+      const sourceData = source && abortSignalData.get(source);
+      if (sourceData) sourceData.dependents.delete(link.dependent);
+    }
+  }
+
+  function runAbortSteps(signal) {
+    dispatch.call(signal, new Event("abort"));
+  }
+
+  function signalAbort(signal, reason) {
+    if (signal.aborted) return;
+    signal.aborted = true;
+    signal.reason = reason;
+
+    const data = abortSignalData.get(signal);
+    const dependents = [];
+    if (data) {
+      for (const reference of Array.from(data.dependents)) {
+        const dependent = reference.deref();
+        if (!dependent) {
+          data.dependents.delete(reference);
+          continue;
+        }
+        if (!dependent.aborted) {
+          dependent.aborted = true;
+          dependent.reason = signal.reason;
+          dependents.push(dependent);
+        }
+        unlinkAbortSignal(dependent);
+      }
+      data.dependents.clear();
+    }
+
+    // Composite state is visible before source abort listeners run. Composite
+    // events follow the source event, matching dependent-signal abort ordering.
+    let dispatchFailed = false;
+    let dispatchError;
+    const dispatchSignal = target => {
+      try { runAbortSteps(target); }
+      catch (error) {
+        if (!dispatchFailed) {
+          dispatchFailed = true;
+          dispatchError = error;
+        }
+      }
+    };
+    dispatchSignal(signal);
+    for (const dependent of dependents) dispatchSignal(dependent);
+    if (dispatchFailed) throw dispatchError;
+  }
+
   class AbortSignal extends EventTarget {
     constructor() {
       super();
       this.aborted = false;
       this.reason = undefined;
-      this.onabort = null;
+      abortSignalData.set(this, {
+        dependent: false,
+        sources: [],
+        dependents: new Set(),
+        retainedDependents: new Set(),
+        links: [],
+        abortListenerCount: 0,
+        retained: false,
+      });
+      let onabort = null;
+      Object.defineProperty(this, "onabort", {
+        configurable: true,
+        enumerable: true,
+        get: () => onabort,
+        set: value => {
+          const wasHandler = typeof onabort === "function";
+          onabort = value;
+          const isHandler = typeof value === "function";
+          if (wasHandler !== isHandler) {
+            changeAbortListenerCount(this, "abort", isHandler ? 1 : -1);
+          }
+        },
+      });
     }
     throwIfAborted() { if (this.aborted) throw this.reason; }
     static abort(reason) {
@@ -1131,14 +1260,59 @@ const webAPIsJS = `(function (host) {
       s.reason = reason === undefined ? new Error("This operation was aborted") : reason;
       return s;
     }
+    static any(signals) {
+      if (signals === null || (typeof signals !== "object" && typeof signals !== "function")) {
+        throw new TypeError("AbortSignal.any requires an iterable object");
+      }
+      const inputs = [];
+      for (const signal of signals) {
+        if (!abortSignalData.has(signal)) throw new TypeError("AbortSignal.any requires AbortSignal values");
+        inputs.push(signal);
+      }
+
+      const result = new AbortSignal();
+      for (const signal of inputs) {
+        if (signal.aborted) {
+          result.aborted = true;
+          result.reason = signal.reason;
+          return result;
+        }
+      }
+
+      const resultData = abortSignalData.get(result);
+      resultData.dependent = true;
+      const sources = new Set();
+      for (const signal of inputs) {
+        const inputData = abortSignalData.get(signal);
+        if (inputData.dependent) {
+          for (const reference of inputData.sources) {
+            const source = reference.deref();
+            if (source) sources.add(source);
+          }
+        } else {
+          sources.add(signal);
+        }
+      }
+
+      const links = [];
+      for (const source of sources) {
+        const sourceData = abortSignalData.get(source);
+        const sourceReference = new WeakRef(source);
+        const dependentReference = new WeakRef(result);
+        sourceData.dependents.add(dependentReference);
+        resultData.sources.push(sourceReference);
+        links.push({source: sourceReference, dependent: dependentReference});
+      }
+      resultData.links = links;
+      if (links.length > 0) abortSignalFinalizer.register(result, links, result);
+      return result;
+    }
     static timeout(ms) {
       const s = new AbortSignal();
       if (typeof setTimeout === "function") {
         setTimeout(() => {
           if (s.aborted) return;
-          s.aborted = true;
-          s.reason = new Error("The operation timed out");
-          s.dispatchEvent(new Event("abort"));
+          signalAbort(s, new Error("The operation timed out"));
         }, ms);
       }
       return s;
@@ -1150,9 +1324,7 @@ const webAPIsJS = `(function (host) {
     abort(reason) {
       const s = this.signal;
       if (s.aborted) return;
-      s.aborted = true;
-      s.reason = reason === undefined ? new Error("This operation was aborted") : reason;
-      s.dispatchEvent(new Event("abort"));
+      signalAbort(s, reason === undefined ? new Error("This operation was aborted") : reason);
     }
   }
 

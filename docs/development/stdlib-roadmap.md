@@ -16,6 +16,8 @@ file-type, permission, and special bits in `mode`.
 
 Phase 3 is now implemented and locally verified in the two process and
 standard-I/O slices below. Those changes are not released yet.
+Phase 4 is also implemented and locally verified; its additions and
+compatibility details are recorded in the cancellation and cleanup section.
 
 ## Phases
 
@@ -309,6 +311,81 @@ fix; no real provider calls or credential changes were needed.
 Evidence is under `/tmp/noe-stdio-integration-dkaizbjk/`, including unit,
 runtime recheck, race, E2E, public consumer, library, and noebot logs. Installed
 NOE binaries and running applications were not replaced or restarted.
+
+## Cancellation and cleanup: phase 4
+
+2026-11-06, based on `eb460bf`. Implemented and locally verified; not released.
+The pipe cancellation work was completed during phase 3. This phase adds
+combined abort signals and asynchronous disposal to existing owned resources.
+
+`AbortSignal.any(signals)` validates and consumes an iterable of genuine
+signals before choosing a pre-aborted input. Pre-aborted sources win in input
+order; otherwise the first actual abortion supplies the exact reason.
+Nested combinations are flattened, duplicate sources are handled once, and
+synthetic abort events do not propagate. Composite states are established
+before source events, and dependent events follow source events. Active
+composites remain observable while they have abort listeners or an onabort
+handler and live sources; inactive or settled dependencies can be collected
+or unlinked. Existing controller and timeout Error defaults are retained.
+
+FileHandles, child processes, raw connections, socket listeners, and signal
+subscriptions now implement `Symbol.asyncDispose`. Each method awaits its
+existing `close()` and fulfills with undefined. The pinned engine already
+supports `await using`, so normal block exit, return, and exceptions can invoke
+the existing cleanup through that syntax. File close still drains admitted
+I/O; child cleanup still stops/reaps a running process; listener/subscription
+cleanup still releases waiters. Forced runtime shutdown is unchanged.
+
+### Phase 4 compatibility and validation
+
+No existing module or method is removed in this phase, and normal callers
+need no migration. One low-level behavior changes: actual controller/timeout
+abort events use internal dispatch rather than an instance's overridden
+dispatchEvent method. Such overrides no longer intercept real abortion.
+No corresponding use was found in the inspected NOE or noebot consumers.
+Ordinary listener and onabort assignments retain their behavior; onabort is
+now tracked through an accessor so observed composites remain alive.
+
+Validation passed:
+
+- Full unit tests for `internal/stdlib`, `internal/nativeio`,
+  `internal/noestdlib`, `internal/jsexec`, `internal/runtime`, and public
+  `stdlib`, including existing abort/fetch/pipe behavior.
+- Targeted race tests for abort composition/GC lifetime, pipe cancellation,
+  file and native-resource cleanup, and the new disposal integration.
+- New CLI run/eval/Worker/events and fixture-agent run_js tests combining
+  AbortSignal.any, pipe cancellation, and await-using file cleanup. Existing
+  low-level, process/stdio, and HTTP upload/receive E2E tests also passed.
+- Public Go tests with real FileHandle write draining and exception cleanup,
+  live child reaping, socket/listener/signal pending-waiter release, and
+  combined-signal cancellation of a borrowed native stdin reader.
+- External stdlib consumer using a checkout replacement and a standalone
+  module artifact. The consumer exercises combined cancellation and scoped
+  file/child disposal. Builds passed for Linux, Darwin, and Windows on
+  amd64/arm64; native execution ran on Linux.
+- Remote noebot at `45de74771d9c048448afb1e7f1039b0b45a01443`: existing
+  S1/S2/S3/images 170 checks plus Telegram commands 20, Telegram typing 13,
+  and Web HTTP/SSE timing 5. Only the previously required two spawn-import
+  changes were applied to its temporary copy.
+- TypeScript positive/negative fixtures, API catalog tests, changed JavaScript
+  lint/syntax, affected-package vet, and whitespace checks. The declarations
+  reference the engine-supported explicit-resource-management library.
+- Independent read-only review of abort graph validation, propagation,
+  reentrancy, weak/observed lifetime, and disposal ownership. Strict sequence
+  validation, observed-composite retention, and delivery despite dispatch
+  cleanup failures were corrected and rechecked. No actionable findings remain.
+
+The source/reference audit used the
+[DOM AbortSignal specification](https://dom.spec.whatwg.org/#dom-abortsignal-any)
+and the [FileHandle disposal contract](https://nodejs.org/api/fs.html#filehandlesymbolasyncdispose).
+These guide the supported additions; existing NOE Error defaults and owned
+child semantics remain as documented. Upstream candidates are recorded in
+[UPSTREAM.md](../../internal/stdlib/UPSTREAM.md).
+
+Logs, source manifests, public consumer artifacts, and the temporary noebot
+patch are under `/tmp/noe-cancellation-cleanup-v90s154r/`. No paid provider
+calls were made. Installed binaries, running applications, and the actual
+noebot repositories were not changed.
 
 ## Development and distribution tools
 

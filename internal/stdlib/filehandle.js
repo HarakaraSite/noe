@@ -86,6 +86,7 @@
       },
       sync() { return value.sync(); },
       close() { return value.close(); },
+      async [Symbol.asyncDispose]() { await this.close(); },
     };
   }
   function open(path, flags = "r", mode = 0o666) {

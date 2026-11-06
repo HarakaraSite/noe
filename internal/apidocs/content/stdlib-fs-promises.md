@@ -73,6 +73,22 @@ Invalid arguments reject with `code: "ERR_INVALID_ARG"`; writing through a close
 
 `file.close() -> Promise<void>` is idempotent. It immediately rejects new I/O and normally waits for I/O that already started. Runtime cleanup force-closes remaining handles without waiting for JavaScript promise delivery.
 
+## FileHandle[Symbol.asyncDispose]
+
+`file[Symbol.asyncDispose]() -> Promise<void>` calls the existing `close()`
+method. It waits for admitted operations and closes the handle with the same
+idempotence and error behavior. Use the engine's `await using` syntax to close
+a file on normal block exit, return, or exception:
+
+~~~js
+import {open} from "node:fs/promises";
+
+{
+  await using file = await open("notes.txt", "a");
+  await file.write("saved\n");
+}
+~~~
+
 ## readdir
 
 Syntax: `readdir(path, {withFileTypes = false} = {}) -> Promise<string[] | Dirent[]>`. It returns sorted entry names by default. With `withFileTypes: true`, entries are instances of `node:fs.Dirent`, with `name`, `parentPath`, and entry-type predicates. Recursive traversal and alternate name encodings are not implemented.

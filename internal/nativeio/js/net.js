@@ -75,6 +75,7 @@
         }
         return closePromise;
       },
+      async [Symbol.asyncDispose]() { await this.close(); },
     };
   }
 
@@ -160,6 +161,7 @@
         address: native.address,
         accept: () => native.accept().then(streams),
         close: () => native.close(),
+        async [Symbol.asyncDispose]() { await this.close(); },
       };
     } catch (error) {
       if (signal && signal.aborted) throw abortReason(signal);

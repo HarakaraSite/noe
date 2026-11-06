@@ -191,7 +191,7 @@ An aborted fetch rejects with the signal's reason; aborting after completion doe
 
 ## AbortSignal
 
-AbortSignal exposes aborted, reason, throwIfAborted(), and the static helpers AbortSignal.abort(reason?) and AbortSignal.timeout(milliseconds). Pass signals to APIs such as fetch and node:timers/promises.
+AbortSignal exposes aborted, reason, throwIfAborted(), and the static helpers AbortSignal.abort(reason?), AbortSignal.timeout(milliseconds), and AbortSignal.any(signals). Pass signals to APIs such as fetch and node:timers/promises.
 
 ~~~js
 const signal = AbortSignal.timeout(1_000);
@@ -199,6 +199,24 @@ const response = await fetch("https://example.com/slow", { signal });
 ~~~
 
 The timeout helper requires the runtime timer loop; NOE provides it. A timeout is delivered as an Error reason.
+
+## AbortSignal.any
+
+`AbortSignal.any(signals) -> AbortSignal` combines an iterable of AbortSignals.
+The entire input is validated before selecting a source. An already-aborted
+source wins in iterable order; otherwise the first source to abort supplies
+the exact reason, including falsy values. An empty iterable produces a signal
+that never aborts. Invalid inputs throw TypeError.
+
+~~~js
+const userStop = new AbortController();
+const signal = AbortSignal.any([userStop.signal, AbortSignal.timeout(1_000)]);
+await fetch("https://example.com/data", {signal});
+~~~
+
+The combined signal does not abort its input signals. Combinations follow
+actual signal abortion; manually dispatching an abort event does not abort
+dependent signals. It is available in Workers as well as the main runtime.
 
 ## setTimeout
 

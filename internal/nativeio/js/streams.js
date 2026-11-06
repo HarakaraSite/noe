@@ -77,6 +77,7 @@
         return child.kill(signal);
       },
       close: () => child.close(),
+      async [Symbol.asyncDispose]() { await this.close(); },
     };
   }
 

@@ -1,3 +1,5 @@
+/// <reference lib="esnext.disposable" />
+
 /**
  * Ambient declarations for the NOE-managed JavaScript standard library.
  *
@@ -361,6 +363,7 @@ declare namespace NOEStdlib {
     buffer: B;
   }
   interface FileHandle {
+    [Symbol.asyncDispose](): Promise<void>;
     stat(): Promise<FileInfo>;
     truncate(length?: number): Promise<void>;
     sync(): Promise<void>;
@@ -762,6 +765,7 @@ declare namespace NOEStdlib {
 
   interface ChildProcessStatus { code: number | null; signal: string | null }
   interface OwnedChildProcess {
+    [Symbol.asyncDispose](): Promise<void>;
     readonly pid: number;
     readonly stdin: WritableStream<Uint8Array> | null;
     readonly stdout: ReadableStream<Uint8Array> | null;
@@ -781,13 +785,14 @@ declare namespace NOEStdlib {
   interface UnixSocketOptions { network: "unix"; path: string; signal?: AbortSignal }
   type ConnectOptions = TcpSocketOptions | UnixSocketOptions;
   type ListenOptions = (Omit<TcpSocketOptions, "port"> & {port: number}) | UnixSocketOptions;
-  interface RawConnection { readonly readable: ReadableStream<Uint8Array>; readonly writable: WritableStream<Uint8Array>; close(): Promise<void> }
-  interface SocketListener { readonly address: SocketAddress; accept(): Promise<RawConnection>; close(): Promise<void> }
+  interface RawConnection { readonly readable: ReadableStream<Uint8Array>; readonly writable: WritableStream<Uint8Array>; close(): Promise<void>; [Symbol.asyncDispose](): Promise<void> }
+  interface SocketListener { readonly address: SocketAddress; accept(): Promise<RawConnection>; close(): Promise<void>; [Symbol.asyncDispose](): Promise<void> }
   function connect(options: ConnectOptions): Promise<RawConnection>;
   function listen(options: ListenOptions): Promise<SocketListener>;
 
   interface SignalIteratorResult { readonly value: SignalName | undefined; readonly done: boolean }
   interface SignalSubscription extends AsyncIterableIterator<SignalName> {
+    [Symbol.asyncDispose](): Promise<void>;
     next(): Promise<IteratorResult<SignalName>>;
     return(value?: unknown): Promise<IteratorResult<SignalName>>;
     close(): Promise<void>;
@@ -871,6 +876,7 @@ declare namespace NOEStdlib {
     new(): AbortSignal;
     abort(reason?: unknown): AbortSignal;
     timeout(milliseconds: number): AbortSignal;
+    any(signals: Iterable<AbortSignal>): AbortSignal;
   }
   interface AbortController { readonly signal: AbortSignal; abort(reason?: unknown): void }
   interface AbortControllerConstructor { new(): AbortController }

@@ -91,6 +91,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | 第2グループ：file・socket・signal | [実装計画](low-level-group2-plan.md)・[計画レビュー](low-level-group2-review.md) | [実装・検証記録](low-level-group2-implementation.md)・[計画確定前スパイク](low-level-group2-spike.md) |
 | Filesystem API integration | [Roadmap](stdlib-roadmap.md) | [Phase 1](stdlib-fs-integration.md) · [Phase 2 implementation and validation](stdlib-fs-basics.md) |
 | Process and standard-I/O API integration | [Process slice](stdlib-roadmap.md#process-and-standard-io-integration-first-slice) · [Standard-I/O slice](stdlib-roadmap.md#process-and-standard-io-integration-second-slice) | [Process validation](stdlib-roadmap.md#implementation-and-validation) · [Standard-I/O validation](stdlib-roadmap.md#second-slice-implementation-and-validation) |
+| Combined cancellation and asynchronous resource disposal | [Phase 4](stdlib-roadmap.md#cancellation-and-cleanup-phase-4) | [Compatibility and validation](stdlib-roadmap.md#phase-4-compatibility-and-validation) |
 | HTTP/HTTPS URL import | [設計案](url-import-plan.md)・[スライス](url-import-slices.md)・[通常/批判的レビュー](url-import-review.md) | [実装・検証記録](url-import-implementation.md)・[コードレビュー](url-import-code-review.md) |
 | ローカルESM・import map | [計画](local-import-map-plan.md) | [実装記録](local-import-map-implementation.md)・[MCPクライアントのスパイク](../../scripts/spikes/process-io-mcp/README.md) |
 | hook・処理の連鎖・コンテキスト通知 | [計画](execution-hooks-plan.md) | [実装記録](execution-hooks-implementation.md)・[OpenCode Go検証](execution-hooks-opencode-validation.md) |

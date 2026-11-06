@@ -10,6 +10,7 @@
       close() {
         return native.close();
       },
+      async [Symbol.asyncDispose]() { await this.close(); },
       return() {
         return native.close().then(done);
       },

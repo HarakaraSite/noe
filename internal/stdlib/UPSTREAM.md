@@ -533,6 +533,49 @@ integration and independent reproduction remain prerequisites for a
 contribution. These changes are included in NOE v2.12.0. No upstream issue or
 PR has been submitted.
 
+### Upstream contribution candidate: pipeTo shutdown (2026-11-06)
+
+The imported and pinned v0.32.0 `ReadableStream.pipeTo` implementations only
+record an abort flag. A pending read, write, or backpressure wait can therefore
+prevent the pipe from reaching that flag. NOE's standard-I/O integration in
+`eb460bf` replaced the separate native pipe helper with the corrected method.
+
+The implementation starts eligible cancellation actions together, joins
+accepted writes before completion, handles EOF during backpressure, and
+releases locks on failure. It preserves falsy reasons and prevent flags.
+Internal read interruption supports preventCancel without changing public
+reader.releaseLock behavior. Removable stop subscriptions avoid retaining
+completed operation promises across long-lived pipes. Tests and review probes
+cover asynchronous EOF closing once, blocked native I/O, and completion after
+an accepted write settles. See [streams.go](streams.go),
+[streams_pipe_test.go](streams_pipe_test.go), and the
+[standard-I/O validation record](../../docs/development/stdlib-roadmap.md#second-slice-implementation-and-validation).
+
+This correctness change is separate from NOE's module-name and standard-I/O
+API changes. Before proposing it upstream, verify current main and duplicates,
+then reproduce the supported stream behavior without NOE-specific adapters.
+No upstream issue or PR has been submitted.
+
+### Upstream contribution candidate: AbortSignal.any (2026-11-06)
+
+The phase-4 addition combines existing AbortSignals through an internal
+dependency graph. It consumes and validates the sequence before selecting a
+pre-aborted source, flattens nested combinations, and preserves reason and
+event ordering. Synthetic abort-event dispatch does not propagate abortion.
+Observed composites remain alive while their sources remain live; inactive
+and settled dependencies can be collected or unlinked. Existing controller
+and timeout Error defaults are retained.
+
+Implementation and tests: [webapis.go](webapis.go) and
+[abort_signal_any_test.go](abort_signal_any_test.go). The implementation uses
+the pinned engine's WeakRef and FinalizationRegistry support. Its internal
+dispatch intentionally follows actual abortion rather than an instance's
+overridden dispatchEvent method. NOE's separate asynchronous-disposal hooks
+on owned resource wrappers are not part of this proposed upstream slice.
+
+Current upstream main and duplicate issues/PRs have not been checked; an
+upstream contribution remains deferred. No issue or PR has been submitted.
+
 ## Evaluation and debugger difference
 
 Upstream evaluates its own scripts with debugger instrumentation disabled,

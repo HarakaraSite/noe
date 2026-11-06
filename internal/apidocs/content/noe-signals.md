@@ -49,3 +49,9 @@ try {
 ## SignalSubscription.return
 
 The async-iterator `return()` method closes the subscription and resolves `{value: undefined, done: true}`. It lets `break` and normal iterator cleanup unregister the signal.
+
+## SignalSubscription[Symbol.asyncDispose]
+
+`subscription[Symbol.asyncDispose]() -> Promise<void>` calls `close()`.
+Use `await using subscription = subscribe("SIGINT")` to unregister at block
+exit, including on exceptions. Pending `next()` calls finish with `done: true`.

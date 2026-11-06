@@ -175,6 +175,14 @@ This Promise resolves to `{code, signal}` when process supervision finishes. `co
 
 The child and its pipes belong to the execution that starts them, including Worker executions, and cannot outlive that runtime. POSIX uses one Go supervision process per spawned child; if the owning run_js runtime is forcibly stopped, the supervisor detects the owner's pipe closing and stops the process group. This is not a detached-process API.
 
+## ChildProcess[Symbol.asyncDispose]
+
+`child[Symbol.asyncDispose]() -> Promise<void>` calls NOE's `close()` and waits
+for cleanup. With `await using child = await spawn(...)`, leaving the block
+closes owned pipes and stops/reaps a running child. This is forced cleanup;
+consume output and await `child.exited` first when normal completion matters.
+Explicit `close()` and execution-owned cleanup remain available.
+
 ### Source basis
 
 NOE-maintained implementation: captured commands are in internal/stdlib, based on github.com/go-quickjs/go-quickjs@v0.27.0/stdlib; live process handles are in internal/nativeio. internal/noestdlib composes both implementations into one module. NOE installs this module through internal/runtime/stdlib.go and reserves its bare-name alias through internal/modulemap/builtins.go.

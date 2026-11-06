@@ -95,6 +95,9 @@ const missing=await open("missing.mjs").then(()=>null,error=>error);if(missing?.
 const file=await open("value.mjs");try{const buffer=new Uint8Array(6);const result=await file.read(buffer);if(result.bytesRead!==6||result.buffer!==buffer)throw Error("standard FS handle");}finally{await file.close();}
 const created=await open("created.bin","wx+",0o600);
 try{const exists=await open("created.bin","wx").then(()=>null,error=>error);if(exists?.code!=="EEXIST"||typeof exists.errno!=="number"||exists.errno<=0)throw Error("existing-file error normalization");const metadata=await created.stat();if(!(metadata.mtime instanceof Date)||metadata.mtime.getTime()!==Math.trunc(metadata.mtimeMs)||(metadata.mode&0o170000)!==0o100000)throw Error("FileHandle metadata normalization");await created.write("data");await created.truncate(2);await created.sync();if((await created.stat()).size!==2)throw Error("FileHandle metadata");}finally{await created.close();}
+let scopedFile;
+{await using owned=await open("scoped.bin","wx+");scopedFile=owned;await owned.write("scoped");}
+if((await scopedFile.stat().then(()=>null,error=>error))?.code!=="ERR_FILE_CLOSED")throw Error("await using file disposal");
 const entries=await readdir("/",{withFileTypes:true});if(!entries.some(entry=>entry.name==="created.bin"&&entry.isFile()))throw Error("Dirent consumer");
 if(await (await fetch(endpoint)).text()!=="loopback response")throw Error("fetch");
 const worker=new Worker("./worker.mjs",{type:"module"});const answer=await new Promise((resolve,reject)=>{worker.on("message",resolve);worker.on("error",reject)});await worker.terminate();
@@ -126,7 +129,7 @@ import commands, {spawn,execFile} from "node:child_process";
 import bare, {spawn as bareSpawn} from "child_process";
 if (spawn!==bareSpawn || spawn!==commands.spawn || spawn!==bare.spawn) throw Error("spawn aliases");
 const program=` + string(encoded) + `, args=["--noe-consumer-command"];
-const child=await spawn(program,args,{stdin:"ignore",stderr:"ignore"});
+await using child=await spawn(program,args,{stdin:"ignore",stderr:"ignore"});
 try {
   const bytes=new Uint8Array(await new Response(child.stdout).arrayBuffer());
   if (Array.from(bytes).join(",")!=="0,255,128,10" || (await child.exited).code!==0) throw Error("streaming consumer");
@@ -156,7 +159,11 @@ import bare, {stdin as bareInput,stdout as bareOutput} from "process";
 if (selected!==bare || stdin!==bareInput || stdout!==bareOutput || selected.stdin!==stdin || selected.stdout!==stdout || selected.stderr!==stderr)
   throw Error("stdio aliases");
 if (typeof process!=="undefined" || "env" in selected || "argv" in selected) throw Error("stdio metadata selection");
-await stdin.pipeTo(stdout,{preventClose:true});
+const stop=new AbortController(),reason={source:"consumer"};
+const combined=AbortSignal.any([stop.signal]);
+await stdin.pipeTo(stdout,{preventClose:true,signal:combined});
+stop.abort(reason);
+if(!combined.aborted || combined.reason!==reason) throw Error("combined signal consumer");
 const writer=stdout.getWriter();
 try { await writer.write(new TextEncoder().encode(" tail")); } finally { writer.releaseLock(); }
 if (await import("noe:io").then(()=>true,()=>false)) throw Error("removed stdio module");

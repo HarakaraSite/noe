@@ -78,3 +78,16 @@ try {
 ## Connection.close
 
 `await connection.close()` fully closes the connection and ends both directions. Call it even after a read or write side ends, and use `finally` so errors do not leak an open connection. Network errors reject pending stream operations.
+
+## Connection[Symbol.asyncDispose]
+
+`connection[Symbol.asyncDispose]() -> Promise<void>` calls `close()`. An
+`await using connection = await connect(options)` declaration closes both
+directions and releases pending stream operations when its block exits.
+
+## Listener[Symbol.asyncDispose]
+
+`listener[Symbol.asyncDispose]() -> Promise<void>` calls `close()`. An
+`await using listener = await listen(options)` declaration stops accepting
+and releases pending accepts at block exit. Accepted connections retain their
+own ownership and must be closed or disposed separately.

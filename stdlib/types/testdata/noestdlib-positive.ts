@@ -268,3 +268,21 @@ const isEntryFile: boolean | undefined = asyncDirents[0]?.isFile();
 const variableDirents: string[] | NOEStdlib.Dirent[] = fs.readdirSync(".", {withFileTypes: Math.random() > 0.5});
 void [handleInfo, handleMtime, handleMtimeMs, fileKindBits, filePermissionBits, filesystemError,
   entryNames, entryParent, isEntryFile, variableDirents];
+
+// Combined cancellation and the engine's explicit resource-management syntax.
+const combinedSignal: AbortSignal = AbortSignal.any(new Set([new AbortController().signal, AbortSignal.abort("stop")]));
+async function managedResources(): Promise<void> {
+  const {open} = await import("node:fs/promises");
+  const {spawn} = await import("node:child_process");
+  const {listen, connect} = await import("noe:sockets");
+  const {subscribe} = await import("noe:signals");
+  await using file = await open("value");
+  await using child = await spawn("tool");
+  await using listener = await listen({network: "tcp", host: "127.0.0.1", port: 0});
+  await using connection = await connect({network: "tcp", host: "127.0.0.1", port: 1});
+  await using subscription = subscribe("SIGINT");
+  const disposable: AsyncDisposable = file;
+  const disposed: Promise<void> = child[Symbol.asyncDispose]();
+  void [listener, connection, subscription, disposable, disposed];
+}
+void [combinedSignal, managedResources];

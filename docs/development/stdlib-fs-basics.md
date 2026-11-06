@@ -211,3 +211,18 @@ S3 45/45, and images 11/11 passed. The remote `main` still resolved to the
 same revision at the end of the audit. Logs and the import patch are under
 `/tmp/noe-stdio-integration-dkaizbjk/`. The real noebot repositories remain
 unchanged.
+
+### Cancellation and disposal additions
+
+Phase 4 adds `AbortSignal.any()` and asynchronous disposal without requiring
+new noebot imports or rewrites. Its temporary copy passed the original 170
+checks plus Telegram commands 20, typing 13, and Web timing 5 with only the
+previous two spawn-import changes. No signal dispatch override was found.
+Evidence is under `/tmp/noe-cancellation-cleanup-v90s154r/`.
+
+Keep existing transport semantics when considering optional adoption:
+`app/telegram.mjs` distinguishes caller stop from deadline expiry, includes
+response-body work in the deadline, and clears its timer and listener after
+completion. Combining signals alone does not replace that adapter. The host
+launcher's existing explicit child cleanup is also valid; await using is an
+optional way to express scoped ownership rather than a required migration.

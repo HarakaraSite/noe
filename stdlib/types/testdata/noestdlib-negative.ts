@@ -146,3 +146,13 @@ void execFile("tool", [], broadOptions).then(({stdout}) => stdout.trim());
 const optionalBufferOptions: {encoding?: "buffer"} = {};
 // @ts-expect-error optional buffer mode may return text or bytes
 void exec("tool", optionalBufferOptions).then(({stdout}) => stdout.trim());
+
+// @ts-expect-error a controller is not an AbortSignal
+AbortSignal.any([new AbortController()]);
+// @ts-expect-error characters are not AbortSignals
+AbortSignal.any("signal");
+// @ts-expect-error any requires an iterable of signals
+AbortSignal.any({});
+declare const disposalFile: import("node:fs/promises").FileHandle;
+// @ts-expect-error disposal completes asynchronously
+const synchronousDisposal: number = disposalFile[Symbol.asyncDispose]();
