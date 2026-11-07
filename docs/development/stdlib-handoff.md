@@ -478,6 +478,16 @@ now contain the verified v2.17.0 asset. No required runtime blocker remains
 in these approved slices. Future releases include local installation without
 a separate approval prompt; running-service restarts remain separate.
 
+The user asked to keep continuation focused on standard-library improvements.
+Release-output metadata cleanup is housekeeping, not a new stdlib milestone.
+Its one-line `/dist/` ignore fix is locally verified; evidence is at
+`/var/tmp/noe-ci-provenance-28dxjsmx/verification.json`. It applies to future
+builds and does not change the published v2.17.0 artifacts. Return next-step
+proposals to the remaining networking work in roadmap phase 11: raw TLS
+connections/listeners over the existing Web Streams backend, then UDP as a
+separate datagram API discussion. These are candidates, not an approved new
+public contract. No additional release was requested for this correction.
+
 Remaining Node utilities, Buffer, and process metadata methods are
 use-case-driven work. Avoid wholesale rename churn merely to eliminate Node
 names. Useful existing contracts can remain until a concrete migration is

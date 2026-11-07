@@ -3855,3 +3855,18 @@ records are retained at `/var/tmp/noe-v2.17.0-install-edf2149e`
 (`installation.json`, `previous-0-noe`, and `previous-1-noe`). No running
 process was restarted, noebot was not changed, and no login/provider request
 was made. This documentation-only follow-up does not move the release tag.
+
+## Distribution build metadata correction — 2026-11-07
+
+The root `.gitignore` now excludes `/dist/`. This prevents earlier distribution
+outputs from marking subsequent builds dirty. The workflow, application code,
+dependencies, and published artifacts are unchanged.
+
+A minimal Go/Git reproduction using the repository's ignore rules confirms
+`vcs.modified=false` for the initial build and `true` after a distribution
+output exists under the old rules. With `/dist/` ignored and the rule committed,
+subsequent output remains clean; an actual tracked source edit still produces
+`vcs.modified=true`. Evidence: `/var/tmp/noe-ci-provenance-28dxjsmx/verification.json`.
+No full runtime suite or six-target distribution rebuild was needed for this
+ignore-only change. Future releases use the correction; existing v2.17.0 assets
+retain their recorded metadata. No new release or installation was performed.
