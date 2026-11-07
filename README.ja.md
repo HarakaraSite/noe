@@ -35,19 +35,17 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.16.0 release notes](docs/releases/v2.16.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.16.0)
+[v2.17.0 release notes](docs/releases/v2.17.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.17.0)
 
-v2.16.0 adds EventSource and asynchronous SQLite, and consolidates filesystem,
-process, and HTTP host APIs under `noe:fs`, `noe:process`, and `noe:http`.
-It also corrects HTTP body limits and graceful HTTP/WebSocket shutdown.
-Old filesystem/process/HTTP imports are removed without adapters; read the
-[upgrade guide](docs/releases/v2.16.0-migration.md) before updating scripts.
-Standard Fetch, WebSocket, and global `process` retain their global names.
+v2.17.0 adds HTTPS listeners and WSS upgrades through `noe:http.serve`, with
+explicit certificate/key PEM options or Go-host TLS configuration. HTTP and
+HTTPS share capability checks, request bodies, and asynchronous cleanup.
+Go hosts updating unkeyed `ServeOptions` literals must switch to named fields
+for the added TLS configuration.
 
-The current source prepares [v2.17.0](docs/releases/v2.17.0.md), adding HTTPS
-listeners and WSS upgrades. It is not yet published; the download above
-remains v2.16.0. Go hosts updating unkeyed `ServeOptions` literals must switch
-to named fields for the added TLS configuration.
+When upgrading from v2.15.0 or earlier, also read the
+[v2.16.0 migration guide](docs/releases/v2.16.0-migration.md) for removed
+filesystem/process/HTTP imports, standard I/O, and lifecycle changes.
 
 過去の変更と移行方法は、[リリース履歴](docs/releases/README.md)、
 [v2移行ガイド](docs/v2-migration.md)、[実行結果ガイド](docs/execution-results.md)を参照してください。

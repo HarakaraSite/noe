@@ -93,9 +93,8 @@ healthは`ok`、echoは送ったJSONを`Response.json()`で返します。経路
 
 ## HTTPS and WSS server
 
-This source-only addition is newer than v2.16.0. Build a temporary executable
-from this checkout for the example; a published v2.16.0 binary does not support
-the new listener options.
+This example requires v2.17.0 or later. The commands below build a temporary
+executable from this checkout so its version matches the example.
 
 The example reads PEM text from the two explicit paths with `noe:fs`. Those reads follow the active filesystem Root, Cwd, and ReadOnly settings; supplying TLS credentials does not add filesystem access. The certificate and private key must match. The listener stays active until Ctrl+C or runtime shutdown.
 

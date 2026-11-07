@@ -1,7 +1,7 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after local v2.17.0 release preparation for HTTPS/WSS,
-following the v2.16.0 publication and binary installation.
+Updated 2026-11-07 after the user authorized publishing the prepared v2.17.0
+HTTPS/WSS release, following the v2.16.0 publication and binary installation.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
 
@@ -34,13 +34,15 @@ implementation records remain the canonical design and validation references.
   arithmetic, and both authentication-helper help paths passed; no actual
   authentication or running-service restart was performed.
 - The user then approved implementing HTTPS/WSS listeners. That addition is
-  committed at `6cdc02f` and remains unreleased. A clean release-flags
+  committed at `6cdc02f`. Publication of v2.17.0 is now explicitly authorized.
+  A clean release-flags
   candidate for the prepared v2.17.0 is now at
   `/var/tmp/noe-v2.17.0-release-yk3xb7im/candidate`; the earlier implementation
   candidate remains at `/var/tmp/noe-https-vm9c6p5e/noe`. Installed v2.16.0
   copies do not implement its listener options and were not replaced again.
-- The user independently handles noebot. The HTTPS/WSS implementation does
-  not authorize another publication, installation, or service restart.
+- The user independently handles noebot. The latest release instruction
+  authorizes v2.17.0 publication; installation and service restart remain
+  separate actions.
 
 ## User decisions to retain
 
@@ -69,28 +71,29 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   be Japanese. Follow AGENTS.md, including reuse of completed validation
   when the tested source and dependencies have not changed.
 
-## Prepared v2.17.0 (not published)
+## Prepared v2.17.0 (publication authorized, verification pending)
 
 - Clean candidate revision: `e7d8f5e418eba434d5d131dc31a2b9931669b7b3`.
   This changes version and documentation only after the verified HTTPS/WSS
   implementation. The default CLI version is v2.17.0. Public download/module
-  instructions still identify v2.16.0 as the published release.
+  instructions now target the authorized v2.17.0 release.
 - The [release notes](../releases/v2.17.0.md) describe cert/key, host TLS,
   capability/cleanup behavior, and the keyed Go ServeOptions migration.
-  Both READMEs and the release index distinguish source from published assets.
+  Both READMEs and the release index identify v2.17.0.
 - Implementation source continuity, configured-version unit test, a clean
   CGO-disabled release-flags build, metadata, and four native smoke checks
   pass. Full source suites and six-target consumer builds were reused rather
   than repeated. Evidence: `/var/tmp/noe-v2.17.0-release-yk3xb7im`.
 - See the [preparation checkpoint](../releases/release-checkpoints.md#v2170-preparation--2026-11-07).
-  No new tag, push, release, installation, or service restart was performed.
-  Publication remains the next explicit action; use a documentation-only
-  successor of the candidate revision without changing validated source.
+  The user explicitly authorized publication after this preparation. Tag a
+  documentation-only successor of the candidate revision without changing
+  validated source, then verify the uploaded assets and public modules.
+  No installation or service restart is included.
 
-## Completed HTTPS/WSS listener addition (unreleased)
+## Completed HTTPS/WSS listener addition (v2.17.0)
 
 See the [contract and evidence](stdlib-https.md),
-[Go embedding guide](../go-embedding.md#https-listeners-source-only-after-v2160),
+[Go embedding guide](../go-embedding.md#https-listeners),
 and [HTTPS/WSS example](../../examples/http/README.md#https-and-wss-server).
 
 - `serve({cert, key, ...}, handler)` accepts nonempty PEM strings as a pair.
@@ -456,9 +459,9 @@ cancellation/close validation, and connected closing/blocked-send cleanup
 are published in v2.16.0 and installed at both requested local paths.
 HTTPS/WSS listeners are implemented and verified locally on top of that
 release, and v2.17.0 is prepared with a verified clean candidate. No required
-runtime blocker remains in these approved slices. The next step is an
-explicitly authorized annotated tag and publication, followed by downloaded
-asset/module checks. Another binary replacement remains a separate action.
+runtime blocker remains in these approved slices. The user explicitly
+authorized the annotated tag and publication; complete the downloaded
+asset/module checks afterward. Binary replacement remains a separate action.
 
 Remaining Node utilities, Buffer, and process metadata methods are
 use-case-driven work. Avoid wholesale rename churn merely to eliminate Node

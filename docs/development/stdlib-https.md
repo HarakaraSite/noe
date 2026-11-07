@@ -1,11 +1,11 @@
 # HTTPS listeners and WSS upgrades
 
 2026-11-07. The user approved adding HTTPS/WSS listeners to `noe:http.serve`
-after the v2.16.0 release and local binary installation. This is an additive
-local development slice, implemented and verified but unreleased. It does
-not authorize another publication, installation, or running-service restart.
-The [session handoff](stdlib-handoff.md) records the continuation point.
-It is prepared for [v2.17.0](../releases/v2.17.0.md); publication is pending.
+after the v2.16.0 release and local binary installation. This additive slice
+is included in [v2.17.0](../releases/v2.17.0.md). The user separately authorized
+that release on 2026-11-07. Installation and running-service restart remain
+separate actions. The [session handoff](stdlib-handoff.md) records publication
+status and the continuation point.
 
 ## Selected contract
 

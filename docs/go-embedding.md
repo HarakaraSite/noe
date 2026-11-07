@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.16.0; see the
+select model providers or agent behavior. The current release is v2.17.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.32.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.16.0`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.17.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -114,11 +114,10 @@ that avoids running application initialization twice. A self-helper instead
 requires every dependency init function to be safe to run again. Other helper
 executables can use the same dispatcher. Windows uses Job Objects.
 
-## HTTPS listeners (source-only after v2.16.0)
+## HTTPS listeners
 
-This addition is prepared for [v2.17.0](releases/v2.17.0.md), which has not yet
-been published. Use the current checkout for these options; the published
-v2.16.0 module does not include them.
+Available in [v2.17.0](releases/v2.17.0.md) and later. The v2.16.0 module does
+not include these options.
 
 The current source adds `ServeOptions.TLS *tls.Config`. An embedding host can
 supply certificates/callbacks and TLS policy there without exposing private
@@ -433,7 +432,7 @@ Managed module execution also returns `Result.Data` (detached JSON, nil for no d
 
 ## Source maps in diagnostics
 
-In the unreleased checkout, `NewRuntime` and `Execute` enable source maps by
+Since v2.15.0, `NewRuntime` and `Execute` enable source maps by
 default. Runtime Error stacks use original file/function names and positions
 from inline application/json data URLs or readable local sidecars named by
 `sourceMappingURL`. The selected FS capability controls sidecar access, including
