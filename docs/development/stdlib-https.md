@@ -112,11 +112,11 @@ passes; no socket production code changed for this correction. The initial
 failure and all successful results are retained in the evidence directory.
 
 The implementation CLI candidate is `/var/tmp/noe-https-vm9c6p5e/noe`.
-v2.17.0 is now published, with the release-flags candidate, downloaded assets,
+v2.17.0 first published these listeners, with the candidate, downloaded assets,
 trusted HTTPS/WSS native smoke, and direct public Go consumer evidence at
 `/var/tmp/noe-v2.17.0-release-yk3xb7im`. See the
 [publication checkpoint](../releases/release-checkpoints.md#v2170-publication--2026-11-07).
-Both installed executables now match the verified v2.17.0 asset and support
-these listener options. Backups, installed hashes/versions, PATH, arithmetic,
-and helper-help checks are recorded at
-`/var/tmp/noe-v2.17.0-install-edf2149e/installation.json`.
+Both installed executables now match the verified v2.18.0 asset, including
+these listeners plus raw TLS/UDP. Latest backups, installed hashes/versions,
+PATH, arithmetic, and helper-help checks are recorded at
+`/var/tmp/noe-v2.18.0-install-ltin8afa/installation.json`.

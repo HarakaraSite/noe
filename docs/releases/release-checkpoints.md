@@ -3925,3 +3925,50 @@ After publication, verify downloaded assets/metadata, native smoke and direct
 public Go consumers, then install the verified native asset at both authorized
 paths with backups and installed checksum/version/PATH checks. Running services,
 noebot, and real-account/provider access remain outside this release.
+
+## v2.18.0 publication and installation — 2026-11-07
+
+- Annotated tag `v2.18.0` points to
+  `51f08bc3dac66d133bd7a58caacd414471e5154b`, matching the peeled remote tag
+  and CI source. Tag object: `b69cea33b3ad6815cba30f2c4e8d9b2ebae5c84d`.
+  Only preparation/handoff documentation differs from clean candidate
+  `666116d`; the validated runtime/reference source is unchanged.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/57)
+  succeeded (API run 238, job 259), building all six targets and uploading
+  checksums/assets without repeating completed source suites.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.18.0)
+  is published, neither draft nor prerelease (Release ID 171). Its body matches
+  the tagged English release notes.
+
+All seven assets were downloaded. All six binary hashes match SHA256SUMS.
+Metadata confirms the tag revision, target OS/architecture, Go 1.27.2,
+CGO_ENABLED=0, go-quickjs v0.32.0 and checksum, go-intl v0.8.0,
+fsnotify v1.10.1, SQLite driver v0.36.0/translated SQLite v6.4.35401, and no
+quickjs_jit tag. All six now report `vcs.modified=false`, confirming that
+ignoring generated dist/ resolved the previous later-build metadata issue.
+
+The Linux amd64 asset SHA256 is
+`94d5976b9ae253790019a54ea4fbf227bcfa2a460f8a468059df5d8a4585fde1`.
+It passes five native checks with zero exits and empty stderr: version
+(`noe v2.18.0`), arithmetic, UDP packets/echo/source addresses, trusted TLS
+stream/half-close echo with an ephemeral identity, and bundled socket docs.
+Native execution on other targets was not performed.
+
+Clean external modules fetch stdlib@v2.18.0 and agent@v2.18.0 with direct
+resolution, without replacements or a synthetic proxy. Both pass go mod
+verify; stdlib's TLS/UDP cases and portable/Go-host agent modes run successfully.
+Engine/Intl versions and disabled-JIT VM files match. All 27 changed Go/JS/TS
+paths match the tag in both downloaded module copies.
+
+After publication verification, the downloaded native asset atomically replaced
+both `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`. Both hashes
+match the published checksum and both report `noe v2.18.0`. PATH resolves to
+the user binary. Installed arithmetic and both authentication-helper help
+checks pass with zero exits and empty stderr. Identical-asset runtime checks
+were reused. Previous v2.17.0 binaries and installation records are retained at
+`/var/tmp/noe-v2.18.0-install-ltin8afa` (`installation.json` and per-path backups).
+
+Release evidence, assets, metadata, native smoke, source manifests and public
+consumers are at `/var/tmp/noe-v2.18.0-release-ur4u1vbf`. This documentation-only
+follow-up preserves the immutable tag. No running service was restarted,
+noebot was not changed, and no paid provider or login request was made.

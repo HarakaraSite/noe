@@ -1,8 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after the user authorized v2.18.0 publication and local
-installation for the completed raw TLS/UDP work. Release verification is in
-progress. Future release requests include local installation by default.
+Updated 2026-11-07 after v2.18.0 publication, verification, and local
+installation for the completed raw TLS/UDP work. Future release requests
+include local installation by default.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
 
@@ -11,46 +11,44 @@ implementation records remain the canonical design and validation references.
 - Repository: `/home/agent/projects/noe`, branch `main`.
 - Verified implementation checkpoints are EventSource/SQLite `1d04402`,
   filesystem `295fb53`, process/HTTP/Serve `3997dc0`, WebSocket opening
-  `248e74a`, connected closing `617cfcd`, and HTTPS/WSS `6cdc02f`.
+  `248e74a`, connected closing `617cfcd`, HTTPS/WSS `6cdc02f`, raw TLS
+  `ba5c37d`, and UDP `8acc44b`.
 - On 2026-11-07 the user explicitly authorized releasing the completed work.
-  v2.17.0 is now published from annotated tag revision
-  `438f0bf119a8f1989ccd41679ee42d6f9773db1a`. CI run 56 (API 237) succeeded;
+  v2.18.0 is now published from annotated tag revision
+  `51f08bc3dac66d133bd7a58caacd414471e5154b`. CI run 57 (API 238) succeeded;
   all six downloaded checksums/build metadata, native smoke, and direct
   published stdlib/agent consumers passed. See
-  [release checkpoints](../releases/release-checkpoints.md#v2170-publication--2026-11-07).
-- See [v2.17.0 notes](../releases/v2.17.0.md),
+  [release checkpoints](../releases/release-checkpoints.md#v2180-publication-and-installation--2026-11-07).
+- See [v2.18.0 notes](../releases/v2.18.0.md),
+  [v2.17.0 notes](../releases/v2.17.0.md),
   [v2.16.0 notes](../releases/v2.16.0.md), and the consolidated
   [migration guide](../releases/v2.16.0-migration.md). The public Go module
   remains `/v2`; JavaScript import and behavior changes have no adapters.
 - Latest verified published native binary:
-  `/var/tmp/noe-v2.17.0-release-yk3xb7im/assets/noe-linux-amd64`.
+  `/var/tmp/noe-v2.18.0-release-ur4u1vbf/assets/noe-linux-amd64`.
   That directory also retains the clean candidate, all downloaded assets,
   continuity checks, and published-consumer evidence. Earlier implementation
   candidates below remain historical slice evidence.
 - After v2.17.0 publication, the user requested installation and established
   that future releases include installation. Both
   `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` now contain
-  the verified published v2.17.0 Linux asset, SHA256
-  `82873c67be492a9adf977c88ef141451a4206718cfac0fc43d65ef093ae7f483`.
-  Previous v2.16.0 copies and installation evidence are retained under
-  `/var/tmp/noe-v2.17.0-install-edf2149e` (`installation.json`). Version,
+  the verified published v2.18.0 Linux asset, SHA256
+  `94d5976b9ae253790019a54ea4fbf227bcfa2a460f8a468059df5d8a4585fde1`.
+  Previous v2.17.0 copies and installation evidence are retained under
+  `/var/tmp/noe-v2.18.0-install-ltin8afa` (`installation.json`). Version,
   arithmetic, and both authentication-helper help paths passed; no actual
   authentication or running-service restart was performed.
-- The user then approved implementing HTTPS/WSS listeners and separately
-  authorized their v2.17.0 publication. The implementation is at `6cdc02f`.
-  The clean release-flags candidate is at
-  `/var/tmp/noe-v2.17.0-release-yk3xb7im/candidate`; the earlier implementation
-  candidate remains at `/var/tmp/noe-https-vm9c6p5e/noe`. The downloaded asset
-  above is the latest verified binary, and both installed copies match it.
+- The v2.18.0 clean release-flags candidate is at
+  `/var/tmp/noe-v2.18.0-release-ur4u1vbf/candidate`. Earlier candidates below
+  remain historical evidence. Both installed copies match the downloaded
+  v2.18.0 asset above.
 - The user independently handles noebot. Release requests now authorize
   publication and local installation together; service restarts and noebot
   changes remain separate actions.
 - Raw TLS connect/listen (`ba5c37d`) and UDP bind/send/receive (`8acc44b`) are
-  implemented and verified for v2.18.0. Publication and installation are now
-  explicitly authorized. The implementation executable is
+  published and installed in v2.18.0. The implementation executable is
   `/var/tmp/noe-udp-mkdxtl0z/noe`; the previous TLS-only candidate remains at
-  `/var/tmp/noe-raw-tls-940je7qo/noe`. Installed v2.17.0 binaries do not include
-  these additions until installation completes. Release evidence is at
+  `/var/tmp/noe-raw-tls-940je7qo/noe`. Release evidence is at
   `/var/tmp/noe-v2.18.0-release-ur4u1vbf`.
 
 ## User decisions to retain
@@ -85,7 +83,7 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
-## v2.18.0 release/install continuation
+## Published and installed v2.18.0
 
 - The user explicitly requested publication and local installation. Clean
   candidate revision: `666116dee34fa0b6d9fc4242f72132b4ac1ca5d3`.
@@ -96,9 +94,18 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   module artifacts, and six-target implementation builds are reused.
 - Evidence: `/var/tmp/noe-v2.18.0-release-ur4u1vbf`. See the
   [preparation checkpoint](../releases/release-checkpoints.md#v2180-preparation--2026-11-07).
-  Publish a documentation-only successor, verify downloaded assets and direct
-  public modules, then atomically install both copies with backups. Do not
-  restart services or modify noebot.
+  The immutable tag points to the documentation-only successor `51f08bc`.
+  Release ID 171 is published, neither draft nor prerelease; CI run 57
+  (API 238, job 259) succeeded.
+- All six downloaded checksums, target/dependency metadata, and clean VCS
+  markers pass. Unlike previous releases, all six report vcs.modified=false.
+  Downloaded Linux amd64 passes the five native release checks. Public stdlib
+  and portable/Go-host agent consumers fetch v2.18.0 directly, run, and pass
+  go mod verify; all 27 changed source/declaration paths match the tag.
+- Both local binaries were atomically replaced and verified against the
+  published checksum/version. PATH, arithmetic, and both auth-helper help
+  checks pass. Previous v2.17.0 copies and installed evidence are at
+  `/var/tmp/noe-v2.18.0-install-ltin8afa`. No services or noebot were changed.
 
 ## Completed UDP datagram sockets (v2.18.0)
 
@@ -130,8 +137,8 @@ See the [contract and evidence](stdlib-udp.md),
   pass. Consumers compile with CGO disabled for all six release targets.
   A bounded independent review found no actionable production issue.
 - Evidence, source fingerprints, and development executable:
-  `/var/tmp/noe-udp-mkdxtl0z`. The user has now requested v2.18.0 publication
-  and installation; use the completed verification for unchanged source.
+  `/var/tmp/noe-udp-mkdxtl0z`. v2.18.0 publication and installation are complete;
+  use the completed verification for unchanged source.
 
 ## Completed raw TLS sockets (v2.18.0)
 
@@ -566,19 +573,21 @@ process naming changes do not invalidate unchanged native filesystem tests.
 The filesystem/process/HTTP entrance migrations, Fetch response-overflow and
 Blob-send corrections, Serve limits/lifecycle, WebSocket opening
 cancellation/close validation, and connected closing/blocked-send cleanup
-are included since v2.16.0. HTTPS/WSS listeners are published in v2.17.0, with
-downloaded assets and public modules verified. Both local executable paths
-now contain the verified v2.17.0 asset. No required runtime blocker remains
-in these approved slices. Future releases include local installation without
+are included since v2.16.0. HTTPS/WSS listeners are included since v2.17.0;
+raw TLS and UDP are published in v2.18.0, with assets and public modules
+verified. Both local executable paths now contain the verified v2.18.0 asset.
+No required runtime blocker remains in these approved slices. Future releases
+include local installation without
 a separate approval prompt; running-service restarts remain separate.
 
 The user asked to keep continuation focused on standard-library improvements.
 Release-output metadata cleanup is housekeeping, not a new stdlib milestone.
 Its one-line `/dist/` ignore fix is committed at `acb1ee2`; evidence is at
 `/var/tmp/noe-ci-provenance-28dxjsmx/verification.json`. It applies to future
-builds and does not change the published v2.17.0 artifacts. The user then
+builds and does not change the published v2.17.0 artifacts. v2.18.0 uses that
+correction and all six artifacts have clean VCS metadata. The user then
 approved raw TLS connections/listeners and then UDP in roadmap phase 11. Both
-are now implemented and verified locally as recorded above. This completes
+are now published and installed in v2.18.0 as recorded above. This completes
 the roadmap's core networking additions; multicast/connected UDP are separate
 possible extensions. Keep next-step work on stdlib rather than automatically
 starting release preparation.
@@ -589,8 +598,9 @@ names. Useful existing contracts can remain until a concrete migration is
 justified. The latest permission allows local breaking changes without
 another compatibility prompt, while preserving noebot/publication/install
 boundaries. Prefer concrete caller evidence for the next implementation.
-The user explicitly requested v2.18.0 publication and installation; complete
-that work using the validated raw TLS/UDP source and the release evidence above.
+The requested v2.18.0 publication and installation are complete. Keep
+continuation focused on concrete standard-library needs. A version or release
+instruction alone is not a reason to repeat successful implementation suites.
 Web Crypto expansion and WebSocketStream remain use-case driven as below.
 
 Reuse the completed results for unchanged source/dependencies. A version,
