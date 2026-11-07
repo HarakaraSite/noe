@@ -10,6 +10,27 @@ index-roundtripは専用の一時directoryにfileとserverを作り、索引の�
 
 wait-signalは補助timerを使わず待機します。Linux/Darwinでは別端末から表示されたPIDへ`kill -TERM PID`を送ると、一度受信して購読を解除し終了します。SIGINTは既存CLIの取消しも起こすため、この例の正常終了にはSIGTERM等を使います。Windowsの対応名はSIGINTだけです。
 
+## UDP datagram round trip
+
+UDP datagram sockets are available in source after v2.17.0; the released and
+installed v2.17.0 binary does not include `bind()`. Build a temporary CLI
+from this checkout and run the self-contained loopback example:
+
+```sh
+demo_dir="$(mktemp -d)"
+trap 'rm -rf "$demo_dir"' EXIT
+CGO_ENABLED=0 go build -o "$demo_dir/noe" ./cmd/noe
+"$demo_dir/noe" run examples/low-level/udp-roundtrip.js
+```
+
+The example binds two sockets to port `0` on `127.0.0.1`, sends and echoes
+text, binary, and empty datagrams, and checks both source addresses and packet
+contents. It requires no credentials, external service, or filesystem access
+from the JavaScript program, and prints exactly `UDP roundtrip passed` to
+standard output. A five-second operation timeout keeps an interrupted local
+exchange bounded. See [UDP datagram sockets](../../docs/low-level-io.md#udp-datagram-sockets)
+for cancellation, packet-size, ownership, and delivery semantics.
+
 ## Raw TLS round trip
 
 Raw TLS sockets are available in source after v2.17.0. Build a temporary CLI

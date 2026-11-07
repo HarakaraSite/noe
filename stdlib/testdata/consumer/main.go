@@ -47,6 +47,9 @@ func run() error {
 	if err := https(ctx); err != nil {
 		return err
 	}
+	if err := udp(ctx); err != nil {
+		return err
+	}
 	if err := eventSource(ctx); err != nil {
 		return err
 	}

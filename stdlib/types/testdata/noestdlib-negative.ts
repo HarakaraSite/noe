@@ -11,7 +11,7 @@ import {stdin as legacyBareStdin} from "process";
 // @ts-expect-error Standard I/O is exported from noe:process, not noe:io.
 import {stdin as legacyStdin} from "noe:io";
 import {ReadableStream} from "node:stream/web";
-import {connect, listen} from "noe:sockets";
+import {bind, connect, listen, type DatagramAddress, type DatagramSocket} from "noe:sockets";
 import {subscribe} from "noe:signals";
 import {MessagePort, Worker as NodeWorker} from "node:worker_threads";
 import bufferDefault from "node:buffer";
@@ -83,9 +83,22 @@ const stream = new ReadableStream<Uint8Array>();
 // @ts-expect-error mode: "byob" is rejected by NOE's stream implementation
 stream.getReader({mode: "byob"});
 
-// Raw sockets support TCP, Unix streams, and authenticated TLS streams.
+// connect/listen support TCP, Unix streams, and authenticated TLS streams.
 // @ts-expect-error UDP sockets are unsupported
 connect({network: "udp", host: "127.0.0.1", port: 53});
+// @ts-expect-error UDP sockets use bind(), not the stream listener API.
+listen({network: "udp", host: "127.0.0.1", port: 53});
+// @ts-expect-error UDP bind requires a string host.
+bind({network: "udp", host: 127, port: 0});
+// @ts-expect-error UDP bind does not accept TLS credentials.
+bind({network: "udp", host: "127.0.0.1", port: 0, cert: "pem"});
+declare const datagramSocket: DatagramSocket;
+declare const datagramAddress: DatagramAddress;
+// @ts-expect-error UDP datagram endpoints are separate from stream addresses.
+const streamAddress: import("noe:sockets").Address = datagramAddress;
+// @ts-expect-error Datagram sends accept bytes, not text.
+datagramSocket.send("text", datagramAddress);
+void streamAddress;
 // @ts-expect-error TLS-only trust options cannot be supplied to TCP.
 connect({network: "tcp", host: "localhost", port: 443, ca: "pem"});
 // @ts-expect-error TLS credentials cannot be supplied to Unix sockets.

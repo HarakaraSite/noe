@@ -1,7 +1,7 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after local implementation and verification of raw TLS
-sockets, following v2.17.0 publication and installation. Future release
+Updated 2026-11-07 after local implementation and verification of raw TLS and
+UDP sockets, following v2.17.0 publication and installation. Future release
 requests include local installation by default.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
@@ -45,10 +45,11 @@ implementation records remain the canonical design and validation references.
 - The user independently handles noebot. Release requests now authorize
   publication and local installation together; service restarts and noebot
   changes remain separate actions.
-- Raw TLS connect/listen is now implemented and verified locally after
-  v2.17.0. A fresh development executable is at
-  `/var/tmp/noe-raw-tls-940je7qo/noe`; installed v2.17.0 binaries do not include
-  this addition. No new release or installation was requested for this slice.
+- Raw TLS connect/listen (`ba5c37d`) and UDP bind/send/receive are implemented
+  and verified locally after v2.17.0. The latest development executable is
+  `/var/tmp/noe-udp-mkdxtl0z/noe`; the previous TLS-only candidate remains at
+  `/var/tmp/noe-raw-tls-940je7qo/noe`. Installed v2.17.0 binaries do not include
+  these additions. No new release or installation was requested for these slices.
 
 ## User decisions to retain
 
@@ -81,6 +82,39 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Completed UDP datagram sockets (unreleased after v2.17.0)
+
+See the [contract and evidence](stdlib-udp.md),
+[Go embedding guide](../go-embedding.md#udp-datagram-sockets), and
+[round-trip example](../../examples/low-level/README.md#udp-datagram-round-trip).
+
+- New `noe:sockets.bind({network: "udp", host, port, signal?})` returns a
+  DatagramSocket with address, send, receive, shared async close, and async
+  disposal. Stream connect/listen and their return types remain unchanged.
+  Packets preserve binary/text/empty payloads and remote source endpoints.
+- Send snapshots Uint8Array bytes before asynchronous work; size/routing limits
+  follow the OS. Receive uses a 65,536-byte buffer and rejects receive errors
+  or a full buffer instead of exposing a possible partial packet.
+- Each signal owns only its bind/send/receive operation. Send/receive use
+  separate direction gates, joining the cancellation callback and clearing its
+  deadline before the next operation. DNS lookup is cancellable. Socket close
+  cancels operations and joins native I/O; Host/Worker cleanup also reclaims
+  bind results queued before owner-thread handoff.
+- Reuses RawSockets selection and native Host workers/resource ownership;
+  no additional Go field, capability grant, or dependency. No implicit FS,
+  Fetch, HTTP, or WebSocket access. UDP reliability/retry/multicast APIs are
+  not introduced by this slice.
+- Verified packet boundaries/snapshots/source addresses, empty and maximum
+  IPv4 packets, hostname destination selection, IPv6 loopback, operation
+  cancellation isolation, close/disposal/port reuse, Worker/runtime cleanup,
+  native late bind/blocked write/full-buffer cases, and affected race checks.
+  Types, lint, docs, vet, CLI example, and checkout/standalone-module consumers
+  pass. Consumers compile with CGO disabled for all six release targets.
+  A bounded independent review found no actionable production issue.
+- Evidence, source fingerprints, and development executable:
+  `/var/tmp/noe-udp-mkdxtl0z`. This remains local standard-library work; keep
+  installed v2.17.0 and existing release tags unchanged until a release request.
 
 ## Completed raw TLS sockets (unreleased after v2.17.0)
 
@@ -526,18 +560,19 @@ Release-output metadata cleanup is housekeeping, not a new stdlib milestone.
 Its one-line `/dist/` ignore fix is committed at `acb1ee2`; evidence is at
 `/var/tmp/noe-ci-provenance-28dxjsmx/verification.json`. It applies to future
 builds and does not change the published v2.17.0 artifacts. The user then
-approved raw TLS connections/listeners in roadmap phase 11, which are now
-implemented and verified locally as recorded above. UDP is the remaining
-networking candidate and needs a separate datagram contract. Keep next-step
-work on stdlib rather than automatically starting release preparation.
+approved raw TLS connections/listeners and then UDP in roadmap phase 11. Both
+are now implemented and verified locally as recorded above. This completes
+the roadmap's core networking additions; multicast/connected UDP are separate
+possible extensions. Keep next-step work on stdlib rather than automatically
+starting release preparation.
 
 Remaining Node utilities, Buffer, and process metadata methods are
 use-case-driven work. Avoid wholesale rename churn merely to eliminate Node
 names. Useful existing contracts can remain until a concrete migration is
 justified. The latest permission allows local breaking changes without
 another compatibility prompt, while preserving noebot/publication/install
-boundaries. Prefer concrete caller evidence for the next implementation;
-UDP remains unimplemented. No new release was requested for the raw TLS slice.
+boundaries. Prefer concrete caller evidence for the next implementation.
+No new release was requested for the raw TLS/UDP slices.
 Web Crypto expansion and WebSocketStream remain use-case driven as below.
 
 Reuse the completed results for unchanged source/dependencies. A version,

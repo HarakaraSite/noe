@@ -64,6 +64,11 @@ func (h *Host) installNetWithFuncs(dial netDialFunc, listen netListenFunc) error
 	}); err != nil {
 		return err
 	}
+	if err := api.Set("bind", func(payload string) quickjs.Value {
+		return h.bindPacket(payload, nil)
+	}); err != nil {
+		return err
+	}
 	factory, err := h.rt.EvalFile("<noe-net>", netSource)
 	if err != nil {
 		return err
@@ -80,7 +85,11 @@ func (h *Host) installNetWithFuncs(dial netDialFunc, listen netListenFunc) error
 	if err != nil {
 		return err
 	}
-	return h.rt.SetModuleValues("noe:sockets", map[string]quickjs.Value{"connect": connect, "listen": listenExport})
+	bind, err := values.Get("bind")
+	if err != nil {
+		return err
+	}
+	return h.rt.SetModuleValues("noe:sockets", map[string]quickjs.Value{"connect": connect, "listen": listenExport, "bind": bind})
 }
 
 // startConnect returns a JS operation pair. The adapter owns AbortSignal

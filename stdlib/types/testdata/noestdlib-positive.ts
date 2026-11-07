@@ -60,7 +60,7 @@ import {
   type ServeOptions,
   type WebSocketUpgrade,
 } from "noe:http";
-import {connect, listen, type Address, type ConnectOptions, type ListenOptions} from "noe:sockets";
+import {bind, connect, listen, type Address, type BindOptions, type ConnectOptions, type Datagram, type DatagramAddress, type DatagramOperationOptions, type DatagramSocket, type ListenOptions} from "noe:sockets";
 import {subscribe} from "noe:signals";
 import {open as openSQLite, type SQLiteDatabase, type SQLiteOutputValue, type SQLiteParams, type SQLiteRow} from "noe:sqlite";
 
@@ -288,6 +288,16 @@ const tlsAddress: Address = {network: "tls", host: "127.0.0.1", port: 9000};
 const tlsConnect = connect(tlsConnectOptions);
 const tlsListener = listen(tlsListenOptions);
 void [socketConnect, socketListener, tlsConnect, tlsListener, tlsAddress];
+const udpBindOptions: BindOptions = {network: "udp", host: "127.0.0.1", port: 0};
+const udpBind = bind(udpBindOptions);
+const udpAddress: DatagramAddress = {network: "udp", host: "127.0.0.1", port: 53};
+const udpOptions: DatagramOperationOptions = {signal: new AbortController().signal};
+const udpSocket: Promise<DatagramSocket> = udpBind;
+const udpOperation = async (socket: DatagramSocket): Promise<Datagram> => {
+  await socket.send(new Uint8Array(), udpAddress, udpOptions);
+  return socket.receive(udpOptions);
+};
+void [udpSocket, udpOperation];
 const signalIterator = subscribe("SIGTERM");
 await signalIterator.close();
 

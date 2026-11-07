@@ -69,6 +69,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | Current standard library continuation point | [Session handoff, completed verification, and next slice](stdlib-handoff.md) |
 | HTTPS and WSS listeners (v2.17.0) | [PEM options, host TLS policy, shared ownership, and verification](stdlib-https.md) |
 | Raw TLS sockets (source after v2.17.0) | [TLS connect/listen, Web Streams, handshake ownership, and verification](stdlib-raw-tls.md) |
+| UDP datagram sockets (source after v2.17.0) | [Packet send/receive, scoped cancellation, ownership, and verification](stdlib-udp.md) |
 | Filesystem API direction and migration | [Single noe:fs module, handle contract, and consumer changes](stdlib-noe-fs.md) |
 | WebSocket handshake headers | [Constructor extension, owned fields, compatibility, and validation](stdlib-websocket-headers.md) |
 | Server-sent event subscriptions | [EventSource, reconnection, Fetch authority, and lifecycle](stdlib-eventsource.md) |

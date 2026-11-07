@@ -190,5 +190,68 @@
     }
   }
 
-  return { connect, listen };
+  function datagramAddress(address, binding) {
+    if (address === null || typeof address !== "object" || Array.isArray(address))
+      throw new TypeError("UDP address must be an object");
+    const network = address.network, host = address.host, port = address.port;
+    if (network !== "udp") throw new TypeError("UDP addresses require network udp");
+    if (typeof host !== "string" || host.length === 0 || host.includes("\0"))
+      throw new TypeError("UDP host must be a nonempty string without NUL");
+    if (!Number.isInteger(port) || port < (binding ? 0 : 1) || port > 65535)
+      throw new RangeError("UDP port is out of range");
+    return { network, host, port };
+  }
+
+  async function datagramOperation(options, start) {
+    if (options === undefined) options = {};
+    if (options === null || typeof options !== "object" || Array.isArray(options))
+      throw new TypeError("operation options must be an object");
+    const signal = options.signal;
+    if (signal !== undefined && !(signal instanceof AbortSignal))
+      throw new TypeError("signal must be an AbortSignal");
+    if (signal && signal.aborted) throw abortReason(signal);
+    let operation;
+    const cancel = () => { if (operation) operation.cancel(); };
+    if (signal) signal.addEventListener("abort", cancel, { once: true });
+    try {
+      operation = start();
+      if (signal && signal.aborted) cancel();
+      return await operation.promise;
+    } catch (error) {
+      if (signal && signal.aborted) throw abortReason(signal);
+      throw error;
+    } finally {
+      if (signal) signal.removeEventListener("abort", cancel);
+    }
+  }
+
+  async function bind(options) {
+    const request = datagramAddress(options, true);
+    tlsOptions(options, request, false);
+    const socket = await datagramOperation(options, () => host.bind(JSON.stringify(request)));
+    let closed = false, closePromise;
+    return {
+      address: socket.address,
+      async send(data, address, options) {
+        if (closed) throw new Error("UDP socket is closed");
+        if (!(data instanceof Uint8Array)) throw new TypeError("send requires Uint8Array");
+        const target = datagramAddress(address, false);
+        return datagramOperation(options, () => socket.send(data, JSON.stringify(target)));
+      },
+      async receive(options) {
+        if (closed) throw new Error("UDP socket is closed");
+        return datagramOperation(options, () => socket.receive());
+      },
+      close() {
+        if (!closePromise) {
+          closed = true;
+          closePromise = socket.close().then(() => undefined);
+        }
+        return closePromise;
+      },
+      async [Symbol.asyncDispose]() { await this.close(); },
+    };
+  }
+
+  return { connect, listen, bind };
 })

@@ -182,6 +182,27 @@ Fetch, HTTP/HTTPS, or WebSockets; each remains independent. Since the new field
 changes the public `Modules` struct shape, external callers with unkeyed
 `Modules` literals must switch to keyed literals. See the [raw TLS contract](development/stdlib-raw-tls.md).
 
+## UDP datagram sockets
+
+UDP datagrams are available from source after v2.17.0. The released v2.17.0
+binary and module do not include `bind()`; build a temporary CLI from this
+checkout with `CGO_ENABLED=0 go build` to run the [local round-trip
+example](../examples/low-level/README.md#udp-datagram-round-trip).
+
+The existing `Modules.RawSockets` capability selects `noe:sockets` for UDP
+in both main runtimes and Workers. No UDP-specific public Go field or
+dependency is added:
+
+```go
+profile.Modules = stdlib.Modules{RawSockets: true}
+```
+
+JavaScript uses `bind({network: "udp", host, port, signal?})` and explicit
+`send`/`receive` calls. A port of zero requests an operating-system-selected
+endpoint. The socket is owned by its runtime and is closed during runtime or
+Worker cleanup. UDP does not guarantee delivery, packet order, duplicate
+suppression, or retries. See the [API reference](../internal/apidocs/content/noe-sockets.md#bind).
+
 ## Asynchronous SQLite
 
 `noe:sqlite` is a built-in Promise API in managed runtimes and Workers.

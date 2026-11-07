@@ -811,6 +811,19 @@ declare namespace NOEStdlib {
   function connect(options: ConnectOptions): Promise<RawConnection>;
   function listen(options: ListenOptions): Promise<SocketListener>;
 
+  interface DatagramAddress { readonly network: "udp"; readonly host: string; readonly port: number }
+  interface BindOptions { network: "udp"; host: string; port: number; signal?: AbortSignal }
+  interface Datagram { readonly data: Uint8Array; readonly remoteAddress: DatagramAddress }
+  interface DatagramOperationOptions { signal?: AbortSignal }
+  interface DatagramSocket {
+    readonly address: DatagramAddress;
+    send(data: Uint8Array, address: DatagramAddress, options?: DatagramOperationOptions): Promise<number>;
+    receive(options?: DatagramOperationOptions): Promise<Datagram>;
+    close(): Promise<void>;
+    [Symbol.asyncDispose](): Promise<void>;
+  }
+  function bind(options: BindOptions): Promise<DatagramSocket>;
+
   interface SignalIteratorResult { readonly value: SignalName | undefined; readonly done: boolean }
   interface SignalSubscription extends AsyncIterableIterator<SignalName> {
     [Symbol.asyncDispose](): Promise<void>;
@@ -1618,9 +1631,12 @@ declare module "noe:http" {
   export type WebSocketUpgrade = NOEStdlib.WebSocketUpgrade;
 }
 declare module "noe:sockets" {
-  export import connect = NOEStdlib.connect; export import listen = NOEStdlib.listen;
+  export import bind = NOEStdlib.bind; export import connect = NOEStdlib.connect; export import listen = NOEStdlib.listen;
   export type Connection = NOEStdlib.RawConnection; export type Listener = NOEStdlib.SocketListener;
   export type Address = NOEStdlib.SocketAddress; export type ConnectOptions = NOEStdlib.ConnectOptions; export type ListenOptions = NOEStdlib.ListenOptions;
+  export type DatagramAddress = NOEStdlib.DatagramAddress; export type BindOptions = NOEStdlib.BindOptions;
+  export type Datagram = NOEStdlib.Datagram; export type DatagramOperationOptions = NOEStdlib.DatagramOperationOptions;
+  export type DatagramSocket = NOEStdlib.DatagramSocket;
 }
 declare module "noe:signals" { export import subscribe = NOEStdlib.subscribe; export type SignalName = NOEStdlib.SignalName; export type SignalSubscription = NOEStdlib.SignalSubscription; }
 declare module "noe:sqlite" {

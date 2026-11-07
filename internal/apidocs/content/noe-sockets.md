@@ -2,17 +2,61 @@
 
 ### API information
 
-Public exports: `connect`, `listen`.
+Public exports: `bind`, `connect`, `listen`.
 
 Reference: `noe:sockets`. Owner: noestdlib.
 
 Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
 
-Availability: Requires Profile.Modules.RawSockets. Raw TLS can also use the optional host configuration in Profile.Modules.RawSocketsTLS. Platform support and cancellation follow the socket API contract below. Raw TLS is available in source after v2.17.0; the v2.17.0 release binary does not include it.
+Availability: Requires Profile.Modules.RawSockets. Raw TLS can also use the optional host configuration in Profile.Modules.RawSocketsTLS. Platform support and cancellation follow the socket API contract below. Raw TLS and UDP are available in source after v2.17.0; the released v2.17.0 binary does not include them.
 
-Public-definition source: internal/nativeio/net.go, internal/nativeio/js/net.js. Reading this reference evaluates no target module and makes no provider request.
+Public-definition source: internal/nativeio/net.go, internal/nativeio/net_udp.go, internal/nativeio/js/net.js. Reading this reference evaluates no target module and makes no provider request.
 
-`noe:sockets` exports `connect` and `listen` for raw TCP, TLS, and Unix stream sockets. These APIs carry bytes through Web Streams; they are distinct from HTTP/WebSocket APIs and from the standard library's WebSocket setting. The module is available in the main runtime and Workers. Open listeners and connections keep the owning runtime active and are reclaimed when it ends. TLS was added in source after v2.17.0. See the selected detail for its address, platform, and cancellation requirements.
+`noe:sockets` exports `connect` and `listen` for raw TCP, TLS, and Unix stream sockets, plus `bind` for UDP datagrams. Stream connections carry bytes through Web Streams; datagrams use explicit `send` and `receive` operations and retain packet boundaries. These APIs are distinct from HTTP/WebSocket APIs and from the standard library's WebSocket setting. The module is available in the main runtime and Workers. Open listeners, connections, and datagram sockets keep the owning runtime active and are reclaimed when it ends. Raw TLS and UDP were added in source after v2.17.0.
+
+## bind
+
+`bind(options) -> Promise<DatagramSocket>` binds one UDP socket. Pass `{network: "udp", host, port, signal?}`. `host` must be a nonempty string and `port` must be 0–65535; port `0` asks the operating system to select a port. The returned `address` is `{network: "udp", host, port}` and includes the selected port. An optional `signal` cancels only the pending bind. It does not close a socket after the promise resolves. Invalid option shapes, TLS-only fields, and invalid ports reject with `TypeError` or `RangeError` before I/O. DNS and IPv4/IPv6 address selection follow the operating-system network stack.
+
+The socket is a resource owned by its runtime or Worker. Explicitly close it or use `await using`; runtime shutdown and Worker termination also close it and cancel pending operations. UDP is message-oriented: it has no accept operation, byte streams, EOF, or FIN.
+
+```js
+import { bind } from "noe:sockets";
+
+const socket = await bind({network: "udp", host: "127.0.0.1", port: 0});
+try {
+  const bytes = new TextEncoder().encode("hello");
+  await socket.send(bytes, {network: "udp", host: "127.0.0.1", port: 9000});
+} finally {
+  await socket.close();
+}
+```
+
+## DatagramSocket.address
+
+`socket.address` is the bound `{network: "udp", host, port}` endpoint. Port `0` is replaced by the operating system's selected port.
+
+## DatagramSocket.send
+
+`socket.send(data, address, options?) -> Promise<number>` sends one `Uint8Array` as one datagram to a `{network: "udp", host, port}` destination. The destination host must be nonempty and its port must be 1–65535. Invalid address shapes and non-`Uint8Array` data reject with `TypeError`; invalid ports reject with `RangeError` before I/O. The byte input is copied before asynchronous work. Empty datagrams are valid. A successful result is the number of bytes accepted by the local operating system; it is not a delivery acknowledgement. Routing and operating-system packet-size failures reject, with no extra application-level send limit.
+
+An optional `{signal}` cancels only this send and preserves the signal's exact JavaScript reason. Cancellation cannot withdraw a send already accepted by the operating system. It does not affect another queued or active operation.
+
+## DatagramSocket.receive
+
+`socket.receive(options?) -> Promise<Datagram>` receives one complete UDP datagram and returns `{data, remoteAddress}`. `data` is a fresh `Uint8Array`; `remoteAddress` is `{network: "udp", host, port}` for the sender. Empty datagrams are valid. A 65,536-byte receive buffer accommodates an ordinary full UDP datagram. Receive errors reject; a full buffer rejects with `RangeError` and code `ERR_UDP_MESSAGE_TOO_LARGE` instead of exposing a possible truncated prefix. Only an explicit `receive()` consumes a packet; the socket does not maintain an unbounded packet queue.
+
+An optional `{signal}` cancels only this receive and preserves the signal's exact JavaScript reason. Cancellation may discard a packet the operating system has already received, and does not affect another queued or active operation.
+
+## DatagramSocket.close
+
+`await socket.close()` stops new operations, releases the socket, and cancels pending native I/O. Repeated calls return the same `Promise<void>`, which resolves to `undefined` when cleanup completes.
+
+## DatagramSocket[Symbol.asyncDispose]
+
+`socket[Symbol.asyncDispose]() -> Promise<void>` delegates to `close()`. An `await using socket = await bind(options)` declaration closes the socket when its block exits.
+
+UDP does not guarantee delivery, ordering, duplicate suppression, or retries. Applications that require those properties must implement them at a higher layer.
 
 ## connect
 

@@ -2,7 +2,7 @@
 
 Use `noe docs noe:fs open` and `noe docs noe:fs FileHandle.read` for the file handle contract. Use `noe docs noe:sockets` and `noe docs noe:signals` for the NOE socket and signal APIs. Member names from a topic overview select detailed entries in the embedded reference ([guide](reference.md)).
 
-The socket and signal APIs in this guide are available from v1.8.0.
+The `connect`, `listen`, and `noe:signals` APIs in this guide are available from v1.8.0. UDP datagrams are a source-only addition after v2.17.0; see below.
 
 `noe:sockets` and `noe:signals` are NOE extensions available to run/eval, agent `run_js`, and Workers. They use the operating-system permissions of the NOE process. The `noe:fs`, HTTP, and process APIs are available through their selected capabilities.
 
@@ -25,7 +25,7 @@ try {
 }
 ```
 
-`connect(options)`と`listen(options)`はPromiseです。TCPは`{network:"tcp",host,port,signal?}`、Unixは`{network:"unix",path,signal?}`を指定します。host/pathは必須。TCP portはconnectで1〜65535、listenで0〜65535で、0はOS割当てです。DNS・IPv4/IPv6はGo netの解決に従います。Unix相対pathはruntimeのcwd基準です。UDP、abstract namespace、接続retryは提供しません。Unix socketの可用性は実行OSに依存します。
+`connect(options)`と`listen(options)`はPromiseです。TCPは`{network:"tcp",host,port,signal?}`、Unixは`{network:"unix",path,signal?}`を指定します。host/pathは必須。TCP portはconnectで1〜65535、listenで0〜65535で、0はOS割当てです。DNS・IPv4/IPv6はGo netの解決に従います。Unix相対pathはruntimeのcwd基準です。UDP datagram sockets are available through `bind()` below; abstract namespace and connection retries are not provided. Unix socketの可用性は実行OSに依存します。
 
 Raw TLS sockets are available in source after v2.17.0; the released v2.17.0 binary does not include them. See [Raw TLS sockets](#raw-tls-sockets) below.
 
@@ -63,6 +63,41 @@ connectionの`readable`/`writable`はUint8ArrayのWeb Streamsです。readは需
 Unixのbind前に既存pathを削除しません。親directory内のprivateな一時directoryへbindしてidentityを記録し、既存先を上書きしないhard linkで要求pathへ公開します。filesystem/OSのsocket hard link対応が必要で、未対応時はOSエラーを返します。長いpathでは短いsymlink経由のbindも使うため、その場合はsymlink対応も必要です。`listener.address.path`は要求pathのcwd解決後の値です。
 
 通常closeでは作成したsocketのidentityを照合してpathnameを片付け、既に別file/別socketへ置換されていれば削除しません。identity照合とremoveはOSのatomicな比較削除ではないため、アプリは同じpathの置換とcloseを協調させます。SIGKILL等の強制終了後はpathnameや公開途中の一時directoryが残り得ます。再起動時はアプリ所有directoryの状態を確認し、必要ならJS/CLIで片付けます。
+
+## UDP datagram sockets
+
+UDP datagrams are available in source after v2.17.0; the released and
+installed v2.17.0 binary does not include `bind()`. Build a temporary CLI
+from this checkout to use the [local UDP round-trip example](../examples/low-level/README.md#udp-datagram-round-trip):
+
+```sh
+demo_dir="$(mktemp -d)"
+trap 'rm -rf "$demo_dir"' EXIT
+CGO_ENABLED=0 go build -o "$demo_dir/noe" ./cmd/noe
+"$demo_dir/noe" run examples/low-level/udp-roundtrip.js
+```
+
+`bind({network: "udp", host, port, signal?})` returns an owned datagram
+socket. The host must be nonempty and the port must be 0–65535; port `0`
+requests an operating-system-selected port. `socket.address` reports the
+bound endpoint. Send one `Uint8Array` per `send(data, address, {signal}?)`
+call; the destination port must be 1–65535. A successful send resolves to
+the number of bytes accepted by the local operating system, not a delivery
+acknowledgement. Empty datagrams are valid. `receive({signal}?)` returns one
+complete packet as `{data, remoteAddress}`; it does not expose streams or EOF.
+
+Bind cancellation applies only until the bind completes. Send and receive
+cancellation affects only that operation and preserves its exact JavaScript
+reason; it can discard an already received packet or follow a send already
+accepted by the operating system. A 65,536-byte receive buffer accommodates
+an ordinary full UDP datagram. Receive errors reject; a full buffer rejects
+with RangeError/ERR_UDP_MESSAGE_TOO_LARGE rather than exposing a possible prefix.
+Operating-system routing and packet-size errors reject, with no
+additional application send limit. UDP does not guarantee delivery, order,
+duplicate suppression, or retries. Close the socket explicitly or use
+`await using`; runtime shutdown and Worker termination also reclaim it.
+`Modules.RawSockets` is the existing capability in both main runtimes and
+Workers; no separate UDP grant is added.
 
 ## Raw TLS sockets
 
