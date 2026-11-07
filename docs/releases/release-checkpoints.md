@@ -20,6 +20,14 @@ tests, E2E, race or vet. Manual dispatch can publish an existing selected tag;
 the uploader uses the checked-out source commit rather than the workflow's
 branch commit.
 
+Since the user's standing instruction on 2026-11-07, a release also includes
+local installation after publication verification. Install the verified native
+asset at `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`, retaining
+the previous copies and replacing each path atomically. Check installed hashes,
+versions, and PATH resolution, and record the installation evidence. Reuse the
+runtime checks already passed by the identical asset. No separate installation
+approval is needed. Running-service restarts and noebot changes are separate.
+
 The uploader creates a non-draft Release within the existing repository visibility; it does not make a private repository public. Failed gates or builds must leave their output in native Actions logs and must not publish Release assets.
 
 The `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`, `v1.3.1`, `v1.3.2`, `v1.3.3`, `v1.4.0`, and `v1.5.0` Releases have been published through this workflow; see their validation records below. A successful cross-build verifies compilation; runtime and terminal behavior on macOS, Windows, and arm64 have not been tested here.
@@ -3825,3 +3833,25 @@ consumers, and helpers are at `/var/tmp/noe-v2.17.0-release-yk3xb7im`.
 Both installed binaries retain the verified v2.16.0 SHA256 and were not
 replaced. This documentation-only publication record does not move the tag.
 No service restart, noebot change, or paid provider/login request was performed.
+
+## v2.17.0 local installation and standing release instruction — 2026-11-07
+
+After publication, the user requested installation and instructed that future
+releases include local installation. This standing authorization is recorded in
+AGENTS.md and the session handoff: complete publication verification, then
+install at both local executable paths without a separate approval prompt.
+Running-service restarts and noebot changes remain separate actions.
+
+The verified published Linux amd64 asset atomically replaced both
+`/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`. Both report
+`noe v2.17.0` and match the published SHA256
+`82873c67be492a9adf977c88ef141451a4206718cfac0fc43d65ef093ae7f483`.
+PATH resolves to `/home/agent/.local/bin/noe`. Installed version/arithmetic and
+both authentication-helper help paths pass with zero exits and empty stderr.
+The identical release asset's HTTPS/WSS and other runtime results were reused.
+
+Previous v2.16.0 executables, checksums/versions, and installed verification
+records are retained at `/var/tmp/noe-v2.17.0-install-edf2149e`
+(`installation.json`, `previous-0-noe`, and `previous-1-noe`). No running
+process was restarted, noebot was not changed, and no login/provider request
+was made. This documentation-only follow-up does not move the release tag.

@@ -3,9 +3,10 @@
 2026-11-07. The user approved adding HTTPS/WSS listeners to `noe:http.serve`
 after the v2.16.0 release and local binary installation. This additive slice
 is included in [v2.17.0](../releases/v2.17.0.md). The user separately authorized
-that release on 2026-11-07. Installation and running-service restart remain
-separate actions. The [session handoff](stdlib-handoff.md) records publication
-status and the continuation point.
+that release and its local installation on 2026-11-07, and instructed that
+future releases include installation. Running-service restarts remain separate.
+The [session handoff](stdlib-handoff.md) records publication/installation status
+and the continuation point.
 
 ## Selected contract
 
@@ -115,5 +116,7 @@ v2.17.0 is now published, with the release-flags candidate, downloaded assets,
 trusted HTTPS/WSS native smoke, and direct public Go consumer evidence at
 `/var/tmp/noe-v2.17.0-release-yk3xb7im`. See the
 [publication checkpoint](../releases/release-checkpoints.md#v2170-publication--2026-11-07).
-Installed executables still contain v2.16.0 and do not implement these new
-listener options. Installation remains a separate step.
+Both installed executables now match the verified v2.17.0 asset and support
+these listener options. Backups, installed hashes/versions, PATH, arithmetic,
+and helper-help checks are recorded at
+`/var/tmp/noe-v2.17.0-install-edf2149e/installation.json`.

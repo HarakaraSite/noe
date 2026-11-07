@@ -22,3 +22,16 @@ For the current continuation point, read the
 - 公開用依存の解決や外部consumerからの利用成立も実装段階で確認する。未公開依存やcheckout専用設定による公開不能を、リリース準備まで残さない。
 
 具体的な配布定義は[release profile](.forgejo/release-profile.yml)と[workflow](.forgejo/workflows/release.yml)、検証結果と公開手順は[release checkpoints](docs/releases/release-checkpoints.md)を参照する。過去の全検査一覧を、毎回実行する必須チェックリストとして扱わない。
+
+## Release installation
+
+The user's standing instruction is that a release includes local installation.
+Unless the user explicitly limits the request, publishing a release also
+authorizes installing its verified native asset at both
+`/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`; do not ask for
+separate installation approval. Complete publication verification, retain the
+previous executables, replace each path atomically, and verify installed hashes,
+versions, and PATH resolution. Reuse the release's runtime verification for the
+identical asset. Record publication and installation in the release checkpoints
+and session handoff. Running-service restarts and noebot changes remain outside
+this standing instruction.

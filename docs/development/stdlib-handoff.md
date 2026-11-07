@@ -1,7 +1,7 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after v2.17.0 HTTPS/WSS publication and post-publication
-verification, following the v2.16.0 publication and binary installation.
+Updated 2026-11-07 after v2.17.0 HTTPS/WSS publication, verification, and local
+installation. Future release requests include local installation by default.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
 
@@ -26,12 +26,13 @@ implementation records remain the canonical design and validation references.
   That directory also retains the clean candidate, all downloaded assets,
   continuity checks, and published-consumer evidence. Earlier implementation
   candidates below remain historical slice evidence.
-- After v2.16.0 publication, the user explicitly requested binary replacement. Both
+- After v2.17.0 publication, the user requested installation and established
+  that future releases include installation. Both
   `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` now contain
-  the verified published v2.16.0 Linux asset, SHA256
-  `13782c9bf8c30c64808da7a9fd577d978e8e123928d7dfbc41cfaae8b601849e`.
-  Previous v2.13.0 copies and installation evidence are retained under
-  `/var/tmp/noe-v2.16.0-install-014hncw0` (`installation.json`). Version,
+  the verified published v2.17.0 Linux asset, SHA256
+  `82873c67be492a9adf977c88ef141451a4206718cfac0fc43d65ef093ae7f483`.
+  Previous v2.16.0 copies and installation evidence are retained under
+  `/var/tmp/noe-v2.17.0-install-edf2149e` (`installation.json`). Version,
   arithmetic, and both authentication-helper help paths passed; no actual
   authentication or running-service restart was performed.
 - The user then approved implementing HTTPS/WSS listeners and separately
@@ -39,11 +40,10 @@ implementation records remain the canonical design and validation references.
   The clean release-flags candidate is at
   `/var/tmp/noe-v2.17.0-release-yk3xb7im/candidate`; the earlier implementation
   candidate remains at `/var/tmp/noe-https-vm9c6p5e/noe`. The downloaded asset
-  above is the latest verified binary. Installed v2.16.0 copies do not implement
-  its listener options and were not replaced again.
-- The user independently handles noebot. The latest release instruction
-  authorizes v2.17.0 publication; installation and service restart remain
-  separate actions.
+  above is the latest verified binary, and both installed copies match it.
+- The user independently handles noebot. Release requests now authorize
+  publication and local installation together; service restarts and noebot
+  changes remain separate actions.
 
 ## User decisions to retain
 
@@ -71,6 +71,11 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
 - Documentation and explanatory source text are English; user replies may
   be Japanese. Follow AGENTS.md, including reuse of completed validation
   when the tested source and dependencies have not changed.
+- A release includes installation of the verified native asset at both local
+  executable paths above, unless the user explicitly limits the request.
+  Do not ask for separate installation approval. Preserve previous copies,
+  replace atomically, and verify hashes/version/PATH; reuse runtime results
+  for the identical asset. Do not restart running services under this rule.
 
 ## Published v2.17.0
 
@@ -96,8 +101,10 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   changed source/declaration paths match the tag in both downloaded modules.
 - Publication verification is complete. The publication checkpoint and
   `/var/tmp/noe-v2.17.0-release-yk3xb7im` retain metadata, assets, and logs.
-  Both installed copies remain the verified v2.16.0 asset; no service restart
-  or noebot change was performed.
+  Both installed copies now match the verified v2.17.0 asset. Installation
+  checksum/version/PATH, arithmetic, and both authentication-helper help checks
+  pass; previous v2.16.0 copies remain backed up. No service restart or noebot
+  change was performed.
 
 ## Completed HTTPS/WSS listener addition (v2.17.0)
 
@@ -465,11 +472,11 @@ process naming changes do not invalidate unchanged native filesystem tests.
 The filesystem/process/HTTP entrance migrations, Fetch response-overflow and
 Blob-send corrections, Serve limits/lifecycle, WebSocket opening
 cancellation/close validation, and connected closing/blocked-send cleanup
-are published in v2.16.0 and installed at both requested local paths.
-HTTPS/WSS listeners are published in v2.17.0, with downloaded assets and public
-modules verified. No required runtime blocker remains in these approved slices.
-The repository and user-installed binaries still contain v2.16.0; replacing
-them with the verified v2.17.0 asset remains a separate requested action.
+are included since v2.16.0. HTTPS/WSS listeners are published in v2.17.0, with
+downloaded assets and public modules verified. Both local executable paths
+now contain the verified v2.17.0 asset. No required runtime blocker remains
+in these approved slices. Future releases include local installation without
+a separate approval prompt; running-service restarts remain separate.
 
 Remaining Node utilities, Buffer, and process metadata methods are
 use-case-driven work. Avoid wholesale rename churn merely to eliminate Node
