@@ -188,22 +188,28 @@ declare namespace NOEStdlib {
   type RandomCallback = (error: Error | null, data?: Buffer) => void;
   type PBKDF2Callback = (error: Error | null, key?: Buffer) => void;
   type HKDFCallback = (error: Error | null, key?: ArrayBuffer) => void;
-  type CryptoAlgorithm = string | {name: string; hash?: string | {name: string}};
+  type CryptoBufferSource = ArrayBuffer | ArrayBufferView;
+  type CryptoAlgorithm = string | {name: string; hash?: string | {name: string}; length?: number};
+  interface CryptoKeyAlgorithm {
+    name: string;
+    hash?: {name: string};
+    length?: number;
+  }
   interface CryptoKey {
     readonly type: "secret";
-    readonly algorithm: {readonly name: string; readonly hash?: {readonly name: string}};
+    readonly algorithm: CryptoKeyAlgorithm;
     readonly extractable: boolean;
-    readonly usages: readonly CryptoKeyUsage[];
+    readonly usages: CryptoKeyUsage[];
   }
-  type CryptoKeyUsage = "deriveBits" | "deriveKey" | "sign" | "verify";
+  type CryptoKeyUsage = "encrypt" | "decrypt" | "deriveBits" | "deriveKey" | "sign" | "verify" | "wrapKey" | "unwrapKey";
   interface WebCryptoSubtle {
-    digest(algorithm: string | {name: string}, data: ArrayBuffer | ArrayBufferView): Promise<ArrayBuffer>;
-    importKey(format: "raw", data: ArrayBuffer | ArrayBufferView, algorithm: CryptoAlgorithm, extractable: boolean, usages: readonly CryptoKeyUsage[]): Promise<CryptoKey>;
+    digest(algorithm: string | {name: string}, data: CryptoBufferSource): Promise<ArrayBuffer>;
+    importKey(format: "raw", data: CryptoBufferSource, algorithm: CryptoAlgorithm, extractable: boolean, usages: Iterable<CryptoKeyUsage>): Promise<CryptoKey>;
     exportKey(format: "raw", key: CryptoKey): Promise<ArrayBuffer>;
-    sign(algorithm: "HMAC" | {name: "HMAC"}, key: CryptoKey, data: ArrayBuffer | ArrayBufferView): Promise<ArrayBuffer>;
-    verify(algorithm: "HMAC" | {name: "HMAC"}, key: CryptoKey, signature: ArrayBuffer | ArrayBufferView, data: ArrayBuffer | ArrayBufferView): Promise<boolean>;
-    deriveBits(algorithm: CryptoAlgorithm & {salt: ArrayBuffer | ArrayBufferView; iterations?: number; info?: ArrayBuffer | ArrayBufferView}, key: CryptoKey, length: number): Promise<ArrayBuffer>;
-    deriveKey(algorithm: CryptoAlgorithm & {salt: ArrayBuffer | ArrayBufferView; iterations?: number; info?: ArrayBuffer | ArrayBufferView}, baseKey: CryptoKey, derived: {name: string; length?: number}, extractable: boolean, usages: readonly CryptoKeyUsage[]): Promise<CryptoKey>;
+    sign(algorithm: CryptoAlgorithm, key: CryptoKey, data: CryptoBufferSource): Promise<ArrayBuffer>;
+    verify(algorithm: CryptoAlgorithm, key: CryptoKey, signature: CryptoBufferSource, data: CryptoBufferSource): Promise<boolean>;
+    deriveBits(algorithm: CryptoAlgorithm & {salt: CryptoBufferSource; iterations?: number; info?: CryptoBufferSource}, key: CryptoKey, length?: number | null): Promise<ArrayBuffer>;
+    deriveKey(algorithm: CryptoAlgorithm & {salt: CryptoBufferSource; iterations?: number; info?: CryptoBufferSource}, baseKey: CryptoKey, derived: CryptoAlgorithm, extractable: boolean, usages: Iterable<CryptoKeyUsage>): Promise<CryptoKey>;
   }
   interface Crypto {
     getRandomValues<T extends IntegerTypedArray>(view: T): T;

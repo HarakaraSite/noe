@@ -23,6 +23,18 @@ import {open as openSQLite} from "noe:sqlite";
 // @ts-expect-error NOE does not declare Node's built-in SQLite module.
 import {DatabaseSync} from "node:sqlite";
 import * as sqliteModule from "noe:sqlite";
+// @ts-expect-error CryptoKey is an illegal constructor.
+new CryptoKey();
+// @ts-expect-error A CryptoKey's extractability attribute is readonly.
+(undefined as unknown as CryptoKey).extractable = true;
+// @ts-expect-error Plain arrays are not Web Crypto BufferSources.
+crypto.subtle.digest("SHA-256", [1, 2, 3]);
+// @ts-expect-error SharedArrayBuffer is not an accepted Web Crypto buffer.
+crypto.subtle.digest("SHA-256", new SharedArrayBuffer(4));
+// @ts-expect-error Key usages must use a known Web IDL enum value.
+crypto.subtle.importKey("raw", new Uint8Array(16), {name: "HMAC", hash: "SHA-256"}, false, ["unknown"]);
+// @ts-expect-error This slice does not implement JWK imports.
+crypto.subtle.importKey("jwk", {kty: "oct", k: "AQID"}, {name: "HMAC", hash: "SHA-256"}, false, ["sign"]);
 import {createWebSocket, serve as noeServe} from "noe:http";
 
 // HTTP helpers use noe:http; node:http and its bare alias are removed.

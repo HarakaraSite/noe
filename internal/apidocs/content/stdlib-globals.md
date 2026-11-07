@@ -32,6 +32,25 @@ The pinned QuickJS runtime also exposes these language and host globals: Aggrega
 
 In this inventory, `localStorage` is conditional: it appears only when the host explicitly opts in to filesystem-backed storage. `Storage` and `sessionStorage` are always available with the Web APIs selected.
 
+## crypto
+
+Global crypto provides integer-view getRandomValues, randomUUID v4, and the
+implemented subtle operations described by node:crypto. The Node module's
+webcrypto/subtle exports share these exact objects. getRandomValues preserves
+the input view and enforces the standard 65,536-byte limit; Float/DataView
+inputs reject with TypeMismatchError and oversized views with QuotaExceededError.
+
+## CryptoKey
+
+In unreleased source after v2.19.0, CryptoKey is an illegal constructor with
+readonly type, algorithm, extractable, and usages attributes. Import through
+crypto.subtle.importKey. Cached algorithm/usages metadata objects are mutable
+views; private snapshots govern actual operations even if those views are
+changed or attributes are shadowed. The implemented key type is secret.
+Key usage is operation-specific, and non-extractability cannot be changed by
+assigning a public property. Unsupported structured cloning rejects with
+DataCloneError. See node:crypto for formats, errors, and remaining API gaps.
+
 ## Storage
 
 `Storage` is the shared interface for `sessionStorage` and opt-in `localStorage`. It is an illegal constructor; use the getter-only global references. Each object has `Storage.prototype` and the `Storage` toStringTag.

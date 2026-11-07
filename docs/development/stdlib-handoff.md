@@ -1,10 +1,15 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after verified v2.19.0 publication and vm201 installation
-of the completed Web Storage work. Release requests include local installation
-by default.
+Updated 2026-11-07 after the local Web Crypto correction, gap inventory, and
+SDK validation following verified v2.19.0 publication/installation. Release
+requests include local installation by default.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
+
+The latest local continuation corrects existing Web Crypto contracts and
+completes the requested standard-gap inventory plus unmodified SDK validation.
+It is not yet published or installed; v2.19.0 below remains the deployed release.
+See [local Web Crypto continuation](#local-web-crypto-continuation).
 
 ## Repository and publication state
 
@@ -67,6 +72,41 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Local Web Crypto continuation
+
+The user approved: existing Web Crypto contract correction, standard API gap
+inventory, then real SDK validation. This work is implemented and verified
+locally after v2.19.0, with no new algorithm family or Profile capability.
+See the [contract, gaps and results](stdlib-webcrypto.md).
+
+- Supported SHA/HMAC/PBKDF2/HKDF operations now use private snapshotted key
+  state, independent operation usages, non-extractability, standard BufferSource
+  handling and errors, cached readonly attributes, and native asynchronous
+  computation with execution/Worker cancellation and joined cleanup.
+- Original verify-only signing and extractability regressions fail on the
+  earlier source. Prototype-hook metadata regression also fails on the earlier
+  facade and passes with null-prototype private records and own-property copies.
+- Affected unit packages, focused race, types/docs/lint/vet, public Go consumers
+  from checkout and source artifact, and actual CLI examples pass. The jose
+  6.2.15 SDK is unmodified: HS256/384/512 JWT/JWS, claim/signature rejection,
+  main/Worker execution, and two-way Node interoperability pass. SDK happy paths
+  also passed old v2.19.0, so SDK success alone is not conformance evidence.
+- The independent reviewer was stopped by automatic screening (possible
+  cybersecurity risk). It did not complete review; parent source/contract and
+  regression verification is complete. Do not claim an independent full audit.
+- Remaining gaps are explicit: key generation; JWK/SPKI/PKCS8 formats;
+  encryption/wrapping/public-key algorithms; complete Crypto/SubtleCrypto IDL
+  shape; CryptoKey structured cloning. Actual SDK probes confirm generation,
+  CryptoKey JWK export, and AES-GCM JWE gaps. Do not treat this as complete jose
+  or Web Crypto support.
+
+Evidence: `/var/tmp/noe-webcrypto-46m8xyzx`. The final source candidate is
+`/var/tmp/noe-webcrypto-46m8xyzx/noe`; installed executables remain the published
+v2.19.0 asset. No release, push, installation, other-host/noebot change, real
+login or paid provider request is authorized by this implementation task.
+Reuse results for unchanged code/dependencies. After a release request, publish
+and install together under the standing rule.
 
 ## Current release: v2.19.0 Web Storage
 
@@ -617,7 +657,8 @@ boundaries. Prefer concrete caller evidence for the next implementation.
 The requested v2.19.0 publication and installation are complete. Keep
 continuation focused on concrete standard-library needs. A version or release
 instruction alone is not a reason to repeat successful implementation suites.
-Web Crypto expansion and WebSocketStream remain use-case driven as below.
+The existing Web Crypto correction and SDK validation above are complete
+locally. Additional algorithms/formats and WebSocketStream remain use-case driven.
 
 Reuse the completed results for unchanged source/dependencies. A version,
 commit, or release instruction alone is not a reason to repeat all unit,
@@ -630,7 +671,8 @@ for source-only APIs; installed executables still describe their own release.
   Fetch ownership; see [implementation](stdlib-eventsource.md).
 - SQLite uses the approved asynchronous `noe:sqlite` API; see
   [implementation and limitations](stdlib-sqlite.md).
-- Web Crypto expansion and WebSocketStream remain use-case driven. The
+- Web Crypto's existing contracts are corrected locally as above. Further
+  expansion and WebSocketStream remain use-case driven. The
   broader [roadmap](stdlib-roadmap.md) applies under the newer policy.
 - The former Fetch response-prefix improvement candidate is now fixed and
   verified; see the correction above. The old exploratory probe at

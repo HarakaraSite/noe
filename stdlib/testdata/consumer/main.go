@@ -59,6 +59,9 @@ func run() error {
 	if err := webStorage(ctx); err != nil {
 		return err
 	}
+	if err := webCrypto(ctx); err != nil {
+		return err
+	}
 	if err := urlImports(ctx); err != nil {
 		return err
 	}

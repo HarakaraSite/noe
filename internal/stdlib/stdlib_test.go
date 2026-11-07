@@ -1281,7 +1281,7 @@ func TestSubtleCrypto(t *testing.T) {
 
 			// A key that may not leave is not handed over.
 			try { await crypto.subtle.exportKey("raw", base) }
-			catch (e) { console.log(e.constructor.name) }
+			catch (e) { console.log(e.constructor.name + " " + e.name) }
 
 			const derived = await crypto.subtle.deriveKey(
 				{name: "HKDF", salt: enc.encode("salt"), info: enc.encode("info"), hash: "SHA-256"},
@@ -1299,7 +1299,7 @@ func TestSubtleCrypto(t *testing.T) {
 		"false",
 		"Jefe",
 		"0c60c80f961f0e71f3a9b524af6012062fe037a6",
-		"TypeError",
+		"DOMException NotSupportedError",
 		"32",
 		"186",
 	}, "\n")

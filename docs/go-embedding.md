@@ -202,6 +202,27 @@ endpoint. The socket is owned by its runtime and is closed during runtime or
 Worker cleanup. UDP does not guarantee delivery, packet order, duplicate
 suppression, or retries. See the [API reference](../internal/apidocs/content/noe-sockets.md#bind).
 
+## Web Crypto (unreleased correction)
+
+Source after v2.19.0 corrects the existing SHA/HMAC/PBKDF2/HKDF Web Crypto
+contracts. No new Profile field or capability is added. The selected Random
+reader remains borrowed; digest, signing, verification and derivation use Go
+cryptographic primitives. Native calculation runs away from the VM owner with
+its execution context, and runtime/Worker cleanup cancels and joins owned work.
+Advanced WebAPIs installation without a Loop may compute a settled promise.
+
+CryptoKey attributes expose cached metadata views; private state governs
+usages, extractability and algorithms. Visible mutation or attribute shadowing
+does not grant authority. Unsupported key cloning rejects DataCloneError;
+import raw material separately in each Worker. Node crypto helper exports keep
+their existing behavior and webcrypto/subtle identity with global crypto.
+
+See the [contract and standard API gaps](development/stdlib-webcrypto.md),
+[embedded reference](../internal/apidocs/content/stdlib-crypto.md), and
+[unmodified jose validation](../examples/crypto/README.md). This correction is
+not in the installed v2.19.0 binaries and does not imply full Web Crypto or
+complete SDK compatibility.
+
 ## Web Storage
 
 Default Web APIs include `Storage` and a fresh `sessionStorage` for each

@@ -316,6 +316,18 @@ const messageChannel = new MessageChannel();
 if (!(messageChannel.port1 instanceof MessagePort)) throw new Error("MessagePort instance check");
 messageChannel.port1.postMessage({kind: "fixture"});
 const digest: Promise<ArrayBuffer> = crypto.subtle.digest("SHA-256", encoded);
+const webKey = await crypto.subtle.importKey("raw", new DataView(new ArrayBuffer(16)),
+  {name: "HMAC", hash: "SHA-256", length: 128}, false,
+  new Set<NOEStdlib.CryptoKeyUsage>(["verify"]));
+const hmacBits: number | undefined = webKey.algorithm.length;
+const verifiedMAC: Promise<boolean> = crypto.subtle.verify("hmac", webKey, encoded, encoded);
+// Cached metadata objects are mutable views, not the internal key policy.
+webKey.algorithm.name = "visible metadata";
+webKey.usages.push("sign");
+const derivedWebKey: Promise<NOEStdlib.CryptoKey> = crypto.subtle.deriveKey(
+  {name: "HKDF", hash: "SHA-256", salt: encoded, info: encoded}, webKey,
+  {name: "HMAC", hash: "SHA-256"}, false, ["sign"]);
+void [hmacBits, verifiedMAC, derivedWebKey];
 const compressed = new CompressionStream("gzip");
 const transformed = new TransformStream<Uint8Array, Uint8Array>({
   transform(chunk, controller) { controller.enqueue(chunk); },

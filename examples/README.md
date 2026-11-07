@@ -15,6 +15,7 @@
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |
 | [sqlite](sqlite/README.md) | Asynchronous SQLite queries, prepared statements, reserved transactions, and persistence | None |
 | [storage](storage/README.md) | Runtime-local sessionStorage and explicit-file localStorage (v2.19.0+) | No credentials |
+| [crypto](crypto/README.md) | Corrected Web Crypto key policies and unmodified jose JWT/JWS validation (unreleased source) | No credentials; SDK example needs pinned npm preparation |
 | [http](http/README.md) | Local Fetch/serve round trips, streamed uploads, JSON/binary downloads, HTTP servers, and HTTPS/WSS (v2.17.0+) | Local examples need no service; HTTPS requires a certificate/key pair |
 | [process](process/README.md) | 常駐子プロセス、JSONL通信、パイプライン | 不要 |
 | [mcp](mcp/README.md) | 公式SDKでExa MCPへ接続、ローカルHTTP/SSE往復 | ローカル例は不要、Exa例は外部接続 |

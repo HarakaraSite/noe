@@ -2,9 +2,6 @@ package stdlib
 
 import (
 	"crypto/rand"
-	"crypto/sha1"
-	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/base64"
 	"errors"
 	"io"
@@ -35,25 +32,19 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 	if random == nil {
 		random = rand.Reader
 	}
+	webcryptoNative, err := newWebCryptoNative(rt, loop, random)
+	if err != nil {
+		return nil, err
+	}
 	started := time.Now()
 
 	host := rt.NewObject()
 	if err := setAll(host, map[string]any{
+		"webcrypto": webcryptoNative,
 		"now": func() float64 {
 			return float64(time.Since(started).Nanoseconds()) / 1e6
 		},
 		"timeOrigin": float64(started.UnixNano()) / 1e6,
-		"randomBytes": func(r *quickjs.Runtime, n float64) (quickjs.Value, error) {
-			if n < 0 || n > 65536 {
-				return quickjs.Value{}, rt.Throw(rt.NewError("QuotaExceededError",
-					"getRandomValues may not be asked for more than 65536 bytes"))
-			}
-			b := make([]byte, int(n))
-			if _, err := io.ReadFull(random, b); err != nil {
-				return quickjs.Value{}, err
-			}
-			return r.NewBytes(b), nil
-		},
 		"btoa": func(s string) (string, error) {
 			// btoa works on bytes, spelled as a string of code units below 256.
 			b := make([]byte, 0, len(s))
@@ -76,18 +67,6 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 				out[i] = rune(c)
 			}
 			return string(out), nil
-		},
-		"digest": func(r *quickjs.Runtime, name string, data quickjs.Value) (quickjs.Value, error) {
-			b, ok := data.Bytes()
-			if !ok {
-				return quickjs.Value{}, rt.Throw(rt.NewError("TypeError",
-					"the data must be a typed array or an ArrayBuffer"))
-			}
-			sum, err := digest(name, b)
-			if err != nil {
-				return quickjs.Value{}, err
-			}
-			return r.NewBytes(sum), nil
 		},
 	}); err != nil {
 		return nil, err
@@ -118,6 +97,9 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 			return nil, err
 		}
 	}
+	if err := installWebCrypto(rt, webcryptoNative); err != nil {
+		return nil, err
+	}
 	return m, nil
 }
 
@@ -140,25 +122,6 @@ func decodeBase64Loosely(s string) ([]byte, error) {
 		return nil, errors.New("the string is not correctly encoded")
 	}
 	return b, nil
-}
-
-// digest is the one-shot hash behind crypto.subtle.digest.
-func digest(name string, data []byte) ([]byte, error) {
-	switch name {
-	case "SHA-1":
-		sum := sha1.Sum(data)
-		return sum[:], nil
-	case "SHA-256":
-		sum := sha256.Sum256(data)
-		return sum[:], nil
-	case "SHA-384":
-		sum := sha512.Sum384(data)
-		return sum[:], nil
-	case "SHA-512":
-		sum := sha512.Sum512(data)
-		return sum[:], nil
-	}
-	return nil, errors.New("unsupported digest algorithm: " + name)
 }
 
 // webAPIsJS is everything above that is better said in script: the interfaces,
@@ -1687,18 +1650,61 @@ const webAPIsJS = `(function (host) {
     mark() {}, measure() {}, clearMarks() {}, clearMeasures() {},
   };
 
+  const isView = ArrayBuffer.isView;
+  const reflectApply = Reflect.apply;
+  const objectGetPrototypeOf = Object.getPrototypeOf;
+  const objectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  const typedArrayPrototype = objectGetPrototypeOf(Uint8Array.prototype);
+  const typedArrayTagGetter = objectGetOwnPropertyDescriptor(
+    typedArrayPrototype, Symbol.toStringTag).get;
+  const typedArrayBufferGetter = objectGetOwnPropertyDescriptor(
+    typedArrayPrototype, "buffer").get;
+  const typedArrayOffsetGetter = objectGetOwnPropertyDescriptor(
+    typedArrayPrototype, "byteOffset").get;
+  const typedArrayLengthGetter = objectGetOwnPropertyDescriptor(
+    typedArrayPrototype, "byteLength").get;
+  const typedArraySet = Uint8Array.prototype.set;
+  const integerArrayNames = new Set([
+    "Int8Array", "Uint8Array", "Uint8ClampedArray", "Int16Array",
+    "Uint16Array", "Int32Array", "Uint32Array", "BigInt64Array",
+    "BigUint64Array",
+  ]);
+  const setHas = Set.prototype.has;
+
   const crypto = {
     getRandomValues(view) {
-      if (!ArrayBuffer.isView(view) || view instanceof DataView ||
-          view instanceof Float32Array || view instanceof Float64Array) {
-        throw new TypeError("an integer typed array is required");
+      let viewName;
+      if (isView(view)) {
+        try { viewName = reflectApply(typedArrayTagGetter, view, []); }
+        catch (_) { viewName = undefined; }
       }
-      const bytes = host.randomBytes(view.byteLength);
-      new Uint8Array(view.buffer, view.byteOffset, view.byteLength).set(bytes);
+      if (viewName === undefined || !reflectApply(setHas, integerArrayNames, [viewName])) {
+        throw new DOMException("An integer typed array is required", "TypeMismatchError");
+      }
+      let buffer, offset, length;
+      try {
+        buffer = reflectApply(typedArrayBufferGetter, view, []);
+        offset = reflectApply(typedArrayOffsetGetter, view, []);
+        length = reflectApply(typedArrayLengthGetter, view, []);
+      } catch (_) {
+        throw new DOMException("An integer typed array is required", "TypeMismatchError");
+      }
+      const byteLength = length;
+      if (byteLength > 65536) {
+        throw new DOMException("getRandomValues may not be asked for more than 65536 bytes",
+          "QuotaExceededError");
+      }
+      // Constructing this view detects a detached buffer, including a
+      // detached zero-length view. Shared backing is allowed for this API.
+      let target;
+      try { target = new Uint8Array(buffer, offset, byteLength); }
+      catch (_) { throw new TypeError("The array buffer is detached"); }
+      const bytes = host.webcrypto.random(byteLength);
+      reflectApply(typedArraySet, target, [bytes]);
       return view;
     },
     randomUUID() {
-      const b = host.randomBytes(16);
+      const b = host.webcrypto.random(16);
       b[6] = (b[6] & 0x0f) | 0x40;
       b[8] = (b[8] & 0x3f) | 0x80;
       const hex = [];
@@ -1707,17 +1713,7 @@ const webAPIsJS = `(function (host) {
       return s.slice(0, 8) + "-" + s.slice(8, 12) + "-" + s.slice(12, 16) + "-" +
              s.slice(16, 20) + "-" + s.slice(20);
     },
-    subtle: {
-      digest(algorithm, data) {
-        const name = typeof algorithm === "string" ? algorithm : algorithm && algorithm.name;
-        return new Promise((resolve, reject) => {
-          try {
-            const view = ArrayBuffer.isView(data) ? data : new Uint8Array(data);
-            resolve(host.digest(String(name).toUpperCase(), view).buffer);
-          } catch (e) { reject(e); }
-        });
-      },
-    },
+    subtle: {},
   };
   // Both clone as the empty objects they are in Node.
   host.cloneAs(performance, "opaque");

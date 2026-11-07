@@ -48,6 +48,11 @@ and [Go embedding contract](docs/go-embedding.md#web-storage).
 Go consumers using unkeyed `Modules` literals must move to named fields.
 Raw TLS/UDP sockets and HTTPS/WSS remain available from the preceding releases.
 
+Current unreleased source corrects existing Web Crypto key usage,
+extractability, BufferSource, and error contracts. See the
+[standard API gaps and validation](docs/development/stdlib-webcrypto.md) and
+[unmodified jose example](examples/crypto/README.md).
+
 When upgrading from v2.15.0 or earlier, also read the
 [v2.16.0 migration guide](docs/releases/v2.16.0-migration.md) for removed
 filesystem/process/HTTP imports, standard I/O, and lifecycle changes.

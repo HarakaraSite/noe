@@ -35,8 +35,11 @@ and import-map prefixes/scopes (`fd8702b`), and WebSocket handshake headers
 and [header](stdlib-websocket-headers.md) implementation records. The HTTP
 raw-body policy includes the approved MIME/UTF-8/BOM behavior changes.
 
-The user chose to defer Web Crypto (phase 8) until concrete SDK requirements
-justify an algorithm/key-format addition. EventSource is implemented locally
+The user chose to defer Web Crypto algorithm/key-format expansion (phase 8)
+until concrete SDK requirements justify an addition. After v2.19.0, the user
+approved correcting the already implemented Web Crypto contracts, inventorying
+remaining standard API gaps, and validating an unpatched real SDK. See the
+[Web Crypto correction and evidence](stdlib-webcrypto.md). EventSource is implemented locally
 after the header work, while WebSocketStream remains use-case driven.
 The v2.14.0 consumer rollout is covered by the
 [noebot migration instructions](noebot-v2.14.0-migration.md).
