@@ -1,7 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after the local Web Crypto correction, gap inventory, and
-SDK validation following verified v2.19.0 publication/installation. Release
+Updated 2026-11-07 after the local Web Crypto correction, gap inventory,
+SDK validation, independent review, and deriveKey error-order fix following
+verified v2.19.0 publication/installation. Release
 requests include local installation by default.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
@@ -92,19 +93,29 @@ See the [contract, gaps and results](stdlib-webcrypto.md).
   6.2.15 SDK is unmodified: HS256/384/512 JWT/JWS, claim/signature rejection,
   main/Worker execution, and two-way Node interoperability pass. SDK happy paths
   also passed old v2.19.0, so SDK success alone is not conformance evidence.
-- The independent reviewer was stopped by automatic screening (possible
-  cybersecurity risk). It did not complete review; parent source/contract and
-  regression verification is complete. Do not claim an independent full audit.
+- The initial reviewer stopped during automatic screening. A subsequent
+  user-requested pi review of `6c8a23d` completed with `opencode-go/glm-5.3`
+  and thinking `max`. The parent rejected two recalled-specification claims
+  using primary text and runtime probes, and accepted one low-severity
+  deriveKey error-precedence issue. Reports and dispositions are at
+  `/var/tmp/noe-webcrypto-pi-review-dodw0o1o`.
+- The follow-up checks base-key algorithm/deriveKey usage before the target
+  get-key-length operation. The baseline-failing regression covers missing
+  usage and algorithm mismatch, while a permitted key retains TypeError for
+  zero HMAC target length. Focused Web Crypto/legacy subtle tests, lint, native
+  build and CLI review cases pass; no independent fix re-review is claimed.
 - Remaining gaps are explicit: key generation; JWK/SPKI/PKCS8 formats;
   encryption/wrapping/public-key algorithms; complete Crypto/SubtleCrypto IDL
   shape; CryptoKey structured cloning. Actual SDK probes confirm generation,
   CryptoKey JWK export, and AES-GCM JWE gaps. Do not treat this as complete jose
   or Web Crypto support.
 
-Evidence: `/var/tmp/noe-webcrypto-46m8xyzx`. The final source candidate is
-`/var/tmp/noe-webcrypto-46m8xyzx/noe`; installed executables remain the published
-v2.19.0 asset. No release, push, installation, other-host/noebot change, real
-login or paid provider request is authorized by this implementation task.
+Original evidence: `/var/tmp/noe-webcrypto-46m8xyzx`. Error-order follow-up
+evidence and the current development candidate are at
+`/var/tmp/noe-webcrypto-derivekey-qgsnbji4` (`noe` executable); installed
+executables remain the published v2.19.0 asset. No release, push, installation,
+other-host/noebot change, real login or paid provider request is authorized by
+this implementation task.
 Reuse results for unchanged code/dependencies. After a release request, publish
 and install together under the standing rule.
 

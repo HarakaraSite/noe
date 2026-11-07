@@ -259,6 +259,23 @@ await rejects("InvalidAccessError", () => subtle.sign("HMAC", key, encoder.encod
 `)
 }
 
+func TestWebCryptoDeriveKeyChecksAccessBeforeTargetLength(t *testing.T) {
+	executeWebCrypto(t, stdlib.Profile{}, `
+const material = encoder.encode("password");
+const params = {name: "PBKDF2", salt: encoder.encode("salt"), iterations: 1, hash: "SHA-256"};
+const target = {name: "HMAC", hash: "SHA-256", length: 0};
+const bitsOnly = await subtle.importKey("raw", material, "PBKDF2", false, ["deriveBits"]);
+const wrongAlgorithm = await subtle.importKey("raw", material, "HKDF", false, ["deriveKey"]);
+for (const [key, label] of [[bitsOnly, "missing deriveKey usage"], [wrongAlgorithm, "mismatched base algorithm"]]) {
+  await rejects("InvalidAccessError", () => subtle.deriveKey(params, key, target, false, ["sign"]),
+    label + " is checked before the target key length");
+}
+const permitted = await subtle.importKey("raw", material, "PBKDF2", false, ["deriveKey"]);
+await rejects("TypeError", () => subtle.deriveKey(params, permitted, target, false, ["sign"]),
+  "zero HMAC target length is still rejected after access checks pass");
+`)
+}
+
 func TestWebCryptoDerivationVectorsAndConstraints(t *testing.T) {
 	executeWebCrypto(t, stdlib.Profile{}, `
 const password = encoder.encode("password");

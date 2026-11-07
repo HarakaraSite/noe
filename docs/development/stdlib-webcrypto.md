@@ -52,7 +52,9 @@ override those procedures.
 - `deriveKey` checks deriveKey permission and performs its internal derivation
   without additionally requiring deriveBits permission. HMAC's default length
   is the selected hash's block size. Apply the supported algorithm's import
-  rules to the resulting bytes and preserve extractability/usages.
+  rules to the resulting bytes and preserve extractability/usages. Check the
+  base-key algorithm and usage before performing the target get-key-length
+  operation, as specified by deriveKey steps 12-14.
 - getRandomValues accepts the standard integer typed arrays, including BigInt
   views; its 65,536-byte limit and invalid-view errors are DOMExceptions with
   the standard names. Keep randomUUID's existing v4 behavior. No arbitrary new
@@ -145,6 +147,26 @@ screening reported possible cybersecurity risk. It did not complete a review
 or re-review. The parent completed source/contract checks and the regressions;
 the result must not be described as an independently reviewed full API audit.
 
+A subsequent user-requested independent source review completed with pi,
+`opencode-go/glm-5.3`, thinking `max`, against commit `6c8a23d`. The report and
+parent dispositions are in `/var/tmp/noe-webcrypto-pi-review-dodw0o1o`.
+Primary-specification checks and small runtime probes rejected the report's
+HMAC import-length and fractional EnforceRange claims. One low-severity
+deriveKey error-precedence finding was accepted: a base key without deriveKey
+authority and an HMAC target length of zero must reject InvalidAccessError
+before the target get-key-length operation can reject TypeError.
+
+The follow-up moves that operation after the base-key algorithm/usage check.
+Its public regression fails before the fix and passes afterwards, covering
+both missing usage and a mismatched base-key algorithm; a permitted base key
+still rejects TypeError for zero target length. Focused public/native Web
+Crypto and legacy subtle tests, lint, a native build, and the nine-case CLI
+review fixture pass. Eight fixture results remain unchanged; only the
+accepted finding's error changes. Evidence and the current development
+candidate are in `/var/tmp/noe-webcrypto-derivekey-qgsnbji4`. The parent
+verified this narrow fix; no independent fix re-review is claimed. Earlier
+race/type/consumer/SDK results are reused for their unchanged paths.
+
 `scripts/check-webcrypto-sdk.py` validates the unmodified jose 6.2.15 Web API
 ESM distribution. Its final report is
 `/var/tmp/noe-webcrypto-46m8xyzx/sdk-validation-final/summary.json`: 46 SDK files
@@ -165,4 +187,6 @@ work. A future small expansion can use these confirmed SDK requirements.
 Verification is native Linux amd64 with the existing pinned engine and Go
 dependencies. No new six-target build, full network E2E, release, push, or
 installation is claimed. Installed binaries remain v2.19.0; the development
-candidate is `/var/tmp/noe-webcrypto-46m8xyzx/noe`.
+candidate after the error-precedence fix is
+`/var/tmp/noe-webcrypto-derivekey-qgsnbji4/noe`; the earlier candidate remains
+at `/var/tmp/noe-webcrypto-46m8xyzx/noe`.

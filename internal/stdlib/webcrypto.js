@@ -530,10 +530,10 @@
       const keyUsages = snapshotUsages(usages);
       const normalized = normalizeAlgorithm(algorithm, "deriveBits");
       const derived = normalizeAlgorithm(derivedKeyType, "importKey");
-      const bits = keyLengthFor(derived);
       if (state.name !== normalized.name || !hasUsage(state, "deriveKey")) {
         throw domException("InvalidAccessError", "The CryptoKey cannot be used to derive a key");
       }
+      const bits = keyLengthFor(derived);
       if (bits === null) {
         throw domException("OperationError", "The target key algorithm has no fixed length");
       }
