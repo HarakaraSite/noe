@@ -104,6 +104,13 @@ logic or dependency changes are included in release preparation. Reuse the
 implementation evidence; CI only builds six assets/checksums and publishes.
 The installed binaries remain v2.18.0 until publication verification completes.
 
+Clean release candidate `885af1f` passes its CGO-disabled release build,
+version unit, embedded-doc catalog, and seven native Storage/version/example
+checks. Metadata is clean and retains the pinned engine/Intl/no-JIT settings.
+See the [preparation checkpoint](../releases/release-checkpoints.md#v2190-preparation--2026-11-07).
+Publish an immutable documentation-only successor, verify all downloaded
+assets and direct consumers, then install both authorized paths with backups.
+
 ## Published and installed v2.18.0
 
 - The user explicitly requested publication and local installation. Clean

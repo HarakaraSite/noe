@@ -3972,3 +3972,39 @@ Release evidence, assets, metadata, native smoke, source manifests and public
 consumers are at `/var/tmp/noe-v2.18.0-release-ur4u1vbf`. This documentation-only
 follow-up preserves the immutable tag. No running service was restarted,
 noebot was not changed, and no paid provider or login request was made.
+
+## v2.19.0 preparation — 2026-11-07
+
+The user explicitly authorized publishing Storage implementation `dfa497e`
+and installing its verified asset at both existing vm201 executable paths,
+with backups and post-install version/Storage checks. Other hosts, service
+restarts, and noebot changes are excluded.
+
+Implementation evidence is `/var/tmp/noe-web-storage-bvqxqjs1`: affected unit
+packages, focused storage/profile/CLI race, actual CLI process/Worker/example
+E2E, declarations, docs, vet/lint, and external checkout/module-artifact Go
+consumers pass. The review's inherited descriptor getter deadlock is fixed;
+the regression fails against the earlier artifact, passes on current source,
+and one fix-only re-review confirms resolution. Reuse these results.
+
+All 309 implementation runtime/dependency/reference paths match except the
+exact CLI version update and availability wording in three embedded reference
+pages. Runtime logic, dependencies, release profile, and workflow are unchanged.
+No full source/E2E/race or consumer cross-build suite was rerun for release.
+
+Clean candidate revision: `885af1f3df33bdf9c20fc43cd969dc05506cffc7`.
+The CGO-disabled release-flags candidate, configured-version unit test, and
+changed embedded-doc catalog pass. Metadata confirms this revision,
+vcs.modified=false, Linux amd64, Go 1.27.2, official go-quickjs v0.32.0 /
+go-intl v0.8.0, and no JIT. Seven native checks pass: v2.19.0 version, default
+sessionStorage, explicit-file writes/prototype-hook regression, fresh-process
+persistence with Worker sharing/session isolation, two real example counter
+runs, and bundled Storage reference. All exits are zero with empty stderr.
+
+Candidate: `/var/tmp/noe-v2.19.0-release-pmyv5yje/candidate`, SHA256
+`38b896a6e5992bb7a15bcebe6f877ea50d59eff7a3d68f7486468a9f90ddcf15`.
+This directory retains source continuity, smoke, metadata, and publication /
+installation helpers. Tag a documentation-only successor of this candidate;
+CI builds six assets and SHA256SUMS without repeating local source tests.
+Verify downloaded assets, metadata, native smoke and direct published Go
+consumers before installing at both authorized paths.
