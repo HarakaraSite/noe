@@ -110,6 +110,10 @@ gates the handshake response until Eval returns. Its focused race recheck
 passes; no socket production code changed for this correction. The initial
 failure and all successful results are retained in the evidence directory.
 
-The fresh CLI candidate is `/var/tmp/noe-https-vm9c6p5e/noe`. Installed
-executables still contain published v2.16.0 and do not implement these new
-listener options. Publication and installation remain separate steps.
+The implementation CLI candidate is `/var/tmp/noe-https-vm9c6p5e/noe`.
+v2.17.0 is now published, with the release-flags candidate, downloaded assets,
+trusted HTTPS/WSS native smoke, and direct public Go consumer evidence at
+`/var/tmp/noe-v2.17.0-release-yk3xb7im`. See the
+[publication checkpoint](../releases/release-checkpoints.md#v2170-publication--2026-11-07).
+Installed executables still contain v2.16.0 and do not implement these new
+listener options. Installation remains a separate step.

@@ -3777,3 +3777,51 @@ the verified v2.16.0 asset. On an explicit publication instruction, tag the
 documentation-only successor without changing validated source; CI builds
 the six binaries and checksums. Downloaded assets, metadata, focused native
 smoke, and direct published-module consumers are post-publication checks.
+
+## v2.17.0 publication — 2026-11-07
+
+- Annotated tag `v2.17.0` points to
+  `438f0bf119a8f1989ccd41679ee42d6f9773db1a`, matching the peeled remote tag
+  and CI source. Its tag object is `2a82d8a7f03805dad767a53c3a94abb22add155c`.
+  Only documentation differs from the clean candidate `e7d8f5e`; all 17
+  validated changed source/declaration paths remain identical.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/56)
+  succeeded (API run ID 237, job 258), building all six targets and publishing
+  assets/checksums without repeating local source suites.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.17.0)
+  is published, neither draft nor prerelease (Release ID 170). Its body
+  matches the tagged English release notes.
+
+All seven assets were downloaded. All six binary hashes match SHA256SUMS.
+Build metadata confirms the tag revision, expected OS/architecture,
+CGO_ENABLED=0, go-quickjs v0.32.0 and checksum, go-intl v0.8.0,
+fsnotify v1.10.1, SQLite driver v0.36.0/translated SQLite v6.4.35401, and no
+quickjs_jit tag. The Linux amd64 SHA256 is
+`82873c67be492a9adf977c88ef141451a4206718cfac0fc43d65ef093ae7f483`;
+it reports `vcs.modified=false`. The other five artifacts retain the previously
+recorded generated-dist/ `vcs.modified=true` limitation; revision, settings,
+dependencies, and checksums match.
+
+The downloaded Linux amd64 binary passes the candidate's four native checks:
+version (`noe v2.17.0`), arithmetic, HTTPS validation/redaction, and bundled
+Serve documentation, each with exit zero and empty stderr. Additional native
+smoke runs the HTTPS/WSS example with an ephemeral certificate and explicit
+client trust: health/JSON requests, HTTP/1.1 ALPN despite an HTTP/2 offer, WSS
+text/binary echo, and a normal close exchange pass. Interrupting the CLI gives
+the expected status 1/cancellation diagnostic and releases its listener port.
+Native execution on other targets was not performed.
+
+Clean external modules fetch stdlib@v2.17.0 and agent@v2.17.0 with direct
+module resolution, without replacements or a synthetic proxy. Both pass
+go mod verify; the stdlib HTTPS/WSS consumer and portable/Go-host agent modes
+run successfully. Engine/Intl versions and disabled-JIT VM files match the
+release. All 17 changed Go/JS/TypeScript source paths match the tag in both
+downloaded modules. The initial manifest omitted two TypeScript fixture paths;
+the helper now includes them, and the final 17-path comparison passes while
+reusing the successful execution results.
+
+Evidence, assets, build metadata, source manifests, smoke records, public
+consumers, and helpers are at `/var/tmp/noe-v2.17.0-release-yk3xb7im`.
+Both installed binaries retain the verified v2.16.0 SHA256 and were not
+replaced. This documentation-only publication record does not move the tag.
+No service restart, noebot change, or paid provider/login request was performed.
