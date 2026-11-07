@@ -40,7 +40,11 @@ func lowerConfig(profile Profile, env Environment, backend *filesystem.Backend, 
 	}
 	var serve *lower.Serve
 	if modules.Serve != nil {
-		serve = &lower.Serve{Loop: loop, Allow: modules.Serve.Allow, MaxBodyBytes: modules.Serve.MaxBodyBytes, ReadTimeout: modules.Serve.ReadTimeout, IdleTimeout: modules.Serve.IdleTimeout}
+		var tlsConfig *tls.Config
+		if modules.Serve.TLS != nil {
+			tlsConfig = modules.Serve.TLS.Clone()
+		}
+		serve = &lower.Serve{Loop: loop, Allow: modules.Serve.Allow, TLS: tlsConfig, MaxBodyBytes: modules.Serve.MaxBodyBytes, ReadTimeout: modules.Serve.ReadTimeout, IdleTimeout: modules.Serve.IdleTimeout}
 		cfg.Serve = serve
 	}
 	if modules.WebSockets != nil {

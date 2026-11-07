@@ -20,6 +20,7 @@ func TestWebSocketQueuedOpeningAfterClose(t *testing.T) {
 	for _, closeScope := range []bool{false, true} {
 		t.Run(fmt.Sprintf("scope-close=%v", closeScope), func(t *testing.T) {
 			peerClosed := make(chan struct{})
+			deliverHandshake := make(chan struct{})
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, rw, err := w.(http.Hijacker).Hijack()
 				if err != nil {
@@ -28,6 +29,7 @@ func TestWebSocketQueuedOpeningAfterClose(t *testing.T) {
 				}
 				defer conn.Close()
 				defer close(peerClosed)
+				<-deliverHandshake
 				_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
 				fmt.Fprintf(rw, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", wsproto.Accept(r.Header.Get("Sec-WebSocket-Key")))
 				rw.Write([]byte{0x81, 2, 'o', 'k', 0x88, 2, 3, 232})
@@ -52,12 +54,16 @@ func TestWebSocketQueuedOpeningAfterClose(t *testing.T) {
 			}}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := rt.Eval(fmt.Sprintf(`
+			_, err = rt.Eval(fmt.Sprintf(`
 				globalThis.events = [];
 				globalThis.socket = new WebSocket(%q);
 				for (const name of ["open", "message", "error", "close"])
 				  socket.addEventListener(name, () => events.push(name));
-			`, "ws"+strings.TrimPrefix(server.URL, "http"))); err != nil {
+			`, "ws"+strings.TrimPrefix(server.URL, "http")))
+			// Eval drains ready host jobs before returning. Keep the handshake
+			// pending until then so it cannot attach and start socket workers.
+			close(deliverHandshake)
+			if err != nil {
 				t.Fatal(err)
 			}
 			// Only the opening goroutine is admitted so far. Waiting for it

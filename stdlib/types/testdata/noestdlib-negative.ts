@@ -23,7 +23,7 @@ import {open as openSQLite} from "noe:sqlite";
 // @ts-expect-error NOE does not declare Node's built-in SQLite module.
 import {DatabaseSync} from "node:sqlite";
 import * as sqliteModule from "noe:sqlite";
-import {createWebSocket} from "noe:http";
+import {createWebSocket, serve as noeServe} from "noe:http";
 
 // HTTP helpers use noe:http; node:http and its bare alias are removed.
 // @ts-expect-error NOE does not declare node:http.
@@ -35,6 +35,12 @@ import {fetch as legacyNoeFetch} from "noe:http";
 import * as noeHTTP from "noe:http";
 // @ts-expect-error noe:http has no default export.
 const noeHTTPDefault = noeHTTP.default;
+
+// HTTPS listener credentials are PEM text strings.
+// @ts-expect-error cert must be a string containing PEM text.
+noeServe({cert: new Uint8Array()}, request => new Response(request.url));
+// @ts-expect-error key must be a string containing PEM text.
+noeServe({key: 42}, request => new Response(request.url));
 
 // Filesystem imports have moved to one NOE-owned module.
 // @ts-expect-error NOE no longer declares node:fs.

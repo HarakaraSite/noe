@@ -231,6 +231,16 @@ async function asyncDisposableHTTPServer(): Promise<void> {
 }
 const serveOptions: ServeOptions = {hostname: "127.0.0.1", port: 0};
 const handler: FetchHandler = request => Response.json({url: request.url});
+const certificateText: string = await readFile("server-cert.pem", "utf8");
+const privateKeyText: string = await readFile("server-key.pem", "utf8");
+const httpsServeOptions: ServeOptions = {
+  hostname: "127.0.0.1",
+  port: 8443,
+  cert: certificateText,
+  key: privateKeyText,
+};
+const httpsServer: HTTPServer = noeServe(httpsServeOptions, handler);
+const httpsServerURL: string = httpsServer.url;
 const upgradeOptions: HTTPUpgradeOptions = {protocol: "chat.v1"};
 const upgrade: WebSocketUpgrade = upgradeWebSocket(new Request("http://example.test/ws"), upgradeOptions);
 const upgradedSocket: WebSocket = upgrade.socket;
@@ -296,7 +306,7 @@ void [assertAlias, asyncHooksAlias, bufferAlias, cryptoAlias, dnsAlias, dnsPromi
   docsText, ownedStatus, fetched, noeServer, noeServerClose, repeatedNoeServerClose,
   typedServer, noeServerAsyncDispose, asyncDisposableHTTPServer, upgrade, upgradedSocket,
   customSocket, directSocket,
-  serveOptions, handler,
+  serveOptions, httpsServer, httpsServerURL, handler,
   namespaceInput, namespaceOutput, namespaceError, processInputProperty, processOutputProperty,
   processErrorProperty, namedProcessMatchesGlobal, typedProcessInfo, defaultNamespaceProcessMatchesNamed,
   defaultSpawn, defaultCommandSync, synchronousFileCommand, synchronousShellCommand,

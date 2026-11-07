@@ -99,6 +99,10 @@ type FetchOptions struct {
 
 type ServeOptions struct {
 	Allow func(address string) error
+	// TLS selects HTTPS with host-owned certificates and TLS policy. Nil
+	// allows plain HTTP or a JavaScript cert/key PEM pair. Host TLS cannot
+	// be overridden by JavaScript. HTTP/1.1 is the supported ALPN protocol.
+	TLS *tls.Config
 	// MaxBodyBytes rejects oversized request bodies on read. Zero selects
 	// 32 MiB; a negative value disables the bound.
 	MaxBodyBytes int64
@@ -195,6 +199,9 @@ func cloneProfile(profile Profile) Profile {
 	}
 	if profile.Modules.Serve != nil {
 		v := *profile.Modules.Serve
+		if v.TLS != nil {
+			v.TLS = v.TLS.Clone()
+		}
 		profile.Modules.Serve = &v
 	}
 	if profile.Modules.WebSockets != nil {

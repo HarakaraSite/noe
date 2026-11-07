@@ -235,6 +235,9 @@ func cloneConfig(cfg stdlib.Config) stdlib.Config {
 	}
 	if cfg.Serve != nil {
 		copy := *cfg.Serve
+		if copy.TLS != nil {
+			copy.TLS = copy.TLS.Clone()
+		}
 		cfg.Serve = &copy
 	}
 	if cfg.Sockets != nil {
@@ -246,6 +249,9 @@ func cloneConfig(cfg stdlib.Config) stdlib.Config {
 				copy.Serve = cfg.Serve
 			default:
 				serveCopy := *socketServe
+				if serveCopy.TLS != nil {
+					serveCopy.TLS = serveCopy.TLS.Clone()
+				}
 				copy.Serve = &serveCopy
 			}
 		}

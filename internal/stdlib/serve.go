@@ -3,6 +3,7 @@ package stdlib
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -26,6 +27,9 @@ type Serve struct {
 	// Allow is asked before a listener is opened, with the address it would
 	// listen on. Nil refuses everything, which is what a zero value means.
 	Allow func(address string) error
+	// TLS selects host-configured HTTPS. JavaScript PEM options are only
+	// accepted when this is nil; listeners clone and use HTTP/1.1 ALPN.
+	TLS *tls.Config
 	// MaxBodyBytes rejects oversized request bodies when they are read.
 	// Zero means 32 MiB; a negative value disables the bound.
 	MaxBodyBytes int64
@@ -148,6 +152,10 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 		}
 	}
 	address := net.JoinHostPort(hostname, fmt.Sprint(port))
+	tlsConfig, err := s.listenerTLS(opts)
+	if err != nil {
+		return quickjs.Value{}, err
+	}
 	if s.cfg.Allow == nil {
 		return quickjs.Value{}, s.rt.Throw(s.rt.NewError("Error",
 			"listening is not allowed"))
@@ -159,6 +167,11 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return quickjs.Value{}, err
+	}
+	scheme := "http"
+	if tlsConfig != nil {
+		listener = tls.NewListener(listener, tlsConfig)
+		scheme = "https"
 	}
 
 	limit := s.cfg.MaxBodyBytes
@@ -193,6 +206,11 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 			defer lifetime.leave()
 			s.serveRequest(w, r, dispatch, limit)
 		}),
+	}
+	if tlsConfig != nil {
+		srv.TLSConfig = tlsConfig
+		srv.Protocols = new(http.Protocols)
+		srv.Protocols.SetHTTP1(true)
 	}
 
 	force := func() {
@@ -271,7 +289,7 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 	if err := errors.Join(
 		out.Set("port", addr.Port),
 		out.Set("hostname", addr.IP.String()),
-		out.Set("url", fmt.Sprintf("http://%s", net.JoinHostPort(addr.IP.String(), fmt.Sprint(addr.Port)))),
+		out.Set("url", fmt.Sprintf("%s://%s", scheme, net.JoinHostPort(addr.IP.String(), fmt.Sprint(addr.Port)))),
 		out.Set("close", scriptClose),
 	); err != nil {
 		force()

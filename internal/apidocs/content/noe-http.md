@@ -20,7 +20,11 @@ Public-definition source: internal/stdlib/http.go publishes the selected helpers
 import { serve } from "noe:http";
 ```
 
-`serve(options, handler) -> server`, `serve(handler) -> server`, or `serve({ ...options, fetch: handler }) -> server`. Options include hostname (default `127.0.0.1`), port (default `0`, an OS-assigned port), and `onError`. The handler receives a Web `Request` and must return a `Response`, synchronously or through a promise. The server handle has `hostname`, `port`, `url`, and `close() -> Promise<void>`. This is an HTTP listener; there is no TLS-listener option.
+`serve(options, handler) -> server`, `serve(handler) -> server`, or `serve({ ...options, fetch: handler }) -> server`. Options include hostname (default `127.0.0.1`), port (default `0`, an OS-assigned port), `onError`, and optional PEM-text `cert` and `key`. The handler receives a Web `Request` and must return a `Response`, synchronously or through a promise. The server handle has `hostname`, `port`, `url`, and `close() -> Promise<void>`.
+
+When JavaScript supplies TLS credentials, both `cert` and `key` must be nonempty strings containing PEM text; `cert` may contain a concatenated certificate chain. Supplying only one, a null or non-string value, malformed PEM, or a certificate/key mismatch throws `TypeError` synchronously before bind authorization or opening a listener. The error does not include certificate or private-key text. These are PEM values, not paths: read files explicitly with `noe:fs`, subject to its Root, Cwd, and ReadOnly authority. Providing inline TLS credentials does not grant filesystem, Fetch, or WebSocket access.
+
+If neither JavaScript option is present, the listener uses HTTP unless the embedding Go host configured TLS on `stdlib.ServeOptions.TLS`. A host TLS configuration selects HTTPS for every listener under that Serve selection and must provide `Certificates`, `GetCertificate`, or `GetConfigForClient`. JavaScript `cert`/`key` options conflict with host TLS and throw `TypeError`; they do not override or merge with its policy. Server URLs use `https://` for TLS and `http://` otherwise, and incoming HTTPS requests have HTTPS URLs. This slice serves TLS over HTTP/1.1, preserving the existing WebSocket upgrade transport.
 
 ```js
 import { serve } from "noe:http";
@@ -35,6 +39,23 @@ try {
 }
 ```
 
+For a TLS listener, read PEM files explicitly and pass their text:
+
+```js
+import { readFile } from "noe:fs";
+import { serve } from "noe:http";
+
+const server = serve({
+  hostname: "127.0.0.1",
+  port: 8443,
+  cert: await readFile("server-cert.pem", "utf8"),
+  key: await readFile("server-key.pem", "utf8"),
+}, request => Response.json({url: request.url}));
+console.log(server.url); // https://127.0.0.1:8443
+```
+
+See the [HTTPS and WSS listener contract](../../../docs/development/stdlib-https.md) for the host TLS configuration and the full validation rules.
+
 The listener keeps the run alive until `close()` or runtime shutdown. A handler starts after request headers arrive, without waiting for body EOF. GET and HEAD requests have no JavaScript body. For other requests, `request.body` is `null` when the HTTP server can determine that no body is present; otherwise it is a `ReadableStream`, including when an unknown-length body later ends without bytes. The stream yields `Uint8Array` values. Its source has a high-water mark of zero and performs at most one bounded native read for each pull, so the NOE bridge does not read ahead while JavaScript has no read demand. HTTP transport, operating-system, and peer buffers are outside that bound, and stream cloning or teeing may queue data in the Web Streams layer.
 
 The default receive cap is 32 MiB. In Go `Serve` configuration, `MaxBodyBytes: 0` selects that default, a positive value sets the limit, and a negative value disables it so the body can be unlimited. The cap is a host setting, not a JavaScript option. Reads at the limit probe for EOF: a body exactly at the limit succeeds, while an additional byte causes a `RangeError` with code `ERR_HTTP_BODY_TOO_LARGE`. Incremental reads may yield the permitted prefix before a later read reports overflow; body collectors such as `text()`, `json()`, `arrayBuffer()`, and `bytes()` reject if the body exceeds the limit. The server does not rewrite the received `Content-Length` header.
@@ -47,15 +68,15 @@ The incoming body remains available while a returned Response stream is being se
 
 For accepted `Expect: 100-continue` requests, the server sends the interim `100 Continue` before it reads body bytes. When the handler returns a streaming Response, NOE waits for the final response headers to flush before its response pump asks that stream for a chunk. This lets a zero-high-water-mark producer such as `new Response(request.body)` avoid starting a native read before the flush. The gate controls demand from NOE's response pump only: it cannot prevent a producer's `start()`, its own early pull (including the default high-water mark), or a separate body reader started by the handler. If one of those reads waits for input that the client itself delays, final-response progress is not guaranteed until that read settles. A pending body read cancelled by the handler is released before the final headers are flushed. This protocol does not promise general full-duplex HTTP; standard `fetch()` still stops an unfinished upload when final response headers arrive.
 
-The default read-header timeout is 30 seconds and idle timeout is 60 seconds. These host settings are not additional JavaScript options. `server.close()` immediately stops admitting new handlers and returns the same promise on repeated calls. It waits asynchronously for active HTTP handlers without blocking JavaScript, allows up to five seconds for graceful completion, force-closes remaining HTTP connections, then resolves after cleanup. `server[Symbol.asyncDispose]()` delegates to `close()`, so `await using server = serve(handler)` is supported. Await `close()` when completion matters. A handler may call `close()` and return its response, but must not await its own close promise; await that promise outside the handler after it returns. Runtime shutdown, execution timeout, cancellation, and Worker termination retain an independent force-close path that does not wait for graceful close. Handler errors or invalid return values produce a 500 response. An optional `onError(error)` may supply a Response.
+The default read-header timeout is 30 seconds and idle timeout is 60 seconds. These host settings are not additional JavaScript options. `server.close()` immediately stops admitting new handlers and returns the same promise on repeated calls. It waits asynchronously for active HTTP/HTTPS handlers without blocking JavaScript, allows up to five seconds for graceful completion, force-closes remaining HTTP/HTTPS connections, then resolves after cleanup. `server[Symbol.asyncDispose]()` delegates to `close()`, so `await using server = serve(handler)` is supported. Await `close()` when completion matters. A handler may call `close()` and return its response, but must not await its own close promise; await that promise outside the handler after it returns. Runtime shutdown, execution timeout, cancellation, and Worker termination retain an independent force-close path that does not wait for graceful close. Handler errors or invalid return values produce a 500 response. An optional `onError(error)` may supply a Response.
 
 See the [Serve lifecycle and body-limit specification](../../../docs/development/stdlib-serve-lifecycle.md) for the complete contract.
 
 ## HTTPServer.close
 
-`server.close() -> Promise<void>` starts graceful HTTP shutdown without
+`server.close() -> Promise<void>` starts graceful HTTP/HTTPS shutdown without
 blocking JavaScript. It immediately closes handler admission, waits for
-active HTTP handlers and body I/O, and forces remaining connections after
+active HTTP/HTTPS handlers and body I/O, and forces remaining connections after
 at most five seconds. The same Promise is returned on repeated calls and
 resolves to undefined after cleanup. Runtime cancellation and Worker
 termination keep an independent forced path. Initiate close and return a
@@ -100,7 +121,7 @@ The global `new WebSocket(url, protocols?)` follows the standard two-argument co
 import { serve, upgradeWebSocket } from "noe:http";
 ```
 
-This export is selected only when both Serve and WebSockets are enabled. In a `serve` handler, call `upgradeWebSocket(request)`, configure the returned socket, and return its `response` to complete the HTTP upgrade. The returned socket uses the same global `WebSocket` type. The helper uses the listener's existing upgrade-token path and requires an HTTP server in the same runtime. Close each upgraded WebSocket when finished; `server.close()` is not a substitute for closing upgraded connections. For raw TCP/Unix streams use `noe:sockets`.
+This export is selected only when both Serve and WebSockets are enabled. In a `serve` handler, call `upgradeWebSocket(request)`, configure the returned socket, and return its `response` to complete the HTTP upgrade. The returned socket uses the same global `WebSocket` type. The helper uses the listener's existing upgrade-token path and requires an HTTP or HTTPS server in the same runtime; clients use a corresponding `ws://` or `wss://` URL. Close each upgraded WebSocket when finished; `server.close()` is not a substitute for closing upgraded connections. For raw TCP/Unix streams use `noe:sockets`.
 
 ```js
 import { serve, upgradeWebSocket } from "noe:http";

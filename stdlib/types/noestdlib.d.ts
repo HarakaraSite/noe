@@ -435,7 +435,7 @@ declare namespace NOEStdlib {
     writeFile(path: string, data: FileData): Promise<void>;
   }
 
-  interface ServeOptions { hostname?: string; port?: number; onError?: (error: unknown) => Response | PromiseLike<Response> }
+  interface ServeOptions { hostname?: string; port?: number; cert?: string; key?: string; onError?: (error: unknown) => Response | PromiseLike<Response> }
   type FetchHandler = (request: Request) => Response | PromiseLike<Response>;
   interface HTTPServer {
     readonly hostname: string;

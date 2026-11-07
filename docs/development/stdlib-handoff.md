@@ -1,7 +1,7 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after WebSocket connected closing and blocked-send cleanup,
-following the completed filesystem/process/HTTP/Fetch/Serve migrations.
+Updated 2026-11-07 after the v2.16.0 publication and binary installation,
+followed by the locally completed HTTPS/WSS listener addition.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
 
@@ -24,12 +24,21 @@ implementation records remain the canonical design and validation references.
   `/var/tmp/noe-v2.16.0-release-e9ux2qxa/assets/noe-linux-amd64`.
   That directory also retains the clean candidate, all downloaded assets,
   continuity checks, and published-consumer evidence. Earlier implementation
-  candidates below remain historical slice evidence. Installed binaries keep
-  their previous versions and were verified unchanged.
-- The user independently handles noebot. Executable installation and running
-  service restart are not part of this publication. Previous slice decisions
-  authorized local progress and breaking changes; the latest release request
-  adds publication authority without changing these boundaries.
+  candidates below remain historical slice evidence.
+- After publication, the user explicitly requested binary replacement. Both
+  `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` now contain
+  the verified published v2.16.0 Linux asset, SHA256
+  `13782c9bf8c30c64808da7a9fd577d978e8e123928d7dfbc41cfaae8b601849e`.
+  Previous v2.13.0 copies and installation evidence are retained under
+  `/var/tmp/noe-v2.16.0-install-014hncw0` (`installation.json`). Version,
+  arithmetic, and both authentication-helper help paths passed; no actual
+  authentication or running-service restart was performed.
+- The user then approved implementing HTTPS/WSS listeners. That addition is
+  local and unreleased, with a fresh candidate at
+  `/var/tmp/noe-https-vm9c6p5e/noe`. Installed v2.16.0 copies do not implement
+  its listener options and were not replaced again.
+- The user independently handles noebot. The HTTPS/WSS implementation does
+  not authorize another publication, installation, or service restart.
 
 ## User decisions to retain
 
@@ -57,6 +66,40 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
 - Documentation and explanatory source text are English; user replies may
   be Japanese. Follow AGENTS.md, including reuse of completed validation
   when the tested source and dependencies have not changed.
+
+## Completed HTTPS/WSS listener addition (unreleased)
+
+See the [contract and evidence](stdlib-https.md),
+[Go embedding guide](../go-embedding.md#https-listeners-source-only-after-v2160),
+and [HTTPS/WSS example](../../examples/http/README.md#https-and-wss-server).
+
+- `serve({cert, key, ...}, handler)` accepts nonempty PEM strings as a pair.
+  Invalid/mismatched input fails synchronously before Allow or bind, without
+  including PEM material in diagnostics. Reading files is explicit `noe:fs`
+  work; inline credentials grant no additional capabilities.
+- `stdlib.ServeOptions.TLS *tls.Config` selects host-configured HTTPS, with
+  Certificates/GetCertificate/GetConfigForClient. JavaScript credentials
+  conflict with host TLS. Profile/runtime/Worker/listener copies snapshot
+  configuration; referenced certificate/key objects and pools remain shared
+  and immutable in use. External unkeyed ServeOptions literals must use fields.
+- TLS listeners advertise HTTP/1.1, including callback-selected configurations.
+  HTTPS request/server URLs and WSS upgrades use the existing HTTP, body,
+  close/disposal, socket, and forced-cleanup backends. No new dependency or
+  implicit FS/Fetch/WebSocket grant was added.
+- HTTPS/HTTP, WSS binary/text/clean close, validation-before-bind, host TLS
+  snapshots/callback ALPN, Worker inheritance/termination, stalled-handshake
+  cancellation, and real CLI example tests pass. Race validation passes for
+  the new cases. Public checkout and standalone-module consumers run, with
+  CGO-disabled builds for all six release targets. Types, embedded reference,
+  example lint, and affected-package vet also pass.
+- One existing queued-WebSocket race test initially failed because Eval may
+  drain the opening notification before the test pauses owner delivery. Its
+  handshake response is now gated until Eval returns; the focused race test
+  passes. This changes only test synchronization, not socket behavior.
+- Evidence and the fresh CLI candidate are under
+  `/var/tmp/noe-https-vm9c6p5e`. Reuse the successful results for unchanged
+  runtime source/dependencies; the initial aggregate race failure and focused
+  correction are retained there. Noebot and live credentials were excluded.
 
 ## Completed WebSocket connected close and interruption correction
 
@@ -390,17 +433,19 @@ process naming changes do not invalidate unchanged native filesystem tests.
 The filesystem/process/HTTP entrance migrations, Fetch response-overflow and
 Blob-send corrections, Serve limits/lifecycle, WebSocket opening
 cancellation/close validation, and connected closing/blocked-send cleanup
-are implemented and validated locally. No required runtime blocker remains
-in these approved slices. The preceding checkpoints are `3997dc0` and
-`248e74a`; this handoff accompanies the next local correction.
-v2.16.0 publication and verification are complete; see the state above.
+are published in v2.16.0 and installed at both requested local paths.
+HTTPS/WSS listeners are implemented and verified locally on top of that
+release. No required runtime blocker remains in these approved slices.
+The next release can include HTTPS/WSS using the evidence above; publication
+and another binary replacement require the user's corresponding instruction.
 
 Remaining Node utilities, Buffer, and process metadata methods are
 use-case-driven work. Avoid wholesale rename churn merely to eliminate Node
 names. Useful existing contracts can remain until a concrete migration is
 justified. The latest permission allows local breaking changes without
 another compatibility prompt, while preserving noebot/publication/install
-boundaries. Prefer concrete caller evidence for the next implementation.
+boundaries. Prefer concrete caller evidence for the next implementation;
+raw TLS streams and UDP remain deferred.
 Web Crypto expansion and WebSocketStream remain use-case driven as below.
 
 Reuse the completed results for unchanged source/dependencies. A version,

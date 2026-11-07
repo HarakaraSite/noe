@@ -98,6 +98,9 @@ func (c *Config) bindWorkerLoop(loop *Loop) {
 	}
 	if c.Serve != nil {
 		s := *c.Serve
+		if s.TLS != nil {
+			s.TLS = s.TLS.Clone()
+		}
 		s.Loop, s.upgrade = loop, nil
 		c.Serve = &s
 	}

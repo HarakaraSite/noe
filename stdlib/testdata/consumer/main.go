@@ -44,6 +44,9 @@ func run() error {
 	if err := serveLifecycle(ctx); err != nil {
 		return err
 	}
+	if err := https(ctx); err != nil {
+		return err
+	}
 	if err := eventSource(ctx); err != nil {
 		return err
 	}

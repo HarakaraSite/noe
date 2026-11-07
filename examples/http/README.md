@@ -90,3 +90,37 @@ curl -H 'Content-Type: application/json' \
 ```
 
 healthは`ok`、echoは送ったJSONを`Response.json()`で返します。経路は`new URL(request.url).pathname`で取得します。不正JSONは400、その他のパスは404です。ポート省略時は8080、0ならOSが空きポートを選び、起動時に実際のURLを表示します。起動した端末のCtrl+Cで終了します。
+
+## HTTPS and WSS server
+
+This source-only addition is newer than v2.16.0. Build a temporary executable
+from this checkout for the example; a published v2.16.0 binary does not support
+the new listener options.
+
+The example reads PEM text from the two explicit paths with `noe:fs`. Those reads follow the active filesystem Root, Cwd, and ReadOnly settings; supplying TLS credentials does not add filesystem access. The certificate and private key must match. The listener stays active until Ctrl+C or runtime shutdown.
+
+Optionally create a short-lived local test certificate with an external OpenSSL command:
+
+```sh
+DEMO_DIR=$(mktemp -d)
+CGO_ENABLED=0 go build -o "$DEMO_DIR/noe" ./cmd/noe
+openssl req -x509 -newkey rsa:2048 -nodes \
+  -keyout "$DEMO_DIR/server-key.pem" \
+  -out "$DEMO_DIR/server-cert.pem" \
+  -days 1 -subj '/CN=localhost' \
+  -addext 'subjectAltName=IP:127.0.0.1,DNS:localhost'
+echo "$DEMO_DIR"
+"$DEMO_DIR/noe" run examples/http/https-server.js \
+  "$DEMO_DIR/server-cert.pem" "$DEMO_DIR/server-key.pem" 8443
+```
+
+In another terminal, use the printed directory path as the CA file for HTTPS verification:
+
+```sh
+curl --cacert /path/to/printed-directory/server-cert.pem https://127.0.0.1:8443/health
+curl --cacert /path/to/printed-directory/server-cert.pem \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"こんにちは"}' https://127.0.0.1:8443/echo
+```
+
+The health endpoint returns `ok`, and the echo endpoint returns the submitted JSON. A WebSocket client that trusts the same certificate can connect to `wss://127.0.0.1:8443/ws`; the server echoes text and binary messages. The example defaults to port 8443, accepts port 0 for an OS-assigned port, and prints its `https://` URL on startup.

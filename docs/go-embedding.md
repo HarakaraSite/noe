@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.14.0; see the
+select model providers or agent behavior. The current release is v2.16.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.32.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.14.0`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.16.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -113,6 +113,31 @@ can call `stdlib.DispatchProcessHelper(os.Args[1:])` before application work;
 that avoids running application initialization twice. A self-helper instead
 requires every dependency init function to be safe to run again. Other helper
 executables can use the same dispatcher. Windows uses Job Objects.
+
+## HTTPS listeners (source-only after v2.16.0)
+
+The current source adds `ServeOptions.TLS *tls.Config`. An embedding host can
+supply certificates/callbacks and TLS policy there without exposing private
+keys to JavaScript. It selects HTTPS for the same `serve` function and bind
+permission callback; outgoing Fetch and WebSocket trust remain independent.
+Configurations are cloned with normal Go immutable-in-use ownership for
+keys, pools, and callbacks. Workers inherit the selection with their own
+runtime binding. TLS listeners use HTTP/1.1, including WSS upgrades.
+
+```go
+profile.Modules.Serve = &stdlib.ServeOptions{
+    Allow: func(address string) error { return nil }, // Choose the host's bind policy.
+    TLS: &tls.Config{Certificates: []tls.Certificate{certificate}},
+}
+```
+
+This fragment uses `crypto/tls` and a previously loaded `tls.Certificate`.
+With no host TLS configuration, JavaScript may supply nonempty `cert`/`key`
+PEM strings; file reads must go through the selected filesystem. JavaScript
+PEM options conflict with host TLS rather than overriding its policy.
+Use keyed ServeOptions literals when updating callers, since the new field
+changes the positional struct shape. See the
+[HTTPS contract](development/stdlib-https.md).
 
 ## Asynchronous SQLite
 

@@ -2,6 +2,7 @@ package stdlib
 
 import (
 	"bufio"
+	"crypto/tls"
 	"net"
 	"testing"
 
@@ -19,6 +20,7 @@ func TestWorkerConfigKeepsBackendAndIsolatesServerBinding(t *testing.T) {
 	parentUpgraded := false
 	server := &Serve{
 		Loop: parentLoop,
+		TLS:  &tls.Config{MinVersion: tls.VersionTLS12},
 		upgrade: func(string, net.Conn, *bufio.Reader, string) {
 			parentUpgraded = true
 		},
@@ -42,6 +44,13 @@ func TestWorkerConfigKeepsBackendAndIsolatesServerBinding(t *testing.T) {
 	}
 	if child.Serve == server || child.Serve.Loop != childLoop || child.Serve.upgrade != nil {
 		t.Fatal("child server retained the parent's runtime binding")
+	}
+	if child.Serve.TLS == server.TLS || child.Serve.TLS.MinVersion != tls.VersionTLS12 {
+		t.Fatal("child TLS settings were not copied")
+	}
+	child.Serve.TLS.MinVersion = tls.VersionTLS13
+	if server.TLS.MinVersion != tls.VersionTLS12 {
+		t.Fatal("child TLS change affected its parent")
 	}
 	if child.Sockets == parent.Sockets || child.Sockets.Loop != childLoop || child.Sockets.Serve != child.Serve {
 		t.Fatal("child sockets were not rebound to the child's server")
