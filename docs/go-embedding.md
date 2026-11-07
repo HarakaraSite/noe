@@ -142,6 +142,46 @@ Use keyed ServeOptions literals when updating callers, since the new field
 changes the positional struct shape. See the
 [HTTPS contract](development/stdlib-https.md).
 
+## Raw TLS sockets
+
+Raw TLS sockets are available in source after v2.17.0; the released v2.17.0
+binary does not include this option. `Modules.RawSockets` continues to select
+`noe:sockets`. The new `Modules.RawSocketsTLS` field configures TLS and does
+not select the capability by itself:
+
+```go
+profile.Modules = stdlib.Modules{
+    RawSockets: true,
+    RawSocketsTLS: &stdlib.SocketTLSOptions{
+        Client: &tls.Config{RootCAs: roots},
+        Server: &tls.Config{Certificates: []tls.Certificate{certificate}},
+        HandshakeTimeout: 10 * time.Second,
+    },
+}
+```
+
+This example uses `crypto/tls`, `time`, and previously loaded host-owned roots
+and certificate material. `SocketTLSOptions` contains `Client` and `Server`
+`*tls.Config` values plus `HandshakeTimeout`. A non-nil direction config is
+authoritative: JavaScript TLS fields for that direction conflict instead of
+overriding host settings. If a client config has an empty `ServerName`, the
+connection host supplies it. Server configs need `Certificates`,
+`GetCertificate`, or `GetConfigForClient`. Raw TLS keeps the host's ALPN
+choices; it does not force HTTP/1.1 as HTTPS listeners do.
+
+Profile, runtime, Worker, and listener copies clone TLS configurations without
+mutating caller values. Certificate/key objects, pools, caches, and callbacks
+remain shared and must be immutable while in use. A zero handshake timeout
+uses 10 seconds; a positive value sets the timeout, and a negative value
+disables the handshake timer. The timer starts after TCP connect or accept;
+owner cancellation remains active.
+
+Inline TLS values are PEM data, never implicit file paths. Read files through
+the selected `noe:fs` capability. Raw TLS does not select or grant `noe:fs`,
+Fetch, HTTP/HTTPS, or WebSockets; each remains independent. Since the new field
+changes the public `Modules` struct shape, external callers with unkeyed
+`Modules` literals must switch to keyed literals. See the [raw TLS contract](development/stdlib-raw-tls.md).
+
 ## Asynchronous SQLite
 
 `noe:sqlite` is a built-in Promise API in managed runtimes and Workers.

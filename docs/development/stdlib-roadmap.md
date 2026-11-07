@@ -57,8 +57,10 @@ Phase 11's HTTPS/WSS listener slice is included in v2.17.0.
 `noe:http.serve` accepts explicit PEM-text
 `cert`/`key`; Go hosts can instead select `ServeOptions.TLS`. Both use the
 existing HTTP/1.1 server, WebSocket upgrade, capability, and cleanup paths.
-See the [HTTPS/WSS contract and evidence](stdlib-https.md). Raw TLS streams
-and UDP sockets remain deferred until a concrete application needs them.
+See the [HTTPS/WSS contract and evidence](stdlib-https.md). The user then
+approved raw TLS connect/listen over the existing socket Web Streams. This
+addition is local and unreleased after v2.17.0; see the
+[raw TLS contract and evidence](stdlib-raw-tls.md). UDP remains separate work.
 
 ## Phases
 
@@ -74,7 +76,7 @@ and UDP sockets remain deferred until a concrete application needs them.
 | **8. Expand Web Crypto** | Select algorithms and key formats from actual SDK requirements. Add AES-GCM, key generation, and JWK support in small steps, followed by algorithms such as Ed25519 and ECDSA. | More JavaScript authentication and encryption libraries can run. |
 | **9. Expand Web communication APIs** | Add custom WebSocket headers, EventSource, and WebSocketStream. | Authenticated connections and continuous event consumption have standard API forms. |
 | **10. Add local data storage** | Evaluate and introduce SQLite, then add persistent localStorage when useful. | JavaScript can query and update local application state and collected data. |
-| **11. Expand networking** | HTTPS/WSS listeners are included in v2.17.0. Raw TLS streams and UDP sockets remain deferred. | Applications can terminate HTTPS/WSS directly; additional protocols follow concrete demand. |
+| **11. Expand networking** | HTTPS/WSS listeners are included in v2.17.0. Raw TLS connect/listen is local work after that release; UDP remains separate. | HTTP and raw-stream applications can terminate TLS through the same capability and ownership model. |
 | **12. Evaluate larger extensions** | Assess WebAssembly/WASI and general FFI against concrete applications and libraries. | Existing external assets become usable where their integration is worthwhile. |
 
 SQLite and later phases may move earlier when a concrete application needs

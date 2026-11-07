@@ -2,6 +2,7 @@ package nativeio
 
 import (
 	"context"
+	"crypto/tls"
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
@@ -31,6 +32,10 @@ func (h *Host) startListen(payload string, listen netListenFunc) quickjs.Value {
 	if err != nil {
 		return reject(err)
 	}
+	tlsConfig, err := h.socketTLS(request, true)
+	if err != nil {
+		return reject(err)
+	}
 
 	listenCtx, cancel := context.WithCancel(h.ctx)
 	attempt := &listenAttempt{h: h, ctx: listenCtx, cancel: cancel, done: make(chan struct{})}
@@ -48,7 +53,10 @@ func (h *Host) startListen(payload string, listen netListenFunc) quickjs.Value {
 			var listener net.Listener
 			listener, listenErr = listen(listenCtx, network, address)
 			if listenErr == nil {
-				bound, listenErr = newBoundNetListener(listener, network, "")
+				bound, listenErr = newBoundNetListener(listener, request.Network, "")
+				if bound != nil {
+					bound.tlsConfig = tlsConfig
+				}
 			}
 		}
 		attempt.finishListen(bound, listenErr)
@@ -114,7 +122,7 @@ func (h *Host) ownListenAttempt(attempt *listenAttempt) bool {
 
 func (h *Host) listenAddress(request netConnectRequest) (network, address, path string, err error) {
 	switch request.Network {
-	case "tcp":
+	case "tcp", "tls":
 		if request.Host == "" || strings.IndexByte(request.Host, 0) >= 0 {
 			return "", "", "", errors.New("tcp host must be a nonempty string without NUL")
 		}
@@ -143,7 +151,7 @@ func (h *Host) listenAddress(request netConnectRequest) (network, address, path 
 		}
 		return "unix", path, path, nil
 	default:
-		return "", "", "", errors.New("network must be tcp or unix")
+		return "", "", "", errors.New("network must be tcp, tls, or unix")
 	}
 }
 
@@ -277,16 +285,17 @@ func (a *listenAttempt) Close() error {
 // disabled so close cannot delete a replacement at the same path.
 type boundNetListener struct {
 	net.Listener
-	network  string
-	path     string // Published path returned to callers and cleaned on close.
-	stage    string // Private pathname used to bind, if its temporary link remains.
-	stageDir string
-	alias    string
-	aliasDir string
-	aliasID  os.FileInfo
-	identity os.FileInfo
-	close    sync.Once
-	closeErr error
+	tlsConfig *tls.Config
+	network   string
+	path      string // Published path returned to callers and cleaned on close.
+	stage     string // Private pathname used to bind, if its temporary link remains.
+	stageDir  string
+	alias     string
+	aliasDir  string
+	aliasID   os.FileInfo
+	identity  os.FileInfo
+	close     sync.Once
+	closeErr  error
 }
 
 func newBoundNetListener(listener net.Listener, network, path string) (*boundNetListener, error) {
@@ -485,11 +494,13 @@ func removeIfSameFile(path string, identity os.FileInfo) error {
 }
 
 type netListener struct {
-	h         *Host
-	bound     *boundNetListener
-	work      *quickjs.AsyncWork
-	mu        sync.Mutex
-	closed    bool
+	h      *Host
+	bound  *boundNetListener
+	work   *quickjs.AsyncWork
+	mu     sync.Mutex
+	closed bool
+	// Authenticated TLS results remain owned until owner-thread handoff.
+	pending   map[net.Conn]context.CancelFunc
 	accepts   sync.WaitGroup
 	close     sync.Once
 	closeDone chan struct{}
@@ -514,7 +525,7 @@ func (l *netListener) object() (quickjs.Value, error) {
 		if host == "<nil>" {
 			host = ""
 		}
-		err = errors.Join(address.Set("network", "tcp"), address.Set("host", host), address.Set("port", addr.Port))
+		err = errors.Join(address.Set("network", l.bound.network), address.Set("host", host), address.Set("port", addr.Port))
 	case *net.UnixAddr:
 		path := l.bound.path
 		if path == "" {
@@ -566,10 +577,13 @@ func (l *netListener) accept() *quickjs.Promise {
 	go func() {
 		defer l.h.wg.Done()
 		defer l.accepts.Done()
-		conn, err := l.bound.Accept()
+		conn, err := l.acceptConnection()
 		work.Complete(func(closed error) {
 			if closed != nil {
 				if conn != nil {
+					l.mu.Lock()
+					delete(l.pending, conn)
+					l.mu.Unlock()
 					_ = conn.Close()
 				}
 				return
@@ -586,6 +600,7 @@ func (l *netListener) accept() *quickjs.Promise {
 func (l *netListener) completeAccept(promise *quickjs.Promise, conn net.Conn, err error) {
 	l.mu.Lock()
 	listenerClosed := l.closed
+	delete(l.pending, conn)
 	l.mu.Unlock()
 	if listenerClosed {
 		if conn != nil {
@@ -655,8 +670,16 @@ func (l *netListener) Close() error {
 	l.close.Do(func() {
 		l.mu.Lock()
 		l.closed = true
+		pending := make(map[net.Conn]context.CancelFunc, len(l.pending))
+		for conn, cancel := range l.pending {
+			pending[conn] = cancel
+		}
 		l.mu.Unlock()
 		l.closeErr = l.bound.Close()
+		for conn, cancel := range pending {
+			cancel()
+			_ = conn.Close()
+		}
 		l.accepts.Wait()
 		l.h.release(l)
 		l.work.Done()

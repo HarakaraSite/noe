@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/filesystem"
+	"forge.harakara.site/littleisland/noe/v2/internal/nativeio"
 )
 
 // Environment is the one snapshot shared by the modules installed on an
@@ -40,26 +41,30 @@ type Profile struct {
 // Modules selects capabilities independently. A nil option pointer disables
 // that capability; option pointers are copied when the profile is attached.
 type Modules struct {
-	ProcessInfo  bool
-	Stdio        bool
-	FS           *FileSystemOptions
-	Commands     *CommandOptions
-	DNS          *DNSOptions
-	Fetch        *FetchOptions
-	Serve        *ServeOptions
-	WebSockets   *WebSocketsOptions
-	RawSockets   bool
-	Signals      bool
-	Workers      *WorkerOptions
-	OS           *OSOptions
-	Random       io.Reader
-	WindowsPaths bool
+	ProcessInfo bool
+	Stdio       bool
+	FS          *FileSystemOptions
+	Commands    *CommandOptions
+	DNS         *DNSOptions
+	Fetch       *FetchOptions
+	Serve       *ServeOptions
+	WebSockets  *WebSocketsOptions
+	RawSockets  bool
+	// RawSocketsTLS configures raw TLS; RawSockets must still be selected.
+	RawSocketsTLS *SocketTLSOptions
+	Signals       bool
+	Workers       *WorkerOptions
+	OS            *OSOptions
+	Random        io.Reader
+	WindowsPaths  bool
 }
 
 type FileSystemOptions struct {
 	Root     string
 	ReadOnly bool
 }
+
+type SocketTLSOptions = nativeio.SocketTLSOptions
 
 type CommandOptions struct {
 	// Supervisor is an explicit process-helper executable; empty starts directly.
@@ -180,6 +185,7 @@ func normalize(profile Profile) (Profile, Environment, *filesystem.Backend, erro
 
 func cloneProfile(profile Profile) Profile {
 	profile.Environment = cloneEnvironment(profile.Environment)
+	profile.Modules.RawSocketsTLS = nativeio.CloneSocketTLS(profile.Modules.RawSocketsTLS)
 	if profile.Modules.FS != nil {
 		v := *profile.Modules.FS
 		profile.Modules.FS = &v

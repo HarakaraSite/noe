@@ -22,10 +22,14 @@ import (
 var netSource string
 
 type netConnectRequest struct {
-	Network string `json:"network"`
-	Host    string `json:"host"`
-	Port    int    `json:"port"`
-	Path    string `json:"path"`
+	Network    string `json:"network"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Path       string `json:"path"`
+	Cert       string `json:"cert,omitempty"`
+	Key        string `json:"key,omitempty"`
+	CA         string `json:"ca,omitempty"`
+	ServerName string `json:"serverName,omitempty"`
 }
 
 type netDialFunc func(context.Context, string, string) (net.Conn, error)
@@ -95,6 +99,13 @@ func (h *Host) startConnect(payload string, dial netDialFunc) quickjs.Value {
 	if err != nil {
 		return reject(err)
 	}
+	tlsConfig, err := h.socketTLS(request, false)
+	if err != nil {
+		return reject(err)
+	}
+	if tlsConfig != nil {
+		dial = h.tlsDial(dial, tlsConfig)
+	}
 
 	attemptCtx, cancel := context.WithCancel(h.ctx)
 	attempt := &connectAttempt{
@@ -159,7 +170,12 @@ func (h *Host) startConnect(payload string, dial netDialFunc) quickjs.Value {
 
 func (h *Host) rejectedNetOperation(err error) quickjs.Value {
 	promise := h.rt.NewPromise()
-	promise.RejectError(err)
+	var optionErr *netTLSOptionError
+	if errors.As(err, &optionErr) {
+		_ = promise.Reject(h.rt.NewError("TypeError", optionErr.Error()))
+	} else {
+		promise.RejectError(err)
+	}
 	operation := h.rt.NewObject()
 	if setErr := errors.Join(operation.Set("promise", promise.Value()), operation.Set("cancel", func() {})); setErr != nil {
 		return promise.Value()
@@ -185,7 +201,7 @@ func (h *Host) ownConnectAttempt(attempt *connectAttempt) bool {
 
 func (h *Host) connectAddress(request netConnectRequest) (network, address string, err error) {
 	switch request.Network {
-	case "tcp":
+	case "tcp", "tls":
 		if request.Host == "" || strings.IndexByte(request.Host, 0) >= 0 {
 			return "", "", errors.New("tcp host must be a nonempty string without NUL")
 		}
@@ -210,7 +226,7 @@ func (h *Host) connectAddress(request netConnectRequest) (network, address strin
 		}
 		return "unix", path, nil
 	default:
-		return "", "", errors.New("network must be tcp or unix")
+		return "", "", errors.New("network must be tcp, tls, or unix")
 	}
 }
 
@@ -481,7 +497,12 @@ func (c *netConnection) cancelRead() *quickjs.Promise {
 		c.readClosed = true
 		c.mu.Unlock()
 		err := c.conn.CloseRead()
-		c.readIO.Wait()
+		// A TLS read can send a protocol alert and wait behind an application
+		// writer. Stop local delivery without joining that control write; full
+		// connection close still owns and joins all pending native I/O.
+		if _, tls := c.conn.(*tlsSocketConn); !tls {
+			c.readIO.Wait()
+		}
 		if errors.Is(err, net.ErrClosed) {
 			return nil, nil
 		}
@@ -516,7 +537,12 @@ func (c *netConnection) abortWrite() *quickjs.Promise {
 		c.writeClosed = true
 		c.mu.Unlock()
 		deadlineErr := c.conn.SetWriteDeadline(time.Now())
-		closeErr := c.conn.CloseWrite()
+		var closeErr error
+		if aborter, ok := c.conn.(interface{ abortWrite() error }); ok {
+			closeErr = aborter.abortWrite()
+		} else {
+			closeErr = c.conn.CloseWrite()
+		}
 		c.writeIO.Wait()
 		return nil, errors.Join(deadlineErr, closeErr)
 	}, nil, nil)

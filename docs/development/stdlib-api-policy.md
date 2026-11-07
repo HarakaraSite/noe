@@ -57,6 +57,7 @@ changing NOE does not authorize editing or deploying noebot.
 | WebSocket opening lifecycle | Cancel pending handshakes, prevent late attachment, and validate close arguments. | Included in v2.16.0 under the autonomous approval; see [lifecycle correction](stdlib-websocket-lifecycle.md). |
 | WebSocket connected lifecycle | Interrupt blocked writes and complete the close exchange with peer-derived results. | Included in v2.16.0 under the approved continuation; see [connected close](stdlib-websocket-closing.md). |
 | HTTPS listeners and WSS upgrades | PEM-text `cert`/`key` options and host `ServeOptions.TLS`, over the shared HTTP/1.1 listener and socket backend. | Included in v2.17.0; implemented and verified at `6cdc02f`. See [contract and evidence](stdlib-https.md). |
+| Raw TLS sockets | TLS connect/listen over the existing native Web Streams backend, with verified handshakes and independent host configuration. | Implemented and verified locally after v2.17.0; unreleased. See [contract and verification](stdlib-raw-tls.md). |
 | Remaining Node modules and globals | Review Buffer/process and utility module names against actual callers and semantic differences. | Demand-driven; avoid churn with no clear usability benefit. |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource

@@ -26,6 +26,7 @@ type Options struct {
 	Stdout, Stderr io.Writer
 	Cwd            string
 	Command        *commandenv.Config
+	RawSocketsTLS  *SocketTLSOptions
 	// Supervisor selects the explicit helper for the legacy command adapter.
 	Supervisor string
 }
@@ -64,6 +65,7 @@ func InstallSelected(rt *quickjs.Runtime, opts Options, modules Modules) (result
 }
 
 func install(rt *quickjs.Runtime, opts Options, modules Modules) (result *Host, err error) {
+	opts.RawSocketsTLS = CloneSocketTLS(opts.RawSocketsTLS)
 	parent := opts.Context
 	if parent == nil {
 		parent = rt.Context()

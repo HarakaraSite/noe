@@ -797,12 +797,15 @@ declare namespace NOEStdlib {
   function spawn(command: string, args?: readonly string[], options?: SpawnOptions): Promise<OwnedChildProcess>;
 
   interface TcpAddress { readonly network: "tcp"; readonly host: string; readonly port: number }
+  interface TlsAddress { readonly network: "tls"; readonly host: string; readonly port: number }
   interface UnixAddress { readonly network: "unix"; readonly path: string }
-  type SocketAddress = TcpAddress | UnixAddress;
+  type SocketAddress = TcpAddress | TlsAddress | UnixAddress;
   interface TcpSocketOptions { network: "tcp"; host: string; port: number; signal?: AbortSignal }
+  interface TlsConnectOptions { network: "tls"; host: string; port: number; serverName?: string; ca?: string; cert?: string; key?: string; signal?: AbortSignal }
+  interface TlsListenOptions { network: "tls"; host: string; port: number; cert?: string; key?: string; signal?: AbortSignal }
   interface UnixSocketOptions { network: "unix"; path: string; signal?: AbortSignal }
-  type ConnectOptions = TcpSocketOptions | UnixSocketOptions;
-  type ListenOptions = (Omit<TcpSocketOptions, "port"> & {port: number}) | UnixSocketOptions;
+  type ConnectOptions = TcpSocketOptions | TlsConnectOptions | UnixSocketOptions;
+  type ListenOptions = TcpSocketOptions | TlsListenOptions | UnixSocketOptions;
   interface RawConnection { readonly readable: ReadableStream<Uint8Array>; readonly writable: WritableStream<Uint8Array>; close(): Promise<void>; [Symbol.asyncDispose](): Promise<void> }
   interface SocketListener { readonly address: SocketAddress; accept(): Promise<RawConnection>; close(): Promise<void>; [Symbol.asyncDispose](): Promise<void> }
   function connect(options: ConnectOptions): Promise<RawConnection>;

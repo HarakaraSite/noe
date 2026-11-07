@@ -25,7 +25,9 @@ try {
 }
 ```
 
-`connect(options)`と`listen(options)`はPromiseです。TCPは`{network:"tcp",host,port,signal?}`、Unixは`{network:"unix",path,signal?}`を指定します。host/pathは必須。TCP portはconnectで1〜65535、listenで0〜65535で、0はOS割当てです。DNS・IPv4/IPv6はGo netの解決に従います。Unix相対pathはruntimeのcwd基準です。TLS、UDP、abstract namespace、接続retryは提供しません。Unix socketの可用性は実行OSに依存します。
+`connect(options)`と`listen(options)`はPromiseです。TCPは`{network:"tcp",host,port,signal?}`、Unixは`{network:"unix",path,signal?}`を指定します。host/pathは必須。TCP portはconnectで1〜65535、listenで0〜65535で、0はOS割当てです。DNS・IPv4/IPv6はGo netの解決に従います。Unix相対pathはruntimeのcwd基準です。UDP、abstract namespace、接続retryは提供しません。Unix socketの可用性は実行OSに依存します。
+
+Raw TLS sockets are available in source after v2.17.0; the released v2.17.0 binary does not include them. See [Raw TLS sockets](#raw-tls-sockets) below.
 
 開始用`signal`はdial/listen完了までの取消しに使い、成功後は購読解除します。成功後はhandleのcloseかruntime終了で停止します。既にabort済みのsignal、不正port、空/NUL入りpathは開始前にrejectします。
 
@@ -61,6 +63,39 @@ connectionの`readable`/`writable`はUint8ArrayのWeb Streamsです。readは需
 Unixのbind前に既存pathを削除しません。親directory内のprivateな一時directoryへbindしてidentityを記録し、既存先を上書きしないhard linkで要求pathへ公開します。filesystem/OSのsocket hard link対応が必要で、未対応時はOSエラーを返します。長いpathでは短いsymlink経由のbindも使うため、その場合はsymlink対応も必要です。`listener.address.path`は要求pathのcwd解決後の値です。
 
 通常closeでは作成したsocketのidentityを照合してpathnameを片付け、既に別file/別socketへ置換されていれば削除しません。identity照合とremoveはOSのatomicな比較削除ではないため、アプリは同じpathの置換とcloseを協調させます。SIGKILL等の強制終了後はpathnameや公開途中の一時directoryが残り得ます。再起動時はアプリ所有directoryの状態を確認し、必要ならJS/CLIで片付けます。
+
+## Raw TLS sockets
+
+The `network: "tls"` variant uses the same `Connection`, `Listener`, and
+Web Streams as TCP. `connect()` returns only after the TLS handshake succeeds
+and verifies the server chain and hostname. It uses system roots by default;
+`serverName` selects the SNI and verification name, otherwise the connection
+host is used. A nonempty `ca` PEM string replaces system roots for that
+connection. Optional client `cert` and `key` values must be a matching PEM
+pair. JavaScript has no certificate-verification bypass.
+
+TLS listeners accept `cert` and `key` PEM strings, unless the Go host supplies
+the server configuration. Values are PEM data, not paths; read credential
+files explicitly with `noe:fs`. A TLS listener's address is
+`{network: "tls", host, port}`. Start `accept()` before awaiting the client
+connection so that a server TLS handshake can proceed. A failed handshake
+rejects one `accept()` and leaves the listener available. Closing the listener
+cancels pending handshakes and undelivered accepts; connections already
+returned by `accept()` have separate ownership.
+
+Closing a TLS writer sends `close_notify` and leaves reads available, so a
+client can send TLS EOF and then read a server response. Aborting a writer
+interrupts writes without a graceful TLS alert. Cancelling a reader stops local
+read delivery; pending native TLS protocol work is joined by full close.
+Full close or asynchronous disposal closes the transport
+promptly. See the [TLS round-trip example](../examples/low-level/README.md)
+and the embedded [socket reference](../internal/apidocs/content/noe-sockets.md).
+
+For a Go host, `Modules.RawSockets` still selects `noe:sockets`.
+`Modules.RawSocketsTLS` configures the client/server TLS policy but does not
+select the capability; see [Go embedding](go-embedding.md#raw-tls-sockets).
+TLS configuration remains independent from Fetch, HTTP/HTTPS, and WebSockets,
+and does not grant filesystem access.
 
 ## OSシグナルを受け取る
 

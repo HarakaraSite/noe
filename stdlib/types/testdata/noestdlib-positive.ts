@@ -60,7 +60,7 @@ import {
   type ServeOptions,
   type WebSocketUpgrade,
 } from "noe:http";
-import {connect, listen} from "noe:sockets";
+import {connect, listen, type Address, type ConnectOptions, type ListenOptions} from "noe:sockets";
 import {subscribe} from "noe:signals";
 import {open as openSQLite, type SQLiteDatabase, type SQLiteOutputValue, type SQLiteParams, type SQLiteRow} from "noe:sqlite";
 
@@ -268,6 +268,26 @@ const textWrite: number = await fileHandle.write("text");
 await fileHandle.close();
 const socketConnect = connect({network: "tcp", host: "127.0.0.1", port: 9000});
 const socketListener = listen({network: "unix", path: "/tmp/noe.sock"});
+const tlsConnectOptions: ConnectOptions = {
+  network: "tls",
+  host: "localhost",
+  port: 9000,
+  serverName: "localhost",
+  ca: "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n",
+  cert: "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n",
+  key: "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n",
+};
+const tlsListenOptions: ListenOptions = {
+  network: "tls",
+  host: "127.0.0.1",
+  port: 0,
+  cert: "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n",
+  key: "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n",
+};
+const tlsAddress: Address = {network: "tls", host: "127.0.0.1", port: 9000};
+const tlsConnect = connect(tlsConnectOptions);
+const tlsListener = listen(tlsListenOptions);
+void [socketConnect, socketListener, tlsConnect, tlsListener, tlsAddress];
 const signalIterator = subscribe("SIGTERM");
 await signalIterator.close();
 

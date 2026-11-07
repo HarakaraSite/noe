@@ -1,7 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after v2.17.0 HTTPS/WSS publication, verification, and local
-installation. Future release requests include local installation by default.
+Updated 2026-11-07 after local implementation and verification of raw TLS
+sockets, following v2.17.0 publication and installation. Future release
+requests include local installation by default.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
 
@@ -44,6 +45,10 @@ implementation records remain the canonical design and validation references.
 - The user independently handles noebot. Release requests now authorize
   publication and local installation together; service restarts and noebot
   changes remain separate actions.
+- Raw TLS connect/listen is now implemented and verified locally after
+  v2.17.0. A fresh development executable is at
+  `/var/tmp/noe-raw-tls-940je7qo/noe`; installed v2.17.0 binaries do not include
+  this addition. No new release or installation was requested for this slice.
 
 ## User decisions to retain
 
@@ -76,6 +81,44 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Completed raw TLS sockets (unreleased after v2.17.0)
+
+See the [contract and evidence](stdlib-raw-tls.md),
+[Go embedding guide](../go-embedding.md#raw-tls-sockets), and
+[round-trip example](../../examples/low-level/README.md#raw-tls-round-trip).
+
+- `noe:sockets.connect/listen` accepts `network: "tls"`, reusing the existing
+  Connection/Listener, native ownership, Web Streams, and disposal backend.
+  Connect and accept publish connections after TLS authentication. Listener
+  close cancels pending handshakes and undelivered results, while delivered
+  connections keep independent ownership.
+- Clients use system roots/hostname verification by default, with optional
+  explicit `ca`/`serverName` and client identity PEM. Listeners take `cert`/`key`
+  PEM or a Go host server configuration. TLS fields reject before dial/bind
+  when invalid or conflicting with authoritative host configuration, without
+  returning supplied PEM in diagnostics. No implicit FS/HTTP/WebSocket grant.
+- `Modules.RawSockets` stays bool. New `Modules.RawSocketsTLS` configures
+  `stdlib.SocketTLSOptions{Client, Server, HandshakeTimeout}` without selecting
+  sockets. Configurations are cloned for profiles/runtimes/Workers/listeners;
+  Go referenced objects remain immutable in use. Host ALPN is preserved.
+  External unkeyed Modules literals must move to named fields.
+- Writer close sends TLS close_notify; read cancellation stops local delivery,
+  writer abort and full close interrupt the appropriate transport operations.
+  A review found that TLS Read can wait to write a protocol alert behind an
+  application writer, so read cancellation must not join that native read.
+  A deterministic regression failed before the correction; final race checks
+  and the bounded re-review pass. Full close still joins owned native I/O.
+- Public tests cover trust/hostname failures, mTLS and host snapshots, option
+  validation/capability isolation, listener and Worker cleanup, AbortSignal
+  reason/ownership transfer, and handshake timeout. Native tests cover queued
+  authenticated results, callback context cancellation, and blocked I/O.
+  Affected race, CLI example, types, docs, lint, and vet pass. Public consumers
+  run against checkout and isolated module artifact with CGO disabled, and
+  compile for all six release targets. No dependency changed.
+- Evidence, review repro, source manifest, and development executable:
+  `/var/tmp/noe-raw-tls-940je7qo`. Reuse this implementation evidence when
+  preparing a future release if source/dependencies remain unchanged.
 
 ## Published v2.17.0
 
@@ -480,13 +523,13 @@ a separate approval prompt; running-service restarts remain separate.
 
 The user asked to keep continuation focused on standard-library improvements.
 Release-output metadata cleanup is housekeeping, not a new stdlib milestone.
-Its one-line `/dist/` ignore fix is locally verified; evidence is at
+Its one-line `/dist/` ignore fix is committed at `acb1ee2`; evidence is at
 `/var/tmp/noe-ci-provenance-28dxjsmx/verification.json`. It applies to future
-builds and does not change the published v2.17.0 artifacts. Return next-step
-proposals to the remaining networking work in roadmap phase 11: raw TLS
-connections/listeners over the existing Web Streams backend, then UDP as a
-separate datagram API discussion. These are candidates, not an approved new
-public contract. No additional release was requested for this correction.
+builds and does not change the published v2.17.0 artifacts. The user then
+approved raw TLS connections/listeners in roadmap phase 11, which are now
+implemented and verified locally as recorded above. UDP is the remaining
+networking candidate and needs a separate datagram contract. Keep next-step
+work on stdlib rather than automatically starting release preparation.
 
 Remaining Node utilities, Buffer, and process metadata methods are
 use-case-driven work. Avoid wholesale rename churn merely to eliminate Node
@@ -494,7 +537,7 @@ names. Useful existing contracts can remain until a concrete migration is
 justified. The latest permission allows local breaking changes without
 another compatibility prompt, while preserving noebot/publication/install
 boundaries. Prefer concrete caller evidence for the next implementation;
-raw TLS streams and UDP remain deferred.
+UDP remains unimplemented. No new release was requested for the raw TLS slice.
 Web Crypto expansion and WebSocketStream remain use-case driven as below.
 
 Reuse the completed results for unchanged source/dependencies. A version,

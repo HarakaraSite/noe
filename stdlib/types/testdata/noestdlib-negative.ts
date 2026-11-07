@@ -11,7 +11,7 @@ import {stdin as legacyBareStdin} from "process";
 // @ts-expect-error Standard I/O is exported from noe:process, not noe:io.
 import {stdin as legacyStdin} from "noe:io";
 import {ReadableStream} from "node:stream/web";
-import {connect} from "noe:sockets";
+import {connect, listen} from "noe:sockets";
 import {subscribe} from "noe:signals";
 import {MessagePort, Worker as NodeWorker} from "node:worker_threads";
 import bufferDefault from "node:buffer";
@@ -83,9 +83,21 @@ const stream = new ReadableStream<Uint8Array>();
 // @ts-expect-error mode: "byob" is rejected by NOE's stream implementation
 stream.getReader({mode: "byob"});
 
-// Only TCP and Unix stream sockets are implemented.
+// Raw sockets support TCP, Unix streams, and authenticated TLS streams.
 // @ts-expect-error UDP sockets are unsupported
 connect({network: "udp", host: "127.0.0.1", port: 53});
+// @ts-expect-error TLS-only trust options cannot be supplied to TCP.
+connect({network: "tcp", host: "localhost", port: 443, ca: "pem"});
+// @ts-expect-error TLS credentials cannot be supplied to Unix sockets.
+connect({network: "unix", path: "/tmp/noe.sock", cert: "pem"});
+// @ts-expect-error TLS PEM values must be strings.
+connect({network: "tls", host: "localhost", port: 443, ca: new Uint8Array()});
+// @ts-expect-error TLS listen only accepts server credentials, not client trust options.
+listen({network: "tls", host: "127.0.0.1", port: 0, ca: "pem"});
+// @ts-expect-error TLS listen does not accept client-only serverName.
+listen({network: "tls", host: "127.0.0.1", port: 0, serverName: "localhost"});
+// @ts-expect-error TLS listen credentials must be PEM text strings.
+listen({network: "tls", host: "127.0.0.1", port: 0, key: 42});
 
 const file = await openFile("file.txt", {flags: "r+"});
 // The former noe:fs-handle module remains removed; positional operations are on noe:fs.FileHandle.

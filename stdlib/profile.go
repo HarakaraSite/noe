@@ -25,6 +25,7 @@ type DNSOptions = jsexec.DNSOptions
 type FetchOptions = jsexec.FetchOptions
 type ServeOptions = jsexec.ServeOptions
 type WebSocketsOptions = jsexec.WebSocketsOptions
+type SocketTLSOptions = jsexec.SocketTLSOptions
 type WorkerOptions = jsexec.WorkerOptions
 type OSOptions = jsexec.OSOptions
 

@@ -28,6 +28,7 @@ type IOConfig struct {
 // NativeModules selects NOE-owned modules independently for a Profile.
 type NativeModules struct {
 	Stdio, Commands, RawSockets, Signals bool
+	RawSocketsTLS                        *nativeio.SocketTLSOptions
 }
 
 // ProfileConfig is the internal normalized installation request used by
@@ -97,6 +98,7 @@ func InstallProfile(rt *quickjs.Runtime, cfg ProfileConfig) (_ *ProfileBindings,
 	if cfg.Native.Stdio || cfg.Native.Commands || cfg.Native.RawSockets || cfg.Native.Signals {
 		nativeOptions := nativeio.Options{Context: cfg.Context,
 			Stdin: cfg.IO.Stdin, Stdout: stdout, Stderr: stderr, Cwd: cfg.IO.Cwd,
+			RawSocketsTLS: cfg.Native.RawSocketsTLS,
 		}
 		if core.Run != nil {
 			nativeOptions.Command = &commandenv.Config{

@@ -86,5 +86,5 @@ export default "ok";
 	if len(serverTLS.NextProtos) != 2 || serverTLS.NextProtos[0] != "h2" || serverTLS.NextProtos[1] != "http/1.1" {
 		return fmt.Errorf("HTTPS consumer mutated borrowed TLS configuration")
 	}
-	return nil
+	return rawTLS(ctx, serverTLS.Clone(), clientTLS.Clone())
 }

@@ -83,13 +83,28 @@
     return signal.reason === undefined ? new Error("The operation was aborted") : signal.reason;
   }
 
+  function tlsOptions(options, request, listening) {
+    for (const name of ["cert", "key", "ca", "serverName"]) {
+      const value = options[name];
+      if (value === undefined) continue;
+      if (request.network !== "tls") throw new TypeError("TLS options require network tls");
+      if (listening && (name === "ca" || name === "serverName"))
+        throw new TypeError("ca and serverName are connect-only options");
+      if (typeof value !== "string" || value.length === 0)
+        throw new TypeError("TLS options must be nonempty PEM or server-name strings");
+      request[name] = value;
+    }
+    if ((request.cert === undefined) !== (request.key === undefined))
+      throw new TypeError("TLS requires cert and key together");
+  }
+
   async function connect(options) {
     if (options === null || typeof options !== "object" || Array.isArray(options))
       throw new TypeError("options must be an object");
 
     const network = options.network;
     const request = { network };
-    if (network === "tcp") {
+    if (network === "tcp" || network === "tls") {
       if (typeof options.host !== "string" || options.host.length === 0 || options.host.includes("\0"))
         throw new TypeError("host must be a nonempty string without NUL");
       if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65535)
@@ -101,8 +116,10 @@
         throw new TypeError("path must be a nonempty string without NUL");
       request.path = options.path;
     } else {
-      throw new TypeError("network must be tcp or unix");
+      throw new TypeError("network must be tcp, tls, or unix");
     }
+
+    tlsOptions(options, request, false);
 
     const signal = options.signal;
     if (signal !== undefined && !(signal instanceof AbortSignal))
@@ -130,7 +147,7 @@
 
     const network = options.network;
     const request = { network };
-    if (network === "tcp") {
+    if (network === "tcp" || network === "tls") {
       if (typeof options.host !== "string" || options.host.length === 0 || options.host.includes("\0"))
         throw new TypeError("host must be a nonempty string without NUL");
       if (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535)
@@ -142,8 +159,10 @@
         throw new TypeError("path must be a nonempty string without NUL");
       request.path = options.path;
     } else {
-      throw new TypeError("network must be tcp or unix");
+      throw new TypeError("network must be tcp, tls, or unix");
     }
+
+    tlsOptions(options, request, true);
 
     const signal = options.signal;
     if (signal !== undefined && !(signal instanceof AbortSignal))

@@ -70,6 +70,7 @@ func lowerConfig(profile Profile, env Environment, backend *filesystem.Backend, 
 	selection := noestdlib.NativeModules{
 		Stdio: modules.Stdio, Commands: modules.Commands != nil,
 		RawSockets: modules.RawSockets, Signals: modules.Signals,
+		RawSocketsTLS: modules.RawSocketsTLS,
 	}
 	return cfg, selection, nil
 }
