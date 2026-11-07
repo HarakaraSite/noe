@@ -3870,3 +3870,58 @@ subsequent output remains clean; an actual tracked source edit still produces
 No full runtime suite or six-target distribution rebuild was needed for this
 ignore-only change. Future releases use the correction; existing v2.17.0 assets
 retain their recorded metadata. No new release or installation was performed.
+
+## v2.18.0 preparation — 2026-11-07
+
+The user explicitly requested release and local installation of the completed
+raw TLS (`ba5c37d`) and UDP (`8acc44b`) slices. The distribution-output ignore
+correction is `acb1ee2`. See [release notes](v2.18.0.md) for the new APIs and
+the Go Modules keyed-literal migration.
+
+### Reused implementation evidence
+
+- Raw TLS trust/hostname/mTLS, configuration snapshots, stream shutdown,
+  handshake/callback/queued-result ownership, cancellation, Worker cleanup,
+  native blocked I/O and read-cancel correction, affected race, types/docs,
+  CLI examples, standalone consumers, six-target builds, and bounded review:
+  `/var/tmp/noe-raw-tls-940je7qo`.
+- UDP binary/text/empty/max packets and source addresses, IPv4/IPv6/hostname,
+  byte snapshots, scoped cancellation/deadline reset, bind handoff, close/
+  disposal/Worker/runtime cleanup, affected TCP/Unix/TLS race regressions,
+  types/docs, CLI, standalone consumers, six-target builds, and bounded review:
+  `/var/tmp/noe-udp-mkdxtl0z`.
+- Generated output exclusion with clean/dirty metadata reproduction:
+  `/var/tmp/noe-ci-provenance-28dxjsmx`.
+
+All 293 runtime/dependency/reference paths match the final implementation
+manifest except two exact version-only changes: the CLI version literal and
+two release-availability sentences in the embedded socket reference. No API
+logic or dependency changed during preparation. Profile/workflow are unchanged
+from v2.17.0. Completed source suites, race/E2E and consumer cross-builds were
+reused, without repeating them for the release.
+
+### Lightweight release verification
+
+Clean candidate revision: `666116dee34fa0b6d9fc4242f72132b4ac1ca5d3`.
+CGO-disabled release-flags build, configured-version unit test, and the affected
+embedded-doc catalog pass. Metadata confirms that revision, vcs.modified=false,
+Linux amd64, Go 1.27.2, official go-quickjs v0.32.0/go-intl v0.8.0, and no JIT.
+
+Five native checks pass with zero exits and empty stderr: version
+(`noe v2.18.0`), arithmetic, UDP packet round-trip, verified TLS stream round-trip
+with an ephemeral identity, and bundled socket reference. An initial docs
+smoke assertion expected full member text from the module inventory command;
+the helper was corrected to the documented inventory output and passed,
+reusing the successful runtime checks. Product source did not change.
+
+Candidate: `/var/tmp/noe-v2.18.0-release-ur4u1vbf/candidate`, SHA256
+`096f1ee615d9b2b46d6932d72b3e32c66c9a5eb92f29ca27f2038fee60875465`.
+That directory retains source continuity, build metadata, native checks,
+implementation evidence links, and publication/install helpers.
+
+Tag a documentation-only successor of the clean candidate. CI builds the six
+distribution binaries and checksums without repeating local source suites.
+After publication, verify downloaded assets/metadata, native smoke and direct
+public Go consumers, then install the verified native asset at both authorized
+paths with backups and installed checksum/version/PATH checks. Running services,
+noebot, and real-account/provider access remain outside this release.

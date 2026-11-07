@@ -85,6 +85,21 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
+## v2.18.0 release/install continuation
+
+- The user explicitly requested publication and local installation. Clean
+  candidate revision: `666116dee34fa0b6d9fc4242f72132b4ac1ca5d3`.
+  Runtime logic/dependencies match the verified UDP checkpoint; only the CLI
+  version and two embedded-reference availability sentences changed.
+- Candidate build/metadata, version unit, affected docs, and five focused native
+  checks (version/arithmetic/TLS/UDP/docs) pass. The completed race/E2E, public
+  module artifacts, and six-target implementation builds are reused.
+- Evidence: `/var/tmp/noe-v2.18.0-release-ur4u1vbf`. See the
+  [preparation checkpoint](../releases/release-checkpoints.md#v2180-preparation--2026-11-07).
+  Publish a documentation-only successor, verify downloaded assets and direct
+  public modules, then atomically install both copies with backups. Do not
+  restart services or modify noebot.
+
 ## Completed UDP datagram sockets (v2.18.0)
 
 See the [contract and evidence](stdlib-udp.md),
