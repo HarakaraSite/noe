@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -44,12 +45,14 @@ type Modules struct {
 	ProcessInfo bool
 	Stdio       bool
 	FS          *FileSystemOptions
-	Commands    *CommandOptions
-	DNS         *DNSOptions
-	Fetch       *FetchOptions
-	Serve       *ServeOptions
-	WebSockets  *WebSocketsOptions
-	RawSockets  bool
+	// LocalStorage selects an explicit persistent file within FS authority.
+	LocalStorage *LocalStorageOptions
+	Commands     *CommandOptions
+	DNS          *DNSOptions
+	Fetch        *FetchOptions
+	Serve        *ServeOptions
+	WebSockets   *WebSocketsOptions
+	RawSockets   bool
 	// RawSocketsTLS configures raw TLS; RawSockets must still be selected.
 	RawSocketsTLS *SocketTLSOptions
 	Signals       bool
@@ -62,6 +65,13 @@ type Modules struct {
 type FileSystemOptions struct {
 	Root     string
 	ReadOnly bool
+}
+
+// LocalStorageOptions selects the file backing the localStorage global.
+// Path is resolved against Environment.Cwd under the selected filesystem.
+// FS must be selected. Nil leaves localStorage uninstalled.
+type LocalStorageOptions struct {
+	Path string
 }
 
 type SocketTLSOptions = nativeio.SocketTLSOptions
@@ -170,6 +180,34 @@ func normalize(profile Profile) (Profile, Environment, *filesystem.Backend, erro
 		// attaches never reinterpret a relative Root against ambient cwd.
 		profile.Modules.FS.Root = backend.Root()
 	}
+	if storage := profile.Modules.LocalStorage; storage != nil {
+		if profile.Modules.FS == nil {
+			return Profile{}, Environment{}, nil, fmt.Errorf("stdlib: localStorage requires FS")
+		}
+		if storage.Path == "" || strings.ContainsRune(storage.Path, 0) {
+			return Profile{}, Environment{}, nil, fmt.Errorf("stdlib: localStorage requires a nonempty file path without NUL")
+		}
+		if _, err := backend.Resolve(storage.Path, true); err != nil {
+			return Profile{}, Environment{}, nil, fmt.Errorf("stdlib: localStorage path: %w", err)
+		}
+		if backend.Root() == "" {
+			storage.Path, err = backend.Resolve(storage.Path, true)
+		} else {
+			// Preserve the filesystem's virtual namespace and freeze relative
+			// paths before Worker attachment can supply a different cwd.
+			name := storage.Path
+			if filepath.Separator == '\\' {
+				name = strings.ReplaceAll(name, "\\", "/")
+			}
+			if !strings.HasPrefix(name, "/") {
+				name = path.Join(env.Cwd, name)
+			}
+			storage.Path = path.Clean(name)
+		}
+		if err != nil {
+			return Profile{}, Environment{}, nil, fmt.Errorf("stdlib: localStorage path: %w", err)
+		}
+	}
 	if commands := profile.Modules.Commands; commands != nil && commands.Supervisor != "" {
 		helper, helperErr := filepath.Abs(commands.Supervisor)
 		if helperErr != nil {
@@ -186,6 +224,10 @@ func normalize(profile Profile) (Profile, Environment, *filesystem.Backend, erro
 func cloneProfile(profile Profile) Profile {
 	profile.Environment = cloneEnvironment(profile.Environment)
 	profile.Modules.RawSocketsTLS = nativeio.CloneSocketTLS(profile.Modules.RawSocketsTLS)
+	if profile.Modules.LocalStorage != nil {
+		v := *profile.Modules.LocalStorage
+		profile.Modules.LocalStorage = &v
+	}
 	if profile.Modules.FS != nil {
 		v := *profile.Modules.FS
 		profile.Modules.FS = &v

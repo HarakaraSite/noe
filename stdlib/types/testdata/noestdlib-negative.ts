@@ -200,6 +200,18 @@ Buffer.from("YQ", "base64url");
 // @ts-expect-error MessagePort has no public constructor
 new MessagePort();
 
+// Storage is an interface object, but its constructor is illegal.
+// @ts-expect-error Storage cannot be constructed.
+new Storage();
+// @ts-expect-error Storage cannot be called.
+Storage();
+// @ts-expect-error sessionStorage is a getter-only global.
+sessionStorage = localStorage;
+// @ts-expect-error localStorage is a getter-only global.
+localStorage = sessionStorage;
+// @ts-expect-error Storage.length is getter-only.
+sessionStorage.length = 1;
+
 // The default node:buffer export contains only Buffer; atob/btoa are named exports.
 // @ts-expect-error default buffer export has no atob member
 bufferDefault.atob;

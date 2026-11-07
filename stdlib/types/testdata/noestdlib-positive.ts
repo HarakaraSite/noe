@@ -409,3 +409,15 @@ void watchedBufferIterator;
 const standardSocket = new WebSocket("wss://example.test", ["chat.v1"]);
 const standardSocketURL = new WebSocket(new URL("wss://example.test"));
 void [standardSocket, standardSocketURL];
+
+const storage: Storage = sessionStorage;
+const storageLength: number = storage.length;
+const storageItem: string | null = storage.getItem("example");
+const storageKey: string | null = storage.key(0);
+storage.setItem("example", "value");
+storage.removeItem("example");
+storage.clear();
+storage["named"] = "value";
+delete storage["named"];
+const persistentStorage: Storage = localStorage;
+void [storageLength, storageItem, storageKey, persistentStorage];

@@ -79,6 +79,7 @@ resolvers, clients, providers, and callbacks remain borrowed.
 | `ProcessInfo` | Named `noe:process` metadata/control object `process`, identical to the global `process` object |
 | `Stdio` | Named `noe:process` standard I/O Web Streams and the selected environment's streams |
 | `FS` | `noe:fs`; `FileSystemOptions` selects `Root` and `ReadOnly` |
+| `LocalStorage` | Optional persistent `localStorage`; `LocalStorageOptions.Path` uses the selected FS authority |
 | `Commands` | `noe:process` captured commands and NOE-specific Web Streams `spawn`; options select `Allow`, timeout, output limit, and optional `Supervisor` |
 | `DNS`, `Fetch`, `Serve`, `WebSockets` | The corresponding network capability and its limits/callbacks |
 | `RawSockets`, `Signals` | `noe:sockets` and `noe:signals` |
@@ -200,6 +201,41 @@ JavaScript uses `bind({network: "udp", host, port, signal?})` and explicit
 endpoint. The socket is owned by its runtime and is closed during runtime or
 Worker cleanup. UDP does not guarantee delivery, packet order, duplicate
 suppression, or retries. See the [API reference](../internal/apidocs/content/noe-sockets.md#bind).
+
+## Web Storage (unreleased source)
+
+Default Web APIs include `Storage` and a fresh `sessionStorage` for each
+runtime. Workers have independent session data. Persistent `localStorage`
+requires an explicit file and FS selection:
+
+```go
+profile := stdlib.Profile{
+    Environment: stdlib.Environment{Cwd: "/"},
+    Modules: stdlib.Modules{
+        FS: &stdlib.FileSystemOptions{Root: dataDirectory},
+        LocalStorage: &stdlib.LocalStorageOptions{Path: "state.json"},
+    },
+}
+```
+
+JavaScript calls `localStorage.setItem("theme", "dark")` and
+`localStorage.getItem("theme")` synchronously. The directory must already
+exist; the file is created on the first mutation. Paths use the execution's
+Root/Cwd/ReadOnly policy and are fixed before Worker creation. Option values
+are snapshotted at attachment. Nil LocalStorage leaves the global absent.
+Session storage needs no external capability and ends with its runtime.
+
+Main runtimes and Workers selecting the same file observe committed local
+changes. Mutations are serialized in this process and committed atomically.
+Independent OS processes and ordinary filesystem edits do not participate in
+that serialization; use SQLite for cross-process transactional updates.
+Strings round-trip as UTF-16, including unpaired surrogates. Storage is not
+encrypted. NOE has no Window/origin partition or storage events.
+
+This addition changes the public `Modules` struct shape; use keyed literals.
+It is not part of v2.18.0. See the [contract](development/stdlib-web-storage.md),
+[API reference](../internal/apidocs/content/stdlib-globals.md#storage), and
+[example](../examples/storage/README.md).
 
 ## Asynchronous SQLite
 

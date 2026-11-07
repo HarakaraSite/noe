@@ -26,6 +26,10 @@ type Config struct {
 	// Nil means none: the fs module is not installed at all.
 	FS *FS
 
+	// LocalStorage selects an explicit persistent file using FS authority.
+	// Nil leaves the localStorage global absent; sessionStorage is in-memory.
+	LocalStorage *LocalStorageOptions
+
 	// Process describes the process the script thinks it is running in. Nil
 	// installs nothing.
 	Process *Process
@@ -69,7 +73,8 @@ type Config struct {
 
 	// NoWebAPIs leaves out the things a browser has and a language does not --
 	// URL, TextEncoder, TextDecoder, structuredClone, performance, crypto,
-	// atob, btoa -- and the node modules that need no capability either:
+	// atob, btoa, Storage and sessionStorage -- and the node modules that
+	// need no capability either:
 	// events, util, assert, buffer, crypto, zlib and the web's streams. All of
 	// it is pure computation, and all of it is installed by default.
 	NoWebAPIs bool
@@ -191,6 +196,9 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 	if !cfg.NoWebAPIs {
 		m, err := webAPIs(rt, cfg.Random, cfg.Loop)
 		if err != nil {
+			return err
+		}
+		if err := installStorage(rt, cfg); err != nil {
 			return err
 		}
 		// The node modules that need no capability go with them: an

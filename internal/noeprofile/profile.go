@@ -20,6 +20,7 @@ import (
 // ProfileOptions selects application-owned CLI defaults, independently of agent execution.
 type ProfileOptions struct {
 	Cwd, Source, Supervisor string
+	LocalStorage            string
 	Args                    []string
 	Stdin                   io.Reader
 	Stdout, Stderr          io.Writer
@@ -85,6 +86,9 @@ func Profile(options ProfileOptions) (stdlib.Profile, error) {
 		Scopes:  options.ImportMap.Scopes(),
 		HTTP:    &stdlib.ModuleHTTPOptions{},
 	})
+	if options.LocalStorage != "" {
+		profile.Modules.LocalStorage = &stdlib.LocalStorageOptions{Path: options.LocalStorage}
+	}
 	profile.Initialize = func(ctx context.Context, view *stdlib.Bindings) (func(), error) {
 		if view.Worker() {
 			return nil, nil

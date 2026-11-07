@@ -20,6 +20,9 @@ func lowerConfig(profile Profile, env Environment, backend *filesystem.Backend, 
 	if modules.FS != nil {
 		cfg.FS = &lower.FS{Cwd: env.Cwd, Backend: backend, Loop: loop}
 	}
+	if modules.LocalStorage != nil {
+		cfg.LocalStorage = &lower.LocalStorageOptions{Path: modules.LocalStorage.Path}
+	}
 	if modules.ProcessInfo {
 		cfg.Process = &lower.Process{
 			Args: cloneArgs(env.Args), Env: cloneMap(env.Env), Cwd: env.Cwd,

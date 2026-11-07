@@ -48,4 +48,10 @@ Use `open` from `noe:fs` for reads and writes through an open file handle, and `
 
 ### Source basis
 
+Current source after v2.18.0 also installs the global Storage interface and
+runtime-local sessionStorage. The persistent localStorage global requires
+explicit `Modules.LocalStorage` selection and FS authority; CLI run/eval use
+`--local-storage path`. This source addition is not included in v2.18.0.
+See globals for synchronous methods, Worker sharing, and file limitations.
+
 NOE-maintained implementation: internal/stdlib. Upstream origin: github.com/go-quickjs/go-quickjs@v0.27.0/stdlib, recorded in internal/stdlib/UPSTREAM.md. The JavaScript engine remains the go-quickjs dependency in go.mod. The public module allowlist is internal/modulemap/builtins.go; NOE's selected capabilities and Worker loader are in internal/runtime/stdlib.go.

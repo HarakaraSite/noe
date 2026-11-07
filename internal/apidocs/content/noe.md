@@ -15,3 +15,9 @@ Use `noe docs` for the topic index, `noe docs <topic>` for a topic overview and 
 Each module overview identifies its public exports, aliases, owner, type-declaration file, and host requirements. noestdlib owns `stdlib/types/noestdlib.d.ts`; noeagentlib owns `agent/types/noeagentlib.d.ts`, including agent/model/image/decision/auth/log modules. Obtain these separate files from the corresponding source version; the binary does not download or combine them. Reading this catalog never evaluates the described module. Type declarations and reference entries do not grant or detect runtime capabilities.
 
 Use the standard global `fetch()` for HTTP requests. Import host-specific listener and WebSocket helpers from `noe:http`; its selected exports and availability are described in `docs("noe:http")`, including demand-driven request-body reads, body limits, `Expect: 100-continue`, and resource-lifetime details.
+
+Web Storage globals are available in current unreleased source after v2.18.0.
+`sessionStorage` is runtime-local. CLI `run` and `eval` accept
+`--local-storage path` before the script/code operand to select a persistent
+`localStorage` file; the containing directory must exist. Go hosts select
+`Modules.LocalStorage` with `Modules.FS`. See `docs("globals", "Storage")`.

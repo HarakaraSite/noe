@@ -20,6 +20,7 @@ type Profile = jsexec.Profile
 type Modules = jsexec.Modules
 
 type FileSystemOptions = jsexec.FileSystemOptions
+type LocalStorageOptions = jsexec.LocalStorageOptions
 type CommandOptions = jsexec.CommandOptions
 type DNSOptions = jsexec.DNSOptions
 type FetchOptions = jsexec.FetchOptions

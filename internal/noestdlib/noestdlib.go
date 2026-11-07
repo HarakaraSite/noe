@@ -207,6 +207,10 @@ func sameWriter(a, b io.Writer) bool {
 
 func cloneConfig(cfg stdlib.Config) stdlib.Config {
 	originalServe := cfg.Serve
+	if cfg.LocalStorage != nil {
+		copy := *cfg.LocalStorage
+		cfg.LocalStorage = &copy
+	}
 	if cfg.FS != nil {
 		copy := *cfg.FS
 		cfg.FS = &copy

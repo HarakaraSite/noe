@@ -24,6 +24,8 @@ type Options struct {
 	Stderr io.Writer
 	Args   []string
 	Cwd    string
+	// LocalStorage selects an explicit file for the localStorage global.
+	LocalStorage string
 	// InstructionDirs replaces default external sources when non-nil; empty disables them.
 	// Relative paths are based on Cwd. The runtime copies and fixes locations at startup.
 	InstructionDirs []string

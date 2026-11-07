@@ -43,6 +43,10 @@ Go hosts can configure TLS with `Modules.RawSocketsTLS`; unkeyed `Modules`
 literals must move to named fields. HTTPS/WSS remains available through
 `noe:http.serve` as introduced in v2.17.0.
 
+Current unreleased source also provides runtime-local `sessionStorage` and
+explicit-file `localStorage`. See the [storage example](examples/storage/README.md)
+and [Go embedding contract](docs/go-embedding.md#web-storage-unreleased-source).
+
 When upgrading from v2.15.0 or earlier, also read the
 [v2.16.0 migration guide](docs/releases/v2.16.0-migration.md) for removed
 filesystem/process/HTTP imports, standard I/O, and lifecycle changes.

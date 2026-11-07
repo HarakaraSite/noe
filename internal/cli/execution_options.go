@@ -24,6 +24,7 @@ type commandOptions struct {
 	events          *string  // nil disables observation; empty chooses an automatic file name.
 	observe         bool     // render human-readable events directly on stdout.
 	importMap       string   // explicit import-map path; empty disables mappings.
+	localStorage    string   // explicit persistent Storage file; empty disables it.
 	instructionDirs []string // nil discovers defaults; non-nil replaces them.
 }
 
@@ -95,6 +96,25 @@ func parseCommandOptions(args []string) (commandOptions, []string, error) {
 				return commandOptions{}, nil, errors.New("noe: --import-map requires a file path")
 			}
 			options.importMap = value
+			i++
+			continue
+		}
+		if arg == "--local-storage" || strings.HasPrefix(arg, "--local-storage=") {
+			if options.localStorage != "" {
+				return commandOptions{}, nil, errors.New("noe: --local-storage may be specified only once")
+			}
+			value := strings.TrimPrefix(arg, "--local-storage=")
+			if arg == "--local-storage" {
+				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
+					return commandOptions{}, nil, errors.New("noe: --local-storage requires a file path")
+				}
+				value = args[i+1]
+				i++
+			}
+			if value == "" || strings.ContainsRune(value, 0) {
+				return commandOptions{}, nil, errors.New("noe: --local-storage requires a nonempty file path without NUL")
+			}
+			options.localStorage = value
 			i++
 			continue
 		}

@@ -36,6 +36,7 @@ const usage = `Usage:
 Execution options (before the first operand; -- ends options):
   --timeout duration       Limit execution time.
   --import-map path        Select an import map.
+  --local-storage path     Select a persistent localStorage file.
   --inst DIR               Replace defaults; repeat in order (also --inst=DIR).
   --no-inst                Select no external directories (exclusive with --inst).
   By default, common and starting-cwd workspace directories are used.
@@ -61,6 +62,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	var eventOption *string
 	var humanOutput bool
 	var importMapPath string
+	var localStoragePath string
 	var instructionDirs []string
 	switch args[0] {
 	case "--help", "-h", "help":
@@ -104,6 +106,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		executionTimeout, eventOption = options.timeout, options.events
 		humanOutput = options.observe
 		importMapPath = options.importMap
+		localStoragePath = options.localStorage
 		instructionDirs = options.instructionDirs
 	case "eval":
 		options, operands, err := parseCommandOptions(args[1:])
@@ -124,6 +127,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		executionTimeout, eventOption = options.timeout, options.events
 		humanOutput = options.observe
 		importMapPath = options.importMap
+		localStoragePath = options.localStorage
 		instructionDirs = options.instructionDirs
 	default:
 		fmt.Fprintf(stderr, "noe: unknown command %q\n%s", args[0], usage)
@@ -141,7 +145,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	}
 	defer func() { exitCode = observed.finish(exitCode, stderr) }()
 	observed.emit(events.Event{"type": "execution.started", "command": args[0]})
-	runtimeOptions := runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs, ImportMap: importMap, InstructionDirs: instructionDirs}
+	runtimeOptions := runtime.Options{Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: scriptArgs, ImportMap: importMap, InstructionDirs: instructionDirs, LocalStorage: localStoragePath}
 	if observed != nil {
 		runtimeOptions.Stdout, runtimeOptions.Stderr = observed.stdout, observed.stderr
 	}

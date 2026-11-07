@@ -37,7 +37,7 @@ func newManagedExecution(ctx context.Context, options Options, source Source) (*
 		return nil, err
 	}
 	profile, err := noeprofile.Profile(noeprofile.ProfileOptions{
-		Cwd: options.Cwd, Source: entry, Supervisor: settings.Supervisor, Args: options.Args,
+		Cwd: options.Cwd, Source: entry, Supervisor: settings.Supervisor, Args: options.Args, LocalStorage: options.LocalStorage,
 		Stdin: options.Stdin, Stdout: options.Stdout, Stderr: options.Stderr, ImportMap: options.ImportMap, Auth: authOptions,
 	})
 	if err != nil {

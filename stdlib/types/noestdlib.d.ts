@@ -1140,6 +1140,20 @@ declare namespace NOEStdlib {
     readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSING: 2; readonly CLOSED: 3;
   }
 
+  interface Storage {
+    readonly length: number;
+    clear(): void;
+    getItem(key: string): string | null;
+    key(index: number): string | null;
+    removeItem(key: string): void;
+    setItem(key: string, value: string): void;
+    readonly [Symbol.toStringTag]: "Storage";
+    [name: string]: any;
+  }
+  interface StorageConstructor {
+    readonly prototype: Storage;
+  }
+
   interface Worker extends EventTarget {
     onmessage: EventListener<MessageEvent> | null;
     onmessageerror: EventListener<MessageEvent> | null;
@@ -1746,6 +1760,10 @@ interface EventSource extends NOEStdlib.EventSource {}
 declare var EventSource: NOEStdlib.EventSourceConstructor;
 interface WebSocket extends NOEStdlib.WebSocket {}
 declare var WebSocket: NOEStdlib.WebSocketConstructor;
+interface Storage extends NOEStdlib.Storage {}
+declare var Storage: NOEStdlib.StorageConstructor;
+declare const sessionStorage: Storage;
+declare const localStorage: Storage;
 interface CryptoKey extends NOEStdlib.CryptoKey {}
 declare var CryptoKey: {prototype: CryptoKey};
 interface Crypto extends NOEStdlib.Crypto {}

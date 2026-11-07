@@ -56,6 +56,9 @@ func run() error {
 	if err := sqlite(ctx); err != nil {
 		return err
 	}
+	if err := webStorage(ctx); err != nil {
+		return err
+	}
 	if err := urlImports(ctx); err != nil {
 		return err
 	}

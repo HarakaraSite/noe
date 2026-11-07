@@ -1,8 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after v2.18.0 publication, verification, and local
-installation for the completed raw TLS/UDP work. Future release requests
-include local installation by default.
+Updated 2026-11-07 for the approved Web Storage continuation after v2.18.0
+publication and local installation. Future release requests include local
+installation by default.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
 
@@ -82,6 +82,42 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Current local continuation: Web Storage
+
+After asking for the next stdlib step, the user approved implementing
+sessionStorage and localStorage. See the
+[Web Storage contract](stdlib-web-storage.md). This is local work after
+v2.18.0; no new release, push, installation, service restart, or noebot work
+is requested by that approval.
+
+The contract selects runtime-local sessionStorage by default and an optional
+localStorage file via `Modules.LocalStorage` / `LocalStorageOptions.Path`,
+requiring the existing FS authority. CLI run/eval use `--local-storage path`.
+Main runtimes and Workers share committed local data for the same path, while
+sessions stay isolated. Preserve UTF-16 strings and failed-write state; expose
+no browser origin model or storage events. Use keyed Modules literals.
+
+Implementation and integrated verification are complete. Evidence is at
+`/var/tmp/noe-web-storage-bvqxqjs1`; the installed binaries remain v2.18.0.
+Affected unit packages, final focused storage/profile/CLI race tests, actual
+CLI process/Worker/example E2E, TypeScript fixtures, embedded docs, vet/lint,
+and checkout/module-artifact public Go consumers pass. Runtime logic and
+dependencies are fingerprinted for reuse. Actual execution is Linux amd64;
+unchanged engine/dependency platform evidence is reused without claiming a
+new six-target build.
+
+The bounded review found one inherited descriptor getter that could reenter
+localStorage while its native file lock was held. Null-prototype descriptors
+remove that path; the new regression fails on the earlier module artifact,
+passes on corrected source, and a fix-only re-review finds no remaining issue.
+The Proxy facade intentionally rejects configurable:false named-property
+definitions before mutation; ordinary methods, assignment, deletion, and
+configurable data descriptors follow the documented contract.
+
+No new release or installation is pending under the implementation approval.
+If the user requests publication, include installation under the standing
+rule and reuse this implementation evidence for unchanged runtime source.
 
 ## Published and installed v2.18.0
 
