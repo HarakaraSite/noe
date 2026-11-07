@@ -6,6 +6,7 @@
 
 ## リリースノート
 
+- [v2.17.0](v2.17.0.md) — prepared locally; not yet published
 - [v2.16.0](v2.16.0.md) · [Migration guide](v2.16.0-migration.md)
 - [v2.15.0](v2.15.0.md)
 - [v2.14.0](v2.14.0.md)

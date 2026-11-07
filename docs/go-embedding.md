@@ -116,6 +116,10 @@ executables can use the same dispatcher. Windows uses Job Objects.
 
 ## HTTPS listeners (source-only after v2.16.0)
 
+This addition is prepared for [v2.17.0](releases/v2.17.0.md), which has not yet
+been published. Use the current checkout for these options; the published
+v2.16.0 module does not include them.
+
 The current source adds `ServeOptions.TLS *tls.Config`. An embedding host can
 supply certificates/callbacks and TLS policy there without exposing private
 keys to JavaScript. It selects HTTPS for the same `serve` function and bind

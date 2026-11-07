@@ -48,6 +48,11 @@ Old filesystem/process/HTTP imports are removed without adapters; read the
 [upgrade guide](docs/releases/v2.16.0-migration.md) before updating scripts.
 Standard Fetch, WebSocket, and global `process` retain their global names.
 
+The current source prepares [v2.17.0](docs/releases/v2.17.0.md), adding HTTPS
+listeners and WSS upgrades. It is not yet published; the download above
+remains v2.16.0. Go hosts updating unkeyed `ServeOptions` literals must switch
+to named fields for the added TLS configuration.
+
 For earlier changes and migration guidance, see the
 [release history](docs/releases/README.md), [v2 migration guide](docs/v2-migration.md),
 and [execution guide](docs/execution-results.md).
@@ -61,7 +66,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.16.0
+# noe v2.17.0
 ```
 
 The examples below assume the repository root is your working directory.
