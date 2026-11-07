@@ -87,8 +87,13 @@ Release evidence: `/var/tmp/noe-v2.20.0-release-el4vn8lo`. The remote latest
 release was confirmed as v2.19.0, and fetched origin/main contains neither of
 the two verified local implementation commits. Reuse implementation evidence;
 only version/availability text and release records change during preparation.
-Pending: clean candidate build and light checks, push/tag, CI publication,
-downloaded-asset/public-consumer verification, both installations and records.
+Clean candidate `a6b3bc7` passes the release build/metadata, version unit,
+embedded-doc catalog, seven native checks and unmodified jose main/Worker /
+Node interoperability. All 312 runtime/dependency/reference paths match the
+verified implementation except version/availability wording. See the
+[preparation checkpoint](../releases/release-checkpoints.md#v2200-preparation--2026-11-08).
+Pending: push/tag, CI publication, downloaded-asset/public-consumer verification,
+both installations and final records.
 
 ## Local Web Crypto continuation
 

@@ -4065,3 +4065,46 @@ continuity, native checks and public consumers are at
 Publication and both requested installations are complete. This record does
 not move the immutable tag. Other VMs/hosts, noebot placement/restarts, and
 service restarts were not changed; no paid provider or real login was used.
+
+
+## v2.20.0 preparation — 2026-11-08
+
+The user explicitly authorized releasing the Web Crypto correction and
+installing the verified native asset at both vm201 executable paths. The
+implementation is `6c8a23d` with error-order follow-up `2e8a197`; other hosts,
+service restarts, noebot changes, real login and application-provider calls
+remain excluded.
+
+Implementation evidence is `/var/tmp/noe-webcrypto-46m8xyzx`, the independent
+pi GLM 5.3 / max report and parent primary-specification dispositions are at
+`/var/tmp/noe-webcrypto-pi-review-dodw0o1o`, and the accepted finding's fix is
+verified at `/var/tmp/noe-webcrypto-derivekey-qgsnbji4`. Reuse affected units,
+focused race, types/docs/lint/vet, checkout/source-artifact consumers and SDK
+results for unchanged paths. The error-order regression fails before the fix,
+passes after it, and its focused public/native/legacy tests and CLI cases pass.
+No independent fix re-review or complete Web Crypto audit is claimed.
+
+All 312 implementation runtime/dependency/reference paths match the verified
+source except the exact CLI version and availability wording in two embedded
+reference pages. Runtime logic, dependencies, release profile and workflow are
+unchanged. No full unit/E2E/race or six-target local build was repeated.
+
+Clean candidate revision: `a6b3bc754b34eca565f66befa62499759b2238dd`.
+The CGO-disabled release-flags build, configured-version unit and changed
+embedded-doc catalog pass. Metadata confirms that revision, vcs.modified=false,
+Linux amd64, Go 1.27.2, go-quickjs v0.32.0 / go-intl v0.8.0, and disabled JIT.
+Seven native checks pass: v2.20.0 version, arithmetic, key authority/branding /
+BufferSource offsets, nine review cases including corrected deriveKey error
+precedence, the HMAC usage example, and crypto/global reference entries.
+The unchanged jose 6.2.15 SDK also passes main/Worker HS256/384/512 JWT/JWS,
+claim/signature rejection and two-way Node interoperability; 46 original SDK
+files retain their fingerprints. All commands exit zero with empty runtime
+stderr. Explicit unsupported-operation probes remain recorded as gaps.
+
+Candidate: `/var/tmp/noe-v2.20.0-release-el4vn8lo/candidate`, SHA256
+`b2526c31f8e803deb8a58ad458a56c04ce10d6eacf1f5605fdfe2246b73858c4`.
+The directory retains source continuity, checks, metadata and publication /
+installation helpers. Tag a documentation-only successor; CI builds six
+assets and SHA256SUMS without repeating local source suites. Verify downloaded
+assets, native runtime and direct published Go consumers before backing up and
+installing at both authorized paths.
