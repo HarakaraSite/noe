@@ -35,19 +35,20 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.19.0 release notes](docs/releases/v2.19.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.19.0)
+[v2.20.0 release notes](docs/releases/v2.20.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.20.0)
 
-v2.19.0 adds runtime-local `sessionStorage` and explicit-file `localStorage`.
-Use `--local-storage path` with CLI run/eval, or select `Modules.LocalStorage`
-with FS authority in Go. See the [storage example](examples/storage/README.md)
-and [Go embedding contract](docs/go-embedding.md#web-storage).
-Go consumers using unkeyed `Modules` literals must move to named fields.
-Raw TLS/UDP sockets and HTTPS/WSS remain available from the preceding releases.
+v2.20.0 corrects existing Web Crypto key usage, extractability, BufferSource,
+and error contracts. Private snapshots govern key operations; mutable public
+metadata cannot grant authority. See the [jose example](examples/crypto/README.md)
+and [supported standard APIs and remaining gaps](docs/development/stdlib-webcrypto.md).
+No new algorithm family, host capability, or runtime dependency is added.
 
-Current unreleased source corrects existing Web Crypto key usage,
-extractability, BufferSource, and error contracts. See the
-[standard API gaps and validation](docs/development/stdlib-webcrypto.md) and
-[unmodified jose example](examples/crypto/README.md).
+Web Storage remains available from v2.19.0, including runtime-local
+`sessionStorage` and explicit-file `localStorage`. See the
+[storage example](examples/storage/README.md) and
+[Go embedding contract](docs/go-embedding.md#web-storage). Consumers using
+unkeyed `Modules` literals must move to named fields. Raw TLS/UDP sockets
+and HTTPS/WSS remain available from the preceding releases.
 
 When upgrading from v2.15.0 or earlier, also read the
 [v2.16.0 migration guide](docs/releases/v2.16.0-migration.md) for removed
@@ -65,7 +66,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.19.0
+# noe v2.20.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。

@@ -2,9 +2,9 @@
 
 [Examples](../README.md) · [Contract and standard API gaps](../../docs/development/stdlib-webcrypto.md)
 
-The corrected Web Crypto contracts are an unreleased source addition after
-v2.19.0. Build the current source for the first example; installed v2.19.0
-still contains the earlier key-policy behavior.
+The corrected Web Crypto contracts are available in v2.20.0 and later. Use
+the matching release binary or build the current source for these examples.
+Earlier releases retain the permissive key-policy behavior corrected here.
 
 ```sh
 CGO_ENABLED=0 go build -o /tmp/noe-webcrypto ./cmd/noe

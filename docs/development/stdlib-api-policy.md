@@ -60,7 +60,7 @@ changing NOE does not authorize editing or deploying noebot.
 | Raw TLS sockets | TLS connect/listen over the existing native Web Streams backend, with verified handshakes and independent host configuration. | Included in v2.18.0; implemented at `ba5c37d`. See [contract and verification](stdlib-raw-tls.md). |
 | UDP datagrams | Explicit bind/send/receive with packet boundaries, source addresses, operation-scoped cancellation, and native ownership. | Included in v2.18.0; implemented at `8acc44b`. See [contract and verification](stdlib-udp.md). |
 | Web Storage | Runtime-local sessionStorage and explicit-file localStorage using existing FS authority. | Included in v2.19.0; implemented at `dfa497e`. See [contract and verification](stdlib-web-storage.md). |
-| Existing Web Crypto contracts | Private key policy, standard input/errors, native asynchronous computation, gap inventory, and real SDK interoperability. | Local correction after v2.19.0; no new algorithm family. See [contract, gaps, and verification](stdlib-webcrypto.md). |
+| Existing Web Crypto contracts | Private key policy, standard input/errors, native asynchronous computation, gap inventory, and real SDK interoperability. | Included in v2.20.0; no new algorithm family. See [contract, gaps, and verification](stdlib-webcrypto.md). |
 | Remaining Node modules and globals | Review Buffer/process and utility module names against actual callers and semantic differences. | Demand-driven; avoid churn with no clear usability benefit. |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource

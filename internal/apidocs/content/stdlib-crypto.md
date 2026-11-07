@@ -18,8 +18,8 @@ Offers hashing, HMAC, random values, key derivation, and a limited Web Crypto su
 
 The Web Crypto subtle surface is intentionally small and source-defined; do not assume unsupported algorithms or key formats.
 
-The contract corrections below are in unreleased source after v2.19.0.
-Installed v2.19.0 executables retain the earlier permissive key behavior.
+The contract corrections below are available in v2.20.0 and later.
+Earlier executables retain the permissive key behavior corrected here.
 
 ## webcrypto
 

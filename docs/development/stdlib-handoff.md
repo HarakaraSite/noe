@@ -1,15 +1,16 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after the local Web Crypto correction, gap inventory,
-SDK validation, independent review, and deriveKey error-order fix following
-verified v2.19.0 publication/installation. Release
-requests include local installation by default.
+Updated 2026-11-08 during the authorized v2.20.0 Web Crypto release and vm201
+installation. Implementation, SDK validation, independent review, and the
+deriveKey error-order follow-up are complete. Release requests include local
+installation by default.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
 
 The latest local continuation corrects existing Web Crypto contracts and
 completes the requested standard-gap inventory plus unmodified SDK validation.
-It is not yet published or installed; v2.19.0 below remains the deployed release.
+The user has now authorized v2.20.0 publication and installation; this is in
+progress, and v2.19.0 below remains deployed until placement is verified.
 See [local Web Crypto continuation](#local-web-crypto-continuation).
 
 ## Repository and publication state
@@ -74,6 +75,21 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
+## v2.20.0 release in progress
+
+The user explicitly requested release and placement on 2026-11-08. Publish the
+verified Web Crypto implementation `6c8a23d` plus error-order fix `2e8a197` as
+v2.20.0, then install the verified native asset at both local executable paths
+above with backups and version/hash/PATH checks. No other host, service restart,
+or noebot change is included. See [release notes](../releases/v2.20.0.md).
+
+Release evidence: `/var/tmp/noe-v2.20.0-release-el4vn8lo`. The remote latest
+release was confirmed as v2.19.0, and fetched origin/main contains neither of
+the two verified local implementation commits. Reuse implementation evidence;
+only version/availability text and release records change during preparation.
+Pending: clean candidate build and light checks, push/tag, CI publication,
+downloaded-asset/public-consumer verification, both installations and records.
+
 ## Local Web Crypto continuation
 
 The user approved: existing Web Crypto contract correction, standard API gap
@@ -113,11 +129,11 @@ See the [contract, gaps and results](stdlib-webcrypto.md).
 Original evidence: `/var/tmp/noe-webcrypto-46m8xyzx`. Error-order follow-up
 evidence and the current development candidate are at
 `/var/tmp/noe-webcrypto-derivekey-qgsnbji4` (`noe` executable); installed
-executables remain the published v2.19.0 asset. No release, push, installation,
-other-host/noebot change, real login or paid provider request is authorized by
-this implementation task.
-Reuse results for unchanged code/dependencies. After a release request, publish
-and install together under the standing rule.
+executables currently remain the published v2.19.0 asset. The implementation
+task did not include publication or placement; the subsequent release request
+above now authorizes both. Reuse results for unchanged code/dependencies.
+Other hosts, noebot changes, service restarts, real login and application-provider
+requests remain excluded.
 
 ## Current release: v2.19.0 Web Storage
 

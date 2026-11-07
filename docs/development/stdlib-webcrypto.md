@@ -1,9 +1,10 @@
 # Web Crypto contract correction
 
-Implemented and verified locally after v2.19.0: correct existing Web Crypto
-contracts, inventory the remaining standard API gaps, and validate an unpatched
-real SDK. Publication, installation, noebot, real login, and paid providers are
-outside this request. The [API policy](stdlib-api-policy.md) remains current.
+Included in v2.20.0: correct existing Web Crypto contracts, inventory the
+remaining standard API gaps, and validate an unpatched real SDK. Publication
+and installation are recorded in the [release checkpoints](../releases/release-checkpoints.md).
+Noebot, real login, and application-provider calls remain outside this work.
+The [API policy](stdlib-api-policy.md) remains current.
 
 ## Scope and references
 

@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.19.0; see the
+select model providers or agent behavior. The current release is v2.20.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.32.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.19.0`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.20.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -202,9 +202,9 @@ endpoint. The socket is owned by its runtime and is closed during runtime or
 Worker cleanup. UDP does not guarantee delivery, packet order, duplicate
 suppression, or retries. See the [API reference](../internal/apidocs/content/noe-sockets.md#bind).
 
-## Web Crypto (unreleased correction)
+## Web Crypto
 
-Source after v2.19.0 corrects the existing SHA/HMAC/PBKDF2/HKDF Web Crypto
+v2.20.0 corrects the existing SHA/HMAC/PBKDF2/HKDF Web Crypto
 contracts. No new Profile field or capability is added. The selected Random
 reader remains borrowed; digest, signing, verification and derivation use Go
 cryptographic primitives. Native calculation runs away from the VM owner with
@@ -219,9 +219,8 @@ their existing behavior and webcrypto/subtle identity with global crypto.
 
 See the [contract and standard API gaps](development/stdlib-webcrypto.md),
 [embedded reference](../internal/apidocs/content/stdlib-crypto.md), and
-[unmodified jose validation](../examples/crypto/README.md). This correction is
-not in the installed v2.19.0 binaries and does not imply full Web Crypto or
-complete SDK compatibility.
+[unmodified jose validation](../examples/crypto/README.md). This correction
+does not imply full Web Crypto or complete SDK compatibility.
 
 ## Web Storage
 

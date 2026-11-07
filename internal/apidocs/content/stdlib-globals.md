@@ -42,7 +42,7 @@ inputs reject with TypeMismatchError and oversized views with QuotaExceededError
 
 ## CryptoKey
 
-In unreleased source after v2.19.0, CryptoKey is an illegal constructor with
+In v2.20.0 and later, CryptoKey is an illegal constructor with
 readonly type, algorithm, extractable, and usages attributes. Import through
 crypto.subtle.importKey. Cached algorithm/usages metadata objects are mutable
 views; private snapshots govern actual operations even if those views are
