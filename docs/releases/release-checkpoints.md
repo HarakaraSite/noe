@@ -3723,3 +3723,57 @@ module manifests, and helpers are at
 their pre-release hashes and versions. This documentation-only result record
 does not move the release tag. No installed executable replacement, service
 restart, noebot change, or paid provider/login request was performed.
+
+## v2.17.0 preparation — 2026-11-07
+
+The continuation request was used for local preparation of the completed
+HTTPS/WSS listener slice at `6cdc02fbdd803dbace8cf484d100bdbfde0a8f7c`.
+Publication is pending. See the [release notes](v2.17.0.md) for JavaScript PEM
+options, host TLS, HTTP/1.1/WSS transport, and the Go keyed-literal migration.
+The published download/module instructions continue to identify v2.16.0.
+
+### Reused implementation evidence
+
+The [HTTPS/WSS record](../development/stdlib-https.md) and
+`/var/tmp/noe-https-vm9c6p5e` retain successful affected HTTP/Serve/WebSocket
+and Worker checks, new public HTTPS/WSS cases, race checks, real CLI E2E,
+types, embedded docs, example lint, vet, and bounded static review.
+Public consumers run against the checkout and an isolated module artifact
+with CGO disabled, and build for all six distribution targets.
+
+The initial aggregate race command failed only in the existing queued-opening
+WebSocket test. Its owner-delivery assumption was corrected by gating the
+handshake response until Eval returns; the focused race check passes. No
+socket production behavior changed for that correction.
+
+All 72 recorded implementation/dependency source paths still match their
+verified manifest. Source changes after `6cdc02f` consist only of the checked
+CLI version literal. The 17 changed Go/JS/declaration paths since v2.16.0 are
+recorded in the release source manifest. Dependencies and the release
+profile/workflow are unchanged from v2.16.0. Unchanged source suites, race/E2E,
+long waits, and consumer cross-builds were not repeated for this preparation.
+
+### Lightweight release verification
+
+Clean candidate revision: `e7d8f5e418eba434d5d131dc31a2b9931669b7b3`.
+The configured-version unit test and CGO-disabled release-flags build passed.
+Build metadata confirms that revision, `vcs.modified=false`, Linux amd64,
+Go 1.27.2, official go-quickjs v0.32.0, go-intl v0.8.0, and no quickjs_jit tag.
+
+Four native smoke checks passed with zero exits and empty stderr: version
+(`noe v2.17.0`), arithmetic, HTTPS configuration validation/redaction, and
+the bundled Serve reference. The release notes, both README source-version
+examples, Go migration notice, and local links/whitespace are checked.
+
+Candidate: `/var/tmp/noe-v2.17.0-release-yk3xb7im/candidate`, SHA256
+`fe54e4b84797a24b84ced19c71e5ca156bf41dda8f193f5d50ff7f8790df0bbf`.
+That directory retains source continuity, build metadata, smoke logs, and
+implementation evidence links. The following preparation record changes
+documentation only and does not invalidate this candidate's source checks.
+
+No new tag, push, release, executable installation, service restart, noebot
+change, or provider/login request was performed. Both installed copies remain
+the verified v2.16.0 asset. On an explicit publication instruction, tag the
+documentation-only successor without changing validated source; CI builds
+the six binaries and checksums. Downloaded assets, metadata, focused native
+smoke, and direct published-module consumers are post-publication checks.

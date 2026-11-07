@@ -5,6 +5,7 @@ after the v2.16.0 release and local binary installation. This is an additive
 local development slice, implemented and verified but unreleased. It does
 not authorize another publication, installation, or running-service restart.
 The [session handoff](stdlib-handoff.md) records the continuation point.
+It is prepared for [v2.17.0](../releases/v2.17.0.md); publication is pending.
 
 ## Selected contract
 
