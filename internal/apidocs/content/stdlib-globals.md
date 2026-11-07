@@ -8,7 +8,7 @@ Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source dist
 
 Availability: This is the complete reference, not a report of the current runtime. Globals and host operations depend on Profile.Modules; ECMAScript built-ins come from the pinned engine.
 
-The Web Storage entries below describe the unreleased source continuation after v2.18.0. Installed v2.18.0 executables do not provide these APIs.
+Web Storage is available in v2.19.0 and later. Earlier executables do not provide these APIs.
 
 Public-definition source: internal/stdlib/stdlib.go, internal/jsexec/profile.go. Reading this reference evaluates no target module and makes no provider request.
 
@@ -30,7 +30,7 @@ The pinned QuickJS runtime also exposes these language and host globals: Aggrega
 
 `AbortController`, `AbortSignal`, `AggregateError`, `Array`, `ArrayBuffer`, `AsyncDisposableStack`, `Atomics`, `BigInt`, `BigInt64Array`, `BigUint64Array`, `Blob`, `Boolean`, `BroadcastChannel`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `CryptoKey`, `DOMException`, `DataView`, `Date`, `DecompressionStream`, `DisposableStack`, `Error`, `ErrorEvent`, `EvalError`, `Event`, `EventSource`, `EventTarget`, `File`, `FinalizationRegistry`, `Float16Array`, `Float32Array`, `Float64Array`, `FormData`, `Function`, `Headers`, `Infinity`, `Int16Array`, `Int32Array`, `Int8Array`, `Intl`, `Iterator`, `JSON`, `Map`, `Math`, `MessageChannel`, `MessageEvent`, `MessagePort`, `NaN`, `Number`, `Object`, `Promise`, `Proxy`, `RangeError`, `ReadableStream`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `ReferenceError`, `Reflect`, `RegExp`, `Request`, `Response`, `Set`, `ShadowRealm`, `SharedArrayBuffer`, `Storage`, `String`, `SuppressedError`, `Symbol`, `SyntaxError`, `Temporal`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TypeError`, `URIError`, `URL`, `URLPattern`, `URLSearchParams`, `Uint16Array`, `Uint32Array`, `Uint8Array`, `Uint8ClampedArray`, `WeakMap`, `WeakRef`, `WeakSet`, `WebSocket`, `Worker`, `WritableStream`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearInterval`, `clearTimeout`, `console`, `crypto`, `decodeURI`, `decodeURIComponent`, `encodeURI`, `encodeURIComponent`, `escape`, `eval`, `fetch`, `globalThis`, `isFinite`, `isNaN`, `localStorage`, `parseFloat`, `parseInt`, `performance`, `process`, `queueMicrotask`, `sessionStorage`, `setInterval`, `setTimeout`, `structuredClone`, `undefined`, `unescape`
 
-In this inventory, `localStorage` is conditional: it appears only when the host explicitly opts in to filesystem-backed storage. `Storage` and `sessionStorage` are always available in the Web Storage source described above.
+In this inventory, `localStorage` is conditional: it appears only when the host explicitly opts in to filesystem-backed storage. `Storage` and `sessionStorage` are always available with the Web APIs selected.
 
 ## Storage
 

@@ -16,7 +16,7 @@ Each module overview identifies its public exports, aliases, owner, type-declara
 
 Use the standard global `fetch()` for HTTP requests. Import host-specific listener and WebSocket helpers from `noe:http`; its selected exports and availability are described in `docs("noe:http")`, including demand-driven request-body reads, body limits, `Expect: 100-continue`, and resource-lifetime details.
 
-Web Storage globals are available in current unreleased source after v2.18.0.
+Web Storage globals are available in v2.19.0 and later.
 `sessionStorage` is runtime-local. CLI `run` and `eval` accept
 `--local-storage path` before the script/code operand to select a persistent
 `localStorage` file; the containing directory must exist. Go hosts select

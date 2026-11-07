@@ -59,7 +59,7 @@ changing NOE does not authorize editing or deploying noebot.
 | HTTPS listeners and WSS upgrades | PEM-text `cert`/`key` options and host `ServeOptions.TLS`, over the shared HTTP/1.1 listener and socket backend. | Included in v2.17.0; implemented and verified at `6cdc02f`. See [contract and evidence](stdlib-https.md). |
 | Raw TLS sockets | TLS connect/listen over the existing native Web Streams backend, with verified handshakes and independent host configuration. | Included in v2.18.0; implemented at `ba5c37d`. See [contract and verification](stdlib-raw-tls.md). |
 | UDP datagrams | Explicit bind/send/receive with packet boundaries, source addresses, operation-scoped cancellation, and native ownership. | Included in v2.18.0; implemented at `8acc44b`. See [contract and verification](stdlib-udp.md). |
-| Web Storage | Runtime-local sessionStorage and explicit-file localStorage using existing FS authority. | Implemented and verified locally after v2.18.0; unpublished. See [contract and verification](stdlib-web-storage.md). |
+| Web Storage | Runtime-local sessionStorage and explicit-file localStorage using existing FS authority. | Included in v2.19.0; implemented at `dfa497e`. See [contract and verification](stdlib-web-storage.md). |
 | Remaining Node modules and globals | Review Buffer/process and utility module names against actual callers and semantic differences. | Demand-driven; avoid churn with no clear usability benefit. |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource

@@ -1,8 +1,8 @@
 # Web Storage
 
-Implemented and verified locally on 2026-11-07 after v2.18.0.
-The [API policy](stdlib-api-policy.md) remains authoritative. This work is
-local and unpublished; it does not change the installed v2.18.0 executables.
+Implemented and verified at `dfa497e` on 2026-11-07; included in v2.19.0.
+The [API policy](stdlib-api-policy.md) remains authoritative. Publication and
+local installation are recorded in the [release checkpoints](../releases/release-checkpoints.md).
 
 ## JavaScript contract
 
@@ -93,7 +93,6 @@ Evidence: `/var/tmp/noe-web-storage-bvqxqjs1`.
   including inherited toJSON/get hooks and UTF-16 persistence. One fix-only
   re-review confirms resolution with no further actionable finding.
 
-Only local implementation is complete. Publication/installation remain a
-separate release request; both installed executables still contain v2.18.0.
+The user explicitly authorized v2.19.0 publication and vm201 installation.
 Go consumers using unkeyed `Modules` literals must use keyed fields because
 `LocalStorage` adds a public struct field. Existing JS APIs are not removed.

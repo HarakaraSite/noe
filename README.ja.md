@@ -35,17 +35,14 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.18.0 release notes](docs/releases/v2.18.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.18.0)
+[v2.19.0 release notes](docs/releases/v2.19.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.19.0)
 
-v2.18.0 adds raw TLS connections/listeners and UDP datagram sockets through
-`noe:sockets`, with operation-scoped cancellation and runtime/Worker cleanup.
-Go hosts can configure TLS with `Modules.RawSocketsTLS`; unkeyed `Modules`
-literals must move to named fields. HTTPS/WSS remains available through
-`noe:http.serve` as introduced in v2.17.0.
-
-Current unreleased source also provides runtime-local `sessionStorage` and
-explicit-file `localStorage`. See the [storage example](examples/storage/README.md)
-and [Go embedding contract](docs/go-embedding.md#web-storage-unreleased-source).
+v2.19.0 adds runtime-local `sessionStorage` and explicit-file `localStorage`.
+Use `--local-storage path` with CLI run/eval, or select `Modules.LocalStorage`
+with FS authority in Go. See the [storage example](examples/storage/README.md)
+and [Go embedding contract](docs/go-embedding.md#web-storage).
+Go consumers using unkeyed `Modules` literals must move to named fields.
+Raw TLS/UDP sockets and HTTPS/WSS remain available from the preceding releases.
 
 When upgrading from v2.15.0 or earlier, also read the
 [v2.16.0 migration guide](docs/releases/v2.16.0-migration.md) for removed
@@ -63,7 +60,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.18.0
+# noe v2.19.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。

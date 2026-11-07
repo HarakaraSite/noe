@@ -2,9 +2,8 @@
 
 [Examples](../README.md) · [Global API reference](../../internal/apidocs/content/stdlib-globals.md#storage)
 
-Run these examples from the repository root with a NOE executable built from
-the matching source. Web Storage is an unreleased source addition after
-v2.18.0; installed v2.18.0 executables do not provide it.
+Run these examples from the repository root with NOE v2.19.0 or later.
+Earlier executables do not provide Web Storage.
 
 ```sh
 ./noe run examples/storage/web-storage.js

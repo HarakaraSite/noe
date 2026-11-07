@@ -52,8 +52,8 @@ through the approved asynchronous `noe:sqlite`
 API. Memory databases require no filesystem grant; file databases share the
 existing FS policy. See the [SQLite implementation record](stdlib-sqlite.md).
 The user subsequently approved runtime-local sessionStorage and explicit-file
-localStorage. Both are implemented and verified locally, unpublished after
-v2.18.0; see the [Web Storage contract and evidence](stdlib-web-storage.md).
+localStorage. Both are included in v2.19.0; see the
+[Web Storage contract and evidence](stdlib-web-storage.md).
 
 Phase 11's HTTPS/WSS listener slice is included in v2.17.0.
 `noe:http.serve` accepts explicit PEM-text
@@ -80,7 +80,7 @@ packet send/receive rather than byte-stream semantics. See the
 | **7. Expand module loading** | Support JSON, text, and bytes imports, followed by import-map prefix mappings and scopes. | Data, templates, and existing ESM layouts are easier to use. |
 | **8. Expand Web Crypto** | Select algorithms and key formats from actual SDK requirements. Add AES-GCM, key generation, and JWK support in small steps, followed by algorithms such as Ed25519 and ECDSA. | More JavaScript authentication and encryption libraries can run. |
 | **9. Expand Web communication APIs** | Add custom WebSocket headers, EventSource, and WebSocketStream. | Authenticated connections and continuous event consumption have standard API forms. |
-| **10. Add local data storage** | SQLite is included in v2.16.0; runtime-local sessionStorage and explicit-file localStorage are implemented locally after v2.18.0. | JavaScript can query and update local application state and collected data. |
+| **10. Add local data storage** | SQLite is included in v2.16.0; runtime-local sessionStorage and explicit-file localStorage are included in v2.19.0. | JavaScript can query and update local application state and collected data. |
 | **11. Expand networking** | HTTPS/WSS listeners are included in v2.17.0. Raw TLS connect/listen and UDP bind/send/receive are included in v2.18.0. | HTTP, raw TLS streams, and UDP datagrams share the capability and resource-ownership model. |
 | **12. Evaluate larger extensions** | Assess WebAssembly/WASI and general FFI against concrete applications and libraries. | Existing external assets become usable where their integration is worthwhile. |
 
