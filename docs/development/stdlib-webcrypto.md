@@ -185,9 +185,17 @@ missing subtle methods, missing Crypto/SubtleCrypto constructors, and explicit
 CryptoKey clone rejection. These are remaining capabilities, not completed
 work. A future small expansion can use these confirmed SDK requirements.
 
-Verification is native Linux amd64 with the existing pinned engine and Go
-dependencies. No new six-target build, full network E2E, release, push, or
-installation is claimed. Installed binaries remain v2.19.0; the development
-candidate after the error-precedence fix is
-`/var/tmp/noe-webcrypto-derivekey-qgsnbji4/noe`; the earlier candidate remains
-at `/var/tmp/noe-webcrypto-46m8xyzx/noe`.
+Implementation verification is native Linux amd64 with the existing pinned
+engine and Go dependencies. No local six-target build or full network E2E was
+repeated. Development candidates remain at
+`/var/tmp/noe-webcrypto-derivekey-qgsnbji4/noe` and
+`/var/tmp/noe-webcrypto-46m8xyzx/noe` as historical implementation artifacts.
+
+v2.20.0 publication and both vm201 installations are complete. CI builds all
+six distribution targets; downloaded assets pass checksum/build metadata
+verification. The published native asset passes contract/review/example/docs
+checks and actual jose main/Worker/Node interoperability. Direct published
+Go consumers also pass. Both executable paths contain the verified asset,
+with previous v2.19.0 binaries retained. See the
+[publication and installation checkpoint](../releases/release-checkpoints.md#v2200-publication-and-installation--2026-11-08)
+and `/var/tmp/noe-v2.20.0-release-el4vn8lo` for final evidence.

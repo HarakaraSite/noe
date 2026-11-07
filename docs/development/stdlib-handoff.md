@@ -1,47 +1,47 @@
 # Standard library session handoff
 
-Updated 2026-11-08 during the authorized v2.20.0 Web Crypto release and vm201
-installation. Implementation, SDK validation, independent review, and the
-deriveKey error-order follow-up are complete. Release requests include local
-installation by default.
-This document records the current continuation point; linked policy and
-implementation records remain the canonical design and validation references.
+Updated 2026-11-08 after verified v2.20.0 Web Crypto publication and installation
+at both vm201 executable paths. Release requests include local installation by
+default. This document records the current continuation point; linked policy
+and implementation records remain the canonical design and validation references.
 
-The latest local continuation corrects existing Web Crypto contracts and
-completes the requested standard-gap inventory plus unmodified SDK validation.
-The user has now authorized v2.20.0 publication and installation; this is in
-progress, and v2.19.0 below remains deployed until placement is verified.
-See [local Web Crypto continuation](#local-web-crypto-continuation).
+The Web Crypto contract correction, standard-gap inventory, SDK validation and
+accepted review follow-up are published and installed in v2.20.0. See the
+[current release](#current-release-v2200-web-crypto) and
+[implementation record](#local-web-crypto-continuation).
 
 ## Repository and publication state
 
 - Repository: `/home/agent/projects/noe`, branch `main`.
-- Verified implementation checkpoints include HTTPS/WSS `6cdc02f`, raw TLS
-  `ba5c37d`, UDP `8acc44b`, and Web Storage `dfa497e`. Earlier filesystem,
-  process, HTTP, SQLite, and EventSource checkpoints remain documented below.
-- v2.19.0 is published and installed from immutable annotated tag revision
-  `4e6721d84c5fdef7bc3b4482cd3b8d5d43df86a0`. CI run 58 (API 239, job 260)
-  succeeded; all six assets/checksums/build metadata, native Storage checks,
-  and direct public stdlib/agent consumers pass. See the
-  [publication/install checkpoint](../releases/release-checkpoints.md#v2190-publication-and-installation--2026-11-07).
-- See [v2.19.0 notes](../releases/v2.19.0.md),
-  [v2.18.0 notes](../releases/v2.18.0.md), and the consolidated
+- Verified implementation checkpoints include Web Crypto `6c8a23d` and
+  deriveKey error precedence `2e8a197`, Web Storage `dfa497e`, UDP `8acc44b`,
+  raw TLS `ba5c37d`, and HTTPS/WSS `6cdc02f`.
+- v2.20.0 is published and installed from immutable annotated tag revision
+  `6a2891df95de4fed0d3fdfaa340a820903d38caa`. CI run 59 (API 240, job 261)
+  succeeded; all six assets/checksums/build metadata, native Web Crypto checks,
+  actual jose main/Worker/Node interoperability, and direct public stdlib/agent
+  consumers pass. See the
+  [publication/install checkpoint](../releases/release-checkpoints.md#v2200-publication-and-installation--2026-11-08).
+- See [v2.20.0 notes](../releases/v2.20.0.md),
+  [v2.19.0 notes](../releases/v2.19.0.md), and the
   [v2.16.0 migration guide](../releases/v2.16.0-migration.md). The public Go
-  module remains `/v2`; use keyed Modules literals for new fields.
+  module remains `/v2`; no new Profile field or capability is added here.
 - Latest verified published native binary:
-  `/var/tmp/noe-v2.19.0-release-pmyv5yje/assets/noe-linux-amd64`.
-  This directory retains candidates, all assets, source continuity, metadata,
-  native checks, public consumers and installation helpers.
-- `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` now both
-  contain that verified v2.19.0 asset, SHA256
-  `ebead4e5c3b7ae1d9ebcc41b1a3c742566eae6ae8306e5740b5be937b7015d83`.
-  Both pass version, sessionStorage, explicit-file localStorage persistence /
-  UTF-16/session-reset checks. PATH resolves to the user binary. Previous
-  v2.18.0 copies and per-path evidence are at
-  `/var/tmp/noe-v2.19.0-install-4yu_9iy0/installation.json`.
-- Earlier release/install evidence below remains historical. The user handles
-  noebot independently. No service, other host, noebot, real account login, or
-  paid provider was changed or used for this release.
+  `/var/tmp/noe-v2.20.0-release-el4vn8lo/assets/noe-linux-amd64`.
+  The directory retains the candidate, all assets, source continuity, metadata,
+  native/SDK checks, public consumers and installation helpers.
+- `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` both contain
+  that verified v2.20.0 asset, SHA256
+  `1a0258122e215067b479a2696bd3a445d6e2a938ad4024279de00e2c0dc12f6a`.
+  Both pass version/hash checks; PATH resolves to the user binary. Installed
+  arithmetic and authentication-helper help checks pass. Web Crypto runtime
+  results are reused for the identical downloaded asset.
+- Previous v2.19.0 copies and the per-path installation record are retained at
+  `/var/tmp/noe-v2.20.0-install-9cx42on9/installation.json`.
+- Earlier release/install evidence below remains historical. No service, other
+  host, noebot, real login, or application-provider call was changed or used for
+  this release. Remaining Web Crypto capabilities are inventoried explicitly;
+  this is not full Web Crypto/jose compatibility.
 
 ## User decisions to retain
 
@@ -75,25 +75,34 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
-## v2.20.0 release in progress
+## Current release: v2.20.0 Web Crypto
 
-The user explicitly requested release and placement on 2026-11-08. Publish the
-verified Web Crypto implementation `6c8a23d` plus error-order fix `2e8a197` as
-v2.20.0, then install the verified native asset at both local executable paths
-above with backups and version/hash/PATH checks. No other host, service restart,
-or noebot change is included. See [release notes](../releases/v2.20.0.md).
+The user explicitly requested release and placement on 2026-11-08. The verified
+Web Crypto implementation `6c8a23d` plus error-order fix `2e8a197` is now
+published and installed at both local executable paths above. No required
+release or placement work remains. See [release notes](../releases/v2.20.0.md).
 
-Release evidence: `/var/tmp/noe-v2.20.0-release-el4vn8lo`. The remote latest
-release was confirmed as v2.19.0, and fetched origin/main contains neither of
-the two verified local implementation commits. Reuse implementation evidence;
-only version/availability text and release records change during preparation.
-Clean candidate `a6b3bc7` passes the release build/metadata, version unit,
-embedded-doc catalog, seven native checks and unmodified jose main/Worker /
-Node interoperability. All 312 runtime/dependency/reference paths match the
-verified implementation except version/availability wording. See the
+Release evidence: `/var/tmp/noe-v2.20.0-release-el4vn8lo`. Clean candidate
+`a6b3bc7` passes the release build/metadata, version unit, embedded-doc catalog,
+seven native checks and unmodified jose main/Worker/Node interoperability.
+All 312 runtime/dependency/reference paths match the verified implementation
+except version/availability wording; release preparation adds no runtime logic
+or dependency change. See the
 [preparation checkpoint](../releases/release-checkpoints.md#v2200-preparation--2026-11-08).
-Pending: push/tag, CI publication, downloaded-asset/public-consumer verification,
-both installations and final records.
+
+The immutable tag revision `6a2891d` is a documentation-only successor. Its
+release is ID 173, neither draft nor prerelease. CI run 59 built all six targets
+and checksums without repeating implementation suites. Downloaded assets pass
+all hashes/metadata with vcs.modified=false. Native contract/review/example /
+reference checks and the jose SDK fixture pass; main and Worker each run 27
+checks, and deterministic tokens match Node in both directions. External
+stdlib/agent modules fetch v2.20.0 directly, pass verification and consumer
+execution, and match all 17 changed Go/JS/TS paths in the immutable tag.
+
+Both installed paths match the published hash and version, with PATH resolution
+and authentication-helper help verified. Previous v2.19.0 executables are
+retained under `/var/tmp/noe-v2.20.0-install-9cx42on9`. Publication and placement
+are complete; do not move the tag or repeat unchanged source suites.
 
 ## Local Web Crypto continuation
 
@@ -134,13 +143,13 @@ See the [contract, gaps and results](stdlib-webcrypto.md).
 Original evidence: `/var/tmp/noe-webcrypto-46m8xyzx`. Error-order follow-up
 evidence and the current development candidate are at
 `/var/tmp/noe-webcrypto-derivekey-qgsnbji4` (`noe` executable); installed
-executables currently remain the published v2.19.0 asset. The implementation
-task did not include publication or placement; the subsequent release request
-above now authorizes both. Reuse results for unchanged code/dependencies.
+executables now contain verified v2.20.0 as recorded above. The implementation
+task originally excluded publication and placement; the subsequent release
+request authorized and completed both. Reuse results for unchanged code/dependencies.
 Other hosts, noebot changes, service restarts, real login and application-provider
 requests remain excluded.
 
-## Current release: v2.19.0 Web Storage
+## Published and installed v2.19.0 Web Storage
 
 The user explicitly authorized releasing Storage implementation `dfa497e` and
 updating both existing vm201 executable paths, including commits, push, tag,

@@ -4108,3 +4108,59 @@ installation helpers. Tag a documentation-only successor; CI builds six
 assets and SHA256SUMS without repeating local source suites. Verify downloaded
 assets, native runtime and direct published Go consumers before backing up and
 installing at both authorized paths.
+
+
+## v2.20.0 publication and installation — 2026-11-08
+
+- Annotated tag `v2.20.0` points to
+  `6a2891df95de4fed0d3fdfaa340a820903d38caa`, matching the peeled remote tag
+  and CI source. Tag object: `2d20310a9d5ed6bf8544e5e8e28b96c9583079ff`.
+  Only preparation/handoff/current Go-guide documentation differs from clean
+  candidate `a6b3bc7`; all 312 runtime/dependency/reference paths are identical.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/59)
+  succeeded (API run 240, job 261), building the six targets and publishing
+  assets/checksums without repeating completed source suites.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.20.0)
+  is published, neither draft nor prerelease (Release ID 173). Its body matches
+  the tagged English release notes.
+
+All seven assets were downloaded. All six binaries match SHA256SUMS and report
+the tag revision, vcs.modified=false, expected OS/architecture, Go 1.27.2,
+CGO_ENABLED=0, trimpath, pinned engine/Intl/SQLite dependencies, and disabled JIT.
+Linux amd64 SHA256:
+`1a0258122e215067b479a2696bd3a445d6e2a938ad4024279de00e2c0dc12f6a`.
+Other targets were not executed natively.
+
+The downloaded native asset passes the seven version/arithmetic/key-policy /
+branding/BufferSource/review/example/reference checks, including the corrected
+deriveKey error precedence. The unmodified jose 6.2.15 fixture passes main and
+Worker execution (27 checks each), HS256/384/512 JWT/JWS and claim/signature
+rejection, deterministic two-way Node interoperability, and known-gap probes.
+All 46 SDK source files retain their fingerprints. Runtime exits are zero
+with empty stderr; no login or application-provider request is used.
+
+External modules fetch stdlib@v2.20.0 and agent@v2.20.0 directly, without
+replacements or a synthetic proxy. Module verification, stdlib Web Crypto
+main/Worker cases and both portable/Go-host agent consumer modes pass. All 17
+changed Go/JS/TS paths match the immutable tag in both downloaded module copies.
+Engine/Intl versions and disabled-JIT VM files are confirmed.
+
+After publication verification, both vm201 executables were backed up, staged,
+and atomically replaced with the verified Linux asset:
+
+- `/home/agent/.local/bin/noe` (PATH resolves here).
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report `noe v2.20.0` and match the published SHA256. Installed arithmetic
+and both authentication-helper help commands pass; identical-asset Web Crypto
+runtime/SDK checks are reused. No real authentication or model call is made.
+Previous v2.19.0 copies, each SHA256
+`ebead4e5c3b7ae1d9ebcc41b1a3c742566eae6ae8306e5740b5be937b7015d83`,
+are retained as `previous-0-noe` and `previous-1-noe` under
+`/var/tmp/noe-v2.20.0-install-9cx42on9`, with `installation.json` and per-command
+stdout/stderr. The release evidence directory is
+`/var/tmp/noe-v2.20.0-release-el4vn8lo`.
+
+Publication and both requested installations are complete. This documentation
+follow-up preserves the immutable tag. No required release/install work remains;
+other VMs/hosts, running services and noebot placements/restarts are unchanged.
