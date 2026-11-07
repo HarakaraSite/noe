@@ -116,7 +116,7 @@ v2.17.0 first published these listeners, with the candidate, downloaded assets,
 trusted HTTPS/WSS native smoke, and direct public Go consumer evidence at
 `/var/tmp/noe-v2.17.0-release-yk3xb7im`. See the
 [publication checkpoint](../releases/release-checkpoints.md#v2170-publication--2026-11-07).
-Both installed executables now match the verified v2.18.0 asset, including
-these listeners plus raw TLS/UDP. Latest backups, installed hashes/versions,
-PATH, arithmetic, and helper-help checks are recorded at
-`/var/tmp/noe-v2.18.0-install-ltin8afa/installation.json`.
+Both installed executables now match the verified v2.19.0 asset, including
+these listeners, raw TLS/UDP, and Web Storage. Latest backups, installed
+hashes/versions, PATH, Storage, arithmetic, and helper-help checks are at
+`/var/tmp/noe-v2.19.0-install-4yu_9iy0/installation.json`.

@@ -4008,3 +4008,60 @@ installation helpers. Tag a documentation-only successor of this candidate;
 CI builds six assets and SHA256SUMS without repeating local source tests.
 Verify downloaded assets, metadata, native smoke and direct published Go
 consumers before installing at both authorized paths.
+
+## v2.19.0 publication and installation — 2026-11-07
+
+- Annotated tag `v2.19.0` points to
+  `4e6721d84c5fdef7bc3b4482cd3b8d5d43df86a0`, matching the peeled remote tag
+  and CI source. Tag object: `bdd709adbc8539c7f07b4d9bd1d9982e90dd6442`.
+  Only preparation/handoff documentation differs from candidate `885af1f`;
+  all 309 validated runtime/dependency/reference paths remain identical.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/58)
+  succeeded (API run 239, job 260), building six targets and publishing assets
+  and checksums without repeating completed source suites.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.19.0)
+  is published, neither draft nor prerelease (Release ID 172). Its body matches
+  the tagged English release notes.
+
+All seven assets were downloaded. All six binary hashes match SHA256SUMS;
+metadata confirms the tag revision, expected OS/architecture, Go 1.27.2,
+CGO_ENABLED=0, trimpath, pinned engine/Intl/SQLite dependencies, and no JIT.
+All six report vcs.modified=false. A temporary verifier assertion expected
+ldflags in trimpath build metadata; that unavailable-field assertion was
+removed. Native version is verified by execution, with no product change.
+
+Linux amd64 SHA256:
+`ebead4e5c3b7ae1d9ebcc41b1a3c742566eae6ae8306e5740b5be937b7015d83`.
+The downloaded native asset passes the seven version/Storage/prototype-hook/
+process-persistence/Worker/example/reference checks, with zero exits and
+empty stderr. Other targets were not executed natively.
+
+External modules fetch stdlib@v2.19.0 and agent@v2.19.0 directly, without
+replacements or a synthetic proxy. Module verification, stdlib Storage
+main/Worker/persistence cases, and both portable and Go-host agent modes pass.
+All 22 changed Go/JS/TS paths match the immutable tag in both downloaded module
+copies. Engine/Intl versions and disabled-JIT VM files are confirmed.
+
+After publication verification, both vm201 executables were backed up, staged,
+and atomically replaced with that verified Linux asset:
+
+- `/home/agent/.local/bin/noe` (PATH resolves here).
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report `noe v2.19.0` and match the published SHA256. Both execute default
+sessionStorage and explicit-file localStorage writes/fresh-process reads,
+including UTF-16 preservation, session reset, and the prototype-hook regression.
+Installed arithmetic and authentication-helper help checks also pass; no real
+login or provider request is made. Storage checks use private fixture files.
+
+Previous v2.18.0 copies, each SHA256
+`94d5976b9ae253790019a54ea4fbf227bcfa2a460f8a468059df5d8a4585fde1`,
+are retained as `previous-0-noe` and `previous-1-noe` under
+`/var/tmp/noe-v2.19.0-install-4yu_9iy0`, alongside `installation.json` and
+post-install stdout/stderr. Release evidence, downloaded assets, source
+continuity, native checks and public consumers are at
+`/var/tmp/noe-v2.19.0-release-pmyv5yje`.
+
+Publication and both requested installations are complete. This record does
+not move the immutable tag. Other VMs/hosts, noebot placement/restarts, and
+service restarts were not changed; no paid provider or real login was used.

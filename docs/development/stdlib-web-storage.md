@@ -93,6 +93,8 @@ Evidence: `/var/tmp/noe-web-storage-bvqxqjs1`.
   including inherited toJSON/get hooks and UTF-16 persistence. One fix-only
   re-review confirms resolution with no further actionable finding.
 
-The user explicitly authorized v2.19.0 publication and vm201 installation.
+v2.19.0 is published and installed at both authorized vm201 executable paths.
+Release evidence is `/var/tmp/noe-v2.19.0-release-pmyv5yje`; previous binaries
+and installed checks are at `/var/tmp/noe-v2.19.0-install-4yu_9iy0`.
 Go consumers using unkeyed `Modules` literals must use keyed fields because
 `LocalStorage` adds a public struct field. Existing JS APIs are not removed.

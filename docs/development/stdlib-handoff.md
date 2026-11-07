@@ -1,6 +1,6 @@
 # Standard library session handoff
 
-Updated 2026-11-07 for authorized v2.19.0 publication and vm201 installation
+Updated 2026-11-07 after verified v2.19.0 publication and vm201 installation
 of the completed Web Storage work. Release requests include local installation
 by default.
 This document records the current continuation point; linked policy and
@@ -9,47 +9,32 @@ implementation records remain the canonical design and validation references.
 ## Repository and publication state
 
 - Repository: `/home/agent/projects/noe`, branch `main`.
-- Verified implementation checkpoints are EventSource/SQLite `1d04402`,
-  filesystem `295fb53`, process/HTTP/Serve `3997dc0`, WebSocket opening
-  `248e74a`, connected closing `617cfcd`, HTTPS/WSS `6cdc02f`, raw TLS
-  `ba5c37d`, and UDP `8acc44b`.
-- On 2026-11-07 the user explicitly authorized releasing the completed work.
-  v2.18.0 is now published from annotated tag revision
-  `51f08bc3dac66d133bd7a58caacd414471e5154b`. CI run 57 (API 238) succeeded;
-  all six downloaded checksums/build metadata, native smoke, and direct
-  published stdlib/agent consumers passed. See
-  [release checkpoints](../releases/release-checkpoints.md#v2180-publication-and-installation--2026-11-07).
-- See [v2.18.0 notes](../releases/v2.18.0.md),
-  [v2.17.0 notes](../releases/v2.17.0.md),
-  [v2.16.0 notes](../releases/v2.16.0.md), and the consolidated
-  [migration guide](../releases/v2.16.0-migration.md). The public Go module
-  remains `/v2`; JavaScript import and behavior changes have no adapters.
+- Verified implementation checkpoints include HTTPS/WSS `6cdc02f`, raw TLS
+  `ba5c37d`, UDP `8acc44b`, and Web Storage `dfa497e`. Earlier filesystem,
+  process, HTTP, SQLite, and EventSource checkpoints remain documented below.
+- v2.19.0 is published and installed from immutable annotated tag revision
+  `4e6721d84c5fdef7bc3b4482cd3b8d5d43df86a0`. CI run 58 (API 239, job 260)
+  succeeded; all six assets/checksums/build metadata, native Storage checks,
+  and direct public stdlib/agent consumers pass. See the
+  [publication/install checkpoint](../releases/release-checkpoints.md#v2190-publication-and-installation--2026-11-07).
+- See [v2.19.0 notes](../releases/v2.19.0.md),
+  [v2.18.0 notes](../releases/v2.18.0.md), and the consolidated
+  [v2.16.0 migration guide](../releases/v2.16.0-migration.md). The public Go
+  module remains `/v2`; use keyed Modules literals for new fields.
 - Latest verified published native binary:
-  `/var/tmp/noe-v2.18.0-release-ur4u1vbf/assets/noe-linux-amd64`.
-  That directory also retains the clean candidate, all downloaded assets,
-  continuity checks, and published-consumer evidence. Earlier implementation
-  candidates below remain historical slice evidence.
-- After v2.17.0 publication, the user requested installation and established
-  that future releases include installation. Both
-  `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` now contain
-  the verified published v2.18.0 Linux asset, SHA256
-  `94d5976b9ae253790019a54ea4fbf227bcfa2a460f8a468059df5d8a4585fde1`.
-  Previous v2.17.0 copies and installation evidence are retained under
-  `/var/tmp/noe-v2.18.0-install-ltin8afa` (`installation.json`). Version,
-  arithmetic, and both authentication-helper help paths passed; no actual
-  authentication or running-service restart was performed.
-- The v2.18.0 clean release-flags candidate is at
-  `/var/tmp/noe-v2.18.0-release-ur4u1vbf/candidate`. Earlier candidates below
-  remain historical evidence. Both installed copies match the downloaded
-  v2.18.0 asset above.
-- The user independently handles noebot. Release requests now authorize
-  publication and local installation together; service restarts and noebot
-  changes remain separate actions.
-- Raw TLS connect/listen (`ba5c37d`) and UDP bind/send/receive (`8acc44b`) are
-  published and installed in v2.18.0. The implementation executable is
-  `/var/tmp/noe-udp-mkdxtl0z/noe`; the previous TLS-only candidate remains at
-  `/var/tmp/noe-raw-tls-940je7qo/noe`. Release evidence is at
-  `/var/tmp/noe-v2.18.0-release-ur4u1vbf`.
+  `/var/tmp/noe-v2.19.0-release-pmyv5yje/assets/noe-linux-amd64`.
+  This directory retains candidates, all assets, source continuity, metadata,
+  native checks, public consumers and installation helpers.
+- `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` now both
+  contain that verified v2.19.0 asset, SHA256
+  `ebead4e5c3b7ae1d9ebcc41b1a3c742566eae6ae8306e5740b5be937b7015d83`.
+  Both pass version, sessionStorage, explicit-file localStorage persistence /
+  UTF-16/session-reset checks. PATH resolves to the user binary. Previous
+  v2.18.0 copies and per-path evidence are at
+  `/var/tmp/noe-v2.19.0-install-4yu_9iy0/installation.json`.
+- Earlier release/install evidence below remains historical. The user handles
+  noebot independently. No service, other host, noebot, real account login, or
+  paid provider was changed or used for this release.
 
 ## User decisions to retain
 
@@ -102,14 +87,17 @@ implementation runtime/dependency/reference paths match except the exact CLI
 version and availability text in three embedded reference pages. No runtime
 logic or dependency changes are included in release preparation. Reuse the
 implementation evidence; CI only builds six assets/checksums and publishes.
-The installed binaries remain v2.18.0 until publication verification completes.
+Publication verification and both installations are complete; the installed
+binaries now contain the verified v2.19.0 asset.
 
 Clean release candidate `885af1f` passes its CGO-disabled release build,
 version unit, embedded-doc catalog, and seven native Storage/version/example
 checks. Metadata is clean and retains the pinned engine/Intl/no-JIT settings.
 See the [preparation checkpoint](../releases/release-checkpoints.md#v2190-preparation--2026-11-07).
-Publish an immutable documentation-only successor, verify all downloaded
-assets and direct consumers, then install both authorized paths with backups.
+The immutable documentation-only successor is `4e6721d`. All six downloaded
+assets, direct published consumers, and seven native checks pass. Both vm201
+paths are updated with verified backups. No required release or install work
+remains; future stdlib work should follow concrete caller needs.
 
 ## Published and installed v2.18.0
 
@@ -603,7 +591,7 @@ Blob-send corrections, Serve limits/lifecycle, WebSocket opening
 cancellation/close validation, and connected closing/blocked-send cleanup
 are included since v2.16.0. HTTPS/WSS listeners are included since v2.17.0;
 raw TLS and UDP are published in v2.18.0, with assets and public modules
-verified. Both local executable paths now contain the verified v2.18.0 asset.
+verified. Both local executable paths now contain v2.19.0, including Storage.
 No required runtime blocker remains in these approved slices. Future releases
 include local installation without
 a separate approval prompt; running-service restarts remain separate.
@@ -615,7 +603,7 @@ Its one-line `/dist/` ignore fix is committed at `acb1ee2`; evidence is at
 builds and does not change the published v2.17.0 artifacts. v2.18.0 uses that
 correction and all six artifacts have clean VCS metadata. The user then
 approved raw TLS connections/listeners and then UDP in roadmap phase 11. Both
-are now published and installed in v2.18.0 as recorded above. This completes
+first shipped in v2.18.0 and remain in installed v2.19.0. This completes
 the roadmap's core networking additions; multicast/connected UDP are separate
 possible extensions. Keep next-step work on stdlib rather than automatically
 starting release preparation.
@@ -626,7 +614,7 @@ names. Useful existing contracts can remain until a concrete migration is
 justified. The latest permission allows local breaking changes without
 another compatibility prompt, while preserving noebot/publication/install
 boundaries. Prefer concrete caller evidence for the next implementation.
-The requested v2.18.0 publication and installation are complete. Keep
+The requested v2.19.0 publication and installation are complete. Keep
 continuation focused on concrete standard-library needs. A version or release
 instruction alone is not a reason to repeat successful implementation suites.
 Web Crypto expansion and WebSocketStream remain use-case driven as below.
