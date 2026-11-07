@@ -8,11 +8,11 @@ Reference: `noe:sockets`. Owner: noestdlib.
 
 Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source distribution. Signatures describe supported APIs, not which bindings this runtime has installed. Detailed member headings below are documentation entries, not an export inventory.
 
-Availability: Requires Profile.Modules.RawSockets. Raw TLS can also use the optional host configuration in Profile.Modules.RawSocketsTLS. Platform support and cancellation follow the socket API contract below. Raw TLS and UDP are available in source after v2.17.0; the released v2.17.0 binary does not include them.
+Availability: Requires Profile.Modules.RawSockets. Raw TLS can also use the optional host configuration in Profile.Modules.RawSocketsTLS. Platform support and cancellation follow the socket API contract below. Raw TLS and UDP are available in v2.18.0 and later.
 
 Public-definition source: internal/nativeio/net.go, internal/nativeio/net_udp.go, internal/nativeio/js/net.js. Reading this reference evaluates no target module and makes no provider request.
 
-`noe:sockets` exports `connect` and `listen` for raw TCP, TLS, and Unix stream sockets, plus `bind` for UDP datagrams. Stream connections carry bytes through Web Streams; datagrams use explicit `send` and `receive` operations and retain packet boundaries. These APIs are distinct from HTTP/WebSocket APIs and from the standard library's WebSocket setting. The module is available in the main runtime and Workers. Open listeners, connections, and datagram sockets keep the owning runtime active and are reclaimed when it ends. Raw TLS and UDP were added in source after v2.17.0.
+`noe:sockets` exports `connect` and `listen` for raw TCP, TLS, and Unix stream sockets, plus `bind` for UDP datagrams. Stream connections carry bytes through Web Streams; datagrams use explicit `send` and `receive` operations and retain packet boundaries. These APIs are distinct from HTTP/WebSocket APIs and from the standard library's WebSocket setting. The module is available in the main runtime and Workers. Open listeners, connections, and datagram sockets keep the owning runtime active and are reclaimed when it ends. Raw TLS and UDP were added in v2.18.0.
 
 ## bind
 

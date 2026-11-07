@@ -2,7 +2,7 @@
 
 Use `noe docs noe:fs open` and `noe docs noe:fs FileHandle.read` for the file handle contract. Use `noe docs noe:sockets` and `noe docs noe:signals` for the NOE socket and signal APIs. Member names from a topic overview select detailed entries in the embedded reference ([guide](reference.md)).
 
-The `connect`, `listen`, and `noe:signals` APIs in this guide are available from v1.8.0. UDP datagrams are a source-only addition after v2.17.0; see below.
+The `connect`, `listen`, and `noe:signals` APIs in this guide are available from v1.8.0. Raw TLS and UDP datagrams are available from v2.18.0; see below.
 
 `noe:sockets` and `noe:signals` are NOE extensions available to run/eval, agent `run_js`, and Workers. They use the operating-system permissions of the NOE process. The `noe:fs`, HTTP, and process APIs are available through their selected capabilities.
 
@@ -27,7 +27,7 @@ try {
 
 `connect(options)`と`listen(options)`はPromiseです。TCPは`{network:"tcp",host,port,signal?}`、Unixは`{network:"unix",path,signal?}`を指定します。host/pathは必須。TCP portはconnectで1〜65535、listenで0〜65535で、0はOS割当てです。DNS・IPv4/IPv6はGo netの解決に従います。Unix相対pathはruntimeのcwd基準です。UDP datagram sockets are available through `bind()` below; abstract namespace and connection retries are not provided. Unix socketの可用性は実行OSに依存します。
 
-Raw TLS sockets are available in source after v2.17.0; the released v2.17.0 binary does not include them. See [Raw TLS sockets](#raw-tls-sockets) below.
+Raw TLS sockets are available from v2.18.0. See [Raw TLS sockets](#raw-tls-sockets) below.
 
 開始用`signal`はdial/listen完了までの取消しに使い、成功後は購読解除します。成功後はhandleのcloseかruntime終了で停止します。既にabort済みのsignal、不正port、空/NUL入りpathは開始前にrejectします。
 
@@ -66,9 +66,8 @@ Unixのbind前に既存pathを削除しません。親directory内のprivateな�
 
 ## UDP datagram sockets
 
-UDP datagrams are available in source after v2.17.0; the released and
-installed v2.17.0 binary does not include `bind()`. Build a temporary CLI
-from this checkout to use the [local UDP round-trip example](../examples/low-level/README.md#udp-datagram-round-trip):
+UDP datagrams are available from v2.18.0. Build a temporary CLI from this
+checkout to use the [local UDP round-trip example](../examples/low-level/README.md#udp-datagram-round-trip):
 
 ```sh
 demo_dir="$(mktemp -d)"

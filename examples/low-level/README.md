@@ -12,9 +12,8 @@ wait-signalは補助timerを使わず待機します。Linux/Darwinでは別端�
 
 ## UDP datagram round trip
 
-UDP datagram sockets are available in source after v2.17.0; the released and
-installed v2.17.0 binary does not include `bind()`. Build a temporary CLI
-from this checkout and run the self-contained loopback example:
+UDP datagram sockets require v2.18.0 or later. Build a temporary CLI from this
+checkout and run the self-contained loopback example:
 
 ```sh
 demo_dir="$(mktemp -d)"
@@ -33,8 +32,8 @@ for cancellation, packet-size, ownership, and delivery semantics.
 
 ## Raw TLS round trip
 
-Raw TLS sockets are available in source after v2.17.0. Build a temporary CLI
-from this checkout so the example does not use the installed v2.17.0 binary.
+Raw TLS sockets require v2.18.0 or later. Build a temporary CLI from this
+checkout so the executable matches the example.
 The following commands create a one-day self-signed test identity with OpenSSL.
 For an existing certificate, use its paths instead; its subject alternative name
 must include `IP:127.0.0.1`. The example reads both PEM files through `noe:fs`.

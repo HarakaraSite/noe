@@ -1,8 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-07 after local implementation and verification of raw TLS and
-UDP sockets, following v2.17.0 publication and installation. Future release
-requests include local installation by default.
+Updated 2026-11-07 after the user authorized v2.18.0 publication and local
+installation for the completed raw TLS/UDP work. Release verification is in
+progress. Future release requests include local installation by default.
 This document records the current continuation point; linked policy and
 implementation records remain the canonical design and validation references.
 
@@ -45,11 +45,13 @@ implementation records remain the canonical design and validation references.
 - The user independently handles noebot. Release requests now authorize
   publication and local installation together; service restarts and noebot
   changes remain separate actions.
-- Raw TLS connect/listen (`ba5c37d`) and UDP bind/send/receive are implemented
-  and verified locally after v2.17.0. The latest development executable is
+- Raw TLS connect/listen (`ba5c37d`) and UDP bind/send/receive (`8acc44b`) are
+  implemented and verified for v2.18.0. Publication and installation are now
+  explicitly authorized. The implementation executable is
   `/var/tmp/noe-udp-mkdxtl0z/noe`; the previous TLS-only candidate remains at
   `/var/tmp/noe-raw-tls-940je7qo/noe`. Installed v2.17.0 binaries do not include
-  these additions. No new release or installation was requested for these slices.
+  these additions until installation completes. Release evidence is at
+  `/var/tmp/noe-v2.18.0-release-ur4u1vbf`.
 
 ## User decisions to retain
 
@@ -83,7 +85,7 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
-## Completed UDP datagram sockets (unreleased after v2.17.0)
+## Completed UDP datagram sockets (v2.18.0)
 
 See the [contract and evidence](stdlib-udp.md),
 [Go embedding guide](../go-embedding.md#udp-datagram-sockets), and
@@ -113,10 +115,10 @@ See the [contract and evidence](stdlib-udp.md),
   pass. Consumers compile with CGO disabled for all six release targets.
   A bounded independent review found no actionable production issue.
 - Evidence, source fingerprints, and development executable:
-  `/var/tmp/noe-udp-mkdxtl0z`. This remains local standard-library work; keep
-  installed v2.17.0 and existing release tags unchanged until a release request.
+  `/var/tmp/noe-udp-mkdxtl0z`. The user has now requested v2.18.0 publication
+  and installation; use the completed verification for unchanged source.
 
-## Completed raw TLS sockets (unreleased after v2.17.0)
+## Completed raw TLS sockets (v2.18.0)
 
 See the [contract and evidence](stdlib-raw-tls.md),
 [Go embedding guide](../go-embedding.md#raw-tls-sockets), and
@@ -572,7 +574,8 @@ names. Useful existing contracts can remain until a concrete migration is
 justified. The latest permission allows local breaking changes without
 another compatibility prompt, while preserving noebot/publication/install
 boundaries. Prefer concrete caller evidence for the next implementation.
-No new release was requested for the raw TLS/UDP slices.
+The user explicitly requested v2.18.0 publication and installation; complete
+that work using the validated raw TLS/UDP source and the release evidence above.
 Web Crypto expansion and WebSocketStream remain use-case driven as below.
 
 Reuse the completed results for unchanged source/dependencies. A version,

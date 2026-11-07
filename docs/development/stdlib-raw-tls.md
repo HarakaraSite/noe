@@ -1,8 +1,8 @@
 # Raw TLS sockets
 
 2026-11-07. The user approved implementing TLS connections and listeners in
-`noe:sockets`. This is local standard-library work after v2.17.0; no new
-publication or installation is requested for this slice. UDP is separate.
+`noe:sockets`. This slice is included in v2.18.0, whose publication and local
+installation the user authorized on 2026-11-07. UDP has its own datagram contract.
 
 ## Contract
 
@@ -103,7 +103,7 @@ used localhost with a certificate valid for other names. It now connects to
 the listener's explicit IPv4 address, and its final CLI E2E passes. Initial
 failures and successful correction logs remain in the evidence directory.
 
-The development executable is `/var/tmp/noe-raw-tls-940je7qo/noe`. Installed
-v2.17.0 binaries remain unchanged and do not implement this addition. This
-slice is not yet published; release requests include installation under the
-user's standing instruction.
+The implementation executable is `/var/tmp/noe-raw-tls-940je7qo/noe`.
+v2.18.0 release and installation evidence is retained at
+`/var/tmp/noe-v2.18.0-release-ur4u1vbf`; see the session handoff and release
+checkpoints for current publication/installation status.

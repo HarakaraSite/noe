@@ -1,8 +1,8 @@
 # UDP datagram sockets
 
 2026-11-07. The user approved adding UDP send/receive to `noe:sockets` after
-the locally completed raw TLS slice. This is local standard-library work;
-v2.17.0 remains the published/installed release. No new release is requested.
+the raw TLS slice. Both are included in v2.18.0, whose publication and local
+installation the user authorized on 2026-11-07.
 
 ## Contract
 
@@ -86,7 +86,8 @@ traffic were excluded. No dependencies or public Go fields changed.
   deadline isolation, byte snapshots, or datagram boundaries. Existing source
   and dependencies are fingerprinted for reuse at release preparation.
 
-The development executable is `/var/tmp/noe-udp-mkdxtl0z/noe`. Published and
-installed v2.17.0 binaries remain unchanged and do not include raw TLS/UDP.
-No new release, installation, service restart, or remote application change
-was performed for this slice.
+The implementation executable is `/var/tmp/noe-udp-mkdxtl0z/noe`.
+v2.18.0 release and installation evidence is retained at
+`/var/tmp/noe-v2.18.0-release-ur4u1vbf`; see the session handoff and release
+checkpoints for current publication/installation status. No running-service
+restart or remote application change is included.

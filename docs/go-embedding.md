@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.17.0; see the
+select model providers or agent behavior. The current release is v2.18.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.32.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.17.0`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.18.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -144,8 +144,8 @@ changes the positional struct shape. See the
 
 ## Raw TLS sockets
 
-Raw TLS sockets are available in source after v2.17.0; the released v2.17.0
-binary does not include this option. `Modules.RawSockets` continues to select
+Raw TLS sockets are available in [v2.18.0](releases/v2.18.0.md) and later.
+`Modules.RawSockets` continues to select
 `noe:sockets`. The new `Modules.RawSocketsTLS` field configures TLS and does
 not select the capability by itself:
 
@@ -184,10 +184,8 @@ changes the public `Modules` struct shape, external callers with unkeyed
 
 ## UDP datagram sockets
 
-UDP datagrams are available from source after v2.17.0. The released v2.17.0
-binary and module do not include `bind()`; build a temporary CLI from this
-checkout with `CGO_ENABLED=0 go build` to run the [local round-trip
-example](../examples/low-level/README.md#udp-datagram-round-trip).
+UDP datagrams are available in [v2.18.0](releases/v2.18.0.md) and later.
+See the [local round-trip example](../examples/low-level/README.md#udp-datagram-round-trip).
 
 The existing `Modules.RawSockets` capability selects `noe:sockets` for UDP
 in both main runtimes and Workers. No UDP-specific public Go field or

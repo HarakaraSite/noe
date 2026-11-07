@@ -39,13 +39,13 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.17.0 release notes](docs/releases/v2.17.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.17.0)
+[v2.18.0 release notes](docs/releases/v2.18.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.18.0)
 
-v2.17.0 adds HTTPS listeners and WSS upgrades through `noe:http.serve`, with
-explicit certificate/key PEM options or Go-host TLS configuration. HTTP and
-HTTPS share capability checks, request bodies, and asynchronous cleanup.
-Go hosts updating unkeyed `ServeOptions` literals must switch to named fields
-for the added TLS configuration.
+v2.18.0 adds raw TLS connections/listeners and UDP datagram sockets through
+`noe:sockets`, with operation-scoped cancellation and runtime/Worker cleanup.
+Go hosts can configure TLS with `Modules.RawSocketsTLS`; unkeyed `Modules`
+literals must move to named fields. HTTPS/WSS remains available through
+`noe:http.serve` as introduced in v2.17.0.
 
 When upgrading from v2.15.0 or earlier, also read the
 [v2.16.0 migration guide](docs/releases/v2.16.0-migration.md) for removed
@@ -64,7 +64,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.17.0
+# noe v2.18.0
 ```
 
 The examples below assume the repository root is your working directory.

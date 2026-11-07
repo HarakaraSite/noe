@@ -59,11 +59,11 @@ Phase 11's HTTPS/WSS listener slice is included in v2.17.0.
 existing HTTP/1.1 server, WebSocket upgrade, capability, and cleanup paths.
 See the [HTTPS/WSS contract and evidence](stdlib-https.md). The user then
 approved raw TLS connect/listen over the existing socket Web Streams. This
-addition is local and unreleased after v2.17.0; see the
+addition is included in v2.18.0; see the
 [raw TLS contract and evidence](stdlib-raw-tls.md). The subsequently approved
-UDP slice is also implemented and verified locally, with explicit bind and
+UDP slice is also included in v2.18.0, with explicit bind and
 packet send/receive rather than byte-stream semantics. See the
-[UDP contract and evidence](stdlib-udp.md). Both additions remain unreleased.
+[UDP contract and evidence](stdlib-udp.md).
 
 ## Phases
 
@@ -79,7 +79,7 @@ packet send/receive rather than byte-stream semantics. See the
 | **8. Expand Web Crypto** | Select algorithms and key formats from actual SDK requirements. Add AES-GCM, key generation, and JWK support in small steps, followed by algorithms such as Ed25519 and ECDSA. | More JavaScript authentication and encryption libraries can run. |
 | **9. Expand Web communication APIs** | Add custom WebSocket headers, EventSource, and WebSocketStream. | Authenticated connections and continuous event consumption have standard API forms. |
 | **10. Add local data storage** | Evaluate and introduce SQLite, then add persistent localStorage when useful. | JavaScript can query and update local application state and collected data. |
-| **11. Expand networking** | HTTPS/WSS listeners are included in v2.17.0. Raw TLS connect/listen and UDP bind/send/receive are implemented and verified locally after that release. | HTTP, raw TLS streams, and UDP datagrams share the capability and resource-ownership model. |
+| **11. Expand networking** | HTTPS/WSS listeners are included in v2.17.0. Raw TLS connect/listen and UDP bind/send/receive are included in v2.18.0. | HTTP, raw TLS streams, and UDP datagrams share the capability and resource-ownership model. |
 | **12. Evaluate larger extensions** | Assess WebAssembly/WASI and general FFI against concrete applications and libraries. | Existing external assets become usable where their integration is worthwhile. |
 
 SQLite and later phases may move earlier when a concrete application needs
