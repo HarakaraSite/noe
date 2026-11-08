@@ -76,6 +76,21 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
+## v2.21.0 release continuation
+
+The user requested release and placement after both local slices completed.
+Clean candidate `c680736` passes the release-flags build, clean metadata,
+configured-version unit, reference catalog and ten native checks. All 306
+selected runtime/dependency/reference paths match `2e7228f` except version and
+reference availability wording. Reuse completed implementation verification.
+See [preparation](../releases/release-checkpoints.md#v2210-preparation--2026-11-08)
+and [release notes](../releases/v2.21.0.md).
+
+Evidence: `/var/tmp/noe-v2.21.0-release-1lwzess2`. Publication verification,
+direct published Go consumers, and both installations are pending. The current
+installed v2.20.0 binaries remain unchanged until those checks complete. Keep
+the immutable release tag fixed and record final publication/placement below.
+
 ## Local UTF-8 decoder and EventTarget continuation
 
 The user approved both next improvements. The

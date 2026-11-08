@@ -4164,3 +4164,41 @@ stdout/stderr. The release evidence directory is
 Publication and both requested installations are complete. This documentation
 follow-up preserves the immutable tag. No required release/install work remains;
 other VMs/hosts, running services and noebot placements/restarts are unchanged.
+
+## v2.21.0 preparation — 2026-11-08
+
+The user authorized release and vm201 placement. This release includes the
+encoding/User Timing/CustomEvent implementation `a5a52ed` and the UTF-8 decoder /
+EventTarget correction `2e7228f`. Both existing executable paths are included;
+other hosts, running-service restarts and noebot changes remain excluded.
+
+Reuse implementation evidence at `/var/tmp/noe-web-basics-ivf40e59` and
+`/var/tmp/noe-decoder-events-uagwfg5_`: all seven affected packages, focused race,
+positive/negative declarations, reference catalog, lint/vet, actual CLI examples,
+legacy installation without a Loop, and checkout/standalone-artifact Go consumers
+pass. The parent reviewed the decoder. A bounded independent listener review
+found a private-abort early-check defect; it was fixed and independently checked
+within that review. No full standards audit is claimed.
+
+All 306 selected runtime/dependency/reference paths match verified implementation
+`2e7228f` except the exact CLI version and availability wording in the embedded
+global reference. Runtime logic, dependencies, release profile and workflow are
+unchanged. No full unit/E2E/race or local six-target build was repeated.
+
+Clean candidate: `c68073657e908702c75724909c39019ca7cd39cd`.
+The CGO-disabled release-flags build, configured-version unit and changed
+reference catalog pass. Metadata reports that revision, vcs.modified=false,
+Linux amd64, Go 1.27.2, pinned go-quickjs v0.32.0 / go-intl v0.8.0, trimpath and
+disabled JIT. Ten native checks pass: version, arithmetic, UTF-8/listener comparison,
+primary listener contract, fatal queue/detached/metadata decoder cases, primary
+and common User Timing/CustomEvent cases, the example, and listener/timing
+reference entries. All exit zero with empty runtime stderr.
+
+Candidate: `/var/tmp/noe-v2.21.0-release-1lwzess2/candidate`, SHA256
+`21d47ad5cd62aecac34aeeac58ce609f0fa7cdafbfb1f989a7c0c752208a91e7`.
+The directory retains source continuity, metadata, native checks and publication /
+installation helpers. The release notes and current consumer guides are updated.
+Tag this documentation-only successor; CI builds six assets and SHA256SUMS
+without repeating source suites. Verify publication, downloaded assets, native
+runtime and direct published Go consumers before backing up and atomically
+installing at both authorized vm201 paths.
