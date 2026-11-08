@@ -278,10 +278,7 @@ func TestDecompressionCumulativeLimit(t *testing.T) {
 	w.Close()
 	u := &streamInflater{rt: rt, format: "gzip", limit: 48 << 10, notice: rt.NewPromise()}
 	defer u.abort()
-	if _, err := awaitCompression(t, u.write(rt.NewBytes(compressed.Bytes())).Value()); err != nil {
-		t.Fatal(err)
-	}
-	closing := u.closeInput()
+	writing := u.write(rt.NewBytes(compressed.Bytes())).Value()
 	var total int
 	for {
 		value, err := awaitCompression(t, u.read().Value())
@@ -294,6 +291,10 @@ func TestDecompressionCumulativeLimit(t *testing.T) {
 		data, _ := value.Bytes()
 		total += len(data)
 	}
+	if _, err := awaitCompression(t, writing); err == nil || !strings.Contains(err.Error(), "RangeError") {
+		t.Fatalf("write did not report the cumulative limit: %v", err)
+	}
+	closing := u.closeInput()
 	if _, err := awaitCompression(t, closing.Value()); err == nil || !strings.Contains(err.Error(), "RangeError") {
 		t.Fatalf("close did not report the cumulative limit: %v", err)
 	}

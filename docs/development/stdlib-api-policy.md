@@ -65,6 +65,7 @@ changing NOE does not authorize editing or deploying noebot.
 | UTF-8 decoding and EventTarget listeners | Streaming/error/BOM state, BufferSource/options conversion, callback identity/capture/once/passive and real abort cleanup. | Included in v2.21.0. See [contract and verification](stdlib-decoder-events.md). |
 | Remaining Node modules and globals | Review Buffer/process and utility module names against actual callers and semantic differences. | Demand-driven; avoid churn with no clear usability benefit. |
 | Abort interfaces and text streams | Standard cancellation reasons, private controller signal, ordered onabort, full-range timeout conversion, and streaming UTF-16 / decoder metadata. | Local continuation after v2.21.0. See [contract and verification](stdlib-abort-text-streams.md). |
+| Compression interfaces and URLPattern inputs | Required compression formats, readonly stream endpoints and BufferSource writes; object/baseURL route inputs, component inheritance and private pattern state. | Local continuation after v2.21.0. See [contract and verification](stdlib-compression-urlpattern.md). |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource
 remains a standard global. Expansion phases such as Web Crypto, additional

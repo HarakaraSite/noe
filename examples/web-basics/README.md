@@ -43,3 +43,17 @@ encoder chunks with an empty chunk between them. The
 [contract](../../docs/development/stdlib-abort-text-streams.md) records the illegal
 AbortSignal constructor, readonly controller signal, timeout conversion and
 legacy no-Loop limitation. No filesystem/network/provider grant is required.
+
+### Compression and route inputs
+
+The subsequent source-only continuation after v2.21.0 is demonstrated by:
+
+```sh
+/tmp/noe-web-basics run --no-inst examples/web-basics/compression-routes.js
+```
+
+Rebuild the current source first. URLPattern resolves object inputs against
+baseURL and captures a route parameter; a JSON body then passes through the
+existing gzip compression/decompression backends. No network or filesystem grant
+is needed. Compression chunks must be BufferSources and stream endpoints are
+readonly. See the [contract and limitations](../../docs/development/stdlib-compression-urlpattern.md).

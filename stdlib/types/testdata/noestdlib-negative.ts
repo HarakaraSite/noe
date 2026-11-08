@@ -358,6 +358,20 @@ new AbortSignal();
 new TextDecoderStream().fatal = true;
 // @ts-expect-error Text stream endpoints are readonly.
 new TextEncoderStream().readable = new ReadableStream<Uint8Array>();
+// @ts-expect-error Pattern component attributes are readonly.
+new URLPattern().pathname = "/changed";
+// @ts-expect-error Object patterns carry baseURL in the dictionary.
+new URLPattern({pathname:"/x"}, "https://example.test");
+// @ts-expect-error Object match inputs carry baseURL in the dictionary.
+new URLPattern().exec({pathname:"/x"}, "https://example.test");
+// @ts-expect-error Compression stream chunks are BufferSources, not strings.
+new CompressionStream("gzip").writable.getWriter().write("text");
+// @ts-expect-error Compression BufferSources cannot use shared memory.
+new CompressionStream("gzip").writable.getWriter().write(new SharedArrayBuffer(2));
+// @ts-expect-error Compression BufferSource views cannot use shared memory.
+new DecompressionStream("gzip").writable.getWriter().write(new Uint8Array(new SharedArrayBuffer(2)));
+// @ts-expect-error Compression stream endpoints are readonly.
+new DecompressionStream("gzip").writable = new WritableStream();
 // @ts-expect-error Performance itself is an illegal constructor.
 new Performance();
 // @ts-expect-error PerformanceEntry is an illegal constructor.

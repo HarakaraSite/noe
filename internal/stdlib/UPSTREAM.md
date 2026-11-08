@@ -683,3 +683,20 @@ The text-stream facades compose the same TransformStream backend and UTF-8
 codecs. They add private readonly metadata/endpoints, preserve split UTF-16
 pairs, and distinguish required stream chunks from optional decode input.
 See the [contract and verification](../../docs/development/stdlib-abort-text-streams.md).
+
+### Compression interfaces and URLPattern inputs (2026-11-08)
+
+Compression wrappers now validate required formats synchronously, expose private
+readonly endpoints, reject non-BufferSource/shared/resizable chunks, and snapshot
+exact view spans. The native Web decoder rejects prohibited header flags, preset
+dictionaries, trailing data and extra gzip members. Per-write settlement follows
+decoder consumption and validation while retaining native output backpressure
+and cancellation. Node zlib synchronous/callback input conventions remain separate.
+
+URLPattern now processes dictionary/string inputs and baseURL inheritance, returns
+converted input snapshots and captures, and keeps branded readonly pattern state.
+Constructor-string defaults distinguish path/query/hash transitions and preserve
+omitted credentials. Shared URL path normalization retains empty segments while
+removing dot segments. Existing compiler/URL backend limits remain documented;
+this continuation does not replace the full pattern grammar or IDNA implementation.
+See the [contract and verification](../../docs/development/stdlib-compression-urlpattern.md).

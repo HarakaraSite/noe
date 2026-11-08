@@ -1,7 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after the local AbortSignal/Controller and text-stream
-continuation following verified v2.21.0 publication and installation at both
+Updated 2026-11-08 after the local compression/URLPattern continuation, following
+the local AbortSignal/Controller and text-stream work and verified v2.21.0
+publication and installation at both
 vm201 executable paths. The installed release includes User Timing, CustomEvent, UTF-8
 codec corrections and shared EventTarget listener semantics. Release requests
 include local installation by default. Linked policy, implementation and release
@@ -77,10 +78,48 @@ for unchanged source and dependencies. The release binary lives at
 `/var/tmp/noe-v2.21.0-release-1lwzess2/assets/noe-linux-amd64`.
 
 The selected v2.21.0 improvements are shipped. Abort interfaces and text streams
-are completed locally below. Additional encoding families,
+are completed locally below; compression/URLPattern continuation is recorded next.
+Additional encoding families,
 PerformanceObserver/resource/navigation timing and DOM trees remain outside
 these slices. Future improvements should
 follow concrete standard-library caller needs rather than release housekeeping.
+
+## Local compression-interface and URLPattern continuation
+
+The user approved both next improvements. The
+[contract and verification](stdlib-compression-urlpattern.md) is canonical.
+Public declarations, reference pages, the route/compression example and main/Worker
+consumer helpers are updated. The URLPattern input/baseURL implementation and
+its single fix-only independent re-review are complete. Three P2 findings were
+fixed: constructor string defaults, omitted credential password and relative
+leading double slashes. Shared path normalization retains empty segments.
+
+Compression review found three P2 issues in the initial implementation: shared
+BufferSource acceptance, forbidden gzip/zlib header acceptance, and writes settling
+before decoder validation. All three were fixed. Native writes now wait for codec
+progress; validated header prefixes allow byte-at-a-time input without waiting
+forever for the next write. Bounded output backpressure, cancellation and the
+existing cumulative output limit are retained.
+
+All seven affected packages, focused race, public types/catalog/lint/vet and actual
+CLI primary/common/example/reference checks pass on the corrected native source.
+The candidate matches Deno 2.9.7 on ordinary route/base cases, all three formats,
+invalid writes and shared-buffer rejection. The single compression fix-only
+re-review confirms all findings resolved, including progress/EOF/error interaction,
+byte-at-a-time input, empty final writes, optional gzip headers and cleanup wakeups.
+Checkout and standalone module-artifact consumers build/run successfully, including
+main/Worker helpers; exact runtime/declaration source continuity is recorded.
+Evidence: `/var/tmp/noe-compression-pattern-4xda37jx`.
+
+Local implementation, verification and bounded reviews are complete. The retained
+compiler/URL backend does not claim full pattern grammar or IDNA conformance; see
+the canonical contract's boundaries. Reuse completed checks for unchanged source
+and dependencies when a release is requested. The preceding local abort/text-stream
+slice is committed at `edb5e73`; both continuations are after v2.21.0.
+
+Both installed executables remain the verified v2.21.0 asset above. No push,
+publication, installation, service restart or noebot change is included in this
+local implementation request.
 
 ## Local abort-interface and text-stream completion
 

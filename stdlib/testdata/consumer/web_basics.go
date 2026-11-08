@@ -28,6 +28,14 @@ let decoded="";for await(const chunk of ReadableStream.from(["\ud83d","","\ude00
 if(decoded!=="😀!")throw Error("split UTF-16 stream");
 const timeout=AbortSignal.timeout(0);await new Promise(resolve=>timeout.addEventListener("abort",resolve,{once:true}));
 if(timeout.reason.name!=="TimeoutError"||!(timeout.reason instanceof DOMException))throw Error("worker timeout reason");
+const baseURL="https://example.test/api/", route=new URLPattern({pathname:"books/:id",baseURL});
+const routed=route.exec({pathname:"books/42",baseURL});if(routed?.pathname.groups.id!=="42")throw Error("worker URLPattern inputs");
+for(const format of ["gzip","deflate","deflate-raw"]){
+ const plain="book="+routed.pathname.groups.id+" 😀", data=new TextEncoder().encode(plain);
+ const compressed=await new Response(ReadableStream.from([data]).pipeThrough(new CompressionStream(format))).bytes();
+ const restored=await new Response(ReadableStream.from([compressed]).pipeThrough(new DecompressionStream(format))).text();
+ if(restored!==plain)throw Error("worker compression contract");
+}
 const mark=performance.mark("child",{startTime:1});
 parentPort.postMessage({detail,type:mark.entryType,entries:performance.getEntries().length});parentPort.close();`
 	code := fmt.Sprintf(`import {Worker} from "node:worker_threads";
@@ -35,6 +43,7 @@ const input={value:1};const mark=performance.mark("parent",{startTime:2,detail:i
 const measured=performance.measure("duration",{start:"parent",end:5});
 if(!(mark instanceof PerformanceMark)||mark.detail.value!==1||measured.duration!==3)throw Error("User Timing contract");
 const defaultAbort=AbortSignal.abort();if(defaultAbort.reason.name!=="AbortError")throw Error("main abort reason");
+if(!new URLPattern({pathname:"/books/:id"}).test({pathname:"/books/1"}))throw Error("main URLPattern object input");
 const worker=new Worker(%q,{eval:true,type:"module"});
 const result=await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});
 await worker.terminate();

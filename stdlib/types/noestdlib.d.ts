@@ -852,14 +852,22 @@ declare namespace NOEStdlib {
     search: URLPatternPartResult;
     hash: URLPatternPartResult;
   }
-  interface URLPatternInit { protocol?: string; username?: string; password?: string; hostname?: string; port?: string; pathname?: string; search?: string; hash?: string }
+  interface URLPatternInit { protocol?: string; username?: string; password?: string; hostname?: string; port?: string; pathname?: string; search?: string; hash?: string; baseURL?: string }
+  interface URLPatternOptions { ignoreCase?: boolean }
   interface URLPattern {
-    protocol: string; username: string; password: string; hostname: string;
-    port: string; pathname: string; search: string; hash: string;
-    test(input: string | URL, baseURL?: string): boolean;
-    exec(input: string | URL, baseURL?: string): URLPatternResult | null;
+    readonly protocol: string; readonly username: string; readonly password: string; readonly hostname: string;
+    readonly port: string; readonly pathname: string; readonly search: string; readonly hash: string;
+    readonly hasRegExpGroups: boolean;
+    test(input: string, baseURL?: string): boolean;
+    test(input?: URLPatternInit | null): boolean;
+    exec(input: string, baseURL?: string): URLPatternResult | null;
+    exec(input?: URLPatternInit | null): URLPatternResult | null;
   }
-  interface URLPatternConstructor { new(input?: string | URLPatternInit, baseURL?: string): URLPattern }
+  interface URLPatternConstructor {
+    new(input: string, baseURL: string, options?: URLPatternOptions | null): URLPattern;
+    new(input?: string | URLPatternInit | null, options?: URLPatternOptions | null): URLPattern;
+    readonly prototype: URLPattern;
+  }
 
   interface TextEncoder { readonly encoding: "utf-8"; encode(input?: string): Uint8Array; encodeInto(source: string, destination: Uint8Array): {read: number; written: number} }
   interface TextEncoderConstructor { new(): TextEncoder }
@@ -1196,10 +1204,10 @@ declare namespace NOEStdlib {
     terminate(): void;
   }
   interface WorkerConstructor { new(url: string | URL, options?: {name?: string; type?: "classic" | "module"}): Worker }
-  interface CompressionStream extends TransformStream<Uint8Array, Uint8Array> {}
-  interface CompressionStreamConstructor { new(format: CompressionFormat): CompressionStream }
-  interface DecompressionStream extends TransformStream<Uint8Array, Uint8Array> {}
-  interface DecompressionStreamConstructor { new(format: CompressionFormat): DecompressionStream }
+  interface CompressionStream { readonly readable: ReadableStream<Uint8Array>; readonly writable: WritableStream<ArrayBuffer | ArrayBufferView<ArrayBuffer>> }
+  interface CompressionStreamConstructor { new(format: CompressionFormat): CompressionStream; readonly prototype: CompressionStream }
+  interface DecompressionStream { readonly readable: ReadableStream<Uint8Array>; readonly writable: WritableStream<ArrayBuffer | ArrayBufferView<ArrayBuffer>> }
+  interface DecompressionStreamConstructor { new(format: CompressionFormat): DecompressionStream; readonly prototype: DecompressionStream }
 
   interface Console {
     log(...values: unknown[]): void; info(...values: unknown[]): void; debug(...values: unknown[]): void;
@@ -1770,6 +1778,9 @@ declare var File: NOEStdlib.FileConstructor;
 interface FormData extends NOEStdlib.FormData {}
 declare var FormData: NOEStdlib.FormDataConstructor;
 interface URLPattern extends NOEStdlib.URLPattern {}
+interface URLPatternInit extends NOEStdlib.URLPatternInit {}
+interface URLPatternOptions extends NOEStdlib.URLPatternOptions {}
+interface URLPatternResult extends NOEStdlib.URLPatternResult {}
 declare var URLPattern: NOEStdlib.URLPatternConstructor;
 interface Event extends NOEStdlib.Event {}
 declare var Event: NOEStdlib.EventConstructor;

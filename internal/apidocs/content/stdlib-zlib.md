@@ -20,7 +20,11 @@ The create* helpers produce Web Compression/Decompression streams. Synchronous f
 
 ### Compression and decompression streams
 
-Both stream classes expose readable and writable sides. DecompressionStream produces Uint8Array chunks incrementally, including before compressed-input EOF. Consume the readable side while writing: a slow or absent reader can hold write() and close() promises pending. Piping drives both sides together:
+Both constructors require a format argument and reject unsupported formats synchronously with TypeError. The supported formats are gzip, deflate and deflate-raw; Brotli is unsupported. Their readable and writable attributes are branded readonly getters. These classes compose streams rather than extending TransformStream, and their wrapper objects cannot be structured-cloned.
+
+Stream writes require BufferSource chunks (ArrayBuffer or views, including DataView), use the exact view span, and snapshot the bytes. Non-buffer chunks, shared memory and resizable/growable buffers reject with TypeError; detached buffers contribute no bytes. Node zlib synchronous/callback helpers retain their separate string input convention. The create* helpers follow the Web stream chunk contract.
+
+DecompressionStream produces Uint8Array chunks incrementally, including before compressed-input EOF. Consume the readable side while writing: a slow or absent reader can hold write() and close() promises pending. Piping drives both sides together:
 
 ~~~js
 import {createReadStream, createWriteStream} from "noe:fs";
@@ -30,7 +34,7 @@ await createReadStream("archive.gz")
   .pipeTo(createWriteStream("archive.txt"));
 ~~~
 
-Cancelling the readable side stops decoding and errors the writable side; aborting the writable side errors the readable side. Invalid or truncated compressed input and checksum failures error the stream. Incremental decoding may deliver a prefix before a later validation error, so wait for successful completion before treating the full result as valid.
+Cancelling the readable side stops decoding and errors the writable side; aborting the writable side errors the readable side. Invalid or truncated compressed input, checksum failures, reserved gzip header flags, zlib preset dictionaries, trailing data and additional gzip members error both sides with TypeError. A write containing invalid data rejects; incomplete input can fail at close. Incremental decoding may deliver a prefix before a later validation error, so wait for successful completion before treating the full result as valid.
 
 DecompressionStream retains the existing 1 GiB decompressed-output limit, applied cumulatively across the entire stream. Exceeding it raises RangeError. Runtime shutdown or closing the execution's Bindings stops pending decoding work.
 

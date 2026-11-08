@@ -263,33 +263,171 @@ const webAPIsJS = `(function (host) {
     "protocol", "username", "password", "hostname", "port",
     "pathname", "search", "hash",
   ];
+  const patternStates = new WeakMap();
+  const patternWellFormed = String.prototype.toWellFormed;
+  const patternGet = WeakMap.prototype.get, patternSet = WeakMap.prototype.set;
+  const patternCreate = Object.create, patternDefine = Object.defineProperty;
+  function patternString(value) {
+    return codecApply(patternWellFormed, webDOMString(value), []);
+  }
+  function patternInput(value) {
+    if (value !== null && value !== undefined && typeof value !== "object" && typeof value !== "function") {
+      return patternString(value);
+    }
+    const result = patternCreate(null);
+    // Web IDL dictionary conversion visits members in lexicographic order.
+    for (const key of ["baseURL", "hash", "hostname", "password", "pathname", "port", "protocol", "search", "username"]) {
+      const item = value == null ? undefined : value[key];
+      if (item !== undefined) result[key] = patternString(item);
+    }
+    return result;
+  }
+  function patternOptions(value) {
+    if (value == null) return false;
+    if (typeof value !== "object" && typeof value !== "function") throw new TypeError("URLPattern options must be a dictionary");
+    return !!value.ignoreCase;
+  }
+  function patternOf(value) {
+    const state = codecApply(patternGet, patternStates, [value]);
+    if (state === undefined) throw new TypeError("The receiver is not a URLPattern");
+    return state;
+  }
+  function escapePattern(value) { return value.replace(/[+*?:{}()\\]/g, "\\$&"); }
+  function patternURLValues(url) {
+    return {protocol: url.protocol.slice(0, -1), username: url.username,
+      password: url.password, hostname: url.hostname, port: url.port,
+      pathname: url.pathname, search: url.search.replace(/^\?/, ""), hash: url.hash.replace(/^#/, "")};
+  }
+  function canonicalPatternValue(value, part, protocol) {
+    if (part === "protocol") {
+      if (value !== "" && !/^[A-Za-z][A-Za-z0-9+.-]*$/.test(value)) throw new TypeError("Invalid URLPattern protocol");
+      return value.toLowerCase();
+    }
+    if (part === "hostname") {
+      if (/[\s/#?@]/.test(value)) throw new TypeError("Invalid URLPattern hostname");
+      return value.toLowerCase();
+    }
+    if (part === "port") {
+      if (value === "") return "";
+      if (!/^\d+$/.test(value) || +value > 65535) throw new TypeError("Invalid URLPattern port");
+      const normalized = String(+value);
+      return specialPorts[protocol + ":"] === normalized ? "" : normalized;
+    }
+    if (part === "username" || part === "password") return encodeSet(value, "/:;=@[\\]^|?#");
+    if (part === "search") return encodeSet(value, "#");
+    if (part === "hash") return encodeSet(value, "");
+    if (part === "pathname") {
+      const encoded = encodeSet(value, "?#");
+      if (protocol !== "" && !isSpecial(protocol + ":")) return encoded;
+      if (encoded === "") return "";
+      return encoded.startsWith("/") ? normalizePath(encoded) : normalizePath("/-" + encoded).slice(2);
+    }
+    return value;
+  }
+  function canonicalPatternSource(value, part, protocol) {
+    const special = protocol === undefined || protocol === "*" || isSpecial(protocol.toLowerCase() + ":");
+    if (part === "hostname" && /^\[[0-9A-Fa-f:]+\]$/.test(value)) return escapePattern(value.toLowerCase());
+    if (!/[+*?:{}()\\]/.test(value)) return canonicalPatternValue(value, part, part === "pathname" && !special ? protocol : "");
+    if (part === "pathname") {
+      value = encodeSet(value, "");
+      if (special) {
+        return value.startsWith("/") ? normalizePath(value) : normalizePath("/-" + value).slice(2);
+      }
+      return value;
+    }
+    if (part === "search" || part === "hash") return encodeSet(value, "");
+    if (part === "hostname" || part === "protocol") {
+      let result = "";
+      for (let i = 0; i < value.length;) {
+        if (value[i] === "\\") { result += value.slice(i, i + 2); i += 2; continue; }
+        if (value[i] === "(") {
+          const end = matchingParen(value, i); result += value.slice(i, end + 1); i = end + 1; continue;
+        }
+        if (value[i] === ":") {
+          let end = i + 1; while (end < value.length && /[\w$]/.test(value[end])) end++;
+          result += value.slice(i, end); i = end; continue;
+        }
+        if (/\s/.test(value[i])) throw new TypeError("Invalid URLPattern component");
+        result += value[i++].toLowerCase();
+      }
+      return result;
+    }
+    return value;
+  }
+  function processPatternInit(init, pattern) {
+    const result = patternCreate(null);
+    if (!pattern) for (const part of patternParts) result[part] = "";
+    let base;
+    if (init.baseURL !== undefined) base = new URL(init.baseURL);
+    if (base) {
+      const values = patternURLValues(base);
+      for (const part of patternParts) values[part] = canonicalPatternValue(values[part], part, values.protocol);
+      const inherit = (part, blockers) => {
+        if (!blockers.some(key => init[key] !== undefined)) {
+          result[part] = pattern ? escapePattern(values[part]) : values[part];
+        }
+      };
+      inherit("protocol", ["protocol"]);
+      if (!pattern) {
+        inherit("username", ["protocol", "hostname", "port", "username"]);
+        inherit("password", ["protocol", "hostname", "port", "username", "password"]);
+      }
+      inherit("hostname", ["protocol", "hostname"]);
+      inherit("port", ["protocol", "hostname", "port"]);
+      inherit("pathname", ["protocol", "hostname", "port", "pathname"]);
+      inherit("search", ["protocol", "hostname", "port", "pathname", "search"]);
+      inherit("hash", ["protocol", "hostname", "port", "pathname", "search", "hash"]);
+    }
+    for (const part of patternParts) {
+      if (init[part] === undefined) continue;
+      let value = init[part];
+      if (part === "protocol") value = value.replace(/:$/, "");
+      if (part === "search") value = value.replace(/^\?/, "");
+      if (part === "hash") value = value.replace(/^#/, "");
+      if (part === "pathname" && base && (base.hostname !== "" || base.pathname.startsWith("/")) &&
+          !value.startsWith("/") && !(pattern && (value.startsWith("\\/") || value.startsWith("{/")))) {
+        const path = pattern ? escapePattern(base.pathname) : base.pathname;
+        value = path.slice(0, path.lastIndexOf("/") + 1) + value;
+      }
+      result[part] = pattern ? value : canonicalPatternValue(value, part, result.protocol || "");
+    }
+    return result;
+  }
 
   function compilePart(pattern, part) {
     // A part nobody constrained matches whatever is there.
     if (pattern === undefined || pattern === "*") {
-      return {source: "^.*$", names: [], wild: true};
+      return {source: "^(?<_0>.*)$", names: ["0"], wild: true, hasRegExpGroups: false};
     }
     const names = [];
     const segment = part === "pathname";
     // What one :name may match: a path stops at a separator, everything else
     // does not.
-    const one = segment ? "[^/]+?" : "[^]+?";
+    const one = segment ? "[^/]+?" : part === "hostname" ? "[^.]+?" : "[^]+?";
+    let hasRegExpGroups = false;
     let out = "^";
     let i = 0;
     let unnamed = 0;
     while (i < pattern.length) {
       const c = pattern[i];
+      if (c === "\\") {
+        if (++i === pattern.length) throw new TypeError("A pattern escape must have a following character");
+        out += escapeRe(pattern[i++]);
+        continue;
+      }
       if (c === ":") {
         let j = i + 1;
         while (j < pattern.length && /[\w$]/.test(pattern[j])) j++;
         if (j === i + 1) throw new TypeError("a : must be followed by a name");
         const name = pattern.slice(i + 1, j);
+        if (/^[0-9]/.test(name)) throw new TypeError("A pattern name must begin with an identifier character");
         names.push(name);
         i = j;
         // A name may be followed by its own matcher, and then by how many of
         // it there may be.
         let body = one;
         if (pattern[i] === "(") {
+          hasRegExpGroups = true;
           const end = matchingParen(pattern, i);
           body = pattern.slice(i + 1, end);
           i = end + 1;
@@ -313,6 +451,7 @@ const webAPIsJS = `(function (host) {
         continue;
       }
       if (c === "(") {
+        hasRegExpGroups = true;
         const end = matchingParen(pattern, i);
         const name = String(unnamed++);
         names.push(name);
@@ -325,6 +464,7 @@ const webAPIsJS = `(function (host) {
         // inside it is a pattern of its own.
         const end = matchingBrace(pattern, i);
         const inner = compilePart(pattern.slice(i + 1, end), part);
+        hasRegExpGroups ||= inner.hasRegExpGroups;
         i = end + 1;
         const mod = modifierAt(pattern, i);
         i += mod.length;
@@ -335,7 +475,7 @@ const webAPIsJS = `(function (host) {
       out += escapeRe(c);
       i++;
     }
-    return {source: out + "$", names, wild: false};
+    return {source: out + "$", names, wild: false, hasRegExpGroups};
   }
 
   function group(name, body, mod, segment) {
@@ -382,91 +522,116 @@ const webAPIsJS = `(function (host) {
 
   const escapeRe = (c) => /[\\^$.*+?()[\]{}|\/]/.test(c) ? "\\" + c : c;
 
-  class URLPattern {
-    constructor(input = {}, baseURL) {
-      let init = input;
-      if (typeof input === "string") {
-        // A whole URL as a pattern: its parts are taken apart the way a URL's
-        // are, which is why a base is allowed here too.
-        init = patternFromString(input, baseURL);
-      } else if (baseURL !== undefined) {
-        init = {...patternFromString("", baseURL), ...input};
-      }
-      const parts = {};
-      for (const part of patternParts) {
-        const source = init[part];
-        const compiled = compilePart(source, part);
-        parts[part] = compiled;
-        this[part] = source === undefined ? "*" : source;
-        Object.defineProperty(this, "_" + part, {
-          value: {re: new RegExp(compiled.source, part === "protocol" ? "i" : ""),
-                  names: compiled.names, wild: compiled.wild},
-        });
-      }
-      Object.defineProperty(this, "_parts", {value: parts});
+  const patternExec = RegExp.prototype.exec;
+  function matchPattern(state, input, baseURL) {
+    const converted = patternInput(input);
+    const base = baseURL === undefined ? undefined : patternString(baseURL);
+    if (typeof converted !== "string" && base !== undefined) {
+      throw new TypeError("An object input must contain its own baseURL");
     }
-
-    test(input, baseURL) { return this.exec(input, baseURL) !== null; }
-
-    exec(input, baseURL) {
-      let url;
+    let values, inputs;
+    if (typeof converted === "string") {
       try {
-        url = typeof input === "string" ? new URL(input, baseURL)
-          : new URL(input.href !== undefined ? input.href : String(input), baseURL);
-      } catch (e) {
-        return null;
+        values = patternURLValues(new URL(converted, base));
+        for (const part of patternParts) values[part] = canonicalPatternValue(values[part], part, values.protocol);
+      } catch (_) { return null; }
+      inputs = base === undefined ? [converted] : [converted, base];
+    } else {
+      try { values = processPatternInit(converted, false); }
+      catch (_) { return null; }
+      const dictionary = {};
+      for (const key of Object.keys(converted)) {
+        patternDefine(dictionary, key, {value: converted[key], writable: true, enumerable: true, configurable: true});
       }
-      const values = {
-        protocol: url.protocol.replace(/:$/, ""),
-        username: url.username,
-        password: url.password,
-        hostname: url.hostname,
-        port: url.port,
-        pathname: url.pathname,
-        search: url.search.replace(/^[?]/, ""),
-        hash: url.hash.replace(/^#/, ""),
-      };
-      const out = {inputs: baseURL === undefined ? [input] : [input, baseURL]};
-      for (const part of patternParts) {
-        const compiled = this["_" + part];
-        const found = compiled.re.exec(values[part]);
-        if (found === null) return null;
-        const groups = {};
-        for (const name of compiled.names) {
-          groups[name] = found.groups ? found.groups[safeName(name)] : undefined;
-        }
-        out[part] = {input: values[part], groups};
-      }
-      return out;
+      inputs = [dictionary];
     }
+    const result = {inputs};
+    for (const part of patternParts) {
+      const compiled = state.parts[part];
+      const found = codecApply(patternExec, compiled.re, [values[part]]);
+      if (found === null) return null;
+      const groups = {};
+      for (const name of compiled.names) {
+        patternDefine(groups, name, {value: found.groups[safeName(name)], writable: true, enumerable: true, configurable: true});
+      }
+      patternDefine(result, part, {value: {input: values[part], groups}, writable: true, enumerable: true, configurable: true});
+    }
+    return result;
   }
+  class URLPattern {
+    constructor(input = undefined, baseURLOrOptions = undefined, options = undefined) {
+      const converted = patternInput(input);
+      const withBase = arguments.length >= 3 || (baseURLOrOptions != null &&
+        typeof baseURLOrOptions !== "object" && typeof baseURLOrOptions !== "function");
+      const baseURL = withBase ? patternString(baseURLOrOptions) : undefined;
+      const ignoreCase = patternOptions(withBase ? options : baseURLOrOptions);
+      let init;
+      if (typeof converted === "string") init = patternFromString(converted, baseURL);
+      else {
+        if (withBase) throw new TypeError("An object pattern must contain its own baseURL");
+        init = converted;
+      }
+      const processed = processPatternInit(init, true);
+      if (processed.port !== undefined && /^\d+$/.test(processed.port) &&
+          specialPorts[processed.protocol + ":"] === String(+processed.port)) processed.port = "";
+      const parts = patternCreate(null);
+      let hasRegExpGroups = false;
+      for (const part of patternParts) {
+        const raw = processed[part] === undefined ? "*" : processed[part];
+        const source = canonicalPatternSource(raw, part, processed.protocol);
+        let compiled, re;
+        try {
+          compiled = compilePart(source, part);
+          re = new RegExp(compiled.source, "u" + (ignoreCase && ["pathname", "search", "hash"].includes(part) ? "i" : ""));
+        } catch (_) { throw new TypeError("Invalid URLPattern component: " + part); }
+        parts[part] = {value: source, re, names: compiled.names};
+        hasRegExpGroups ||= compiled.hasRegExpGroups;
+      }
+      codecApply(patternSet, patternStates, [this, {parts, hasRegExpGroups}]);
+      host.cloneAs(this, "unsupported");
+    }
+    test(input = undefined, baseURL = undefined) { return matchPattern(patternOf(this), input, baseURL) !== null; }
+    exec(input = undefined, baseURL = undefined) { return matchPattern(patternOf(this), input, baseURL); }
+    get hasRegExpGroups() { return patternOf(this).hasRegExpGroups; }
+  }
+  for (const part of patternParts) {
+    patternDefine(URLPattern.prototype, part, {get() { return patternOf(this).parts[part].value; }, enumerable: true, configurable: true});
+  }
+  for (const name of ["test", "exec", "hasRegExpGroups"]) patternDefine(URLPattern.prototype, name, {enumerable: true});
+  patternDefine(URLPattern.prototype, Symbol.toStringTag, {value: "URLPattern", configurable: true});
 
   // patternFromString takes a pattern written as a whole URL apart. The parts
   // are split on the characters that separate them rather than parsed, since
   // what is between them is a pattern and not a URL.
   function patternFromString(text, baseURL) {
-    const init = {};
-    let rest = String(text);
-    if (baseURL !== undefined) {
-      const base = new URL(baseURL);
-      init.protocol = base.protocol.replace(/:$/, "");
-      init.hostname = base.hostname;
-      if (base.port) init.port = base.port;
-    }
-    const scheme = /^([\w+.-]+):\/\//.exec(rest);
+    const init = patternCreate(null);
+    let rest = text;
+    if (baseURL !== undefined) init.baseURL = baseURL;
+    const scheme = /^([A-Za-z][\w+.-]*):/.exec(rest);
     if (scheme) {
       init.protocol = scheme[1];
       rest = rest.slice(scheme[0].length);
+    } else if (baseURL === undefined) throw new TypeError("A relative URL pattern requires a baseURL");
+    if (scheme && rest.startsWith("//")) {
+      rest = rest.slice(2);
+      const boundaries = separators(rest);
       const slash = rest.indexOf("/");
-      const authority = slash < 0 ? rest : rest.slice(0, slash);
-      rest = slash < 0 ? "" : rest.slice(slash);
-      const colon = authority.lastIndexOf(":");
-      if (colon > 0 && !authority.slice(colon).includes("}")) {
-        init.hostname = authority.slice(0, colon);
-        init.port = authority.slice(colon + 1);
-      } else {
-        init.hostname = authority;
+      const endpoints = [slash, boundaries.query, boundaries.hash].filter(index => index >= 0);
+      const end = endpoints.length ? Math.min(...endpoints) : rest.length;
+      let authority = rest.slice(0, end);
+      rest = rest.slice(end);
+      const at = authority.lastIndexOf("@");
+      if (at >= 0) {
+        const credentials = authority.slice(0, at), colon = credentials.indexOf(":");
+        init.username = colon < 0 ? credentials : credentials.slice(0, colon);
+        if (colon >= 0) init.password = credentials.slice(colon + 1);
+        authority = authority.slice(at + 1);
       }
+      const colon = authority.startsWith("[") ? authority.indexOf(":", authority.indexOf("]") + 1) : authority.lastIndexOf(":");
+      if (colon > 0 && !authority.slice(colon).includes("}")) {
+        init.hostname = authority.slice(0, colon); init.port = authority.slice(colon + 1);
+      } else init.hostname = authority;
+      if (init.port === undefined) init.port = "";
     }
     // Where the query and the fragment begin cannot be found by looking for
     // the characters that start them: the ? of "/items/:id?" is a modifier,
@@ -474,6 +639,7 @@ const webAPIsJS = `(function (host) {
     const {query, hash} = separators(rest);
     if (hash >= 0) {
       init.hash = rest.slice(hash + 1);
+      if (query < 0 && (scheme || hash > 0)) init.search = "";
       rest = rest.slice(0, hash);
     }
     if (query >= 0) {
@@ -481,6 +647,8 @@ const webAPIsJS = `(function (host) {
       rest = rest.slice(0, query);
     }
     if (rest !== "") init.pathname = rest;
+    else if (!scheme && query !== 0 && hash !== 0) init.pathname = "";
+    else if (scheme && (query >= 0 || hash >= 0)) init.pathname = isSpecial(init.protocol.toLowerCase() + ":") ? "/" : "";
     return init;
   }
 
@@ -663,8 +831,8 @@ const webAPIsJS = `(function (host) {
     const out = [];
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
-      if (p === "." || (p === "" && i > 0 && i < parts.length - 1)) {
-        if (p === ".") { if (i === parts.length - 1) out.push(""); }
+      if (p === ".") {
+        if (i === parts.length - 1) out.push("");
         continue;
       }
       if (p === "..") {

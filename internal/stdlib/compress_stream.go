@@ -12,6 +12,7 @@ import (
 )
 
 var errInflatedLimit = errors.New("the decompressed data is larger than this runtime will produce at once")
+var errTrailingCompressedData = errors.New("additional data follows the compressed stream")
 
 // streamInflater owns only Go data on its workers. Its owner starts it lazily,
 // delivers promises, and removes lifetime hooks after the pump and operations
@@ -30,6 +31,11 @@ type streamInflater struct {
 	output chan []byte
 	done   chan struct{}
 	work   sync.WaitGroup
+
+	progressMu      sync.Mutex
+	progressBytes   int64
+	progressChanged chan struct{}
+	acceptedBytes   int64
 	// result is written before done closes and read only after observing done.
 	result error
 
@@ -67,6 +73,11 @@ func (u *streamInflater) start() error {
 	u.ctx, u.cancel = context.WithCancel(u.base)
 	u.input, u.writer = io.Pipe()
 	u.output, u.done = make(chan []byte), make(chan struct{})
+	u.progressMu.Lock()
+	u.progressBytes = 0
+	u.progressChanged = make(chan struct{})
+	u.progressMu.Unlock()
+	u.acceptedBytes = 0
 	u.started = true
 	u.unhook = u.rt.OnClose(func() { u.stop(); u.work.Wait(); u.detach() })
 	if u.loop != nil && u.loop.executionScope() != nil {
@@ -112,7 +123,7 @@ func (u *streamInflater) start() error {
 }
 
 func (u *streamInflater) pump() error {
-	r, err := readerFor(u.format, u.input)
+	r, source, err := streamReaderFor(u.format, u.input, u.inputProgress)
 	if err != nil {
 		return err
 	}
@@ -139,15 +150,60 @@ func (u *streamInflater) pump() error {
 		}
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				// zlib/raw readers may finish before input EOF. Keep accepting
-				// the remaining input as the old whole-input reader did.
-				_, err = io.Copy(io.Discard, u.input)
+				// The format has a single member and no trailing bytes. Reading
+				// exactly one byte also waits for input close, so a later write
+				// cannot silently append data after the compressed member.
+				if _, trailingErr := source.ReadByte(); trailingErr == nil {
+					return errTrailingCompressedData
+				} else if !errors.Is(trailingErr, io.EOF) {
+					return trailingErr
+				}
+				return nil
 			} else {
 				err = fmt.Errorf("the data could not be decompressed: %w", err)
 			}
 			return err
 		}
 		size = chunkSize
+	}
+}
+
+// inputProgress marks bytes accepted by header validation or taken from the
+// bounded input buffer. A write is not complete merely because the pipe copied
+// its bytes into that buffer: it must wait until the codec consumes the chunk.
+func (u *streamInflater) inputProgress(bytes int64) {
+	u.progressMu.Lock()
+	if bytes > u.progressBytes {
+		u.progressBytes = bytes
+		close(u.progressChanged)
+		u.progressChanged = make(chan struct{})
+	}
+	u.progressMu.Unlock()
+}
+
+func (u *streamInflater) waitForInput(target int64) error {
+	for {
+		u.progressMu.Lock()
+		if u.progressBytes >= target {
+			u.progressMu.Unlock()
+			return nil
+		}
+		changed := u.progressChanged
+		u.progressMu.Unlock()
+		select {
+		case <-changed:
+		case <-u.done:
+			u.progressMu.Lock()
+			reached := u.progressBytes >= target
+			u.progressMu.Unlock()
+			if reached {
+				return nil
+			}
+			if u.result != nil {
+				return u.result
+			}
+			return io.ErrUnexpectedEOF
+		}
 	}
 }
 
@@ -226,6 +282,8 @@ func (u *streamInflater) write(value quickjs.Value) *quickjs.Promise {
 		return p
 	}
 	data = bytes.Clone(data)
+	target := u.acceptedBytes + int64(len(data))
+	u.acceptedBytes = target
 	u.writeBusy = true
 	u.operation(p, func() { u.writeBusy = false }, func() ([]byte, error) {
 		_, err := u.writer.Write(data)
@@ -234,8 +292,9 @@ func (u *streamInflater) write(value quickjs.Value) *quickjs.Promise {
 			if u.result != nil {
 				err = u.result
 			}
+			return nil, err
 		}
-		return nil, err
+		return nil, u.waitForInput(target)
 	})
 	return p
 }

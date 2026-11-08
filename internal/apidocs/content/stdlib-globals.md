@@ -32,6 +32,29 @@ The pinned QuickJS runtime also exposes these language and host globals: Aggrega
 
 In this inventory, `localStorage` is conditional: it appears only when the host explicitly opts in to filesystem-backed storage. `Storage` and `sessionStorage` are always available with the Web APIs selected.
 
+## CompressionStream
+
+Construct with a required gzip, deflate or deflate-raw format. Unsupported formats throw TypeError immediately. readonly readable and writable getters expose the composed Web streams. Writes require fixed, non-shared BufferSources and snapshot exact view spans; encode strings first. The wrapper cannot be structured-cloned. Consume the readable side concurrently with writes. The node:zlib reference describes stream lifecycle and the related create* helpers.
+
+## DecompressionStream
+
+Uses the same required formats, BufferSource input and readonly endpoints as CompressionStream. Invalid headers/data/checksums, trailing bytes and extra gzip members reject with TypeError; incomplete input may fail at close. Incremental output can precede a validation error. The existing cumulative decompressed-output limit is 1 GiB and exceeding it raises RangeError. Consume output concurrently and await successful completion.
+
+## URLPattern
+
+Construct a pattern from a string or a URLPatternInit dictionary containing protocol, username, password, hostname, port, pathname, search, hash and baseURL. Unknown dictionary keys are ignored. Missing pattern components default to wildcards; baseURL supplies eligible earlier components. Pattern credentials are never inherited from baseURL. Relative string patterns require a separate baseURL; dictionary patterns carry baseURL themselves.
+
+~~~js
+const baseURL = "https://example.test/api/";
+const route = new URLPattern({pathname: "books/:id", baseURL});
+const match = route.exec({pathname: "books/42", baseURL});
+console.log(match.pathname.groups.id); // "42"
+~~~
+
+test and exec accept a string with an optional baseURL, or a dictionary with its own baseURL. Missing matching components are empty strings, subject to base inheritance. A dictionary plus a separate baseURL throws TypeError. Constructor parsing errors throw TypeError; matching parse failures return false/null. Argument conversion exceptions propagate. exec returns converted input snapshots and per-component input/groups records, including wildcard captures.
+
+The eight component attributes and hasRegExpGroups are branded readonly getters. The optional ignoreCase constructor option affects pathname, search and hash. URLPattern wrappers cannot be structured-cloned. The existing component compiler and URL backend remain limited: full pattern grammar, custom-regexp canonicalization and IDNA are not certified. Use component dictionaries for routes that avoid ambiguous whole-URL pattern syntax.
+
 ## TextEncoder
 
 TextEncoder encodes UTF-8. encodeInto(source, destination) accepts a genuine
