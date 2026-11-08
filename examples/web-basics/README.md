@@ -60,7 +60,7 @@ readonly. See the [contract and limitations](../../docs/development/stdlib-compr
 
 ### URL normalization and query encoding
 
-The source-only continuation after v2.22.0 is demonstrated by:
+The v2.23.0 URL/query corrections are demonstrated by:
 
 ```sh
 /tmp/noe-web-basics run --no-inst examples/web-basics/url-query.js
@@ -74,7 +74,7 @@ no filesystem/network/provider grant. See the
 
 ### Request URL and method inputs
 
-The next source-only correction after v2.22.0 is demonstrated by:
+The v2.23.0 Request input corrections are demonstrated by:
 
 ```sh
 /tmp/noe-web-basics run --no-inst examples/web-basics/request-inputs.js

@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.22.0; see the
+select model providers or agent behavior. The current release is v2.23.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.32.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.22.0`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.23.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -248,6 +248,23 @@ URLPattern accepts component dictionaries with baseURL, resolves eligible relati
 components, and returns converted inputs and captures. Component attributes are
 readonly. The retained compiler/URL backend does not claim complete grammar or
 IDNA conformance. See the [contract and migration](development/stdlib-compression-urlpattern.md).
+
+## URL normalization and Request inputs
+
+v2.23.0 corrects component-specific URL encoding, encoded dot segments, default
+ports and URLSearchParams form decoding/serialization. A URL retains one linked
+searchParams object across href/search assignments; iterators remain live.
+
+Request string inputs use the shared URL backend, reject invalid/credential-bearing
+URLs, and expose readonly private url/method. Method validation follows ByteString /
+HTTP token rules and uppercases only DELETE/GET/HEAD/OPTIONS/POST/PUT. Extension
+methods keep their case through native dispatch. Copy/clone/fetch use private
+metadata; the noe:http adapter preserves incoming native methods and raw URLs via
+an internal factory. URL/method errors precede upload acquisition.
+
+Full IDNA/IP/file-URL, Headers/Body/signal and browser-policy coverage is not claimed.
+See [URL/query contracts](development/stdlib-url-encoding.md) and
+[Request contracts](development/stdlib-request-inputs.md).
 
 ## Web Crypto
 
