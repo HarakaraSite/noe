@@ -1,11 +1,24 @@
 # Standard library session handoff
 
-Updated 2026-11-09 for the local go-quickjs v0.37.1 integration after v2.24.0
-publication and both vm201 installations.
+Updated 2026-11-09 for v2.25.0 release preparation after the go-quickjs v0.37.1
+integration.
 All five continuations through `6ca7ec2` are published and installed. Linked
 policy, implementation and release records remain canonical.
 
-## Current continuation — go-quickjs v0.37.1 local completion
+## Current release — v2.25.0 preparation
+
+The user explicitly requested commit, release and binary replacement. The engine
+integration is committed as `c29d466`; preparation selects v2.25.0. Existing
+implementation verification is reused after source continuity checks. Release
+evidence is `/var/tmp/noe-v2.25.0-release-t7y1gqoz`.
+
+Publish the immutable tag through the existing lightweight workflow, verify all
+downloaded assets, the native affected behavior and direct published stdlib/agent
+consumers, then retain and atomically replace both existing local executable
+paths. Record publication and installation here and in release checkpoints.
+Running services, other hosts and noebot remain outside scope.
+
+## Previous continuation — go-quickjs v0.37.1 local completion
 
 The user approved the dependency update with JIT disabled and upstream standards
 behavior adopted. On top of `fc28b205`, the checkout selects go-quickjs v0.37.1
