@@ -291,6 +291,12 @@ The configured `MaxBodyBytes` limit applies to response-body reads, not uploads.
 
 new Request(input, init = {}) constructs request data for fetch or an HTTP handler. input may be a URL/string or another Request. Use method, headers, body, and signal as needed.
 
+String/URL inputs use USVString conversion and the shared URL backend, including Unicode/space/default-port normalization. Missing input, invalid URLs and embedded credentials reject TypeError. NOE supplies no ambient document base URL; resolve relative input with URL first. Request.url retains fragments, while native HTTP serialization omits them on the wire.
+
+method uses ByteString and HTTP token validation. CONNECT, TRACE and TRACK reject; DELETE/GET/HEAD/OPTIONS/POST/PUT normalize to uppercase, while extension methods retain their case. Empty methods reject instead of defaulting to GET. url and method are branded readonly getters backed by private state; copy, clone and fetch use that state even when a public property shadows a getter. Copy/clone preserve the existing mode/credentials/redirect metadata. URL/method errors occur before acquiring an upload body.
+
+The noe:http adapter creates incoming requests through a private factory so the native incoming method and raw URL remain available, including when copied/cloned. This does not add a public factory or browser CORS/cache/redirect policy. Other Request/Body/Headers contracts retain their documented limits. Advanced Network installation without WebAPIs can install, but construction needs the Web URL backend (which may be installed later).
+
 ~~~js
 const request = new Request("https://example.com/items", {
   method: "POST",

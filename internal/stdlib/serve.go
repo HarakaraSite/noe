@@ -73,6 +73,11 @@ func Servers(rt *quickjs.Runtime, cfg *Serve) (quickjs.Value, error) {
 	if err := host.Set("listen", s.listen); err != nil {
 		return quickjs.Value{}, err
 	}
+	if err := host.Set("request", func(url, init quickjs.Value) (quickjs.Value, error) {
+		return incomingRequest(rt, url, init)
+	}); err != nil {
+		return quickjs.Value{}, err
+	}
 	api, err := evalWithHost(rt, "<http>", serveJS, host)
 	if err != nil {
 		return quickjs.Value{}, err
@@ -573,7 +578,7 @@ const serveJS = `(function (host) {
               cancel() { stopped = true; raw.cancel(); },
             }, {highWaterMark: 0});
           }
-          const request = new Request(raw.url, init);
+          const request = host.request(raw.url, init);
           const response = await handler(request);
           if (!(response instanceof Response)) {
             throw new TypeError("the handler did not answer with a Response");

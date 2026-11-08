@@ -619,6 +619,9 @@ func TestServeJSBodyReadsOnlyOnDemand(t *testing.T) {
 			dispatch = handler
 			return map[string]any{}
 		})
+		host.Set("request", func(url, init quickjs.Value) (quickjs.Value, error) {
+			return incomingRequest(rt, url, init)
+		})
 		api, err := evalWithHost(rt, "<test-serve>", serveJS, host)
 		if err != nil {
 			finished <- err

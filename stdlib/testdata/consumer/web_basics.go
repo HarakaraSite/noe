@@ -37,6 +37,9 @@ const queryIterator=queryParams.entries();queryIterator.next();queryParams.appen
 if(!Array.from(queryIterator).some(pair=>pair[0]==="live"))throw Error("worker live parameter iterator");
 const formRequest=new Request(queryURL,{method:"POST",body:queryParams});
 if(!(await formRequest.text()).includes("q=%EF%BF%BD%25A"))throw Error("worker Fetch form encoding");
+const normalizedRequest=new Request("https://EXAMPLE.test:00443/☃",{method:"patch"});
+if(normalizedRequest.url!=="https://example.test/%E2%98%83"||normalizedRequest.method!=="patch"||Reflect.set(normalizedRequest,"method","POST"))throw Error("worker Request inputs");
+try{new Request("https://example.test/",{method:"TRACE"});throw Error("forbidden Request method accepted");}catch(error){if(error.name!=="TypeError")throw error;}
 for(const format of ["gzip","deflate","deflate-raw"]){
  const plain="book="+routed.pathname.groups.id+" 😀", data=new TextEncoder().encode(plain);
  const compressed=await new Response(ReadableStream.from([data]).pipeThrough(new CompressionStream(format))).bytes();
@@ -53,6 +56,7 @@ const defaultAbort=AbortSignal.abort();if(defaultAbort.reason.name!=="AbortError
 if(!new URLPattern({pathname:"/books/:id"}).test({pathname:"/books/1"}))throw Error("main URLPattern object input");
 const queryURL=new URL("https://EXAMPLE.test:00443/a/../b?q=old"),queryParams=queryURL.searchParams;
 queryURL.search="?q=new";if(queryParams!==queryURL.searchParams||queryParams.get("q")!=="new"||queryURL.pathname!=="/b"||queryURL.port!=="")throw Error("main URL normalization/query synchronization");
+if(new Request("https://EXAMPLE.test:00443/a/../b",{method:"patch"}).method!=="patch")throw Error("main Request inputs");
 const worker=new Worker(%q,{eval:true,type:"module"});
 const result=await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});
 await worker.terminate();

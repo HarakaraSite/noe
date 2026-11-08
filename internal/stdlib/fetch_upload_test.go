@@ -318,16 +318,21 @@ func TestFetchUploadRedirects(t *testing.T) {
 	}
 }
 
-func TestFetchUploadPermissionFailureReleasesSource(t *testing.T) {
+func TestFetchUploadFailureKeepsOrReleasesSource(t *testing.T) {
 	for _, url := range []string{"http://fixture/", ":invalid"} {
 		t.Run(url, func(t *testing.T) {
+			cancelled := 1
+			if url == ":invalid" {
+				// Request URL validation precedes acquiring the upload body.
+				cancelled = 0
+			}
 			out, stderr := runUpload(t, stdlib.Config{Fetch: &stdlib.Fetch{Allow: func(*http.Request) error { return errors.New("upload denied") }}}, fmt.Sprintf(`
 (async()=>{
- let cancelled=0;const body=new ReadableStream({pull(){return new Promise(()=>{});},cancel(){cancelled++;}},{highWaterMark:0});
+ let cancelled=0,pulls=0;const body=new ReadableStream({pull(){pulls++;return new Promise(()=>{});},cancel(){cancelled++;}},{highWaterMark:0});
  let failed=false;try{await fetch(%q,{method:"POST",body});}catch(e){failed=e instanceof TypeError;}
- if(!failed||cancelled!==1||body.locked)throw Error("failed upload retained source");
+ if(!failed||cancelled!==%d||body.locked||(%d===0&&pulls!==0))throw Error("upload failure changed source ownership");
  console.log("source released");
-})()`, url))
+})()`, url, cancelled, cancelled))
 			if out != "source released" || stderr != "" {
 				t.Fatalf("stdout=%q stderr=%q", out, stderr)
 			}

@@ -342,6 +342,8 @@ const queryInit: URLSearchParamsInit = new Set<readonly [string, string]>([["a",
 const queryParams = new URLSearchParams(queryInit);
 const querySize: number = queryParams.size;
 const queryHasValue: boolean = queryParams.has("a", "one");
+const requestPrototype: Request = Request.prototype;
+const extensionMethod: string = new Request("https://example.test/", {method:"patch"}).method;
 queryParams.delete("a", "one");
 const compressionViewWrite: Promise<void> = new CompressionStream("gzip").writable.getWriter().write(new DataView(new ArrayBuffer(2)));
 const listenerTarget = new EventTarget();

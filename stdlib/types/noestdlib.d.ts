@@ -1051,7 +1051,7 @@ declare namespace NOEStdlib {
     readonly mode: string;
     clone(): Request;
   }
-  interface RequestConstructor { new(input: string | URL | Request, init?: RequestInit): Request }
+  interface RequestConstructor { new(input: string | URL | Request, init?: RequestInit): Request; readonly prototype: Request }
   interface ResponseInit { status?: number; statusText?: string; headers?: HeadersInit; url?: string }
   interface Response extends Body {
     readonly headers: Headers;

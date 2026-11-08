@@ -715,3 +715,18 @@ size and live iteration. Current primary sequence conversion/error order is
 preserved separately from older Node/Deno shortcuts. No parser dependency or
 host authority is added. Full IDNA/IP/file-URL quirks remain outside this slice.
 See the [contract and verification](../../docs/development/stdlib-url-encoding.md).
+
+### Request URL and method inputs (2026-11-08)
+
+The next local slice parses public Request string inputs through the existing Web
+URL backend and uses ByteString/token/forbidden-method validation. Only the six
+standard methods are uppercased; native HTTP dispatch preserves extension-method
+case. Private readonly url/method attributes serve copy, clone and outbound fetch,
+including shadowed public getters. Validation precedes upload acquisition.
+
+Incoming noe:http requests use a Go-private per-runtime factory over the same
+Request implementation so native method/raw URL and body ownership are retained.
+The registry is removed on runtime close and permits either installer order.
+Legacy Network installation can wait for WebAPIs to be installed before Request
+construction. No public factory, parser dependency or network authority is added.
+See the [contract and verification](../../docs/development/stdlib-request-inputs.md).

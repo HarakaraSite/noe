@@ -169,6 +169,11 @@ func Network(rt *quickjs.Runtime, cfg *Fetch) error {
 	if err != nil {
 		return err
 	}
+	incoming, err := api.Get("incomingRequest")
+	if err != nil {
+		return err
+	}
+	bindIncomingRequest(rt, incoming)
 	names := []string{"Headers", "Request", "Response"}
 	if !typesOnly {
 		names = append(names, "fetch")
@@ -222,7 +227,7 @@ type fetchResult struct {
 func readRequest(req quickjs.Value) (*requestSpec, error) {
 	spec := &requestSpec{method: "GET"}
 	if m, err := req.Get("method"); err == nil && m.Kind() == quickjs.KindString {
-		spec.method = strings.ToUpper(m.String())
+		spec.method = m.String()
 	}
 	u, err := req.Get("url")
 	if err != nil || u.Kind() != quickjs.KindString {
@@ -643,6 +648,59 @@ const fetchJS = `(function (host) {
   const isStream = (v) =>
     typeof ReadableStream !== "undefined" && v instanceof ReadableStream;
 
+  const requestApply = Reflect.apply, requestString = String;
+  const requestWellFormed = String.prototype.toWellFormed;
+  const requestSlots = new WeakMap();
+  const incomingRequestToken = {};
+  const requestGet = WeakMap.prototype.get, requestHas = WeakMap.prototype.has, requestSet = WeakMap.prototype.set;
+  let requestURL = null;
+  const requestURLGetters = {};
+  function captureRequestURL() {
+    if (requestURL !== null || typeof URL !== "function") return;
+    const candidate = URL;
+    for (const name of ["href", "username", "password"]) requestURLGetters[name] = Object.getOwnPropertyDescriptor(candidate.prototype, name).get;
+    requestURL = candidate;
+  }
+  captureRequestURL();
+  function requestDOMString(value) {
+    if (typeof value === "symbol") throw new TypeError("A Symbol cannot be converted to a string");
+    return requestString(value);
+  }
+  function requestUSVString(value) { return requestApply(requestWellFormed, requestDOMString(value), []); }
+  function requestByteString(value) {
+    const text = requestDOMString(value);
+    for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) > 255) throw new TypeError("Request method must be a ByteString");
+    return text;
+  }
+  function isRequest(value) { return requestApply(requestHas, requestSlots, [value]); }
+  function requestOf(value) {
+    const state = requestApply(requestGet, requestSlots, [value]);
+    if (state === undefined) throw new TypeError("The receiver is not a Request");
+    return state;
+  }
+  function requestInit(value) {
+    if (value !== undefined && value !== null && typeof value !== "object" && typeof value !== "function") throw new TypeError("Request init must be a dictionary");
+    const options = Object.create(null);
+    for (const name of ["body", "credentials", "headers", "method", "mode", "redirect", "signal"]) {
+      const item = value == null ? undefined : value[name];
+      if (item !== undefined) options[name] = name === "method" ? requestByteString(item) : item;
+    }
+    return options;
+  }
+  function requestMethod(value) {
+    if (!/^[!#$%&'*+\-.^_\x60|~0-9A-Za-z]+$/.test(value)) throw new TypeError("Invalid HTTP method");
+    const upper = value.toUpperCase();
+    if (["CONNECT", "TRACE", "TRACK"].includes(upper)) throw new TypeError("Forbidden HTTP method");
+    return ["DELETE", "GET", "HEAD", "OPTIONS", "POST", "PUT"].includes(upper) ? upper : value;
+  }
+  function requestAddress(value) {
+    captureRequestURL();
+    if (requestURL === null) throw new TypeError("Request construction requires the Web URL API");
+    const url = new requestURL(value);
+    if (requestApply(requestURLGetters.username, url, []) !== "" || requestApply(requestURLGetters.password, url, []) !== "") throw new TypeError("Request URL must not include credentials");
+    return requestApply(requestURLGetters.href, url, []);
+  }
+
   // A body is bytes or a stream of them, and is read once: a second read is an
   // error, as it is on the web, because there is nothing left to read.
   class Body {
@@ -772,38 +830,47 @@ const fetchJS = `(function (host) {
   }
 
   class Request extends Body {
-    constructor(input, init = {}) {
-      const from = input instanceof Request ? input : null;
-      const url = from ? from.url : String(input instanceof URL ? input.href : input);
-      const headers = new Headers(init.headers || (from ? from.headers : undefined));
-      const replacement = init.body !== undefined && init.body !== null;
+    constructor(input, init = undefined, token = undefined) {
+      if (arguments.length === 0) throw new TypeError("Request requires an input");
+      const from = isRequest(input) ? input : null;
+      const original = from ? requestOf(from) : null;
+      const address = from ? original.url : requestUSVString(input);
+      const options = requestInit(init);
+      const internal = token === incomingRequestToken;
+      const url = from || internal ? address : requestAddress(address);
+      const method = options.method === undefined ? (from ? original.method : "GET") : internal ? options.method : requestMethod(options.method);
+      const headers = new Headers(options.headers || (from ? from.headers : undefined));
+      const replacement = options.body !== undefined && options.body !== null;
       let body = replacement
-        ? encodeBody(init.body, headers)
+        ? encodeBody(options.body, headers)
         : (from ? (from._stream && from._bytes === undefined ? from._stream : from._bytes) : null);
       const inherited = from && !replacement && body !== null && body !== undefined;
       if (inherited && from.bodyUsed) throw new TypeError("the body has already been read");
-      const method = String(init.method || (from ? from.method : "GET")).toUpperCase();
       if ((method === "GET" || method === "HEAD") && body !== null && body !== undefined) {
         throw new TypeError("a " + method + " request cannot have a body");
       }
       if (inherited && isStream(body)) body = transferStream(body);
       super(body, headers);
-      this.url = url;
-      this.method = method;
-      this.signal = init.signal || (from ? from.signal : undefined);
-      this.redirect = init.redirect || "follow";
-      this.credentials = init.credentials || "same-origin";
-      this.mode = init.mode || "cors";
+      requestApply(requestSet, requestSlots, [this, {url, method}]);
+      this.signal = options.signal || (from ? from.signal : undefined);
+      this.redirect = options.redirect || (from ? from.redirect : "follow");
+      this.credentials = options.credentials || (from ? from.credentials : "same-origin");
+      this.mode = options.mode || (from ? from.mode : "cors");
       // Constructing from a Request transfers its body. Only clone() tees it.
       if (inherited) from._used = true;
     }
+    get url() { return requestOf(this).url; }
+    get method() { return requestOf(this).method; }
     clone() {
-      return new Request(this.url, {
-        method: this.method, headers: this.headers, body: cloneBody(this),
-        signal: this.signal,
-      });
+      const state = requestOf(this);
+      return new Request(state.url, {
+        method: state.method, headers: this.headers, body: cloneBody(this),
+        signal: this.signal, redirect: this.redirect, credentials: this.credentials, mode: this.mode,
+      }, incomingRequestToken);
     }
   }
+  for (const name of ["url", "method", "clone"]) Object.defineProperty(Request.prototype, name, {enumerable: true});
+  Object.defineProperty(Request.prototype, Symbol.toStringTag, {value: "Request", configurable: true});
 
   class Response extends Body {
     constructor(body = null, init = {}) {
@@ -1019,15 +1086,16 @@ const fetchJS = `(function (host) {
     return stop;
   }
 
-  async function fetch(input, init) {
+  async function fetch(input, init = undefined) {
     // Reject pre-abort before constructing from a Request: that construction
     // transfers its body and locks the original stream.
-    const signal = (init && init.signal) || (input instanceof Request ? input.signal : undefined);
+    const signal = (init && init.signal) || (isRequest(input) ? input.signal : undefined);
     if (signal && signal.aborted) {
       throw signal.reason || new Error("This operation was aborted");
     }
-    const request = input instanceof Request && init === undefined
+    const request = isRequest(input) && init === undefined
       ? input : new Request(input, init);
+    const metadata = requestOf(request);
 
     const hasBody = request._stream !== null || (request._bytes !== null && request._bytes !== undefined);
     if (hasBody && request.bodyUsed) throw new TypeError("the body has already been read");
@@ -1075,8 +1143,8 @@ const fetchJS = `(function (host) {
     let raw;
     try {
       const sent = host.send({
-        method: request.method,
-        url: request.url,
+        method: metadata.method,
+        url: metadata.url,
         headers: [...request.headers._list],
         body,
         stream: reader !== null,
@@ -1132,5 +1200,6 @@ const fetchJS = `(function (host) {
     return response;
   }
 
-  return {fetch, Headers, Request, Response};
+  return {fetch, Headers, Request, Response,
+    incomingRequest: (url, init) => new Request(url, init, incomingRequestToken)};
 })`

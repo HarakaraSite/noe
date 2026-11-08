@@ -71,3 +71,16 @@ across search updates, decodes malformed UTF-8, normalizes a Unicode URL path an
 uses the resulting parameters as a Fetch form body. It sends no request and needs
 no filesystem/network/provider grant. See the
 [contract and boundaries](../../docs/development/stdlib-url-encoding.md).
+
+### Request URL and method inputs
+
+The next source-only correction after v2.22.0 is demonstrated by:
+
+```sh
+/tmp/noe-web-basics run --no-inst examples/web-basics/request-inputs.js
+```
+
+Rebuild the source first. Request normalizes a string URL, retains the case of
+the extension method patch, exposes readonly URL/method attributes and clones a
+body for local consumption. No network request or host grant is used. See the
+[contract and boundaries](../../docs/development/stdlib-request-inputs.md).

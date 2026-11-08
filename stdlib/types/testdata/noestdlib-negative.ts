@@ -362,6 +362,10 @@ new TextEncoderStream().readable = new ReadableStream<Uint8Array>();
 new URLPattern().pathname = "/changed";
 // @ts-expect-error URLSearchParams size is readonly.
 new URLSearchParams().size = 7;
+// @ts-expect-error Request URL is readonly.
+new Request("https://example.test/").url = "https://wrong.test/";
+// @ts-expect-error Request method is readonly.
+new Request("https://example.test/").method = "POST";
 // @ts-expect-error Object patterns carry baseURL in the dictionary.
 new URLPattern({pathname:"/x"}, "https://example.test");
 // @ts-expect-error Object match inputs carry baseURL in the dictionary.

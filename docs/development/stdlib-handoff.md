@@ -1,8 +1,9 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after verified v2.22.0 publication and installation at both
-vm201 executable paths. The user authorized local URL/URLSearchParams normalization
-and encoding work after installation. Linked policy, implementation and release
+Updated 2026-11-08 after the local Request URL/method continuation following
+verified v2.22.0 publication and both vm201 installations. The local URL/query
+correction is `99f7f4b`; the next Request slice is complete below.
+Linked policy, implementation and release
 records remain canonical. Release requests include both local installations.
 
 ## Repository and publication state
@@ -75,6 +76,25 @@ dependencies. The verified native asset is
 The requested local URL/URLSearchParams normalization/encoding is completed below.
 Additional encoding families, PerformanceObserver/resource/navigation timing,
 DOM trees and full URLPattern grammar/IDNA remain outside the completed slices.
+
+## Local Request URL and method inputs
+
+The following URL/query correction is committed at `99f7f4b`. The next local
+Request URL/method continuation is described in
+[its contract](stdlib-request-inputs.md). Shared URL parsing and method validation,
+readonly private metadata, outbound transport snapshots and private incoming HTTP
+initialization are implemented. Both installed executables remain v2.22.0.
+
+Seven-package units, focused race, types/catalog/lint/vet and actual CLI contract /
+example/reference checks pass. The existing MCP SDK loopback example passes with
+its prepared bundle unchanged and no external service. Checkout and standalone
+module-artifact main/Worker consumers pass; 225 runtime/declaration paths match.
+A bounded independent review found no required finding and independently verified
+both installer orders, incoming raw TRACK metadata/body clone/transfer, bridge
+privacy and clean shutdown. Implementation, validation, review and local commit
+are complete. Full Request/Headers/Body/signal and browser-policy gaps remain outside
+this slice; see the canonical scope. No push/release/installation is included.
+Evidence: `/var/tmp/noe-request-inputs-u_xbfrv4`.
 
 ## Local URL normalization and query encoding
 
