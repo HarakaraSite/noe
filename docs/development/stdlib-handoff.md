@@ -10,6 +10,13 @@ records remain the canonical references.
 
 ## Repository and publication state
 
+v2.22.0 is prepared at clean candidate `a8cef55`, including the two local slices
+below. The user authorized publication and both vm201 installations, then local
+URL/URLSearchParams normalization/encoding work. Candidate build/version and twelve
+native checks pass; existing implementation evidence is reused. Publication and
+installation remain pending in this preparation commit. See the
+[preparation checkpoint](../releases/release-checkpoints.md#v2220-preparation--2026-11-08).
+
 - Repository: `/home/agent/projects/noe`, branch `main`.
 - v2.21.0 includes implementation checkpoints `a5a52ed` (encoding/User Timing /
   CustomEvent) and `2e7228f` (UTF-8 decoder/EventTarget).

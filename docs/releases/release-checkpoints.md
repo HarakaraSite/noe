@@ -4261,3 +4261,36 @@ stdout/stderr. Full release evidence remains at
 Publication and both requested installations are complete. This documentation
 follow-up preserves the immutable tag. No required release/installation work
 remains. Other VMs/hosts, running services and noebot were not changed.
+
+## v2.22.0 preparation — 2026-11-08
+
+The user authorized release and installation, followed by local URL/URLSearchParams
+normalization and encoding work. This release includes `edb5e73` (abort interfaces /
+text streams) and `f1ad07a` (compression contracts / URLPattern inputs). Both vm201
+executables are included; other hosts, services and noebot remain outside scope.
+
+Reuse implementation evidence at `/var/tmp/noe-abort-text-streams-o4yke3sm` and
+`/var/tmp/noe-compression-pattern-4xda37jx`: all seven affected packages, focused
+race, declarations/catalog/lint/vet, CLI primary/common/examples and checkout /
+standalone-module main/Worker consumers pass. Bounded abort, URLPattern and
+compression reviews found issues that were fixed and checked in one fix-only
+follow-up each. The parent reviewed text-stream internals. No full audit is claimed.
+
+All 649 selected runtime/dependency/reference paths match `f1ad07a` except the CLI
+version. Dependencies, runtime logic, release profile and workflow are unchanged.
+No full unit/E2E/race, SDK dependency preparation or local six-target build was
+repeated. Go consumer publication readiness was verified during implementation.
+
+Clean candidate: `a8cef553ba6c7030037959b9f0f50ea29b6ed210`.
+The CGO-disabled release-flags build and configured-version unit pass. Build info
+reports that revision, vcs.modified=false, Linux amd64, Go 1.27.2, trimpath and the
+pinned engine/Intl dependencies. Twelve native checks pass: version/arithmetic,
+primary abort and URLPattern contracts, common abort/text-stream behavior,
+three-format DataView round trips and invalid-write outcomes, both new examples,
+and abort/pattern/compression references. Runtime stderr is empty.
+
+Candidate: `/var/tmp/noe-v2.22.0-release-2azd2wrn/candidate`, SHA256
+`f864414b2c04804cdc5405823f01b9993c68a2bc9092b8218ae028e8e9f72a81`.
+Tag a documentation-only successor. CI builds six binaries and SHA256SUMS;
+verify publication, downloaded assets, native behavior and direct published Go
+consumers before backing up and atomically installing both authorized paths.
