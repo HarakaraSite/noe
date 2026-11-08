@@ -381,6 +381,14 @@ intentionally. This uses an internal byte-copy mode; public `ReadableStream.tee(
 retains shared chunk identity. Arbitrary non-byte chunk cloning and full buffer
 metadata/error conversion remain outside this bounded byte-isolation contract.
 
+For FormData bodies, multipart serialization normalizes text field values from
+bare CR/LF to CRLF without mutating the FormData or changing file bytes.
+`formData()` recognizes delimiter lines at the message start or after CRLF;
+inline occurrences of the boundary marker remain data. It accepts MIME delimiter
+padding, ignores preamble/epilogue, and preserves part order, duplicate names and
+file trailing line breaks. Full MIME header parsing and field-name/filename
+escaping remain outside this scoped correction.
+
 ## EventSource
 
 Syntax: `new EventSource(url, {withCredentials: false})`. EventSource receives

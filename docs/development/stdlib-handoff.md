@@ -1,9 +1,9 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after local Body clone byte-isolation completion following
-`66c5703`, `efa3f82` and `48659fe`. These continuations are unreleased; installed
-executables remain v2.23.0. Linked policy, implementation and release records
-remain canonical. Release requests include both installations.
+Updated 2026-11-08 after local multipart boundary/text-value corrections following
+`66c5703`, `efa3f82`, `48659fe` and `f280741`. These continuations are unreleased;
+installed executables remain v2.23.0. Linked policy, implementation and release
+records remain canonical. Release requests include both installations.
 
 ## Repository and publication state
 
@@ -63,6 +63,34 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Multipart boundaries and text values local completion
+
+The user approved both selected improvements after `f280741`: preserve inline
+boundary-like field/file data and normalize outgoing text-field CR/LF to CRLF.
+The [contract and verification](stdlib-multipart.md) is canonical. Baseline
+`before--fixtureafter` was truncated to `before`; delimiter recognition now uses
+MIME lines, padding and closing syntax. Preamble/epilogue and chunk splits work.
+File bytes, trailing line breaks and original FormData entries remain unchanged;
+incoming text is preserved. Request/Response, fetch and noe:http share the path.
+The example, embedded reference and main/Worker consumers agree.
+
+Focused multipart, existing form/blob and receive-body ownership tests pass.
+Real HTTP uploads are decoded by Go's MIME parser; fetched/server input generated
+by Go's multipart writer retains inline markers and binary file bytes. The same
+contract passes on Deno 2.9.7 and the development CLI. Catalog/lint/vet and checkout
+and standalone module-artifact consumers pass, with source continuity recorded.
+Unchanged type, stream/clone/transport and JSON SDK evidence is reused using source
+fingerprints. No unrelated full-package, race or SDK suites were repeated.
+The scoped diff was checked against primary MIME/HTML specifications and these
+independent implementations. Evidence: `/var/tmp/noe-multipart-e_ykurvl`.
+
+Local implementation, verification and commit are complete; all four prior commits
+are preserved. Both installed paths remain v2.23.0 above. No push, release,
+installation, service, simplejs or noebot change occurred. Field-name/filename
+escaping, wider MIME header parsing, malformed-payload rejection, incremental
+multipart parsing and broader BodyInit/BYOB work remain separate candidates.
+Reuse completed checks for unchanged code/dependencies.
 
 ## Body clone byte isolation local completion
 

@@ -85,6 +85,14 @@ try{new Response("",{status:204});throw Error("worker null body status accepted"
  const upload=await request.body.getReader().read();upload.value[0]=90;
  if(await retry.text()!=="CD")throw Error("Request clone byte isolation");
 }
+{
+ const raw="--fixture\r\nContent-Disposition: form-data; name=\"note\"\r\n\r\nbefore--fixtureafter\r\n--fixture--\r\n";
+ const decoded=await new Response(raw,{headers:{"content-type":"multipart/form-data; boundary=fixture"}}).formData();
+ if(decoded.get("note")!=="before--fixtureafter")throw Error("multipart inline marker");
+ const form=new FormData();form.append("note","one\ntwo\rthree");form.append("upload",new File([new Uint8Array([0,255,10,13])],"sample.bin"));
+ const sent=await new Request("https://example.test/",{method:"POST",body:form}).formData();
+ if(sent.get("note")!=="one\r\ntwo\r\nthree"||form.get("note")!=="one\ntwo\rthree"||(await sent.get("upload").bytes()).join()!=="0,255,10,13")throw Error("multipart text/file bytes");
+}
 const mark=performance.mark("child",{startTime:1});
 parentPort.postMessage({detail,type:mark.entryType,entries:performance.getEntries().length});parentPort.close();`
 	code := fmt.Sprintf(`import {Worker} from "node:worker_threads";
@@ -132,6 +140,14 @@ if(jsonResponse.type!=="default"||!(await jsonResponse.clone().json()).main)thro
  const request=new Request("https://example.test/",{method:"POST",body:new Uint8Array([67,68])}),retry=request.clone();
  const upload=await request.body.getReader().read();upload.value[0]=90;
  if(await retry.text()!=="CD")throw Error("Request clone byte isolation");
+}
+{
+ const raw="--fixture\r\nContent-Disposition: form-data; name=\"note\"\r\n\r\nbefore--fixtureafter\r\n--fixture--\r\n";
+ const decoded=await new Response(raw,{headers:{"content-type":"multipart/form-data; boundary=fixture"}}).formData();
+ if(decoded.get("note")!=="before--fixtureafter")throw Error("multipart inline marker");
+ const form=new FormData();form.append("note","one\ntwo\rthree");form.append("upload",new File([new Uint8Array([0,255,10,13])],"sample.bin"));
+ const sent=await new Request("https://example.test/",{method:"POST",body:form}).formData();
+ if(sent.get("note")!=="one\r\ntwo\r\nthree"||form.get("note")!=="one\ntwo\rthree"||(await sent.get("upload").bytes()).join()!=="0,255,10,13")throw Error("multipart text/file bytes");
 }
 const worker=new Worker(%q,{eval:true,type:"module"});
 const result=await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});

@@ -841,6 +841,7 @@ const fetchJS = `(function (host) {
   // --- multipart ------------------------------------------------------------
 
   const CRLF = "\r\n";
+  const multipartText = value => String(value).replace(/\r\n|\r|\n/g, CRLF);
 
   // encodeMultipart writes a form the way a browser does, since what reads it
   // at the other end was written to read that.
@@ -857,7 +858,7 @@ const fetchJS = `(function (host) {
         pieces.push(enc.encode(head), value._bytes, enc.encode(CRLF));
       } else {
         head += CRLF + CRLF;
-        pieces.push(enc.encode(head), enc.encode(String(value)), enc.encode(CRLF));
+        pieces.push(enc.encode(head), enc.encode(multipartText(value)), enc.encode(CRLF));
       }
     }
     pieces.push(enc.encode("--" + boundary + "--" + CRLF));
@@ -874,27 +875,40 @@ const fetchJS = `(function (host) {
   const escapeField = (s) => String(s)
     .replace(/\r?\n|\r/g, "%0A").replace(/"/g, "%22");
 
+  function multipartBoundary(bytes, marker, from) {
+    let at = indexOfBytes(bytes, marker, from);
+    while (at >= 0) {
+      // Delimiters start the message or follow CRLF. An inline marker is data.
+      if (at === 0 || (bytes[at - 2] === 0x0d && bytes[at - 1] === 0x0a)) {
+        let after = at + marker.length;
+        const final = bytes[after] === 0x2d && bytes[after + 1] === 0x2d;
+        if (final) after += 2;
+        // MIME transports can append SP/HTAB padding to a delimiter line.
+        while (bytes[after] === 0x20 || bytes[after] === 0x09) after++;
+        if (final && after === bytes.length) return {at, after, final};
+        if (bytes[after] === 0x0d && bytes[after + 1] === 0x0a) {
+          return {at, after: after + 2, final};
+        }
+      }
+      at = indexOfBytes(bytes, marker, at + 1);
+    }
+    return null;
+  }
+
   function parseMultipart(bytes, boundary) {
     const enc = new TextEncoder();
     const form = new FormData();
     const marker = enc.encode("--" + boundary);
-    let at = indexOfBytes(bytes, marker, 0);
-    while (at >= 0) {
-      let start = at + marker.length;
-      // The last boundary is followed by two dashes and nothing else.
-      if (bytes[start] === 0x2d && bytes[start + 1] === 0x2d) break;
-      if (bytes[start] === 0x0d) start += 2; else if (bytes[start] === 0x0a) start += 1;
-
-      const next = indexOfBytes(bytes, marker, start);
-      if (next < 0) break;
-      // What lies between is the part, less the line break before the next
-      // boundary.
-      let stop = next;
-      if (bytes[stop - 1] === 0x0a) stop--;
-      if (bytes[stop - 1] === 0x0d) stop--;
+    let delimiter = multipartBoundary(bytes, marker, 0);
+    while (delimiter !== null && !delimiter.final) {
+      const start = delimiter.after;
+      const next = multipartBoundary(bytes, marker, start);
+      if (next === null) break;
+      // The separator CRLF belongs to the delimiter, not the part's data.
+      const stop = next.at - 2;
 
       const blank = indexOfBytes(bytes, enc.encode(CRLF + CRLF), start);
-      if (blank < 0 || blank > stop) { at = next; continue; }
+      if (blank < 0 || blank + 4 > stop) { delimiter = next; continue; }
       const head = new TextDecoder().decode(bytes.slice(start, blank));
       const body = bytes.slice(blank + 4, stop);
 
@@ -920,7 +934,7 @@ const fetchJS = `(function (host) {
           form.append(name, new TextDecoder().decode(body));
         }
       }
-      at = next;
+      delimiter = next;
     }
     return form;
   }

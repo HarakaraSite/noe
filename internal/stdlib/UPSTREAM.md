@@ -775,3 +775,12 @@ SAB memory remains shared; generic tee retains chunk identity. A Go-private
 per-runtime factory permits either installer order and closes with the runtime.
 Public stream module exports contain no factory or new option. See the
 [contract and verification](../../docs/development/stdlib-body-clone-bytes.md).
+
+### Multipart boundaries and text values (2026-11-08)
+
+Multipart reception now recognizes delimiter lines with opening/closing syntax
+and transport padding, preserving inline markers and file trailing bytes.
+Outgoing text values normalize bare CR/LF to CRLF without changing input entries
+or file data. Shared body collection, quotas and native transports remain.
+The scoped correction does not replace MIME header/name/filename handling.
+See the [contract and verification](../../docs/development/stdlib-multipart.md).

@@ -126,3 +126,13 @@ shared cleanup after cancelling both tee branches. See the
 Shows raw body-chunk mutation and buffer transfer while a Request/Response clone
 retains its original bytes. See the
 [contract and verification](../../docs/development/stdlib-body-clone-bytes.md).
+
+## Multipart boundaries and text newlines
+
+```sh
+/tmp/noe-web-basics run --no-inst examples/web-basics/multipart.js
+```
+
+Uses a loopback HTTP server to show text-field CRLF normalization, unchanged file
+bytes and an inline boundary marker that must remain part of the field. See the
+[contract and verification](../../docs/development/stdlib-multipart.md).
