@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.21.0; see the
+select model providers or agent behavior. The current release is v2.22.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.32.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.21.0`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.22.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -227,15 +227,27 @@ before invocation, enforces passive cancellation, and removes signal-bound
 listeners on actual abort. The same behavior serves Workers, messaging,
 EventSource and WebSocket. See the [decoder/listener contract](development/stdlib-decoder-events.md).
 
-## Cancellation and text streams (unreleased)
+## Cancellation and text streams
 
-The local source continuation after v2.21.0 corrects AbortSignal/AbortController
+v2.22.0 corrects AbortSignal/AbortController
 and text-stream contracts. Default abort/timeout reasons are standard
 DOMExceptions; controller.signal is readonly and AbortSignal's public constructor
 is illegal. Text stream metadata/endpoints are branded readonly getters and the
 encoder retains split UTF-16 pairs. The normal Execute profile supplies the Loop
 used by timeout, with owned timer cleanup. See the
 [contract and migration details](development/stdlib-abort-text-streams.md).
+
+## Compression and URLPattern inputs
+
+v2.22.0 validates compression formats synchronously, exposes readonly endpoints,
+and requires fixed non-shared BufferSource chunks. Web decompression rejects
+forbidden headers, trailing data and additional gzip members; the offending write
+rejects. Node zlib synchronous/callback string conventions remain separate.
+
+URLPattern accepts component dictionaries with baseURL, resolves eligible relative
+components, and returns converted inputs and captures. Component attributes are
+readonly. The retained compiler/URL backend does not claim complete grammar or
+IDNA conformance. See the [contract and migration](development/stdlib-compression-urlpattern.md).
 
 ## Web Crypto
 

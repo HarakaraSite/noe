@@ -31,7 +31,7 @@ are not part of this change. See the contract for supported errors and limits.
 
 ### Abort interfaces and text streams
 
-The next source-only correction after v2.21.0 is demonstrated by:
+The v2.22.0 cancellation/text-stream corrections are demonstrated by:
 
 ```sh
 /tmp/noe-web-basics run --no-inst examples/web-basics/abort-text-streams.js
@@ -46,7 +46,7 @@ legacy no-Loop limitation. No filesystem/network/provider grant is required.
 
 ### Compression and route inputs
 
-The subsequent source-only continuation after v2.21.0 is demonstrated by:
+The v2.22.0 compression and URLPattern corrections are demonstrated by:
 
 ```sh
 /tmp/noe-web-basics run --no-inst examples/web-basics/compression-routes.js
