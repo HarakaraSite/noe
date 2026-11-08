@@ -200,10 +200,6 @@
     constructor(token) {
       if (token !== performanceToken) throw illegalConstructor();
       super();
-      // EventTarget stores its listener map on an own property. Keep that
-      // implementation detail out of enumeration, as Web IDL attributes are
-      // inherited accessors and this object has no public own data fields.
-      objectDefineProperty(this, "_listeners", {enumerable: false});
       reflectApply(weakMapSet, performanceStates, [this, {timeOrigin}]);
       host.cloneAs(this, "unsupported");
     }

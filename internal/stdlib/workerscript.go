@@ -192,13 +192,16 @@ const workerJS = `(function (host) {
     const define = (key, value) => Object.defineProperty(g, key, {value, writable: true, configurable: true});
     define("self", g);
     define("name", name);
-    Object.defineProperty(g, "_listeners", {value: new Map()});
-    define("addEventListener", function addEventListener(type, fn, options) {
-      EventTarget.prototype.addEventListener.call(g, type, fn, options);
-      if (String(type) === "message") port.start();
+    EventTarget[Symbol.for("noe.stdlib.eventHandlers")].initialize(g);
+    define("addEventListener", function addEventListener(type, fn, options = undefined) {
+      if (arguments.length < 2 || typeof type === "symbol") throw new TypeError("Invalid event listener arguments");
+      const name = String(type);
+      EventTarget.prototype.addEventListener.call(g, name, fn, options);
+      if (name === "message") port.start();
     });
-    define("removeEventListener", function removeEventListener(type, fn) {
-      EventTarget.prototype.removeEventListener.call(g, type, fn);
+    define("removeEventListener", function removeEventListener(type, fn, options = undefined) {
+      if (arguments.length < 2) throw new TypeError("removeEventListener requires a type and listener");
+      EventTarget.prototype.removeEventListener.call(g, type, fn, options);
     });
     define("dispatchEvent", function dispatchEvent(event) {
       return EventTarget.prototype.dispatchEvent.call(g, event);

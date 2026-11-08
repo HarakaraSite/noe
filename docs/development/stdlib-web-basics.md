@@ -5,6 +5,10 @@ replace empty Performance methods with useful User Timing, and add CustomEvent.
 The [API policy](stdlib-api-policy.md) applies. This is local implementation;
 publication, installation, noebot and service changes are outside this request.
 
+The subsequent [decoder/listener continuation](stdlib-decoder-events.md) corrects
+UTF-8 decoding and extends the shared EventTarget listener semantics. This file
+retains the completed earlier slice and its original evidence.
+
 ## Contracts and references
 
 - [Encoding Standard](https://encoding.spec.whatwg.org/#dom-textencoder-encodeinto):

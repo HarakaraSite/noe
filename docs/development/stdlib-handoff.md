@@ -1,7 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after local encoding/User Timing/CustomEvent verification following
-verified v2.20.0 Web Crypto publication and installation at both vm201 paths. Release requests include local installation by
+Updated 2026-11-08 after local UTF-8 decoder/EventTarget verification and the
+earlier encoding/User Timing/CustomEvent slice. Both vm201 installation paths
+still contain verified v2.20.0. Release requests include local installation by
 default. This document records the current continuation point; linked policy
 and implementation records remain the canonical design and validation references.
 
@@ -74,6 +75,38 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Local UTF-8 decoder and EventTarget continuation
+
+The user approved both next improvements. The
+[decoder/listener contract](stdlib-decoder-events.md) is canonical for this slice.
+The preceding local slice is committed at `a5a52ed`; this continuation is local
+implementation only. Neither a push nor a release/install is included. Both
+installed executables remain the verified v2.20.0 asset above.
+
+Completed work covers UTF-8 replacement boundaries, streaming/BOM/fatal state,
+BufferSource/options conversion, private decoder metadata, and shared event
+listener identity/capture/once/passive/signal behavior. Worker globals use the
+same listener records. No extra encoding family, DOM tree or host authority is
+added. Evidence is retained at `/var/tmp/noe-decoder-events-uagwfg5_`.
+
+All seven affected stdlib/profile/runtime/CLI packages, focused race, public
+positive/negative types, reference catalog, lint/vet and the actual CLI example
+pass. Checkout and standalone module-artifact consumers build and run, including
+the main/Worker helper. The development binary is in that evidence directory;
+installed binaries were not replaced. The previous local binary reproduces the
+original UTF-8/BOM, duplicate/removal/signal/passive defects. The candidate matches
+the primary expected comparison output. Deno differs on capture phase order and
+synthetic abort removal; those are explicit reference differences, not weakened
+NOE assertions.
+
+The parent reviewed the decoder implementation and its focused tests. A bounded
+independent EventTarget review found one private-abort early-check defect in
+AbortController/timeout; it was fixed and independently rechecked during that
+review. No actionable listener finding remains. The review did not include
+TextDecoder internals or broader AbortSignal contracts. Source continuity and
+publication/install boundaries are recorded in the evidence summary. Reuse
+these results for unchanged source/dependencies when a release is requested.
 
 ## Local encoding, User Timing and CustomEvent
 

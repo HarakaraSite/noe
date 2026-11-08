@@ -11,6 +11,20 @@ if (encoded.read !== 1 || encoded.written !== 3) {
 }
 
 const target = new EventTarget();
+const decoder = new TextDecoder();
+decoder.decode(new Uint8Array([239]), { stream: true });
+if (decoder.decode(new Uint8Array([187, 191, 226, 130, 172])) !== "€") {
+	throw new Error("Streaming UTF-8 or BOM handling failed");
+}
+const controller = new AbortController();
+let calls = 0;
+const callback = () => calls++;
+target.addEventListener("temporary", callback, { signal: controller.signal });
+target.addEventListener("temporary", callback);
+target.dispatchEvent(new Event("temporary"));
+controller.abort();
+target.dispatchEvent(new Event("temporary"));
+if (calls !== 1) throw new Error("Listener identity or abort removal failed");
 let received;
 target.addEventListener("encoded", (event) => {
 	received = event.detail;
@@ -27,4 +41,4 @@ if (performance.getEntriesByName("dispatch", "measure")[0] !== measurement) {
 }
 performance.clearMarks();
 performance.clearMeasures();
-console.log("Encoding, User Timing and CustomEvent passed");
+console.log("Encoding, event listeners, User Timing and CustomEvent passed");

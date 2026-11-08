@@ -75,6 +75,13 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 	if err := setAll(host, m.host()); err != nil {
 		return nil, err
 	}
+	decoder, err := newTextDecoder(rt, host)
+	if err != nil {
+		return nil, err
+	}
+	if err := host.Set("TextDecoder", decoder); err != nil {
+		return nil, err
+	}
 
 	api, err := evalWithHost(rt, "<webapis>", webAPIsJS, host)
 	if err != nil {
@@ -239,93 +246,7 @@ const webAPIsJS = `(function (host) {
     }
   }
 
-  class TextDecoder {
-    constructor(label = "utf-8", options = {}) {
-      host.cloneAs(this, "opaque");
-      const enc = String(label).toLowerCase();
-      if (enc !== "utf-8" && enc !== "utf8" && enc !== "unicode-1-1-utf-8") {
-        throw new RangeError("only utf-8 is supported, not " + label);
-      }
-      this._fatal = !!options.fatal;
-      this._bom = !options.ignoreBOM;
-      // What a chunk ended in the middle of, kept for the next one.
-      this._pending = null;
-      this._started = false;
-    }
-    get encoding() { return "utf-8"; }
-    get fatal() { return this._fatal; }
-    get ignoreBOM() { return !this._bom; }
-    decode(input, options = {}) {
-      const streaming = !!options.stream;
-      if (input === undefined) {
-        // The end of a stream: whatever was left over was never completed.
-        const left = this._pending;
-        this._pending = null;
-        this._started = false;
-        return left && !streaming ? this._bad() : "";
-      }
-      let bytes = input instanceof Uint8Array ? input
-        : ArrayBuffer.isView(input)
-          ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
-          : new Uint8Array(input);
-      if (this._pending) {
-        const joined = new Uint8Array(this._pending.length + bytes.length);
-        joined.set(this._pending);
-        joined.set(bytes, this._pending.length);
-        bytes = joined;
-        this._pending = null;
-      }
-      let out = "";
-      let i = 0;
-      if (this._bom && !this._started && bytes.length >= 3 &&
-          bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
-        i = 3;
-      }
-      while (i < bytes.length) {
-        const b = bytes[i];
-        let c, need;
-        if (b < 0x80) { c = b; need = 0; }
-        else if ((b & 0xe0) === 0xc0) { c = b & 0x1f; need = 1; }
-        else if ((b & 0xf0) === 0xe0) { c = b & 0x0f; need = 2; }
-        else if ((b & 0xf8) === 0xf0) { c = b & 0x07; need = 3; }
-        else { out += this._bad(); i++; continue; }
-        if (i + need >= bytes.length) {
-          // The chunk ended in the middle of a character. In a stream the rest
-          // of it is in the next chunk; otherwise there is no rest.
-          if (streaming && need > 0) { this._pending = bytes.slice(i); break; }
-          out += this._bad(); i++; continue;
-        }
-        let ok = true;
-        for (let k = 1; k <= need; k++) {
-          const cont = bytes[i + k];
-          if ((cont & 0xc0) !== 0x80) { ok = false; break; }
-          c = (c << 6) | (cont & 63);
-        }
-        if (!ok) { out += this._bad(); i++; continue; }
-        i += need + 1;
-        // An overlong form, a surrogate or a value past the last code point is
-        // not a character, whatever its bytes say.
-        if (c > 0x10ffff || (c >= 0xd800 && c <= 0xdfff) ||
-            (need === 1 && c < 0x80) || (need === 2 && c < 0x800) ||
-            (need === 3 && c < 0x10000)) {
-          out += this._bad();
-          continue;
-        }
-        out += String.fromCodePoint(c);
-      }
-      this._started = true;
-      if (!streaming) {
-        // A one-shot decode keeps nothing: the next call starts over.
-        this._pending = null;
-        this._started = false;
-      }
-      return out;
-    }
-    _bad() {
-      if (this._fatal) throw new TypeError("the input is not valid utf-8");
-      return "�";
-    }
-  }
+  const TextDecoder = host.TextDecoder;
 
   // --- URLPattern -----------------------------------------------------------
 
@@ -1103,6 +1024,7 @@ const webAPIsJS = `(function (host) {
       state.currentTarget = null;
       state.phase = 0;
       state.dispatching = false;
+      state.inPassiveListener = false;
       state.timeStamp = host.now();
       codecApply(eventMapSet, eventStates, [this, state]);
       host.cloneAs(this, "opaque");
@@ -1121,8 +1043,8 @@ const webAPIsJS = `(function (host) {
     get cancelBubble() { return eventOf(this).stopped; }
     set cancelBubble(value) { const state = eventOf(this); if (value) state.stopped = true; }
     get returnValue() { return !eventOf(this).canceled; }
-    set returnValue(value) { const state = eventOf(this); if (!value && state.cancelable) state.canceled = true; }
-    preventDefault() { const state = eventOf(this); if (state.cancelable) state.canceled = true; }
+    set returnValue(value) { const state = eventOf(this); if (!value && state.cancelable && !state.inPassiveListener) state.canceled = true; }
+    preventDefault() { const state = eventOf(this); if (state.cancelable && !state.inPassiveListener) state.canceled = true; }
     stopPropagation() { eventOf(this).stopped = true; }
     stopImmediatePropagation() {
       const state = eventOf(this); state.stopped = true; state.immediateStopped = true;
@@ -1173,29 +1095,113 @@ const webAPIsJS = `(function (host) {
   Object.defineProperty(CustomEvent.prototype, "detail", {enumerable: true});
   Object.defineProperty(CustomEvent.prototype, Symbol.toStringTag, {value: "CustomEvent", configurable: true});
 
+  const eventTargetStates = new WeakMap();
+  function initializeEventTarget(target) {
+    if (!eventTargetStates.has(target)) eventTargetStates.set(target, new Map());
+  }
+  function targetListeners(target) {
+    const listeners = eventTargetStates.get(target);
+    if (listeners === undefined) throw new TypeError("The receiver is not an EventTarget");
+    return listeners;
+  }
+  function eventCallback(value) {
+    if (value == null) return null;
+    if (typeof value !== "object" && typeof value !== "function") {
+      throw new TypeError("An event listener must be an object or null");
+    }
+    return value;
+  }
+  function listenerOptions(value, adding) {
+    const options = {capture: false, once: false, passive: false, signal: null};
+    if (value == null) return options;
+    if (typeof value !== "object" && typeof value !== "function") {
+      options.capture = !!value;
+      return options;
+    }
+    options.capture = !!value.capture;
+    if (adding) {
+      // Inherited dictionary members precede lexicographically ordered members.
+      options.once = !!value.once;
+      options.passive = !!value.passive;
+      const signal = value.signal;
+      if (signal !== undefined) {
+        if (!abortSignalData.has(signal)) throw new TypeError("signal must be an AbortSignal");
+        options.signal = signal;
+      }
+    }
+    return options;
+  }
+  function removeEventListenerRecord(target, type, listener) {
+    if (listener.removed) return;
+    listener.removed = true;
+    const listeners = targetListeners(target), list = listeners.get(type);
+    const at = list.indexOf(listener);
+    if (at >= 0) list.splice(at, 1);
+    if (list.length === 0) listeners.delete(type);
+    changeAbortListenerCount(target, type, -1);
+    if (listener.signal !== null) {
+      const data = abortSignalData.get(listener.signal);
+      data.algorithms.delete(listener.abortStep);
+      updateAbortSignalRetention(listener.signal);
+      listener.abortStep = null;
+      listener.signal = null;
+    }
+  }
+  function invokeEventListeners(target, event, state, capture) {
+    if (state.stopped) return;
+    // Each phase takes a snapshot; removed records remain visibly removed.
+    const list = (targetListeners(target).get(state.type) || []).slice();
+    for (const listener of list) {
+      if (state.immediateStopped) break;
+      if (listener.removed || listener.capture !== capture) continue;
+      if (listener.once) removeEventListenerRecord(target, state.type, listener);
+      state.inPassiveListener = listener.passive;
+      try {
+        if (typeof listener.fn === "function") codecApply(listener.fn, target, [event]);
+        else codecApply(listener.fn.handleEvent, listener.fn, [event]);
+      } catch (error) {
+        // Keep the runtime's asynchronous listener exception reporting path.
+        queueMicrotask(() => { throw error; });
+      } finally {
+        state.inPassiveListener = false;
+      }
+    }
+  }
   class EventTarget {
     constructor() {
       host.cloneAs(this, "opaque");
-      Object.defineProperty(this, "_listeners", {value: new Map()});
+      initializeEventTarget(this);
     }
-    addEventListener(type, fn, options = {}) {
-      if (typeof fn !== "function" && (!fn || typeof fn.handleEvent !== "function")) return;
-      const key = String(type);
-      if (!this._listeners.has(key)) this._listeners.set(key, []);
-      this._listeners.get(key).push({fn, once: !!options.once});
+    addEventListener(type, fn, options = undefined) {
+      const listeners = targetListeners(this);
+      if (arguments.length < 2) throw new TypeError("addEventListener requires a type and listener");
+      const key = webDOMString(type), callback = eventCallback(fn);
+      const normalized = listenerOptions(options, true);
+      if (callback === null || (normalized.signal !== null && abortSignalData.get(normalized.signal).aborted)) return;
+      let list = listeners.get(key);
+      if (list && list.some(listener => listener.fn === callback && listener.capture === normalized.capture)) return;
+      if (!list) listeners.set(key, list = []);
+      const listener = {fn: callback, ...normalized, removed: false, abortStep: null};
+      list.push(listener);
       changeAbortListenerCount(this, key, 1);
-    }
-    removeEventListener(type, fn) {
-      const key = String(type);
-      const list = this._listeners.get(key);
-      if (!list) return;
-      const at = list.findIndex(l => l.fn === fn);
-      if (at >= 0) {
-        list.splice(at, 1);
-        changeAbortListenerCount(this, key, -1);
+      if (listener.signal !== null) {
+        listener.abortStep = () => removeEventListenerRecord(this, key, listener);
+        abortSignalData.get(listener.signal).algorithms.add(listener.abortStep);
+        updateAbortSignalRetention(listener.signal);
       }
     }
+    removeEventListener(type, fn, options = undefined) {
+      const listeners = targetListeners(this);
+      if (arguments.length < 2) throw new TypeError("removeEventListener requires a type and listener");
+      const key = webDOMString(type), callback = eventCallback(fn);
+      const capture = listenerOptions(options, false).capture;
+      const list = listeners.get(key);
+      if (!list) return;
+      const listener = list.find(item => item.fn === callback && item.capture === capture);
+      if (listener) removeEventListenerRecord(this, key, listener);
+    }
     dispatchEvent(event) {
+      targetListeners(this);
       const state = eventOf(event);
       if (state.dispatching) throw new DOMException("The event is already being dispatched", "InvalidStateError");
       state.dispatching = true;
@@ -1204,21 +1210,11 @@ const webAPIsJS = `(function (host) {
       state.phase = 2;
       try {
         const dispatchAllowed = !state.stopped;
-        const list = dispatchAllowed ? (this._listeners.get(state.type) || []).slice() : [];
-        for (const l of list) {
-          if (state.immediateStopped) break;
-          if (l.once) this.removeEventListener(state.type, l.fn);
-          // A listener that throws does not stop the others: report the
-          // exception afterwards through the runtime's existing microtask path.
-          try {
-            if (typeof l.fn === "function") l.fn.call(this, event);
-            else l.fn.handleEvent(event);
-          } catch (e) {
-            queueMicrotask(() => { throw e; });
-          }
-        }
+        invokeEventListeners(this, event, state, true);
+        const bubbleAllowed = !state.stopped;
+        invokeEventListeners(this, event, state, false);
         // Property handlers managed by setHandler are already in the list.
-        if (dispatchAllowed && !state.immediateStopped && !(eventHandlers.get(this) || new Map()).has(state.type)) {
+        if (dispatchAllowed && bubbleAllowed && !state.immediateStopped && !(eventHandlers.get(this) || new Map()).has(state.type)) {
           const on = this["on" + state.type];
           if (typeof on === "function") {
             try { on.call(this, event); } catch (e) { queueMicrotask(() => { throw e; }); }
@@ -1229,6 +1225,7 @@ const webAPIsJS = `(function (host) {
         state.currentTarget = null;
         state.phase = 0;
         state.dispatching = false;
+        state.inPassiveListener = false;
         state.stopped = false;
         state.immediateStopped = false;
       }
@@ -1237,6 +1234,10 @@ const webAPIsJS = `(function (host) {
   const addListener = EventTarget.prototype.addEventListener;
   const removeListener = EventTarget.prototype.removeEventListener;
   const dispatch = EventTarget.prototype.dispatchEvent;
+  for (const name of ["addEventListener", "removeEventListener", "dispatchEvent"]) {
+    Object.defineProperty(EventTarget.prototype, name, {enumerable: true});
+  }
+  Object.defineProperty(EventTarget.prototype, Symbol.toStringTag, {value: "EventTarget", configurable: true});
 
   // An event handler -- onmessage and the like -- is a listener that runs
   // where it was first set among the others, calling whatever the handler is
@@ -1271,7 +1272,7 @@ const webAPIsJS = `(function (host) {
   // EventTarget. The internal symbol keeps callbacks in registration order
   // without hiding on* getters or duplicating the dispatcher's fallback.
   Object.defineProperty(EventTarget, Symbol.for("noe.stdlib.eventHandlers"), {
-    value: Object.freeze({get: getHandler, set: setHandler}),
+    value: Object.freeze({get: getHandler, set: setHandler, initialize: initializeEventTarget}),
   });
 
   const abortSignalData = new WeakMap();
@@ -1286,7 +1287,8 @@ const webAPIsJS = `(function (host) {
 
   function retainAbortSignal(signal) {
     const data = abortSignalData.get(signal);
-    if (!data || !data.dependent || data.retained || data.abortListenerCount === 0 || data.links.length === 0) return;
+    if (!data || !data.dependent || data.retained ||
+        (data.abortListenerCount === 0 && data.algorithms.size === 0) || data.links.length === 0) return;
     data.retained = true;
     for (const link of data.links) {
       const source = link.source.deref();
@@ -1311,8 +1313,14 @@ const webAPIsJS = `(function (host) {
     const data = abortSignalData.get(target);
     if (!data || !data.dependent) return;
     data.abortListenerCount = Math.max(0, data.abortListenerCount + delta);
-    if (data.abortListenerCount > 0) retainAbortSignal(target);
-    else releaseAbortSignal(target);
+    updateAbortSignalRetention(target);
+  }
+
+  function updateAbortSignalRetention(signal) {
+    const data = abortSignalData.get(signal);
+    if (!data || !data.dependent) return;
+    if (data.abortListenerCount > 0 || data.algorithms.size > 0) retainAbortSignal(signal);
+    else releaseAbortSignal(signal);
   }
 
   function unlinkAbortSignal(signal) {
@@ -1331,15 +1339,18 @@ const webAPIsJS = `(function (host) {
   }
 
   function runAbortSteps(signal) {
+    const data = abortSignalData.get(signal);
+    for (const algorithm of data.algorithms) algorithm();
+    data.algorithms.clear();
+    updateAbortSignalRetention(signal);
     dispatch.call(signal, new Event("abort"));
   }
 
   function signalAbort(signal, reason) {
-    if (signal.aborted) return;
-    signal.aborted = true;
-    signal.reason = reason;
-
     const data = abortSignalData.get(signal);
+    if (data.aborted) return;
+    data.aborted = true;
+    data.reason = reason;
     const dependents = [];
     if (data) {
       for (const reference of Array.from(data.dependents)) {
@@ -1348,9 +1359,10 @@ const webAPIsJS = `(function (host) {
           data.dependents.delete(reference);
           continue;
         }
-        if (!dependent.aborted) {
-          dependent.aborted = true;
-          dependent.reason = signal.reason;
+        const dependentData = abortSignalData.get(dependent);
+        if (!dependentData.aborted) {
+          dependentData.aborted = true;
+          dependentData.reason = reason;
           dependents.push(dependent);
         }
         unlinkAbortSignal(dependent);
@@ -1379,9 +1391,10 @@ const webAPIsJS = `(function (host) {
   class AbortSignal extends EventTarget {
     constructor() {
       super();
-      this.aborted = false;
-      this.reason = undefined;
       abortSignalData.set(this, {
+        aborted: false,
+        reason: undefined,
+        algorithms: new Set(),
         dependent: false,
         sources: [],
         dependents: new Set(),
@@ -1405,11 +1418,14 @@ const webAPIsJS = `(function (host) {
         },
       });
     }
-    throwIfAborted() { if (this.aborted) throw this.reason; }
+    get aborted() { return abortSignalOf(this).aborted; }
+    get reason() { return abortSignalOf(this).reason; }
+    throwIfAborted() { const data = abortSignalOf(this); if (data.aborted) throw data.reason; }
     static abort(reason) {
       const s = new AbortSignal();
-      s.aborted = true;
-      s.reason = reason === undefined ? new Error("This operation was aborted") : reason;
+      const data = abortSignalData.get(s);
+      data.aborted = true;
+      data.reason = reason === undefined ? new Error("This operation was aborted") : reason;
       return s;
     }
     static any(signals) {
@@ -1424,9 +1440,11 @@ const webAPIsJS = `(function (host) {
 
       const result = new AbortSignal();
       for (const signal of inputs) {
-        if (signal.aborted) {
-          result.aborted = true;
-          result.reason = signal.reason;
+        const data = abortSignalData.get(signal);
+        if (data.aborted) {
+          const resultData = abortSignalData.get(result);
+          resultData.aborted = true;
+          resultData.reason = data.reason;
           return result;
         }
       }
@@ -1463,7 +1481,7 @@ const webAPIsJS = `(function (host) {
       const s = new AbortSignal();
       if (typeof setTimeout === "function") {
         setTimeout(() => {
-          if (s.aborted) return;
+          if (abortSignalOf(s).aborted) return;
           signalAbort(s, new Error("The operation timed out"));
         }, ms);
       }
@@ -1471,11 +1489,20 @@ const webAPIsJS = `(function (host) {
     }
   }
 
+  function abortSignalOf(signal) {
+    const data = abortSignalData.get(signal);
+    if (!data) throw new TypeError("The receiver is not an AbortSignal");
+    return data;
+  }
+  for (const name of ["aborted", "reason"]) {
+    Object.defineProperty(AbortSignal.prototype, name, {enumerable: true});
+  }
+
   class AbortController {
     constructor() { host.cloneAs(this, "opaque"); this.signal = new AbortSignal(); }
     abort(reason) {
       const s = this.signal;
-      if (s.aborted) return;
+      if (abortSignalOf(s).aborted) return;
       signalAbort(s, reason === undefined ? new Error("This operation was aborted") : reason);
     }
   }

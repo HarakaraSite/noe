@@ -344,6 +344,14 @@ const readonlyCustomEvent = new CustomEvent("update", {detail: 1});
 readonlyCustomEvent.detail = 2;
 // @ts-expect-error Inherited event flags are readonly attributes.
 readonlyCustomEvent.bubbles = true;
+// @ts-expect-error Listener signals must be AbortSignal instances.
+new EventTarget().addEventListener("x", () => {}, {signal: {aborted: false}});
+// @ts-expect-error Removal only accepts capture options.
+new EventTarget().removeEventListener("x", null, {once: true});
+// @ts-expect-error Passive is a boolean.
+new EventTarget().addEventListener("x", null, {passive: "yes"});
+// @ts-expect-error TextDecoder input is a BufferSource, not an ordinary array.
+new TextDecoder().decode([65]);
 // @ts-expect-error Performance itself is an illegal constructor.
 new Performance();
 // @ts-expect-error PerformanceEntry is an illegal constructor.

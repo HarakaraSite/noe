@@ -15,6 +15,12 @@ if(encoded.read!==0||encoded.written!==0)throw Error("partial UTF-8 write");
 const target=new EventTarget();let detail;
 target.addEventListener("value",event=>{detail=event.detail;});
 target.dispatchEvent(new CustomEvent("value",{detail:"worker"}));
+const decoder=new TextDecoder();
+if(decoder.decode(new Uint8Array([239]),{stream:true})!==""||decoder.decode(new Uint8Array([187,191,192,128]))!=="��")throw Error("streaming UTF-8");
+const controller=new AbortController();let calls=0;const callback=()=>calls++;
+target.addEventListener("bound",callback,{signal:controller.signal});
+target.addEventListener("bound",callback);target.dispatchEvent(new Event("bound"));
+controller.abort();target.dispatchEvent(new Event("bound"));if(calls!==1)throw Error("listener identity/abort");
 const mark=performance.mark("child",{startTime:1});
 parentPort.postMessage({detail,type:mark.entryType,entries:performance.getEntries().length});parentPort.close();`
 	code := fmt.Sprintf(`import {Worker} from "node:worker_threads";

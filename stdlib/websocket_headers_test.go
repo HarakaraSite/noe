@@ -177,6 +177,11 @@ const server=serve({port:0},request=>{
  return response;
 });
 const socket=new WebSocket(server.url.replace("http","ws"));
+const listenerController=new AbortController();let listenerCalls=0;
+const messageListener=()=>listenerCalls++;
+socket.addEventListener("message",messageListener);socket.addEventListener("message",messageListener);
+socket.addEventListener("message",()=>{throw Error("aborted WebSocket listener");},{signal:listenerController.signal});
+listenerController.abort();
 try{
  const received=[];
  await new Promise((resolve,reject)=>{
@@ -192,7 +197,7 @@ try{
   };
   socket.onclose=resolve;
  });
- if((await Promise.all(received)).join("|")!=="0,128,255|after")throw Error("Blob payload or send order changed");
+ if(listenerCalls!==2||(await Promise.all(received)).join("|")!=="0,128,255|after")throw Error("Blob payload, listener identity or send order changed");
 }finally{socket.close();await server.close();}
 `}, stdlib.Profile{Modules: stdlib.Modules{
 		Serve:      &stdlib.ServeOptions{Allow: func(string) error { return nil }},

@@ -135,6 +135,32 @@ func TestWebWorker(t *testing.T) {
 	}
 }
 
+func TestWebWorkerDecoderAndListenerOptions(t *testing.T) {
+	worker := `
+const controller = new AbortController(); let calls = 0;
+const callback = () => calls++;
+addEventListener("local", callback, true);
+removeEventListener("local", callback, {capture: true});
+addEventListener("local", callback, {signal: controller.signal});
+addEventListener("local", callback);
+dispatchEvent(new Event("local"));
+controller.abort(); dispatchEvent(new Event("local"));
+if(calls!==1)throw Error("global listener options");
+const event=new Event("passive",{cancelable:true});
+addEventListener("passive",e=>e.preventDefault(),{passive:true});
+if(!dispatchEvent(event))throw Error("passive worker dispatch");
+const decoder=new TextDecoder(); decoder.decode(new Uint8Array([239]),{stream:true});
+if(decoder.decode(new Uint8Array([187,191,226,130]))!=="�")throw Error("worker streaming UTF-8");
+postMessage("worker decoder/listeners ok");close();`
+	out, stderr := run(t, stdlib.Config{Workers: workerFiles(map[string]string{"./options.js": worker})}, `
+const worker=new Worker("./options.js");
+worker.onmessage=event=>console.log(event.data);
+`)
+	if out != "worker decoder/listeners ok" || stderr != "" {
+		t.Fatalf("output = %q, stderr = %q", out, stderr)
+	}
+}
+
 // TestWorkerSharing pins what a worker shares with the runtime that started
 // it: memory, which one waits on and the other notifies; a port posted to it;
 // and a BroadcastChannel's name.

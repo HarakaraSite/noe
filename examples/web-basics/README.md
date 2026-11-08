@@ -14,6 +14,10 @@ passes that view by reference through CustomEvent.detail, and records/retrieves
 a User Timing measurement. No filesystem, network, command or provider grant
 is required by these operations.
 
+It also decodes a BOM split across calls and binds a deduplicated event listener
+to an AbortSignal. Aborting removes that listener before later dispatches.
+See the [decoder/listener contract](../../docs/development/stdlib-decoder-events.md).
+
 encodeInto reports source UTF-16 code units consumed and destination bytes
 written. A short destination receives no partial character. CustomEvent detail
 retains the supplied reference; Performance mark/measure detail is instead

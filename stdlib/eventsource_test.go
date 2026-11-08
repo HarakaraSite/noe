@@ -86,6 +86,11 @@ func TestEventSourceParsingReconnectionAndEventTasks(t *testing.T) {
 	profile := stdlib.Profile{Modules: stdlib.Modules{Fetch: &stdlib.FetchOptions{}}}
 	executeEventSource(t, profile, fmt.Sprintf(`
 const source=new EventSource(%q),messages=[],order=[];let opens=0,errors=0,microtask=false;
+const listenerController=new AbortController();
+source.addEventListener("message",()=>{throw Error("aborted SSE listener");},{signal:listenerController.signal});
+listenerController.abort();
+let namedCalls=0;const namedListener=()=>namedCalls++;
+source.addEventListener("update",namedListener);source.addEventListener("update",namedListener,{once:true});
 await new Promise((resolve,reject)=>{
  source.onopen=()=>{opens++;if(source.readyState!==1)reject(Error("open state"));};
  source.onerror=()=>{errors++;if(source.readyState!==0)reject(Error("retry state"));};
@@ -101,7 +106,7 @@ await new Promise((resolve,reject)=>{
   source.close();if(source.readyState!==2)reject(Error("close not synchronous"));resolve();
  };
 });
-if(opens!==2||errors!==1||JSON.stringify(messages)!==JSON.stringify(["日本語\nsecond","","done"]))throw Error("event sequence "+JSON.stringify({opens,errors,messages}));
+if(namedCalls!==1||opens!==2||errors!==1||JSON.stringify(messages)!==JSON.stringify(["日本語\nsecond","","done"]))throw Error("event sequence "+JSON.stringify({namedCalls,opens,errors,messages}));
 `, server.URL+"/redirect", server.URL))
 	if attempts.Load() != 2 {
 		t.Fatalf("connections=%d", attempts.Load())

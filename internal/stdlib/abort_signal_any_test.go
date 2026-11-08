@@ -218,16 +218,15 @@ func TestAbortSignalAnyAbortsPipeTo(t *testing.T) {
 	}
 }
 
-func TestAbortSignalAnyContinuesDependentDispatchAfterRemovalErrors(t *testing.T) {
+func TestAbortSignalAnyIgnoresOverriddenListenerRemoval(t *testing.T) {
 	out, _ := run(t, stdlib.Config{}, `
 ;(async () => {
   const controller = new AbortController();
   const first = AbortSignal.any([controller.signal]);
   const second = AbortSignal.any([controller.signal]);
-  const sourceFailure = {kind: "source remove"};
   let firstCalls = 0, secondCalls = 0;
   controller.signal.addEventListener("abort", () => {}, {once: true});
-  controller.signal.removeEventListener = () => { throw sourceFailure; };
+  controller.signal.removeEventListener = () => { throw Error("source public remove"); };
   first.addEventListener("abort", () => { firstCalls++; }, {once: true});
   first.removeEventListener = () => { throw Error("composite remove"); };
   second.addEventListener("abort", () => { secondCalls++; });
@@ -235,14 +234,14 @@ func TestAbortSignalAnyContinuesDependentDispatchAfterRemovalErrors(t *testing.T
   let failure;
   try { controller.abort("stop"); }
   catch (error) { failure = error; }
-  if (failure !== sourceFailure) throw Error("existing source dispatch failure was not preserved");
-  if (!first.aborted || !second.aborted || firstCalls !== 0 || secondCalls !== 1) {
-    throw Error("a dispatch cleanup failure skipped later dependent abort events");
+  if (failure !== undefined) throw Error("once removal called an overridden public method");
+  if (!first.aborted || !second.aborted || firstCalls !== 1 || secondCalls !== 1) {
+    throw Error("dependent abort events were not dispatched");
   }
-  console.log("dependent dispatch continues after cleanup errors ok");
+  console.log("dependent dispatch uses internal removal ok");
 })()
 `)
-	if out != "dependent dispatch continues after cleanup errors ok" {
+	if out != "dependent dispatch uses internal removal ok" {
 		t.Fatalf("output = %q", out)
 	}
 }
@@ -321,4 +320,38 @@ func collectUntil(t *testing.T, rt *quickjs.Runtime, expression string) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatalf("condition did not become true after garbage collection: %s", expression)
+}
+
+func TestAbortSignalListenerAlgorithmsReleaseRemovedTargets(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+	if err := stdlib.Install(rt, stdlib.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.Eval(`
+globalThis.source = new AbortController();
+globalThis.callback = () => {};
+globalThis.active = (() => {
+  const signal = AbortSignal.any([source.signal]), target = new EventTarget();
+  target.addEventListener("value", callback, {signal});
+  return {signal: new WeakRef(signal), target: new WeakRef(target)};
+})();
+globalThis.removed = (() => {
+  const signal = AbortSignal.any([source.signal]), target = new EventTarget();
+  target.addEventListener("value", callback, {signal});
+  target.removeEventListener("value", callback);
+  return {signal: new WeakRef(signal), target: new WeakRef(target)};
+})();
+`); err != nil {
+		t.Fatal(err)
+	}
+	collectUntil(t, rt, `removed.signal.deref() === undefined && removed.target.deref() === undefined`)
+	v, err := rt.Eval(`active.signal.deref() !== undefined && active.target.deref() !== undefined`)
+	if err != nil || v.String() != "true" {
+		t.Fatalf("active abort algorithms were not retained: %v, %v", v, err)
+	}
+	if _, err := rt.Eval(`source.abort();`); err != nil {
+		t.Fatal(err)
+	}
+	collectUntil(t, rt, `active.signal.deref() === undefined && active.target.deref() === undefined`)
 }

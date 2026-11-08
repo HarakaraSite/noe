@@ -606,8 +606,8 @@ declare namespace NOEStdlib {
   interface TransformStreamConstructor { new<I = unknown, O = unknown>(transformer?: TransformStreamTransformer<I, O>, writableStrategy?: QueuingStrategy<I>, readableStrategy?: QueuingStrategy<O>): TransformStream<I, O> }
   interface TextEncoderStream extends TransformStream<string, Uint8Array> { readonly encoding: "utf-8" }
   interface TextEncoderStreamConstructor { new(): TextEncoderStream }
-  interface TextDecoderStream extends TransformStream<Uint8Array, string> { readonly encoding: "utf-8" }
-  interface TextDecoderStreamConstructor { new(label?: "utf-8" | "utf8" | "unicode-1-1-utf-8", options?: {fatal?: boolean; ignoreBOM?: boolean}): TextDecoderStream }
+  interface TextDecoderStream extends TransformStream<ArrayBuffer | SharedArrayBuffer | ArrayBufferView, string> { readonly encoding: "utf-8" }
+  interface TextDecoderStreamConstructor { new(label?: string, options?: {fatal?: boolean; ignoreBOM?: boolean} | null): TextDecoderStream }
   interface QueuingStrategyObject<T> { readonly highWaterMark: number; size(chunk: T): number }
   interface QueuingStrategyConstructor<T> { new(init?: {highWaterMark?: number}): QueuingStrategyObject<T> }
 
@@ -863,8 +863,9 @@ declare namespace NOEStdlib {
 
   interface TextEncoder { readonly encoding: "utf-8"; encode(input?: string): Uint8Array; encodeInto(source: string, destination: Uint8Array): {read: number; written: number} }
   interface TextEncoderConstructor { new(): TextEncoder }
-  interface TextDecoder { readonly encoding: "utf-8"; readonly fatal: boolean; readonly ignoreBOM: boolean; decode(input?: ArrayBuffer | ArrayBufferView, options?: {stream?: boolean}): string }
-  interface TextDecoderConstructor { new(label?: "utf-8" | "utf8" | "unicode-1-1-utf-8", options?: {fatal?: boolean; ignoreBOM?: boolean}): TextDecoder }
+  /** Only UTF-8 labels are supported; unsupported encoding families throw RangeError. */
+  interface TextDecoder { readonly encoding: "utf-8"; readonly fatal: boolean; readonly ignoreBOM: boolean; decode(input?: ArrayBuffer | SharedArrayBuffer | ArrayBufferView, options?: {stream?: boolean} | null): string }
+  interface TextDecoderConstructor { new(label?: string, options?: {fatal?: boolean; ignoreBOM?: boolean} | null): TextDecoder }
 
   type BlobPart = string | ArrayBuffer | ArrayBufferView | Blob;
   interface Blob { readonly size: number; readonly type: string; arrayBuffer(): Promise<ArrayBuffer>; bytes(): Promise<Uint8Array>; text(): Promise<string>; slice(start?: number, end?: number, type?: string): Blob; stream(): ReadableStream<Uint8Array> }
@@ -922,9 +923,11 @@ declare namespace NOEStdlib {
   type EventListener<E extends Event = Event> = (this: EventTarget, event: E) => unknown;
   interface EventListenerObject<E extends Event = Event> { handleEvent(event: E): void }
   type EventListenerOrObject<E extends Event = Event> = EventListener<E> | EventListenerObject<E> | null;
+  interface EventListenerOptions { capture?: boolean }
+  interface AddEventListenerOptions extends EventListenerOptions { once?: boolean; passive?: boolean; signal?: AbortSignal }
   interface EventTarget {
-    addEventListener(type: string, listener: EventListenerOrObject, options?: {once?: boolean}): void;
-    removeEventListener(type: string, listener: EventListenerOrObject): void;
+    addEventListener(type: string, listener: EventListenerOrObject, options?: boolean | AddEventListenerOptions | null): void;
+    removeEventListener(type: string, listener: EventListenerOrObject, options?: boolean | EventListenerOptions | null): void;
     dispatchEvent(event: Event): boolean;
   }
   interface EventTargetConstructor { new(): EventTarget }
@@ -1116,10 +1119,10 @@ declare namespace NOEStdlib {
     onopen: EventListener<Event> | null;
     onmessage: EventListener<EventSourceMessageEvent> | null;
     onerror: EventListener<Event> | null;
-    addEventListener(type: "message", listener: EventListener<EventSourceMessageEvent>, options?: {once?: boolean}): void;
-    addEventListener(type: string, listener: EventListener, options?: {once?: boolean}): void;
-    removeEventListener(type: "message", listener: EventListener<EventSourceMessageEvent>): void;
-    removeEventListener(type: string, listener: EventListener): void;
+    addEventListener(type: "message", listener: EventListenerOrObject<EventSourceMessageEvent>, options?: boolean | AddEventListenerOptions | null): void;
+    addEventListener(type: string, listener: EventListenerOrObject, options?: boolean | AddEventListenerOptions | null): void;
+    removeEventListener(type: "message", listener: EventListenerOrObject<EventSourceMessageEvent>, options?: boolean | EventListenerOptions | null): void;
+    removeEventListener(type: string, listener: EventListenerOrObject, options?: boolean | EventListenerOptions | null): void;
     close(): void;
   }
   interface EventSourceConstructor {
@@ -1150,14 +1153,16 @@ declare namespace NOEStdlib {
     onmessage: EventListener<WebSocketMessageEvent> | null;
     onerror: EventListener<WebSocketErrorEvent> | null;
     onclose: EventListener<WebSocketCloseEvent> | null;
-    addEventListener(type: "open", listener: EventListener<Event>, options?: {once?: boolean}): void;
-    addEventListener(type: "message", listener: EventListener<WebSocketMessageEvent>, options?: {once?: boolean}): void;
-    addEventListener(type: "error", listener: EventListener<WebSocketErrorEvent>, options?: {once?: boolean}): void;
-    addEventListener(type: "close", listener: EventListener<WebSocketCloseEvent>, options?: {once?: boolean}): void;
-    removeEventListener(type: "open", listener: EventListener<Event>): void;
-    removeEventListener(type: "message", listener: EventListener<WebSocketMessageEvent>): void;
-    removeEventListener(type: "error", listener: EventListener<WebSocketErrorEvent>): void;
-    removeEventListener(type: "close", listener: EventListener<WebSocketCloseEvent>): void;
+    addEventListener(type: "open", listener: EventListenerOrObject<Event>, options?: boolean | AddEventListenerOptions | null): void;
+    addEventListener(type: "message", listener: EventListenerOrObject<WebSocketMessageEvent>, options?: boolean | AddEventListenerOptions | null): void;
+    addEventListener(type: "error", listener: EventListenerOrObject<WebSocketErrorEvent>, options?: boolean | AddEventListenerOptions | null): void;
+    addEventListener(type: "close", listener: EventListenerOrObject<WebSocketCloseEvent>, options?: boolean | AddEventListenerOptions | null): void;
+    removeEventListener(type: "open", listener: EventListenerOrObject<Event>, options?: boolean | EventListenerOptions | null): void;
+    removeEventListener(type: "message", listener: EventListenerOrObject<WebSocketMessageEvent>, options?: boolean | EventListenerOptions | null): void;
+    removeEventListener(type: "error", listener: EventListenerOrObject<WebSocketErrorEvent>, options?: boolean | EventListenerOptions | null): void;
+    removeEventListener(type: "close", listener: EventListenerOrObject<WebSocketCloseEvent>, options?: boolean | EventListenerOptions | null): void;
+    addEventListener(type: string, listener: EventListenerOrObject, options?: boolean | AddEventListenerOptions | null): void;
+    removeEventListener(type: string, listener: EventListenerOrObject, options?: boolean | EventListenerOptions | null): void;
     send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
     /** Starts graceful close (empty frame with no arguments); cancels opening in CONNECTING.
      * Validates arguments first. Completion is reported by the close event, using the peer's code/reason. */
@@ -1769,6 +1774,8 @@ interface Event extends NOEStdlib.Event {}
 declare var Event: NOEStdlib.EventConstructor;
 interface CustomEvent<T = unknown> extends NOEStdlib.CustomEvent<T> {}
 declare var CustomEvent: NOEStdlib.CustomEventConstructor;
+interface EventListenerOptions extends NOEStdlib.EventListenerOptions {}
+interface AddEventListenerOptions extends NOEStdlib.AddEventListenerOptions {}
 interface EventTarget extends NOEStdlib.EventTarget {}
 declare var EventTarget: NOEStdlib.EventTargetConstructor;
 interface AbortSignal extends NOEStdlib.AbortSignal {}
