@@ -1,48 +1,39 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after local UTF-8 decoder/EventTarget verification and the
-earlier encoding/User Timing/CustomEvent slice. Both vm201 installation paths
-still contain verified v2.20.0. Release requests include local installation by
-default. This document records the current continuation point; linked policy
-and implementation records remain the canonical design and validation references.
-
-The Web Crypto contract correction, standard-gap inventory, SDK validation and
-accepted review follow-up are published and installed in v2.20.0. See the
-[current release](#current-release-v2200-web-crypto) and
-[implementation record](#local-web-crypto-continuation).
+Updated 2026-11-08 after verified v2.21.0 publication and installation at both
+vm201 executable paths. This release includes User Timing, CustomEvent, UTF-8
+codec corrections and shared EventTarget listener semantics. Release requests
+include local installation by default. Linked policy, implementation and release
+records remain the canonical references.
 
 ## Repository and publication state
 
 - Repository: `/home/agent/projects/noe`, branch `main`.
-- Verified implementation checkpoints include Web Crypto `6c8a23d` and
-  deriveKey error precedence `2e8a197`, Web Storage `dfa497e`, UDP `8acc44b`,
-  raw TLS `ba5c37d`, and HTTPS/WSS `6cdc02f`.
-- v2.20.0 is published and installed from immutable annotated tag revision
-  `6a2891df95de4fed0d3fdfaa340a820903d38caa`. CI run 59 (API 240, job 261)
-  succeeded; all six assets/checksums/build metadata, native Web Crypto checks,
-  actual jose main/Worker/Node interoperability, and direct public stdlib/agent
-  consumers pass. See the
-  [publication/install checkpoint](../releases/release-checkpoints.md#v2200-publication-and-installation--2026-11-08).
-- See [v2.20.0 notes](../releases/v2.20.0.md),
-  [v2.19.0 notes](../releases/v2.19.0.md), and the
-  [v2.16.0 migration guide](../releases/v2.16.0-migration.md). The public Go
-  module remains `/v2`; no new Profile field or capability is added here.
-- Latest verified published native binary:
-  `/var/tmp/noe-v2.20.0-release-el4vn8lo/assets/noe-linux-amd64`.
-  The directory retains the candidate, all assets, source continuity, metadata,
-  native/SDK checks, public consumers and installation helpers.
+- v2.21.0 includes implementation checkpoints `a5a52ed` (encoding/User Timing /
+  CustomEvent) and `2e7228f` (UTF-8 decoder/EventTarget).
+- Immutable tag revision: `904f3e770ae1e780601e503bd09127642a33d2a3`;
+  annotated tag object: `502b9d9568448e60ef22150a9f8c79138ff7d027`.
+  [CI run 60](https://forge.harakara.site/littleisland/noe/actions/runs/60)
+  succeeded (API 241, job 262). The
+  [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.21.0)
+  is published, neither draft nor prerelease (ID 174).
+- All six assets pass checksum/build metadata verification. The native asset
+  passes ten release runtime/reference/example checks. Direct published stdlib
+  and agent consumers pass, including main/Workers and portable/Go-host modes;
+  all 23 changed Go/JS/TS paths match the immutable tag in both module copies.
 - `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` both contain
-  that verified v2.20.0 asset, SHA256
-  `1a0258122e215067b479a2696bd3a445d6e2a938ad4024279de00e2c0dc12f6a`.
-  Both pass version/hash checks; PATH resolves to the user binary. Installed
-  arithmetic and authentication-helper help checks pass. Web Crypto runtime
-  results are reused for the identical downloaded asset.
-- Previous v2.19.0 copies and the per-path installation record are retained at
-  `/var/tmp/noe-v2.20.0-install-9cx42on9/installation.json`.
-- Earlier release/install evidence below remains historical. No service, other
-  host, noebot, real login, or application-provider call was changed or used for
-  this release. Remaining Web Crypto capabilities are inventoried explicitly;
-  this is not full Web Crypto/jose compatibility.
+  the verified v2.21.0 Linux amd64 asset, SHA256
+  `bcf7441b17c7293278ecc0feb63756c9ace75a09403cffb33b526b3e7563b059`.
+  Versions, installed hashes, PATH resolution, arithmetic and both authentication
+  helper help commands pass. Runtime evidence is reused for the identical asset.
+- Previous v2.20.0 copies and per-path installation records are retained at
+  `/var/tmp/noe-v2.21.0-install-b1p37kdd/installation.json`.
+- Release evidence: `/var/tmp/noe-v2.21.0-release-1lwzess2`. See the
+  [publication/install checkpoint](../releases/release-checkpoints.md#v2210-publication-and-installation--2026-11-08),
+  [v2.21.0 notes](../releases/v2.21.0.md), and
+  [v2.20.0 notes](../releases/v2.20.0.md). The Go module remains `/v2`.
+- No required release or installation work remains. Other hosts, service
+  restarts, noebot changes, real login and provider calls were not included.
 
 ## User decisions to retain
 
@@ -76,28 +67,26 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
-## v2.21.0 release continuation
+## Current release: v2.21.0 Web API corrections
 
-The user requested release and placement after both local slices completed.
-Clean candidate `c680736` passes the release-flags build, clean metadata,
-configured-version unit, reference catalog and ten native checks. All 306
-selected runtime/dependency/reference paths match `2e7228f` except version and
-reference availability wording. Reuse completed implementation verification.
-See [preparation](../releases/release-checkpoints.md#v2210-preparation--2026-11-08)
-and [release notes](../releases/v2.21.0.md).
+The user explicitly requested release and placement after both local slices.
+Publication and both installations are complete. Reuse the implementation
+checks and the [preparation/publication evidence](../releases/release-checkpoints.md#v2210-preparation--2026-11-08)
+for unchanged source and dependencies. The release binary lives at
+`/var/tmp/noe-v2.21.0-release-1lwzess2/assets/noe-linux-amd64`.
 
-Evidence: `/var/tmp/noe-v2.21.0-release-1lwzess2`. Publication verification,
-direct published Go consumers, and both installations are pending. The current
-installed v2.20.0 binaries remain unchanged until those checks complete. Keep
-the immutable release tag fixed and record final publication/placement below.
+The selected Web API improvements are shipped. Additional encoding families,
+PerformanceObserver/resource/navigation timing, DOM trees and broader unrelated
+AbortSignal contracts remain outside these slices. Future improvements should
+follow concrete standard-library caller needs rather than release housekeeping.
 
 ## Local UTF-8 decoder and EventTarget continuation
 
 The user approved both next improvements. The
 [decoder/listener contract](stdlib-decoder-events.md) is canonical for this slice.
-The preceding local slice is committed at `a5a52ed`; this continuation is local
-implementation only. Neither a push nor a release/install is included. Both
-installed executables remain the verified v2.20.0 asset above.
+The preceding slice is committed at `a5a52ed`; this correction is `2e7228f`.
+Both are now published and installed in v2.21.0. The implementation-stage
+evidence below is retained and reused for release verification.
 
 Completed work covers UTF-8 replacement boundaries, streaming/BOM/fatal state,
 BufferSource/options conversion, private decoder metadata, and shared event
@@ -108,8 +97,8 @@ added. Evidence is retained at `/var/tmp/noe-decoder-events-uagwfg5_`.
 All seven affected stdlib/profile/runtime/CLI packages, focused race, public
 positive/negative types, reference catalog, lint/vet and the actual CLI example
 pass. Checkout and standalone module-artifact consumers build and run, including
-the main/Worker helper. The development binary is in that evidence directory;
-installed binaries were not replaced. The previous local binary reproduces the
+the main/Worker helper. The development binary is retained in that evidence
+directory; use the current release asset above for published behavior. The previous local binary reproduces the
 original UTF-8/BOM, duplicate/removal/signal/passive defects. The candidate matches
 the primary expected comparison output. Deno differs on capture phase order and
 synthetic abort removal; those are explicit reference differences, not weakened
@@ -127,8 +116,9 @@ these results for unchanged source/dependencies when a release is requested.
 
 The user approved all three comparison follow-ups: correct TextEncoder.encodeInto,
 implement useful Performance entries/query/clear methods, and add CustomEvent.
-See the [contract](stdlib-web-basics.md). Publication/placement is not included
-in this implementation request; both installed executables remain v2.20.0.
+See the [contract](stdlib-web-basics.md). This slice is now included in the
+published and installed v2.21.0 release; the evidence below records its earlier
+implementation stage.
 
 Implementation and verification are complete locally. The new encoding,
 CustomEvent and Performance regressions fail against v2.20.0. Affected unit
@@ -158,7 +148,7 @@ cloning is retained; new CustomEvent/Performance objects are non-serializable.
 No release, push, installation, service or noebot change is part of this local
 slice. Reuse the recorded checks for unchanged paths when release is requested.
 
-## Current release: v2.20.0 Web Crypto
+## Previous release: v2.20.0 Web Crypto
 
 The user explicitly requested release and placement on 2026-11-08. The verified
 Web Crypto implementation `6c8a23d` plus error-order fix `2e8a197` is now
@@ -755,7 +745,7 @@ Blob-send corrections, Serve limits/lifecycle, WebSocket opening
 cancellation/close validation, and connected closing/blocked-send cleanup
 are included since v2.16.0. HTTPS/WSS listeners are included since v2.17.0;
 raw TLS and UDP are published in v2.18.0, with assets and public modules
-verified. Both local executable paths now contain v2.19.0, including Storage.
+verified. Both local executable paths now contain v2.21.0, including Storage.
 No required runtime blocker remains in these approved slices. Future releases
 include local installation without
 a separate approval prompt; running-service restarts remain separate.
@@ -767,7 +757,7 @@ Its one-line `/dist/` ignore fix is committed at `acb1ee2`; evidence is at
 builds and does not change the published v2.17.0 artifacts. v2.18.0 uses that
 correction and all six artifacts have clean VCS metadata. The user then
 approved raw TLS connections/listeners and then UDP in roadmap phase 11. Both
-first shipped in v2.18.0 and remain in installed v2.19.0. This completes
+first shipped in v2.18.0 and remain in installed v2.21.0. This completes
 the roadmap's core networking additions; multicast/connected UDP are separate
 possible extensions. Keep next-step work on stdlib rather than automatically
 starting release preparation.

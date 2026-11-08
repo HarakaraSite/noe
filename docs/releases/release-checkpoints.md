@@ -4202,3 +4202,62 @@ Tag this documentation-only successor; CI builds six assets and SHA256SUMS
 without repeating source suites. Verify publication, downloaded assets, native
 runtime and direct published Go consumers before backing up and atomically
 installing at both authorized vm201 paths.
+
+## v2.21.0 publication and installation — 2026-11-08
+
+- Annotated tag `v2.21.0` points to
+  `904f3e770ae1e780601e503bd09127642a33d2a3`, matching the peeled remote tag
+  and CI source. Tag object: `502b9d9568448e60ef22150a9f8c79138ff7d027`.
+  Only preparation/handoff documentation differs from clean candidate `c680736`;
+  application code and dependencies remain identical.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/60)
+  succeeded (API run 241, job 262), building six targets and publishing binaries /
+  SHA256SUMS without repeating completed implementation suites.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.21.0)
+  is published, neither draft nor prerelease (Release ID 174). Its body matches
+  the tagged English notes, including behavior compatibility and supported limits.
+
+All seven assets were downloaded. Each binary matches SHA256SUMS, the immutable
+revision, vcs.modified=false, its target OS/architecture, Go 1.27.2, CGO_ENABLED=0,
+trimpath, pinned engine/Intl/SQLite dependencies and disabled JIT. Native Linux
+amd64 SHA256:
+`bcf7441b17c7293278ecc0feb63756c9ace75a09403cffb33b526b3e7563b059`.
+The other targets were not executed natively.
+
+The downloaded native asset passes all ten release checks: version/arithmetic,
+UTF-8 replacement/BOM and listener comparison, primary listener behavior, fatal
+stream queue/detached/metadata decoder cases, primary/common User Timing and
+CustomEvent cases, the actual example, and listener/timing reference entries.
+Runtime exits are zero with empty stderr. Primary assertions retain documented
+Deno differences. Unchanged implementation units/race/types and earlier Web
+Crypto/SDK evidence are reused; no full suites or SDK dependency preparation
+were repeated for release.
+
+External modules fetch stdlib@v2.21.0 and agent@v2.21.0 directly without local
+replacements or a synthetic proxy. All 11 consumer checks pass, including module
+verification, main/Worker Web API basics and corrected decoder/listener cases,
+portable/Go-host agent modes, engine/Intl versions and disabled-JIT VM files.
+All 23 changed Go/JS/TS paths match the immutable tag in both downloaded modules;
+nested-module exclusions are checked explicitly.
+
+After publication verification, both vm201 executables were backed up, staged,
+and atomically replaced with the verified Linux amd64 asset:
+
+- `/home/agent/.local/bin/noe` (PATH resolves here).
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report `noe v2.21.0` and match the published SHA256. Installed arithmetic
+and both authentication-helper help commands pass; runtime behavior checks are
+reused for the identical downloaded/installed asset. No real authentication or
+model-provider call was used.
+
+Previous v2.20.0 copies, each SHA256
+`1a0258122e215067b479a2696bd3a445d6e2a938ad4024279de00e2c0dc12f6a`,
+are retained as `previous-0-noe` and `previous-1-noe` under
+`/var/tmp/noe-v2.21.0-install-b1p37kdd`, with `installation.json` and per-command
+stdout/stderr. Full release evidence remains at
+`/var/tmp/noe-v2.21.0-release-1lwzess2`.
+
+Publication and both requested installations are complete. This documentation
+follow-up preserves the immutable tag. No required release/installation work
+remains. Other VMs/hosts, running services and noebot were not changed.
