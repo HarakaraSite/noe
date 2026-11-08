@@ -42,8 +42,12 @@ override those procedures.
   uses private state. Distinguish bad input/branding, unsupported operations,
   algorithm/data validation, and invalid access using the specified errors.
 - Copy BufferSource bytes with their exact view offset and length; reject
-  ordinary arrays/strings, detached buffers, and SharedArrayBuffer-backed
-  inputs where Web IDL disallows them. Snapshot conversion and validation
+  ordinary arrays/strings, detached buffers, SharedArrayBuffer-backed inputs,
+  and resizable ArrayBuffer-backed inputs where Web IDL disallows them.
+  Resizable backing is rejected explicitly as part of the
+  [go-quickjs v0.37.1 integration](go-quickjs-v0.37.1-upgrade.md), including
+  out-of-bounds DataViews whose length getters now return zero.
+  Snapshot conversion and validation
   before yielding. Preserve rejected-Promise behavior for subtle methods.
 - Normalize only registered Web algorithm names (ASCII case-insensitive),
   rather than accepting Node hash aliases such as MD5 or SHA256. Formats and

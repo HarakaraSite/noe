@@ -32,6 +32,7 @@
   const dataViewOffsetGetter = objectGetOwnPropertyDescriptor(dataViewPrototype, "byteOffset").get;
   const dataViewByteLengthGetter = objectGetOwnPropertyDescriptor(dataViewPrototype, "byteLength").get;
   const arrayBufferByteLengthGetter = objectGetOwnPropertyDescriptor(ArrayBufferCtor.prototype, "byteLength").get;
+  const arrayBufferResizableGetter = objectGetOwnPropertyDescriptor(ArrayBufferCtor.prototype, "resizable").get;
   const sharedByteLengthGetter = typeof SharedArrayBuffer === "function"
     ? objectGetOwnPropertyDescriptor(SharedArrayBuffer.prototype, "byteLength").get
     : null;
@@ -204,6 +205,12 @@
     const {buffer, offset, byteLength} = bufferSourceParts(value);
     if (isSharedArrayBuffer(buffer)) {
       throw new TypeErrorCtor("SharedArrayBuffer-backed BufferSource values are not supported");
+    }
+    // Web Crypto's BufferSource types do not opt into Web IDL AllowResizable.
+    // An out-of-bounds DataView now reports zero lengths, so those getters
+    // alone cannot distinguish it from a valid empty view.
+    if (reflectApply(arrayBufferResizableGetter, buffer, [])) {
+      throw new TypeErrorCtor("Resizable ArrayBuffer-backed BufferSource values are not supported");
     }
     let source;
     try {

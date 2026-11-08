@@ -11,7 +11,8 @@ import (
 )
 
 // TestStructuredCloneMatchesNode pins structuredClone to what node 26 does
-// with each kind of value, word for word where it throws.
+// with each kind of value, word for word where it throws, except that a fresh
+// DOMException inherits the standard Error.stack accessor.
 func TestStructuredCloneMatchesNode(t *testing.T) {
 	out, _ := run(t, stdlib.Config{}, `
 		const log = (...a) => console.log(...a);
@@ -90,7 +91,7 @@ options 1
 options bad THROWS TypeError TypeError ERR_INVALID_ARG_TYPE "Failed to execute 'structuredClone': transfer in Options cannot be converted to sequence."
 detached view THROWS DOMException DataCloneError 25 "An ArrayBuffer is detached and could not be cloned."
 DOMException DOMException,DataCloneError,m,25
-DOMException shape true,stack,25,25,string,[object DOMException]
+DOMException shape true,,25,25,string,[object DOMException]
 Object.prototype tag spoof {}
 boxed with props []
 `
@@ -269,7 +270,8 @@ func TestMessageChannelWithoutLoop(t *testing.T) {
 }
 
 // TestDOMException pins the DOMException interface: an Error, named and
-// coded as it is told, with the legacy constants.
+// coded as it is told, with the legacy constants. Like Error in standards
+// mode, it inherits stack rather than creating an own property.
 func TestDOMException(t *testing.T) {
 	out, _ := run(t, stdlib.Config{}, `
 		const e = new DOMException("m", "AbortError");
@@ -282,7 +284,7 @@ func TestDOMException(t *testing.T) {
 		try { DOMException.prototype.name } catch (err) { console.log(err.name, err.message) }
 	`)
 	want := strings.Join([]string{
-		"true AbortError m 20 stack [object DOMException] AbortError: m",
+		"true AbortError m 20  [object DOMException] AbortError: m",
 		`Error "" 0 20 25`,
 		"DataCloneError 25 1 0",
 		`TypeError Value of "this" must be of DOMException`,

@@ -36,8 +36,11 @@ Node aliases such as SHA256 and MD5 do not extend this registry.
 
 Subtle methods return promises and snapshot BufferSource bytes and algorithm
 parameters before asynchronous calculation. DataView and typed-array offsets
-are respected. Ordinary arrays/strings, detached buffers, and shared-backed
-BufferSources are rejected. CPU work uses Go cryptographic primitives off the
+are respected. Ordinary arrays/strings, detached buffers, shared-backed inputs,
+and resizable ArrayBuffer-backed BufferSources are rejected with TypeError.
+Copy a resizable input's intended bytes into a fixed Uint8Array before passing
+it to a subtle method. Empty DataViews on fixed buffers remain valid.
+CPU work uses Go cryptographic primitives off the
 VM owner when a Loop exists; execution/Worker cleanup cancels and joins it.
 
 ## subtle.importKey

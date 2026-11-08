@@ -4,10 +4,10 @@ github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNU
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx59Ho=
 github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
-github.com/go-quickjs/go-intl v0.8.0 h1:X/3oO8wSPPpbCj3GlUHBS9Q1pJUq089UjZrLQPEB4es=
-github.com/go-quickjs/go-intl v0.8.0/go.mod h1:/Kn3soBxkmtIHevMspxdnTc5Br6+wHbzxM312CdeupM=
-github.com/go-quickjs/go-quickjs v0.32.0 h1:MGuy/JxZ+Ixckd8A+dgnDuLKkAIMsWXLdV4Ww/hGlIM=
-github.com/go-quickjs/go-quickjs v0.32.0/go.mod h1:mDsUP9yb32kOcJm9sRMpPjhPGWZDVGx/hCWJNkfCQP0=
+github.com/go-quickjs/go-intl v0.9.0 h1:flAmmWD5QL4UfQ/YgeRlUV9UUEnh67ocYw4rlIEIbmo=
+github.com/go-quickjs/go-intl v0.9.0/go.mod h1:/Kn3soBxkmtIHevMspxdnTc5Br6+wHbzxM312CdeupM=
+github.com/go-quickjs/go-quickjs v0.37.1 h1:lpt66w/hQ0h6bUr3KS8Xtt8nKYRRo2fh2JdFr4K/mKE=
+github.com/go-quickjs/go-quickjs v0.37.1/go.mod h1:q6Zkn+wp3IAmnsc3bekcorjXlGaR3U3ZKXtHCB6Enn0=
 github.com/ncruces/go-sqlite3 v0.36.0 h1:/tmetPB+789WApzUWWfXVlDRtraPKil2iopXlQbET4A=
 github.com/ncruces/go-sqlite3 v0.36.0/go.mod h1:HhzaJ0fX5RHXe+09Nfz7pKiNuJVexXTAqX0/gNmA06w=
 github.com/ncruces/go-sqlite3-wasm/v6 v6.4.35401 h1:CJ7ClSmm84xWaefcVSbiMlU3luCiMfC/eJ0vaPntbhQ=

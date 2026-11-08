@@ -94,12 +94,13 @@ func TestHTTPMethodsAndInvalidGETBodyThroughEval(t *testing.T) {
 	}))
 	defer server.Close()
 	url := strconv.Quote(server.URL)
+	// Fetch normalizes six common methods; extension methods retain their case.
 	source := `const response = await fetch(` + url + `,{method:"patch",body:"雪"});
 const text = await response.text();
 const removed = await fetch(` + url + `,{method:"DELETE"});
 let getBodyError = "";
 try { await fetch(` + url + `,{method:"GET",body:""}); } catch (error) { getBodyError = String(error); }
-if(text!=="PATCH:雪"||removed.status!==204||!getBodyError.includes("GET request cannot have a body"))throw Error("HTTP method behavior");
+if(text!=="patch:雪"||removed.status!==204||!getBodyError.includes("GET request cannot have a body"))throw Error("HTTP method behavior");
 console.log("HTTP methods verified");`
 	got := runCLI(t, t.TempDir(), nil, "eval", source)
 	requireExit(t, got, 0)
@@ -192,7 +193,7 @@ func TestHTTPJSONExampleSendsUpdatesAndHandlesResponses(t *testing.T) {
 				t.Fatalf("JSON example result: %+v, want %q", got, want)
 			}
 			request := <-observed
-			if request.Method != strings.ToUpper(method) || request.Body != wantBody || request.ContentType != contentType {
+			if request.Method != method || request.Body != wantBody || request.ContentType != contentType {
 				t.Fatalf("JSON example request: %+v", request)
 			}
 		})

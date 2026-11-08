@@ -1,9 +1,37 @@
 # Standard library session handoff
 
-Updated 2026-11-09 for session restart after v2.24.0 publication and both
-vm201 installations.
+Updated 2026-11-09 for the local go-quickjs v0.37.1 integration after v2.24.0
+publication and both vm201 installations.
 All five continuations through `6ca7ec2` are published and installed. Linked
 policy, implementation and release records remain canonical.
+
+## Current continuation — go-quickjs v0.37.1 local completion
+
+The user approved the dependency update with JIT disabled and upstream standards
+behavior adopted. On top of `fc28b205`, the checkout selects go-quickjs v0.37.1
+and go-intl v0.9.0. The [integration and validation record](go-quickjs-v0.37.1-upgrade.md)
+is canonical. No release, push, installation or service change is requested.
+
+The engine's nested-loop error is fixed in main, Workers and node:vm. The only
+production adapter change explicitly rejects resizable backing in Web Crypto's
+shared BufferSource conversion: new out-of-bounds DataView getters otherwise
+made invalid input silently hash empty bytes. In-bounds resizable inputs are
+also now rejected, as Web IDL requires; copy intended bytes to a fixed
+Uint8Array. Error/DOMException stack inheritance and other standards changes
+are accepted without WithNodeQuirks. Embedded references and tests agree.
+
+Unit/E2E checks, affected race checks, standalone stdlib/agent consumers,
+unmodified jose main/Worker interoperability, production interruption probes
+and six disabled-JIT compilation targets pass. Two pre-existing HTTP E2E
+expectations contradicted the approved patch method case contract; they were
+corrected and pass with both engine versions. Evidence is retained at
+`/var/tmp/noe-quickjs-v0371-4cwggjqx`; reuse completed results while source and
+dependencies match. The unchanged Iterator.from wrapper closing divergence is
+recorded separately in the integration record.
+
+Both installed paths below retain v2.24.0 with go-quickjs v0.32.0/go-intl
+v0.8.0. The development binary stays in the evidence directory. General
+BodyInit/BufferSource work and the other bounded candidates remain separate.
 
 ## Session restart checkpoint — 2026-11-09
 
