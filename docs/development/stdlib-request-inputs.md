@@ -69,3 +69,9 @@ fetch authority. Broader Request/Headers/Body/signal gaps were not reassessed.
 Both installed paths remain the verified v2.22.0 release asset. No publication,
 installation, service or noebot change is included in this local continuation.
 Reuse completed checks for unchanged source/dependencies on a later release.
+
+### Publication update
+
+This originally local implementation is published and installed in v2.23.0.
+The implementation evidence above remains reusable for unchanged source and
+dependencies. See the [publication and installation checkpoint](../releases/release-checkpoints.md#v2230-publication-and-installation--2026-11-08).

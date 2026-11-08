@@ -107,3 +107,9 @@ The parent reviewed the integrated public behavior and retained parser boundarie
 This is an unreleased local continuation. Both installed executables remain the
 verified v2.22.0 release asset; no second publication, installation or service
 change is included. Reuse these checks for unchanged source/dependencies later.
+
+### Publication update
+
+This originally local implementation is published and installed in v2.23.0.
+The implementation evidence above remains reusable for unchanged source and
+dependencies. See the [publication and installation checkpoint](../releases/release-checkpoints.md#v2230-publication-and-installation--2026-11-08).

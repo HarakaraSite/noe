@@ -1,41 +1,34 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after the local Request URL/method continuation following
-verified v2.22.0 publication and both vm201 installations. The local URL/query
-correction is `99f7f4b`; the next Request slice is complete below.
-Linked policy, implementation and release
-records remain canonical. Release requests include both local installations.
+Updated 2026-11-08 after verified v2.23.0 publication and installation at both
+vm201 executable paths. URL/query normalization and Request URL/method corrections
+are shipped. Linked policy, implementation and release records remain canonical.
+Release requests include both local installations.
 
 ## Repository and publication state
 
-v2.23.0 is prepared at clean candidate `7f44127`, including `99f7f4b` and
-`68d9437`. The user authorized release and both vm201 installations. Candidate
-build/version and thirteen native checks pass; completed implementation evidence
-is reused. Publication and installation remain pending in this preparation commit.
-See the [preparation checkpoint](../releases/release-checkpoints.md#v2230-preparation--2026-11-08).
-
 - Repository: `/home/agent/projects/noe`, branch `main`.
-- v2.22.0 includes `edb5e73` (abort/text streams) and `f1ad07a` (compression/URLPattern).
-- Immutable tag revision: `a8e05457064b455c1e21b5e89a630ce9660ada63`;
-  tag object: `e923678cf6a1a8b84defe4d375317696edc821d8`.
-- [CI run 61](https://forge.harakara.site/littleisland/noe/actions/runs/61)
-  succeeded (API 242, job 263). The
-  [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.22.0)
-  is published, neither draft nor prerelease (ID 175).
+- v2.23.0 includes `99f7f4b` (URL/query) and `68d9437` (Request URL/method).
+- Immutable tag revision: `a2efaa4de9ffd0368c323a5da8a7802e75ccc9c8`;
+  tag object: `16af6cc9e9428de469d73a9e18160dcd3924c7af`.
+- [CI run 62](https://forge.harakara.site/littleisland/noe/actions/runs/62)
+  succeeded (API 243, job 264). The
+  [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.23.0)
+  is published, neither draft nor prerelease (ID 176).
 - All six assets pass checksum/build metadata verification. The native asset
-  passes twelve runtime/reference/example checks. Direct published stdlib and
-  agent consumers pass, including main/Workers and portable/Go-host modes.
+  passes thirteen runtime/reference/example/SDK checks. Direct published stdlib
+  and agent consumers pass, including main/Workers and portable/Go-host modes.
 - `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` contain the same
   verified Linux amd64 asset, SHA256
-  `ebc985ca2c554c5ac01a578eec98cdc4bc794320d723ecd7173fa0bdb2f2c6ae`.
-  Versions, installed hashes, PATH resolution, arithmetic and authentication
-  helper help commands pass. Runtime evidence is reused for the identical asset.
-- Previous v2.21.0 copies and installation records are retained at
-  `/var/tmp/noe-v2.22.0-install-6j35fb5e/installation.json`.
-- Release evidence: `/var/tmp/noe-v2.22.0-release-2azd2wrn`. See the
-  [publication/install checkpoint](../releases/release-checkpoints.md#v2220-publication-and-installation--2026-11-08),
-  [v2.22.0 notes](../releases/v2.22.0.md), and historical
-  [v2.21.0 notes](../releases/v2.21.0.md). The Go module remains `/v2`.
+  `7b7ff1dffbe40b35339e3f999b7a247442f4e91384104d211b6e226ed7cc4cd9`.
+  Versions, hashes, PATH resolution, arithmetic and authentication-helper help
+  commands pass. Runtime evidence is reused for the identical installed asset.
+- Previous v2.22.0 copies and installation records are retained at
+  `/var/tmp/noe-v2.23.0-install-rdk00efo/installation.json`.
+- Release evidence: `/var/tmp/noe-v2.23.0-release-rzascld6`. See the
+  [publication/install checkpoint](../releases/release-checkpoints.md#v2230-publication-and-installation--2026-11-08),
+  [v2.23.0 notes](../releases/v2.23.0.md), and historical
+  [v2.22.0 notes](../releases/v2.22.0.md). The Go module remains `/v2`.
 - No required release/install work remains. Other hosts, services, noebot,
   real login and provider requests were excluded.
 
@@ -71,25 +64,25 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
-## Current release: v2.22.0 stream and URLPattern corrections
+## Current release: v2.23.0 URL and Request corrections
 
-The user requested publication and both local installations, followed by local
-URL/URLSearchParams normalization and encoding work. Publication/installation are
-complete. Reuse implementation and release evidence for unchanged source and
-dependencies. The verified native asset is
-`/var/tmp/noe-v2.22.0-release-2azd2wrn/assets/noe-linux-amd64`.
+The user requested publication and both local installations after the two local
+slices. Publication/installation are complete. Reuse implementation and release
+evidence for unchanged source and dependencies. The verified native asset is
+`/var/tmp/noe-v2.23.0-release-rzascld6/assets/noe-linux-amd64`.
 
-The requested local URL/URLSearchParams normalization/encoding is completed below.
-Additional encoding families, PerformanceObserver/resource/navigation timing,
-DOM trees and full URLPattern grammar/IDNA remain outside the completed slices.
+No next implementation slice is selected by this release request. Full IDNA/IP /
+Windows file-URL, URLPattern grammar and broader Request/Headers/Body/signal /
+browser-policy gaps remain outside the completed slices. Future stdlib work should
+follow concrete caller needs and the API policy.
 
-## Local Request URL and method inputs
+## Request URL and method completion (v2.23.0)
 
-The following URL/query correction is committed at `99f7f4b`. The next local
-Request URL/method continuation is described in
+URL/query correction `99f7f4b` and Request correction `68d9437` are published and
+installed in v2.23.0. Request URL/method behavior is described in
 [its contract](stdlib-request-inputs.md). Shared URL parsing and method validation,
 readonly private metadata, outbound transport snapshots and private incoming HTTP
-initialization are implemented. Both installed executables remain v2.22.0.
+initialization are implemented. Both installed executables contain v2.23.0.
 
 Seven-package units, focused race, types/catalog/lint/vet and actual CLI contract /
 example/reference checks pass. The existing MCP SDK loopback example passes with
@@ -99,10 +92,10 @@ A bounded independent review found no required finding and independently verifie
 both installer orders, incoming raw TRACK metadata/body clone/transfer, bridge
 privacy and clean shutdown. Implementation, validation, review and local commit
 are complete. Full Request/Headers/Body/signal and browser-policy gaps remain outside
-this slice; see the canonical scope. No push/release/installation is included.
+this slice; see the canonical scope. Implementation evidence is reused for v2.23.0.
 Evidence: `/var/tmp/noe-request-inputs-u_xbfrv4`.
 
-## Local URL normalization and query encoding
+## URL normalization and query encoding completion (v2.23.0)
 
 The user authorized this continuation after v2.22.0 installation. The
 [contract and boundaries](stdlib-url-encoding.md) is canonical. Component UTF-8
@@ -120,10 +113,9 @@ record lookup and primary sequence error behavior. One fix-only re-review confir
 no remaining findings in the fixes. Source continuity is recorded with the final
 changed-source snapshot. Evidence: `/var/tmp/noe-url-encoding-87ffe6i1`.
 
-Both installed paths remain the verified v2.22.0 asset above. This continuation
-has no second release, push or installation authorization. IDNA/IP/full file-URL
-and URLPattern grammar replacement are outside this normalization/encoding slice.
-Local implementation, verification, review and commit are complete.
+This originally local continuation is now published and installed in v2.23.0.
+Implementation checks/reviews remain reusable. IDNA/IP/full file-URL and URLPattern
+grammar replacement are outside this normalization/encoding slice.
 
 ## Compression-interface and URLPattern completion (v2.22.0)
 

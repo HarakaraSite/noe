@@ -66,8 +66,8 @@ changing NOE does not authorize editing or deploying noebot.
 | Remaining Node modules and globals | Review Buffer/process and utility module names against actual callers and semantic differences. | Demand-driven; avoid churn with no clear usability benefit. |
 | Abort interfaces and text streams | Standard cancellation reasons, private controller signal, ordered onabort, full-range timeout conversion, and streaming UTF-16 / decoder metadata. | Included in v2.22.0. See [contract and verification](stdlib-abort-text-streams.md). |
 | Compression interfaces and URLPattern inputs | Required compression formats, readonly stream endpoints and BufferSource writes; object/baseURL route inputs, component inheritance and private pattern state. | Included in v2.22.0. See [contract and verification](stdlib-compression-urlpattern.md). |
-| URL normalization and query encoding | Component-specific encoding, encoded dot segments, default ports, stable URL/query identity and UTF-8 form conversion/live iteration. | Local continuation after v2.22.0. See [contract and verification](stdlib-url-encoding.md). |
-| Request URL and method inputs | Shared URL normalization, ByteString/token/method validation, private readonly URL/method and incoming HTTP preservation. | Local continuation after v2.22.0. See [contract and verification](stdlib-request-inputs.md). |
+| URL normalization and query encoding | Component-specific encoding, encoded dot segments, default ports, stable URL/query identity and UTF-8 form conversion/live iteration. | Included in v2.23.0. See [contract and verification](stdlib-url-encoding.md). |
+| Request URL and method inputs | Shared URL normalization, ByteString/token/method validation, private readonly URL/method and incoming HTTP preservation. | Included in v2.23.0. See [contract and verification](stdlib-request-inputs.md). |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource
 remains a standard global. Expansion phases such as Web Crypto, additional
