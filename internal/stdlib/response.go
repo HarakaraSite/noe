@@ -50,7 +50,7 @@ const responseJS = `
     if (isStream(body) && (body.locked || body._disturbed)) throw new TypeError("Response body must be unused and unlocked");
     let source = encodeBody(body, inferred);
     // Extracting a BufferSource takes a snapshot at construction time.
-    if (source !== null && !isStream(source)) source = source.slice();
+    if (source !== null && !isStream(source)) source = new Uint8Array(source);
     if (init.status < 200 || init.status > 599) throw new RangeError("Response status must be between 200 and 599");
     if (/[^\t\x20-\x7e\x80-\xff]/.test(init.statusText)) throw new TypeError("Invalid Response statusText");
     const headers = new Headers(init.headers);
@@ -60,7 +60,7 @@ const responseJS = `
     return {source, state: {status: init.status, statusText: init.statusText, headers,
       type: "default", url: "", redirected: false, immutable: false}};
   }
-  function makeResponse(source, state) { return new Response(source, state, responseToken); }
+  function makeResponse(source, state, knownBytes = undefined) { return new Response(source, state, responseToken, knownBytes); }
   function nativeResponse(source, raw) {
     return makeResponse(source, {status: raw.status, statusText: raw.statusText,
       headers: new Headers(raw.headers), type: "basic", url: raw.url.split("#", 1)[0],
@@ -69,17 +69,18 @@ const responseJS = `
   function responseSnapshot(value) {
     const state = responseOf(value);
     if (state.status < 200) throw new TypeError("This Response cannot be sent as an HTTP reply");
+    if (bodyUnusable(value)) throw new TypeError("The response body is locked or has already been read");
     return {status: state.status, headers: headerPairsForIteration(state.headers)};
   }
   class Response extends Body {
-    constructor(body = null, init = undefined, token = undefined) {
+    constructor(body = null, init = undefined, token = undefined, knownBytes = undefined) {
       let source, state;
       if (token === responseToken) { source = body; state = init; }
       else {
         const convertedBody = responseBody(body);
         ({source, state} = responseState(convertedBody, responseInit(init)));
       }
-      super(source, state.headers);
+      super(source, state.headers, token === responseToken ? knownBytes : undefined);
       requestApply(requestSet, responseSlots, [this, state]);
       if (state.immutable) headerImmutable(state.headers);
     }
@@ -92,7 +93,8 @@ const responseJS = `
     get ok() { const status = responseOf(this).status; return status >= 200 && status < 300; }
     clone() {
       const state = responseOf(this);
-      return makeResponse(cloneBody(this), {...state, headers: new Headers(headerSnapshot(state.headers))});
+      const body = cloneBody(this);
+      return makeResponse(body.source, {...state, headers: new Headers(headerSnapshot(state.headers))}, body.knownBytes);
     }
     static json(data, init = undefined) {
       if (arguments.length === 0) throw new TypeError("Response.json requires data");

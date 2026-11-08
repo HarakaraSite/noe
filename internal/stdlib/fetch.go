@@ -660,91 +660,81 @@ const fetchJS = `(function (host) {
     return requestApply(requestURLGetters.href, url, []);
   }
 
-  // A body is bytes or a stream of them, and is read once: a second read is an
-  // error, as it is on the web, because there is nothing left to read.
+  // Every body has one stream, including finite byte bodies. The byte marker
+  // only selects buffered native HTTP dispatch; readers never bypass the stream.
   const bodyHeaders = new WeakMap();
+  function bodyHeaderOf(value) {
+    const headers = requestApply(requestGet, bodyHeaders, [value]);
+    if (headers === undefined) throw new TypeError("The receiver has no Body");
+    return headers;
+  }
+  function bodyStream(value) {
+    bodyHeaderOf(value);
+    if (value._stream) return value._stream;
+    if (value._bytes === null || value._bytes === undefined) return null;
+    const bytes = value._bytes;
+    value._stream = new ReadableStream({
+      pull(controller) {
+        if (bytes.byteLength > 0) controller.enqueue(bytes);
+        controller.close();
+      },
+    }, {highWaterMark: 0});
+    return value._stream;
+  }
+  function bodyUnusable(value) {
+    bodyHeaderOf(value);
+    return !!(value._stream && (value._stream.locked || value._stream._disturbed));
+  }
+  async function consumeBody(value) {
+    if (bodyUnusable(value)) throw new TypeError("The body is locked or has already been read");
+    const stream = bodyStream(value);
+    if (stream === null) return new Uint8Array(0);
+    const reader = stream.getReader();
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      const {value: chunk, done} = await reader.read();
+      if (done) break;
+      if (!(chunk instanceof Uint8Array)) throw new TypeError("A body chunk must be a Uint8Array");
+      // Read-all-bytes snapshots each chunk before requesting the next one.
+      // Producers can reuse buffers, and bytes() must not expose clone storage.
+      const copy = new Uint8Array(chunk);
+      chunks.push(copy);
+      total += copy.byteLength;
+    }
+    const out = new Uint8Array(total);
+    let at = 0;
+    for (const chunk of chunks) { out.set(chunk, at); at += chunk.byteLength; }
+    return out;
+  }
   class Body {
-    constructor(source, headers) {
+    constructor(source, headers, knownBytes = undefined) {
       host.cloneAs(this, "unsupported");
       const stream = isStream(source);
       Object.defineProperty(this, "_bytes",
-        {value: stream ? undefined : source, writable: true});
+        {value: stream ? knownBytes : source, writable: true});
       Object.defineProperty(this, "_stream", {value: stream ? source : null, writable: true});
-      Object.defineProperty(this, "_used", {value: false, writable: true});
       requestApply(requestSet, bodyHeaders, [this, headers]);
     }
-    get headers() {
-      const headers = requestApply(requestGet, bodyHeaders, [this]);
-      if (headers === undefined) throw new TypeError("The receiver has no Body headers");
-      return headers;
-    }
-    // A body is used once something has started reading it, which for a
-    // stream means a reader has been taken: the bytes may still be arriving,
-    // but they are somebody else's now.
+    get headers() { return bodyHeaderOf(this); }
     get bodyUsed() {
-      return this._used || !!(this._stream && (this._stream.locked || this._stream._disturbed));
+      bodyHeaderOf(this);
+      return !!(this._stream && this._stream._disturbed);
     }
-
-    // body is the stream form, which is the same body seen the other way
-    // round: reading it is reading the body, and a body that is not there at
-    // all is null rather than an empty stream.
-    get body() {
-      if (this._stream) return this._stream;
-      if (this._bytes === null || this._bytes === undefined) return null;
-      const self = this;
-      this._stream = new ReadableStream({
-        pull(controller) {
-          const bytes = self._take();
-          if (bytes.length > 0) controller.enqueue(bytes);
-          controller.close();
-        },
-      }, {highWaterMark: 0});
-      return this._stream;
-    }
-
-    // _take is the inside of a read, and asks only whether the bytes have gone:
-    // the stream form calls it from its own pull, by which time the stream is
-    // locked to the reader doing the reading.
-    _take() {
-      if (this._used) throw new TypeError("the body has already been read");
-      this._used = true;
-      return this._bytes === null || this._bytes === undefined
-        ? new Uint8Array(0) : this._bytes;
-    }
-
-    // _consume is _take for a body that has not arrived yet: the chunks are
-    // gathered as they come, and joined once the stream ends.
-    async _consume() {
-      if (!this._stream && (this._bytes === null || this._bytes === undefined)) return new Uint8Array(0);
-      if (!this._stream || this._bytes !== undefined) return this._take();
-      if (this.bodyUsed) throw new TypeError("the body has already been read");
-      this._used = true;
-      const chunks = [];
-      let total = 0;
-      for await (const chunk of this._stream) {
-        chunks.push(chunk);
-        total += chunk.length;
-      }
-      const out = new Uint8Array(total);
-      let at = 0;
-      for (const chunk of chunks) { out.set(chunk, at); at += chunk.length; }
-      this._bytes = out;
-      return out;
-    }
-
+    get body() { return bodyStream(this); }
     async arrayBuffer() {
-      const b = await this._consume();
-      return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+      const bytes = await consumeBody(this);
+      return bytes.buffer;
     }
-    async bytes() { return await this._consume(); }
-    async text() { return new TextDecoder().decode(await this._consume()); }
-    async json() { return JSON.parse(new TextDecoder().decode(await this._consume())); }
+    async bytes() { return await consumeBody(this); }
+    async text() { return new TextDecoder().decode(await consumeBody(this)); }
+    async json() { return JSON.parse(new TextDecoder().decode(await consumeBody(this))); }
     async blob() {
-      return new Blob([await this._consume()], {type: this.headers.get("content-type") || ""});
+      return new Blob([await consumeBody(this)], {type: bodyHeaderOf(this).get("content-type") || ""});
     }
     async formData() {
-      const type = this.headers.get("content-type") || "";
-      const bytes = await this._consume();
+      const type = bodyHeaderOf(this).get("content-type") || "";
+      const bytes = await consumeBody(this);
       if (/^application\/x-www-form-urlencoded/i.test(type)) {
         const form = new FormData();
         for (const [k, v] of new URLSearchParams(new TextDecoder().decode(bytes))) {
@@ -760,15 +750,15 @@ const fetchJS = `(function (host) {
     }
   }
 
-  // A body that is still a stream is split in two rather than read, since a
-  // clone of something that has not arrived cannot be a copy of it.
+  // Clone the current stream even for finite bodies, retaining only its native
+  // buffered-dispatch marker. The old stream remains locked to the tee reader.
   function cloneBody(body) {
-    if (body.bodyUsed) throw new TypeError("the body has already been read");
-    if (body._bytes !== undefined) return body._bytes;
-    if (!body._stream) return null;
-    const [mine, theirs] = body._stream.tee();
+    if (bodyUnusable(body)) throw new TypeError("The body is locked or has already been read");
+    const stream = bodyStream(body);
+    if (stream === null) return {source: null, knownBytes: null};
+    const [mine, theirs] = stream.tee();
     body._stream = mine;
-    return theirs;
+    return {source: theirs, knownBytes: body._bytes};
   }
 
   // A transfer locks the original stream instead of sharing an unlocked body
@@ -796,7 +786,7 @@ const fetchJS = `(function (host) {
   }
 
   class Request extends Body {
-    constructor(input, init = undefined, token = undefined) {
+    constructor(input, init = undefined, token = undefined, knownBytes = undefined) {
       if (arguments.length === 0) throw new TypeError("Request requires an input");
       const from = isRequest(input) ? input : null;
       const original = from ? requestOf(from) : null;
@@ -809,30 +799,33 @@ const fetchJS = `(function (host) {
       const replacement = options.body !== undefined && options.body !== null;
       let body = replacement
         ? encodeBody(options.body, headers)
-        : (from ? (from._stream && from._bytes === undefined ? from._stream : from._bytes) : null);
+        : (from ? bodyStream(from) : null);
       const inherited = from && !replacement && body !== null && body !== undefined;
-      if (inherited && from.bodyUsed) throw new TypeError("the body has already been read");
+      if ((inherited && bodyUnusable(from)) || (isStream(body) && (body.locked || body._disturbed))) throw new TypeError("The body is locked or has already been read");
       if ((method === "GET" || method === "HEAD") && body !== null && body !== undefined) {
         throw new TypeError("a " + method + " request cannot have a body");
       }
-      if (inherited && isStream(body)) body = transferStream(body);
-      super(body, headers);
+      if (inherited) {
+        const originalStream = body;
+        body = transferStream(body);
+        originalStream._disturbed = true;
+      } else if (body !== null && !isStream(body)) body = new Uint8Array(body);
+      super(body, headers, inherited ? from._bytes : internal ? knownBytes : undefined);
       requestApply(requestSet, requestSlots, [this, {url, method}]);
       this.signal = options.signal || (from ? from.signal : undefined);
       this.redirect = options.redirect || (from ? from.redirect : "follow");
       this.credentials = options.credentials || (from ? from.credentials : "same-origin");
       this.mode = options.mode || (from ? from.mode : "cors");
-      // Constructing from a Request transfers its body. Only clone() tees it.
-      if (inherited) from._used = true;
     }
     get url() { return requestOf(this).url; }
     get method() { return requestOf(this).method; }
     clone() {
       const state = requestOf(this);
+      const body = cloneBody(this);
       return new Request(state.url, {
-        method: state.method, headers: requestApply(requestGet, bodyHeaders, [this]), body: cloneBody(this),
+        method: state.method, headers: requestApply(requestGet, bodyHeaders, [this]), body: body.source,
         signal: this.signal, redirect: this.redirect, credentials: this.credentials, mode: this.mode,
-      }, incomingRequestToken);
+      }, incomingRequestToken, body.knownBytes);
     }
   }
   for (const name of ["url", "method", "clone"]) Object.defineProperty(Request.prototype, name, {enumerable: true});
@@ -1035,22 +1028,25 @@ const fetchJS = `(function (host) {
     const request = isRequest(input) && init === undefined
       ? input : new Request(input, init);
     const metadata = requestOf(request);
+    const headers = headerSnapshot(requestApply(requestGet, bodyHeaders, [request]));
 
-    const hasBody = request._stream !== null || (request._bytes !== null && request._bytes !== undefined);
-    if (hasBody && request.bodyUsed) throw new TypeError("the body has already been read");
+    if (bodyUnusable(request)) throw new TypeError("The body is locked or has already been read");
+    const stream = bodyStream(request);
     let reader = null;
     let body = null;
-    if (request._stream && request._bytes === undefined) {
-      if (host.streaming) {
-        reader = request._stream.getReader();
-        request._used = true;
+    if (stream !== null) {
+      if (host.streaming && request._bytes === undefined) {
+        reader = stream.getReader();
+        stream._disturbed = true;
       } else {
-        // Synchronous Go hosts cannot run a producer during network IO.
-        body = await request._consume();
+        // Finite bodies retain Content-Length/replay support. No-Loop hosts
+        // also buffer streams because producers cannot run during native IO.
+        body = await consumeBody(request);
       }
-    } else if (hasBody) {
-      body = request._take();
     }
+    // Buffering yields to user code. Preserve fetch-entry headers and observe
+    // an abort that happened before the native operation/listener was created.
+    if (signal && signal.aborted) throw signal.reason || new Error("This operation was aborted");
 
     let cancelNative;
     let onAbort;
@@ -1084,7 +1080,7 @@ const fetchJS = `(function (host) {
       const sent = host.send({
         method: metadata.method,
         url: metadata.url,
-        headers: headerSnapshot(requestApply(requestGet, bodyHeaders, [request])),
+        headers,
         body,
         stream: reader !== null,
       }, (cancel, upload) => {

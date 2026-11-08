@@ -96,3 +96,13 @@ and redirect URL normalization. Invalid header names/values, invalid status code
 and non-null bodies for 204/205/304 now throw. Response metadata is readonly;
 error, redirect and fetched headers are immutable. See the
 [contract and migration](../../docs/development/stdlib-headers-response.md).
+
+## Fetch body consumption
+
+```sh
+/tmp/noe-web-basics run --no-inst examples/web-basics/body-consumption.js
+```
+
+Shows reader locks versus bodyUsed, rejected duplicate reads, independent bytes
+results after cloning and finite Request input/transfer ownership. See the
+[contract and verification](../../docs/development/stdlib-body-consumption.md).

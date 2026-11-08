@@ -1,9 +1,9 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after local Headers/Response completion following verified
-v2.23.0 publication and both vm201 installations. Headers/Response is not released;
-installed executables remain v2.23.0. Linked policy, implementation and release
-records remain canonical. Release requests include both local installations.
+Updated 2026-11-08 after local Fetch body-consumption completion following
+Headers/Response `66c5703`. Both local continuations are unreleased; installed
+executables remain v2.23.0. Linked policy, implementation and release records
+remain canonical. Release requests include both local installations.
 
 ## Repository and publication state
 
@@ -63,6 +63,36 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Fetch body consumption local completion
+
+The user authorized a concrete stdlib improvement after `66c5703`, with local
+commit only and no push/release/install/service or other-project changes. The
+[contract and verification](stdlib-body-consumption.md) is canonical. Baseline
+reproductions showed finite helper reads bypassing reader locks and cancellation,
+bytes results modifying clone storage, and non-byte chunks silently becoming
+zeros. Helpers now read one current stream, distinguish locking from disturbance,
+validate/copy chunks and retain producer errors. Finite input/clone/transfer
+preserves native Content-Length/replay; unusable server responses enter onError
+before sending headers. References, example and main/Worker consumers are updated.
+
+Both affected stdlib packages, focused final units/race, catalog/lint/vet, actual
+CLI contract and seven example/reference/SDK checks pass. Exa's 43 stub checks
+and the prepared MCP SDK Unicode echo fixture pass without real provider calls or
+fixture changes. Checkout and standalone module-artifact main/Worker consumers
+pass; runtime/declaration source continuity is recorded. Unchanged type evidence
+from `66c5703` is reused; unrelated full suites were not repeated.
+
+A bounded independent review found two P2 regressions at the new buffering await:
+missed immediate abort and late Request-header capture. Both are fixed, covered
+for direct/clone/transfer and confirmed by the single fix-only re-review. Evidence:
+`/var/tmp/noe-body-consumption-mxrejb5s`.
+
+Local implementation, verification, review and commit are complete. The original
+`66c5703` commit is preserved. Both installed paths remain the v2.23.0 asset above.
+No push, release, binary installation, service, simplejs or noebot change occurred.
+Full BodyInit/BufferSource and generic tee/scheduling conformance remain outside
+this bounded correction; reuse completed checks for unchanged code/dependencies.
 
 ## Headers and Response local completion
 

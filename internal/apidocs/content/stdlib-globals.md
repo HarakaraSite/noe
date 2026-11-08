@@ -321,6 +321,11 @@ const request = new Request("https://example.com/items", {
 
 Bodies are one-shot. Methods such as text() and json() return promises; clone the request before consuming if another read is needed. Constructing a new Request from an unused Request transfers its body, so the original cannot consume that body. A stream body must be unlocked and unused when fetch starts. Producer failures abort the request; a race with response delivery may surface as a response-body read failure. Late errors from an intentionally stopped producer are ignored.
 
+A reader lock alone leaves bodyUsed false, but helpers, clone and transfer still
+reject a locked body. Reading or cancellation sets bodyUsed true. Finite byte
+inputs are snapshotted at construction. Clone and transfer preserve the native
+finite-body Content-Length and redirect replay behavior.
+
 ## Response
 
 `new Response(body = null, init = {})` creates response data. `init` supports
@@ -350,6 +355,14 @@ console.log(response.status, await response.json());
 ~~~
 
 Body consumption is one-shot. For a stream body, closing or cancelling its consumer controls when upstream data finishes or is released.
+
+Body helpers read the current stream even for a finite body. Locked or disturbed
+bodies reject TypeError; cancelled finite data cannot be read again. Successful
+helper reads retain the stream's reader lock. Null bodies remain readable as
+empty data without setting bodyUsed. Stream chunks must be Uint8Array values;
+read-all helpers copy each chunk before requesting the next, and bytes() returns
+independent storage. A server response with a locked/used body enters onError
+before sending headers.
 
 ## EventSource
 

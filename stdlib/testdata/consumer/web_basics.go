@@ -52,6 +52,17 @@ const jsonResponse=Response.json({worker:true},{status:201,headers:cookies}),jso
 if(jsonCopy.type!=="default"||jsonCopy.status!==201||!(await jsonCopy.json()).worker||Reflect.set(jsonResponse,"status",202))throw Error("worker Response contract");
 if(Response.error().clone().type!=="error"||Response.redirect("https://EXAMPLE.test:00443/a/../b",303).headers.get("location")!=="https://example.test/b")throw Error("worker Response factories");
 try{new Response("",{status:204});throw Error("worker null body status accepted");}catch(error){if(error.name!=="TypeError")throw error;}
+{
+ const value=new Response("body"),reader=value.body.getReader();
+ if(value.bodyUsed)throw Error("reader lock disturbed body");
+ let refused=false;try{await value.text();}catch(error){refused=error instanceof TypeError;}
+ if(!refused||value.bodyUsed)throw Error("locked body helper");reader.releaseLock();
+ const copy=value.clone();(await value.bytes())[0]=88;
+ if(await copy.text()!=="body"||!value.bodyUsed)throw Error("body result isolation");
+ const cancelled=new Response("discard");await cancelled.body.cancel();
+ refused=false;try{await cancelled.text();}catch(error){refused=error instanceof TypeError;}
+ if(!refused||!cancelled.bodyUsed)throw Error("cancelled body helper");
+}
 const mark=performance.mark("child",{startTime:1});
 parentPort.postMessage({detail,type:mark.entryType,entries:performance.getEntries().length});parentPort.close();`
 	code := fmt.Sprintf(`import {Worker} from "node:worker_threads";
@@ -67,6 +78,17 @@ const cookies=new Headers([["Set-Cookie","a=1"],["set-cookie","b=2"]]);
 if([...cookies].length!==2||cookies.getSetCookie().length!==2)throw Error("main Headers cookies");
 const jsonResponse=Response.json({main:true},{status:201,headers:cookies});
 if(jsonResponse.type!=="default"||!(await jsonResponse.clone().json()).main)throw Error("main Response contract");
+{
+ const value=new Response("body"),reader=value.body.getReader();
+ if(value.bodyUsed)throw Error("reader lock disturbed body");
+ let refused=false;try{await value.text();}catch(error){refused=error instanceof TypeError;}
+ if(!refused||value.bodyUsed)throw Error("locked body helper");reader.releaseLock();
+ const copy=value.clone();(await value.bytes())[0]=88;
+ if(await copy.text()!=="body"||!value.bodyUsed)throw Error("body result isolation");
+ const cancelled=new Response("discard");await cancelled.body.cancel();
+ refused=false;try{await cancelled.text();}catch(error){refused=error instanceof TypeError;}
+ if(!refused||!cancelled.bodyUsed)throw Error("cancelled body helper");
+}
 const worker=new Worker(%q,{eval:true,type:"module"});
 const result=await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});
 await worker.terminate();

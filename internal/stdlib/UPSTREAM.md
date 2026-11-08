@@ -745,3 +745,14 @@ or stream creation, including legacy no-Loop Fetch. Existing native transports,
 grants, limits and body ownership remain shared. Browser forbidden-header/CORS
 guards and full Body/Request conformance are outside this slice. See the
 [contract and verification](../../docs/development/stdlib-headers-response.md).
+
+### Fetch body consumption (2026-11-08)
+
+Body helpers now consume the current stream for finite as well as native bodies.
+Reader locks and disturbed state have distinct meanings. Read-all validates and
+copies Uint8Array chunks into independent results, preserving producer errors.
+Finite input snapshots and clone/transfer retain native buffered dispatch/replay;
+headers are captured before buffering yields and abort is rechecked before IO.
+Unusable server responses fail before headers are sent. Existing transports,
+grants, body limits and upload cancellation remain shared. See the
+[contract and verification](../../docs/development/stdlib-body-consumption.md).
