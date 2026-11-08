@@ -756,3 +756,12 @@ headers are captured before buffering yields and abort is rechecked before IO.
 Unusable server responses fail before headers are sent. Existing transports,
 grants, body limits and upload cancellation remain shared. See the
 [contract and verification](../../docs/development/stdlib-body-consumption.md).
+
+### Stream tee lifecycle (2026-11-08)
+
+The existing default-stream tee now shares source-cleanup completion/rejection
+between cancellation callers, forwards source errors before buffered branch data
+and retains overlapping demand. Request/Response clones use the same corrected
+path. Chunk identity, native readers and runtime ownership remain shared; no BYOB
+or byte-stream controller support is added. See the
+[contract and verification](../../docs/development/stdlib-stream-tee.md).

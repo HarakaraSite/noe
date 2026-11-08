@@ -118,6 +118,26 @@ const streamsJS = `(function (host) {
     }
   }
 
+  // Internal consumers such as tee need chunk steps at acceptance time, before
+  // an author-facing read promise settles. Public reads keep their existing
+  // ready-promise fast paths and pending-request behavior through this helper.
+  function readStreamRequest(reader, request = undefined) {
+    const fulfill = result => request === undefined ? Promise.resolve(result) : request.resolve(result);
+    const fail = reason => request === undefined ? Promise.reject(reason) : request.reject(reason);
+    const stream = reader._stream;
+    if (!stream) return fail(new TypeError("this reader has been released"));
+    stream._disturbed = true;
+    if (stream._controller._queue.length > 0) {
+      return fulfill({value: stream._controller._take(), done: false});
+    }
+    if (stream._state === "closed") return fulfill({value: undefined, done: true});
+    if (stream._state === "errored") return fail(stream._storedError);
+    const pending = request === undefined ? deferred() : request;
+    stream._reads.push(pending);
+    stream._controller._pullIfNeeded();
+    return pending.promise;
+  }
+
   // --- ReadableStream -------------------------------------------------------
 
   class ReadableStreamDefaultController {
@@ -314,40 +334,61 @@ const streamsJS = `(function (host) {
       const controllers = [];
       const cancelled = [false, false];
       const reasons = [undefined, undefined];
+      const cancellation = deferred();
       let reading = false;
+      let readAgain = false;
+      let ended = false;
+
+      const forwardError = (error) => {
+        ended = true;
+        reading = false;
+        for (const controller of controllers) controller.error(error);
+        if (!cancelled[0] || !cancelled[1]) cancellation.resolve(undefined);
+      };
+      // Observe the source promise directly: the reader's closed proxy adds
+      // another promise hop to the internal stream-error ordering.
+      this._closedD.promise.catch(forwardError);
 
       const pull = () => {
-        if (reading || controllers.length < 2) return undefined;
+        if (ended || (cancelled[0] && cancelled[1])) return Promise.resolve();
+        if (reading) { readAgain = true; return Promise.resolve(); }
         reading = true;
-        return reader.read().then(({value, done}) => {
-          reading = false;
+        readStreamRequest(reader, {resolve: ({value, done}) => {
           if (done) {
-            for (let i = 0; i < 2; i++) {
-              if (!cancelled[i]) { try { controllers[i].close(); } catch (e) {} }
-            }
+            ended = true;
+            reading = false;
+            for (let i = 0; i < 2; i++) if (!cancelled[i]) controllers[i].close();
+            if (!cancelled[0] || !cancelled[1]) cancellation.resolve(undefined);
             return;
           }
-          for (let i = 0; i < 2; i++) {
-            if (!cancelled[i]) { try { controllers[i].enqueue(value); } catch (e) {} }
-          }
-        }, (e) => {
-          reading = false;
-          for (let i = 0; i < 2; i++) if (!cancelled[i]) controllers[i].error(e);
-        });
+          Promise.resolve().then(() => {
+            if (ended) return;
+            readAgain = false;
+            for (let i = 0; i < 2; i++) {
+              if (!cancelled[i]) controllers[i].enqueue(value);
+            }
+            reading = false;
+            if (readAgain) pull();
+          }).catch(forwardError);
+        }, reject: () => { reading = false; }});
+        return Promise.resolve();
       };
 
       const branch = (i) => new ReadableStream({
-        start: (c) => { controllers[i] = c; },
+        start: (controller) => { controllers[i] = controller; },
         pull,
-        // The source is only cancelled once both branches have given up on it.
         cancel: (reason) => {
           cancelled[i] = true;
           reasons[i] = reason;
-          if (cancelled[0] && cancelled[1]) return reader.cancel(reasons);
+          if (cancelled[0] && cancelled[1]) {
+            // Both callers wait for the same native/producer cleanup result,
+            // including rejection. Reasons follow branch order, not call order.
+            cancellation.resolve(reader.cancel([reasons[0], reasons[1]]));
+          }
+          return cancellation.promise;
         },
       });
-      const one = branch(0), two = branch(1);
-      return [one, two];
+      return [branch(0), branch(1)];
     }
 
     pipeThrough(transform, options = {}) {
@@ -661,18 +702,7 @@ const streamsJS = `(function (host) {
     get closed() { return this._closedD.promise; }
 
     read() {
-      const stream = this._stream;
-      if (!stream) return Promise.reject(new TypeError("this reader has been released"));
-      stream._disturbed = true;
-      if (stream._controller._queue.length > 0) {
-        return Promise.resolve({value: stream._controller._take(), done: false});
-      }
-      if (stream._state === "closed") return Promise.resolve({value: undefined, done: true});
-      if (stream._state === "errored") return Promise.reject(stream._storedError);
-      const request = deferred();
-      stream._reads.push(request);
-      stream._controller._pullIfNeeded();
-      return request.promise;
+      return readStreamRequest(this);
     }
 
     cancel(reason) {

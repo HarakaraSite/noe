@@ -106,3 +106,13 @@ error, redirect and fetched headers are immutable. See the
 Shows reader locks versus bodyUsed, rejected duplicate reads, independent bytes
 results after cloning and finite Request input/transfer ownership. See the
 [contract and verification](../../docs/development/stdlib-body-consumption.md).
+
+## Stream tee cancellation
+
+```sh
+/tmp/noe-web-basics run --no-inst examples/web-basics/tee-cancellation.js
+```
+
+Shows discarding one Response clone while consuming the other, and waiting for
+shared cleanup after cancelling both tee branches. See the
+[contract and verification](../../docs/development/stdlib-stream-tee.md).

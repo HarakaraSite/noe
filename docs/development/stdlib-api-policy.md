@@ -70,6 +70,7 @@ changing NOE does not authorize editing or deploying noebot.
 | Request URL and method inputs | Shared URL normalization, ByteString/token/method validation, private readonly URL/method and incoming HTTP preservation. | Included in v2.23.0. See [contract and verification](stdlib-request-inputs.md). |
 | Headers and Response contracts | Header input/live iteration/cookie separation, Response initialization/static methods and native metadata. | Implemented locally at `66c5703` after v2.23.0; see [contract and verification](stdlib-headers-response.md). |
 | Fetch body consumption | Current-stream helper reads, lock/disturbed state, byte-result isolation and finite clone/transfer ownership. | Implemented locally after `66c5703`; see [contract and verification](stdlib-body-consumption.md). |
+| Stream tee lifecycle | Shared cancellation completion, source-error propagation before unread buffered data, and retained overlapping demand. | Implemented locally after `efa3f82`; see [contract and verification](stdlib-stream-tee.md). |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource
 remains a standard global. Expansion phases such as Web Crypto, additional

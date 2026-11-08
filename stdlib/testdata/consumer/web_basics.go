@@ -63,6 +63,19 @@ try{new Response("",{status:204});throw Error("worker null body status accepted"
  refused=false;try{await cancelled.text();}catch(error){refused=error instanceof TypeError;}
  if(!refused||!cancelled.bodyUsed)throw Error("cancelled body helper");
 }
+{
+ let finish,sourceCalls=0,settled=false;
+ const [left,right]=new ReadableStream({cancel(reasons){
+  sourceCalls++;if(reasons.join()!=="left,right")throw Error("tee reason order");
+  return new Promise(resolve=>{finish=resolve;});
+ }},{highWaterMark:0}).tee();
+ const first=left.cancel("left").then(()=>settled=true);
+ for(let turn=0;turn<12;turn++)await Promise.resolve();
+ if(settled||sourceCalls)throw Error("early tee cancellation");
+ const second=right.cancel("right");
+ if(sourceCalls!==1||settled)throw Error("tee cleanup ownership");
+ finish();await Promise.all([first,second]);if(!settled)throw Error("tee cleanup completion");
+}
 const mark=performance.mark("child",{startTime:1});
 parentPort.postMessage({detail,type:mark.entryType,entries:performance.getEntries().length});parentPort.close();`
 	code := fmt.Sprintf(`import {Worker} from "node:worker_threads";
@@ -88,6 +101,19 @@ if(jsonResponse.type!=="default"||!(await jsonResponse.clone().json()).main)thro
  const cancelled=new Response("discard");await cancelled.body.cancel();
  refused=false;try{await cancelled.text();}catch(error){refused=error instanceof TypeError;}
  if(!refused||!cancelled.bodyUsed)throw Error("cancelled body helper");
+}
+{
+ let finish,sourceCalls=0,settled=false;
+ const [left,right]=new ReadableStream({cancel(reasons){
+  sourceCalls++;if(reasons.join()!=="left,right")throw Error("tee reason order");
+  return new Promise(resolve=>{finish=resolve;});
+ }},{highWaterMark:0}).tee();
+ const first=left.cancel("left").then(()=>settled=true);
+ for(let turn=0;turn<12;turn++)await Promise.resolve();
+ if(settled||sourceCalls)throw Error("early tee cancellation");
+ const second=right.cancel("right");
+ if(sourceCalls!==1||settled)throw Error("tee cleanup ownership");
+ finish();await Promise.all([first,second]);if(!settled)throw Error("tee cleanup completion");
 }
 const worker=new Worker(%q,{eval:true,type:"module"});
 const result=await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});

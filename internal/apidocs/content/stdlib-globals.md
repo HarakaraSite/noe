@@ -221,6 +221,15 @@ for await (const chunk of stream) {
 
 A stream error rejects pending and later reads. cancel(reason) asks the source to stop and releases queued data.
 
+`tee()` returns two branches over one locked source reader. Ordinary chunks
+retain their identity. Cancelling one branch waits for the remaining branch's
+EOF/error or shared source cleanup after both cancel. Both cancellations adopt
+the cleanup result, including rejection; the source receives reasons in branch
+order. To stop both branches, start both cancellations and await `Promise.all`.
+Source errors discard unread buffered data in both live branches. Reads already
+accepted from an enqueue retain that chunk before later reads reject. The same
+lifecycle applies to Request/Response clone bodies.
+
 ## ReadableStream.getReader
 
 stream.getReader() -> ReadableStreamDefaultReader locks the stream to that reader. reader.read() resolves to {value, done}; reader.cancel(reason) cancels the source; reader.releaseLock() returns ownership when no read is pending.

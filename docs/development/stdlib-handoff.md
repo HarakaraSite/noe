@@ -1,9 +1,9 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after local Fetch body-consumption completion following
-Headers/Response `66c5703`. Both local continuations are unreleased; installed
-executables remain v2.23.0. Linked policy, implementation and release records
-remain canonical. Release requests include both local installations.
+Updated 2026-11-08 after local stream-tee lifecycle completion following
+Headers/Response `66c5703` and Body consumption `efa3f82`. These continuations
+are unreleased; installed executables remain v2.23.0. Linked policy, implementation
+and release records remain canonical. Release requests include both installations.
 
 ## Repository and publication state
 
@@ -63,6 +63,38 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Stream tee lifecycle local completion
+
+The user authorized a scoped next improvement after `efa3f82`, preserving both
+earlier commits and limiting work to this repository and local commits. The
+[contract and verification](stdlib-stream-tee.md) is canonical. Baseline tee
+resolved the first branch cancellation before cleanup and delivered stale buffered
+data after source error. Cancellation callers now share source cleanup/rejection,
+ordered reasons and source-terminal completion. Errors discard unread branch data;
+accepted pending reads keep their chunk. Demand and ordinary chunk identity remain.
+Request/Response clone uses this same corrected path. References, example and
+main/Worker consumers are updated.
+
+Both affected stdlib packages, focused race, catalog/lint/vet and six CLI checks
+pass, including real HTTP clone consumption and the unchanged prepared MCP SDK
+Unicode fixture. Native cancellation releases the request context and closes a
+blocked reader once. Checkout and standalone module-artifact main/Worker consumers
+pass; runtime/declaration source continuity is recorded. Type validation is reused;
+unrelated package-wide suites were not repeated.
+
+A bounded independent review found one P2 in pending-read ordering. It is fixed
+through an internal read-request helper preserving public read promise behavior,
+with sync/next-microtask and no-reader regressions. The single fix-only re-review
+confirms resolution and actual CLI/reference behavior. Evidence:
+`/var/tmp/noe-stream-tee-1rb7gg8o`.
+
+Local implementation, verification, review and commit are complete. `66c5703` and
+`efa3f82` are preserved; both installed paths remain the v2.23.0 asset above.
+No push, release, installation, service, simplejs or noebot change occurred.
+BodyInit/BufferSource conversion, Fetch cloneForBranch2 byte isolation and
+BYOB/byte-stream controllers remain separate bounded candidates, not a combined
+completion requirement. Reuse completed checks for unchanged code/dependencies.
 
 ## Fetch body consumption local completion
 
