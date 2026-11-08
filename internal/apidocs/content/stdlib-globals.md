@@ -20,7 +20,7 @@ console writes to the run's configured stdout/stderr. process is the NOE process
 
 ### Web API globals
 
-AbortController, AbortSignal, Blob, BroadcastChannel, ByteLengthQueuingStrategy, CompressionStream, CountQueuingStrategy, CryptoKey, DOMException, DecompressionStream, ErrorEvent, Event, EventSource, EventTarget, File, FormData, Headers, MessageChannel, MessageEvent, MessagePort, ReadableStream, ReadableStreamDefaultController, ReadableStreamDefaultReader, Request, Response, Storage, TextDecoder, TextDecoderStream, TextEncoder, TextEncoderStream, TransformStream, URL, URLPattern, URLSearchParams, WebSocket, Worker, WritableStream, and WritableStreamDefaultWriter. `sessionStorage` is available by default. `localStorage` is installed only when the host explicitly selects its filesystem-backed path.
+AbortController, AbortSignal, Blob, BroadcastChannel, ByteLengthQueuingStrategy, CompressionStream, CountQueuingStrategy, CryptoKey, CustomEvent, DOMException, DecompressionStream, ErrorEvent, Event, EventSource, EventTarget, File, FormData, Headers, MessageChannel, MessageEvent, MessagePort, Performance, PerformanceEntry, PerformanceMark, PerformanceMeasure, ReadableStream, ReadableStreamDefaultController, ReadableStreamDefaultReader, Request, Response, Storage, TextDecoder, TextDecoderStream, TextEncoder, TextEncoderStream, TransformStream, URL, URLPattern, URLSearchParams, WebSocket, Worker, WritableStream, and WritableStreamDefaultWriter. `sessionStorage` is available by default. `localStorage` is installed only when the host explicitly selects its filesystem-backed path.
 
 ### ECMAScript and QuickJS globals
 
@@ -28,9 +28,83 @@ The pinned QuickJS runtime also exposes these language and host globals: Aggrega
 
 ### Exact globalThis inventory
 
-`AbortController`, `AbortSignal`, `AggregateError`, `Array`, `ArrayBuffer`, `AsyncDisposableStack`, `Atomics`, `BigInt`, `BigInt64Array`, `BigUint64Array`, `Blob`, `Boolean`, `BroadcastChannel`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `CryptoKey`, `DOMException`, `DataView`, `Date`, `DecompressionStream`, `DisposableStack`, `Error`, `ErrorEvent`, `EvalError`, `Event`, `EventSource`, `EventTarget`, `File`, `FinalizationRegistry`, `Float16Array`, `Float32Array`, `Float64Array`, `FormData`, `Function`, `Headers`, `Infinity`, `Int16Array`, `Int32Array`, `Int8Array`, `Intl`, `Iterator`, `JSON`, `Map`, `Math`, `MessageChannel`, `MessageEvent`, `MessagePort`, `NaN`, `Number`, `Object`, `Promise`, `Proxy`, `RangeError`, `ReadableStream`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `ReferenceError`, `Reflect`, `RegExp`, `Request`, `Response`, `Set`, `ShadowRealm`, `SharedArrayBuffer`, `Storage`, `String`, `SuppressedError`, `Symbol`, `SyntaxError`, `Temporal`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TypeError`, `URIError`, `URL`, `URLPattern`, `URLSearchParams`, `Uint16Array`, `Uint32Array`, `Uint8Array`, `Uint8ClampedArray`, `WeakMap`, `WeakRef`, `WeakSet`, `WebSocket`, `Worker`, `WritableStream`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearInterval`, `clearTimeout`, `console`, `crypto`, `decodeURI`, `decodeURIComponent`, `encodeURI`, `encodeURIComponent`, `escape`, `eval`, `fetch`, `globalThis`, `isFinite`, `isNaN`, `localStorage`, `parseFloat`, `parseInt`, `performance`, `process`, `queueMicrotask`, `sessionStorage`, `setInterval`, `setTimeout`, `structuredClone`, `undefined`, `unescape`
+`AbortController`, `AbortSignal`, `AggregateError`, `Array`, `ArrayBuffer`, `AsyncDisposableStack`, `Atomics`, `BigInt`, `BigInt64Array`, `BigUint64Array`, `Blob`, `Boolean`, `BroadcastChannel`, `Buffer`, `ByteLengthQueuingStrategy`, `CompressionStream`, `CountQueuingStrategy`, `CryptoKey`, `CustomEvent`, `DOMException`, `DataView`, `Date`, `DecompressionStream`, `DisposableStack`, `Error`, `ErrorEvent`, `EvalError`, `Event`, `EventSource`, `EventTarget`, `File`, `FinalizationRegistry`, `Float16Array`, `Float32Array`, `Float64Array`, `FormData`, `Function`, `Headers`, `Infinity`, `Int16Array`, `Int32Array`, `Int8Array`, `Intl`, `Iterator`, `JSON`, `Map`, `Math`, `MessageChannel`, `MessageEvent`, `MessagePort`, `NaN`, `Number`, `Object`, `Performance`, `PerformanceEntry`, `PerformanceMark`, `PerformanceMeasure`, `Promise`, `Proxy`, `RangeError`, `ReadableStream`, `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`, `ReferenceError`, `Reflect`, `RegExp`, `Request`, `Response`, `Set`, `ShadowRealm`, `SharedArrayBuffer`, `Storage`, `String`, `SuppressedError`, `Symbol`, `SyntaxError`, `Temporal`, `TextDecoder`, `TextDecoderStream`, `TextEncoder`, `TextEncoderStream`, `TransformStream`, `TypeError`, `URIError`, `URL`, `URLPattern`, `URLSearchParams`, `Uint16Array`, `Uint32Array`, `Uint8Array`, `Uint8ClampedArray`, `WeakMap`, `WeakRef`, `WeakSet`, `WebSocket`, `Worker`, `WritableStream`, `WritableStreamDefaultWriter`, `atob`, `btoa`, `clearInterval`, `clearTimeout`, `console`, `crypto`, `decodeURI`, `decodeURIComponent`, `encodeURI`, `encodeURIComponent`, `escape`, `eval`, `fetch`, `globalThis`, `isFinite`, `isNaN`, `localStorage`, `parseFloat`, `parseInt`, `performance`, `process`, `queueMicrotask`, `sessionStorage`, `setInterval`, `setTimeout`, `structuredClone`, `undefined`, `unescape`
 
 In this inventory, `localStorage` is conditional: it appears only when the host explicitly opts in to filesystem-backed storage. `Storage` and `sessionStorage` are always available with the Web APIs selected.
+
+## TextEncoder
+
+TextEncoder encodes UTF-8. encodeInto(source, destination) accepts a genuine
+Uint8Array, respects its view boundaries, and writes complete scalar values.
+The returned read counts consumed source UTF-16 code units; written counts
+output bytes. Unpaired surrogates encode as U+FFFD. A destination that cannot
+fit the next complete character receives none of that character's bytes.
+
+This correction is in unreleased source after v2.20.0. Shared fixed backing is
+allowed. Detached destinations are empty; resizable/growable backing is rejected
+under the operation's current Web IDL annotation. Invalid receivers, missing
+arguments, Symbols and wrong destination types throw TypeError. TextDecoder
+remains limited to its existing UTF-8 labels.
+
+## CustomEvent
+
+new CustomEvent(type, {detail, bubbles, cancelable, composed}) creates an Event
+with a branded getter-only detail attribute. Defaults are null detail and false
+flags. Detail retains its original reference and is not cloned. The constructor
+requires a DOMString type; null/undefined initialization dictionaries use the
+defaults. Primitive non-dictionaries reject TypeError.
+
+CustomEvent uses the existing EventTarget dispatcher. Inherited attributes are
+readonly; preventDefault affects cancelable dispatch, and stopImmediatePropagation
+stops remaining listeners. initCustomEvent(type, bubbles, cancelable, detail)
+reinitializes an event outside dispatch and is inert during dispatch. Nested
+dispatch of the same event rejects InvalidStateError. CustomEvent is not
+structured-cloneable and rejects DataCloneError. These additions are in
+unreleased source after v2.20.0; no browser DOM tree is introduced.
+
+## performance
+
+The unreleased User Timing implementation after v2.20.0 replaces the previous
+empty mark/measure methods. now and timeOrigin retain the existing native clock.
+mark(name, {startTime, detail}) returns and records a PerformanceMark.
+measure(name, startMark, endMark) and measure(name, {start, end, duration, detail})
+return and record a PerformanceMeasure, using specified timestamps or the latest
+matching marks. Null measure options use an empty dictionary. Supported
+overloads, required arguments, finite/nonnegative
+explicit timestamp validation and error names follow User Timing.
+
+getEntries(), getEntriesByName(name, type), and getEntriesByType(type) return
+new arrays in stable chronological order. clearMarks(name) and clearMeasures(name)
+remove matching entries; omitting the name clears that type. Each runtime/Worker
+has an independent timeline. Failed operations add no entry. No entry quota or
+observer loop is added.
+
+## Performance
+
+Performance is an illegal constructor. The global performance instance extends
+EventTarget and provides the User Timing methods above. Its toJSON() returns
+timeOrigin. PerformanceObserver and resource/navigation timing are not provided.
+
+## PerformanceEntry
+
+PerformanceEntry is an illegal constructor. Entries have branded readonly name,
+entryType, startTime and duration attributes, plus toJSON(). Performance objects
+and entries reject DataCloneError on structured cloning. Newer Timeline
+id/navigationId fields are outside this supported surface.
+
+## PerformanceMark
+
+new PerformanceMark(name, {startTime, detail}) creates a mark without inserting
+it into the global timeline. performance.mark inserts one. detail is
+structured-cloned on creation and exposed through a readonly attribute;
+subsequent input mutations do not change the entry. toJSON() includes detail.
+
+## PerformanceMeasure
+
+PerformanceMeasure is an illegal constructor; use performance.measure().
+Entries expose the readonly common fields, cloned detail and toJSON(). Reversed
+start/end timestamps can produce a negative calculated duration. Explicit
+parameter validation follows the supported User Timing contract.
 
 ## crypto
 

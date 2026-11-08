@@ -336,3 +336,27 @@ createWebSocket("wss://example.test", {headers: {Authorization: 42}});
 createWebSocket("wss://example.test", {headers: [["X-Test"]]});
 // @ts-expect-error the helper does not expose a JavaScript TLS override.
 createWebSocket("wss://example.test", {tls: {rejectUnauthorized: false}});
+
+// @ts-expect-error CustomEvent requires its event type.
+new CustomEvent();
+const readonlyCustomEvent = new CustomEvent("update", {detail: 1});
+// @ts-expect-error Event detail is a readonly attribute.
+readonlyCustomEvent.detail = 2;
+// @ts-expect-error Inherited event flags are readonly attributes.
+readonlyCustomEvent.bubbles = true;
+// @ts-expect-error Performance itself is an illegal constructor.
+new Performance();
+// @ts-expect-error PerformanceEntry is an illegal constructor.
+new PerformanceEntry();
+// @ts-expect-error PerformanceMeasure is an illegal constructor.
+new PerformanceMeasure();
+// @ts-expect-error mark requires a name.
+performance.mark();
+// @ts-expect-error timestamps must be numbers in typed code.
+performance.mark("invalid", {startTime: "1"});
+// @ts-expect-error options and a legacy end-mark argument cannot be combined.
+performance.measure("invalid", {start: 1}, "end");
+// @ts-expect-error mark metadata is readonly.
+new PerformanceMark("readonly").startTime = 2;
+// @ts-expect-error encodeInto requires a Uint8Array destination.
+new TextEncoder().encodeInto("a", new Uint16Array(1));

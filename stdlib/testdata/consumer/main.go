@@ -62,6 +62,9 @@ func run() error {
 	if err := webCrypto(ctx); err != nil {
 		return err
 	}
+	if err := webBasics(ctx); err != nil {
+		return err
+	}
 	if err := urlImports(ctx); err != nil {
 		return err
 	}

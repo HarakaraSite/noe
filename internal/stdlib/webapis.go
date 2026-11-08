@@ -84,8 +84,8 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 	// a browser looks for it.
 	for _, name := range []string{
 		"URL", "URLSearchParams", "TextEncoder", "TextDecoder",
-		"atob", "btoa", "structuredClone", "performance", "crypto",
-		"AbortController", "AbortSignal", "Event", "EventTarget",
+		"atob", "btoa", "structuredClone", "crypto",
+		"AbortController", "AbortSignal", "Event", "EventTarget", "CustomEvent",
 		"Blob", "File", "FormData", "URLPattern",
 		"DOMException", "MessageChannel", "MessagePort", "MessageEvent", "BroadcastChannel",
 	} {
@@ -96,6 +96,9 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 		if err := rt.Set(name, v); err != nil {
 			return nil, err
 		}
+	}
+	if err := installPerformance(rt, host); err != nil {
+		return nil, err
 	}
 	if err := installWebCrypto(rt, webcryptoNative); err != nil {
 		return nil, err
@@ -131,19 +134,46 @@ const webAPIsJS = `(function (host) {
 
   // --- Text ---------------------------------------------------------------
 
+  const codecApply = Reflect.apply;
+  const codecString = String;
+  const codecCharCodeAt = String.prototype.charCodeAt;
+  const codecIsView = ArrayBuffer.isView;
+  const codecUint8Array = Uint8Array;
+  const codecTypedArray = Object.getPrototypeOf(Uint8Array.prototype);
+  const codecTag = Object.getOwnPropertyDescriptor(codecTypedArray, Symbol.toStringTag).get;
+  const codecBuffer = Object.getOwnPropertyDescriptor(codecTypedArray, "buffer").get;
+  const codecLength = Object.getOwnPropertyDescriptor(codecTypedArray, "byteLength").get;
+  const codecResizable = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "resizable")?.get;
+  const codecGrowable = typeof SharedArrayBuffer === "undefined" ? undefined
+    : Object.getOwnPropertyDescriptor(SharedArrayBuffer.prototype, "growable")?.get;
+  const textEncoders = new WeakSet();
+  const encoderAdd = WeakSet.prototype.add, encoderHas = WeakSet.prototype.has;
+
+  function webDOMString(value) {
+    if (typeof value === "symbol") throw new TypeError("A Symbol cannot be converted to DOMString");
+    return codecString(value);
+  }
+
+  function requireTextEncoder(value) {
+    if (!codecApply(encoderHas, textEncoders, [value])) {
+      throw new TypeError("The receiver is not a TextEncoder");
+    }
+  }
+
   // The encoder produces well-formed UTF-8, which means an unpaired surrogate
   // becomes U+FFFD: that is what the standard says, and what makes the result
   // safe to hand to anything expecting UTF-8.
   class TextEncoder {
-    constructor() { host.cloneAs(this, "opaque"); }
-    get encoding() { return "utf-8"; }
+    constructor() { codecApply(encoderAdd, textEncoders, [this]); host.cloneAs(this, "opaque"); }
+    get encoding() { requireTextEncoder(this); return "utf-8"; }
     encode(input = "") {
-      const s = String(input);
+      requireTextEncoder(this);
+      const s = webDOMString(input);
       const out = [];
       for (let i = 0; i < s.length; i++) {
-        let c = s.charCodeAt(i);
+        let c = codecApply(codecCharCodeAt, s, [i]);
         if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
-          const next = s.charCodeAt(i + 1);
+          const next = codecApply(codecCharCodeAt, s, [i + 1]);
           if (next >= 0xdc00 && next <= 0xdfff) {
             c = 0x10000 + ((c - 0xd800) << 10) + (next - 0xdc00);
             i++;
@@ -159,15 +189,53 @@ const webAPIsJS = `(function (host) {
                    0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
         }
       }
-      return new Uint8Array(out);
+      return new codecUint8Array(out);
     }
     encodeInto(source, dest) {
-      const bytes = this.encode(source);
-      const n = Math.min(bytes.length, dest.length);
-      dest.set(bytes.subarray(0, n));
-      // read is in code units of the source; a partial write is reported by
-      // written alone, which is enough for the uses this has.
-      return {read: source.length, written: n};
+      requireTextEncoder(this);
+      if (arguments.length < 2) throw new TypeError("encodeInto requires source and destination");
+      const text = webDOMString(source);
+      if (!codecIsView(dest) || codecApply(codecTag, dest, []) !== "Uint8Array") {
+        throw new TypeError("The destination must be a Uint8Array");
+      }
+      const buffer = codecApply(codecBuffer, dest, []);
+      let resizable = false;
+      if (codecResizable !== undefined) {
+        try { resizable = codecApply(codecResizable, buffer, []); }
+        catch (_) { resizable = codecGrowable !== undefined && codecApply(codecGrowable, buffer, []); }
+      }
+      if (resizable) throw new TypeError("The destination buffer must have fixed length");
+      const capacity = codecApply(codecLength, dest, []);
+      let read = 0, written = 0;
+      while (read < text.length) {
+        let point = codecApply(codecCharCodeAt, text, [read]), units = 1;
+        if (point >= 0xd800 && point <= 0xdbff && read + 1 < text.length) {
+          const next = codecApply(codecCharCodeAt, text, [read + 1]);
+          if (next >= 0xdc00 && next <= 0xdfff) {
+            point = 0x10000 + ((point - 0xd800) << 10) + next - 0xdc00;
+            units = 2;
+          }
+        }
+        if (point >= 0xd800 && point <= 0xdfff) point = 0xfffd;
+        const size = point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x10000 ? 3 : 4;
+        if (capacity - written < size) break;
+        if (size === 1) dest[written++] = point;
+        else if (size === 2) {
+          dest[written++] = 0xc0 | (point >> 6);
+          dest[written++] = 0x80 | (point & 63);
+        } else if (size === 3) {
+          dest[written++] = 0xe0 | (point >> 12);
+          dest[written++] = 0x80 | ((point >> 6) & 63);
+          dest[written++] = 0x80 | (point & 63);
+        } else {
+          dest[written++] = 0xf0 | (point >> 18);
+          dest[written++] = 0x80 | ((point >> 12) & 63);
+          dest[written++] = 0x80 | ((point >> 6) & 63);
+          dest[written++] = 0x80 | (point & 63);
+        }
+        read += units;
+      }
+      return {read, written};
     }
   }
 
@@ -991,18 +1059,119 @@ const webAPIsJS = `(function (host) {
 
   // --- Events and abortion -------------------------------------------------
 
+  const eventStates = new WeakMap(), customEventStates = new WeakMap();
+  const eventMapGet = WeakMap.prototype.get, eventMapSet = WeakMap.prototype.set;
+  const eventCreate = Object.create;
+  const eventDefineProperty = Object.defineProperty;
+  function eventOf(value) {
+    const state = codecApply(eventMapGet, eventStates, [value]);
+    if (state === undefined) throw new TypeError("The receiver is not an Event");
+    return state;
+  }
+  function customEventOf(value) {
+    const state = codecApply(eventMapGet, customEventStates, [value]);
+    if (state === undefined) throw new TypeError("The receiver is not a CustomEvent");
+    return state;
+  }
+  function eventInit(init) {
+    if (init !== undefined && init !== null && typeof init !== "object" && typeof init !== "function") {
+      throw new TypeError("Event initialization must be a dictionary");
+    }
+    return {
+      bubbles: !!(init && init.bubbles),
+      cancelable: !!(init && init.cancelable),
+      composed: !!(init && init.composed),
+    };
+  }
+  function initializeEvent(state, type, bubbles, cancelable) {
+    state.type = type;
+    state.bubbles = bubbles;
+    state.cancelable = cancelable;
+    state.canceled = false;
+    state.stopped = false;
+    state.immediateStopped = false;
+    state.target = null;
+  }
+
   class Event {
     constructor(type, init = {}) {
+      if (arguments.length === 0) throw new TypeError("Event requires a type");
+      const name = webDOMString(type), options = eventInit(init);
+      const state = eventCreate(null);
+      initializeEvent(state, name, options.bubbles, options.cancelable);
+      state.composed = options.composed;
+      state.currentTarget = null;
+      state.phase = 0;
+      state.dispatching = false;
+      state.timeStamp = host.now();
+      codecApply(eventMapSet, eventStates, [this, state]);
       host.cloneAs(this, "opaque");
-      this.type = String(type);
-      this.defaultPrevented = false;
-      this.cancelable = !!init.cancelable;
-      this.target = null;
+      eventDefineProperty(this, "isTrusted", {get() { eventOf(this); return false; }, enumerable: true});
     }
-    preventDefault() { if (this.cancelable) this.defaultPrevented = true; }
-    stopPropagation() {}
-    stopImmediatePropagation() {}
+    get type() { return eventOf(this).type; }
+    get bubbles() { return eventOf(this).bubbles; }
+    get cancelable() { return eventOf(this).cancelable; }
+    get composed() { return eventOf(this).composed; }
+    get defaultPrevented() { return eventOf(this).canceled; }
+    get target() { return eventOf(this).target; }
+    get srcElement() { return eventOf(this).target; }
+    get currentTarget() { return eventOf(this).currentTarget; }
+    get eventPhase() { return eventOf(this).phase; }
+    get timeStamp() { return eventOf(this).timeStamp; }
+    get cancelBubble() { return eventOf(this).stopped; }
+    set cancelBubble(value) { const state = eventOf(this); if (value) state.stopped = true; }
+    get returnValue() { return !eventOf(this).canceled; }
+    set returnValue(value) { const state = eventOf(this); if (!value && state.cancelable) state.canceled = true; }
+    preventDefault() { const state = eventOf(this); if (state.cancelable) state.canceled = true; }
+    stopPropagation() { eventOf(this).stopped = true; }
+    stopImmediatePropagation() {
+      const state = eventOf(this); state.stopped = true; state.immediateStopped = true;
+    }
+    composedPath() {
+      const state = eventOf(this);
+      return state.dispatching ? [state.currentTarget] : [];
+    }
+    initEvent(type, bubbles = false, cancelable = false) {
+      const state = eventOf(this);
+      if (arguments.length === 0) throw new TypeError("initEvent requires a type");
+      const name = webDOMString(type);
+      if (!state.dispatching) initializeEvent(state, name, !!bubbles, !!cancelable);
+    }
   }
+  for (const name of ["type", "bubbles", "cancelable", "composed", "defaultPrevented", "target",
+    "srcElement", "currentTarget", "eventPhase", "timeStamp", "cancelBubble", "returnValue"]) {
+    Object.defineProperty(Event.prototype, name, {enumerable: true});
+  }
+  Object.defineProperty(Event.prototype, Symbol.toStringTag, {value: "Event", configurable: true});
+  for (const [name, value] of [["NONE", 0], ["CAPTURING_PHASE", 1], ["AT_TARGET", 2], ["BUBBLING_PHASE", 3]]) {
+    Object.defineProperty(Event, name, {value, enumerable: true});
+    Object.defineProperty(Event.prototype, name, {value, enumerable: true});
+  }
+
+  class CustomEvent extends Event {
+    constructor(type, init = {}) {
+      if (arguments.length === 0) throw new TypeError("CustomEvent requires a type");
+      const name = webDOMString(type), options = eventInit(init);
+      const value = init == null ? undefined : init.detail;
+      super(name, options);
+      const state = eventCreate(null);
+      state.detail = value === undefined ? null : value;
+      codecApply(eventMapSet, customEventStates, [this, state]);
+      host.cloneAs(this, "unsupported");
+    }
+    get detail() { return customEventOf(this).detail; }
+    initCustomEvent(type, bubbles = false, cancelable = false, detail = null) {
+      const own = customEventOf(this), state = eventOf(this);
+      if (arguments.length === 0) throw new TypeError("initCustomEvent requires a type");
+      const name = webDOMString(type);
+      if (!state.dispatching) {
+        initializeEvent(state, name, !!bubbles, !!cancelable);
+        own.detail = detail;
+      }
+    }
+  }
+  Object.defineProperty(CustomEvent.prototype, "detail", {enumerable: true});
+  Object.defineProperty(CustomEvent.prototype, Symbol.toStringTag, {value: "CustomEvent", configurable: true});
 
   class EventTarget {
     constructor() {
@@ -1027,29 +1196,42 @@ const webAPIsJS = `(function (host) {
       }
     }
     dispatchEvent(event) {
-      event.target = this;
-      const list = (this._listeners.get(event.type) || []).slice();
-      for (const l of list) {
-        if (l.once) this.removeEventListener(event.type, l.fn);
-        // A listener that throws does not stop the others: what it threw is
-        // reported afterwards, uncaught, as Node reports it.
-        try {
-          if (typeof l.fn === "function") l.fn.call(this, event);
-          else l.fn.handleEvent(event);
-        } catch (e) {
-          queueMicrotask(() => { throw e; });
+      const state = eventOf(event);
+      if (state.dispatching) throw new DOMException("The event is already being dispatched", "InvalidStateError");
+      state.dispatching = true;
+      state.target = this;
+      state.currentTarget = this;
+      state.phase = 2;
+      try {
+        const dispatchAllowed = !state.stopped;
+        const list = dispatchAllowed ? (this._listeners.get(state.type) || []).slice() : [];
+        for (const l of list) {
+          if (state.immediateStopped) break;
+          if (l.once) this.removeEventListener(state.type, l.fn);
+          // A listener that throws does not stop the others: report the
+          // exception afterwards through the runtime's existing microtask path.
+          try {
+            if (typeof l.fn === "function") l.fn.call(this, event);
+            else l.fn.handleEvent(event);
+          } catch (e) {
+            queueMicrotask(() => { throw e; });
+          }
         }
-      }
-      // A handler set through a property that is a plain one, which it is
-      // for some, runs after the listeners; the ones setHandler keeps are
-      // among them, where they were set.
-      if (!(eventHandlers.get(this) || new Map()).has(event.type)) {
-        const on = this["on" + event.type];
-        if (typeof on === "function") {
-          try { on.call(this, event); } catch (e) { queueMicrotask(() => { throw e; }); }
+        // Property handlers managed by setHandler are already in the list.
+        if (dispatchAllowed && !state.immediateStopped && !(eventHandlers.get(this) || new Map()).has(state.type)) {
+          const on = this["on" + state.type];
+          if (typeof on === "function") {
+            try { on.call(this, event); } catch (e) { queueMicrotask(() => { throw e; }); }
+          }
         }
+        return !state.canceled;
+      } finally {
+        state.currentTarget = null;
+        state.phase = 0;
+        state.dispatching = false;
+        state.stopped = false;
+        state.immediateStopped = false;
       }
-      return !event.defaultPrevented;
     }
   }
   const addListener = EventTarget.prototype.addEventListener;
@@ -1644,12 +1826,6 @@ const webAPIsJS = `(function (host) {
 
   // --- The rest ------------------------------------------------------------
 
-  const performance = {
-    now: () => host.now(),
-    timeOrigin: host.timeOrigin,
-    mark() {}, measure() {}, clearMarks() {}, clearMeasures() {},
-  };
-
   const isView = ArrayBuffer.isView;
   const reflectApply = Reflect.apply;
   const objectGetPrototypeOf = Object.getPrototypeOf;
@@ -1715,8 +1891,7 @@ const webAPIsJS = `(function (host) {
     },
     subtle: {},
   };
-  // Both clone as the empty objects they are in Node.
-  host.cloneAs(performance, "opaque");
+  // Preserve the legacy Node-style Crypto object's opaque clone behavior.
   host.cloneAs(crypto, "opaque");
   host.cloneAs(crypto.subtle, "opaque");
 
@@ -1724,8 +1899,8 @@ const webAPIsJS = `(function (host) {
     URL, URLSearchParams, TextEncoder, TextDecoder,
     atob: (s) => host.atob(String(s)),
     btoa: (s) => host.btoa(String(s)),
-    structuredClone, performance, crypto,
-    AbortController, AbortSignal, Event, EventTarget,
+    structuredClone, crypto,
+    AbortController, AbortSignal, Event, EventTarget, CustomEvent,
     Blob, File, FormData, URLPattern,
     DOMException, MessageChannel, MessagePort, MessageEvent, BroadcastChannel,
   };

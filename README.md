@@ -47,6 +47,10 @@ metadata cannot grant authority. See the [jose example](examples/crypto/README.m
 and [supported standard APIs and remaining gaps](docs/development/stdlib-webcrypto.md).
 No new algorithm family, host capability, or runtime dependency is added.
 
+Current unreleased source corrects TextEncoder.encodeInto, implements User
+Timing entries, and adds CustomEvent. See the [contract](docs/development/stdlib-web-basics.md)
+and [example](examples/web-basics/README.md).
+
 Web Storage remains available from v2.19.0, including runtime-local
 `sessionStorage` and explicit-file `localStorage`. See the
 [storage example](examples/storage/README.md) and

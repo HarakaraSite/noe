@@ -322,12 +322,13 @@ func TestDroppedMessagesClosePorts(t *testing.T) {
 // TestCloneLikeNode pins how the standard library's own objects clone, which
 // is what they do in Node: a URL, Headers, Request, Response, FormData and
 // MessageEvent cannot be; an AbortController, an Event, a TextDecoder,
-// performance and crypto clone as the empty objects their state leaves
+// crypto clone as the empty objects their state leaves
 // them; a Blob or a File as one; a stream only by transferring it. They
 // cloned as plain objects of their own properties, whatever their kind; a
 // port whose prototype was changed escaped the check; an out-of-bounds view
 // was cloned; enumerability was asked again for each key; and two messages
 // were not V8's (KI-47).
+// Performance now follows its non-serializable User Timing contract.
 func TestCloneLikeNode(t *testing.T) {
 	out, _ := run(t, stdlib.Config{}, `
 		const t = (f) => { try { return f() } catch (e) { return e.name + ": " + e.message } };
@@ -360,7 +361,7 @@ func TestCloneLikeNode(t *testing.T) {
 		"AbortController [object Object] []",
 		"Event [object Object] []",
 		"TextDecoder [object Object] []",
-		"performance [object Object] []",
+		"performance DataCloneError: Cannot clone object of unsupported type.",
 		"crypto [object Object] []",
 		"ReadableStream DataCloneError: Object that needs transfer was found in message but not listed in transferList",
 		"blob true,2,text/plain,[object Blob]",

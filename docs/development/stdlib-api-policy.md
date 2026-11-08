@@ -61,6 +61,7 @@ changing NOE does not authorize editing or deploying noebot.
 | UDP datagrams | Explicit bind/send/receive with packet boundaries, source addresses, operation-scoped cancellation, and native ownership. | Included in v2.18.0; implemented at `8acc44b`. See [contract and verification](stdlib-udp.md). |
 | Web Storage | Runtime-local sessionStorage and explicit-file localStorage using existing FS authority. | Included in v2.19.0; implemented at `dfa497e`. See [contract and verification](stdlib-web-storage.md). |
 | Existing Web Crypto contracts | Private key policy, standard input/errors, native asynchronous computation, gap inventory, and real SDK interoperability. | Included in v2.20.0; no new algorithm family. See [contract, gaps, and verification](stdlib-webcrypto.md). |
+| Encoding, User Timing and CustomEvent | Complete UTF-8 destination writes, real mark/measure timelines, and Event detail with standard initialization. | Local implementation after v2.20.0. See [contract and verification](stdlib-web-basics.md). |
 | Remaining Node modules and globals | Review Buffer/process and utility module names against actual callers and semantic differences. | Demand-driven; avoid churn with no clear usability benefit. |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource

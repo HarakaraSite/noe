@@ -886,17 +886,39 @@ declare namespace NOEStdlib {
   }
   interface FormDataConstructor { new(): FormData }
 
-  interface EventInit { cancelable?: boolean }
+  interface EventInit { bubbles?: boolean; cancelable?: boolean; composed?: boolean }
   interface Event {
     readonly type: string;
+    readonly bubbles: boolean;
     readonly cancelable: boolean;
-    defaultPrevented: boolean;
-    target: EventTarget | null;
+    readonly composed: boolean;
+    readonly defaultPrevented: boolean;
+    readonly target: EventTarget | null;
+    readonly srcElement: EventTarget | null;
+    readonly currentTarget: EventTarget | null;
+    readonly eventPhase: number;
+    readonly timeStamp: number;
+    readonly isTrusted: boolean;
+    readonly NONE: 0; readonly CAPTURING_PHASE: 1; readonly AT_TARGET: 2; readonly BUBBLING_PHASE: 3;
+    cancelBubble: boolean;
+    returnValue: boolean;
     preventDefault(): void;
     stopPropagation(): void;
     stopImmediatePropagation(): void;
+    composedPath(): EventTarget[];
+    initEvent(type: string, bubbles?: boolean, cancelable?: boolean): void;
   }
-  interface EventConstructor { new(type: string, init?: EventInit): Event }
+  interface EventConstructor {
+    new(type: string, init?: EventInit | null): Event;
+    readonly prototype: Event;
+    readonly NONE: 0; readonly CAPTURING_PHASE: 1; readonly AT_TARGET: 2; readonly BUBBLING_PHASE: 3;
+  }
+  interface CustomEventInit<T = unknown> extends EventInit { detail?: T }
+  interface CustomEvent<T = unknown> extends Event {
+    readonly detail: T;
+    initCustomEvent(type: string, bubbles?: boolean, cancelable?: boolean, detail?: T): void;
+  }
+  interface CustomEventConstructor { new<T = unknown>(type: string, init?: CustomEventInit<T> | null): CustomEvent<T>; readonly prototype: CustomEvent }
   type EventListener<E extends Event = Event> = (this: EventTarget, event: E) => unknown;
   interface EventListenerObject<E extends Event = Event> { handleEvent(event: E): void }
   type EventListenerOrObject<E extends Event = Event> = EventListener<E> | EventListenerObject<E> | null;
@@ -1181,7 +1203,40 @@ declare namespace NOEStdlib {
     count(label?: string): void; countReset(label?: string): void; time(label?: string): void;
     timeLog(label?: string, ...values: unknown[]): void; timeEnd(label?: string): void; table(value: unknown): void;
   }
-  interface Performance { readonly timeOrigin: number; now(): number; mark(): void; measure(): void; clearMarks(): void; clearMeasures(): void }
+  interface PerformanceMarkOptions { detail?: unknown; startTime?: number }
+  interface PerformanceMeasureOptions { detail?: unknown; start?: string | number; end?: string | number; duration?: number }
+  interface PerformanceEntryJSON { name: string; entryType: string; startTime: number; duration: number }
+  interface PerformanceEntry {
+    readonly name: string;
+    readonly entryType: string;
+    readonly startTime: number;
+    readonly duration: number;
+    toJSON(): PerformanceEntryJSON;
+  }
+  interface PerformanceMark extends PerformanceEntry {
+    readonly entryType: "mark";
+    readonly detail: unknown;
+    toJSON(): PerformanceEntryJSON & {detail: unknown};
+  }
+  interface PerformanceMeasure extends PerformanceEntry {
+    readonly entryType: "measure";
+    readonly detail: unknown;
+    toJSON(): PerformanceEntryJSON & {detail: unknown};
+  }
+  interface PerformanceMarkConstructor { new(name: string, options?: PerformanceMarkOptions | null): PerformanceMark; readonly prototype: PerformanceMark }
+  interface Performance extends EventTarget {
+    readonly timeOrigin: number;
+    now(): number;
+    mark(name: string, options?: PerformanceMarkOptions | null): PerformanceMark;
+    measure(name: string, options?: PerformanceMeasureOptions | null): PerformanceMeasure;
+    measure(name: string, startMark?: string, endMark?: string): PerformanceMeasure;
+    getEntries(): PerformanceEntry[];
+    getEntriesByName(name: string, type?: string): PerformanceEntry[];
+    getEntriesByType(type: string): PerformanceEntry[];
+    clearMarks(name?: string): void;
+    clearMeasures(name?: string): void;
+    toJSON(): {timeOrigin: number};
+  }
 }
 
 /* Supported Node-style modules. The alias declarations below re-export each
@@ -1687,6 +1742,7 @@ type RequestInfo = NOEStdlib.RequestInfo;
 interface RequestInit extends NOEStdlib.RequestInit {}
 interface ResponseInit extends NOEStdlib.ResponseInit {}
 interface EventInit extends NOEStdlib.EventInit {}
+interface CustomEventInit<T = unknown> extends NOEStdlib.CustomEventInit<T> {}
 type EventListener<E extends Event = Event> = NOEStdlib.EventListener<E>;
 interface EventListenerObject<E extends Event = Event> extends NOEStdlib.EventListenerObject<E> {}
 type EventListenerOrEventListenerObject<E extends Event = Event> = NOEStdlib.EventListenerOrObject<E>;
@@ -1711,6 +1767,8 @@ interface URLPattern extends NOEStdlib.URLPattern {}
 declare var URLPattern: NOEStdlib.URLPatternConstructor;
 interface Event extends NOEStdlib.Event {}
 declare var Event: NOEStdlib.EventConstructor;
+interface CustomEvent<T = unknown> extends NOEStdlib.CustomEvent<T> {}
+declare var CustomEvent: NOEStdlib.CustomEventConstructor;
 interface EventTarget extends NOEStdlib.EventTarget {}
 declare var EventTarget: NOEStdlib.EventTargetConstructor;
 interface AbortSignal extends NOEStdlib.AbortSignal {}
@@ -1774,6 +1832,15 @@ interface CryptoKey extends NOEStdlib.CryptoKey {}
 declare var CryptoKey: {prototype: CryptoKey};
 interface Crypto extends NOEStdlib.Crypto {}
 interface Performance extends NOEStdlib.Performance {}
+declare var Performance: {readonly prototype: Performance};
+interface PerformanceEntry extends NOEStdlib.PerformanceEntry {}
+declare var PerformanceEntry: {readonly prototype: PerformanceEntry};
+interface PerformanceMarkOptions extends NOEStdlib.PerformanceMarkOptions {}
+interface PerformanceMeasureOptions extends NOEStdlib.PerformanceMeasureOptions {}
+interface PerformanceMark extends NOEStdlib.PerformanceMark {}
+declare var PerformanceMark: NOEStdlib.PerformanceMarkConstructor;
+interface PerformanceMeasure extends NOEStdlib.PerformanceMeasure {}
+declare var PerformanceMeasure: {readonly prototype: PerformanceMeasure};
 declare var crypto: NOEStdlib.Crypto;
 declare var performance: NOEStdlib.Performance;
 declare var console: NOEStdlib.Console;

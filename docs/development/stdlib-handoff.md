@@ -1,7 +1,7 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after verified v2.20.0 Web Crypto publication and installation
-at both vm201 executable paths. Release requests include local installation by
+Updated 2026-11-08 after local encoding/User Timing/CustomEvent verification following
+verified v2.20.0 Web Crypto publication and installation at both vm201 paths. Release requests include local installation by
 default. This document records the current continuation point; linked policy
 and implementation records remain the canonical design and validation references.
 
@@ -74,6 +74,41 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Local encoding, User Timing and CustomEvent
+
+The user approved all three comparison follow-ups: correct TextEncoder.encodeInto,
+implement useful Performance entries/query/clear methods, and add CustomEvent.
+See the [contract](stdlib-web-basics.md). Publication/placement is not included
+in this implementation request; both installed executables remain v2.20.0.
+
+Implementation and verification are complete locally. The new encoding,
+CustomEvent and Performance regressions fail against v2.20.0. Affected unit
+packages, focused race, types/docs/lint/vet, actual CLI example/reference,
+legacy installation without a Loop and checkout/module-artifact Go consumers
+pass. Main/Workers have independent timelines and require no extra capability.
+See `/var/tmp/noe-web-basics-ivf40e59` for source, command and runtime evidence.
+
+A bounded independent review found three Performance binding defects; all
+were fixed with regressions. One fix-only re-review found a residual default
+option conversion through an ordinary object. The parent corrected defaults
+for mark/measure/standalone marks, verified baseline failures and final focused
+race, and aligned optional method arities. No further independent re-review of
+those final defaults/arity adjustments is claimed. The consumer artifact
+predates only that small Performance adjustment; 314 runtime paths were checked, with only that adjustment differing from the
+consumer artifact. Exact continuity and targeted verification are recorded.
+
+The development candidate is `/var/tmp/noe-web-basics-ivf40e59/noe`. Its common
+fixture matches Deno 2.9.7; primary-specification deviations are separately
+recorded, including Deno's undefined default CustomEvent detail versus the
+specified null. Do not weaken standard behavior to reproduce those deviations.
+
+PerformanceObserver, resource/navigation timing, new Timeline id/navigationId,
+browser DOM trees, full EventTarget capture/passive/signal options, and more
+TextDecoder encodings remain outside scope. Existing Node-like opaque Event
+cloning is retained; new CustomEvent/Performance objects are non-serializable.
+No release, push, installation, service or noebot change is part of this local
+slice. Reuse the recorded checks for unchanged paths when release is requested.
 
 ## Current release: v2.20.0 Web Crypto
 

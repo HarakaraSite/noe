@@ -202,6 +202,24 @@ endpoint. The socket is owned by its runtime and is closed during runtime or
 Worker cleanup. UDP does not guarantee delivery, packet order, duplicate
 suppression, or retries. See the [API reference](../internal/apidocs/content/noe-sockets.md#bind).
 
+## Encoding, User Timing and CustomEvent (unreleased)
+
+Source after v2.20.0 corrects TextEncoder.encodeInto's complete-character writes
+and UTF-16/byte counts, adds CustomEvent, and implements User Timing mark/measure,
+entry queries and clearing. These are default Web APIs, with no new Profile
+field or host grant. Main runtimes and Workers receive independent timelines.
+
+CustomEvent detail preserves its original reference. Performance entry detail
+is structured-cloned on creation. Readonly attributes and constructor restrictions
+follow the documented interface slice. Performance and entry objects plus
+CustomEvent reject DataCloneError when cloned. The previous performance.mark /
+measure stubs now return actual entries and reject invalid input.
+
+See the [contract](development/stdlib-web-basics.md),
+[global reference](../internal/apidocs/content/stdlib-globals.md#performance), and
+[example](../examples/web-basics/README.md). PerformanceObserver, resource /
+navigation timing, DOM trees and additional TextDecoder encodings are not added.
+
 ## Web Crypto
 
 v2.20.0 corrects the existing SHA/HMAC/PBKDF2/HKDF Web Crypto

@@ -309,6 +309,19 @@ const stream = ReadableStream.from([new Uint8Array([3])]);
 const streamReader = stream.getReader();
 const streamChunk: Promise<ReadableStreamReadResult<Uint8Array>> = streamReader.read();
 const encoded: Uint8Array = new TextEncoder().encode("hello");
+const customUpdate: CustomEvent<{value: number}> = new CustomEvent("update", {
+  bubbles: true, composed: true, cancelable: true, detail: {value: 42},
+});
+const customValue: number = customUpdate.detail.value;
+customUpdate.initCustomEvent("updated", false, false, {value: customValue});
+const userMark: PerformanceMark = performance.mark("start", {startTime: 1, detail: {value: 1}});
+const userMeasure: PerformanceMeasure = performance.measure("work", {start: "start", end: 3});
+const legacyMeasure: PerformanceMeasure = performance.measure("legacy", "start", "end");
+const emptyOptionsMeasure: PerformanceMeasure = performance.measure("null-options", null);
+const standaloneMark: PerformanceMark = new PerformanceMark("standalone", {startTime: 2});
+const timeline: PerformanceEntry[] = performance.getEntriesByName("work", "measure");
+const markDetail: unknown = userMark.toJSON().detail;
+performance.clearMarks("start"); performance.clearMeasures();
 const text: string = new TextDecoder().decode(encoded);
 const webSocket = new WebSocket("wss://example.test");
 webSocket.addEventListener("message", event => console.log(event.data));
