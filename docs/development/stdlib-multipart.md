@@ -1,5 +1,9 @@
 # Multipart boundaries and text-field newlines
 
+Published and installed at both vm201 paths in v2.24.0. The local validation and
+installation statements below describe this slice's implementation completion.
+See the [publication/install checkpoint](../releases/release-checkpoints.md#v2240-publication-and-installation--2026-11-08).
+
 Approved local continuation after `f280741` on 2026-11-08. The selected changes
 follow the [API policy](stdlib-api-policy.md),
 [MIME delimiter grammar](https://www.rfc-editor.org/rfc/rfc2046#section-5.1.1) and

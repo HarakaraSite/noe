@@ -4463,3 +4463,52 @@ Tag a documentation-only successor. CI builds six binaries and SHA256SUMS withou
 repeating source suites. Verify publication, all downloaded assets/native checks
 and direct published Go consumers before backing up and atomically installing
 both authorized paths. Release evidence: `/var/tmp/noe-v2.24.0-release-n29lthrc`.
+
+## v2.24.0 publication and installation — 2026-11-08
+
+- Annotated tag `v2.24.0` points to `0ab4e4eb678e3d8614a7adae5e2bcadf7e63a2c1`,
+  matching the peeled remote tag and CI source. Tag object:
+  `dba177eae65fdb3eafa8f78122c12581350e8006`. Only this preparation record differs
+  from clean candidate `c4f94f4`; all 888 selected source/dependency paths match.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/63)
+  succeeded (API 244, job 265), building six targets and publishing binaries /
+  SHA256SUMS without repeating implementation suites.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.24.0) is
+  published, neither draft nor prerelease (ID 177), with the tagged English notes.
+
+All seven assets were downloaded. All six binaries match checksums, the immutable
+revision, vcs.modified=false, target OS/architecture, Go 1.27.2, CGO_ENABLED=0,
+trimpath, pinned engine/Intl/SQLite dependencies and disabled JIT. Native Linux
+amd64 SHA256: `8027239c183ac11cc83236b3a08b3d4a9b8bae265ac4ea149209ab7831c5fc70`.
+Other target binaries were not executed natively.
+
+The downloaded native asset passes eighteen release checks: version/arithmetic,
+Headers/Response/Body/tee/clone/multipart contracts, five examples, Worker buffer
+transfer, native HTTP cloning and three reference entries. Runtime stderr is
+empty. Unchanged implementation tests, focused race, types, review and SDK evidence
+are reused; no dependency refresh or real provider request occurred.
+
+Direct stdlib@v2.24.0 and agent@v2.24.0 consumers fetch without replacements or a
+synthetic proxy. All eleven checks pass, including module verification, main/Worker
+cases for the five slices, portable/Go-host agent modes and pinned engine/Intl /
+disabled-JIT files. Changed Go/JS/TS paths match the immutable tag in both downloaded
+module copies; nested-module exclusions are verified.
+
+After publication verification, previous binaries were retained and the verified
+native asset was staged and atomically installed at both authorized vm201 paths:
+
+- `/home/agent/.local/bin/noe` (PATH resolves here).
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report `noe v2.24.0` and match the published SHA256. Installed arithmetic and
+both authentication-helper help commands pass; runtime verification is reused for
+the identical asset. No real login or external model/SDK service was used.
+
+Previous v2.23.0 copies, SHA256
+`7b7ff1dffbe40b35339e3f999b7a247442f4e91384104d211b6e226ed7cc4cd9`, are retained at
+`/var/tmp/noe-v2.24.0-install-78clp24q`, with `installation.json` and command logs.
+Release evidence: `/var/tmp/noe-v2.24.0-release-n29lthrc`.
+
+Publication and both installations are complete. No required release/install work
+remains. Other VMs/hosts, running services and noebot were not changed. This record
+does not move the immutable release tag.

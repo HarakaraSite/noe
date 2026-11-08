@@ -1,5 +1,9 @@
 # Headers and Response contracts
 
+Published and installed at both vm201 paths in v2.24.0. The local validation and
+installation statements below describe this slice's implementation completion.
+See the [publication/install checkpoint](../releases/release-checkpoints.md#v2240-publication-and-installation--2026-11-08).
+
 Approved on 2026-11-08 after v2.23.0 publication and installation. This slice
 covers local implementation, validation and commit. It does not publish or
 install another release. The [API policy](stdlib-api-policy.md),

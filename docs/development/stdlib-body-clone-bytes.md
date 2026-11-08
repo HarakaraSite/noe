@@ -1,5 +1,9 @@
 # Fetch body clone byte isolation
 
+Published and installed at both vm201 paths in v2.24.0. The local validation and
+installation statements below describe this slice's implementation completion.
+See the [publication/install checkpoint](../releases/release-checkpoints.md#v2240-publication-and-installation--2026-11-08).
+
 Local continuation approved after `66c5703`, `efa3f82` and `48659fe` on
 2026-11-08. The [API policy](stdlib-api-policy.md),
 [Fetch body clone](https://fetch.spec.whatwg.org/#concept-body-clone) and

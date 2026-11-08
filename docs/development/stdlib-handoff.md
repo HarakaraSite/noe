@@ -1,26 +1,48 @@
 # Standard library session handoff
 
-Updated 2026-11-08 during authorized v2.24.0 publication and both vm201
-installations. The five local continuations through `6ca7ec2` are selected;
-installed executables remain v2.23.0 until publication verification completes.
-Linked policy, implementation and release records remain canonical.
-
-## v2.24.0 release in progress
-
-The user explicitly authorized push, release and installation. Prepare v2.24.0
-with `66c5703`, `efa3f82`, `48659fe`, `f280741` and `6ca7ec2`, preserving the
-existing Go `/v2` versioning and lightweight tag workflow. Reuse completed source
-tests, focused race, types, reviews and SDK evidence; no runtime logic or dependency
-changes are included in preparation. Verify the native release-flags candidate,
-then publish an immutable annotated tag, verify all assets and direct published
-Go consumers, and retain/atomically replace both local executable paths below.
-Other hosts, services and noebot remain excluded.
-
-Evidence: `/var/tmp/noe-v2.24.0-release-n29lthrc`. See
-[v2.24.0 notes](../releases/v2.24.0.md). The following v2.23.0 publication details
-and local-completion sections describe the pre-release state.
+Updated 2026-11-08 after v2.24.0 publication and both vm201 installations.
+All five continuations through `6ca7ec2` are published and installed. Linked
+policy, implementation and release records remain canonical.
 
 ## Repository and publication state
+
+- Repository: `/home/agent/projects/noe`, branch `main`.
+- v2.24.0 includes `66c5703` (Headers/Response), `efa3f82` (Body consumption),
+  `48659fe` (tee lifecycle), `f280741` (clone bytes) and `6ca7ec2` (multipart).
+- Immutable tag revision: `0ab4e4eb678e3d8614a7adae5e2bcadf7e63a2c1`;
+  tag object: `dba177eae65fdb3eafa8f78122c12581350e8006`.
+- [CI run 63](https://forge.harakara.site/littleisland/noe/actions/runs/63)
+  succeeded (API 244, job 265). The
+  [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.24.0)
+  is published, neither draft nor prerelease (ID 177).
+- All six binaries pass checksum/build metadata verification. The downloaded
+  native asset passes eighteen version/contract/example/HTTP/Worker/reference
+  checks. Direct published stdlib and agent consumers pass all eleven checks,
+  including main/Workers and portable/Go-host modes, without replacements.
+- `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` contain the
+  verified Linux amd64 asset, SHA256
+  `8027239c183ac11cc83236b3a08b3d4a9b8bae265ac4ea149209ab7831c5fc70`.
+  Both report `noe v2.24.0`; PATH resolves to the first. Hashes, arithmetic and
+  both authentication-helper help commands pass. Runtime evidence is reused
+  for the identical installed asset.
+- Previous v2.23.0 copies and the installation record are retained at
+  `/var/tmp/noe-v2.24.0-install-78clp24q/installation.json`.
+- Release evidence: `/var/tmp/noe-v2.24.0-release-n29lthrc`. All 888 selected
+  source/dependency paths match the checked implementation apart from the CLI
+  version. Completed implementation tests/race/types/reviews/SDK evidence is
+  reused; no unrelated full-suite rerun or provider call occurred.
+- See the [publication/install checkpoint](../releases/release-checkpoints.md#v2240-publication-and-installation--2026-11-08)
+  and [v2.24.0 notes](../releases/v2.24.0.md). No required release/install work
+  remains. The Go module stays `/v2`; services, other hosts and noebot were not
+  changed. Other target binaries were not executed natively.
+
+The following publication and local-completion sections retain their historical
+state and evidence. Their v2.23.0 installation statements describe the earlier
+completion points; the current installation is recorded above. Remaining bounded
+candidates include full BodyInit/BufferSource conversion, BYOB/byte streams and
+multipart name/filename/header handling; they are not release blockers.
+
+## Previous publication state (v2.23.0)
 
 - Repository: `/home/agent/projects/noe`, branch `main`.
 - v2.23.0 includes `99f7f4b` (URL/query) and `68d9437` (Request URL/method).
@@ -225,7 +247,7 @@ v2.23.0 asset above; reuse completed implementation checks on a later release.
 Browser header/CORS/cache guards, full Body/BufferSource and broader Request /
 signal conformance remain outside this bounded slice. Noebot/services are excluded.
 
-## Current release: v2.23.0 URL and Request corrections
+## v2.23.0 URL and Request publication (historical)
 
 The user requested publication and both local installations after the two local
 slices. Publication/installation are complete. Reuse implementation and release
