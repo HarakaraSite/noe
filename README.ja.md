@@ -35,7 +35,11 @@ Cのツールチェーンは不要です。
 
 この文書は日本語版です。正本は[英語版README](README.md)です。
 
-[v2.21.0 release notes](docs/releases/v2.21.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.21.0)
+[v2.24.0 release notes](docs/releases/v2.24.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.24.0)
+
+v2.24.0 corrects Headers/Response, body consumption, tee cleanup, cloned byte
+ownership and multipart data handling. See the release notes for behavior changes
+and the [Web API examples](examples/web-basics/README.md) for runnable cases.
 
 v2.20.0 corrects existing Web Crypto key usage, extractability, BufferSource,
 and error contracts. Private snapshots govern key operations; mutable public
@@ -72,7 +76,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.21.0
+# noe v2.24.0
 ```
 
 以下の例はリポジトリのルートを作業ディレクトリとします。

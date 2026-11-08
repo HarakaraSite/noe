@@ -1,9 +1,24 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after local multipart boundary/text-value corrections following
-`66c5703`, `efa3f82`, `48659fe` and `f280741`. These continuations are unreleased;
-installed executables remain v2.23.0. Linked policy, implementation and release
-records remain canonical. Release requests include both installations.
+Updated 2026-11-08 during authorized v2.24.0 publication and both vm201
+installations. The five local continuations through `6ca7ec2` are selected;
+installed executables remain v2.23.0 until publication verification completes.
+Linked policy, implementation and release records remain canonical.
+
+## v2.24.0 release in progress
+
+The user explicitly authorized push, release and installation. Prepare v2.24.0
+with `66c5703`, `efa3f82`, `48659fe`, `f280741` and `6ca7ec2`, preserving the
+existing Go `/v2` versioning and lightweight tag workflow. Reuse completed source
+tests, focused race, types, reviews and SDK evidence; no runtime logic or dependency
+changes are included in preparation. Verify the native release-flags candidate,
+then publish an immutable annotated tag, verify all assets and direct published
+Go consumers, and retain/atomically replace both local executable paths below.
+Other hosts, services and noebot remain excluded.
+
+Evidence: `/var/tmp/noe-v2.24.0-release-n29lthrc`. See
+[v2.24.0 notes](../releases/v2.24.0.md). The following v2.23.0 publication details
+and local-completion sections describe the pre-release state.
 
 ## Repository and publication state
 

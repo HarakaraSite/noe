@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.23.0; see the
+select model providers or agent behavior. The current release is v2.24.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.32.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.23.0`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.24.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -265,6 +265,15 @@ an internal factory. URL/method errors precede upload acquisition.
 Full IDNA/IP/file-URL, Headers/Body/signal and browser-policy coverage is not claimed.
 See [URL/query contracts](development/stdlib-url-encoding.md) and
 [Request contracts](development/stdlib-request-inputs.md).
+
+## Headers, bodies and multipart data
+
+v2.24.0 corrects header validation and cookie iteration, readonly Response
+metadata, current-stream body consumption, tee cleanup and cloned byte ownership.
+Multipart delimiter lines preserve inline data; outgoing text values normalize
+CR/LF while file bytes remain unchanged. These corrections apply in main runtimes
+and Workers without new Profile fields. See the
+[release notes](releases/v2.24.0.md) for behavior changes and remaining scope.
 
 ## Web Crypto
 

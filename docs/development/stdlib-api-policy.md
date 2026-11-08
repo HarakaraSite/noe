@@ -68,11 +68,11 @@ changing NOE does not authorize editing or deploying noebot.
 | Compression interfaces and URLPattern inputs | Required compression formats, readonly stream endpoints and BufferSource writes; object/baseURL route inputs, component inheritance and private pattern state. | Included in v2.22.0. See [contract and verification](stdlib-compression-urlpattern.md). |
 | URL normalization and query encoding | Component-specific encoding, encoded dot segments, default ports, stable URL/query identity and UTF-8 form conversion/live iteration. | Included in v2.23.0. See [contract and verification](stdlib-url-encoding.md). |
 | Request URL and method inputs | Shared URL normalization, ByteString/token/method validation, private readonly URL/method and incoming HTTP preservation. | Included in v2.23.0. See [contract and verification](stdlib-request-inputs.md). |
-| Headers and Response contracts | Header input/live iteration/cookie separation, Response initialization/static methods and native metadata. | Implemented locally at `66c5703` after v2.23.0; see [contract and verification](stdlib-headers-response.md). |
-| Fetch body consumption | Current-stream helper reads, lock/disturbed state, byte-result isolation and finite clone/transfer ownership. | Implemented locally after `66c5703`; see [contract and verification](stdlib-body-consumption.md). |
-| Stream tee lifecycle | Shared cancellation completion, source-error propagation before unread buffered data, and retained overlapping demand. | Implemented locally after `efa3f82`; see [contract and verification](stdlib-stream-tee.md). |
-| Fetch body clone bytes | Isolated ordinary Uint8Array buffers before Body clone branch delivery, using the shared tee lifecycle. | Implemented locally after `48659fe`; see [contract and verification](stdlib-body-clone-bytes.md). |
-| Multipart boundaries and text values | Delimiter-line recognition without inline data loss; CRLF-normalized outgoing text values with unchanged files. | Implemented locally after `f280741`; see [contract and verification](stdlib-multipart.md). |
+| Headers and Response contracts | Header input/live iteration/cookie separation, Response initialization/static methods and native metadata. | Included in v2.24.0; see [contract and verification](stdlib-headers-response.md). |
+| Fetch body consumption | Current-stream helper reads, lock/disturbed state, byte-result isolation and finite clone/transfer ownership. | Included in v2.24.0; see [contract and verification](stdlib-body-consumption.md). |
+| Stream tee lifecycle | Shared cancellation completion, source-error propagation before unread buffered data, and retained overlapping demand. | Included in v2.24.0; see [contract and verification](stdlib-stream-tee.md). |
+| Fetch body clone bytes | Isolated ordinary Uint8Array buffers before Body clone branch delivery, using the shared tee lifecycle. | Included in v2.24.0; see [contract and verification](stdlib-body-clone-bytes.md). |
+| Multipart boundaries and text values | Delimiter-line recognition without inline data loss; CRLF-normalized outgoing text values with unchanged files. | Included in v2.24.0; see [contract and verification](stdlib-multipart.md). |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource
 remains a standard global. Expansion phases such as Web Crypto, additional
