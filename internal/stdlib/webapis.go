@@ -809,6 +809,51 @@ const webAPIsJS = `(function (host) {
 
   const specialPorts = {"http:": "80", "https:": "443", "ws:": "80", "wss:": "443", "ftp:": "21"};
   const isSpecial = (scheme) => Object.prototype.hasOwnProperty.call(specialPorts, scheme) || scheme === "file:";
+  const urlWellFormed = String.prototype.toWellFormed;
+  function urlString(value) { return codecApply(urlWellFormed, webDOMString(value), []); }
+  const urlEncodeSets = {
+    path: ' "#<>?^\x60{}', query: ' "#<>', fragment: ' "<>\x60',
+    userinfo: ' "#<>?^\x60{}/:;=@[\\]|', opaque: "",
+  };
+  function encodeURL(value, part, special = false) {
+    const extra = urlEncodeSets[part] + (part === "query" && special ? "'" : "");
+    let out = "";
+    for (const ch of value) {
+      const code = ch.codePointAt(0);
+      if (code < 0x20 || code >= 0x7f || extra.includes(ch)) {
+        for (const byte of new TextEncoder().encode(ch)) out += "%" + byte.toString(16).toUpperCase().padStart(2, "0");
+      } else out += ch;
+    }
+    return out;
+  }
+  const urlControls = value => value.replace(/[\t\n\r]/g, "");
+  function specialSlashes(value) {
+    const end = value.search(/[?#]/);
+    const at = end < 0 ? value.length : end;
+    return value.slice(0, at).replace(/\\/g, "/") + value.slice(at);
+  }
+  function normalizedPort(value, scheme, partial = false) {
+    const match = (partial ? /^\d+/ : /^\d*$/).exec(value);
+    if (match === null || +match[0] > 65535) return null;
+    if (match[0] === "") return "";
+    const port = String(+match[0]);
+    return port === specialPorts[scheme] ? "" : port;
+  }
+  function splitURLHost(value) {
+    if (value.startsWith("[")) {
+      const close = value.indexOf("]");
+      if (close < 0 || (value.slice(close + 1) !== "" && value[close + 1] !== ":")) throw new TypeError("Invalid URL host");
+      return {hostname: value.slice(0, close + 1), port: value[close + 1] === ":" ? value.slice(close + 2) : undefined};
+    }
+    const colon = value.indexOf(":");
+    return {hostname: colon < 0 ? value : value.slice(0, colon), port: colon < 0 ? undefined : value.slice(colon + 1)};
+  }
+  function normalizedHost(value, scheme) {
+    if (value.startsWith("[") && value.endsWith("]")) return value.toLowerCase();
+    if (/[\u0000-\u0020\u007f/#?:@\[\\\]<>^|]/.test(value) || (value === "" && isSpecial(scheme) && scheme !== "file:")) throw new TypeError("Invalid URL host");
+    if (scheme === "file:" && value.toLowerCase() === "localhost") return "";
+    return isSpecial(scheme) ? value.toLowerCase() : encodeURL(value, "opaque");
+  }
 
   function encodeSet(s, extra) {
     let out = "";
@@ -827,15 +872,15 @@ const webAPIsJS = `(function (host) {
 
   // Removing dot segments, which is what makes a/b/../c into a/c.
   function normalizePath(path) {
-    const parts = path.split("/");
+    const parts = (path.startsWith("/") ? path : "/" + path).split("/");
     const out = [];
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
-      if (p === ".") {
+      if (/^(?:\.|%2e)$/i.test(p)) {
         if (i === parts.length - 1) out.push("");
         continue;
       }
-      if (p === "..") {
+      if (/^(?:\.\.|\.%2e|%2e\.|%2e%2e)$/i.test(p)) {
         if (out.length > 1) out.pop();
         if (i === parts.length - 1) out.push("");
         continue;
@@ -848,9 +893,9 @@ const webAPIsJS = `(function (host) {
   }
 
   function parseURL(input, base) {
-    let rest = String(input).trim().replace(/[\t\n\r]/g, "");
+    let rest = urlControls(input.replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, ""));
     const url = {scheme: "", username: "", password: "", host: "", port: "",
-                 path: "", query: null, fragment: null};
+                 path: "", query: null, fragment: null, opaque: false, authority: false};
 
     const schemeMatch = /^([A-Za-z][A-Za-z0-9+\-.]*):/.exec(rest);
     if (schemeMatch) {
@@ -863,8 +908,13 @@ const webAPIsJS = `(function (host) {
       throw new TypeError("Invalid URL: " + input);
     }
 
-    if (isSpecial(url.scheme)) rest = rest.replace(/^[\\/]{2}/, "//");
+    if (isSpecial(url.scheme)) rest = specialSlashes(rest);
+    if (isSpecial(url.scheme) && url.scheme !== "file:") {
+      if (base && base.scheme === url.scheme && !rest.startsWith("//")) return resolveRelative(rest, base);
+      rest = "//" + rest.replace(/^\/+/, "");
+    }
     if (rest.startsWith("//")) {
+      url.authority = true;
       rest = rest.slice(2);
       let authority = rest;
       const end = authority.search(/[/?#]/);
@@ -875,71 +925,57 @@ const webAPIsJS = `(function (host) {
         const creds = authority.slice(0, at);
         authority = authority.slice(at + 1);
         const colon = creds.indexOf(":");
-        url.username = colon < 0 ? creds : creds.slice(0, colon);
-        url.password = colon < 0 ? "" : creds.slice(colon + 1);
+        url.username = encodeURL(colon < 0 ? creds : creds.slice(0, colon), "userinfo");
+        url.password = encodeURL(colon < 0 ? "" : creds.slice(colon + 1), "userinfo");
       }
-      if (authority.startsWith("[")) {
-        const close = authority.indexOf("]");
-        url.host = authority.slice(0, close + 1).toLowerCase();
-        const after = authority.slice(close + 1);
-        if (after.startsWith(":")) url.port = after.slice(1);
-      } else {
-        const colon = authority.lastIndexOf(":");
-        if (colon >= 0) {
-          url.host = authority.slice(0, colon).toLowerCase();
-          url.port = authority.slice(colon + 1);
-        } else {
-          url.host = authority.toLowerCase();
-        }
-      }
-      if (url.port !== "" && !/^\d*$/.test(url.port)) {
-        throw new TypeError("Invalid URL: " + input);
-      }
-      if (url.port === specialPorts[url.scheme]) url.port = "";
-      if (isSpecial(url.scheme) && url.host === "" && url.scheme !== "file:") {
-        throw new TypeError("Invalid URL: " + input);
-      }
-    } else if (isSpecial(url.scheme) && url.scheme !== "file:") {
-      throw new TypeError("Invalid URL: " + input);
+      const hostPort = splitURLHost(authority);
+      url.host = normalizedHost(hostPort.hostname, url.scheme);
+      url.port = normalizedPort(hostPort.port === undefined ? "" : hostPort.port, url.scheme);
+      if (url.port === null || (url.scheme === "file:" && (at >= 0 || url.port !== ""))) throw new TypeError("Invalid URL port");
     }
 
     const hash = rest.indexOf("#");
-    if (hash >= 0) { url.fragment = rest.slice(hash + 1); rest = rest.slice(0, hash); }
+    if (hash >= 0) { url.fragment = encodeURL(rest.slice(hash + 1), "fragment"); rest = rest.slice(0, hash); }
     const q = rest.indexOf("?");
-    if (q >= 0) { url.query = rest.slice(q + 1); rest = rest.slice(0, q); }
-    url.path = rest;
-    if (url.host !== "" || isSpecial(url.scheme)) url.path = normalizePath(url.path);
+    if (q >= 0) { url.query = encodeURL(rest.slice(q + 1), "query", isSpecial(url.scheme)); rest = rest.slice(0, q); }
+    url.opaque = !isSpecial(url.scheme) && !url.authority && !rest.startsWith("/");
+    if (url.opaque) {
+      url.path = encodeURL(rest, "opaque");
+      // Current URL Standard encodes the space immediately before ? or #.
+      if ((q >= 0 || hash >= 0) && url.path.endsWith(" ")) url.path = url.path.slice(0, -1) + "%20";
+    } else if (rest !== "" || isSpecial(url.scheme)) url.path = normalizePath(encodeURL(rest, "path"));
+    if (url.scheme === "file:") url.authority = true;
     return url;
   }
 
   // A relative reference is resolved against a base, which is RFC 3986's merge.
   function resolveRelative(ref, base) {
-    const url = {scheme: base.scheme, username: base.username, password: base.password,
-                 host: base.host, port: base.port, path: base.path,
-                 query: base.query, fragment: null};
+    if (base.opaque && !ref.startsWith("#")) throw new TypeError("A relative URL requires a hierarchical base");
+    if (isSpecial(base.scheme)) ref = specialSlashes(ref);
+    const url = {...base, fragment: null};
     if (ref === "") { url.query = base.query; return url; }
-    if (ref.startsWith("#")) { url.fragment = ref.slice(1); url.query = base.query; return url; }
+    if (ref.startsWith("#")) { url.fragment = encodeURL(ref.slice(1), "fragment"); return url; }
     if (ref.startsWith("//")) return parseURL(base.scheme + ref);
 
     let rest = ref;
     const hash = rest.indexOf("#");
-    if (hash >= 0) { url.fragment = rest.slice(hash + 1); rest = rest.slice(0, hash); }
+    if (hash >= 0) { url.fragment = encodeURL(rest.slice(hash + 1), "fragment"); rest = rest.slice(0, hash); }
     const q = rest.indexOf("?");
-    if (q >= 0) { url.query = rest.slice(q + 1); rest = rest.slice(0, q); }
+    if (q >= 0) { url.query = encodeURL(rest.slice(q + 1), "query", isSpecial(url.scheme)); rest = rest.slice(0, q); }
     else url.query = rest === "" ? base.query : null;
 
     if (rest === "") { url.path = base.path; return url; }
-    if (rest.startsWith("/")) url.path = normalizePath(rest);
+    if (rest.startsWith("/")) url.path = normalizePath(encodeURL(rest, "path"));
     else {
       const dir = base.path.slice(0, base.path.lastIndexOf("/") + 1);
-      url.path = normalizePath(dir + rest);
+      url.path = normalizePath(dir + encodeURL(rest, "path"));
     }
     return url;
   }
 
   function serialize(u, excludeFragment) {
     let out = u.scheme;
-    if (u.host !== "" || u.scheme === "file:") {
+    if (u.authority) {
       out += "//";
       if (u.username !== "" || u.password !== "") {
         out += u.username;
@@ -949,6 +985,7 @@ const webAPIsJS = `(function (host) {
       out += u.host;
       if (u.port !== "") out += ":" + u.port;
     }
+    if (!u.authority && !u.opaque && u.path.startsWith("//")) out += "/.";
     out += u.path;
     if (u.query !== null) out += "?" + u.query;
     if (!excludeFragment && u.fragment !== null) out += "#" + u.fragment;
@@ -957,197 +994,448 @@ const webAPIsJS = `(function (host) {
 
   const internal = new WeakMap();
 
-  class URLSearchParams {
-    constructor(init = "") {
-      host.cloneAs(this, "unsupported");
-      let pairs = [];
-      if (typeof init === "string") {
-        pairs = parseQuery(init);
-      } else if (init instanceof URLSearchParams) {
-        pairs = internal.get(init).pairs.map(p => p.slice());
-      } else if (Array.isArray(init)) {
-        pairs = init.map(p => [String(p[0]), String(p[1])]);
-      } else if (init && typeof init === "object") {
-        pairs = Object.entries(init).map(([k, v]) => [String(k), String(v)]);
-      }
-      internal.set(this, {pairs, url: null});
-    }
-    get size() { return internal.get(this).pairs.length; }
-    append(name, value) {
-      internal.get(this).pairs.push([String(name), String(value)]);
-      update(this);
-    }
-    delete(name, value) {
-      const state = internal.get(this);
-      const n = String(name);
-      state.pairs = state.pairs.filter(
-        ([k, v]) => k !== n || (value !== undefined && v !== String(value)));
-      update(this);
-    }
-    get(name) {
-      const hit = internal.get(this).pairs.find(([k]) => k === String(name));
-      return hit === undefined ? null : hit[1];
-    }
-    getAll(name) {
-      return internal.get(this).pairs.filter(([k]) => k === String(name)).map(([, v]) => v);
-    }
-    has(name, value) {
-      return internal.get(this).pairs.some(
-        ([k, v]) => k === String(name) && (value === undefined || v === String(value)));
-    }
-    set(name, value) {
-      const state = internal.get(this);
-      const n = String(name);
-      const at = state.pairs.findIndex(([k]) => k === n);
-      if (at < 0) state.pairs.push([n, String(value)]);
-      else {
-        state.pairs[at] = [n, String(value)];
-        state.pairs = state.pairs.filter(([k], i) => k !== n || i === at);
-      }
-      update(this);
-    }
-    sort() {
-      const state = internal.get(this);
-      state.pairs.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
-      update(this);
-    }
-    forEach(fn, thisArg) {
-      for (const [k, v] of internal.get(this).pairs.slice()) fn.call(thisArg, v, k, this);
-    }
-    *entries() { for (const p of internal.get(this).pairs.slice()) yield [p[0], p[1]]; }
-    *keys() { for (const [k] of internal.get(this).pairs.slice()) yield k; }
-    *values() { for (const [, v] of internal.get(this).pairs.slice()) yield v; }
-    [Symbol.iterator]() { return this.entries(); }
-    toString() {
-      return internal.get(this).pairs
-        .map(([k, v]) => encodeQuery(k) + "=" + encodeQuery(v)).join("&");
+  const paramsStates = new WeakMap();
+  const paramsStateGet = WeakMap.prototype.get, paramsStateSet = WeakMap.prototype.set;
+  const paramsIteratorStates = new WeakMap();
+  const paramsIteratorStateGet = WeakMap.prototype.get, paramsIteratorStateSet = WeakMap.prototype.set;
+  const paramsOwnKeys = Reflect.ownKeys;
+  const paramsGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  const paramsDefineProperty = Object.defineProperty;
+  const paramsObjectCreate = Object.create;
+  const paramsReflectApply = Reflect.apply;
+  const paramsIteratorSymbol = Symbol.iterator;
+  const paramsArraySort = Array.prototype.sort;
+  const paramsFormEncoder = new TextEncoder();
+  const paramsFormEncode = TextEncoder.prototype.encode;
+  const paramsFormDecoder = new TextDecoder("utf-8", {ignoreBOM: true});
+  const paramsFormDecode = TextDecoder.prototype.decode;
+
+  function paramsStateFor(params) {
+    const state = paramsReflectApply(paramsStateGet, paramsStates, [params]);
+    if (state === undefined) throw new TypeError("The receiver is not a URLSearchParams");
+    return state;
+  }
+
+  function paramsSequenceValues(value, iteratorMethod, convert) {
+    const iterator = paramsReflectApply(iteratorMethod, value, []);
+    if (iterator === null || (typeof iterator !== "object" && typeof iterator !== "function")) throw new TypeError("An iterator must be an object");
+    const next = iterator.next, values = [];
+    // Web IDL sequence conversion propagates abrupt completion without return().
+    for (;;) {
+      const step = paramsReflectApply(next, iterator, []);
+      if (step === null || (typeof step !== "object" && typeof step !== "function")) throw new TypeError("An iterator result must be an object");
+      if (step.done) return values;
+      values.push(convert(step.value));
     }
   }
 
+  function paramsSequence(value, iteratorMethod) {
+    const pairs = paramsSequenceValues(value, iteratorMethod, inner => {
+      if (inner === null || (typeof inner !== "object" && typeof inner !== "function")) throw new TypeError("A URLSearchParams pair must be an iterable object");
+      const method = inner[paramsIteratorSymbol];
+      if (typeof method !== "function") throw new TypeError("A URLSearchParams pair must be iterable");
+      return paramsSequenceValues(inner, method, urlString);
+    });
+    for (const pair of pairs) if (pair.length !== 2) throw new TypeError("Each URLSearchParams pair must contain exactly two items");
+    return pairs;
+  }
+
+  function paramsRecord(value) {
+    const pairs = [];
+    for (const key of paramsReflectApply(paramsOwnKeys, Reflect, [value])) {
+      const descriptor = paramsReflectApply(paramsGetOwnPropertyDescriptor, Object, [value, key]);
+      if (descriptor === undefined || !descriptor.enumerable) continue;
+      const name = urlString(key);
+      const item = urlString(value[key]);
+      let found = false;
+      for (let i = 0; i < pairs.length; i++) {
+        if (pairs[i][0] === name) {
+          pairs[i][1] = item;
+          found = true;
+          break;
+        }
+      }
+      if (!found) pairs.push([name, item]);
+    }
+    return pairs;
+  }
+
+  function paramsInit(init) {
+    if (typeof init === "string") {
+      const query = urlString(init);
+      return parseQuery(query.startsWith("?") ? query.slice(1) : query);
+    }
+    if (init === null || (typeof init !== "object" && typeof init !== "function")) {
+      return parseQuery(urlString(init));
+    }
+    const iteratorMethod = init[paramsIteratorSymbol];
+    if (iteratorMethod !== undefined && iteratorMethod !== null) {
+      if (typeof iteratorMethod !== "function") throw new TypeError("URLSearchParams init is not iterable");
+      return paramsSequence(init, iteratorMethod);
+    }
+    return paramsRecord(init);
+  }
+
+  class URLSearchParams {
+    constructor(init = "") {
+      host.cloneAs(this, "unsupported");
+      const pairs = paramsInit(init);
+      paramsReflectApply(paramsStateSet, paramsStates, [this, {pairs, url: null}]);
+    }
+    get size() { return paramsStateFor(this).pairs.length; }
+    append(name, value) {
+      const state = paramsStateFor(this);
+      if (arguments.length < 2) throw new TypeError("append requires name and value");
+      const convertedName = urlString(name), convertedValue = urlString(value);
+      state.pairs.push([convertedName, convertedValue]);
+      update(this);
+    }
+    delete(name, value) {
+      const state = paramsStateFor(this);
+      if (arguments.length < 1) throw new TypeError("delete requires a name");
+      const convertedName = urlString(name);
+      const matchValue = arguments.length > 1 && value !== undefined;
+      const convertedValue = matchValue ? urlString(value) : undefined;
+      const pairs = [];
+      for (const pair of state.pairs) {
+        if (pair[0] !== convertedName || (matchValue && pair[1] !== convertedValue)) pairs.push(pair);
+      }
+      state.pairs = pairs;
+      update(this);
+    }
+    get(name) {
+      const state = paramsStateFor(this);
+      if (arguments.length < 1) throw new TypeError("get requires a name");
+      const convertedName = urlString(name);
+      for (const pair of state.pairs) if (pair[0] === convertedName) return pair[1];
+      return null;
+    }
+    getAll(name) {
+      const state = paramsStateFor(this);
+      if (arguments.length < 1) throw new TypeError("getAll requires a name");
+      const convertedName = urlString(name), values = [];
+      for (const pair of state.pairs) if (pair[0] === convertedName) values.push(pair[1]);
+      return values;
+    }
+    has(name, value) {
+      const state = paramsStateFor(this);
+      if (arguments.length < 1) throw new TypeError("has requires a name");
+      const convertedName = urlString(name);
+      const matchValue = arguments.length > 1 && value !== undefined;
+      const convertedValue = matchValue ? urlString(value) : undefined;
+      for (const pair of state.pairs) {
+        if (pair[0] === convertedName && (!matchValue || pair[1] === convertedValue)) return true;
+      }
+      return false;
+    }
+    set(name, value) {
+      const state = paramsStateFor(this);
+      if (arguments.length < 2) throw new TypeError("set requires name and value");
+      const convertedName = urlString(name), convertedValue = urlString(value);
+      let found = false;
+      const pairs = [];
+      for (const pair of state.pairs) {
+        if (pair[0] !== convertedName) {
+          pairs.push(pair);
+        } else if (!found) {
+          pairs.push([convertedName, convertedValue]);
+          found = true;
+        }
+      }
+      if (!found) pairs.push([convertedName, convertedValue]);
+      state.pairs = pairs;
+      update(this);
+    }
+    sort() {
+      const state = paramsStateFor(this);
+      paramsReflectApply(paramsArraySort, state.pairs, [
+        (a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0,
+      ]);
+      update(this);
+    }
+    forEach(callback, thisArg) {
+      const state = paramsStateFor(this);
+      if (arguments.length < 1) throw new TypeError("forEach requires a callback");
+      if (typeof callback !== "function") throw new TypeError("The callback must be a function");
+      let index = 0;
+      let pairs = state.pairs;
+      while (index < pairs.length) {
+        const pair = pairs[index];
+        paramsReflectApply(callback, thisArg, [pair[1], pair[0], this]);
+        pairs = state.pairs;
+        index++;
+      }
+    }
+    entries() { return paramsIterator(this, "key+value"); }
+    keys() { return paramsIterator(this, "key"); }
+    values() { return paramsIterator(this, "value"); }
+    [paramsIteratorSymbol]() { return paramsIterator(this, "key+value"); }
+    toString() { return serializeParams(paramsStateFor(this).pairs); }
+  }
+
+  const paramsIteratorPrototype = paramsObjectCreate(
+    Object.getPrototypeOf(Object.getPrototypeOf([][paramsIteratorSymbol]())));
+  paramsDefineProperty(paramsIteratorPrototype, "next", {
+    value: function next() {
+      const iteratorState = paramsReflectApply(paramsIteratorStateGet, paramsIteratorStates, [this]);
+      if (iteratorState === undefined) throw new TypeError("The receiver is not a URLSearchParams iterator");
+      const pairs = paramsStateFor(iteratorState.params).pairs;
+      if (iteratorState.index >= pairs.length) return {value: undefined, done: true};
+      const pair = pairs[iteratorState.index++];
+      const value = iteratorState.kind === "key" ? pair[0]
+        : iteratorState.kind === "value" ? pair[1] : [pair[0], pair[1]];
+      return {value, done: false};
+    },
+    writable: true, enumerable: true, configurable: true,
+  });
+  paramsDefineProperty(paramsIteratorPrototype, Symbol.toStringTag, {
+    value: "URLSearchParams Iterator", configurable: true,
+  });
+
+  function paramsIterator(params, kind) {
+    paramsStateFor(params);
+    const iterator = paramsObjectCreate(paramsIteratorPrototype);
+    paramsReflectApply(paramsIteratorStateSet, paramsIteratorStates, [iterator, {params, kind, index: 0}]);
+    return iterator;
+  }
+
+  for (const name of ["size", "append", "delete", "get", "getAll", "has", "set", "sort", "forEach", "entries", "keys", "values", "toString"]) {
+    paramsDefineProperty(URLSearchParams.prototype, name, {enumerable: true});
+  }
+  URLSearchParams.prototype[paramsIteratorSymbol] = URLSearchParams.prototype.entries;
+  paramsDefineProperty(URLSearchParams.prototype, Symbol.toStringTag, {
+    value: "URLSearchParams", configurable: true,
+  });
+
+  const paramsFormEncoderBytes = (value) => paramsReflectApply(paramsFormEncode, paramsFormEncoder, [value]);
+  const paramsDecodeBytes = (bytes) => paramsReflectApply(paramsFormDecode, paramsFormDecoder, [new Uint8Array(bytes)]);
+
   function parseQuery(s) {
+    const bytes = paramsFormEncoderBytes(s);
     const out = [];
-    for (const part of String(s).replace(/^\?/, "").split("&")) {
-      if (part === "") continue;
-      const eq = part.indexOf("=");
-      const k = eq < 0 ? part : part.slice(0, eq);
-      const v = eq < 0 ? "" : part.slice(eq + 1);
-      out.push([decodeQuery(k), decodeQuery(v)]);
+    let start = 0;
+    for (let end = 0; end <= bytes.length; end++) {
+      if (end < bytes.length && bytes[end] !== 0x26) continue;
+      if (end > start) {
+        let equals = start;
+        while (equals < end && bytes[equals] !== 0x3d) equals++;
+        const nameEnd = equals < end ? equals : end;
+        const valueStart = equals < end ? equals + 1 : end;
+        out.push([decodeQuery(bytes, start, nameEnd), decodeQuery(bytes, valueStart, end)]);
+      }
+      start = end + 1;
     }
     return out;
   }
 
-  function decodeQuery(s) {
-    try { return decodeURIComponent(s.replace(/\+/g, " ")); }
-    catch (e) { return s.replace(/\+/g, " "); }
+  function queryHex(byte) {
+    if (byte >= 0x30 && byte <= 0x39) return byte - 0x30;
+    if (byte >= 0x41 && byte <= 0x46) return byte - 0x41 + 10;
+    if (byte >= 0x61 && byte <= 0x66) return byte - 0x61 + 10;
+    return -1;
+  }
+
+  function decodeQuery(bytes, start, end) {
+    const output = [];
+    for (let i = start; i < end; i++) {
+      const byte = bytes[i];
+      if (byte === 0x2b) {
+        output.push(0x20);
+        continue;
+      }
+      if (byte === 0x25 && i + 2 < end) {
+        const high = queryHex(bytes[i + 1]), low = queryHex(bytes[i + 2]);
+        if (high >= 0 && low >= 0) {
+          output.push(high * 16 + low);
+          i += 2;
+          continue;
+        }
+      }
+      output.push(byte);
+    }
+    return paramsDecodeBytes(output);
   }
 
   function encodeQuery(s) {
-    return encodeURIComponent(s).replace(/%20/g, "+").replace(/[!'()~]/g,
-      c => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+    const bytes = paramsFormEncoderBytes(urlString(s));
+    let out = "";
+    for (const byte of bytes) {
+      if (byte === 0x20) out += "+";
+      else if ((byte >= 0x30 && byte <= 0x39) || (byte >= 0x41 && byte <= 0x5a) ||
+               (byte >= 0x61 && byte <= 0x7a) || byte === 0x2a || byte === 0x2d ||
+               byte === 0x2e || byte === 0x5f) out += String.fromCharCode(byte);
+      else out += "%" + byte.toString(16).toUpperCase().padStart(2, "0");
+    }
+    return out;
+  }
+
+  function serializeParams(pairs) {
+    let out = "";
+    for (let i = 0; i < pairs.length; i++) {
+      if (i > 0) out += "&";
+      out += encodeQuery(pairs[i][0]) + "=" + encodeQuery(pairs[i][1]);
+    }
+    return out;
   }
 
   // Writing to the parameters rewrites the query of the URL they came from.
   function update(params) {
-    const state = internal.get(params);
+    const state = paramsStateFor(params);
     if (state.url === null) return;
-    const text = params.toString();
+    const text = serializeParams(state.pairs);
     internal.get(state.url).url.query = text === "" ? null : text;
   }
 
+  function bindParams(params, urlObject) {
+    paramsStateFor(params).url = urlObject;
+  }
+
+  function resetParams(params, query) {
+    const pairs = query === null ? [] : parseQuery(urlString(query));
+    paramsStateFor(params).pairs = pairs;
+  }
+
+  function urlOf(value) {
+    const state = codecApply(patternGet, internal, [value]);
+    if (state === undefined) throw new TypeError("The receiver is not a URL");
+    return state;
+  }
+  function urlArguments(args) {
+    if (args.length === 0) throw new TypeError("A URL input is required");
+    const input = urlString(args[0]);
+    const base = args[1] === undefined ? undefined : urlString(args[1]);
+    return [input, base];
+  }
+  function apiURL(input, base) { return parseURL(input, base === undefined ? null : parseURL(base)); }
+  function initializeURL(object, url) {
+    const params = new URLSearchParams();
+    codecApply(patternSet, internal, [object, {url, params}]);
+    bindParams(params, object);
+    resetParams(params, url.query);
+    host.cloneAs(object, "unsupported");
+  }
+  function setURLHost(url, value, hostnameOnly) {
+    if (url.opaque) return;
+    const end = value.search(isSpecial(url.scheme) ? /[\\/?#]/ : /[/?#]/);
+    if (end >= 0) value = value.slice(0, end);
+    let parts, hostname;
+    try {
+      parts = splitURLHost(value);
+      if (hostnameOnly && parts.port !== undefined) return;
+      hostname = normalizedHost(parts.hostname, url.scheme);
+    } catch (_) { return; }
+    if (hostname === "" && (url.username !== "" || url.password !== "" || url.port !== "")) return;
+    url.host = hostname;
+    url.authority = true;
+    if (!hostnameOnly && parts.port !== undefined && parts.port !== "" && url.scheme !== "file:") {
+      const port = normalizedPort(parts.port, url.scheme, true);
+      if (port !== null) url.port = port;
+    }
+  }
+  function canHaveCredentials(url) { return !url.opaque && url.host !== "" && url.scheme !== "file:"; }
   class URL {
-    constructor(input, base) {
-      host.cloneAs(this, "unsupported");
-      let parsedBase = null;
-      if (base !== undefined) {
-        parsedBase = base instanceof URL ? internal.get(base).url : parseURL(String(base));
-      }
-      const url = parseURL(String(input), parsedBase);
-      const params = new URLSearchParams(url.query === null ? "" : url.query);
-      internal.set(this, {url, params});
-      internal.get(params).url = this;
+    constructor(input, base = undefined) {
+      const values = urlArguments(arguments);
+      initializeURL(this, apiURL(values[0], values[1]));
     }
-    get href() { return serialize(internal.get(this).url); }
+    get href() { return serialize(urlOf(this).url); }
     set href(v) {
-      const url = parseURL(String(v));
-      const state = internal.get(this);
+      const state = urlOf(this), url = parseURL(urlString(v));
       state.url = url;
-      const params = new URLSearchParams(url.query === null ? "" : url.query);
-      internal.get(params).url = this;
-      state.params = params;
+      resetParams(state.params, url.query);
     }
-    get protocol() { return internal.get(this).url.scheme; }
+    get protocol() { return urlOf(this).url.scheme; }
     set protocol(v) {
-      const s = String(v).replace(/:*$/, "") + ":";
-      if (/^[A-Za-z][A-Za-z0-9+\-.]*:$/.test(s)) internal.get(this).url.scheme = s.toLowerCase();
+      const state = urlOf(this), value = urlControls(urlString(v));
+      const url = state.url, match = /^([A-Za-z][A-Za-z0-9+.-]*)(?=:|$)/.exec(value);
+      if (match === null) return;
+      const scheme = match[1].toLowerCase() + ":";
+      if (isSpecial(url.scheme) !== isSpecial(scheme) ||
+          (scheme === "file:" && (url.username !== "" || url.password !== "" || url.port !== "")) ||
+          (url.scheme === "file:" && url.host === "")) return;
+      url.scheme = scheme;
+      if (url.port === specialPorts[scheme]) url.port = "";
     }
-    get username() { return internal.get(this).url.username; }
-    set username(v) { internal.get(this).url.username = encodeSet(String(v), ":@/?#"); }
-    get password() { return internal.get(this).url.password; }
-    set password(v) { internal.get(this).url.password = encodeSet(String(v), ":@/?#"); }
+    get username() { return urlOf(this).url.username; }
+    set username(v) {
+      const state = urlOf(this), value = urlString(v), url = state.url;
+      if (canHaveCredentials(url)) url.username = encodeURL(value, "userinfo");
+    }
+    get password() { return urlOf(this).url.password; }
+    set password(v) {
+      const state = urlOf(this), value = urlString(v), url = state.url;
+      if (canHaveCredentials(url)) url.password = encodeURL(value, "userinfo");
+    }
     get host() {
-      const u = internal.get(this).url;
+      const u = urlOf(this).url;
       return u.port === "" ? u.host : u.host + ":" + u.port;
     }
     set host(v) {
-      const s = String(v);
-      const colon = s.lastIndexOf(":");
-      const u = internal.get(this).url;
-      if (colon > 0 && !s.endsWith("]")) {
-        u.host = s.slice(0, colon).toLowerCase();
-        u.port = s.slice(colon + 1) === specialPorts[u.scheme] ? "" : s.slice(colon + 1);
-      } else {
-        u.host = s.toLowerCase();
-      }
+      const state = urlOf(this), value = urlControls(urlString(v));
+      setURLHost(state.url, value, false);
     }
-    get hostname() { return internal.get(this).url.host; }
-    set hostname(v) { internal.get(this).url.host = String(v).toLowerCase(); }
-    get port() { return internal.get(this).url.port; }
+    get hostname() { return urlOf(this).url.host; }
+    set hostname(v) {
+      const state = urlOf(this), value = urlControls(urlString(v));
+      setURLHost(state.url, value, true);
+    }
+    get port() { return urlOf(this).url.port; }
     set port(v) {
-      const u = internal.get(this).url;
-      const s = String(v);
+      const state = urlOf(this), s = urlControls(urlString(v)), u = state.url;
+      if (!canHaveCredentials(u)) return;
       if (s === "") { u.port = ""; return; }
-      if (/^\d+$/.test(s)) u.port = s === specialPorts[u.scheme] ? "" : s;
+      const port = normalizedPort(s, u.scheme, true);
+      if (port !== null) u.port = port;
     }
-    get pathname() { return internal.get(this).url.path; }
+    get pathname() { return urlOf(this).url.path; }
     set pathname(v) {
-      const u = internal.get(this).url;
-      u.path = normalizePath(encodeSet(String(v), "?#"));
+      const state = urlOf(this), value = urlControls(urlString(v)), u = state.url;
+      if (u.opaque) return;
+      u.path = value === "" && u.authority && !isSpecial(u.scheme) ? "" :
+        normalizePath(encodeURL(isSpecial(u.scheme) ? value.replace(/\\/g, "/") : value, "path"));
     }
     get search() {
-      const q = internal.get(this).url.query;
+      const q = urlOf(this).url.query;
       return q === null || q === "" ? "" : "?" + q;
     }
     set search(v) {
-      const s = String(v).replace(/^\?/, "");
-      const state = internal.get(this);
-      state.url.query = s === "" ? null : encodeSet(s, "#");
-      const params = new URLSearchParams(s);
-      internal.get(params).url = this;
-      state.params = params;
+      const state = urlOf(this), value = urlControls(urlString(v));
+      state.url.query = value === "" ? null : encodeURL(value.replace(/^\?/, ""), "query", isSpecial(state.url.scheme));
+      resetParams(state.params, state.url.query);
     }
-    get searchParams() { return internal.get(this).params; }
+    get searchParams() { return urlOf(this).params; }
     get hash() {
-      const f = internal.get(this).url.fragment;
+      const f = urlOf(this).url.fragment;
       return f === null || f === "" ? "" : "#" + f;
     }
     set hash(v) {
-      const s = String(v).replace(/^#/, "");
-      internal.get(this).url.fragment = s === "" ? null : encodeSet(s, "");
+      const state = urlOf(this), value = urlControls(urlString(v));
+      state.url.fragment = value === "" ? null : encodeURL(value.replace(/^#/, ""), "fragment");
     }
     get origin() {
-      const u = internal.get(this).url;
+      const u = urlOf(this).url;
       if (!isSpecial(u.scheme) || u.scheme === "file:") return "null";
       return u.scheme + "//" + u.host + (u.port === "" ? "" : ":" + u.port);
     }
-    toString() { return this.href; }
-    toJSON() { return this.href; }
-    static canParse(input, base) {
-      try { new URL(input, base); return true; } catch (e) { return false; }
+    toString() { return serialize(urlOf(this).url); }
+    toJSON() { return serialize(urlOf(this).url); }
+    static canParse(input, base = undefined) {
+      const values = urlArguments(arguments);
+      try { apiURL(values[0], values[1]); return true; } catch (_) { return false; }
     }
-    static parse(input, base) {
-      try { return new URL(input, base); } catch (e) { return null; }
+    static parse(input, base = undefined) {
+      const values = urlArguments(arguments);
+      let parsed;
+      try { parsed = apiURL(values[0], values[1]); } catch (_) { return null; }
+      const result = patternCreate(URL.prototype);
+      initializeURL(result, parsed);
+      return result;
     }
   }
+  for (const name of ["href", "origin", "protocol", "username", "password", "host", "hostname", "port", "pathname", "search", "searchParams", "hash", "toString", "toJSON"]) {
+    Object.defineProperty(URL.prototype, name, {enumerable: true});
+  }
+  Object.defineProperty(URL.prototype, Symbol.toStringTag, {value: "URL", configurable: true});
 
   // --- Events and abortion -------------------------------------------------
 

@@ -57,3 +57,17 @@ baseURL and captures a route parameter; a JSON body then passes through the
 existing gzip compression/decompression backends. No network or filesystem grant
 is needed. Compression chunks must be BufferSources and stream endpoints are
 readonly. See the [contract and limitations](../../docs/development/stdlib-compression-urlpattern.md).
+
+### URL normalization and query encoding
+
+The source-only continuation after v2.22.0 is demonstrated by:
+
+```sh
+/tmp/noe-web-basics run --no-inst examples/web-basics/url-query.js
+```
+
+Rebuild the current source first. The example retains one searchParams reference
+across search updates, decodes malformed UTF-8, normalizes a Unicode URL path and
+uses the resulting parameters as a Fetch form body. It sends no request and needs
+no filesystem/network/provider grant. See the
+[contract and boundaries](../../docs/development/stdlib-url-encoding.md).

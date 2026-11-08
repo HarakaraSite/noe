@@ -700,3 +700,18 @@ omitted credentials. Shared URL path normalization retains empty segments while
 removing dot segments. Existing compiler/URL backend limits remain documented;
 this continuation does not replace the full pattern grammar or IDNA implementation.
 See the [contract and verification](../../docs/development/stdlib-compression-urlpattern.md).
+
+### URL normalization and query encoding (2026-11-08)
+
+The continuation after v2.22.0 uses component-specific UTF-8 percent sets,
+USVString conversion, encoded-dot normalization, default-port normalization and
+distinct opaque/hierarchical path handling. URL accessors/stringifiers use private
+branded state and preserve one linked searchParams object across href/search
+assignments. Argument conversion cannot leave setters updating an obsolete record.
+
+URLSearchParams now uses the shared UTF-8 codec for tolerant form decoding,
+supports Web IDL iterable/record conversion and value filters, and exposes readonly
+size and live iteration. Current primary sequence conversion/error order is
+preserved separately from older Node/Deno shortcuts. No parser dependency or
+host authority is added. Full IDNA/IP/file-URL quirks remain outside this slice.
+See the [contract and verification](../../docs/development/stdlib-url-encoding.md).

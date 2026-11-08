@@ -631,11 +631,12 @@ declare namespace NOEStdlib {
   }
 
   interface URLSearchParams extends Iterable<[string, string]> {
+    readonly size: number;
     append(name: string, value: string): void;
-    delete(name: string): void;
+    delete(name: string, value?: string): void;
     get(name: string): string | null;
     getAll(name: string): string[];
-    has(name: string): boolean;
+    has(name: string, value?: string): boolean;
     set(name: string, value: string): void;
     sort(): void;
     toString(): string;
@@ -645,7 +646,7 @@ declare namespace NOEStdlib {
     forEach(callback: (value: string, key: string, params: URLSearchParams) => void, thisArg?: unknown): void;
   }
   type URLSearchParamsInit = string | URLSearchParams | Iterable<readonly [string, string]> | Readonly<Record<string, string>>;
-  interface URLSearchParamsConstructor { new(init?: URLSearchParamsInit): URLSearchParams }
+  interface URLSearchParamsConstructor { new(init?: URLSearchParamsInit): URLSearchParams; readonly prototype: URLSearchParams }
   interface URL {
     href: string;
     protocol: string;
@@ -663,6 +664,7 @@ declare namespace NOEStdlib {
     toJSON(): string;
   }
   interface URLConstructor {
+    readonly prototype: URL;
     new(input: string | URL, base?: string | URL): URL;
     canParse(input: string | URL, base?: string | URL): boolean;
     parse(input: string | URL, base?: string | URL): URL | null;
@@ -1766,6 +1768,7 @@ type ReadableStreamReadValueResult<T> = NOEStdlib.ReadableStreamReadValueResult<
 interface URL extends NOEStdlib.URL {}
 declare var URL: NOEStdlib.URLConstructor;
 interface URLSearchParams extends NOEStdlib.URLSearchParams {}
+type URLSearchParamsInit = NOEStdlib.URLSearchParamsInit;
 declare var URLSearchParams: NOEStdlib.URLSearchParamsConstructor;
 interface TextEncoder extends NOEStdlib.TextEncoder {}
 declare var TextEncoder: NOEStdlib.TextEncoderConstructor;

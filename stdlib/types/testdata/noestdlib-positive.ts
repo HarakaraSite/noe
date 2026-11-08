@@ -338,6 +338,11 @@ const routeFound: URLPatternResult | null = routePattern.exec({pathname:"/api/bo
 const routeInputMatch: boolean = routePattern.test(new URL("https://example.test/api/books/1"));
 const emptyPatternResult: URLPatternResult | null = new URLPattern().exec();
 const patternHasRegex: boolean = routePattern.hasRegExpGroups;
+const queryInit: URLSearchParamsInit = new Set<readonly [string, string]>([["a", "one"]]);
+const queryParams = new URLSearchParams(queryInit);
+const querySize: number = queryParams.size;
+const queryHasValue: boolean = queryParams.has("a", "one");
+queryParams.delete("a", "one");
 const compressionViewWrite: Promise<void> = new CompressionStream("gzip").writable.getWriter().write(new DataView(new ArrayBuffer(2)));
 const listenerTarget = new EventTarget();
 const listenerOptions: AddEventListenerOptions = {capture: true, once: true, passive: true, signal: controller.signal};

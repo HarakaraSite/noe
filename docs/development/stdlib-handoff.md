@@ -72,9 +72,32 @@ complete. Reuse implementation and release evidence for unchanged source and
 dependencies. The verified native asset is
 `/var/tmp/noe-v2.22.0-release-2azd2wrn/assets/noe-linux-amd64`.
 
-The next authorized work is local URL/URLSearchParams normalization/encoding.
+The requested local URL/URLSearchParams normalization/encoding is completed below.
 Additional encoding families, PerformanceObserver/resource/navigation timing,
 DOM trees and full URLPattern grammar/IDNA remain outside the completed slices.
+
+## Local URL normalization and query encoding
+
+The user authorized this continuation after v2.22.0 installation. The
+[contract and boundaries](stdlib-url-encoding.md) is canonical. Component UTF-8
+encoding, encoded dot segments, supported relative/setter transitions, private
+URL state, stable linked query identity and form conversion/live iteration are
+implemented. Types, references, example and main/Worker consumers are updated.
+
+Final seven-package tests, focused race, types/catalog/lint/vet, actual CLI and
+external checkout/module-artifact consumers pass, including main/Worker and Fetch
+form helpers. Runtime comparisons cover six constructor and twelve setter cases
+plus live query behavior; primary-only differences are retained in the contract.
+Review found two P2 issues (rootless pathname dot removal, primitive pair inputs)
+and one P3 (conversion precedence). All were fixed, along with reentrant setter
+record lookup and primary sequence error behavior. One fix-only re-review confirms
+no remaining findings in the fixes. Source continuity is recorded with the final
+changed-source snapshot. Evidence: `/var/tmp/noe-url-encoding-87ffe6i1`.
+
+Both installed paths remain the verified v2.22.0 asset above. This continuation
+has no second release, push or installation authorization. IDNA/IP/full file-URL
+and URLPattern grammar replacement are outside this normalization/encoding slice.
+Local implementation, verification, review and commit are complete.
 
 ## Compression-interface and URLPattern completion (v2.22.0)
 

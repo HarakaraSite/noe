@@ -30,6 +30,13 @@ const timeout=AbortSignal.timeout(0);await new Promise(resolve=>timeout.addEvent
 if(timeout.reason.name!=="TimeoutError"||!(timeout.reason instanceof DOMException))throw Error("worker timeout reason");
 const baseURL="https://example.test/api/", route=new URLPattern({pathname:"books/:id",baseURL});
 const routed=route.exec({pathname:"books/42",baseURL});if(routed?.pathname.groups.id!=="42")throw Error("worker URLPattern inputs");
+const queryURL=new URL("https://EXAMPLE.test:00443/a/%2e%2e/☃?q=old"),queryParams=queryURL.searchParams;
+queryURL.search="?q=%E0%A4%A&space=+";
+if(queryParams!==queryURL.searchParams||queryParams.get("q")!=="�%A"||queryURL.pathname!=="/%E2%98%83"||queryURL.port!=="")throw Error("worker URL normalization/query synchronization");
+const queryIterator=queryParams.entries();queryIterator.next();queryParams.append("live","yes");
+if(!Array.from(queryIterator).some(pair=>pair[0]==="live"))throw Error("worker live parameter iterator");
+const formRequest=new Request(queryURL,{method:"POST",body:queryParams});
+if(!(await formRequest.text()).includes("q=%EF%BF%BD%25A"))throw Error("worker Fetch form encoding");
 for(const format of ["gzip","deflate","deflate-raw"]){
  const plain="book="+routed.pathname.groups.id+" 😀", data=new TextEncoder().encode(plain);
  const compressed=await new Response(ReadableStream.from([data]).pipeThrough(new CompressionStream(format))).bytes();
@@ -44,6 +51,8 @@ const measured=performance.measure("duration",{start:"parent",end:5});
 if(!(mark instanceof PerformanceMark)||mark.detail.value!==1||measured.duration!==3)throw Error("User Timing contract");
 const defaultAbort=AbortSignal.abort();if(defaultAbort.reason.name!=="AbortError")throw Error("main abort reason");
 if(!new URLPattern({pathname:"/books/:id"}).test({pathname:"/books/1"}))throw Error("main URLPattern object input");
+const queryURL=new URL("https://EXAMPLE.test:00443/a/../b?q=old"),queryParams=queryURL.searchParams;
+queryURL.search="?q=new";if(queryParams!==queryURL.searchParams||queryParams.get("q")!=="new"||queryURL.pathname!=="/b"||queryURL.port!=="")throw Error("main URL normalization/query synchronization");
 const worker=new Worker(%q,{eval:true,type:"module"});
 const result=await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});
 await worker.terminate();

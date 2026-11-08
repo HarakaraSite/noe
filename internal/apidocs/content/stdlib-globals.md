@@ -40,6 +40,20 @@ Construct with a required gzip, deflate or deflate-raw format. Unsupported forma
 
 Uses the same required formats, BufferSource input and readonly endpoints as CompressionStream. Invalid headers/data/checksums, trailing bytes and extra gzip members reject with TypeError; incomplete input may fail at close. Incremental output can precede a validation error. The existing cumulative decompressed-output limit is 1 GiB and exceeding it raises RangeError. Consume output concurrently and await successful completion.
 
+## URL
+
+Construct with a required input and optional base. Values undergo USVString conversion. Constructors and setters use UTF-8 percent encoding for credentials, paths, queries and fragments, preserve existing percent escapes, and normalize dot segments (including percent-encoded dots), empty path segments and default ports. Special schemes normalize path backslashes. Opaque paths retain their separate behavior; pathname/credential setters cannot replace them.
+
+searchParams is a readonly SameObject attribute: retain its reference across href/search assignments, and edit parameters to update the URL query. Empty search/hash strings remove the component; assigning "?"/"#" retains an empty marker in href. Form serialization can rewrite spaces as + and ~ as %7E. parse/canParse return null/false for parsing failures; missing arguments and conversion exceptions still throw. Stringification and getters use private branded state.
+
+Full UTS46/IDNA, IP address canonicalization/validation and Windows file-URL quirks remain outside the normalization/encoding slice. The implementation does not certify every URL parser state. The current primary URL Standard's opaque-space rule is used even where older runtimes differ.
+
+## URLSearchParams
+
+Parse and serialize UTF-8 application/x-www-form-urlencoded data. A space serializes as +; a literal + serializes as %2B. Percent decoding tolerates malformed escapes and replaces malformed UTF-8 while preserving valid text and a leading BOM. Inputs and method arguments use USVString conversion, including replacement of lone UTF-16 surrogates; Symbols reject TypeError.
+
+The constructor accepts a string, a generic iterable of exactly two-element iterable pairs, or a record. append/set require two arguments; get/getAll/has/delete require a name. has/delete accept an optional value filter. size is readonly. Sorting is stable in UTF-16 key order. Iterators and forEach observe mutations to the current list. Updates to a linked URL use private serialization. The wrapper cannot be structured-cloned.
+
 ## URLPattern
 
 Construct a pattern from a string or a URLPatternInit dictionary containing protocol, username, password, hostname, port, pathname, search, hash and baseURL. Unknown dictionary keys are ignored. Missing pattern components default to wildcards; baseURL supplies eligible earlier components. Pattern credentials are never inherited from baseURL. Relative string patterns require a separate baseURL; dictionary patterns carry baseURL themselves.
