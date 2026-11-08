@@ -1,5 +1,8 @@
 # Encoding, User Timing, and CustomEvent
 
+Shipped in [v2.21.0](../releases/v2.21.0.md). The implementation-stage evidence
+and scope decisions below are retained as historical records.
+
 Approved on 2026-11-08 after the Deno comparison: correct TextEncoder.encodeInto,
 replace empty Performance methods with useful User Timing, and add CustomEvent.
 The [API policy](stdlib-api-policy.md) applies. This is local implementation;

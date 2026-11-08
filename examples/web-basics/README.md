@@ -2,7 +2,7 @@
 
 [Examples](../README.md) · [Contract](../../docs/development/stdlib-web-basics.md)
 
-This is an unreleased source addition after v2.20.0. Build the current source:
+These APIs are available in v2.21.0 and later. Build the current source:
 
 ```sh
 CGO_ENABLED=0 go build -o /tmp/noe-web-basics ./cmd/noe

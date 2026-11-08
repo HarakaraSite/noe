@@ -40,7 +40,7 @@ The returned read counts consumed source UTF-16 code units; written counts
 output bytes. Unpaired surrogates encode as U+FFFD. A destination that cannot
 fit the next complete character receives none of that character's bytes.
 
-This correction is in unreleased source after v2.20.0. Shared fixed backing is
+This correction is available in v2.21.0 and later. Shared fixed backing is
 allowed. Detached destinations are empty; resizable/growable backing is rejected
 under the operation's current Web IDL annotation. Invalid receivers, missing
 arguments, Symbols and wrong destination types throw TypeError. TextDecoder
@@ -55,7 +55,7 @@ sequences and BOM state across streaming calls. Ending input replaces each
 malformed subsequence at the Encoding Standard's boundaries, or throws TypeError
 in fatal mode. Metadata is readonly and receiver-branded. Fixed shared backing
 is supported; detached inputs are empty and resizable/growable backing is rejected. Other encoding families
-throw RangeError. These corrections are unreleased after v2.20.0.
+throw RangeError. These corrections are available in v2.21.0 and later.
 
 ## EventTarget
 
@@ -70,7 +70,7 @@ before invocation. Passive listeners cannot cancel an event. A real signal abort
 removes bound listeners before its abort event; synthetic abort events do not.
 Already-aborted signals prevent registration. Callback objects resolve handleEvent
 at invocation. These corrections also apply to EventSource, WebSocket, messaging,
-Performance and Worker event targets in unreleased source after v2.20.0.
+Performance and Worker event targets in v2.21.0 and later.
 
 ## CustomEvent
 
@@ -85,12 +85,12 @@ readonly; preventDefault affects cancelable dispatch, and stopImmediatePropagati
 stops remaining listeners. initCustomEvent(type, bubbles, cancelable, detail)
 reinitializes an event outside dispatch and is inert during dispatch. Nested
 dispatch of the same event rejects InvalidStateError. CustomEvent is not
-structured-cloneable and rejects DataCloneError. These additions are in
-unreleased source after v2.20.0; no browser DOM tree is introduced.
+structured-cloneable and rejects DataCloneError. These additions are available in
+v2.21.0 and later; no browser DOM tree is introduced.
 
 ## performance
 
-The unreleased User Timing implementation after v2.20.0 replaces the previous
+The User Timing implementation in v2.21.0 and later replaces the previous
 empty mark/measure methods. now and timeOrigin retain the existing native clock.
 mark(name, {startTime, detail}) returns and records a PerformanceMark.
 measure(name, startMark, endMark) and measure(name, {start, end, duration, detail})

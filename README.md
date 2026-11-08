@@ -39,7 +39,7 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.20.0 release notes](docs/releases/v2.20.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.20.0)
+[v2.21.0 release notes](docs/releases/v2.21.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.21.0)
 
 v2.20.0 corrects existing Web Crypto key usage, extractability, BufferSource,
 and error contracts. Private snapshots govern key operations; mutable public
@@ -47,9 +47,11 @@ metadata cannot grant authority. See the [jose example](examples/crypto/README.m
 and [supported standard APIs and remaining gaps](docs/development/stdlib-webcrypto.md).
 No new algorithm family, host capability, or runtime dependency is added.
 
-Current unreleased source corrects TextEncoder.encodeInto, implements User
-Timing entries, and adds CustomEvent. See the [contract](docs/development/stdlib-web-basics.md)
-and [example](examples/web-basics/README.md).
+v2.21.0 adds User Timing entries and CustomEvent, corrects UTF-8 encoding /
+decoding, and implements standard EventTarget listener identity, capture, once,
+passive and signal cleanup. See the [Web API basics](docs/development/stdlib-web-basics.md),
+[decoder/listener contract](docs/development/stdlib-decoder-events.md), and
+[example](examples/web-basics/README.md).
 
 Web Storage remains available from v2.19.0, including runtime-local
 `sessionStorage` and explicit-file `localStorage`. See the
@@ -75,7 +77,7 @@ git clone https://forge.harakara.site/littleisland/noe
 cd noe
 CGO_ENABLED=0 go build -o noe ./cmd/noe
 ./noe --version
-# noe v2.20.0
+# noe v2.21.0
 ```
 
 The examples below assume the repository root is your working directory.

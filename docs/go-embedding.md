@@ -2,7 +2,7 @@
 
 Use `forge.harakara.site/littleisland/noe/v2/stdlib` to run JavaScript with a
 per-execution profile. `stdlib` does not create a NOE CLI process and does not
-select model providers or agent behavior. The current release is v2.20.0; see the
+select model providers or agent behavior. The current release is v2.21.0; see the
 [v2 migration guide](v2-migration.md) for changes from the previous embedding API.
 
 The current checkout is checked with go-quickjs v0.32.0. Published NOE tags
@@ -19,7 +19,7 @@ rename the template to `go.mod`, and set `replace` to the absolute checkout
 path. Then run `GOWORK=off go mod tidy` and
 `GOWORK=off CGO_ENABLED=0 go run .`. The placeholder version is only for a local
 replacement. To use the published release, remove the replacement and use
-`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.20.0`. Downloading that
+`go get forge.harakara.site/littleisland/noe/v2/stdlib@v2.21.0`. Downloading that
 tag without a replacement is a post-publication check, separate from local
 consumer validation.
 
@@ -202,9 +202,9 @@ endpoint. The socket is owned by its runtime and is closed during runtime or
 Worker cleanup. UDP does not guarantee delivery, packet order, duplicate
 suppression, or retries. See the [API reference](../internal/apidocs/content/noe-sockets.md#bind).
 
-## Encoding, User Timing and CustomEvent (unreleased)
+## Encoding, User Timing and CustomEvent
 
-Source after v2.20.0 corrects TextEncoder.encodeInto's complete-character writes
+v2.21.0 corrects TextEncoder.encodeInto's complete-character writes
 and UTF-16/byte counts, adds CustomEvent, and implements User Timing mark/measure,
 entry queries and clearing. These are default Web APIs, with no new Profile
 field or host grant. Main runtimes and Workers receive independent timelines.
@@ -219,6 +219,13 @@ See the [contract](development/stdlib-web-basics.md),
 [global reference](../internal/apidocs/content/stdlib-globals.md#performance), and
 [example](../examples/web-basics/README.md). PerformanceObserver, resource /
 navigation timing, DOM trees and additional TextDecoder encodings are not added.
+
+v2.21.0 also corrects UTF-8 replacement boundaries, streaming/BOM/fatal decoder
+state, and BufferSource/options conversion. EventTarget deduplicates by type,
+callback and capture, observes removal during dispatch, removes once listeners
+before invocation, enforces passive cancellation, and removes signal-bound
+listeners on actual abort. The same behavior serves Workers, messaging,
+EventSource and WebSocket. See the [decoder/listener contract](development/stdlib-decoder-events.md).
 
 ## Web Crypto
 

@@ -1,5 +1,8 @@
 # UTF-8 decoding and event listeners
 
+Shipped in [v2.21.0](../releases/v2.21.0.md). The implementation-stage evidence
+and scope decisions below are retained as historical records.
+
 This continuation corrects the existing UTF-8 decoder and single-target event
 listener contracts. It follows the [Encoding Standard](https://encoding.spec.whatwg.org/)
 and [DOM Standard](https://dom.spec.whatwg.org/#interface-eventtarget).
