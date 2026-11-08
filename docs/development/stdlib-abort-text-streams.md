@@ -91,3 +91,9 @@ The development candidate, runtime comparison, exact source/consumer continuity,
 and per-command logs remain in the evidence directory. Publication and installation
 are not included in this request; both existing executable paths remain v2.21.0.
 Reuse these results for unchanged source/dependencies when release is requested.
+
+### Publication update
+
+This originally local implementation is published and installed in v2.22.0.
+The implementation evidence above remains reusable for unchanged source and
+dependencies. See the [publication and installation checkpoint](../releases/release-checkpoints.md#v2220-publication-and-installation--2026-11-08).

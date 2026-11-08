@@ -115,3 +115,9 @@ continuity is checked against the artifact manifest and extracted module, with a
 final changed-source snapshot retained alongside the test records. No dependency,
 grant, Go Profile field or release workflow changed. Completed checks can be
 reused for unchanged source and dependencies when publication is requested.
+
+### Publication update
+
+This originally local implementation is published and installed in v2.22.0.
+The implementation evidence above remains reusable for unchanged source and
+dependencies. See the [publication and installation checkpoint](../releases/release-checkpoints.md#v2220-publication-and-installation--2026-11-08).

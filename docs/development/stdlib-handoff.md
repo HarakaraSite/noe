@@ -1,48 +1,36 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after the local compression/URLPattern continuation, following
-the local AbortSignal/Controller and text-stream work and verified v2.21.0
-publication and installation at both
-vm201 executable paths. The installed release includes User Timing, CustomEvent, UTF-8
-codec corrections and shared EventTarget listener semantics. Release requests
-include local installation by default. Linked policy, implementation and release
-records remain the canonical references.
+Updated 2026-11-08 after verified v2.22.0 publication and installation at both
+vm201 executable paths. The user authorized local URL/URLSearchParams normalization
+and encoding work after installation. Linked policy, implementation and release
+records remain canonical. Release requests include both local installations.
 
 ## Repository and publication state
 
-v2.22.0 is prepared at clean candidate `a8cef55`, including the two local slices
-below. The user authorized publication and both vm201 installations, then local
-URL/URLSearchParams normalization/encoding work. Candidate build/version and twelve
-native checks pass; existing implementation evidence is reused. Publication and
-installation remain pending in this preparation commit. See the
-[preparation checkpoint](../releases/release-checkpoints.md#v2220-preparation--2026-11-08).
-
 - Repository: `/home/agent/projects/noe`, branch `main`.
-- v2.21.0 includes implementation checkpoints `a5a52ed` (encoding/User Timing /
-  CustomEvent) and `2e7228f` (UTF-8 decoder/EventTarget).
-- Immutable tag revision: `904f3e770ae1e780601e503bd09127642a33d2a3`;
-  annotated tag object: `502b9d9568448e60ef22150a9f8c79138ff7d027`.
-  [CI run 60](https://forge.harakara.site/littleisland/noe/actions/runs/60)
-  succeeded (API 241, job 262). The
-  [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.21.0)
-  is published, neither draft nor prerelease (ID 174).
+- v2.22.0 includes `edb5e73` (abort/text streams) and `f1ad07a` (compression/URLPattern).
+- Immutable tag revision: `a8e05457064b455c1e21b5e89a630ce9660ada63`;
+  tag object: `e923678cf6a1a8b84defe4d375317696edc821d8`.
+- [CI run 61](https://forge.harakara.site/littleisland/noe/actions/runs/61)
+  succeeded (API 242, job 263). The
+  [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.22.0)
+  is published, neither draft nor prerelease (ID 175).
 - All six assets pass checksum/build metadata verification. The native asset
-  passes ten release runtime/reference/example checks. Direct published stdlib
-  and agent consumers pass, including main/Workers and portable/Go-host modes;
-  all 23 changed Go/JS/TS paths match the immutable tag in both module copies.
-- `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` both contain
-  the verified v2.21.0 Linux amd64 asset, SHA256
-  `bcf7441b17c7293278ecc0feb63756c9ace75a09403cffb33b526b3e7563b059`.
-  Versions, installed hashes, PATH resolution, arithmetic and both authentication
+  passes twelve runtime/reference/example checks. Direct published stdlib and
+  agent consumers pass, including main/Workers and portable/Go-host modes.
+- `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` contain the same
+  verified Linux amd64 asset, SHA256
+  `ebc985ca2c554c5ac01a578eec98cdc4bc794320d723ecd7173fa0bdb2f2c6ae`.
+  Versions, installed hashes, PATH resolution, arithmetic and authentication
   helper help commands pass. Runtime evidence is reused for the identical asset.
-- Previous v2.20.0 copies and per-path installation records are retained at
-  `/var/tmp/noe-v2.21.0-install-b1p37kdd/installation.json`.
-- Release evidence: `/var/tmp/noe-v2.21.0-release-1lwzess2`. See the
-  [publication/install checkpoint](../releases/release-checkpoints.md#v2210-publication-and-installation--2026-11-08),
-  [v2.21.0 notes](../releases/v2.21.0.md), and
-  [v2.20.0 notes](../releases/v2.20.0.md). The Go module remains `/v2`.
-- No required release or installation work remains. Other hosts, service
-  restarts, noebot changes, real login and provider calls were not included.
+- Previous v2.21.0 copies and installation records are retained at
+  `/var/tmp/noe-v2.22.0-install-6j35fb5e/installation.json`.
+- Release evidence: `/var/tmp/noe-v2.22.0-release-2azd2wrn`. See the
+  [publication/install checkpoint](../releases/release-checkpoints.md#v2220-publication-and-installation--2026-11-08),
+  [v2.22.0 notes](../releases/v2.22.0.md), and historical
+  [v2.21.0 notes](../releases/v2.21.0.md). The Go module remains `/v2`.
+- No required release/install work remains. Other hosts, services, noebot,
+  real login and provider requests were excluded.
 
 ## User decisions to retain
 
@@ -76,22 +64,19 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
-## Current release: v2.21.0 Web API corrections
+## Current release: v2.22.0 stream and URLPattern corrections
 
-The user explicitly requested release and placement after both local slices.
-Publication and both installations are complete. Reuse the implementation
-checks and the [preparation/publication evidence](../releases/release-checkpoints.md#v2210-preparation--2026-11-08)
-for unchanged source and dependencies. The release binary lives at
-`/var/tmp/noe-v2.21.0-release-1lwzess2/assets/noe-linux-amd64`.
+The user requested publication and both local installations, followed by local
+URL/URLSearchParams normalization and encoding work. Publication/installation are
+complete. Reuse implementation and release evidence for unchanged source and
+dependencies. The verified native asset is
+`/var/tmp/noe-v2.22.0-release-2azd2wrn/assets/noe-linux-amd64`.
 
-The selected v2.21.0 improvements are shipped. Abort interfaces and text streams
-are completed locally below; compression/URLPattern continuation is recorded next.
-Additional encoding families,
-PerformanceObserver/resource/navigation timing and DOM trees remain outside
-these slices. Future improvements should
-follow concrete standard-library caller needs rather than release housekeeping.
+The next authorized work is local URL/URLSearchParams normalization/encoding.
+Additional encoding families, PerformanceObserver/resource/navigation timing,
+DOM trees and full URLPattern grammar/IDNA remain outside the completed slices.
 
-## Local compression-interface and URLPattern continuation
+## Compression-interface and URLPattern completion (v2.22.0)
 
 The user approved both next improvements. The
 [contract and verification](stdlib-compression-urlpattern.md) is canonical.
@@ -124,17 +109,16 @@ the canonical contract's boundaries. Reuse completed checks for unchanged source
 and dependencies when a release is requested. The preceding local abort/text-stream
 slice is committed at `edb5e73`; both continuations are after v2.21.0.
 
-Both installed executables remain the verified v2.21.0 asset above. No push,
-publication, installation, service restart or noebot change is included in this
-local implementation request.
+This originally local slice is now published and installed in v2.22.0. Its
+implementation evidence above is reused. No services or noebot were changed.
 
-## Local abort-interface and text-stream completion
+## Abort-interface and text-stream completion (v2.22.0)
 
 The user approved both next improvements. The
 [contract and verification](stdlib-abort-text-streams.md) is canonical.
 Implementation, validation and the bounded review follow-up are complete locally.
-Both installed binaries remain the verified v2.21.0 asset above; no publication,
-push or installation is included in this implementation request.
+This originally local slice is now published and installed in v2.22.0. The
+implementation evidence below is retained and reused for release verification.
 
 Controllers expose branded readonly private signals; AbortSignal's public
 constructor is illegal. Default abort/timeout reasons are AbortError/TimeoutError
