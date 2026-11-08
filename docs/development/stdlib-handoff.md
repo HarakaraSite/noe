@@ -1,8 +1,44 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after v2.24.0 publication and both vm201 installations.
+Updated 2026-11-09 for session restart after v2.24.0 publication and both
+vm201 installations.
 All five continuations through `6ca7ec2` are published and installed. Linked
 policy, implementation and release records remain canonical.
+
+## Session restart checkpoint — 2026-11-09
+
+The current user request is to save state before recreating the session. No new
+implementation slice or release is in progress. Publication, both installations
+and the publication-record push are complete; no required follow-up remains.
+
+Before this handoff-only update, `main` and the local `origin/main` tracking ref
+both pointed to `b3c462e3a1bb6ae6df02b9bd4e96afd227bf0299`, with a clean working
+tree. That commit records publication and installation; it is intentionally newer
+than immutable tag revision `0ab4e4e`. This checkpoint is a local documentation-only
+commit on top, without another push, tag, publication or binary update. The prior
+session's verified remote state is retained in
+`/var/tmp/noe-v2.24.0-release-n29lthrc/completion.json`; no new remote query was
+needed for this checkpoint.
+
+On vm201, both installed executables were rechecked for this checkpoint: they
+report `noe v2.24.0` and match the native asset SHA256 below. PATH still resolves
+to `/home/agent/.local/bin/noe`. Backups and release evidence remain at the paths
+below. Runtime/source suites were not repeated for this documentation change.
+
+To resume, read repository `AGENTS.md`, the [API policy](stdlib-api-policy.md)
+and this checkpoint before the historical sections. Reuse the linked implementation
+and release evidence when source/dependencies are unchanged. Future implementation
+work remains limited to `/home/agent/projects/noe`; simplejs, other hosts, noebot
+and service restarts are outside scope. A requested release includes both existing
+local installations under the standing instruction.
+
+No next improvement has been selected or started. If the user asks to continue,
+choose another bounded, reproducible inconsistency affecting real callers.
+Candidates remain multipart field-name/filename escaping and MIME parameters,
+BodyInit/BufferSource conversion/error handling, and later BYOB/byte streams or
+arbitrary-value cloneForBranch2. These are separate candidates rather than a
+combined conformance requirement. Do not restart completed slices, add compatibility
+layers or perform an unrelated whole-library audit.
 
 ## Repository and publication state
 
