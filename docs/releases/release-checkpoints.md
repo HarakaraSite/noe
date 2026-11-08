@@ -4427,3 +4427,39 @@ Release evidence: `/var/tmp/noe-v2.23.0-release-rzascld6`.
 Publication and both installations are complete. No required release/install work
 remains. Other VMs/hosts, running services and noebot were not changed. This record
 does not move the immutable release tag.
+
+## v2.24.0 preparation — 2026-11-08
+
+The user authorized push, release and both vm201 installations. This release
+includes `66c5703` (Headers/Response), `efa3f82` (Body consumption/ownership),
+`48659fe` (tee lifecycle), `f280741` (clone byte isolation) and `6ca7ec2`
+(multipart boundaries/text values). Other hosts, running services and noebot
+remain outside scope.
+
+Reuse implementation evidence at `/var/tmp/noe-headers-response-j6pkokoa`,
+`/var/tmp/noe-body-consumption-mxrejb5s`, `/var/tmp/noe-stream-tee-1rb7gg8o`,
+`/var/tmp/noe-body-clone-bytes-xp2univ6` and `/var/tmp/noe-multipart-e_ykurvl`.
+Affected-package tests, focused race, declaration/catalog/lint/vet, native HTTP /
+Worker transfer, examples and checkout/standalone-module main/Worker consumers
+pass. Required findings from four bounded independent reviews were fixed and
+verified. Multipart additionally passes Deno and Go MIME interoperability.
+Prepared MCP SDK and Exa fixtures passed without real provider calls.
+
+All 888 selected source/dependency paths match `6ca7ec2` except the CLI default
+version. Runtime logic, dependencies, profile and workflow are unchanged. SDK
+bundle/lock/source fingerprints match the prior evidence. No full unit/E2E/race,
+SDK dependency preparation or local six-target build was repeated.
+
+Clean candidate: `c4f94f4253aacba805a4d6ad5a2c1320f5f6751c`.
+The CGO-disabled release-flags build and configured-version unit pass. Metadata
+reports that revision, vcs.modified=false, Linux amd64, Go 1.27.2 and trimpath.
+Eighteen native checks pass: version/arithmetic, six affected contracts, five
+examples, Worker transfer, native HTTP cloning and three embedded reference
+entries. Runtime stderr is empty.
+
+Candidate: `/var/tmp/noe-v2.24.0-release-n29lthrc/candidate`, SHA256
+`3ff9a02016dd20ccae76710e670a6458743f47c47c8870f3639eb1a4e1357ba5`.
+Tag a documentation-only successor. CI builds six binaries and SHA256SUMS without
+repeating source suites. Verify publication, all downloaded assets/native checks
+and direct published Go consumers before backing up and atomically installing
+both authorized paths. Release evidence: `/var/tmp/noe-v2.24.0-release-n29lthrc`.
