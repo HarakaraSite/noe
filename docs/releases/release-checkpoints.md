@@ -4341,3 +4341,38 @@ stdout/stderr. Release evidence: `/var/tmp/noe-v2.22.0-release-2azd2wrn`.
 Publication and installation are complete. Other hosts, running services and
 noebot were not changed. Subsequent URL/URLSearchParams work is local and is not
 included in this immutable release.
+
+## v2.23.0 preparation — 2026-11-08
+
+The user authorized release and both vm201 installations. This release includes
+`99f7f4b` (URL/query normalization and encoding) and `68d9437` (Request URL/method).
+Other hosts, running services and noebot remain outside scope.
+
+Reuse implementation evidence at `/var/tmp/noe-url-encoding-87ffe6i1` and
+`/var/tmp/noe-request-inputs-u_xbfrv4`: all seven affected packages, focused race,
+types/catalog/lint/vet, actual CLI primary/common/example checks and checkout /
+standalone-module main/Worker consumers pass. The unchanged prepared MCP SDK
+loopback fixture passes initialize/list and three parallel Unicode echo calls.
+Bounded URL/query review findings were fixed and checked in one fix-only review;
+the separate Request review found no required findings and independently verified
+both installer orders, incoming metadata/body ownership and private factory cleanup.
+
+All 654 selected runtime/dependency/reference paths match `68d9437` except the CLI
+version. Dependencies, runtime logic, release profile and workflow are unchanged.
+No full unit/E2E/race, SDK dependency preparation or local six-target build was
+repeated. Publication readiness was verified during implementation.
+
+Clean candidate: `7f44127e85a495ad5c84272921550e13e1da0d02`.
+The CGO-disabled release-flags build and configured-version unit pass. Metadata
+reports that revision, vcs.modified=false, Linux amd64, Go 1.27.2, trimpath and
+the pinned engine/Intl dependencies. Thirteen native checks pass: version /
+arithmetic, primary/common URL and Request contracts, both examples, native
+Request/HTTP transport, three reference entries and the prepared MCP SDK fixture.
+Runtime stderr is empty; SDK bundle/lock/source fingerprints remain unchanged.
+
+Candidate: `/var/tmp/noe-v2.23.0-release-rzascld6/candidate`, SHA256
+`19c80ef55414bd3e614d1231a7bf759d1dda8fbd8b7cb518c1f4b0c6ea75ce3c`.
+Tag a documentation-only successor. CI builds six binaries and SHA256SUMS without
+repeating source suites. Verify publication, downloaded assets/native behavior and
+direct published Go consumers before backing up and atomically installing both
+authorized paths.

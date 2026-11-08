@@ -8,6 +8,12 @@ records remain canonical. Release requests include both local installations.
 
 ## Repository and publication state
 
+v2.23.0 is prepared at clean candidate `7f44127`, including `99f7f4b` and
+`68d9437`. The user authorized release and both vm201 installations. Candidate
+build/version and thirteen native checks pass; completed implementation evidence
+is reused. Publication and installation remain pending in this preparation commit.
+See the [preparation checkpoint](../releases/release-checkpoints.md#v2230-preparation--2026-11-08).
+
 - Repository: `/home/agent/projects/noe`, branch `main`.
 - v2.22.0 includes `edb5e73` (abort/text streams) and `f1ad07a` (compression/URLPattern).
 - Immutable tag revision: `a8e05457064b455c1e21b5e89a630ce9660ada63`;
