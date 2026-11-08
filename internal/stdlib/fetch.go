@@ -82,6 +82,11 @@ func Network(rt *quickjs.Runtime, cfg *Fetch) error {
 	}
 
 	host := rt.NewObject()
+	if err := host.Set("teeBody", func(stream quickjs.Value) (quickjs.Value, error) {
+		return teeBody(rt, stream)
+	}); err != nil {
+		return err
+	}
 	if err := host.Set("streaming", cfg.Loop != nil); err != nil {
 		return err
 	}
@@ -756,7 +761,7 @@ const fetchJS = `(function (host) {
     if (bodyUnusable(body)) throw new TypeError("The body is locked or has already been read");
     const stream = bodyStream(body);
     if (stream === null) return {source: null, knownBytes: null};
-    const [mine, theirs] = stream.tee();
+    const [mine, theirs] = host.teeBody(stream);
     body._stream = mine;
     return {source: theirs, knownBytes: body._bytes};
   }

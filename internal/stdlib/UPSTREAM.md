@@ -765,3 +765,13 @@ and retains overlapping demand. Request/Response clones use the same corrected
 path. Chunk identity, native readers and runtime ownership remain shared; no BYOB
 or byte-stream controller support is added. See the
 [contract and verification](../../docs/development/stdlib-stream-tee.md).
+
+### Fetch body clone bytes (2026-11-08)
+
+Request/Response clones now use a private byte-copy mode of the shared tee.
+Ordinary Uint8Array backing buffers are copied before branch delivery, preserving
+subview metadata and preventing sibling corruption during mutation/transfer.
+SAB memory remains shared; generic tee retains chunk identity. A Go-private
+per-runtime factory permits either installer order and closes with the runtime.
+Public stream module exports contain no factory or new option. See the
+[contract and verification](../../docs/development/stdlib-body-clone-bytes.md).

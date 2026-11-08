@@ -373,6 +373,14 @@ read-all helpers copy each chunk before requesting the next, and bytes() returns
 independent storage. A server response with a locked/used body enters onError
 before sending headers.
 
+Request/Response clones isolate ordinary ArrayBuffer-backed Uint8Array chunks
+before either branch receives them. Mutating or transferring a raw chunk buffer
+from one body cannot corrupt the sibling clone. Stream subviews preserve their
+offset/length and backing-buffer contents. SharedArrayBuffer memory remains shared
+intentionally. This uses an internal byte-copy mode; public `ReadableStream.tee()`
+retains shared chunk identity. Arbitrary non-byte chunk cloning and full buffer
+metadata/error conversion remain outside this bounded byte-isolation contract.
+
 ## EventSource
 
 Syntax: `new EventSource(url, {withCredentials: false})`. EventSource receives

@@ -116,3 +116,13 @@ results after cloning and finite Request input/transfer ownership. See the
 Shows discarding one Response clone while consuming the other, and waiting for
 shared cleanup after cancelling both tee branches. See the
 [contract and verification](../../docs/development/stdlib-stream-tee.md).
+
+## Body clone byte isolation
+
+```sh
+/tmp/noe-web-basics run --no-inst examples/web-basics/body-clone-bytes.js
+```
+
+Shows raw body-chunk mutation and buffer transfer while a Request/Response clone
+retains its original bytes. See the
+[contract and verification](../../docs/development/stdlib-body-clone-bytes.md).

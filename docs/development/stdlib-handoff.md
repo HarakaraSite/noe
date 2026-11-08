@@ -1,9 +1,9 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after local stream-tee lifecycle completion following
-Headers/Response `66c5703` and Body consumption `efa3f82`. These continuations
-are unreleased; installed executables remain v2.23.0. Linked policy, implementation
-and release records remain canonical. Release requests include both installations.
+Updated 2026-11-08 after local Body clone byte-isolation completion following
+`66c5703`, `efa3f82` and `48659fe`. These continuations are unreleased; installed
+executables remain v2.23.0. Linked policy, implementation and release records
+remain canonical. Release requests include both installations.
 
 ## Repository and publication state
 
@@ -63,6 +63,37 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   Do not ask for separate installation approval. Preserve previous copies,
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
+
+## Body clone byte isolation local completion
+
+The user authorized a bounded next improvement after `48659fe`, preserving all
+three prior commits and limiting work to this repository and local commits. The
+[contract and verification](stdlib-body-clone-bytes.md) is canonical. Baseline
+raw-chunk mutation or buffer transfer corrupts/detaches sibling Body clone data.
+Request/Response clones now copy ordinary Uint8Array backing buffers before either
+branch receives data, preserving full buffer contents and subview metadata.
+Shared memory remains intentional; public tee retains its existing chunk identity.
+The shared tee lifecycle and native backends remain. A private per-runtime factory
+supports either installer order, pure byte consumers without WebAPIs and close
+cleanup, without publishing a mode or factory. References/examples/consumers agree.
+
+Both affected stdlib packages, focused race, catalog/lint/vet and seven CLI checks
+pass. Actual Worker port transfer, incoming/fetched native HTTP clones, prior tee
+cleanup and finite replay are covered. The prepared MCP SDK Unicode fixture passes
+unchanged with no real provider call. Checkout and standalone module-artifact
+main/Worker consumers pass; runtime/declaration source continuity is recorded.
+Unchanged type evidence is reused; unrelated package-wide suites were not repeated.
+
+The bounded independent review found no required finding. It also independently
+verified exceptional cleanup rejection and captured-intrinsic copy behavior.
+Evidence: `/var/tmp/noe-body-clone-bytes-xp2univ6`.
+
+Local implementation, verification, review and commit are complete; `66c5703`,
+`efa3f82` and `48659fe` are preserved. Both installed paths remain v2.23.0 above.
+No push, release, installation, service, simplejs or noebot change occurred.
+Full BodyInit/BufferSource/error conversion, arbitrary-value cloneForBranch2,
+resizable-buffer metadata and BYOB/byte-stream controllers remain separate bounded
+candidates. Reuse completed checks for unchanged code/dependencies.
 
 ## Stream tee lifecycle local completion
 

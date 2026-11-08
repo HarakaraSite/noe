@@ -27,10 +27,19 @@ import (
 // fills, and nothing in this runtime can avoid the copy that saves.
 func Streams(rt *quickjs.Runtime) error {
 	host := rt.NewObject()
-	api, err := evalWithHost(rt, "<streams>", streamsJS, host)
+	result, err := evalWithHost(rt, "<streams>", streamsJS, host)
 	if err != nil {
 		return err
 	}
+	api, err := result.Get("exports")
+	if err != nil {
+		return err
+	}
+	bodyTee, err := result.Get("bodyTee")
+	if err != nil {
+		return err
+	}
+	bindBodyTee(rt, bodyTee)
 	transform, err := api.Get("TransformStream")
 	if err != nil {
 		return err
@@ -136,6 +145,109 @@ const streamsJS = `(function (host) {
     stream._reads.push(pending);
     stream._controller._pullIfNeeded();
     return pending.promise;
+  }
+
+  const bodyByteApply = Reflect.apply;
+  const bodyByteArray = Uint8Array;
+  const bodyArrayBuffer = ArrayBuffer;
+  const bodyByteSet = Uint8Array.prototype.set;
+  const bodyTypedArray = Object.getPrototypeOf(Uint8Array.prototype);
+  const bodyByteGetters = {};
+  for (const name of ["buffer", "byteOffset", "byteLength"]) bodyByteGetters[name] = Object.getOwnPropertyDescriptor(bodyTypedArray, name).get;
+  const bodyByteTag = Object.getOwnPropertyDescriptor(bodyTypedArray, Symbol.toStringTag).get;
+  const bodyBufferLength = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "byteLength").get;
+  const bodySharedLength = typeof SharedArrayBuffer === "undefined" ? null : Object.getOwnPropertyDescriptor(SharedArrayBuffer.prototype, "byteLength").get;
+  function copyBodyBytes(value) {
+    // Valid Fetch body chunks are Uint8Arrays. Other chunks retain the existing
+    // invalid-body handling; this does not add a general cloneForBranch2 API.
+    if (bodyByteApply(bodyByteTag, value, []) !== "Uint8Array") return value;
+    const buffer = bodyByteApply(bodyByteGetters.buffer, value, []);
+    const offset = bodyByteApply(bodyByteGetters.byteOffset, value, []);
+    const length = bodyByteApply(bodyByteGetters.byteLength, value, []);
+    let capacity;
+    try { capacity = bodyByteApply(bodyBufferLength, buffer, []); }
+    catch (error) {
+      if (bodySharedLength === null) throw error;
+      bodyByteApply(bodySharedLength, buffer, []);
+      // Structured cloning shares SharedArrayBuffer memory intentionally.
+      return new bodyByteArray(buffer, offset, length);
+    }
+    const copied = new bodyArrayBuffer(capacity);
+    bodyByteApply(bodyByteSet, new bodyByteArray(copied), [new bodyByteArray(buffer)]);
+    return new bodyByteArray(copied, offset, length);
+  }
+
+  function teeStream(stream, cloneBytes) {
+    const reader = stream.getReader();
+    const controllers = [];
+    const cancelled = [false, false];
+    const reasons = [undefined, undefined];
+    const cancellation = deferred();
+    let reading = false;
+    let readAgain = false;
+    let ended = false;
+
+    const errorBranches = (error) => {
+      ended = true;
+      reading = false;
+      for (const controller of controllers) controller.error(error);
+    };
+    const forwardError = (error) => {
+      errorBranches(error);
+      if (!cancelled[0] || !cancelled[1]) cancellation.resolve(undefined);
+    };
+    // Observe the source promise directly: the reader's closed proxy adds
+    // another promise hop to the internal stream-error ordering.
+    stream._closedD.promise.catch(forwardError);
+
+    const pull = () => {
+      if (ended || (cancelled[0] && cancelled[1])) return Promise.resolve();
+      if (reading) { readAgain = true; return Promise.resolve(); }
+      reading = true;
+      readStreamRequest(reader, {resolve: ({value, done}) => {
+        if (done) {
+          ended = true;
+          reading = false;
+          for (let i = 0; i < 2; i++) if (!cancelled[i]) controllers[i].close();
+          if (!cancelled[0] || !cancelled[1]) cancellation.resolve(undefined);
+          return;
+        }
+        Promise.resolve().then(() => {
+          if (ended) return;
+          readAgain = false;
+          let second = value;
+          if (cloneBytes && !cancelled[1]) {
+            try { second = copyBodyBytes(value); }
+            catch (error) {
+              errorBranches(error);
+              cancellation.resolve(reader.cancel(error));
+              return;
+            }
+          }
+          if (!cancelled[0]) controllers[0].enqueue(value);
+          if (!cancelled[1]) controllers[1].enqueue(second);
+          reading = false;
+          if (readAgain) pull();
+        }).catch(forwardError);
+      }, reject: () => { reading = false; }});
+      return Promise.resolve();
+    };
+
+    const branch = (i) => new ReadableStream({
+      start: (controller) => { controllers[i] = controller; },
+      pull,
+      cancel: (reason) => {
+        cancelled[i] = true;
+        reasons[i] = reason;
+        if (cancelled[0] && cancelled[1]) {
+          // Both callers wait for the same native/producer cleanup result,
+          // including rejection. Reasons follow branch order, not call order.
+          cancellation.resolve(reader.cancel([reasons[0], reasons[1]]));
+        }
+        return cancellation.promise;
+      },
+    });
+    return [branch(0), branch(1)];
   }
 
   // --- ReadableStream -------------------------------------------------------
@@ -329,67 +441,7 @@ const streamsJS = `(function (host) {
     // tee gives two streams that see the same chunks. A chunk is not copied,
     // so two branches that both write into what they are given will see each
     // other's changes; that is what the standard says too.
-    tee() {
-      const reader = this.getReader();
-      const controllers = [];
-      const cancelled = [false, false];
-      const reasons = [undefined, undefined];
-      const cancellation = deferred();
-      let reading = false;
-      let readAgain = false;
-      let ended = false;
-
-      const forwardError = (error) => {
-        ended = true;
-        reading = false;
-        for (const controller of controllers) controller.error(error);
-        if (!cancelled[0] || !cancelled[1]) cancellation.resolve(undefined);
-      };
-      // Observe the source promise directly: the reader's closed proxy adds
-      // another promise hop to the internal stream-error ordering.
-      this._closedD.promise.catch(forwardError);
-
-      const pull = () => {
-        if (ended || (cancelled[0] && cancelled[1])) return Promise.resolve();
-        if (reading) { readAgain = true; return Promise.resolve(); }
-        reading = true;
-        readStreamRequest(reader, {resolve: ({value, done}) => {
-          if (done) {
-            ended = true;
-            reading = false;
-            for (let i = 0; i < 2; i++) if (!cancelled[i]) controllers[i].close();
-            if (!cancelled[0] || !cancelled[1]) cancellation.resolve(undefined);
-            return;
-          }
-          Promise.resolve().then(() => {
-            if (ended) return;
-            readAgain = false;
-            for (let i = 0; i < 2; i++) {
-              if (!cancelled[i]) controllers[i].enqueue(value);
-            }
-            reading = false;
-            if (readAgain) pull();
-          }).catch(forwardError);
-        }, reject: () => { reading = false; }});
-        return Promise.resolve();
-      };
-
-      const branch = (i) => new ReadableStream({
-        start: (controller) => { controllers[i] = controller; },
-        pull,
-        cancel: (reason) => {
-          cancelled[i] = true;
-          reasons[i] = reason;
-          if (cancelled[0] && cancelled[1]) {
-            // Both callers wait for the same native/producer cleanup result,
-            // including rejection. Reasons follow branch order, not call order.
-            cancellation.resolve(reader.cancel([reasons[0], reasons[1]]));
-          }
-          return cancellation.promise;
-        },
-      });
-      return [branch(0), branch(1)];
-    }
+    tee() { return teeStream(this, false); }
 
     pipeThrough(transform, options = {}) {
       if (!transform || !transform.writable || !transform.readable) {
@@ -1021,8 +1073,11 @@ const streamsJS = `(function (host) {
   }
 
   return {
-    ReadableStream, ReadableStreamDefaultReader, ReadableStreamDefaultController,
-    WritableStream, WritableStreamDefaultWriter, TransformStream,
-    ByteLengthQueuingStrategy, CountQueuingStrategy,
+    exports: {
+      ReadableStream, ReadableStreamDefaultReader, ReadableStreamDefaultController,
+      WritableStream, WritableStreamDefaultWriter, TransformStream,
+      ByteLengthQueuingStrategy, CountQueuingStrategy,
+    },
+    bodyTee: stream => teeStream(stream, true),
   };
 })`

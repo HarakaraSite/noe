@@ -76,6 +76,15 @@ try{new Response("",{status:204});throw Error("worker null body status accepted"
  if(sourceCalls!==1||settled)throw Error("tee cleanup ownership");
  finish();await Promise.all([first,second]);if(!settled)throw Error("tee cleanup completion");
 }
+{
+ const original=new Response(new Uint8Array([65,66])),copy=original.clone();
+ const reader=original.body.getReader(),chunk=await reader.read();
+ structuredClone(chunk.value.buffer,{transfer:[chunk.value.buffer]});reader.releaseLock();
+ if(chunk.value.byteLength!==0||await copy.text()!=="AB")throw Error("body clone buffer isolation");
+ const request=new Request("https://example.test/",{method:"POST",body:new Uint8Array([67,68])}),retry=request.clone();
+ const upload=await request.body.getReader().read();upload.value[0]=90;
+ if(await retry.text()!=="CD")throw Error("Request clone byte isolation");
+}
 const mark=performance.mark("child",{startTime:1});
 parentPort.postMessage({detail,type:mark.entryType,entries:performance.getEntries().length});parentPort.close();`
 	code := fmt.Sprintf(`import {Worker} from "node:worker_threads";
@@ -114,6 +123,15 @@ if(jsonResponse.type!=="default"||!(await jsonResponse.clone().json()).main)thro
  const second=right.cancel("right");
  if(sourceCalls!==1||settled)throw Error("tee cleanup ownership");
  finish();await Promise.all([first,second]);if(!settled)throw Error("tee cleanup completion");
+}
+{
+ const original=new Response(new Uint8Array([65,66])),copy=original.clone();
+ const reader=original.body.getReader(),chunk=await reader.read();
+ structuredClone(chunk.value.buffer,{transfer:[chunk.value.buffer]});reader.releaseLock();
+ if(chunk.value.byteLength!==0||await copy.text()!=="AB")throw Error("body clone buffer isolation");
+ const request=new Request("https://example.test/",{method:"POST",body:new Uint8Array([67,68])}),retry=request.clone();
+ const upload=await request.body.getReader().read();upload.value[0]=90;
+ if(await retry.text()!=="CD")throw Error("Request clone byte isolation");
 }
 const worker=new Worker(%q,{eval:true,type:"module"});
 const result=await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});
