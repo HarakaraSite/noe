@@ -1,22 +1,43 @@
 # Standard library session handoff
 
-Updated 2026-11-09 for v2.25.0 release preparation after the go-quickjs v0.37.1
-integration.
-All five continuations through `6ca7ec2` are published and installed. Linked
-policy, implementation and release records remain canonical.
+Updated 2026-11-09 after v2.25.0 publication and both vm201 installations.
+The go-quickjs v0.37.1 integration and all preceding stdlib continuations are
+published and installed. Linked policy, implementation and release records
+remain canonical.
 
-## Current release — v2.25.0 preparation
+## Current release — v2.25.0 published and installed
 
-The user explicitly requested commit, release and binary replacement. The engine
-integration is committed as `c29d466`; preparation selects v2.25.0. Existing
-implementation verification is reused after source continuity checks. Release
-evidence is `/var/tmp/noe-v2.25.0-release-t7y1gqoz`.
+The user explicitly requested commit, release and binary replacement. Engine
+integration `c29d466` and release preparation `f0b94b7` are published. Immutable
+annotated tag v2.25.0 points to `f3ce20bce50e32b237698d66ec316f5caeaff1a2`;
+tag object `e8279e708bf5644fa5df5a8b034382d6316a4bb1`. Main includes a later
+documentation-only publication record; the release tag is not moved.
 
-Publish the immutable tag through the existing lightweight workflow, verify all
-downloaded assets, the native affected behavior and direct published stdlib/agent
-consumers, then retain and atomically replace both existing local executable
-paths. Record publication and installation here and in release checkpoints.
-Running services, other hosts and noebot remain outside scope.
+The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.25.0)
+is published, neither draft nor prerelease (ID 178).
+[CI run 64](https://forge.harakara.site/littleisland/noe/actions/runs/64)
+succeeded (API 245, job 266). All six binaries pass checksum/build metadata
+verification, with Go 1.27.2, go-quickjs v0.37.1 / go-intl v0.9.0 and JIT disabled.
+The native asset passes nine release checks, including 13 affected behavior
+cases in each of main/Worker and node:vm timeout/reuse. Direct published stdlib
+and agent consumers pass all eleven checks without replacements or a synthetic
+proxy, with eight changed source/dependency paths matched in each module copy.
+
+Both `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` now contain
+the verified Linux amd64 release asset, SHA256
+`cb97cb017892b3cd29d87b3208c8a425b61eae559b4bd7eab3171a9003975bee`.
+Both report `noe v2.25.0`; PATH resolves to the first. Versions, installed hashes,
+arithmetic and both authentication-helper help commands pass. Native runtime
+verification is reused for the identical asset. Previous v2.24.0 copies and
+`installation.json` are retained at `/var/tmp/noe-v2.25.0-install-lqrqy7g4`.
+
+Release evidence: `/var/tmp/noe-v2.25.0-release-t7y1gqoz`.
+Implementation evidence is reused after checking 864 source/dependency/reference
+paths; only the CLI version changed. No full source/race/SDK suite or local
+six-target build was repeated. See the
+[publication/install checkpoint](../releases/release-checkpoints.md#v2250-publication-and-installation--2026-11-09).
+Publication and installation are complete; no required follow-up remains.
+Running services, other hosts and noebot were not changed.
 
 ## Previous continuation — go-quickjs v0.37.1 local completion
 
@@ -46,7 +67,7 @@ Both installed paths below retain v2.24.0 with go-quickjs v0.32.0/go-intl
 v0.8.0. The development binary stays in the evidence directory. General
 BodyInit/BufferSource work and the other bounded candidates remain separate.
 
-## Session restart checkpoint — 2026-11-09
+## Previous session restart checkpoint — 2026-11-09
 
 The current user request is to save state before recreating the session. No new
 implementation slice or release is in progress. Publication, both installations
@@ -81,7 +102,7 @@ arbitrary-value cloneForBranch2. These are separate candidates rather than a
 combined conformance requirement. Do not restart completed slices, add compatibility
 layers or perform an unrelated whole-library audit.
 
-## Repository and publication state
+## Previous repository and publication state (v2.24.0)
 
 - Repository: `/home/agent/projects/noe`, branch `main`.
 - v2.24.0 includes `66c5703` (Headers/Response), `efa3f82` (Body consumption),
