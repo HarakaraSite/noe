@@ -4512,3 +4512,37 @@ Release evidence: `/var/tmp/noe-v2.24.0-release-n29lthrc`.
 Publication and both installations are complete. No required release/install work
 remains. Other VMs/hosts, running services and noebot were not changed. This record
 does not move the immutable release tag.
+
+## v2.25.0 preparation — 2026-11-09
+
+The user explicitly authorized commit, release and both local binary replacements.
+Implementation commit `c29d466` selects go-quickjs v0.37.1 / go-intl v0.9.0 with
+JIT disabled, adopts upstream standards behavior and corrects Web Crypto's
+resizable BufferSource conversion. The [release notes](v2.25.0.md) and
+[integration record](../development/go-quickjs-v0.37.1-upgrade.md) describe the
+behavior changes and migration. Other hosts, services and noebot are excluded.
+
+Reuse implementation evidence at `/var/tmp/noe-quickjs-v0371-4cwggjqx`:
+unit/E2E checks with scoped correction reruns, affected race, main/Worker/realm
+regressions, production interruption, standalone stdlib/agent consumers,
+unmodified jose/Node interoperability and six disabled-JIT compilation targets.
+All 864 selected source/dependency/reference paths match that evidence except
+the CLI default version. No full source suite, race run, SDK preparation or
+local six-target build was repeated for release preparation.
+
+Clean candidate: `f0b94b727a4d93cd8ed2ab370336c741d03fe70e`.
+The CGO-disabled release-flags build and configured-version unit pass.
+Metadata reports this revision, vcs.modified=false, Linux amd64, Go 1.27.2,
+trimpath, the official new engine/Intl versions and no quickjs_jit tag.
+Nine native checks pass: version/arithmetic, 13 engine/binding cases in each
+of main and Worker, node:vm timeout/reuse, long-turn deadline/termination,
+two updated reference entries and both authentication-helper help commands.
+No live provider call occurs.
+
+Candidate: `/var/tmp/noe-v2.25.0-release-t7y1gqoz/candidate`, SHA256
+`78c4cd77831219e454140a2c1407997dedcda3daa3a2855fa88007253f72c60e`.
+Tag this documentation-only successor. CI builds six binaries and SHA256SUMS
+without repeating source checks. Verify publication, downloaded asset hashes /
+metadata, affected native behavior and direct published Go consumers before
+retaining and atomically replacing both authorized executable paths.
+Release evidence: `/var/tmp/noe-v2.25.0-release-t7y1gqoz`.
