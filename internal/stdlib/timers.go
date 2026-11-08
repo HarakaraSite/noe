@@ -67,7 +67,12 @@ func Timers(rt *quickjs.Runtime, loop *Loop) error {
 		return err
 	}
 
-	clear := func(id float64) { loop.timers.cancel(int64(id)) }
+	clear := func(id float64) {
+		if t := loop.timers.byID[int64(id)]; t != nil && t.internal {
+			return
+		}
+		loop.timers.cancel(int64(id))
+	}
 	if err := rt.Set("clearTimeout", clear); err != nil {
 		return err
 	}

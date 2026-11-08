@@ -45,6 +45,9 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 			return float64(time.Since(started).Nanoseconds()) / 1e6
 		},
 		"timeOrigin": float64(started.UnixNano()) / 1e6,
+		"abortTimeout": func(callback quickjs.Value, milliseconds float64) error {
+			return armAbortTimeout(rt, loop, callback, milliseconds)
+		},
 		"btoa": func(s string) (string, error) {
 			// btoa works on bytes, spelled as a string of code units below 256.
 			b := make([]byte, 0, len(s))
@@ -1251,7 +1254,7 @@ const webAPIsJS = `(function (host) {
     let handlers = eventHandlers.get(target);
     if (!handlers) eventHandlers.set(target, handlers = new Map());
     let h = handlers.get(type);
-    if (typeof fn !== "function") {
+    if (fn === null || (typeof fn !== "object" && typeof fn !== "function")) {
       if (h) {
         removeListener.call(target, type, h.listener);
         handlers.delete(type);
@@ -1263,7 +1266,10 @@ const webAPIsJS = `(function (host) {
       return;
     }
     h = {fn, listener: null};
-    h.listener = function (event) { return h.fn.call(this, event); };
+    h.listener = function (event) {
+      // LegacyTreatNonObjectAsNull retains non-callable objects as inert slots.
+      if (typeof h.fn === "function") return codecApply(h.fn, this, [event]);
+    };
     handlers.set(type, h);
     addListener.call(target, type, h.listener);
   }
@@ -1275,7 +1281,9 @@ const webAPIsJS = `(function (host) {
     value: Object.freeze({get: getHandler, set: setHandler, initialize: initializeEventTarget}),
   });
 
-  const abortSignalData = new WeakMap();
+  const abortSignalData = new WeakMap(), abortControllerData = new WeakMap();
+  const abortSignalToken = {};
+  const abortTrunc = Math.trunc, abortFinite = Number.isFinite;
   const abortSignalFinalizer = new FinalizationRegistry(links => {
     for (const link of links) {
       const source = link.source.deref();
@@ -1389,7 +1397,8 @@ const webAPIsJS = `(function (host) {
   }
 
   class AbortSignal extends EventTarget {
-    constructor() {
+    constructor(...args) {
+      if (args[0] !== abortSignalToken) throw new TypeError("Illegal constructor");
       super();
       abortSignalData.set(this, {
         aborted: false,
@@ -1403,29 +1412,17 @@ const webAPIsJS = `(function (host) {
         abortListenerCount: 0,
         retained: false,
       });
-      let onabort = null;
-      Object.defineProperty(this, "onabort", {
-        configurable: true,
-        enumerable: true,
-        get: () => onabort,
-        set: value => {
-          const wasHandler = typeof onabort === "function";
-          onabort = value;
-          const isHandler = typeof value === "function";
-          if (wasHandler !== isHandler) {
-            changeAbortListenerCount(this, "abort", isHandler ? 1 : -1);
-          }
-        },
-      });
     }
     get aborted() { return abortSignalOf(this).aborted; }
     get reason() { return abortSignalOf(this).reason; }
+    get onabort() { abortSignalOf(this); return getHandler(this, "abort"); }
+    set onabort(value) { abortSignalOf(this); setHandler(this, "abort", value); }
     throwIfAborted() { const data = abortSignalOf(this); if (data.aborted) throw data.reason; }
-    static abort(reason) {
-      const s = new AbortSignal();
+    static abort(reason = undefined) {
+      const s = new AbortSignal(abortSignalToken);
       const data = abortSignalData.get(s);
       data.aborted = true;
-      data.reason = reason === undefined ? new Error("This operation was aborted") : reason;
+      data.reason = reason === undefined ? new DOMException("This operation was aborted", "AbortError") : reason;
       return s;
     }
     static any(signals) {
@@ -1438,7 +1435,7 @@ const webAPIsJS = `(function (host) {
         inputs.push(signal);
       }
 
-      const result = new AbortSignal();
+      const result = new AbortSignal(abortSignalToken);
       for (const signal of inputs) {
         const data = abortSignalData.get(signal);
         if (data.aborted) {
@@ -1478,13 +1475,15 @@ const webAPIsJS = `(function (host) {
       return result;
     }
     static timeout(ms) {
-      const s = new AbortSignal();
-      if (typeof setTimeout === "function") {
-        setTimeout(() => {
-          if (abortSignalOf(s).aborted) return;
-          signalAbort(s, new Error("The operation timed out"));
-        }, ms);
-      }
+      if (arguments.length === 0) throw new TypeError("timeout requires milliseconds");
+      let delay = +ms;
+      if (!abortFinite(delay)) throw new TypeError("Invalid timeout milliseconds");
+      delay = abortTrunc(delay);
+      if (delay < 0 || delay > 9007199254740991) throw new TypeError("Timeout milliseconds is outside the Web IDL integer range");
+      const s = new AbortSignal(abortSignalToken);
+      host.abortTimeout(() => {
+        signalAbort(s, new DOMException("The operation timed out", "TimeoutError"));
+      }, delay);
       return s;
     }
   }
@@ -1494,18 +1493,28 @@ const webAPIsJS = `(function (host) {
     if (!data) throw new TypeError("The receiver is not an AbortSignal");
     return data;
   }
-  for (const name of ["aborted", "reason"]) {
+  for (const name of ["aborted", "reason", "onabort", "throwIfAborted"]) {
     Object.defineProperty(AbortSignal.prototype, name, {enumerable: true});
   }
+  Object.defineProperty(AbortSignal.prototype, Symbol.toStringTag, {value: "AbortSignal", configurable: true});
+  for (const name of ["abort", "any", "timeout"]) Object.defineProperty(AbortSignal, name, {enumerable: true});
 
   class AbortController {
-    constructor() { host.cloneAs(this, "opaque"); this.signal = new AbortSignal(); }
-    abort(reason) {
-      const s = this.signal;
+    constructor() { host.cloneAs(this, "opaque"); abortControllerData.set(this, new AbortSignal(abortSignalToken)); }
+    get signal() { return abortControllerSignal(this); }
+    abort(reason = undefined) {
+      const s = abortControllerSignal(this);
       if (abortSignalOf(s).aborted) return;
-      signalAbort(s, reason === undefined ? new Error("This operation was aborted") : reason);
+      signalAbort(s, reason === undefined ? new DOMException("This operation was aborted", "AbortError") : reason);
     }
   }
+  function abortControllerSignal(controller) {
+    const signal = abortControllerData.get(controller);
+    if (signal === undefined) throw new TypeError("The receiver is not an AbortController");
+    return signal;
+  }
+  for (const name of ["signal", "abort"]) Object.defineProperty(AbortController.prototype, name, {enumerable: true});
+  Object.defineProperty(AbortController.prototype, Symbol.toStringTag, {value: "AbortController", configurable: true});
 
   // --- DOMException --------------------------------------------------------
 

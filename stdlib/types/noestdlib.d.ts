@@ -604,10 +604,10 @@ declare namespace NOEStdlib {
   interface WritableStreamDefaultWriterConstructor { new<T = unknown>(stream: WritableStream<T>): WritableStreamDefaultWriter<T> }
   interface TransformStream<I = unknown, O = unknown> { readonly readable: ReadableStream<O>; readonly writable: WritableStream<I> }
   interface TransformStreamConstructor { new<I = unknown, O = unknown>(transformer?: TransformStreamTransformer<I, O>, writableStrategy?: QueuingStrategy<I>, readableStrategy?: QueuingStrategy<O>): TransformStream<I, O> }
-  interface TextEncoderStream extends TransformStream<string, Uint8Array> { readonly encoding: "utf-8" }
-  interface TextEncoderStreamConstructor { new(): TextEncoderStream }
-  interface TextDecoderStream extends TransformStream<ArrayBuffer | SharedArrayBuffer | ArrayBufferView, string> { readonly encoding: "utf-8" }
-  interface TextDecoderStreamConstructor { new(label?: string, options?: {fatal?: boolean; ignoreBOM?: boolean} | null): TextDecoderStream }
+  interface TextEncoderStream { readonly encoding: "utf-8"; readonly readable: ReadableStream<Uint8Array>; readonly writable: WritableStream<string> }
+  interface TextEncoderStreamConstructor { new(): TextEncoderStream; readonly prototype: TextEncoderStream }
+  interface TextDecoderStream { readonly encoding: "utf-8"; readonly fatal: boolean; readonly ignoreBOM: boolean; readonly readable: ReadableStream<string>; readonly writable: WritableStream<ArrayBuffer | SharedArrayBuffer | ArrayBufferView> }
+  interface TextDecoderStreamConstructor { new(label?: string, options?: {fatal?: boolean; ignoreBOM?: boolean} | null): TextDecoderStream; readonly prototype: TextDecoderStream }
   interface QueuingStrategyObject<T> { readonly highWaterMark: number; size(chunk: T): number }
   interface QueuingStrategyConstructor<T> { new(init?: {highWaterMark?: number}): QueuingStrategyObject<T> }
 
@@ -938,13 +938,14 @@ declare namespace NOEStdlib {
     throwIfAborted(): void;
   }
   interface AbortSignalConstructor {
-    new(): AbortSignal;
+    readonly prototype: AbortSignal;
+    [Symbol.hasInstance](value: unknown): value is AbortSignal;
     abort(reason?: unknown): AbortSignal;
     timeout(milliseconds: number): AbortSignal;
     any(signals: Iterable<AbortSignal>): AbortSignal;
   }
   interface AbortController { readonly signal: AbortSignal; abort(reason?: unknown): void }
-  interface AbortControllerConstructor { new(): AbortController }
+  interface AbortControllerConstructor { new(): AbortController; readonly prototype: AbortController }
   interface DOMException extends Error { readonly code: number }
   interface DOMExceptionConstructor {
     new(message?: string, options?: string | {name?: string; cause?: unknown}): DOMException;

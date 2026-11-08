@@ -669,3 +669,17 @@ shutdown off the JS owner, with the same five-second forced fallback.
 Symbol.asyncDispose delegates to close; runtime force cleanup remains
 independent. Request overflow maps to a coded RangeError and, when uncaught
 before response headers, a 413 response. See the Serve lifecycle record above.
+
+### Abort interfaces and text-stream contracts (2026-11-08)
+
+NOE's continuation after v2.21.0 uses private controller signals, standard
+AbortError/TimeoutError DOMExceptions, an illegal AbortSignal constructor,
+ordered event-handler slots and Web IDL timeout conversion. Internal deadlines
+share the Loop's timer queue and scope cleanup, with bounded scheduling stages
+for delays beyond ordinary setTimeout/Go duration bounds. The JavaScript
+EnforceRange upper bound is 2^53-1. Public timer IDs cannot cancel these deadlines.
+
+The text-stream facades compose the same TransformStream backend and UTF-8
+codecs. They add private readonly metadata/endpoints, preserve split UTF-16
+pairs, and distinguish required stream chunks from optional decode input.
+See the [contract and verification](../../docs/development/stdlib-abort-text-streams.md).

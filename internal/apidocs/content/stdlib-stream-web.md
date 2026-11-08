@@ -117,6 +117,29 @@ Readable cancellation or writable abort calls the transformer's cancel hook. Can
 
 The highWaterMark controls when the next transform may run. A transform or flush callback can enqueue multiple chunks at once, and callers can queue writes without awaiting them, so it is not a total memory limit.
 
+## TextEncoderStream
+
+new TextEncoderStream() exposes branded readonly encoding (utf-8), readable and
+writable getters. Chunks convert to DOMString. A trailing high surrogate is
+retained across chunks, including empty chunks, to pair with a later low
+surrogate. Unpaired surrogates encode as replacement characters, including on
+flush. Symbol chunks reject TypeError. These corrections are unreleased after
+v2.21.0.
+
+## TextDecoderStream
+
+new TextDecoderStream(label?, {fatal, ignoreBOM}?) exposes branded readonly
+encoding, fatal, ignoreBOM, readable and writable getters. Only standard UTF-8
+labels are supported. Chunks must be BufferSources, including fixed shared
+backing; undefined is not an omitted decode input. Split scalars and BOMs retain
+state across chunks. EOF replaces an incomplete sequence or errors in fatal mode.
+
+Both text interfaces compose the existing TransformStream backend, preserving
+backpressure, cancellation and error propagation. They are not TransformStream
+subclasses, and the global and stream/web module constructors are identical.
+Wrapper objects reject structured cloning with DataCloneError. These corrections
+are unreleased after v2.21.0.
+
 ### Source basis
 
 NOE-maintained implementation: internal/stdlib, based on github.com/go-quickjs/go-quickjs@v0.27.0/stdlib. NOE installs this module through internal/runtime/stdlib.go and reserves its bare-name alias through internal/modulemap/builtins.go.

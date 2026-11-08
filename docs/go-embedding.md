@@ -227,6 +227,16 @@ before invocation, enforces passive cancellation, and removes signal-bound
 listeners on actual abort. The same behavior serves Workers, messaging,
 EventSource and WebSocket. See the [decoder/listener contract](development/stdlib-decoder-events.md).
 
+## Cancellation and text streams (unreleased)
+
+The local source continuation after v2.21.0 corrects AbortSignal/AbortController
+and text-stream contracts. Default abort/timeout reasons are standard
+DOMExceptions; controller.signal is readonly and AbortSignal's public constructor
+is illegal. Text stream metadata/endpoints are branded readonly getters and the
+encoder retains split UTF-16 pairs. The normal Execute profile supplies the Loop
+used by timeout, with owned timer cleanup. See the
+[contract and migration details](development/stdlib-abort-text-streams.md).
+
 ## Web Crypto
 
 v2.20.0 corrects the existing SHA/HMAC/PBKDF2/HKDF Web Crypto

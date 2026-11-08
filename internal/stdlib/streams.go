@@ -26,9 +26,30 @@ import (
 // There is no BYOB reader: it exists to let a reader supply the buffer a read
 // fills, and nothing in this runtime can avoid the copy that saves.
 func Streams(rt *quickjs.Runtime) error {
-	api, err := evalWithHost(rt, "<streams>", streamsJS, quickjs.Value{})
+	host := rt.NewObject()
+	api, err := evalWithHost(rt, "<streams>", streamsJS, host)
 	if err != nil {
 		return err
+	}
+	transform, err := api.Get("TransformStream")
+	if err != nil {
+		return err
+	}
+	if err := host.Set("TransformStream", transform); err != nil {
+		return err
+	}
+	text, err := newTextStreams(rt, host)
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{"TextEncoderStream", "TextDecoderStream"} {
+		constructor, err := text.Get(name)
+		if err != nil {
+			return err
+		}
+		if err := api.Set(name, constructor); err != nil {
+			return err
+		}
 	}
 	names := []string{
 		"ReadableStream", "ReadableStreamDefaultReader", "ReadableStreamDefaultController",
@@ -969,45 +990,9 @@ const streamsJS = `(function (host) {
     get size() { return (chunk) => chunk.byteLength; }
   }
 
-  // --- text streams ---------------------------------------------------------
-
-  class TextEncoderStream {
-    constructor() {
-      const encoder = new TextEncoder();
-      const inner = new TransformStream({
-        transform(chunk, controller) { controller.enqueue(encoder.encode(String(chunk))); },
-      });
-      this.readable = inner.readable;
-      this.writable = inner.writable;
-    }
-    get encoding() { return "utf-8"; }
-  }
-
-  class TextDecoderStream {
-    constructor(label = "utf-8", options = {}) {
-      const decoder = new TextDecoder(label, options);
-      const inner = new TransformStream({
-        // A chunk can end in the middle of a character, so what is left over
-        // waits for the next one rather than becoming a replacement.
-        transform(chunk, controller) {
-          const text = decoder.decode(chunk, {stream: true});
-          if (text) controller.enqueue(text);
-        },
-        flush(controller) {
-          const rest = decoder.decode();
-          if (rest) controller.enqueue(rest);
-        },
-      });
-      this.readable = inner.readable;
-      this.writable = inner.writable;
-    }
-    get encoding() { return "utf-8"; }
-  }
-
   return {
     ReadableStream, ReadableStreamDefaultReader, ReadableStreamDefaultController,
     WritableStream, WritableStreamDefaultWriter, TransformStream,
     ByteLengthQueuingStrategy, CountQueuingStrategy,
-    TextEncoderStream, TextDecoderStream,
   };
 })`

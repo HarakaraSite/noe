@@ -356,26 +356,31 @@ describe already generated JavaScript; they do not execute TypeScript.
 
 ## AbortController
 
-new AbortController() creates a controller with a signal. Call abort(reason?) once to mark it aborted, set its reason, and dispatch an abort event. Pass the signal to fetch or another API that accepts one.
-
-~~~js
-const controller = new AbortController();
-const pending = fetch("https://example.com/large", { signal: controller.signal });
-controller.abort();
-~~~
-
-An aborted fetch rejects with the signal's reason; aborting after completion does not change the completed operation.
+new AbortController() creates a private signal exposed by a branded, readonly
+SameObject signal getter. abort(reason?) preserves explicit reason identity;
+omitting the reason creates an AbortError DOMException. Repeated abort keeps the
+first reason. Shadowing public properties does not replace the internal signal.
+These corrections are unreleased after v2.21.0.
 
 ## AbortSignal
 
-AbortSignal exposes aborted, reason, throwIfAborted(), and the static helpers AbortSignal.abort(reason?), AbortSignal.timeout(milliseconds), and AbortSignal.any(signals). Pass signals to APIs such as fetch and node:timers/promises.
+AbortSignal has no public constructor. Use a controller, AbortSignal.abort(reason?),
+AbortSignal.any(signals), or AbortSignal.timeout(milliseconds). Default abort and
+timeout reasons are AbortError and TimeoutError DOMExceptions. throwIfAborted()
+throws the original reason. onabort participates in listener registration order;
+replacement keeps its position and non-object values remove it. Object values
+retain their slot and identity; non-callable objects are inert when invoked.
 
-~~~js
-const signal = AbortSignal.timeout(1_000);
-const response = await fetch("https://example.com/slow", { signal });
-~~~
-
-The timeout helper requires the runtime timer loop; NOE provides it. A timeout is delivered as an Error reason.
+timeout requires milliseconds and applies Web IDL EnforceRange unsigned-long-long
+conversion: reject non-finite/out-of-range values with TypeError and truncate
+fractions toward zero. The supported JavaScript integer range is 0 through 2^53-1.
+Negative fractions between -1 and 0 therefore become zero.
+Long deadlines do not wrap through setTimeout's 32-bit limit or Go duration bounds.
+They use the runtime's existing timer queue and execution cleanup; clearTimeout
+does not cancel internal abort deadlines. A timer keeps the existing Loop timer
+liveness behavior. Legacy WebAPIs installation without a Loop supports synchronous
+abort, but timeout rejects TypeError because no scheduler is available. These
+corrections are unreleased after v2.21.0.
 
 ## AbortSignal.any
 

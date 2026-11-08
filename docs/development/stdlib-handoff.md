@@ -1,7 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after verified v2.21.0 publication and installation at both
-vm201 executable paths. This release includes User Timing, CustomEvent, UTF-8
+Updated 2026-11-08 after the local AbortSignal/Controller and text-stream
+continuation following verified v2.21.0 publication and installation at both
+vm201 executable paths. The installed release includes User Timing, CustomEvent, UTF-8
 codec corrections and shared EventTarget listener semantics. Release requests
 include local installation by default. Linked policy, implementation and release
 records remain the canonical references.
@@ -75,10 +76,49 @@ checks and the [preparation/publication evidence](../releases/release-checkpoint
 for unchanged source and dependencies. The release binary lives at
 `/var/tmp/noe-v2.21.0-release-1lwzess2/assets/noe-linux-amd64`.
 
-The selected Web API improvements are shipped. Additional encoding families,
-PerformanceObserver/resource/navigation timing, DOM trees and broader unrelated
-AbortSignal contracts remain outside these slices. Future improvements should
+The selected v2.21.0 improvements are shipped. Abort interfaces and text streams
+are completed locally below. Additional encoding families,
+PerformanceObserver/resource/navigation timing and DOM trees remain outside
+these slices. Future improvements should
 follow concrete standard-library caller needs rather than release housekeeping.
+
+## Local abort-interface and text-stream completion
+
+The user approved both next improvements. The
+[contract and verification](stdlib-abort-text-streams.md) is canonical.
+Implementation, validation and the bounded review follow-up are complete locally.
+Both installed binaries remain the verified v2.21.0 asset above; no publication,
+push or installation is included in this implementation request.
+
+Controllers expose branded readonly private signals; AbortSignal's public
+constructor is illegal. Default abort/timeout reasons are AbortError/TimeoutError
+DOMExceptions. timeout validates Web IDL conversion before allocation and accepts
+0..2^53-1 after truncation, with staged internal deadlines over the existing Loop
+queue to avoid ordinary timer/duration overflow. Public clearTimeout cannot
+cancel them. Existing timer liveness and execution-scope cleanup are retained.
+Legacy WebAPIs without a Loop supports synchronous abort and explicitly rejects
+timeout TypeError. onabort preserves object-valued slots and registration order.
+The shared handler correction also serves EventSource and WebSocket.
+
+Text streams compose the existing TransformStream and UTF-8 codecs. Metadata /
+endpoints are branded readonly getters, the encoder retains split UTF-16 pairs,
+and the decoder requires BufferSource chunks and exposes fatal/ignoreBOM.
+No new dependency, capability or Go Profile field is added. Public types,
+reference pages, examples and main/Worker consumer helpers agree.
+
+All seven affected packages, focused race, types/docs/lint/vet, actual CLI
+primary/common/example/reference checks and checkout/standalone-module consumers
+pass. The previous v2.21.0 binary reproduces the defects; ordinary cases match
+Deno 2.9.7, with primary-only receiver/arity assertions preserved separately.
+Evidence: `/var/tmp/noe-abort-text-streams-o4yke3sm`; its `noe` is a development
+binary, not an installation. Source/consumer continuity is recorded there.
+
+An independent bounded abort/timer review found two P2 issues: JavaScript's
+safe-integer bound for 64-bit EnforceRange, and inert object-valued onabort slots.
+Both were fixed and a single fix-only re-review found no material residual in
+the fixes. The parent reviewed text-stream internals; that independent review
+excluded them. Reuse the completed checks for unchanged source/dependencies
+when a release is requested.
 
 ## Local UTF-8 decoder and EventTarget continuation
 

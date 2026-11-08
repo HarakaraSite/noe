@@ -352,6 +352,12 @@ new EventTarget().removeEventListener("x", null, {once: true});
 new EventTarget().addEventListener("x", null, {passive: "yes"});
 // @ts-expect-error TextDecoder input is a BufferSource, not an ordinary array.
 new TextDecoder().decode([65]);
+// @ts-expect-error AbortSignal is created by controllers and static factories.
+new AbortSignal();
+// @ts-expect-error Decoder stream options are readonly attributes.
+new TextDecoderStream().fatal = true;
+// @ts-expect-error Text stream endpoints are readonly.
+new TextEncoderStream().readable = new ReadableStream<Uint8Array>();
 // @ts-expect-error Performance itself is an illegal constructor.
 new Performance();
 // @ts-expect-error PerformanceEntry is an illegal constructor.

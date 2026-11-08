@@ -28,3 +28,18 @@ Use mark/measure, getEntries/getEntriesByName/getEntriesByType and clearMarks /
 clearMeasures. A standalone new PerformanceMark does not enter the timeline.
 PerformanceObserver, resource/navigation timing and extra TextDecoder encodings
 are not part of this change. See the contract for supported errors and limits.
+
+### Abort interfaces and text streams
+
+The next source-only correction after v2.21.0 is demonstrated by:
+
+```sh
+/tmp/noe-web-basics run --no-inst examples/web-basics/abort-text-streams.js
+```
+
+Rebuild the current source first. This checks standard AbortError/TimeoutError
+DOMExceptions, TextDecoderStream option getters, and a surrogate pair split over
+encoder chunks with an empty chunk between them. The
+[contract](../../docs/development/stdlib-abort-text-streams.md) records the illegal
+AbortSignal constructor, readonly controller signal, timeout conversion and
+legacy no-Loop limitation. No filesystem/network/provider grant is required.

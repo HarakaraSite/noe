@@ -464,6 +464,13 @@ func (l *Loop) fire(ctx context.Context, t *timer, now time.Time) error {
 		delete(l.timers.byID, t.id)
 		return nil
 	}
+	if t.remainingMS > 0 {
+		delay := min(t.remainingMS, uint64(maxTimeoutMS))
+		t.remainingMS -= delay
+		t.at = t.at.Add(time.Duration(delay) * time.Millisecond)
+		l.timers.add(t)
+		return nil
+	}
 	if t.repeat > 0 {
 		t.at = now.Add(t.repeat)
 		l.timers.add(t)
@@ -491,8 +498,11 @@ type timer struct {
 	id     int64
 	at     time.Time
 	repeat time.Duration
-	fn     quickjs.Value
-	args   []any
+	// remainingMS stages AbortSignal deadlines beyond the ordinary timer range.
+	remainingMS uint64
+	internal    bool // Internal deadlines are not public setTimeout identifiers.
+	fn          quickjs.Value
+	args        []any
 	// actx is the async context the timer was armed in, which its callback
 	// runs in.
 	actx  quickjs.Value
