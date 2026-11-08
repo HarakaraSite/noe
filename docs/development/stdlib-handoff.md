@@ -1,9 +1,9 @@
 # Standard library session handoff
 
-Updated 2026-11-08 after verified v2.23.0 publication and installation at both
-vm201 executable paths. URL/query normalization and Request URL/method corrections
-are shipped. Linked policy, implementation and release records remain canonical.
-Release requests include both local installations.
+Updated 2026-11-08 after local Headers/Response completion following verified
+v2.23.0 publication and both vm201 installations. Headers/Response is not released;
+installed executables remain v2.23.0. Linked policy, implementation and release
+records remain canonical. Release requests include both local installations.
 
 ## Repository and publication state
 
@@ -64,6 +64,31 @@ Read the [standard library API policy](stdlib-api-policy.md) first.
   replace atomically, and verify hashes/version/PATH; reuse runtime results
   for the identical asset. Do not restart running services under this rule.
 
+## Headers and Response local completion
+
+The user approved both next improvements after v2.23.0 installation. The
+[contract and migration](stdlib-headers-response.md) is canonical. Header inputs,
+private lists, live iteration and cookie separation are corrected. Response
+construction/static validation, readonly metadata, immutable error/redirect/fetch
+headers and native clone metadata are implemented. Shared HTTP byte conversion,
+HEAD/null-body cleanup and private server/101-upgrade factories retain existing
+transport authority and ownership. Types, references, examples and main/Worker
+Go consumers are updated.
+
+Seven-package tests, focused race, types/catalog/lint/vet, nine CLI/reference /
+example/SDK/reference-comparison checks and checkout/module-artifact consumers
+pass. The prepared MCP SDK loopback fixture remains unchanged. A bounded review
+found one P2 in no-Loop HTTP 205 handling; it is fixed, covered by a real payload /
+limit regression and confirmed in the single fix-only re-review. Factory order /
+lifetime, all byte values and null-body zero-read/one-close behavior were also
+independently checked. Evidence: `/var/tmp/noe-headers-response-j6pkokoa`.
+
+Local implementation, verification, review and commit are complete. No push,
+release or installation is included. Both executable paths remain the verified
+v2.23.0 asset above; reuse completed implementation checks on a later release.
+Browser header/CORS/cache guards, full Body/BufferSource and broader Request /
+signal conformance remain outside this bounded slice. Noebot/services are excluded.
+
 ## Current release: v2.23.0 URL and Request corrections
 
 The user requested publication and both local installations after the two local
@@ -71,8 +96,8 @@ slices. Publication/installation are complete. Reuse implementation and release
 evidence for unchanged source and dependencies. The verified native asset is
 `/var/tmp/noe-v2.23.0-release-rzascld6/assets/noe-linux-amd64`.
 
-No next implementation slice is selected by this release request. Full IDNA/IP /
-Windows file-URL, URLPattern grammar and broader Request/Headers/Body/signal /
+The subsequently approved Headers/Response continuation is complete locally above.
+Full IDNA/IP / Windows file-URL, URLPattern grammar and broader Request/Body/signal /
 browser-policy gaps remain outside the completed slices. Future stdlib work should
 follow concrete caller needs and the API policy.
 

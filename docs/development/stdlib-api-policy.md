@@ -68,6 +68,7 @@ changing NOE does not authorize editing or deploying noebot.
 | Compression interfaces and URLPattern inputs | Required compression formats, readonly stream endpoints and BufferSource writes; object/baseURL route inputs, component inheritance and private pattern state. | Included in v2.22.0. See [contract and verification](stdlib-compression-urlpattern.md). |
 | URL normalization and query encoding | Component-specific encoding, encoded dot segments, default ports, stable URL/query identity and UTF-8 form conversion/live iteration. | Included in v2.23.0. See [contract and verification](stdlib-url-encoding.md). |
 | Request URL and method inputs | Shared URL normalization, ByteString/token/method validation, private readonly URL/method and incoming HTTP preservation. | Included in v2.23.0. See [contract and verification](stdlib-request-inputs.md). |
+| Headers and Response contracts | Header input/live iteration/cookie separation, Response initialization/static methods and native metadata. | Approved local continuation after v2.23.0; see [contract and verification](stdlib-headers-response.md). |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource
 remains a standard global. Expansion phases such as Web Crypto, additional

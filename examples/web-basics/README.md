@@ -84,3 +84,15 @@ Rebuild the source first. Request normalizes a string URL, retains the case of
 the extension method patch, exposes readonly URL/method attributes and clones a
 body for local consumption. No network request or host grant is used. See the
 [contract and boundaries](../../docs/development/stdlib-request-inputs.md).
+
+## Headers and Response
+
+```sh
+/tmp/noe-web-basics run --no-inst examples/web-basics/headers-response.js
+```
+
+Shows iterable header inputs, separate Set-Cookie values, JSON response cloning
+and redirect URL normalization. Invalid header names/values, invalid status codes
+and non-null bodies for 204/205/304 now throw. Response metadata is readonly;
+error, redirect and fetched headers are immutable. See the
+[contract and migration](../../docs/development/stdlib-headers-response.md).

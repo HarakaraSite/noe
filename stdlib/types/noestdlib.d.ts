@@ -1029,7 +1029,7 @@ declare namespace NOEStdlib {
     values(): IterableIterator<string>;
     toJSON(): Record<string, string>;
   }
-  interface HeadersConstructor { new(init?: HeadersInit): Headers }
+  interface HeadersConstructor { new(init?: HeadersInit): Headers; readonly prototype: Headers }
   interface Body {
     readonly body: ReadableStream<Uint8Array> | null;
     readonly bodyUsed: boolean;
@@ -1052,19 +1052,20 @@ declare namespace NOEStdlib {
     clone(): Request;
   }
   interface RequestConstructor { new(input: string | URL | Request, init?: RequestInit): Request; readonly prototype: Request }
-  interface ResponseInit { status?: number; statusText?: string; headers?: HeadersInit; url?: string }
+  interface ResponseInit { status?: number; statusText?: string; headers?: HeadersInit }
   interface Response extends Body {
     readonly headers: Headers;
     readonly status: number;
     readonly statusText: string;
     readonly url: string;
     readonly redirected: boolean;
-    readonly type: string;
+    readonly type: "basic" | "cors" | "default" | "error" | "opaque" | "opaqueredirect";
     readonly ok: boolean;
     clone(): Response;
   }
   interface ResponseConstructor {
     new(body?: BodyInit | null, init?: ResponseInit): Response;
+    readonly prototype: Response;
     json(data: unknown, init?: ResponseInit): Response;
     error(): Response;
     redirect(url: string | URL, status?: number): Response;

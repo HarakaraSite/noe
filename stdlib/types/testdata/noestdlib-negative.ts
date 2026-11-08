@@ -364,6 +364,8 @@ new URLPattern().pathname = "/changed";
 new URLSearchParams().size = 7;
 // @ts-expect-error Request URL is readonly.
 new Request("https://example.test/").url = "https://wrong.test/";
+// @ts-expect-error ResponseInit has no URL metadata extension.
+new Response(null, {url: "https://example.test/"});
 // @ts-expect-error Request method is readonly.
 new Request("https://example.test/").method = "POST";
 // @ts-expect-error Object patterns carry baseURL in the dictionary.

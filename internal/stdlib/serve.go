@@ -78,6 +78,11 @@ func Servers(rt *quickjs.Runtime, cfg *Serve) (quickjs.Value, error) {
 	}); err != nil {
 		return quickjs.Value{}, err
 	}
+	if err := host.Set("response", func(response quickjs.Value) (quickjs.Value, error) {
+		return snapshotResponse(rt, response)
+	}); err != nil {
+		return quickjs.Value{}, err
+	}
 	api, err := evalWithHost(rt, "<http>", serveJS, host)
 	if err != nil {
 		return quickjs.Value{}, err
@@ -308,7 +313,7 @@ func (s *servers) listen(opts quickjs.Value, dispatch quickjs.Value) (quickjs.Va
 func (s *servers) handle(dispatch quickjs.Value, ex *exchange) {
 	pairs := make([]any, 0, len(ex.headers))
 	for _, h := range ex.headers {
-		pair, err := s.rt.NewArray(h[0], h[1])
+		pair, err := s.rt.NewArray(h[0], headerString(h[1]))
 		if err != nil {
 			ex.answer <- &reply{err: err}
 			return
@@ -491,7 +496,11 @@ func (s *servers) readReply(res quickjs.Value) *reply {
 			}
 			name, _ := pair.Index(0)
 			value, _ := pair.Index(1)
-			out.headers = append(out.headers, [2]string{name.String(), value.String()})
+			field, err := headerBytes(value.String())
+			if err != nil {
+				return &reply{err: err}
+			}
+			out.headers = append(out.headers, [2]string{name.String(), field})
 		}
 	}
 	if token, err := res.Get("upgrade"); err == nil && token.Kind() == quickjs.KindString {
@@ -590,13 +599,14 @@ const serveJS = `(function (host) {
                   protocol: response.protocol || ""});
             return;
           }
-          const headers = [...response.headers].map(([k, v]) => [k, v]);
+          const metadata = host.response(response);
+          const headers = metadata.headers;
           const body = response.body;
           if (body && typeof body.getReader === "function" && response._bytes === undefined) {
             // An answer that is still being made goes out as it is made: the
             // status and headers first, then each piece as the connection
             // takes it.
-            done({status: response.status, headers, streaming: true});
+            done({status: metadata.status, headers, streaming: true});
             try {
               await sink.ready();
               for await (const chunk of body) await sink.push(chunk);
@@ -611,7 +621,7 @@ const serveJS = `(function (host) {
             return;
           }
           done({
-            status: response.status,
+            status: metadata.status,
             headers,
             body: new Uint8Array(await response.arrayBuffer()),
           });
@@ -620,9 +630,10 @@ const serveJS = `(function (host) {
             try {
               const response = await options.onError(e);
               if (response instanceof Response) {
+                const metadata = host.response(response);
                 done({
-                  status: response.status,
-                  headers: [...response.headers].map(([k, v]) => [k, v]),
+                  status: metadata.status,
+                  headers: metadata.headers,
                   body: new Uint8Array(await response.arrayBuffer()),
                 });
                 return;

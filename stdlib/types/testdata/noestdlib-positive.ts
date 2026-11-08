@@ -478,3 +478,11 @@ storage["named"] = "value";
 delete storage["named"];
 const persistentStorage: Storage = localStorage;
 void [storageLength, storageItem, storageKey, persistentStorage];
+
+const typedHeaders: Headers = new Headers(new Map([["x-trace", "one"]]));
+const cookieValues: string[] = typedHeaders.getSetCookie();
+const responseJSON: Response = Response.json({ok: true}, {status: 201, headers: typedHeaders});
+const responseType: Response["type"] = responseJSON.type;
+const responsePrototype: Response = Response.prototype;
+const headersPrototype: Headers = Headers.prototype;
+void [cookieValues, responseType, responsePrototype, headersPrototype];

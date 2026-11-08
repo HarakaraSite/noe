@@ -75,6 +75,9 @@ func Sockets(rt *quickjs.Runtime, cfg *WebSockets) (map[string]quickjs.Value, er
 		"connect": h.connect,
 		"reserve": h.reserve,
 		"serving": cfg.Serve != nil,
+		"response": func(r *quickjs.Runtime) (quickjs.Value, error) {
+			return upgradeResponse(r)
+		},
 	}); err != nil {
 		return nil, err
 	}
@@ -1102,11 +1105,11 @@ const webSocketJS = `(function (host) {
     if (!wanted || String(wanted).toLowerCase() !== "websocket") {
       throw new TypeError("this request did not ask for a socket");
     }
+    const response = host.response();
     const reserved = host.reserve();
     const socket = new WebSocket(acceptedSocket);
     socket._drive(reserved.handle);
 
-    const response = new Response(null, {status: 101});
     // The token is what the connection is handed over with; it is on the
     // response because the response is what the handler gives back.
     Object.defineProperty(response, "upgrade", {value: reserved.token});

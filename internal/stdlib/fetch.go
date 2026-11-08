@@ -174,6 +174,15 @@ func Network(rt *quickjs.Runtime, cfg *Fetch) error {
 		return err
 	}
 	bindIncomingRequest(rt, incoming)
+	upgrade, err := api.Get("upgradeResponse")
+	if err != nil {
+		return err
+	}
+	snapshot, err := api.Get("responseSnapshot")
+	if err != nil {
+		return err
+	}
+	bindResponses(rt, upgrade, snapshot)
 	names := []string{"Headers", "Request", "Response"}
 	if !typesOnly {
 		names = append(names, "fetch")
@@ -244,7 +253,11 @@ func readRequest(req quickjs.Value) (*requestSpec, error) {
 			}
 			name, _ := pair.Index(0)
 			value, _ := pair.Index(1)
-			spec.headers = append(spec.headers, [2]string{name.String(), value.String()})
+			field, err := headerBytes(value.String())
+			if err != nil {
+				return nil, err
+			}
+			spec.headers = append(spec.headers, [2]string{name.String(), field})
 		}
 	}
 	if body, err := req.Get("body"); err == nil && !body.IsNullish() {
@@ -333,7 +346,13 @@ func doFetch(client *http.Client, cfg *Fetch, spec *requestSpec, limit int64, lo
 		// followed.
 		redirected: res.Request.Response != nil,
 	}
-	if loop == nil {
+	if spec.method == http.MethodHead || res.StatusCode == 101 || res.StatusCode == 103 ||
+		res.StatusCode == 204 || res.StatusCode == 205 || res.StatusCode == 304 {
+		// Fetch discards these bodies even when a server sends a payload.
+		// Do this before synchronous reads and limits as well as stream setup.
+		spec.cancel()
+		_ = res.Body.Close()
+	} else if loop == nil {
 		// Nothing to deliver the rest on, so the rest is read now.
 		defer func() {
 			// Stop the request before closing the body so any transport read is
@@ -545,7 +564,7 @@ func deliver(rt *quickjs.Runtime, p *quickjs.Promise, res *fetchResult, err erro
 	o := rt.NewObject()
 	pairs := make([]any, 0, len(res.headers))
 	for _, h := range res.headers {
-		pair, err := rt.NewArray(h[0], h[1])
+		pair, err := rt.NewArray(h[0], headerString(h[1]))
 		if err != nil {
 			p.RejectError(err)
 			return
@@ -559,7 +578,7 @@ func deliver(rt *quickjs.Runtime, p *quickjs.Promise, res *fetchResult, err erro
 	}
 	fields := []error{
 		o.Set("status", res.status),
-		o.Set("statusText", res.statusText),
+		o.Set("statusText", headerString(res.statusText)),
 		o.Set("url", res.url),
 		o.Set("redirected", res.redirected),
 		o.Set("headers", headers),
@@ -583,67 +602,7 @@ func deliver(rt *quickjs.Runtime, p *quickjs.Promise, res *fetchResult, err erro
 const fetchJS = `(function (host) {
   "use strict";
 
-  const forbidden = new Set(["set-cookie2"]);
-
-  class Headers {
-    constructor(init) {
-      host.cloneAs(this, "unsupported");
-      Object.defineProperty(this, "_list", {value: [], writable: true});
-      if (init instanceof Headers) {
-        for (const [k, v] of init) this.append(k, v);
-      } else if (Array.isArray(init)) {
-        for (const pair of init) this.append(pair[0], pair[1]);
-      } else if (init && typeof init === "object") {
-        for (const [k, v] of Object.entries(init)) this.append(k, v);
-      }
-    }
-    append(name, value) {
-      const n = normalizeName(name);
-      this._list.push([n, String(value).trim()]);
-    }
-    delete(name) {
-      const n = normalizeName(name);
-      this._list = this._list.filter(([k]) => k !== n);
-    }
-    get(name) {
-      const n = normalizeName(name);
-      const all = this._list.filter(([k]) => k === n).map(([, v]) => v);
-      return all.length === 0 ? null : all.join(", ");
-    }
-    getSetCookie() {
-      return this._list.filter(([k]) => k === "set-cookie").map(([, v]) => v);
-    }
-    has(name) {
-      const n = normalizeName(name);
-      return this._list.some(([k]) => k === n);
-    }
-    set(name, value) {
-      const n = normalizeName(name);
-      this.delete(n);
-      this._list.push([n, String(value).trim()]);
-    }
-    forEach(fn, thisArg) {
-      for (const [k, v] of this.entries()) fn.call(thisArg, v, k, this);
-    }
-    *entries() {
-      // The names come out sorted and combined, which is what the standard
-      // says an iteration over headers looks like.
-      const names = [...new Set(this._list.map(([k]) => k))].sort();
-      for (const n of names) yield [n, this.get(n)];
-    }
-    *keys() { for (const [k] of this.entries()) yield k; }
-    *values() { for (const [, v] of this.entries()) yield v; }
-    [Symbol.iterator]() { return this.entries(); }
-    toJSON() { return Object.fromEntries(this.entries()); }
-  }
-
-  function normalizeName(name) {
-    const n = String(name).toLowerCase().trim();
-    if (n === "" || /[^!#$%&'*+\-.^_` + "`" + `|~0-9a-z]/.test(n)) {
-      throw new TypeError("invalid header name: " + name);
-    }
-    return n;
-  }
+` + headersJS + `
 
   const isStream = (v) =>
     typeof ReadableStream !== "undefined" && v instanceof ReadableStream;
@@ -703,6 +662,7 @@ const fetchJS = `(function (host) {
 
   // A body is bytes or a stream of them, and is read once: a second read is an
   // error, as it is on the web, because there is nothing left to read.
+  const bodyHeaders = new WeakMap();
   class Body {
     constructor(source, headers) {
       host.cloneAs(this, "unsupported");
@@ -711,7 +671,12 @@ const fetchJS = `(function (host) {
         {value: stream ? undefined : source, writable: true});
       Object.defineProperty(this, "_stream", {value: stream ? source : null, writable: true});
       Object.defineProperty(this, "_used", {value: false, writable: true});
-      this.headers = headers;
+      requestApply(requestSet, bodyHeaders, [this, headers]);
+    }
+    get headers() {
+      const headers = requestApply(requestGet, bodyHeaders, [this]);
+      if (headers === undefined) throw new TypeError("The receiver has no Body headers");
+      return headers;
     }
     // A body is used once something has started reading it, which for a
     // stream means a reader has been taken: the bytes may still be arriving,
@@ -750,6 +715,7 @@ const fetchJS = `(function (host) {
     // _consume is _take for a body that has not arrived yet: the chunks are
     // gathered as they come, and joined once the stream ends.
     async _consume() {
+      if (!this._stream && (this._bytes === null || this._bytes === undefined)) return new Uint8Array(0);
       if (!this._stream || this._bytes !== undefined) return this._take();
       if (this.bodyUsed) throw new TypeError("the body has already been read");
       this._used = true;
@@ -839,7 +805,7 @@ const fetchJS = `(function (host) {
       const internal = token === incomingRequestToken;
       const url = from || internal ? address : requestAddress(address);
       const method = options.method === undefined ? (from ? original.method : "GET") : internal ? options.method : requestMethod(options.method);
-      const headers = new Headers(options.headers || (from ? from.headers : undefined));
+      const headers = new Headers(options.headers || (from ? requestApply(requestGet, bodyHeaders, [from]) : undefined));
       const replacement = options.body !== undefined && options.body !== null;
       let body = replacement
         ? encodeBody(options.body, headers)
@@ -864,7 +830,7 @@ const fetchJS = `(function (host) {
     clone() {
       const state = requestOf(this);
       return new Request(state.url, {
-        method: state.method, headers: this.headers, body: cloneBody(this),
+        method: state.method, headers: requestApply(requestGet, bodyHeaders, [this]), body: cloneBody(this),
         signal: this.signal, redirect: this.redirect, credentials: this.credentials, mode: this.mode,
       }, incomingRequestToken);
     }
@@ -872,34 +838,7 @@ const fetchJS = `(function (host) {
   for (const name of ["url", "method", "clone"]) Object.defineProperty(Request.prototype, name, {enumerable: true});
   Object.defineProperty(Request.prototype, Symbol.toStringTag, {value: "Request", configurable: true});
 
-  class Response extends Body {
-    constructor(body = null, init = {}) {
-      const headers = new Headers(init.headers);
-      super(body === null ? null : encodeBody(body, headers), headers);
-      this.status = init.status === undefined ? 200 : Number(init.status);
-      this.statusText = init.statusText === undefined ? "" : String(init.statusText);
-      this.url = init.url === undefined ? "" : String(init.url);
-      this.redirected = false;
-      this.type = "basic";
-    }
-    get ok() { return this.status >= 200 && this.status < 300; }
-    clone() {
-      const copy = new Response(cloneBody(this), {
-        status: this.status, statusText: this.statusText, headers: this.headers,
-      });
-      copy.url = this.url;
-      return copy;
-    }
-    static json(data, init = {}) {
-      const headers = new Headers(init.headers);
-      if (!headers.has("content-type")) headers.set("content-type", "application/json");
-      return new Response(JSON.stringify(data), {...init, headers});
-    }
-    static error() { return new Response(null, {status: 0}); }
-    static redirect(url, status = 302) {
-      return new Response(null, {status, headers: {location: String(url)}});
-    }
-  }
+` + responseJS + `
 
   // --- multipart ------------------------------------------------------------
 
@@ -1145,7 +1084,7 @@ const fetchJS = `(function (host) {
       const sent = host.send({
         method: metadata.method,
         url: metadata.url,
-        headers: [...request.headers._list],
+        headers: headerSnapshot(requestApply(requestGet, bodyHeaders, [request])),
         body,
         stream: reader !== null,
       }, (cancel, upload) => {
@@ -1169,11 +1108,10 @@ const fetchJS = `(function (host) {
 
     // A body still on the connection is read through a stream, a chunk at a
     // time; one that arrived whole is already bytes.
-    const incoming = typeof raw.read === "function"
+    const noBody = metadata.method === "HEAD" || nullBodyStatus(raw.status);
+    const incoming = noBody ? null : typeof raw.read === "function"
       ? new ReadableStream({
           async pull(controller) {
-            // A body cut off part way is a TypeError too, which Node calls
-            // "terminated".
             const chunk = await raw.read().catch((cause) => {
               cleanup();
               throw new TypeError("terminated", {cause});
@@ -1188,18 +1126,17 @@ const fetchJS = `(function (host) {
         })
       : raw.body;
 
-    if (typeof raw.read !== "function") cleanup();
+    if (noBody || typeof raw.read !== "function") {
+      cleanup();
+      if (noBody && typeof raw.cancel === "function") raw.cancel();
+    }
+    const response = nativeResponse(incoming, raw);
 
-    const response = new Response(incoming, {
-      status: raw.status,
-      statusText: raw.statusText,
-      headers: raw.headers,
-      url: raw.url,
-    });
-    response.redirected = raw.redirected;
     return response;
   }
 
   return {fetch, Headers, Request, Response,
-    incomingRequest: (url, init) => new Request(url, init, incomingRequestToken)};
+    incomingRequest: (url, init) => new Request(url, init, incomingRequestToken),
+    responseSnapshot,
+    upgradeResponse: () => makeResponse(null, {status: 101, statusText: "", headers: new Headers(), type: "default", url: "", redirected: false, immutable: false})};
 })`

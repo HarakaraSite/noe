@@ -622,6 +622,9 @@ func TestServeJSBodyReadsOnlyOnDemand(t *testing.T) {
 		host.Set("request", func(url, init quickjs.Value) (quickjs.Value, error) {
 			return incomingRequest(rt, url, init)
 		})
+		host.Set("response", func(response quickjs.Value) (quickjs.Value, error) {
+			return snapshotResponse(rt, response)
+		})
 		api, err := evalWithHost(rt, "<test-serve>", serveJS, host)
 		if err != nil {
 			finished <- err

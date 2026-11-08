@@ -287,6 +287,20 @@ NOE enables outbound fetch with its host HTTP client. A ReadableStream request b
 
 The configured `MaxBodyBytes` limit applies to response-body reads, not uploads. `0` selects the 32 MiB default; a negative value disables the limit. Reads and body collectors reject if they consume bytes beyond the cap, while a body exactly at the cap succeeds. AbortSignal cancels an in-progress upload or response-body read. If final response headers arrive before upload EOF, NOE stops the unfinished upload and returns a readable Response; this does not provide general full-duplex HTTP. A stream body is not replayed for a 307 or 308 redirect; the host client may follow 301, 302, or 303 by continuing with a bodyless request. Other redirect and cache behavior follows the host client; broader Node/browser redirect and cache options are not implemented.
 
+## Headers
+
+`new Headers(init?)` accepts an iterable of name/value pairs or a string record.
+Names must be HTTP tokens; names with surrounding whitespace reject. Names and
+values use ByteString conversion: Symbols and characters above U+00FF reject.
+Values trim surrounding HTTP whitespace and reject remaining CR, LF or NUL.
+
+`append`, `set`, `delete`, `get`, `has` and `getSetCookie` operate on private data.
+Iteration sorts names and combines ordinary repeated fields with comma-space;
+each Set-Cookie remains a separate entry. `getSetCookie()` returns individual
+cookie values. Iterators and `forEach` observe subsequent mutations. The existing
+`toJSON()` utility returns a record; use iteration or `getSetCookie()` to preserve
+multiple cookies.
+
 ## Request
 
 new Request(input, init = {}) constructs request data for fetch or an HTTP handler. input may be a URL/string or another Request. Use method, headers, body, and signal as needed.
@@ -309,7 +323,26 @@ Bodies are one-shot. Methods such as text() and json() return promises; clone th
 
 ## Response
 
-new Response(body = null, init = {}) creates response data. init supports status, statusText, and headers. Response.json(value, init?) creates a JSON response. Read the body with text(), json(), arrayBuffer(), or bytes(); body is a ReadableStream when present.
+`new Response(body = null, init = {})` creates response data. `init` supports
+`status`, `statusText`, and `headers`. After unsigned-short conversion, status
+must be 200..599. Status text must be a ByteString HTTP reason phrase. Statuses
+204, 205 and 304 require a null body, including when the proposed body is empty.
+Constructed responses have type `default`, an empty URL and `redirected: false`.
+Metadata and the stable headers reference are readonly. `ResponseInit.url` is
+ignored; native fetch responses supply their own URL and redirect metadata.
+
+`Response.json(value, init?)` produces UTF-8 JSON with `application/json` unless
+an explicit content type exists; unserializable top-level values reject.
+`Response.error()` creates a bodyless status-0 response with type `error`.
+`Response.redirect(url, status = 302)` resolves an absolute URL through the shared
+URL API and accepts 301, 302, 303, 307 or 308. NOE has no ambient document base URL.
+Error, redirect and fetched response headers are immutable, including after clone.
+Constructed/JSON response headers remain mutable for host HTTP handlers, including
+Set-Cookie. Browser forbidden-header/CORS guards are outside NOE's host policy.
+
+Read a body with `text()`, `json()`, `arrayBuffer()` or `bytes()`, or its stream.
+HEAD and null-body HTTP responses expose `body: null`. Clone preserves native
+URL, redirect, type and header immutability while retaining existing body ownership.
 
 ~~~js
 const response = Response.json({ ok: true }, { status: 201 });

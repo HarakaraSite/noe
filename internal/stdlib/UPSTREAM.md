@@ -730,3 +730,18 @@ The registry is removed on runtime close and permits either installer order.
 Legacy Network installation can wait for WebAPIs to be installed before Request
 construction. No public factory, parser dependency or network authority is added.
 See the [contract and verification](../../docs/development/stdlib-request-inputs.md).
+
+### Headers and Response contracts (2026-11-08)
+
+Headers now uses private branded lists, Web IDL input conversion, HTTP field
+validation and live sorted iteration with separate Set-Cookie entries. Native
+HTTP bridges preserve ByteString bytes in both directions. Response validates
+construction/static operations, keeps readonly private metadata and preserves
+clone/header guards. Native reply snapshots and status-101 WebSocket responses
+use private per-runtime operations with owner-thread lifetime cleanup.
+
+HEAD/null-status payloads are cancelled and closed before buffered reads, limits
+or stream creation, including legacy no-Loop Fetch. Existing native transports,
+grants, limits and body ownership remain shared. Browser forbidden-header/CORS
+guards and full Body/Request conformance are outside this slice. See the
+[contract and verification](../../docs/development/stdlib-headers-response.md).

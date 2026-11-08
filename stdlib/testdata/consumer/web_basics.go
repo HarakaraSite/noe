@@ -46,6 +46,12 @@ for(const format of ["gzip","deflate","deflate-raw"]){
  const restored=await new Response(ReadableStream.from([compressed]).pipeThrough(new DecompressionStream(format))).text();
  if(restored!==plain)throw Error("worker compression contract");
 }
+const cookies=new Headers(new Map([["X-Trace"," worker "]]));cookies.append("Set-Cookie","a=1");cookies.append("Set-Cookie","b=2");
+if([...cookies].filter(([name])=>name==="set-cookie").length!==2||cookies.get("x-trace")!=="worker")throw Error("worker Headers contract");
+const jsonResponse=Response.json({worker:true},{status:201,headers:cookies}),jsonCopy=jsonResponse.clone();
+if(jsonCopy.type!=="default"||jsonCopy.status!==201||!(await jsonCopy.json()).worker||Reflect.set(jsonResponse,"status",202))throw Error("worker Response contract");
+if(Response.error().clone().type!=="error"||Response.redirect("https://EXAMPLE.test:00443/a/../b",303).headers.get("location")!=="https://example.test/b")throw Error("worker Response factories");
+try{new Response("",{status:204});throw Error("worker null body status accepted");}catch(error){if(error.name!=="TypeError")throw error;}
 const mark=performance.mark("child",{startTime:1});
 parentPort.postMessage({detail,type:mark.entryType,entries:performance.getEntries().length});parentPort.close();`
 	code := fmt.Sprintf(`import {Worker} from "node:worker_threads";
@@ -57,6 +63,10 @@ if(!new URLPattern({pathname:"/books/:id"}).test({pathname:"/books/1"}))throw Er
 const queryURL=new URL("https://EXAMPLE.test:00443/a/../b?q=old"),queryParams=queryURL.searchParams;
 queryURL.search="?q=new";if(queryParams!==queryURL.searchParams||queryParams.get("q")!=="new"||queryURL.pathname!=="/b"||queryURL.port!=="")throw Error("main URL normalization/query synchronization");
 if(new Request("https://EXAMPLE.test:00443/a/../b",{method:"patch"}).method!=="patch")throw Error("main Request inputs");
+const cookies=new Headers([["Set-Cookie","a=1"],["set-cookie","b=2"]]);
+if([...cookies].length!==2||cookies.getSetCookie().length!==2)throw Error("main Headers cookies");
+const jsonResponse=Response.json({main:true},{status:201,headers:cookies});
+if(jsonResponse.type!=="default"||!(await jsonResponse.clone().json()).main)throw Error("main Response contract");
 const worker=new Worker(%q,{eval:true,type:"module"});
 const result=await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});
 await worker.terminate();
