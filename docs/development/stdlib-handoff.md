@@ -1,19 +1,46 @@
 # Standard library session handoff
 
-Updated 2026-11-10 for v2.26.0 release preparation. The user authorized commit,
-publication and local installation of implementation `33f5c39`. The currently
-published and installed release remains v2.25.0 until publication verification
-and installation finish. Linked records remain canonical.
+Updated 2026-11-10 after v2.26.0 publication and both vm201 installations.
+Provider SDK updates and Responses request encoding optimization are published
+and installed. WebSocket continuation remains a deferred improvement idea.
+Linked implementation and release records remain canonical.
 
-Release evidence: `/var/tmp/noe-v2.26.0-release-9c__k3in`. Reuse the unchanged
-source verification recorded below; release verification uses a clean native
-candidate, lightweight CLI/loopback probes, published assets and direct public
-Go consumers. Other hosts, running services and noebot remain outside scope.
-The clean native candidate at `8a918e3` passes seven version/helper/loopback
-checks, including both Responses SDK routes and Chat. See the
-[release preparation checkpoint](../releases/release-checkpoints.md#v2260-preparation--2026-11-10).
+## Current release — v2.26.0 published and installed
 
-## Current continuation — provider SDKs and Responses request encoding
+The user authorized commit, release and local installation. Implementation
+`33f5c39`, release preparation `8a918e3` and preparation record `72cc4c5` are
+published. Immutable annotated tag v2.26.0 points to
+`72cc4c5e3659d60109d6b9fd99420bca1cb73710`; tag object
+`b0eb35fcb63df021c5b34143af96fa37b6d9338c`. Main includes a later publication
+record; the release tag is not moved.
+
+The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.26.0)
+is published, neither draft nor prerelease (ID 179).
+[CI run 65](https://forge.harakara.site/littleisland/noe/actions/runs/65) succeeds
+(API 246, job 267). All six downloaded binaries pass checksum/build metadata
+checks with OpenAI Go SDK v3.98.0, OpenRouter Go SDK v0.9.116, Go 1.27.2,
+go-quickjs v0.37.1 / go-intl v0.9.0 and JIT disabled. The native asset passes
+seven version/helper/loopback checks, including tool cycles for both Responses
+SDKs and OpenRouter Chat. Direct published stdlib/agent consumers pass eleven
+checks; all seven changed Go/dependency paths match the tag in each module copy.
+
+Both `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` contain the
+verified Linux amd64 asset, SHA256
+`da420d03a5f77942e0c40488c5aa535ee182f1e8a6f276c11e41ab1c26126e6c`.
+Both report `noe v2.26.0`; PATH resolves to the first. Installation checks pass,
+and runtime verification is reused for the identical asset. Previous v2.25.0
+copies and `installation.json` are retained at
+`/var/tmp/noe-v2.26.0-install-n26nwhi2`.
+
+Release evidence: `/var/tmp/noe-v2.26.0-release-9c__k3in`. Completed implementation
+checks at `/var/tmp/noe-sdk-request-a5qnx1o2` are reused; only the CLI version
+changed after implementation. No full source/E2E/race suite or local six-target
+build was repeated. See the
+[publication/install checkpoint](../releases/release-checkpoints.md#v2260-publication-and-installation--2026-11-10).
+Publication and installation are complete. Other hosts, running services and
+noebot were not changed.
+
+## Previous continuation — provider SDKs and Responses request encoding
 
 The user requested updating both provider SDKs and removing redundant request
 JSON generation. On top of `8caefb2`, the checkout selects OpenAI Go SDK v3.98.0
@@ -44,7 +71,7 @@ Implementation has not started. OpenCode Go remains on HTTP/SSE; its WebSocket
 support is unconfirmed. On resumption, first establish connection and tool
 continuation with the intended OpenAI endpoint and authentication mode.
 
-## Current release — v2.25.0 published and installed
+## Previous release — v2.25.0 published and installed
 
 The user explicitly requested commit, release and binary replacement. Engine
 integration `c29d466` and release preparation `f0b94b7` are published. Immutable

@@ -4633,3 +4633,54 @@ and SHA256SUMS without repeating source checks. Verify the downloaded assets,
 native behavior and direct published Go consumers before retaining and
 atomically installing the native asset at both authorized paths.
 Evidence: `/var/tmp/noe-v2.26.0-release-9c__k3in`.
+
+
+## v2.26.0 publication and installation — 2026-11-10
+
+- Annotated tag `v2.26.0` points to `72cc4c5e3659d60109d6b9fd99420bca1cb73710`,
+  matching the peeled remote tag and CI source. Tag object:
+  `b0eb35fcb63df021c5b34143af96fa37b6d9338c`. The successor to clean candidate `8a918e3`
+  changes only preparation documentation; implementation source/dependencies match.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/65) succeeded
+  (API 246, job 267), building six targets and publishing binaries and
+  SHA256SUMS without repeating implementation tests.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.26.0) is published,
+  neither draft nor prerelease (ID 179), with the tagged English notes.
+
+All seven assets were downloaded. All six binaries match SHA256SUMS, the immutable
+revision, vcs.modified=false, target OS/architecture, Go 1.27.2, CGO_ENABLED=0,
+trimpath, OpenAI SDK v3.98.0, OpenRouter SDK v0.9.116, go-quickjs v0.37.1 /
+go-intl v0.9.0, pinned native dependencies and disabled JIT. Native Linux amd64
+SHA256: `da420d03a5f77942e0c40488c5aa535ee182f1e8a6f276c11e41ab1c26126e6c`. Other targets were not executed natively.
+
+The downloaded native asset passes seven release checks: version, arithmetic,
+both authentication-helper help commands and local SDK tool cycles through
+OpenAI Responses/custom tools, OpenRouter Responses/function tools and
+OpenRouter Chat. The six loopback model requests retain session identity,
+tool outputs and opaque reasoning. No live provider request occurs.
+
+Direct stdlib@v2.26.0 and agent@v2.26.0 consumers fetch without replacements or
+a synthetic proxy. All eleven checks pass, including module verification,
+portable/Go-host execution and selection of the two new SDK versions. All seven
+changed Go/dependency paths match the immutable tag in both downloaded modules;
+nested-module exclusions and disabled JIT are verified. Unchanged implementation
+checks and benchmark results are reused.
+
+After publication verification, the previous executables were retained and the
+verified native asset was staged and atomically installed at both vm201 paths:
+
+- `/home/agent/.local/bin/noe`, which PATH resolves to.
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report `noe v2.26.0` and match the published SHA256. Installed hash, version
+and PATH checks pass. The identical asset's published runtime verification is
+reused rather than repeating it after installation.
+
+Previous v2.25.0 copies, SHA256 `cb97cb017892b3cd29d87b3208c8a425b61eae559b4bd7eab3171a9003975bee`,
+are retained at `/var/tmp/noe-v2.26.0-install-n26nwhi2`, with `installation.json`.
+Release evidence: `/var/tmp/noe-v2.26.0-release-9c__k3in`.
+
+Publication and both installations are complete. No required release/install
+work remains. The WebSocket continuation memo remains deferred. Other hosts,
+running services and noebot were not changed. This record does not move the
+immutable release tag.

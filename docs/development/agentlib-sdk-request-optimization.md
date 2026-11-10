@@ -4,6 +4,9 @@ Completed locally on top of `8caefb2`, 2026-11-10. The user requested updating
 both provider SDKs and removing the discarded Chat request encoding from the
 Responses path. Public Go/JavaScript APIs and provider configuration are unchanged.
 
+Published and installed in [v2.26.0](../releases/v2.26.0.md); see the
+[publication checkpoint](../releases/release-checkpoints.md#v2260-publication-and-installation--2026-11-10).
+
 ## Dependencies
 
 | Module | Before | After |
