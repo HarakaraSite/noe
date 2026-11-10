@@ -3,11 +3,11 @@ module forge.harakara.site/littleisland/noe/v2
 go 1.27.2
 
 require (
-	github.com/OpenRouterTeam/go-sdk v0.9.61
+	github.com/OpenRouterTeam/go-sdk v0.9.116
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-quickjs/go-quickjs v0.37.1
 	github.com/ncruces/go-sqlite3 v0.36.0
-	github.com/openai/openai-go/v3 v3.79.0
+	github.com/openai/openai-go/v3 v3.98.0
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 )

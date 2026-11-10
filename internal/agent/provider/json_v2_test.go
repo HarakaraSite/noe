@@ -3,6 +3,7 @@ package provider
 import (
 	jsonv1 "encoding/json"
 	json "encoding/json/v2"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -17,8 +18,56 @@ func TestProviderJSONV2RejectsDuplicateNamesAndInvalidUTF8(t *testing.T) {
 		if _, err := decodeObject(input); err == nil {
 			t.Errorf("decodeObject accepted invalid or ambiguous JSON %q", input)
 		}
-		if _, err := makeChatRequestBody(Request{Model: "model", Messages: []jsonv1.RawMessage{input}}); err == nil {
-			t.Errorf("chat request accepted invalid or ambiguous message %q", input)
+		for name, build := range requestBodyBuilders() {
+			for _, request := range []Request{
+				{Model: "model", Messages: []jsonv1.RawMessage{input}},
+				{Model: "model", Messages: []jsonv1.RawMessage{jsonv1.RawMessage(`{"role":"user","content":"hello"}`)}, Tools: []jsonv1.RawMessage{input}},
+			} {
+				if _, err := build(request); err == nil {
+					t.Errorf("%s request accepted invalid or ambiguous JSON %q", name, input)
+				}
+			}
+		}
+	}
+}
+
+func requestBodyBuilders() map[string]func(Request) ([]byte, error) {
+	return map[string]func(Request) ([]byte, error){
+		"chat": makeChatRequestBody,
+		"responses": func(request Request) ([]byte, error) {
+			return configuredResponsesRequestBody(Definition{EffortField: "reasoning.effort"}, request)
+		},
+	}
+}
+
+func TestGenerationRequestValidation(t *testing.T) {
+	message := []jsonv1.RawMessage{jsonv1.RawMessage(`{"role":"user","content":"hello"}`)}
+	invalidUTF8 := string([]byte{0xff})
+	cases := []struct {
+		name    string
+		request Request
+	}{
+		{"empty model", Request{Messages: message}},
+		{"blank model", Request{Model: " \t", Messages: message}},
+		{"invalid model UTF-8", Request{Model: invalidUTF8, Messages: message}},
+		{"invalid cache key UTF-8", Request{Model: "model", Messages: message, CacheKey: invalidUTF8}},
+		{"empty messages", Request{Model: "model"}},
+		{"null message", Request{Model: "model", Messages: []jsonv1.RawMessage{jsonv1.RawMessage(`null`)}}},
+		{"array message", Request{Model: "model", Messages: []jsonv1.RawMessage{jsonv1.RawMessage(`[]`)}}},
+		{"malformed message", Request{Model: "model", Messages: []jsonv1.RawMessage{jsonv1.RawMessage(`{`)}}},
+		{"null tool", Request{Model: "model", Messages: message, Tools: []jsonv1.RawMessage{jsonv1.RawMessage(`null`)}}},
+		{"negative token limit", Request{Model: "model", Messages: message, MaxTokens: -1}},
+		{"invalid effort", Request{Model: "model", Messages: message, Effort: "invalid"}},
+	}
+	for name, build := range requestBodyBuilders() {
+		for _, tc := range cases {
+			t.Run(name+"/"+tc.name, func(t *testing.T) {
+				body, err := build(tc.request)
+				var failure *ProviderError
+				if !errors.As(err, &failure) || failure.Kind != ErrorResponse || body != nil {
+					t.Fatalf("body=%q error=%v; want a response error without a body", body, err)
+				}
+			})
 		}
 	}
 }

@@ -1,9 +1,41 @@
 # Standard library session handoff
 
-Updated 2026-11-09 after v2.25.0 publication and both vm201 installations.
-The go-quickjs v0.37.1 integration and all preceding stdlib continuations are
-published and installed. Linked policy, implementation and release records
-remain canonical.
+Updated 2026-11-10 after local provider SDK updates, Responses request encoding
+optimization, and recording a deferred WebSocket continuation idea.
+The published and installed release remains v2.25.0;
+the local continuation below is not published or installed. Linked policy,
+implementation and release records remain canonical.
+
+## Current continuation — provider SDKs and Responses request encoding
+
+The user requested updating both provider SDKs and removing redundant request
+JSON generation. On top of `8caefb2`, the checkout selects OpenAI Go SDK v3.98.0
+and OpenRouter Go SDK v0.9.116. Go 1.27.2, go-quickjs v0.37.1 and disabled JIT
+are unchanged. The [implementation and measurements](agentlib-sdk-request-optimization.md)
+are canonical.
+
+Shared request validation now returns normalized effort without encoding the
+discarded Chat payload in the Responses path. Existing validation, including
+model/cache-key UTF-8 rejection, and public/wire contracts are preserved. In
+five alternating benchmark pairs, the synthetic 256 x 4 KiB history reduces
+request-construction time by 14.0% and cumulative allocated bytes by 26.8%.
+This does not measure model/network latency or whole-agent speed.
+
+Provider and remaining agent/public/bridge/executor suites, focused CLI E2E,
+vet and module integrity checks pass. External agent consumers build and run
+in checkout and independent module-artifact forms, portable and Go-host modes,
+with both new SDK versions selected. Evidence: `/var/tmp/noe-sdk-request-a5qnx1o2`.
+Reuse completed checks while source/dependencies match. Publication, installation,
+live provider requests and service changes are outside this local continuation.
+
+## Deferred improvement — OpenAI Responses WebSocket continuation
+
+The [improvement memo](agentlib-openai-websocket-idea.md) records a medium-sized
+OpenAI Responses change: one connection per conversation, incremental input,
+and explicit handling of trim, reconnect, cancellation and connection ownership.
+Implementation has not started. OpenCode Go remains on HTTP/SSE; its WebSocket
+support is unconfirmed. On resumption, first establish connection and tool
+continuation with the intended OpenAI endpoint and authentication mode.
 
 ## Current release — v2.25.0 published and installed
 

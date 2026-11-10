@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	openrouter "github.com/OpenRouterTeam/go-sdk"
 	"github.com/OpenRouterTeam/go-sdk/models/components"
@@ -208,20 +209,29 @@ type reasoningConfig struct {
 	Effort string `json:"effort"`
 }
 
-func makeChatRequestBody(request Request) ([]byte, error) {
+func validateGenerationRequest(request Request) (string, error) {
 	effort, validEffort := NormalizeEffort(request.Effort)
-	if strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 || !validEffort {
-		return nil, providerError(ErrorResponse, 0, nil)
+	if strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 || !validEffort ||
+		!utf8.ValidString(request.Model) || !utf8.ValidString(request.CacheKey) {
+		return "", providerError(ErrorResponse, 0, nil)
 	}
 	for _, raw := range request.Messages {
 		if !isJSONObject(raw) {
-			return nil, providerError(ErrorResponse, 0, nil)
+			return "", providerError(ErrorResponse, 0, nil)
 		}
 	}
 	for _, raw := range request.Tools {
 		if !isJSONObject(raw) {
-			return nil, providerError(ErrorResponse, 0, nil)
+			return "", providerError(ErrorResponse, 0, nil)
 		}
+	}
+	return effort, nil
+}
+
+func makeChatRequestBody(request Request) ([]byte, error) {
+	effort, err := validateGenerationRequest(request)
+	if err != nil {
+		return nil, err
 	}
 	body := chatRequestBody{
 		Model:     request.Model,

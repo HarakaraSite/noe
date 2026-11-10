@@ -23,7 +23,8 @@ func (p *OpenRouter) responsesRequestBody(request Request) ([]byte, error) {
 }
 
 func configuredResponsesRequestBody(profile Definition, request Request) ([]byte, error) {
-	if _, err := makeChatRequestBody(request); err != nil {
+	effort, err := validateGenerationRequest(request)
+	if err != nil {
 		return nil, err
 	}
 	body, err := parameterObject(profile.Parameters)
@@ -144,7 +145,6 @@ func configuredResponsesRequestBody(profile Definition, request Request) ([]byte
 	if profile.SessionField != "" && request.CacheKey != "" {
 		putField(body, profile.SessionField, request.CacheKey)
 	}
-	effort, _ := NormalizeEffort(request.Effort)
 	if effort != "auto" {
 		if profile.EffortField == "" {
 			return nil, errors.New("provider has no effort mapping")
