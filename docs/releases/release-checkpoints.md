@@ -4597,3 +4597,39 @@ Release evidence: `/var/tmp/noe-v2.25.0-release-t7y1gqoz`.
 Publication and both installations are complete. No required release/install
 work remains. Other VMs/hosts, running services and noebot were not changed.
 This publication record does not move the immutable release tag.
+
+
+## v2.26.0 preparation — 2026-11-10
+
+The user authorized commit, release and both local executable replacements.
+Implementation `33f5c39` updates OpenAI Go SDK to v3.98.0 and OpenRouter Go SDK
+to v0.9.116, and removes the discarded Chat JSON encoding from Responses
+request validation. Public/wire contracts remain unchanged. The
+[release notes](v2.26.0.md) and
+[implementation record](../development/agentlib-sdk-request-optimization.md)
+include scope and measured request-construction improvements. WebSocket
+continuation remains a deferred improvement idea.
+
+Implementation evidence at `/var/tmp/noe-sdk-request-a5qnx1o2` is reused:
+provider tests (182 tests/subtests), other agent/public/bridge/executor packages
+(299), focused CLI E2E, vet, module verification, checkout and independent
+module-artifact consumers, and five alternating benchmark pairs. Six changed
+source/dependency paths match their recorded hashes. Only the CLI default
+version changes after the implementation commit; no full source/E2E/race suite,
+long-wait check, or local six-target build is repeated.
+
+Clean native candidate: `8a918e37a213fa25f996940f441c1b19f5a70392`. The CGO-free release-flags build and
+configured-version unit pass. Build metadata reports vcs.modified=false,
+Linux amd64, Go 1.27.2, trimpath, both new SDK versions, go-quickjs v0.37.1 /
+go-intl v0.9.0 and disabled JIT. Seven native checks pass: version, arithmetic,
+both authentication-helper help commands and local HTTP/SSE tool cycles for
+OpenAI Responses/custom tools, OpenRouter Responses/function tools, and
+OpenRouter Chat. The cycles retain session identity, tool outputs and opaque
+reasoning through two requests each. No live provider request occurs.
+
+Candidate SHA256: `b27d87e054570ae11d23bc5ccf196894eecae2c11cdfd5ded324f161c69fbfd6`.
+Tag a documentation-only successor. CI builds and publishes the six binaries
+and SHA256SUMS without repeating source checks. Verify the downloaded assets,
+native behavior and direct published Go consumers before retaining and
+atomically installing the native asset at both authorized paths.
+Evidence: `/var/tmp/noe-v2.26.0-release-9c__k3in`.

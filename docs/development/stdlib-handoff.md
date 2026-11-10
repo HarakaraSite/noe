@@ -9,6 +9,9 @@ Release evidence: `/var/tmp/noe-v2.26.0-release-9c__k3in`. Reuse the unchanged
 source verification recorded below; release verification uses a clean native
 candidate, lightweight CLI/loopback probes, published assets and direct public
 Go consumers. Other hosts, running services and noebot remain outside scope.
+The clean native candidate at `8a918e3` passes seven version/helper/loopback
+checks, including both Responses SDK routes and Chat. See the
+[release preparation checkpoint](../releases/release-checkpoints.md#v2260-preparation--2026-11-10).
 
 ## Current continuation — provider SDKs and Responses request encoding
 
