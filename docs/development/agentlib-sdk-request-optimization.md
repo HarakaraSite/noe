@@ -96,6 +96,6 @@ Existing successful implementation results are reused for unchanged code.
 Evidence: `/var/tmp/noe-sdk-request-a5qnx1o2`. It contains commands, full logs,
 before-source snapshots, module graph changes, external consumer manifests,
 test-binary build metadata, individual benchmark samples and medians, and final
-source hashes. No live provider requests, cross-platform execution, publication,
-installation, or running-service changes were performed. Installed executables
-remain the v2.25.0 release assets.
+source hashes. Implementation verification used no live provider requests or
+cross-platform execution. Publication and installation are recorded in the
+linked release checkpoint; running services were not changed.
