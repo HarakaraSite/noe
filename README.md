@@ -39,7 +39,11 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.24.0 release notes](docs/releases/v2.24.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.24.0)
+[v2.26.0 release notes](docs/releases/v2.26.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.26.0)
+
+v2.26.0 updates the OpenAI and OpenRouter Go SDKs and reduces redundant JSON
+encoding when preparing Responses requests. Existing provider and agent APIs
+are preserved. See the release notes for measurements and verification.
 
 v2.24.0 corrects Headers/Response, body consumption, tee cleanup, cloned byte
 ownership and multipart data handling. See the release notes for behavior changes

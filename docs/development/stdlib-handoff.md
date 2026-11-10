@@ -1,10 +1,14 @@
 # Standard library session handoff
 
-Updated 2026-11-10 after local provider SDK updates, Responses request encoding
-optimization, and recording a deferred WebSocket continuation idea.
-The published and installed release remains v2.25.0;
-the local continuation below is not published or installed. Linked policy,
-implementation and release records remain canonical.
+Updated 2026-11-10 for v2.26.0 release preparation. The user authorized commit,
+publication and local installation of implementation `33f5c39`. The currently
+published and installed release remains v2.25.0 until publication verification
+and installation finish. Linked records remain canonical.
+
+Release evidence: `/var/tmp/noe-v2.26.0-release-9c__k3in`. Reuse the unchanged
+source verification recorded below; release verification uses a clean native
+candidate, lightweight CLI/loopback probes, published assets and direct public
+Go consumers. Other hosts, running services and noebot remain outside scope.
 
 ## Current continuation — provider SDKs and Responses request encoding
 
