@@ -1,11 +1,29 @@
 # Standard library session handoff
 
-Updated 2026-11-10 after v2.26.0 publication and both vm201 installations.
-Provider SDK updates and Responses request encoding optimization are published
-and installed. WebSocket continuation remains a deferred improvement idea.
-Linked implementation and release records remain canonical.
+Updated 2026-11-15 for the requested v2.26.1 patch release.
+JavaScript guidance is now part of the built-in agent instructions. The prior
+provider SDK updates remain published and installed in v2.26.0. WebSocket
+continuation remains deferred. Linked implementation and release records remain
+canonical.
 
-## Current release — v2.26.0 published and installed
+## Current work — v2.26.1 release preparation
+
+The user requested publishing this small instruction change. The release also
+authorizes both existing local installations under the standing instruction.
+The built-in `internal/agent/facts.md` now identifies JavaScript as the primary
+programming language. This applies to CLI and Go-hosted agents without external
+instruction files. The initial external-file edit was removed.
+
+Six focused implementation tests pass across `agent`, `internal/runtime`, and
+`internal/cli`; reuse these results while their source is unchanged. Public API
+signatures, runtime logic, dependencies, and distribution definitions are unchanged.
+The release uses v2.26.1, with impact-based native verification and lightweight
+CI. Evidence: `/var/tmp/noe-v2.26.1-release-idjbq1j5`.
+
+Publication verification and both atomic installations remain to be completed.
+Other hosts, running services, and noebot remain outside scope.
+
+## Previous release — v2.26.0 published and installed
 
 The user authorized commit, release and local installation. Implementation
 `33f5c39`, release preparation `8a918e3` and preparation record `72cc4c5` are

@@ -43,6 +43,6 @@ var HistoryModuleSource string
 //go:embed facts.md
 var factsMarkdown string
 
-// Facts returns static runtime and API facts without application policy or
+// Facts returns built-in JavaScript guidance and runtime/API facts without
 // host-supplied instructions.
 func Facts() string { return strings.TrimSuffix(factsMarkdown, "\n") }

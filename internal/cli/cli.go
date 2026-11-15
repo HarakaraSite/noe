@@ -17,7 +17,7 @@ import (
 )
 
 // Version can be set at build time using -ldflags '-X forge.harakara.site/littleisland/noe/v2/internal/cli.Version=...'.
-var Version = "v2.26.0"
+var Version = "v2.26.1"
 
 const usage = `Usage:
   noe run [options] script.js [args...]
@@ -40,7 +40,7 @@ Execution options (before the first operand; -- ends options):
   --inst DIR               Replace defaults; repeat in order (also --inst=DIR).
   --no-inst                Select no external directories (exclusive with --inst).
   By default, common and starting-cwd workspace directories are used.
-  Built-in facts and explicit config.system remain with either selection.
+  Built-in instructions and explicit config.system remain with either selection.
   --observe                Display readable events.
   --events[=path|-]        Save or stream JSONL events.
 

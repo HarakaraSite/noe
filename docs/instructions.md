@@ -1,14 +1,14 @@
 # Agent instructions
 
-NOE embeds execution and API facts, such as run_js runtime isolation, result serialization, resource ownership, and available documentation. The version-matched [API reference](reference.md) is bundled with the executable.
+NOE's built-in instructions identify JavaScript as the agent's primary programming language for task logic, data processing, and automation. They also describe execution and API facts, such as run_js runtime isolation, result serialization, resource ownership, and available documentation. The version-matched [API reference](reference.md) is bundled with the executable.
 
-Behavioral choices belong to users: autonomy and approval preferences, language and comment style, tool and model selection, delegation, investigation procedures, validation scope, and reporting. The CLI reads these choices from external instruction files. It injects no built-in behavioral policy and has no hidden fallback when those files are absent or removed.
+Other behavioral choices belong to users: autonomy and approval preferences, response language and comment style, tool and model selection, delegation, investigation procedures, validation scope, and reporting. The CLI reads these choices from external instruction files and supplies no fallback for them when those files are absent or removed. The built-in JavaScript guidance allows other languages when requested by the user, required by the target project, or concretely beneficial for the task.
 
 ## Composition and locations
 
 An agent instance composes its system message once when its first task starts:
 
-1. Built-in runtime and API facts, including the selected profile's capabilities.
+1. Built-in JavaScript guidance and runtime/API facts, including the selected profile's capabilities.
 2. Markdown from the selected external directories, in order.
 3. The explicitly supplied `config.system` string.
 
@@ -23,7 +23,7 @@ The workspace is the host's configured working directory, not the script directo
 
 ## Selecting directories for a CLI execution
 
-Both `noe run` and `noe eval` accept repeatable `--inst DIR` or `--inst=DIR` options. Together they **replace** the default list, in the supplied order; common and workspace are used only if explicitly listed. Repeating a directory reads it again. `--no-inst` selects an empty external list and is mutually exclusive with `--inst`. It does not remove built-in facts or explicit `config.system`.
+Both `noe run` and `noe eval` accept repeatable `--inst DIR` or `--inst=DIR` options. Together they **replace** the default list, in the supplied order; common and workspace are used only if explicitly listed. Repeating a directory reads it again. `--no-inst` selects an empty external list and is mutually exclusive with `--inst`. It does not remove built-in instructions or explicit `config.system`.
 
 ```sh
 # An application-owned list; no app registry or identity is involved.
@@ -42,7 +42,7 @@ Contents are appended. Files with the same name in different selected directorie
 
 Missing directories add no instructions. An unreadable directory or instruction file fails the task before a model request, with the affected path reported.
 
-Go applications control their own `HostConfig.Instructions` and optional `HostConfig.Policy`. Neither a NOE behavioral policy nor filesystem instruction discovery is automatically added to a custom Go host. See [Go agent embedding](go-agent-embedding.md).
+Go applications control their own `HostConfig.Instructions` and optional `HostConfig.Policy`. A custom Go host receives the same built-in JavaScript guidance and runtime/API facts. Filesystem instruction discovery and any additional application policy must be supplied explicitly. See [Go agent embedding](go-agent-embedding.md).
 
 ## Editable workspace preferences
 

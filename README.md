@@ -39,7 +39,11 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.26.0 release notes](docs/releases/v2.26.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.26.0)
+[v2.26.1 release notes](docs/releases/v2.26.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.26.1)
+
+v2.26.1 makes JavaScript the agent's primary programming language in the built-in
+instructions, including when external instructions are disabled. See the release
+notes for scope and verification.
 
 v2.26.0 updates the OpenAI and OpenRouter Go SDKs and reduces redundant JSON
 encoding when preparing Responses requests. Existing provider and agent APIs
