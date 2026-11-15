@@ -1,27 +1,45 @@
 # Standard library session handoff
 
-Updated 2026-11-15 for the requested v2.26.1 patch release.
-JavaScript guidance is now part of the built-in agent instructions. The prior
-provider SDK updates remain published and installed in v2.26.0. WebSocket
-continuation remains deferred. Linked implementation and release records remain
-canonical.
+Updated 2026-11-15 after v2.26.1 publication and both vm201 installations.
+JavaScript guidance is published as part of the built-in agent instructions.
+The prior provider SDK updates remain included. WebSocket continuation remains
+deferred. Linked implementation and release records remain canonical.
 
-## Current work — v2.26.1 release preparation
+## Current release — v2.26.1 published and installed
 
-The user requested publishing this small instruction change. The release also
-authorizes both existing local installations under the standing instruction.
-The built-in `internal/agent/facts.md` now identifies JavaScript as the primary
-programming language. This applies to CLI and Go-hosted agents without external
-instruction files. The initial external-file edit was removed.
+The user requested publishing the small built-in instruction change. Annotated
+tag `v2.26.1` points to `47710b9e074f93ef4f6587be165ef4e248bcd9f4`; tag object
+`aef338d3fbea314b23d73ba3004ceb4564501d97`. The tag is immutable; main includes
+the later publication record. JavaScript is now identified as the agent's primary
+programming language, including without external instructions and with `--no-inst`.
+The initial external-file edit was removed.
 
-Six focused implementation tests pass across `agent`, `internal/runtime`, and
-`internal/cli`; reuse these results while their source is unchanged. Public API
-signatures, runtime logic, dependencies, and distribution definitions are unchanged.
-The release uses v2.26.1, with impact-based native verification and lightweight
-CI. Evidence: `/var/tmp/noe-v2.26.1-release-idjbq1j5`.
+The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.26.1)
+is published, neither draft nor prerelease (ID 180).
+[CI run 66](https://forge.harakara.site/littleisland/noe/actions/runs/66) succeeded
+(API 247, job 268). All six downloaded binaries pass checksum and build-metadata
+verification, including the tag revision and vcs.modified=false. The native
+asset passes version, arithmetic, help, and a two-request loopback tool cycle
+that verifies the built-in JavaScript guidance without external instructions.
 
-Publication verification and both atomic installations remain to be completed.
-Other hosts, running services, and noebot remain outside scope.
+An independent consumer downloads v2.26.1 directly without replacements, matches
+the changed source and dependency files to the tag, and verifies the guidance
+in Go-hosted parent/child agents and a queued task. Six focused implementation
+tests are reused after source comparison; the configured-version unit passes.
+No full source/E2E/race suite or local six-target build was repeated. Public API
+signatures, execution logic, dependencies, and distribution definitions are unchanged.
+
+Both `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` contain the
+verified Linux amd64 asset, SHA256
+`8de83a852914d96893920066e47bd24249ca3029fa7f2a9871a8ebda779168aa`.
+Both report `noe v2.26.1`; PATH resolves to the first. Previous v2.26.0 copies
+and `installation.json` are retained at `/var/tmp/noe-v2.26.1-install-iqifpj6p`.
+Runtime verification is reused for the identical installed asset.
+
+Evidence: `/var/tmp/noe-v2.26.1-release-idjbq1j5`. See the
+[publication/install checkpoint](../releases/release-checkpoints.md#v2261-preparation-publication-and-installation--2026-11-15).
+Publication and both installations are complete. Other hosts, running services,
+and noebot were not changed. No required release/install work remains.
 
 ## Previous release — v2.26.0 published and installed
 

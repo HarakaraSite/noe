@@ -4684,3 +4684,65 @@ Publication and both installations are complete. No required release/install
 work remains. The WebSocket continuation memo remains deferred. Other hosts,
 running services and noebot were not changed. This record does not move the
 immutable release tag.
+
+## v2.26.1 preparation, publication and installation — 2026-11-15
+
+The user requested releasing the small built-in JavaScript instruction change.
+The standing release instruction also authorizes both local installations.
+JavaScript is now the agent's primary programming language for task logic,
+data processing and automation. The guidance is embedded in `facts.md`, applies
+to CLI and Go-hosted agents, and remains with `--no-inst`. Other-language choices
+remain available for explicit requests, project requirements or concrete task
+benefits. The initial external-file addition was removed.
+
+Six successful implementation tests across `agent`, `internal/runtime` and
+`internal/cli` are reused after matching the tested source; only the CLI version
+changes afterward. The configured-version unit and clean CGO-disabled native
+release-flags build pass. Candidate revision:
+`47710b9e074f93ef4f6587be165ef4e248bcd9f4`, vcs.modified=false.
+Public APIs, execution logic, dependencies and distribution definitions are
+unchanged. No full unit/E2E/race suite, long-wait check, dependency refresh or
+local six-target build was repeated.
+
+- Annotated tag `v2.26.1` points to `47710b9e074f93ef4f6587be165ef4e248bcd9f4`;
+  tag object `aef338d3fbea314b23d73ba3004ceb4564501d97`. Remote refs match.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/66)
+  succeeded (API 247, job 268), building six binaries and SHA256SUMS without
+  repeating source checks.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.26.1)
+  is published, neither draft nor prerelease (ID 180), with the tagged English notes.
+
+All seven assets were downloaded. All six binaries match checksums, the tag
+revision, vcs.modified=false, target OS/architecture, Go 1.27.2, CGO_ENABLED=0,
+trimpath and the unchanged pinned dependencies, with JIT disabled. Native Linux
+amd64 SHA256:
+`8de83a852914d96893920066e47bd24249ca3029fa7f2a9871a8ebda779168aa`.
+Other target binaries were not executed natively.
+
+Both candidate and downloaded native assets pass four targeted checks: version,
+arithmetic, CLI help and a two-request loopback model/tool cycle. The cycle
+checks that JavaScript guidance leads the system message with `--no-inst`, is
+preserved after `run_js`, and composes with explicit system text. No live
+provider request occurred.
+
+An independent Go consumer downloads v2.26.1 directly, without replacements or
+a synthetic proxy. The embedded instruction, changed Go files and dependency
+files match the immutable tag. A Go-hosted parent/child/queued-task check confirms
+the guidance without an external instruction source. Unchanged public-consumer
+and dependency evidence from v2.26.0 is reused.
+
+After publication verification, both previous executables were retained and
+the verified native asset was staged and atomically installed at:
+
+- `/home/agent/.local/bin/noe`, which PATH resolves to.
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report `noe v2.26.1` and match the published SHA256. Installed hash, version
+and PATH checks pass; runtime verification is reused for the identical asset.
+Previous v2.26.0 copies, SHA256
+`da420d03a5f77942e0c40488c5aa535ee182f1e8a6f276c11e41ab1c26126e6c`,
+are retained at `/var/tmp/noe-v2.26.1-install-iqifpj6p`, with `installation.json`.
+Release evidence: `/var/tmp/noe-v2.26.1-release-idjbq1j5`.
+
+Publication and both installations are complete. Other hosts, running services
+and noebot were not changed. The publication record does not move the release tag.
