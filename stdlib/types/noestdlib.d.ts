@@ -565,6 +565,7 @@ declare namespace NOEStdlib {
     pipeThrough<O>(transform: {readable: ReadableStream<O>; writable: WritableStream<T>}, options?: ReadableStreamPipeOptions): ReadableStream<O>;
     pipeTo(destination: WritableStream<T>, options?: ReadableStreamPipeOptions): Promise<void>;
     tee(): [ReadableStream<T>, ReadableStream<T>];
+    /** Locks until EOF, a read error, or return. Early return awaits source cancellation unless preventCancel is true. */
     values(options?: {preventCancel?: boolean}): AsyncIterableIterator<T>;
   }
   interface ReadableStreamConstructor {

@@ -708,13 +708,46 @@ const streamsJS = `(function (host) {
     }
 
     values(options = {}) {
+      const preventCancel = Boolean(options?.preventCancel);
       const reader = this.getReader();
+      let finished = false;
+      let ongoing;
+      // Async iterator operations run in order, so return cannot cancel an
+      // outstanding next or release a reader with pending read requests.
+      const enqueue = (operation) => {
+        const result = ongoing ? ongoing.then(operation, operation) : operation();
+        ongoing = result;
+        const settled = () => { if (ongoing === result) ongoing = undefined; };
+        result.then(settled, settled);
+        return result;
+      };
       return {
-        next: () => reader.read(),
-        async return(value) {
-          if (!options.preventCancel) await reader.cancel(value).catch(noop);
-          reader.releaseLock();
-          return {value, done: true};
+        next() {
+          return enqueue(async () => {
+            if (finished) return {value: undefined, done: true};
+            try {
+              const result = await reader.read();
+              if (result.done) { finished = true; reader.releaseLock(); }
+              return result;
+            } catch (error) {
+              finished = true;
+              reader.releaseLock();
+              throw error;
+            }
+          });
+        },
+        return(value) {
+          return enqueue(async () => {
+            if (!finished) {
+              finished = true;
+              const cancelled = preventCancel ? undefined : reader.cancel(value);
+              // Release ownership immediately, while the returned promise
+              // still waits for source cleanup and propagates its failure.
+              reader.releaseLock();
+              await cancelled;
+            }
+            return {value, done: true};
+          });
         },
         [Symbol.asyncIterator]() { return this; },
       };

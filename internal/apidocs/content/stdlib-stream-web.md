@@ -55,6 +55,19 @@ try {
 
 Do not use a reader and async iteration on the same locked stream.
 
+## ReadableStream.values
+
+`stream.values({preventCancel?} = {})` returns an async iterator and locks the
+stream immediately. `for await (const chunk of stream)` uses the same behavior.
+Normal EOF and read failures release the lock. Calls to `next()` and `return()`
+run in order, including when earlier reads are still pending.
+
+Early return, including a loop `break`, cancels the source unless `preventCancel`
+was true when the iterator was created. The lock is released before asynchronous
+source cleanup finishes; `return()` still waits for that cleanup and propagates
+its failure. With `preventCancel: true`, unread chunks remain available to a new
+reader after the iterator releases its lock.
+
 ## ReadableStream.pipeTo
 
 `stream.pipeTo(destination, options?)` transfers chunks until EOF and returns a promise that settles after piping finishes. Normal EOF closes the destination unless `preventClose` is true. A read or write failure is propagated to the other side according to `preventAbort` and `preventCancel`.

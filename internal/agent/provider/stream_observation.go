@@ -6,25 +6,53 @@ import (
 	"strings"
 )
 
+type streamObservationDelta struct {
+	Reasoning        jsonv1.RawMessage `json:"reasoning"`
+	ReasoningContent jsonv1.RawMessage `json:"reasoning_content"`
+	ReasoningDetails jsonv1.RawMessage `json:"reasoning_details"`
+	Content          jsonv1.RawMessage `json:"content"`
+}
+
+type streamObservationChoice struct {
+	Index int                    `json:"index"`
+	Delta streamObservationDelta `json:"delta"`
+}
+
 // streamObservations extracts only user-readable text from choice zero. In a
 // chunk that contains both top-level reasoning and reasoning.text details, an
 // exact match of the concatenated detail text is treated as a mirrored copy
 // and emitted once; differing detail text is retained as its own fragment.
 // Encrypted reasoning data and signatures are never surfaced here.
 func streamObservations(raw jsonv1.RawMessage) []StreamEvent {
+	return streamObservationsForField(raw, "")
+}
+
+// An explicit field selects the same reasoning text as response assembly.
+// Only callers without a configured field use the historical alias fallback.
+func streamObservationsForField(raw jsonv1.RawMessage, field string) []StreamEvent {
 	var chunk struct {
-		Choices []struct {
-			Index int `json:"index"`
-			Delta struct {
-				Reasoning        jsonv1.RawMessage `json:"reasoning"`
-				ReasoningContent jsonv1.RawMessage `json:"reasoning_content"`
-				ReasoningDetails jsonv1.RawMessage `json:"reasoning_details"`
-				Content          jsonv1.RawMessage `json:"content"`
-			} `json:"delta"`
-		} `json:"choices"`
+		Choices []streamObservationChoice `json:"choices"`
 	}
-	if err := json.Unmarshal(raw, &chunk); err != nil {
-		return nil
+	if field == "" || field == "reasoning" || field == "reasoning_content" {
+		if err := json.Unmarshal(raw, &chunk); err != nil {
+			return nil
+		}
+	} else {
+		var custom struct {
+			Choices []struct {
+				Index int                          `json:"index"`
+				Delta map[string]jsonv1.RawMessage `json:"delta"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal(raw, &custom); err != nil {
+			return nil
+		}
+		for _, choice := range custom.Choices {
+			chunk.Choices = append(chunk.Choices, streamObservationChoice{Index: choice.Index, Delta: streamObservationDelta{
+				Reasoning: choice.Delta[field], ReasoningDetails: choice.Delta["reasoning_details"], Content: choice.Delta["content"],
+			}})
+		}
+		field = "reasoning"
 	}
 
 	var observations []StreamEvent
@@ -33,7 +61,7 @@ func streamObservations(raw jsonv1.RawMessage) []StreamEvent {
 			continue
 		}
 		reasoning, hasReasoning := streamText(choice.Delta.Reasoning)
-		if !hasReasoning || reasoning == "" {
+		if field == "reasoning_content" || (field == "" && (!hasReasoning || reasoning == "")) {
 			reasoning, hasReasoning = streamText(choice.Delta.ReasoningContent)
 		}
 		type detailObservation struct {
@@ -78,33 +106,6 @@ func streamObservations(raw jsonv1.RawMessage) []StreamEvent {
 		}
 	}
 	return observations
-}
-
-func streamObservationsForField(raw jsonv1.RawMessage, field string) []StreamEvent {
-	if field == "reasoning" || field == "reasoning_content" {
-		return streamObservations(raw)
-	}
-	var chunk map[string]jsonv1.RawMessage
-	if json.Unmarshal(raw, &chunk) != nil {
-		return nil
-	}
-	var choices []map[string]jsonv1.RawMessage
-	if json.Unmarshal(chunk["choices"], &choices) != nil {
-		return nil
-	}
-	for _, choice := range choices {
-		var delta map[string]jsonv1.RawMessage
-		if json.Unmarshal(choice["delta"], &delta) != nil {
-			continue
-		}
-		if value, ok := delta[field]; ok {
-			delta["reasoning"] = value
-			choice["delta"], _ = json.Marshal(delta)
-		}
-	}
-	chunk["choices"], _ = json.Marshal(choices)
-	encoded, _ := json.Marshal(chunk)
-	return streamObservations(encoded)
 }
 
 func streamText(raw jsonv1.RawMessage) (string, bool) {

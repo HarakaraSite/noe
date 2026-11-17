@@ -1,10 +1,41 @@
 # Standard library session handoff
 
-Updated 2026-11-17 after v2.27.0 publication and both local installations,
-including go-quickjs v0.38.0 and the Windows OS line-ending correction.
+Updated 2026-11-17 after local async-iterator and Chat observation corrections,
+on top of the published and installed v2.27.0 release.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. WebSocket continuation remains
 deferred. Linked implementation and release records remain canonical.
+
+## Current continuation — stream iteration and reasoning observations
+
+The user approved both reproduced corrections. ReadableStream async iteration
+now releases its reader on EOF and read errors. Early return releases the lock
+before source cleanup settles and propagates cleanup failure. Iterator calls
+are serialized, completed iterators stay completed, and `preventCancel` is
+captured at creation. Shared public-runtime fixtures pass in main and Worker;
+the same four fixture groups pass under Node v24.21.0. See the updated
+[embedded reference](../../internal/apidocs/content/stdlib-stream-web.md#readablestreamvalues)
+and [tests](../../stdlib/stream_iterator_test.go).
+
+Chat observations now select the configured `reasoningField`, including
+`reasoning_content` and custom names, without falling back to another top-level
+alias when the selected value is absent, null or empty. Unconfigured callers
+retain alias fallback. Mirrored detail text remains deduplicated; opaque data,
+response assembly and request payloads are unchanged. Both OpenAI/OpenRouter
+SDK fixture paths and an external public model-service probe pass. See the
+[provider guide](../providers.md) and
+[regressions](../../internal/agent/provider/stream_observation_test.go).
+
+No imports, public signatures or dependencies change. Callers should handle a
+failed iterator return or loop break when source cancellation fails; this error
+was previously swallowed. No compatibility adapter is added.
+
+Affected stdlib, agent core/provider/public/bridge/executor and runtime suites,
+vet, and separate checkout/artifact stdlib and agent consumers pass. The agent
+consumers exercise portable and Go-host modes. Evidence and source hashes:
+`/var/tmp/noe-iterator-observation-_sp3nse5/verification.json`. Reuse these checks
+for unchanged sources. No live provider request, release or executable
+replacement was performed; installed binaries remain v2.27.0.
 
 ## Current release — v2.27.0 published and installed
 

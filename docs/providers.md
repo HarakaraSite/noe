@@ -71,6 +71,13 @@ Go側で`User-Agent: noe/<version>`を付与し、`x-opencode-session`にはinst
 
 Chatの思考はprovider設定の`reasoningField`に従って連結・保持・再送します。OpenCode Goの既定は`reasoning_content`です。Responsesではtool callやreasoningを含むnative output itemsを履歴へ保持し、次の要求のinputへ再送します。providerが返したthinking・summary・回答の断片は既存の観察イベントへ流れます。
 
+Chat streaming observations use the configured `reasoningField`, matching the
+field assembled in conversation history. An explicit field does not fall back
+to another reasoning alias when absent, null, or empty. Readable
+`reasoning_details` remain observable, with mirrored text emitted once;
+encrypted data and signatures remain in history. Response JSON and wire inputs
+are unchanged.
+
 ## モデル要求の再試行
 
 組込みproviderのagentモデル要求は、通信障害・HTTP 429・5xx・不完全なstreamで自動再試行します。最大3試行で、1回目の失敗後に2秒、2回目の失敗後に4秒待機します。認証失敗・残高不足・入力不正・取消しは再試行しません。待機中もinterrupt・timeout・所有元の終了による取消しが有効です。回数・待機時間の設定項目はありません。
