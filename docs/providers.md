@@ -40,6 +40,57 @@ ChatGPTのJSONはOAuth credential recordです。APIキーのテキストファ�
 
 ChatGPTへの要求には`session_id`ヘッダーでinstanceの`agentId`を送ります。同じinstanceではqueue taskをまたいでも固定し、子agentには別IDを使います。本文の`prompt_cache_key`は従来どおり`cacheKey`から設定し、`cacheKey`を上書きしてもヘッダーのセッションIDは変わりません。
 
+## OpenAI Responses transport
+
+The source continuation after v2.28.0 uses WebSocket continuation for managed
+agent runs with the built-in openai-chatgpt and openai-api Responses providers.
+Each run owns its connection; tool/model turns reuse it and completion or
+cancellation closes it. Queued runs start fresh connections even when they
+retain the same agent/session identity. Parent and child runs have separate
+connections. Public agent and model-service function signatures are unchanged.
+
+Provider-level `transport` selects the behavior:
+
+- `auto`: use WebSocket for managed OpenAI Responses calls; use HTTP/SSE for
+  other APIs. This is the built-in OpenAI default.
+- `sse`: use the existing HTTP/SSE path, including managed runs.
+- `websocket`: explicitly select WebSocket for managed OpenAI Responses calls.
+  It requires sdk=openai and api=responses.
+
+Custom provider definitions default to sse. A Responses-compatible endpoint
+must support WebSocket upgrades before enabling it explicitly. Authentication,
+configured headers and endpoint paths use the same selected provider; there
+is no automatic switch to another credential or transport after an error.
+
+For an injected Go HTTP client, WebSocket upgrades support `*http.Client`,
+including a custom RoundTripper. A bespoke client that implements only Do
+must also provide `WebSocketHTTPClient() *http.Client`, returning an
+upgrade-capable client that preserves its policy, or select `transport: "sse"`.
+The adapter borrows that client; it does not close it. Its timeout bounds
+opening, while the run/request context bounds generation.
+
+```json
+{
+  "providers": {
+    "openai-chatgpt": {"transport": "sse"},
+    "openai-api": {"transport": "auto"}
+  }
+}
+```
+
+When the current history extends the accepted chain, only new input items
+are uploaded. A trim, history/configuration replacement, or lost connection
+starts from the current complete history. Completed local tools are retained
+in that history and are not executed again by transport recovery. Existing
+logical-request retries, observations, usage and provider error categories
+continue to apply. Upload savings do not reduce the model's logical input
+token count.
+
+Standalone `model.Service.Generate()` and independent noe:model calls keep
+HTTP/SSE, including when their provider is configured for WebSocket. No public
+standalone session API is added; that use remains a
+[future note](development/agentlib-openai-websocket-idea.md#deferred-standalone-model-service-reuse).
+
 上表の`~/.config`はXDG_CONFIG_HOME指定時にはその値に変わります。キーは改行付きでもよいテキストファイルへ保存します。キーの値をJSや設定JSONへ書く必要はありません。キーpath用環境変数は、設定の`keyFile`より優先します。
 
 既存の`NOE_OPENROUTER_BASE_URL`も維持します。OpenRouterの接続先を上書きし、Decisionsのserver URLも従来どおり末尾の`/api/v1`を除いて導きます。外部JSONで接続先を変える場合、通常生成の`baseURL`とDecisionsの`decisionServerURL`は別項目です。
@@ -103,6 +154,7 @@ SDK側の暗黙のretryは無効のまま、NOE側で上記の再試行だけを
 | `keyFile` | APIキーファイルのpath |
 | `keyFileEnv` | キーファイルpathを上書きする環境変数の名前 |
 | `headers` | 静的なHTTPヘッダ |
+| `transport` | Managed-run transport: auto, sse, or websocket; custom providers default to sse. |
 | `parameters` | 静的なJSONリクエストパラメータ |
 | `sessionHeader` | 値にinstanceのagentIdをセッションIDとして入れるヘッダ名 |
 | `sessionField` | 値にcacheKeyを入れるJSONフィールド。dotで階層指定可 |

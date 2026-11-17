@@ -1,12 +1,88 @@
 # Standard library session handoff
 
-Updated 2026-11-17 after v2.28.0 publication and installation. SQLite row
+Updated 2026-11-18 after managed Responses WebSocket implementation. SQLite row
 iteration is committed as `aa79508`; the release tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
 from `e2c8cfc`. Both local executables now run v2.28.0.
 JavaScript guidance is published as part of the built-in agent instructions.
-The prior provider SDK updates remain included. WebSocket continuation remains
-deferred. Linked implementation and release records remain canonical.
+The prior provider SDK updates remain included. Managed Responses WebSocket
+continuation is implemented locally for ChatGPT OAuth and API-key providers.
+Standalone session APIs remain memo-only. Linked
+implementation and release records remain canonical.
+
+## Current implementation — managed Responses WebSocket
+
+The user approved production integration after both authentication spikes.
+Each managed agent run owns its connection and releases it on finish,
+cancellation, operation closure, or Host closure. The private scope crosses
+the existing model service through context; no public Service/Request/session
+API changes. Standalone Generate and independent model calls retain HTTP/SSE.
+Queued and child runs own separate connections; borrowed services/clients stay
+usable after run/Host cleanup.
+
+Built-in openai-chatgpt/openai-api use transport=auto, resolving to WebSocket
+for managed OpenAI Responses and SSE for other APIs. Custom providers default
+to SSE; transport=sse explicitly selects the old route. Converted history and
+configuration fingerprints select delta input; trim/replacement/reconnect
+resends current complete history. Existing conversion, native output,
+observations, quota classification, and logical retries are reused. Completed
+local tools are retained during transport recovery.
+
+Independent review and fix-only re-review resolved shutdown/history and HTTP
+upgrade policy issues. GoHost and JavaScript-entry fixtures pass, including
+tool execution, queue boundaries, active cancellation, and standalone SSE.
+Live GoHost checks passed for both authentication routes with two model calls,
+one actual run_js execution, and a single GET/101 exchange each. External agent
+consumers pass in checkout/artifact and portable/GoHost modes. Full verification
+and source hashes are recorded at `/var/tmp/noe-managed-websocket-nc1xtl0n`.
+See the [implementation record](agentlib-openai-websocket-idea.md#managed-run-implementation--2026-11-18)
+and [provider configuration](../providers.md#openai-responses-transport).
+
+No dependency, public function signature, installed executable, service, commit,
+push, or release changes are included. Installed executables remain v2.28.0.
+
+## WebSocket spike — 2026-11-18
+
+The user requested trying WebSocket continuation in a spike before production
+integration. The existing openai-chatgpt OAuth credential works with the public
+Responses WebSocket endpoint for custom run_js and function tools. Reconnect,
+trim, and explicit stale-ID recovery work. Three paired synthetic comparisons
+with 16 KiB context and three tool rounds measured median total time of
+11.555 s for SSE and 7.500 s for WebSocket, including opening. Request JSON
+drops from 71,975 to 19,660 bytes; input-token counts match per turn.
+
+The tested stale ID produces a generic status-400 invalid_request_error with
+no previous_response_not_found code. Receive cancellation does not close the
+SDK socket; owned request cancellation must do so explicitly. Tests cover these
+boundaries, conversation isolation, full replay after history/config changes,
+credential rereading, opaque output, EOF/failures, and cleanup. See the
+[spike](../../spikes/openai-websocket/README.md),
+[results](../../spikes/openai-websocket/results.json), and
+[integration memo](agentlib-openai-websocket-idea.md).
+
+The user then authorized the openai-api follow-up. Both function and custom
+tools work. Three paired comparisons measure median time 6.348 s for SSE and
+5.618 s for WebSocket, with median request JSON 71,884 versus 19,776 bytes.
+Input-token counts match per turn; cache counts vary. API-key responses report
+fast for requested priority. This route returns previous_response_not_found
+for a stale ID, allowing the prototype's known-code recovery; OAuth returns
+the generic missing-code form. Reconnect, trim, and full-history recovery
+pass. See [API-key results](../../spikes/openai-websocket/results-api.json).
+
+Focused tests, race, and vet pass. Evidence is
+`/var/tmp/noe-openai-websocket-whkqvrsv` and the API-key follow-up at
+`/var/tmp/noe-openai-websocket-api-s12hj6ak`. Production code, public APIs,
+dependencies, installed binaries, services, and the release were unchanged
+during the spike; the managed implementation is recorded above.
+The follow-up makes 33 explicitly authorized API-key response.create attempts
+(32 completed generations and one deliberate rejection), with no OAuth
+fallback. No automatic account switch, commit, push, or release is included.
+Initial integration uses explicit managed-run/conversation ownership. On
+2026-11-18 the user selected standalone model.Service.Generate WebSocket reuse
+as a memo-only future candidate, outside this implementation scope. Keep its
+public API and HTTP/SSE behavior unchanged; do not add a standalone session API.
+The [deferred note](agentlib-openai-websocket-idea.md#deferred-standalone-model-service-reuse)
+records the Go application use cases and future lifetime considerations.
 
 ## Current release — v2.28.0 published and installed
 
@@ -32,7 +108,7 @@ Evidence: `/var/tmp/noe-v2.28.0-release-pxlju_92` and the
 [publication record](../releases/release-checkpoints.md#v2280-publication-and-installation--2026-11-17).
 Implementation checks remain reusable while their source hashes match.
 
-## Current continuation — SQLite row iteration
+## Completed continuation — SQLite row iteration
 
 The user selected SQLite iteration as the next improvement. Database and
 transaction handles now expose `iterate(sql, params, {batchSize, signal})`;

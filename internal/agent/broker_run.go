@@ -17,6 +17,7 @@ type agentRun struct {
 	operation               *Operation
 	ctx                     context.Context
 	cancel                  context.CancelFunc
+	providerScope           *provider.RunScope
 	started                 time.Time
 	config                  runConfig
 	parentRunID             string
@@ -179,7 +180,9 @@ func (h *Host) start(requestContext context.Context, op *Operation, request star
 			return nil, newOperationError(http.StatusBadRequest, "provider", err.Error())
 		}
 	}
-	ctx, cancel := context.WithCancel(op.ctx)
+	ctx, cancelContext := context.WithCancel(op.ctx)
+	providerScope := provider.NewRunScope(ctx)
+	cancel := func() { cancelContext(); providerScope.Close() }
 	config := runConfig{
 		Provider: request.Provider, Model: request.Model,
 		Name: request.Name, MaxTokens: request.MaxTokens, Effort: effort, MaxSteps: request.MaxSteps,
@@ -188,7 +191,7 @@ func (h *Host) start(requestContext context.Context, op *Operation, request star
 	}
 	run := &agentRun{
 		id:        id,
-		operation: op, ctx: ctx, cancel: cancel, started: time.Now(),
+		operation: op, ctx: ctx, cancel: cancel, started: time.Now(), providerScope: providerScope,
 		config: config, parentRunID: op.parentRunID,
 		activityID:  activityID,
 		childScopes: make(map[*Operation]struct{}),

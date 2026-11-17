@@ -154,6 +154,7 @@
       "sdk": "openai",
       "auth": "chatgpt-oauth",
       "api": "responses",
+      "transport": "auto",
       "baseURL": "https://api.openai.com/v1",
       "path": "/responses",
       "headers": {
@@ -223,6 +224,7 @@
       "sdk": "openai",
       "auth": "api-key",
       "api": "responses",
+      "transport": "auto",
       "baseURL": "https://api.openai.com/v1",
       "path": "/responses",
       "headers": {

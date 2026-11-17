@@ -1,0 +1,842 @@
+{
+  "checkedOn": "2026-11-18 Asia/Tokyo",
+  "provider": "openai-api",
+  "authentication": "explicit existing OpenAI API key",
+  "endpoint": "https://api.openai.com/v1/responses",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "low",
+  "requestedServiceTier": "priority",
+  "returnedServiceTier": "fast",
+  "defaultToolKind": "function",
+  "otherToolKindVerified": "custom",
+  "apiKeyFallback": false,
+  "oauthRequests": 0,
+  "syntheticTools": true,
+  "productionChanges": false,
+  "evidenceDirectory": "/var/tmp/noe-openai-websocket-api-s12hj6ak",
+  "comparison": {
+    "settings": {
+      "provider": "openai-api",
+      "authentication": "explicit OpenAI API key",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "requestedServiceTier": "priority",
+      "toolKind": "function"
+    },
+    "transports": {
+      "sse": {
+        "medianDurationMs": 6347.886,
+        "minDurationMs": 5942.033,
+        "maxDurationMs": 8209.869,
+        "requestJsonBytes": [
+          71916,
+          71884,
+          71884
+        ],
+        "medianRequestJsonBytes": 71884,
+        "continuationJsonBytes": [
+          [
+            17828,
+            18147,
+            18416
+          ],
+          [
+            17828,
+            18131,
+            18400
+          ],
+          [
+            17828,
+            18131,
+            18400
+          ]
+        ],
+        "inputTokens": [
+          [
+            4686,
+            4730,
+            4772,
+            4816
+          ],
+          [
+            4685,
+            4730,
+            4774,
+            4816
+          ],
+          [
+            4684,
+            4727,
+            4770,
+            4812
+          ]
+        ],
+        "cachedInputTokens": [
+          [
+            0,
+            4553,
+            4597,
+            4697
+          ],
+          [
+            4552,
+            4597,
+            4641,
+            4741
+          ],
+          [
+            0,
+            4551,
+            4594,
+            4695
+          ]
+        ],
+        "outputTokens": [
+          [
+            15,
+            15,
+            15,
+            21
+          ],
+          [
+            15,
+            15,
+            15,
+            19
+          ],
+          [
+            15,
+            15,
+            15,
+            19
+          ]
+        ],
+        "reasoningItems": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "connectMs": [
+          0,
+          0,
+          0
+        ],
+        "returnedTiers": [
+          "fast"
+        ]
+      },
+      "websocket": {
+        "medianDurationMs": 5618.484,
+        "minDurationMs": 5244.415,
+        "maxDurationMs": 6238.227,
+        "requestJsonBytes": [
+          19776,
+          19776,
+          19776
+        ],
+        "medianRequestJsonBytes": 19776,
+        "continuationJsonBytes": [
+          [
+            758,
+            758,
+            724
+          ],
+          [
+            758,
+            758,
+            724
+          ],
+          [
+            758,
+            758,
+            724
+          ]
+        ],
+        "inputTokens": [
+          [
+            4686,
+            4730,
+            4772,
+            4816
+          ],
+          [
+            4685,
+            4730,
+            4774,
+            4816
+          ],
+          [
+            4684,
+            4727,
+            4770,
+            4812
+          ]
+        ],
+        "cachedInputTokens": [
+          [
+            4553,
+            4597,
+            4639,
+            4741
+          ],
+          [
+            0,
+            4552,
+            4597,
+            4699
+          ],
+          [
+            4551,
+            4594,
+            4637,
+            4737
+          ]
+        ],
+        "outputTokens": [
+          [
+            15,
+            15,
+            15,
+            21
+          ],
+          [
+            15,
+            15,
+            15,
+            19
+          ],
+          [
+            15,
+            15,
+            15,
+            19
+          ]
+        ],
+        "reasoningItems": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "connectMs": [
+          758.423,
+          676.491,
+          744.081
+        ],
+        "returnedTiers": [
+          "fast"
+        ]
+      }
+    },
+    "medianDurationReductionPercent": 11.490471000896996,
+    "medianRequestJsonReductionPercent": 72.48901007178232,
+    "pairDurationReductionPercent": [
+      36.120600706296294,
+      1.7274884898689224,
+      5.445089248073853
+    ],
+    "trials": [
+      {
+        "pair": 1,
+        "transport": "sse",
+        "order": 1,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 0,
+        "connections": 0,
+        "totalDurationMs": 8209.869,
+        "totalRequestJsonBytes": 71916,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17525,
+            "inputItems": 2,
+            "incremental": false,
+            "durationMs": 1974.167,
+            "firstEventMs": 1238.771,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 17828,
+            "inputItems": 4,
+            "incremental": false,
+            "durationMs": 2283.693,
+            "firstEventMs": 1629.589,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18147,
+            "inputItems": 6,
+            "incremental": false,
+            "durationMs": 1685.269,
+            "firstEventMs": 914.95,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18416,
+            "inputItems": 8,
+            "incremental": false,
+            "durationMs": 2265.871,
+            "firstEventMs": 1395.962,
+            "firstTextMs": 2043.862,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 1,
+        "transport": "websocket",
+        "order": 2,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 758.423,
+        "connections": 1,
+        "totalDurationMs": 5244.415,
+        "totalRequestJsonBytes": 19776,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17536,
+            "inputItems": 2,
+            "incremental": false,
+            "chainDecision": "new-connection",
+            "durationMs": 1203.712,
+            "firstEventMs": 411.069,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 758,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1038.564,
+            "firstEventMs": 270.315,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 758,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1054.813,
+            "firstEventMs": 264.698,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 724,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1188.244,
+            "firstEventMs": 267.019,
+            "firstTextMs": 1032.279,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 2,
+        "transport": "websocket",
+        "order": 1,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 676.491,
+        "connections": 1,
+        "totalDurationMs": 6238.227,
+        "totalRequestJsonBytes": 19776,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17536,
+            "inputItems": 2,
+            "incremental": false,
+            "chainDecision": "new-connection",
+            "durationMs": 1428.359,
+            "firstEventMs": 405.337,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 758,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1390.46,
+            "firstEventMs": 271.562,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 758,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1339.385,
+            "firstEventMs": 272.912,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 724,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1402.683,
+            "firstEventMs": 250.572,
+            "firstTextMs": 1245.042,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 2,
+        "transport": "sse",
+        "order": 2,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 0,
+        "connections": 0,
+        "totalDurationMs": 6347.886,
+        "totalRequestJsonBytes": 71884,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17525,
+            "inputItems": 2,
+            "incremental": false,
+            "durationMs": 1540.222,
+            "firstEventMs": 595.636,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 17828,
+            "inputItems": 4,
+            "incremental": false,
+            "durationMs": 1726.154,
+            "firstEventMs": 670.186,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18131,
+            "inputItems": 6,
+            "incremental": false,
+            "durationMs": 1451.875,
+            "firstEventMs": 616.158,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18400,
+            "inputItems": 8,
+            "incremental": false,
+            "durationMs": 1628.643,
+            "firstEventMs": 625.235,
+            "firstTextMs": 1483.027,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 3,
+        "transport": "sse",
+        "order": 1,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 0,
+        "connections": 0,
+        "totalDurationMs": 5942.033,
+        "totalRequestJsonBytes": 71884,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17525,
+            "inputItems": 2,
+            "incremental": false,
+            "durationMs": 1895.886,
+            "firstEventMs": 1176.816,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 17828,
+            "inputItems": 4,
+            "incremental": false,
+            "durationMs": 1223.108,
+            "firstEventMs": 590.736,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18131,
+            "inputItems": 6,
+            "incremental": false,
+            "durationMs": 1434.028,
+            "firstEventMs": 658.121,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18400,
+            "inputItems": 8,
+            "incremental": false,
+            "durationMs": 1387.861,
+            "firstEventMs": 681.868,
+            "firstTextMs": 1237.284,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 3,
+        "transport": "websocket",
+        "order": 2,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 744.081,
+        "connections": 1,
+        "totalDurationMs": 5618.484,
+        "totalRequestJsonBytes": 19776,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17536,
+            "inputItems": 2,
+            "incremental": false,
+            "chainDecision": "new-connection",
+            "durationMs": 1252.501,
+            "firstEventMs": 397.491,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 758,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1198.839,
+            "firstEventMs": 266.023,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 758,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1210.465,
+            "firstEventMs": 275.676,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 724,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1211.96,
+            "firstEventMs": 267.438,
+            "firstTextMs": 1064.726,
+            "returnedServiceTier": "fast",
+            "reasoningItems": 0
+          }
+        ]
+      }
+    ],
+    "pairedInputTokenCountsMatchEveryTurn": true
+  },
+  "liveReports": {
+    "smoke-function": {
+      "checkedAt": "2026-11-17T16:12:02Z",
+      "scenario": "smoke",
+      "toolKind": "function",
+      "provider": "openai-api",
+      "authentication": "explicit OpenAI API key",
+      "passed": true,
+      "connectMs": 1580.686,
+      "turns": [
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 677,
+          "inputItems": 1,
+          "incremental": false,
+          "durationMs": 1553.364,
+          "firstEventMs": 277.149,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "fast",
+          "events": 7,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 135,
+            "output_tokens": 15,
+            "total_tokens": 150,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 719,
+          "inputItems": 1,
+          "incremental": true,
+          "durationMs": 1124.499,
+          "firstEventMs": 279.372,
+          "firstTextMs": 965.545,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "fast",
+          "events": 24,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 178,
+            "output_tokens": 20,
+            "total_tokens": 198,
+            "cached_tokens": 0
+          }
+        }
+      ],
+      "lifecycleChecks": []
+    },
+    "smoke-custom": {
+      "checkedAt": "2026-11-17T16:14:35Z",
+      "scenario": "smoke",
+      "toolKind": "custom",
+      "provider": "openai-api",
+      "authentication": "explicit OpenAI API key",
+      "passed": true,
+      "connectMs": 780.859,
+      "turns": [
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 638,
+          "inputItems": 1,
+          "incremental": false,
+          "durationMs": 1197.665,
+          "firstEventMs": 291.89,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "fast",
+          "events": 12,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 163,
+            "output_tokens": 17,
+            "total_tokens": 180,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 690,
+          "inputItems": 1,
+          "incremental": true,
+          "durationMs": 1049.161,
+          "firstEventMs": 270.534,
+          "firstTextMs": 872.676,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "fast",
+          "events": 22,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 205,
+            "output_tokens": 18,
+            "total_tokens": 223,
+            "cached_tokens": 0
+          }
+        }
+      ],
+      "lifecycleChecks": []
+    },
+    "lifecycle-function": {
+      "checkedAt": "2026-11-17T16:13:49Z",
+      "scenario": "lifecycle",
+      "toolKind": "function",
+      "provider": "openai-api",
+      "authentication": "explicit OpenAI API key",
+      "passed": true,
+      "connectMs": 3347.0550000000003,
+      "turns": [
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 956,
+          "inputItems": 2,
+          "incremental": false,
+          "chainDecision": "new-connection",
+          "durationMs": 990.982,
+          "firstEventMs": 279.883,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "fast",
+          "events": 7,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 197,
+            "output_tokens": 15,
+            "total_tokens": 212,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 1225,
+          "inputItems": 4,
+          "incremental": false,
+          "chainDecision": "new-connection",
+          "durationMs": 1065.699,
+          "firstEventMs": 303.129,
+          "firstTextMs": 900.041,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "fast",
+          "events": 24,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 240,
+            "output_tokens": 20,
+            "total_tokens": 260,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 675,
+          "inputItems": 1,
+          "incremental": false,
+          "chainDecision": "history-replaced",
+          "durationMs": 1058.478,
+          "firstEventMs": 269.015,
+          "firstTextMs": 877.827,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "fast",
+          "events": 24,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 147,
+            "output_tokens": 20,
+            "total_tokens": 167,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 691,
+          "inputItems": 1,
+          "incremental": true,
+          "chainDecision": "append",
+          "failureCode": "previous_response_not_found",
+          "errorEvent": {
+            "type": "error",
+            "error": {
+              "type": "invalid_request_error",
+              "code": "previous_response_not_found",
+              "message": "Previous response with id 'resp_0c6a2221b75e32e2016afc7d410c0487d0996587fd3f14b084' not found.",
+              "param": "previous_response_id"
+            },
+            "status": 400
+          },
+          "durationMs": 308.619,
+          "firstEventMs": 308.554,
+          "events": 1,
+          "outputItems": 0,
+          "reasoningItems": 0,
+          "usage": {
+            "cached_tokens": null
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 1009,
+          "inputItems": 3,
+          "incremental": false,
+          "chainDecision": "cache-miss-full-replay",
+          "durationMs": 1206.092,
+          "firstEventMs": 313.209,
+          "firstTextMs": 1056.87,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "fast",
+          "events": 24,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 184,
+            "output_tokens": 20,
+            "total_tokens": 204,
+            "cached_tokens": 0
+          }
+        }
+      ],
+      "lifecycleChecks": [
+        {
+          "name": "reconnect-replays-history-without-reexecuting-tool",
+          "passed": true,
+          "connections": 2,
+          "syntheticToolExecutions": 1
+        },
+        {
+          "name": "trim-starts-new-chain-on-existing-socket",
+          "passed": true,
+          "connections": 2,
+          "syntheticToolExecutions": 1
+        },
+        {
+          "name": "store-false-cache-miss-replays-full-history",
+          "passed": true,
+          "connections": 4,
+          "syntheticToolExecutions": 1
+        }
+      ]
+    }
+  },
+  "apiKeyResponseCreateAttempts": 33,
+  "completedGenerations": 32,
+  "controlledStaleIDRejections": 1
+}

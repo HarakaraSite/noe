@@ -30,6 +30,7 @@ type Definition struct {
 	OAuthFile         string                       `json:"oauthFile"`
 	OAuthFileEnv      string                       `json:"oauthFileEnv"`
 	API               string                       `json:"api"`
+	Transport         string                       `json:"transport"`
 	BaseURL           string                       `json:"baseURL"`
 	Path              string                       `json:"path"`
 	KeyFile           string                       `json:"keyFile"`
@@ -153,6 +154,22 @@ func decodeDefinition(data []byte) (Definition, error) {
 	}
 	if d.API != "chat-completions" && d.API != "responses" && d.API != "images" {
 		return d, fmt.Errorf("unsupported provider API %q", d.API)
+	}
+	if d.Transport == "" {
+		d.Transport = "sse"
+	}
+	if d.Transport == "auto" {
+		if d.SDK == "openai" && d.API == "responses" {
+			d.Transport = "websocket"
+		} else {
+			d.Transport = "sse"
+		}
+	}
+	if d.Transport != "sse" && d.Transport != "websocket" {
+		return d, fmt.Errorf("unsupported provider transport %q", d.Transport)
+	}
+	if d.Transport == "websocket" && (d.SDK != "openai" || d.API != "responses") {
+		return d, errors.New("WebSocket transport requires OpenAI Responses")
 	}
 	if d.RunJSInput == "" {
 		d.RunJSInput = "json"

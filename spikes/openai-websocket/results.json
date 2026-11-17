@@ -1,0 +1,864 @@
+{
+  "checkedOn": "2026-11-18 Asia/Tokyo",
+  "baseRevision": "dd166c1a9ce9ff885e9b79eafa41e5e5398d000a",
+  "provider": "openai-chatgpt",
+  "authentication": "existing ChatGPT OAuth plan sharing",
+  "endpoint": "https://api.openai.com/v1/responses",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "low",
+  "requestedServiceTier": "priority",
+  "apiKeyRequests": 0,
+  "apiKeyFallback": false,
+  "syntheticTools": true,
+  "productionChanges": false,
+  "implementation": "spikes/openai-websocket",
+  "evidenceDirectory": "/var/tmp/noe-openai-websocket-whkqvrsv",
+  "comparison": {
+    "comparison": {
+      "sse": {
+        "medianDurationMs": 11554.727,
+        "minDurationMs": 11022.21,
+        "maxDurationMs": 13094.656,
+        "requestJsonBytes": 71975,
+        "cachedInputTokensByTrial": [
+          [
+            0,
+            4352,
+            4352,
+            4480
+          ],
+          [
+            4480,
+            4608,
+            4608,
+            4736
+          ],
+          [
+            0,
+            4352,
+            0,
+            4480
+          ]
+        ],
+        "inputTokensByTrial": [
+          [
+            4714,
+            4759,
+            4803,
+            4844
+          ],
+          [
+            4709,
+            4754,
+            4797,
+            4842
+          ],
+          [
+            4713,
+            4755,
+            4799,
+            4841
+          ]
+        ],
+        "outputTokensByTrial": [
+          [
+            17,
+            17,
+            17,
+            17
+          ],
+          [
+            17,
+            17,
+            17,
+            21
+          ],
+          [
+            17,
+            17,
+            17,
+            18
+          ]
+        ],
+        "continuationJsonBytes": [
+          [
+            17829,
+            18172,
+            18488
+          ],
+          [
+            17829,
+            18172,
+            18488
+          ],
+          [
+            17829,
+            18172,
+            18488
+          ]
+        ],
+        "returnedTiers": [
+          "default"
+        ]
+      },
+      "websocket": {
+        "medianDurationMs": 7499.796,
+        "minDurationMs": 6646.13,
+        "maxDurationMs": 8431.026,
+        "requestJsonBytes": 19660,
+        "cachedInputTokensByTrial": [
+          [
+            0,
+            4352,
+            4352,
+            4480
+          ],
+          [
+            0,
+            4352,
+            4352,
+            4480
+          ],
+          [
+            4352,
+            4608,
+            4608,
+            4480
+          ]
+        ],
+        "inputTokensByTrial": [
+          [
+            4714,
+            4759,
+            4803,
+            4844
+          ],
+          [
+            4709,
+            4754,
+            4797,
+            4842
+          ],
+          [
+            4713,
+            4755,
+            4799,
+            4841
+          ]
+        ],
+        "outputTokensByTrial": [
+          [
+            17,
+            17,
+            17,
+            17
+          ],
+          [
+            17,
+            17,
+            17,
+            21
+          ],
+          [
+            17,
+            17,
+            17,
+            18
+          ]
+        ],
+        "continuationJsonBytes": [
+          [
+            730,
+            730,
+            703
+          ],
+          [
+            730,
+            730,
+            703
+          ],
+          [
+            730,
+            730,
+            703
+          ]
+        ],
+        "returnedTiers": [
+          "default"
+        ]
+      }
+    },
+    "medianDurationReductionPercent": 35.0932652930701,
+    "requestJsonReductionPercent": 72.68496005557485,
+    "trials": [
+      {
+        "pair": 1,
+        "transport": "sse",
+        "order": 1,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 0,
+        "connections": 0,
+        "totalDurationMs": 11554.727,
+        "totalRequestJsonBytes": 71975,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17486,
+            "inputItems": 2,
+            "incremental": false,
+            "durationMs": 4092.91,
+            "firstEventMs": 3308.595,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 17829,
+            "inputItems": 4,
+            "incremental": false,
+            "durationMs": 2647.912,
+            "firstEventMs": 1657.277,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18172,
+            "inputItems": 6,
+            "incremental": false,
+            "durationMs": 2315.904,
+            "firstEventMs": 1410.638,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18488,
+            "inputItems": 8,
+            "incremental": false,
+            "durationMs": 2496.826,
+            "firstEventMs": 1551.585,
+            "firstTextMs": 2414.149,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 1,
+        "transport": "websocket",
+        "order": 2,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 1118.903,
+        "connections": 1,
+        "totalDurationMs": 7499.796,
+        "totalRequestJsonBytes": 19660,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17497,
+            "inputItems": 2,
+            "incremental": false,
+            "chainDecision": "new-connection",
+            "durationMs": 1760.854,
+            "firstEventMs": 342.839,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 730,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1452.489,
+            "firstEventMs": 228.239,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 730,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1360.219,
+            "firstEventMs": 274.227,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 703,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1806.771,
+            "firstEventMs": 660.518,
+            "firstTextMs": 1708.666,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 2,
+        "transport": "websocket",
+        "order": 1,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 999.524,
+        "connections": 1,
+        "totalDurationMs": 8431.026,
+        "totalRequestJsonBytes": 19660,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17497,
+            "inputItems": 2,
+            "incremental": false,
+            "chainDecision": "new-connection",
+            "durationMs": 1739.453,
+            "firstEventMs": 329.291,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 730,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1192.894,
+            "firstEventMs": 250.337,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 730,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 2260.406,
+            "firstEventMs": 203.202,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 703,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 2237.986,
+            "firstEventMs": 299.06,
+            "firstTextMs": 2136.398,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 2,
+        "transport": "sse",
+        "order": 2,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 0,
+        "connections": 0,
+        "totalDurationMs": 11022.21,
+        "totalRequestJsonBytes": 71975,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17486,
+            "inputItems": 2,
+            "incremental": false,
+            "durationMs": 2440.548,
+            "firstEventMs": 1419.628,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 17829,
+            "inputItems": 4,
+            "incremental": false,
+            "durationMs": 3273.721,
+            "firstEventMs": 1457.533,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18172,
+            "inputItems": 6,
+            "incremental": false,
+            "durationMs": 2305.115,
+            "firstEventMs": 1467.31,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18488,
+            "inputItems": 8,
+            "incremental": false,
+            "durationMs": 3001.362,
+            "firstEventMs": 2054.058,
+            "firstTextMs": 2908.206,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 3,
+        "transport": "sse",
+        "order": 1,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 0,
+        "connections": 0,
+        "totalDurationMs": 13094.656,
+        "totalRequestJsonBytes": 71975,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17486,
+            "inputItems": 2,
+            "incremental": false,
+            "durationMs": 5633.949,
+            "firstEventMs": 4677.428,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 17829,
+            "inputItems": 4,
+            "incremental": false,
+            "durationMs": 2750.386,
+            "firstEventMs": 1633.947,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18172,
+            "inputItems": 6,
+            "incremental": false,
+            "durationMs": 2340.852,
+            "firstEventMs": 1444.112,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 18488,
+            "inputItems": 8,
+            "incremental": false,
+            "durationMs": 2367.988,
+            "firstEventMs": 1468.557,
+            "firstTextMs": 2242.816,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          }
+        ]
+      },
+      {
+        "pair": 3,
+        "transport": "websocket",
+        "order": 2,
+        "toolRounds": 3,
+        "contextBytes": 16384,
+        "connectMs": 1075.292,
+        "connections": 1,
+        "totalDurationMs": 6646.13,
+        "totalRequestJsonBytes": 19660,
+        "syntheticToolExecutions": 3,
+        "passed": true,
+        "turns": [
+          {
+            "requestJsonBytes": 17497,
+            "inputItems": 2,
+            "incremental": false,
+            "chainDecision": "new-connection",
+            "durationMs": 1873.834,
+            "firstEventMs": 313.302,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 730,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1258.597,
+            "firstEventMs": 225.956,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 730,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1170.766,
+            "firstEventMs": 184.964,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          },
+          {
+            "requestJsonBytes": 703,
+            "inputItems": 1,
+            "incremental": true,
+            "chainDecision": "append",
+            "durationMs": 1267.101,
+            "firstEventMs": 211.227,
+            "firstTextMs": 1183.319,
+            "returnedServiceTier": "default",
+            "reasoningItems": 0
+          }
+        ]
+      }
+    ],
+    "pairedInputTokenCountsMatchEveryTurn": true
+  },
+  "liveReports": {
+    "smoke-custom": {
+      "checkedAt": "2026-11-17T15:38:57Z",
+      "scenario": "smoke",
+      "toolKind": "custom",
+      "passed": true,
+      "connectMs": 3527.813,
+      "turns": [
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 638,
+          "inputItems": 1,
+          "incremental": false,
+          "durationMs": 3608.583,
+          "firstEventMs": 205.876,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 15,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 163,
+            "output_tokens": 17,
+            "total_tokens": 180,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 698,
+          "inputItems": 1,
+          "incremental": true,
+          "durationMs": 2463.015,
+          "firstEventMs": 219.954,
+          "firstTextMs": 1923.693,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 30,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 210,
+            "output_tokens": 23,
+            "total_tokens": 233,
+            "cached_tokens": 0
+          }
+        }
+      ],
+      "lifecycleChecks": []
+    },
+    "smoke-function": {
+      "checkedAt": "2026-11-17T15:50:06Z",
+      "scenario": "smoke",
+      "toolKind": "function",
+      "passed": true,
+      "connectMs": 1105.039,
+      "turns": [
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 677,
+          "inputItems": 1,
+          "incremental": false,
+          "durationMs": 1539.887,
+          "firstEventMs": 235.214,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 10,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 135,
+            "output_tokens": 15,
+            "total_tokens": 150,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 727,
+          "inputItems": 1,
+          "incremental": true,
+          "durationMs": 1890.074,
+          "firstEventMs": 213.734,
+          "firstTextMs": 1779.662,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 27,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 178,
+            "output_tokens": 20,
+            "total_tokens": 198,
+            "cached_tokens": 0
+          }
+        }
+      ],
+      "lifecycleChecks": []
+    },
+    "lifecycle-custom": {
+      "checkedAt": "2026-11-17T15:44:54Z",
+      "scenario": "lifecycle",
+      "toolKind": "custom",
+      "passed": false,
+      "connectMs": 0,
+      "error": "Responses : Invalid `previous_response_id`.",
+      "turns": [
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 917,
+          "inputItems": 2,
+          "incremental": false,
+          "chainDecision": "new-connection",
+          "durationMs": 1624.294,
+          "firstEventMs": 204.916,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 15,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 225,
+            "output_tokens": 17,
+            "total_tokens": 242,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 1233,
+          "inputItems": 4,
+          "incremental": false,
+          "chainDecision": "new-connection",
+          "durationMs": 1649.822,
+          "firstEventMs": 226.045,
+          "firstTextMs": 1578.982,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 26,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 268,
+            "output_tokens": 19,
+            "total_tokens": 287,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 643,
+          "inputItems": 1,
+          "incremental": false,
+          "chainDecision": "history-replaced",
+          "durationMs": 1643.561,
+          "firstEventMs": 204.937,
+          "firstTextMs": 1556.892,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 26,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 174,
+            "output_tokens": 19,
+            "total_tokens": 193,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 659,
+          "inputItems": 1,
+          "incremental": true,
+          "chainDecision": "append",
+          "durationMs": 0,
+          "firstEventMs": 201.938,
+          "events": 1,
+          "outputItems": 0,
+          "reasoningItems": 0,
+          "usage": {
+            "cached_tokens": null
+          }
+        }
+      ],
+      "lifecycleChecks": [
+        {
+          "name": "reconnect-replays-history-without-reexecuting-tool",
+          "passed": true,
+          "connections": 2,
+          "syntheticToolExecutions": 1
+        },
+        {
+          "name": "trim-starts-new-chain-on-existing-socket",
+          "passed": true,
+          "connections": 2,
+          "syntheticToolExecutions": 1
+        }
+      ]
+    },
+    "lifecycle-final": {
+      "checkedAt": "2026-11-17T15:50:06Z",
+      "scenario": "lifecycle",
+      "toolKind": "custom",
+      "passed": true,
+      "connectMs": 4405.447,
+      "turns": [
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 917,
+          "inputItems": 2,
+          "incremental": false,
+          "chainDecision": "new-connection",
+          "durationMs": 2205.632,
+          "firstEventMs": 191.383,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 15,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 223,
+            "output_tokens": 17,
+            "total_tokens": 240,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 1233,
+          "inputItems": 4,
+          "incremental": false,
+          "chainDecision": "new-connection",
+          "durationMs": 1757.48,
+          "firstEventMs": 214.932,
+          "firstTextMs": 1665.368,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 25,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 265,
+            "output_tokens": 18,
+            "total_tokens": 283,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 643,
+          "inputItems": 1,
+          "incremental": false,
+          "chainDecision": "history-replaced",
+          "durationMs": 1688.079,
+          "firstEventMs": 235.297,
+          "firstTextMs": 1568.77,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 25,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 173,
+            "output_tokens": 18,
+            "total_tokens": 191,
+            "cached_tokens": 0
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 659,
+          "inputItems": 1,
+          "incremental": true,
+          "chainDecision": "append",
+          "errorEvent": {
+            "type": "error",
+            "status": 400,
+            "error": {
+              "type": "invalid_request_error",
+              "message": "Invalid `previous_response_id`."
+            }
+          },
+          "durationMs": 127.891,
+          "firstEventMs": 127.831,
+          "events": 1,
+          "outputItems": 0,
+          "reasoningItems": 0,
+          "usage": {
+            "cached_tokens": null
+          }
+        },
+        {
+          "transport": "websocket",
+          "requestJsonBytes": 977,
+          "inputItems": 3,
+          "incremental": false,
+          "chainDecision": "new-connection",
+          "durationMs": 1374.278,
+          "firstEventMs": 200.541,
+          "firstTextMs": 1312.663,
+          "model": "gpt-6.1-sol",
+          "returnedServiceTier": "default",
+          "events": 25,
+          "outputItems": 1,
+          "reasoningItems": 0,
+          "usage": {
+            "input_tokens": 208,
+            "output_tokens": 18,
+            "total_tokens": 226,
+            "cached_tokens": 0
+          }
+        }
+      ],
+      "lifecycleChecks": [
+        {
+          "name": "reconnect-replays-history-without-reexecuting-tool",
+          "passed": true,
+          "connections": 2,
+          "syntheticToolExecutions": 1
+        },
+        {
+          "name": "trim-starts-new-chain-on-existing-socket",
+          "passed": true,
+          "connections": 2,
+          "syntheticToolExecutions": 1
+        },
+        {
+          "name": "stale-id-rejected-without-automatic-replay",
+          "passed": true,
+          "connections": 3,
+          "syntheticToolExecutions": 1
+        },
+        {
+          "name": "explicit-full-replay-after-stale-id-error",
+          "passed": true,
+          "connections": 4,
+          "syntheticToolExecutions": 1
+        }
+      ]
+    }
+  },
+  "retainedResponseCreateAttempts": 37
+}

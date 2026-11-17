@@ -198,6 +198,20 @@ or `NewRuntime`.
 
 ## Independent model, auth, and log APIs
 
+Managed OpenAI Responses runs can reuse a run-owned WebSocket through the
+existing Host and model service, without new public Go methods. Standalone
+`model.Service.Generate()` and independent model bindings retain HTTP/SSE.
+Finishing or cancelling a run releases its own connection without closing
+the borrowed service or HTTP client. Provider `transport: "sse"` selects the
+existing transport for managed runs too. See the
+[provider guide](providers.md#openai-responses-transport); a standalone
+session API remains [deferred](development/agentlib-openai-websocket-idea.md#deferred-standalone-model-service-reuse).
+
+With an injected HTTP client, use `*http.Client` (optionally with a custom
+RoundTripper) for WebSocket upgrades. A bespoke Do-only client needs the
+optional `WebSocketHTTPClient() *http.Client` capability to retain its transport
+policy, or provider `transport: "sse"`. The returned client remains borrowed.
+
 `agent/model.Service` has four operations: `ListModels`, `Generate`, `Decide`,
 and `GenerateImage`. Catalog reads do not load credentials or contact a
 provider. A custom `Provider`, `DecisionProvider`, or `ImageProvider` can

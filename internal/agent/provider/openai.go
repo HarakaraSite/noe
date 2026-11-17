@@ -15,10 +15,12 @@ import (
 // OpenAI uses the official OpenAI SDK for public and compatible endpoints.
 // Raw JSON conversion and observation are shared with the OpenRouter adapter.
 type OpenAI struct {
-	profile Definition
-	client  openai.Client
-	key     apiKeyFile
-	oauth   *credentials.ChatGPT
+	profile      Definition
+	client       openai.Client
+	socketClient openai.Client
+	socketHTTP   *configuredHTTPClient
+	key          apiKeyFile
+	oauth        *credentials.ChatGPT
 }
 
 func NewOpenAI(options Options) *OpenAI {
@@ -31,17 +33,28 @@ func NewOpenAI(options Options) *OpenAI {
 	if profile.Auth == "chatgpt-oauth" {
 		p.oauth = credentials.NewChatGPT(profile.OAuthFile, credentials.Options{HTTPClient: client})
 	}
-	client = &observedHTTPClient{client: &configuredHTTPClient{client: client, profile: profile}}
-	p.client = openai.NewClient(
+	configured := &configuredHTTPClient{client: client, profile: profile}
+	p.socketHTTP = configured
+	p.client = newOpenAIClient(profile, &observedHTTPClient{client: configured})
+	p.socketClient = newOpenAIClient(profile, configured)
+	return p
+}
+
+func newOpenAIClient(profile Definition, client HTTPClient) openai.Client {
+	return openai.NewClient(
 		option.WithBaseURL(profile.BaseURL), option.WithAPIKey(""), option.WithAdminAPIKey(""),
 		option.WithOrganization(""), option.WithProject(""),
 		option.WithHeaderDel("OpenAI-Organization"), option.WithHeaderDel("OpenAI-Project"),
 		option.WithHTTPClient(client), option.WithMaxRetries(0),
 	)
-	return p
 }
 
 func (p *OpenAI) Generate(ctx context.Context, request Request) (Response, error) {
+	if p.profile.Transport == "websocket" && p.profile.API == "responses" {
+		if scope := managedScope(ctx); scope != nil {
+			return p.generateManagedWebSocket(ctx, request, scope)
+		}
+	}
 	return generateWithRetry(ctx, request, p.generateOnce)
 }
 
@@ -59,14 +72,7 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 	if err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
-	token := ""
-	switch p.profile.Auth {
-	case "chatgpt-oauth":
-		token, err = p.oauth.Token(ctx)
-	case "none":
-	default:
-		token, err = p.key.apiKey()
-	}
+	token, err := p.openAIToken(ctx)
 	if err != nil {
 		if cancelErr := cancellationError(ctx); cancelErr != nil {
 			return Response{}, cancelErr

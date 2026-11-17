@@ -75,7 +75,7 @@ changing NOE does not authorize editing or deploying noebot.
 | Fetch body clone bytes | Isolated ordinary Uint8Array buffers before Body clone branch delivery, using the shared tee lifecycle. | Included in v2.24.0; see [contract and verification](stdlib-body-clone-bytes.md). |
 | Multipart boundaries and text values | Delimiter-line recognition without inline data loss; CRLF-normalized outgoing text values with unchanged files. | Included in v2.24.0; see [contract and verification](stdlib-multipart.md). |
 | Blob, File and FormData | Private immutable byte ownership, supported Web input conversion, live entry iteration and reduced derived-data copies through shared backends. | Included in v2.28.0; see the [handoff](stdlib-handoff.md#previous-continuation--binary-data-contracts-and-context-analysis-reuse) and [reference](../../internal/apidocs/content/stdlib-globals.md#blob). |
-| SQLite row iteration | Lazy async iterators with bounded row batches, explicit cancellation and cleanup, prepared statement ownership, and transaction-scoped lifetime. | Included in v2.28.0; see the [current handoff](stdlib-handoff.md#current-continuation--sqlite-row-iteration) and [reference](../../internal/apidocs/content/noe-sqlite.md#databaseiterate). |
+| SQLite row iteration | Lazy async iterators with bounded row batches, explicit cancellation and cleanup, prepared statement ownership, and transaction-scoped lifetime. | Included in v2.28.0; see the [handoff](stdlib-handoff.md#completed-continuation--sqlite-row-iteration) and [reference](../../internal/apidocs/content/noe-sqlite.md#databaseiterate). |
 
 The asynchronous `noe:sqlite` API already follows this direction. EventSource
 remains a standard global. Expansion phases such as Web Crypto, additional

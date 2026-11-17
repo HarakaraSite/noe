@@ -223,7 +223,7 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 	// arrives after admission (for example while the started observer runs),
 	// enter the adapter with the cancelled context so accounting and terminal
 	// events describe the same attempt.
-	response, err := h.provider.Generate(ctx, providerRequest)
+	response, err := h.provider.Generate(provider.WithRunScope(ctx, run.providerScope), providerRequest)
 	if err != nil {
 		status, code, message := classifyProviderError(err, ctx)
 		modelStatus := "failed"

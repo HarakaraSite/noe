@@ -70,8 +70,8 @@ func TestCLIOpenAIChatGPTParentChildAndAPIKeyRoute(t *testing.T) {
 	}
 	config := filepath.Join(dir, "config.json")
 	data, _ := json.Marshal(map[string]any{"providers": map[string]any{
-		"openai-chatgpt": map[string]any{"baseURL": server.URL + "/v1", "oauthFile": file},
-		"openai-api":     map[string]any{"baseURL": server.URL + "/v1", "keyFile": key},
+		"openai-chatgpt": map[string]any{"baseURL": server.URL + "/v1", "oauthFile": file, "transport": "sse"},
+		"openai-api":     map[string]any{"baseURL": server.URL + "/v1", "keyFile": key, "transport": "sse"},
 	}})
 	if err := os.WriteFile(config, data, 0600); err != nil {
 		t.Fatal(err)

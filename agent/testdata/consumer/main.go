@@ -20,6 +20,9 @@ func main() {
 	default:
 		err = fmt.Errorf("unknown mode %q", mode)
 	}
+	if err == nil {
+		err = websocketConsumer(mode)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
