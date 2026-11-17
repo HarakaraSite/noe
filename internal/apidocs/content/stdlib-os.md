@@ -18,7 +18,12 @@ Reports selected host system information. This module is read-only and intention
 
 These values describe the host running NOE. The module does not provide broader Node helpers for temporary-file creation or user/group management.
 
+### EOL
 
+`EOL` is the host operating system's line-ending string: `"\r\n"` on Windows
+and `"\n"` elsewhere. Named and default exports through `node:os` and `os`
+return the same value. It does not normalize text read or written by other APIs.
+Use an explicit `"\n"` when a file format requires LF on every platform.
 
 ### Source basis
 

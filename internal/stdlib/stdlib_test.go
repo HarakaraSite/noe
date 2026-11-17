@@ -393,10 +393,16 @@ func TestProcess(t *testing.T) {
 }
 
 func TestOS(t *testing.T) {
+	eol := "\n"
+	if runtime.GOOS == "windows" {
+		eol = "\r\n"
+	}
 	out, _ := run(t, stdlib.Config{OS: &stdlib.OSInfo{Hostname: "given"}}, `
-		import("os").then(({default: os}) => {
+		Promise.all([import("os"), import("node:os")]).then(([bare, named]) => {
+			const os = bare.default;
 			console.log(os.hostname(), os.homedir() === "", os.cpus() > 0)
-			console.log(typeof os.platform(), os.EOL === "\n")
+			console.log(typeof os.platform(), os.EOL === `+strconv.Quote(eol)+` &&
+				bare.EOL === os.EOL && named.EOL === os.EOL && named.default.EOL === os.EOL)
 		})
 	`)
 	want := "given true true\nstring true"

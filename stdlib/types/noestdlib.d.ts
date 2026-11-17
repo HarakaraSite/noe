@@ -454,6 +454,7 @@ declare namespace NOEStdlib {
   function serve(options: ServeOptions & {fetch?: FetchHandler}, handler?: FetchHandler): HTTPServer;
 
   interface OSModule {
+    /** Host line ending: CRLF on Windows, LF elsewhere. */
     readonly EOL: string;
     arch(): string;
     cpus(): number;
@@ -1514,6 +1515,7 @@ declare module "node:os" {
   export const platform: NOEStdlib.OSModule["platform"];
   export const tmpdir: NOEStdlib.OSModule["tmpdir"];
   export const type: NOEStdlib.OSModule["type"];
+  /** Host line ending: CRLF on Windows, LF elsewhere. */
   export const EOL: string;
   const api: NOEStdlib.OSModule;
   export default api;

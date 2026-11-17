@@ -1,9 +1,29 @@
 # Standard library session handoff
 
-Updated 2026-11-16 after the OpenAI Fast-mode investigation and live validation.
+Updated 2026-11-17 after local go-quickjs v0.38.0 integration and the Windows
+OS line-ending correction.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. WebSocket continuation remains
 deferred. Linked implementation and release records remain canonical.
+
+## Current continuation — go-quickjs v0.38.0
+
+The user approved updating the engine and making NOE's `os.EOL` reflect the
+host: CRLF on Windows, LF elsewhere. The checkout now selects v0.38.0 with
+go-intl v0.9.0, Go 1.27.2, and JIT disabled. The
+[integration record](go-quickjs-v0.38.0-upgrade.md) is canonical.
+
+The OS implementation, host-aware export test, embedded reference, and public
+TypeScript comments are updated. Eight compiler/parser cases reproduce against
+v0.37.1 and pass against v0.38.0 in main, Workers, and repeated node:vm Script
+execution, matching Node. Whole-tree unit/E2E, vet, module verification, focused
+race, external stdlib/agent consumers, and all six compilation targets pass.
+Independent module artifacts resolve the published engine without replacements;
+all targets keep JIT disabled. Windows/macOS are compile-only verification.
+Evidence: `/var/tmp/noe-quickjs-v0380-kjt3ylch`. Existing Fast-mode documentation
+is retained. Installed executables remain v2.26.1 with the prior engine.
+Local implementation and verification are complete. Reuse these checks for
+unchanged source/dependencies; publication and installation are separate work.
 
 ## Latest investigation — OpenAI Fast mode
 

@@ -43,8 +43,12 @@ func System(rt *quickjs.Runtime, cfg *OSInfo) error {
 		}
 	}
 
+	eol := "\n"
+	if runtime.GOOS == "windows" {
+		eol = "\r\n"
+	}
 	exports := map[string]any{
-		"EOL":      "\n",
+		"EOL":      eol,
 		"platform": func() string { return goosToPlatform(runtime.GOOS) },
 		"arch":     func() string { return runtime.GOARCH },
 		"type": func() string {

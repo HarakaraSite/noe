@@ -81,6 +81,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | go-quickjs v0.28.0の取り込み | [計画・レビュー・検証記録](go-quickjs-v0.28.0-plan.md) |
 | go-quickjs v0.29.0の影響調査・取り込み | [API・既報修正・Intl・検証記録](go-quickjs-v0.29.0-impact.md) |
 | go-quickjs v0.31.1 upgrade, JIT disabled | [Scope, compatibility and verification](go-quickjs-v0.31.1-upgrade.md) |
+| go-quickjs v0.38.0 and Windows OS line endings | [Scope, engine regressions, migration, and verification](go-quickjs-v0.38.0-upgrade.md) |
 | 配布対象・品質確認・公開手順 | [リリースチェックポイント](../releases/release-checkpoints.md) |
 
 組込みinstructionはGoのembedでバイナリへ含めるため、変更の反映には再ビルドします。公開`noe:agent`は起動・観察・操作を提供し、モデルのtask loopはprivate moduleで実行します。

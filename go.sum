@@ -10,8 +10,8 @@ github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx5
 github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
 github.com/go-quickjs/go-intl v0.9.0 h1:flAmmWD5QL4UfQ/YgeRlUV9UUEnh67ocYw4rlIEIbmo=
 github.com/go-quickjs/go-intl v0.9.0/go.mod h1:/Kn3soBxkmtIHevMspxdnTc5Br6+wHbzxM312CdeupM=
-github.com/go-quickjs/go-quickjs v0.37.1 h1:lpt66w/hQ0h6bUr3KS8Xtt8nKYRRo2fh2JdFr4K/mKE=
-github.com/go-quickjs/go-quickjs v0.37.1/go.mod h1:q6Zkn+wp3IAmnsc3bekcorjXlGaR3U3ZKXtHCB6Enn0=
+github.com/go-quickjs/go-quickjs v0.38.0 h1:B/4UgWAdZj7Y+B6587zUW8Esq5JiyQdDHbzb9n833+k=
+github.com/go-quickjs/go-quickjs v0.38.0/go.mod h1:q6Zkn+wp3IAmnsc3bekcorjXlGaR3U3ZKXtHCB6Enn0=
 github.com/ncruces/go-sqlite3 v0.36.0 h1:/tmetPB+789WApzUWWfXVlDRtraPKil2iopXlQbET4A=
 github.com/ncruces/go-sqlite3 v0.36.0/go.mod h1:HhzaJ0fX5RHXe+09Nfz7pKiNuJVexXTAqX0/gNmA06w=
 github.com/ncruces/go-sqlite3-wasm/v6 v6.4.35401 h1:CJ7ClSmm84xWaefcVSbiMlU3luCiMfC/eJ0vaPntbhQ=
