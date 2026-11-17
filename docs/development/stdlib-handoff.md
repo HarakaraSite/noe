@@ -1,9 +1,27 @@
 # Standard library session handoff
 
-Updated 2026-11-15 after v2.26.1 publication and both vm201 installations.
+Updated 2026-11-16 after the OpenAI Fast-mode investigation and live validation.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. WebSocket continuation remains
 deferred. Linked implementation and release records remain canonical.
+
+## Latest investigation — OpenAI Fast mode
+
+The [Fast-mode investigation](openai-fast-mode.md) and
+[sanitized results](openai-fast-mode-results.json) record the 2026-11-16
+configuration, external research, public Go model-service comparison, and
+installed v2.26.1 agent verification. The local `openai-chatgpt` configuration
+uses `parameters.service_tier: "priority"` with the existing public Responses
+endpoint and ChatGPT plan-sharing OAuth. No source change was needed.
+
+In four sequential equal-output runs, `priority` reduced mean total time from
+18.643383 s to 13.705151 s; all responses reported `default`. The interpretation
+that this echo alone proves Fast inactive is withdrawn. There are only two
+samples per mode, with no universal speed or billing-multiplier conclusion.
+The installed-agent tool cycle completed with `run_js`, answer `437`, and exit 0.
+The [usage guide](../openai.md#fast-mode) documents the existing configuration.
+This continuation changes documentation only; the installed release and running
+services remain as recorded below. Reuse the completed live verification.
 
 ## Current release — v2.26.1 published and installed
 

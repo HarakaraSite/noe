@@ -33,6 +33,47 @@ XDG_CONFIG_HOME指定時は`~/.config`を置き換えます。接続先は両方
 
 `effort:"auto"`はeffortを送らず、モデル既定値を使います。明示effortは`reasoning.effort`へ送信します。組込み設定では`reasoning.summary:"auto"`を要求し、返されたsummaryを既存の観察イベントへ流します。`cacheKey`は`prompt_cache_key`へ渡し、未指定ならinstanceのagentIdを使い、同じinstanceのqueue task間でも固定します。taskごとのrunIdとは別の識別子です。
 
+## Fast mode
+
+Fast mode can be requested through the existing provider configuration. No NOE
+code change or additional `run_agent` option is needed. For ChatGPT plan-sharing
+authentication, merge this override into `~/.config/noe/config.json` (or the
+configured XDG/`NOE_CONFIG_FILE` location):
+
+```json
+{
+  "providers": {
+    "openai-chatgpt": {
+      "parameters": {"service_tier": "priority"}
+    }
+  }
+}
+```
+
+Use `priority` for this authentication path: on 2026-11-16, the account catalog
+advertised that ID for Fast, while the literal `fast` returned HTTP 400 with
+`Unsupported service_tier: fast`. API-key users can set
+`providers.openai-api.parameters.service_tier` to `fast` or `priority`, as
+documented in the [OpenAI API guide](https://developers.openai.com/api/docs/guides/fast-mode).
+The NOE live checks covered ChatGPT authentication only.
+
+This provider-level setting applies to every model using that provider;
+[model-specific overrides](providers.md) can narrow it. Start a new NOE process
+after changing configuration, because an existing host retains its loaded
+configuration. Reasoning `effort` is a separate setting.
+
+For ChatGPT authentication, a completed response reporting
+`service_tier: "default"` alone does not establish that Fast was ignored.
+The [Codex contributor clarification](https://github.com/openai/codex/issues/14204#issuecomment-4033184620)
+explains this limitation for Codex, and the NOE comparison observed lower
+latency with `priority` while all four responses reported `default`.
+Do not use that field alone to confirm or reject Fast on this route.
+
+The [investigation and live validation](development/openai-fast-mode.md) record
+the configuration, external evidence, four-run comparison, installed-agent
+tool cycle, and limits of the conclusions. Fast can increase plan usage; these
+checks did not measure the plan-sharing billing multiplier.
+
 ## 認証ヘルパー
 
 配布元は[`scripts/auth-chatgpt.js`](../scripts/auth-chatgpt.js)、通常の配置先は`~/.config/noe/auth-chatgpt.js`です。ヘルパーは単体でコピーして使えます。

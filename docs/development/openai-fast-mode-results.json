@@ -1,0 +1,227 @@
+{
+  "checkedDate": "2026-11-16",
+  "sourceRevision": "ae631a9dd28272b7883cd45f1d35357b02b03446",
+  "noeVersion": "v2.26.1",
+  "provider": "openai-chatgpt",
+  "model": "gpt-6.1-sol",
+  "authentication": "Existing ChatGPT plan-sharing OAuth",
+  "endpoint": "https://api.openai.com/v1/responses",
+  "configuration": {
+    "providers": {
+      "openai-chatgpt": {
+        "parameters": {
+          "service_tier": "priority"
+        }
+      }
+    }
+  },
+  "conclusion": "The existing configuration is sufficient to request the account-advertised Fast tier using service_tier=priority. In the current public ChatGPT plan-sharing route, the four-sample comparison observed lower completion latency with priority even though every response echoed default. The earlier claim that this echo established Fast was inactive is withdrawn.",
+  "initialProbes": {
+    "fastLiteral": {
+      "httpStatus": 400,
+      "errorDetail": "Unsupported service_tier: fast"
+    },
+    "priorityLiteral": {
+      "httpStatus": 200,
+      "answer": "OK",
+      "createdTier": "auto",
+      "completedTier": "default"
+    },
+    "accountModelCatalog": {
+      "httpStatus": 200,
+      "model": "gpt-6.1-sol",
+      "fastTierId": "priority",
+      "description": "2x speed, increased usage"
+    },
+    "routingHintTrial": {
+      "header": "x-codex-routing-hint: model=gpt-6.1-sol;tier=priority",
+      "temporaryConfiguration": true,
+      "httpStatus": 200,
+      "answer": "OK",
+      "completedTier": "default",
+      "speedMeasured": false
+    }
+  },
+  "comparison": {
+    "entryPoint": "Public Go agent/model service with the configured built-in provider adapter",
+    "transport": "HTTP/SSE",
+    "userAgent": "noe/v2.26.1",
+    "effort": "low",
+    "maxTokens": 1500,
+    "order": [
+      "default",
+      "priority",
+      "priority",
+      "default"
+    ],
+    "prompt": "Output exactly the integers 0001 through 0256 in ascending order, separated by single spaces. No prose, no code fence, no omissions, no line breaks.",
+    "sessionAndCacheKey": "Fresh per request",
+    "tools": [],
+    "routingHintHeaderSent": false,
+    "measurements": [
+      {
+        "run": 1,
+        "requestedTier": "default",
+        "returnedTier": "default",
+        "totalSeconds": 18.34402,
+        "firstTextSeconds": 3.241319,
+        "firstToLastTextSeconds": 15.04133,
+        "inputTokens": 40,
+        "outputTokens": 771,
+        "reasoningTokens": 0,
+        "cachedTokens": 0,
+        "exactOutput": true
+      },
+      {
+        "run": 2,
+        "requestedTier": "priority",
+        "returnedTier": "default",
+        "totalSeconds": 13.556203,
+        "firstTextSeconds": 2.937748,
+        "firstToLastTextSeconds": 10.540451,
+        "inputTokens": 40,
+        "outputTokens": 771,
+        "reasoningTokens": 0,
+        "cachedTokens": 0,
+        "exactOutput": true
+      },
+      {
+        "run": 3,
+        "requestedTier": "priority",
+        "returnedTier": "default",
+        "totalSeconds": 13.854099,
+        "firstTextSeconds": 3.245946,
+        "firstToLastTextSeconds": 10.519743,
+        "inputTokens": 40,
+        "outputTokens": 771,
+        "reasoningTokens": 0,
+        "cachedTokens": 0,
+        "exactOutput": true
+      },
+      {
+        "run": 4,
+        "requestedTier": "default",
+        "returnedTier": "default",
+        "totalSeconds": 18.942746,
+        "firstTextSeconds": 3.810721,
+        "firstToLastTextSeconds": 15.066572,
+        "inputTokens": 40,
+        "outputTokens": 771,
+        "reasoningTokens": 0,
+        "cachedTokens": 0,
+        "exactOutput": true
+      }
+    ],
+    "means": {
+      "default": {
+        "sampleCount": 2,
+        "meanTotalSeconds": 18.643383,
+        "meanFirstToLastTextSeconds": 15.053951000000001
+      },
+      "priority": {
+        "sampleCount": 2,
+        "meanTotalSeconds": 13.705151,
+        "meanFirstToLastTextSeconds": 10.530097
+      }
+    },
+    "observedTotalSpeedRatio": 1.360319415670794,
+    "observedTextSpanSpeedRatio": 1.4296118069947505
+  },
+  "installedAgent": {
+    "checkedAt": "2026-11-16 13:05:01 UTC",
+    "binary": "./noe",
+    "version": "v2.26.1",
+    "entryPoint": "noe run --observe; JavaScript run_agent",
+    "effort": "low",
+    "maxTokens": 2048,
+    "maxSteps": 4,
+    "configuredServiceTier": "priority",
+    "instruction": "Use run_js once with console.log(19 * 23). After reading the tool result, answer with only its decimal value. Do not use other tools or perform other work.",
+    "tool": "run_js",
+    "toolState": "succeeded",
+    "toolDurationMs": 21,
+    "answer": "437",
+    "taskState": "completed",
+    "processExitCode": 0,
+    "scriptAssertions": [
+      "Task state is completed",
+      "The final answer is exactly 437"
+    ],
+    "scope": "This confirms the installed agent tool cycle with the configured real provider; it is not an additional speed benchmark or a per-response served-tier confirmation."
+  },
+  "limitations": [
+    "Two samples per mode, with ABBA ordering; evidence of an observed difference, not a universal or statistically established speed guarantee.",
+    "Forty input tokens and 771 output tokens per run, low effort, zero reasoning and cached tokens. This does not reproduce long-context agent tasks.",
+    "The delivered billing multiplier and an authoritative per-response Fast confirmation field for SIWC were not established.",
+    "First-to-last text timing reflects stream delivery and can be affected by buffering. Total latency is reported separately."
+  ],
+  "scope": {
+    "productionSourceChanged": false,
+    "builtInProviderDefaultsChanged": false,
+    "installedExecutablesChanged": false,
+    "productionEndpointChanged": false,
+    "nativeCodexCredentialsUsed": false,
+    "apiKeyFallback": false,
+    "apiKeyLiveRequests": false,
+    "runningServicesRestarted": false,
+    "localConfigurationRetained": "openai-chatgpt.parameters.service_tier = priority"
+  },
+  "references": [
+    {
+      "url": "https://github.com/openai/codex/issues/14204#issuecomment-4033184620",
+      "date": "2026-03-10",
+      "type": "Codex contributor clarification",
+      "finding": "pash-openai explains that ChatGPT-authenticated Codex routes Fast server-side and that a final default service_tier does not imply Fast was ignored. This comment concerns Codex native authentication, not a comprehensive contract for the newer public plan-sharing API."
+    },
+    {
+      "url": "https://pi.dev/packages/pi-fast",
+      "date": "2026-11-12",
+      "type": "Current third-party implementation and first-hand live checks",
+      "finding": "The package documents the same public Responses endpoint and ChatGPT OAuth flow as NOE. It sends priority for subscription authentication, reports fast rejected with HTTP 400, and explicitly does not treat default response echoes as proof of the delivered tier."
+    },
+    {
+      "url": "https://github.com/openclaw/openclaw/blob/cf74e641eb9caac27f5ae5579eeac4d0d2ef8545/extensions/openai/responses-stream.runtime.ts#L16",
+      "type": "Third-party primary source code",
+      "finding": "The SIWC wrapper allows default, priority, ultrafast and slow; the literal fast is not in the allowlist."
+    },
+    {
+      "url": "https://github.com/code-yeongyu/senpi/issues/545",
+      "date": "2026-07-30",
+      "type": "First-hand investigation correcting an earlier conclusion",
+      "finding": "The reporter withdrew an unsupported-on-subscription claim based on default response metadata. The associated change was merged as PR 547; the latency evidence in this older report is weak."
+    },
+    {
+      "url": "https://github.com/openai/codex/issues/54321",
+      "date": "2026-10-15",
+      "type": "Open performance report with a positive control",
+      "finding": "A reporter found little Sol Fast speed difference but a measurable Astra Fast benefit while both echoed default. This is not an official universal performance guarantee. The November 9 follow-up also warns that streamed delta timing can measure buffered release rather than token generation."
+    },
+    {
+      "url": "https://github.com/openai/codex/issues/32191",
+      "date": "2026-07-10",
+      "type": "Open user performance report",
+      "finding": "Reports include controlled runs with no observed benefit. This shows variation across models, accounts, client versions and conditions, rather than establishing that Fast never works."
+    },
+    {
+      "url": "https://www.reddit.com/r/OpenAI/comments/1wlylki/service_tierfast_with_chatgpt_subscription/",
+      "date": "2026-09-21",
+      "type": "Social report, not authoritative documentation",
+      "finding": "The original poster reports fast rejected. A commenter generalizes that subscriptions cannot use the tier; that generalization conflicts with current priority-compatible implementations and the Codex clarification."
+    },
+    {
+      "url": "https://www.reddit.com/r/codex/comments/1wyq42w/so_whats_everyones_experience_so_far_after_the/",
+      "type": "Social reports with mixed conditions",
+      "finding": "Reported speed experiences vary and mix baseline speed changes, end-to-end latency, reasoning and Fast mode. These reports do not isolate the cause of NOE tier handling."
+    },
+    {
+      "url": "https://x.com/thsottiaux/status/2107158998495748264",
+      "type": "Social source access limitation",
+      "finding": "The direct X page returned HTTP 403; its text was not treated as independently verified evidence."
+    },
+    {
+      "url": "https://help.openai.com/en/articles/11647665-fast-mode-faq",
+      "type": "Official API documentation",
+      "finding": "API-key documentation describes the effective response tier and optional matching service-tier headers. It does not by itself establish a reliable confirmation field for ChatGPT plan-sharing requests."
+    }
+  ]
+}

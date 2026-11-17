@@ -99,6 +99,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | steer・interrupt・人間向け操作 | [計画](agent-control-plan.md) | [実装記録](agent-control-implementation.md)・[OpenRouter検証](agent-control-openrouter-validation.md) |
 | provider設定とOpenCode Go | [計画](provider-config-plan.md)・[SDK接続スパイク](opencode-go-sdk-spike.md) | [検証記録](provider-config-validation.md) |
 | OpenAI SDK・ChatGPT認証 | [利用ガイド](../openai.md) | [実装記録](openai-implementation.md) |
+| OpenAI Fast mode with ChatGPT authentication | [Configuration](../openai.md#fast-mode) | [Investigation and live validation](openai-fast-mode.md) · [Measurements](openai-fast-mode-results.json) |
 | 意思決定API | [計画](decision-plan.md) | [実装記録](decision-implementation.md)・[実接続](decision-openrouter-validation.md) |
 | プロセス・標準I/Oストリーム | [計画](process-io-plan.md) | [実装記録](process-io-implementation.md) |
 | 第2グループ：file・socket・signal | [実装計画](low-level-group2-plan.md)・[計画レビュー](low-level-group2-review.md) | [実装・検証記録](low-level-group2-implementation.md)・[計画確定前スパイク](low-level-group2-spike.md) |
@@ -150,6 +151,7 @@ NOEの`run_js`からテストを実行するときも、外側の`NOE_AGENT_CONN
 | agent操作 | [OpenRouter](agent-control-openrouter-results.json) |
 | provider設定 | [OpenRouter SDK](provider-config-openrouter-sdk-results.json)・[OpenCode Goスパイク](opencode-go-sdk-spike-results.json) |
 | OpenAI | [ChatGPT](openai-chatgpt-results.json) |
+| OpenAI Fast mode | [ChatGPT OAuth probes, latency comparison, and installed-agent verification](openai-fast-mode-results.json) |
 | 意思決定 | [OpenRouter](decision-openrouter-results.json) |
 | コンテキスト切り捨て | [実プロバイダの挙動](context-trimming-live-results.json) |
 | 内蔵docs | [実プロバイダの自発参照](builtin-docs-live-results.json) |
