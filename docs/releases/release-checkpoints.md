@@ -4746,3 +4746,28 @@ Release evidence: `/var/tmp/noe-v2.26.1-release-idjbq1j5`.
 
 Publication and both installations are complete. Other hosts, running services
 and noebot were not changed. The publication record does not move the release tag.
+
+## v2.27.0 preparation — 2026-11-17
+
+The user authorized committing and releasing the completed work. Fast-mode
+documentation is committed as `0add3b1`; engine and OS implementation as
+`60bc1b7`; CLI version and release notes as `c99b9cc`. The
+[release notes](v2.27.0.md) cover go-quickjs v0.38.0, disabled JIT, Windows CRLF
+for `os.EOL`, and the existing OpenAI Fast configuration and investigation.
+
+The seven implementation source/dependency/reference hashes match the completed
+verification at `/var/tmp/noe-quickjs-v0380-kjt3ylch`. Whole-tree unit/E2E, focused
+race, vet, module verification, external stdlib/agent consumers and all six
+compilation targets are reused. Eight compiler/parser cases reproduce under
+v0.37.1 and pass under v0.38.0 in main, Workers, and repeated node:vm Scripts,
+matching Node. Windows and macOS were compiled, not run natively.
+
+Only the CLI default version changes after implementation verification; the
+configured-version unit passes. No full source/E2E/race suite, long-wait check,
+dependency refresh, or local six-target distribution build is repeated.
+
+Release evidence: `/var/tmp/noe-v2.27.0-release-rh8ai7_1`. The clean native
+release-flags candidate and publication checks are recorded there. CI builds
+and publishes the immutable tag's six binaries and SHA256SUMS without repeating
+source suites. Publication verification must precede retaining and atomically
+installing the verified native asset at both authorized vm201 executable paths.
