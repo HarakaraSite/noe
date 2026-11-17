@@ -39,7 +39,12 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.27.0 release notes](docs/releases/v2.27.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.27.0)
+[v2.28.0 release notes](docs/releases/v2.28.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.28.0)
+
+v2.28.0 adds batched SQLite row iteration, corrects Blob/File/FormData and
+stream iterator behavior, and reuses managed context analysis between model
+requests. It also corrects configured reasoning observations. See the release
+notes for compatibility changes and verification.
 
 v2.27.0 updates go-quickjs to v0.38.0 with JIT disabled, incorporates compiler
 and parser fixes, and makes `os.EOL` return CRLF on Windows and LF elsewhere.

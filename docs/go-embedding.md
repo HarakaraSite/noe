@@ -345,7 +345,7 @@ await db.run("INSERT INTO data VALUES(?)", ["hello"]);
 const row = await db.get("SELECT value FROM data");
 ```
 
-The source continuation after v2.27.0 also provides
+Version v2.28.0 also provides
 `db.iterate(sql, params, {batchSize, signal})` and prepared-statement iteration.
 These return lazy async iterators directly, with at most 128 buffered rows by
 default. Use `for await` or `await using` to release a cursor on early exit;

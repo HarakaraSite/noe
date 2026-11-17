@@ -1,7 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-17 for local SQLite row iteration on top of `e2c8cfc`
-and installed v2.27.0. Blob/File/FormData corrections and managed
+Updated 2026-11-17 for v2.28.0 release preparation. SQLite row iteration is
+committed as `aa79508`; the installed executables remain v2.27.0 until
+publication verification completes. Blob/File/FormData corrections and managed
 context-analysis reuse were committed and pushed as `e2c8cfc`.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. WebSocket continuation remains
@@ -43,8 +44,11 @@ behavior uses the existing runtime and no provider changes are included.
 Evidence: `/var/tmp/noe-sqlite-iterate-u1jr3bxw` and native cursor checks/
 benchmarks in `/var/tmp/noe-sqlite-cursor-yk8oNw`. The verification record
 tracks source hashes so completed checks can be reused for unchanged source.
-No commit, push, release, installation, or live provider request is included
-in this continuation. Installed executables remain v2.27.0.
+The user authorized committing and releasing the completed work. Version
+v2.28.0 includes this slice and the earlier stream, binary-data, reasoning,
+and context-cache changes. Publication and installation status are recorded
+in the [release checkpoints](../releases/release-checkpoints.md#v2280-preparation--2026-11-17).
+No live provider request is required.
 
 ## Previous continuation — binary data contracts and context analysis reuse
 

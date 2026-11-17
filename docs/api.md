@@ -413,7 +413,7 @@ See the [SQLite API](../internal/apidocs/content/noe-sqlite.md),
 [local example](../examples/sqlite/README.md), and
 [implementation record](development/stdlib-sqlite.md). This is a NOE-specific
 asynchronous API; Node's synchronous `node:sqlite` is not installed.
-In the source continuation after v2.27.0, iterate returns a lazy async
+From v2.28.0, iterate returns a lazy async
 iterator directly, fetching bounded row batches for `for await` consumption.
 Transaction-local iterators close when the callback ends.
 

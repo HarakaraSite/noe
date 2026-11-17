@@ -4825,3 +4825,38 @@ Release evidence: `/var/tmp/noe-v2.27.0-release-rh8ai7_1`.
 
 Publication and both installations are complete. Other hosts, running services
 and noebot were not changed. This record does not move the immutable release tag.
+
+## v2.28.0 preparation — 2026-11-17
+
+The user authorized committing and releasing the completed SQLite iteration
+work. Its implementation is `aa79508`; the release also includes the earlier
+stream/reasoning corrections in `3334012` and binary-data/context-cache
+improvements in `e2c8cfc`. The [release notes](v2.28.0.md) describe the additive
+iterator API and the Blob/File/FormData compatibility changes.
+
+The completed SQLite verification source hashes match before release edits.
+Only the CLI default version and release documentation change afterward; the
+version source is checked against an exact version-only replacement. Earlier
+stream/reasoning and binary/context Go/JS/dependency sources also match their
+completed evidence. Dependencies and the distribution workflow are unchanged.
+
+Whole-tree unit/E2E, focused race, vet, TypeScript fixtures, JS lint, embedded
+API/runtime checks, and separate checkout/artifact consumers are reused. The
+last transaction cleanup guard was followed by all SQLite tests under race
+detection, API/runtime checks, and both external stdlib consumer forms. Its
+deterministic regression fails without the guard and passes 20 consecutive
+runs with it. No full source suite, long-wait check, dependency refresh, or
+local six-target distribution build is repeated for this release request.
+
+Implementation evidence: `/var/tmp/noe-sqlite-iterate-u1jr3bxw`,
+`/var/tmp/noe-sqlite-cursor-yk8oNw`, `/var/tmp/noe-binary-forms-h0lav1qm`, and
+`/var/tmp/noe-iterator-observation-_sp3nse5`. Release evidence:
+`/var/tmp/noe-v2.28.0-release-pxlju_92`. The configured-version unit, clean
+native release-flags candidate, targeted CLI/runtime checks, direct published
+Go consumers, and publication verification are recorded there.
+
+CI builds and publishes six binaries and SHA256SUMS from the immutable tag
+without repeating implementation tests. Publication verification precedes
+retaining and atomically installing the verified native asset at both
+authorized vm201 executable paths. No running-service restart or noebot change
+is included.
