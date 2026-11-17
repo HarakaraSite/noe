@@ -138,3 +138,73 @@ artifact are under `/var/tmp/noe-sqlite-w4mhlx_e/`. Cross-compiled test binaries
 are `/tmp/noe-sqlite-stdlib-{os}-{arch}.test` (with `.exe` on Windows).
 No commit, release, installed binary replacement, service restart, noebot
 migration, or upstream request was performed as part of this slice.
+
+## Batched row iteration — 2026-11-17
+
+The additive continuation after `e2c8cfc` adds `iterate` to database,
+transaction, and prepared-statement handles. Existing all/get/run contracts,
+dependencies, filesystem authority, and provider behavior are unchanged.
+See the [public reference](../../internal/apidocs/content/noe-sqlite.md#databaseiterate)
+for signatures and the [CSV example](../../examples/sqlite/export-csv.js)
+for incremental output.
+
+An iterator snapshots parameters at creation and opens its native cursor on
+the first next call. Each fetch steps SQLite at most batchSize times, with a
+default of 128 rows and no extra lookahead step. EOF after an exactly full
+batch is detected by the following fetch. Native and JavaScript buffers keep
+one batch rather than the entire result; yielded entries are cleared from
+the JavaScript buffer. This limits retained row count, not row size, SQLite
+query workspace, or application-retained results.
+
+The existing per-owner queue orders fetches and cleanup while permitting
+other SQL between batches. A borrowed prepared statement is marked busy
+until cursor release; its ordinary run/get/all methods and other iterators
+reject with ERR_SQLITE_BUSY during that time. A cursor either owns its
+statement or borrows one, so cleanup finalizes or resets/clears bindings as
+appropriate. Cursor cleanup removes native ownership before reporting a
+reset/finalization failure. The original SQL error takes precedence over
+cleanup errors in native error classification.
+
+Abort races retain the queue's actual native completion. Even if an abort
+arrives before cursorOpen returns its ID, cleanup runs after ID delivery.
+An idle or buffered abort also marks a transaction failed, so catching the
+iterator rejection cannot accidentally commit. Normal loop break, return,
+close, and disposal drain accepted work and release the cursor without
+marking a successful transaction failed. Transaction callback exit closes
+owned iterators before commit/rollback; escaped iterators cannot yield their
+buffered remainder. Statement/database close discards their iterator buffers,
+and execution shutdown joins native work before disposing resources.
+
+Iteration adds no isolation guarantee. Changing scanned data on the same
+connection has undefined results under
+[SQLite's documented isolation rules](https://www.sqlite.org/isolation.html).
+RETURNING works, but an early close or cancellation does not undo writes;
+use a transaction for rollback. Cleanup preserves failures from
+[sqlite3_reset](https://www.sqlite.org/c3ref/reset.html), which can report an
+execution error even after a RETURNING row was observed.
+
+Native checks cover bounded fetches, EOF, owned/borrowed cleanup, prepared
+busy guards and reuse, parameter/result ownership, RETURNING, cancellation,
+and shutdown. Public checks additionally cover lazy timing, overlapping next
+calls, async disposal, transaction lifetime and caught-abort rollback,
+buffered and queued cancellation, Workers, execution cancellation, read-only
+files, and a CSV example parsed by Go's CSV reader. Separate external Go
+consumers exercise the exported module rather than private helpers.
+
+Native benchmark evidence is `/var/tmp/noe-sqlite-cursor-yk8oNw`; integration
+and shared checks are `/var/tmp/noe-sqlite-iterate-u1jr3bxw`. The 10,000-row
+native benchmark measures full all() against opening and fetching only the
+first 128 rows. Across three runs the medians are about 3.04 ms / 3,277,729
+B/op and 28.7 us / 17,680 B/op respectively. These operations do different
+amounts of work: the result demonstrates incremental first-batch cost,
+not faster full-result traversal. Allocation counts are cumulative Go heap
+allocation per operation, not RSS or retained-memory measurements.
+
+A bounded independent lifecycle review identified two transaction abort
+windows: idle/buffered cancellation had no failed native operation to record,
+and cancellation during iterator finalization happened after the original
+pre-commit failure check. The abort handler now records the first transaction
+failure; commit checks it again after finalization. Regression tests verify
+rollback even when the callback catches cancellation. A deterministic cleanup
+window reproducer fails against an overlay removing the final guard and
+passes 20 consecutive runs with it.

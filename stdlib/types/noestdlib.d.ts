@@ -1090,13 +1090,26 @@ declare namespace NOEStdlib {
     signal?: AbortSignal;
   }
   interface SQLiteOperationOptions { signal?: AbortSignal }
+  interface SQLiteIterateOptions extends SQLiteOperationOptions {
+    /** Maximum rows fetched per batch. Defaults to 128; must be a positive safe integer. */
+    batchSize?: number;
+  }
   interface SQLiteTransactionOptions extends SQLiteOperationOptions { mode?: "deferred" | "immediate" | "exclusive" }
   interface SQLiteRunResult { changes: number | bigint; lastInsertRowid: number | bigint }
+  /** A lazy row iterator. Close it when stopping without a for-await loop. */
+  interface SQLiteRowIterator extends AsyncIterableIterator<SQLiteRow> {
+    readonly closed: boolean;
+    return(value?: unknown): Promise<IteratorResult<SQLiteRow>>;
+    close(): Promise<void>;
+    [Symbol.asyncIterator](): SQLiteRowIterator;
+    [Symbol.asyncDispose](): Promise<void>;
+  }
   interface SQLiteQueryMethods {
     exec(sql: string, options?: SQLiteOperationOptions): Promise<void>;
     run(sql: string, params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRunResult>;
     get(sql: string, params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRow | undefined>;
     all(sql: string, params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRow[]>;
+    iterate(sql: string, params?: SQLiteParams, options?: SQLiteIterateOptions): SQLiteRowIterator;
     prepare(sql: string, options?: SQLiteOperationOptions): Promise<SQLiteStatement>;
   }
   interface SQLiteStatement {
@@ -1105,6 +1118,7 @@ declare namespace NOEStdlib {
     run(params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRunResult>;
     get(params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRow | undefined>;
     all(params?: SQLiteParams, options?: SQLiteOperationOptions): Promise<SQLiteRow[]>;
+    iterate(params?: SQLiteParams, options?: SQLiteIterateOptions): SQLiteRowIterator;
     close(): Promise<void>;
     [Symbol.asyncDispose](): Promise<void>;
   }
@@ -1115,8 +1129,8 @@ declare namespace NOEStdlib {
     readonly closed: boolean;
     /**
      * Runs a transaction and resolves to the callback's result. SQL errors mark
-     * the transaction for rollback even if caught; statements prepared through
-     * the transaction handle are invalid after the callback returns.
+     * the transaction for rollback even if caught. Transaction iterators close
+     * and statements become invalid when the callback returns.
      */
     transaction<T>(callback: (tx: SQLiteTransaction) => T | PromiseLike<T>, options?: SQLiteTransactionOptions): Promise<Awaited<T>>;
     close(): Promise<void>;
@@ -1744,6 +1758,8 @@ declare module "noe:sqlite" {
   export type SQLiteRow = NOEStdlib.SQLiteRow;
   export type SQLiteOpenOptions = NOEStdlib.SQLiteOpenOptions;
   export type SQLiteOperationOptions = NOEStdlib.SQLiteOperationOptions;
+  export type SQLiteIterateOptions = NOEStdlib.SQLiteIterateOptions;
+  export type SQLiteRowIterator = NOEStdlib.SQLiteRowIterator;
   export type SQLiteTransactionOptions = NOEStdlib.SQLiteTransactionOptions;
   export type SQLiteRunResult = NOEStdlib.SQLiteRunResult;
   export type SQLiteQueryMethods = NOEStdlib.SQLiteQueryMethods;

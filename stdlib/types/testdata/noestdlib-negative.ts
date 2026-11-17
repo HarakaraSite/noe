@@ -168,11 +168,22 @@ async function sqliteNegativeFixture(): Promise<void> {
   // @ts-expect-error transaction handles expose query methods, not close().
   await database.transaction(tx => tx.close());
   const statement = await database.prepare("SELECT 1");
+  // @ts-expect-error batchSize must be a number.
+  database.iterate("SELECT 1", [], {batchSize: "128"});
+  // @ts-expect-error iterate returns a lazy iterator, not a Promise.
+  const iteratorPromise: Promise<unknown> = statement.iterate();
+  const iterator = statement.iterate();
+  // @ts-expect-error iterator closed is controlled by the resource lifecycle.
+  iterator.closed = true;
+  // @ts-expect-error next returns a Promise of an iterator result.
+  const immediateRow: import("noe:sqlite").SQLiteRow = iterator.next();
+  // @ts-expect-error iterator options require an AbortSignal.
+  statement.iterate([], {signal: {aborted: true}});
   // @ts-expect-error statement closed is controlled by the resource lifecycle.
   statement.closed = true;
   // @ts-expect-error row output values are not guaranteed to be strings.
   const stringValue: string = (await statement.get())!.value;
-  void [synchronousRow, stringValue];
+  void [synchronousRow, stringValue, iteratorPromise, immediateRow];
   await database.close();
 }
 void sqliteNegativeFixture;

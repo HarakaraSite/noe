@@ -332,7 +332,7 @@ Available in v2.19.0 and later. See the [contract](development/stdlib-web-storag
 
 ## Asynchronous SQLite
 
-`noe:sqlite` is a built-in Promise API in managed runtimes and Workers.
+`noe:sqlite` is a built-in asynchronous API in managed runtimes and Workers.
 An in-memory database needs no FS capability; a persistent database uses
 `Modules.FS` and its existing Root, Cwd and ReadOnly policy. No new public Go
 option is added, and the module does not grant filesystem access on its own.
@@ -344,6 +344,13 @@ await db.exec("CREATE TABLE data(value TEXT)");
 await db.run("INSERT INTO data VALUES(?)", ["hello"]);
 const row = await db.get("SELECT value FROM data");
 ```
+
+The source continuation after v2.27.0 also provides
+`db.iterate(sql, params, {batchSize, signal})` and prepared-statement iteration.
+These return lazy async iterators directly, with at most 128 buffered rows by
+default. Use `for await` or `await using` to release a cursor on early exit;
+transaction-local iterators close when their callback ends. The row bound
+does not bound SQLite query workspace or the size of one row.
 
 SQL executes on Go workers rather than the runtime owner. Each connection is
 serialized, and callback transactions reserve the connection through commit

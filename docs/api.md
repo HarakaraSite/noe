@@ -403,7 +403,7 @@ subscription with `source.close()`. It is available in Workers and with
 
 ## SQLite
 
-`noe:sqlite` provides asynchronous open, exec/run/get/all, prepared statements,
+`noe:sqlite` provides asynchronous open, exec/run/get/all/iterate, prepared statements,
 and callback transactions. SQL runs away from the JS event loop; transactions
 reserve their connection until commit or rollback. Use `await using` for
 database and statement cleanup. Memory databases need no FS capability;
@@ -412,7 +412,10 @@ file databases share the selected FS Root, Cwd, and ReadOnly policy.
 See the [SQLite API](../internal/apidocs/content/noe-sqlite.md),
 [local example](../examples/sqlite/README.md), and
 [implementation record](development/stdlib-sqlite.md). This is a NOE-specific
-Promise API; Node's synchronous `node:sqlite` is not installed.
+asynchronous API; Node's synchronous `node:sqlite` is not installed.
+In the source continuation after v2.27.0, iterate returns a lazy async
+iterator directly, fetching bounded row batches for `for await` consumption.
+Transaction-local iterators close when the callback ends.
 
 ## 旧APIからの移行
 

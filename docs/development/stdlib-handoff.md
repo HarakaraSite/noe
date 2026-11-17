@@ -1,12 +1,52 @@
 # Standard library session handoff
 
-Updated 2026-11-17 after local Blob/File/FormData corrections and managed
-context-analysis reuse, on top of `3334012` and installed v2.27.0.
+Updated 2026-11-17 for local SQLite row iteration on top of `e2c8cfc`
+and installed v2.27.0. Blob/File/FormData corrections and managed
+context-analysis reuse were committed and pushed as `e2c8cfc`.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. WebSocket continuation remains
 deferred. Linked implementation and release records remain canonical.
 
-## Current continuation — binary data contracts and context analysis reuse
+## Current continuation — SQLite row iteration
+
+The user selected SQLite iteration as the next improvement. Database and
+transaction handles now expose `iterate(sql, params, {batchSize, signal})`;
+prepared statements expose `iterate(params, options)`. They return lazy
+async iterators directly, with a default batchSize of 128. Parameters are
+snapshotted at creation; native preparation/execution begins on the first
+next. The public reference, TypeScript declarations and positive/negative
+fixtures describe the additive contract. Existing callers need no migration.
+
+EOF, break, return, close, async disposal, cancellation, statement/database
+close, transaction exit, and execution shutdown release cursors. A transaction
+iterator cannot outlive its callback. Caught iterator SQL failures and aborts
+still cause rollback; normal early break does not. Fetches use the existing
+queue and permit different SQL between batches. An active prepared cursor
+alone makes its statement busy until native release. See the
+[implementation record](stdlib-sqlite.md#batched-row-iteration--2026-11-17),
+[reference](../../internal/apidocs/content/noe-sqlite.md#databaseiterate), and
+[CSV example](../../examples/sqlite/README.md).
+
+Row batching bounds buffered row count, not bytes or SQLite query workspace.
+Early close cannot undo writes from RETURNING. Batching adds no isolation:
+avoid changing data scanned by an active SELECT on the same connection.
+
+Whole-tree unit/E2E, vet, TypeScript fixtures, JS lint, documentation links,
+embedded API/runtime checks, and separate checkout/artifact stdlib consumers
+pass. Independent lifecycle review found two transaction abort bookkeeping
+windows; both are fixed and covered. After the final commit guard change,
+all SQLite tests were rerun with race detection, API/runtime checks and both
+external stdlib consumer forms were repeated. Other whole-tree results are
+reused from before that localized guard; no dependencies changed. Agent
+behavior uses the existing runtime and no provider changes are included.
+
+Evidence: `/var/tmp/noe-sqlite-iterate-u1jr3bxw` and native cursor checks/
+benchmarks in `/var/tmp/noe-sqlite-cursor-yk8oNw`. The verification record
+tracks source hashes so completed checks can be reused for unchanged source.
+No commit, push, release, installation, or live provider request is included
+in this continuation. Installed executables remain v2.27.0.
+
+## Previous continuation — binary data contracts and context analysis reuse
 
 The user approved both medium-sized improvements. Blob/File/FormData now use
 private native data, normalize their supported Web inputs and preserve live

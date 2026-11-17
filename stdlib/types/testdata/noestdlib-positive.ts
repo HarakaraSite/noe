@@ -212,12 +212,20 @@ async function sqliteTypeFixture(): Promise<void> {
   const rows: SQLiteRow[] = await database.all("SELECT id, value FROM sample", named);
   const statement = await database.prepare("SELECT id, value FROM sample WHERE id = ?");
   const statementRow: SQLiteRow | undefined = await statement.get(positional);
+  const iterateOptions: import("noe:sqlite").SQLiteIterateOptions = {batchSize: 64, signal: controller.signal};
+  await using iterator: import("noe:sqlite").SQLiteRowIterator = database.iterate("SELECT id, value FROM sample", [], iterateOptions);
+  const asyncIterator: AsyncIterableIterator<SQLiteRow> = iterator;
+  const iteratorClosed: boolean = iterator.closed;
+  for await (const row of iterator) { const value: SQLiteOutputValue = row.id; void value; }
+  await iterator.return();
+  await statement.iterate(positional, iterateOptions).close();
   await statement.close();
   const committed: bigint = await database.transaction(async tx => {
     await tx.run("INSERT INTO sample VALUES (?, ?)", {id: 3n, value: blob});
+    for await (const row of tx.iterate("SELECT id FROM sample")) { void row.id; }
     return 3n;
   }, {mode: "immediate", signal: controller.signal});
-  void [typedDatabase, changes, insertedId, value, rows, statementRow, committed];
+  void [typedDatabase, changes, insertedId, value, rows, statementRow, committed, asyncIterator, iteratorClosed];
 }
 void sqliteTypeFixture;
 const noeServer = noeServe(request => Response.json({url: request.url}));

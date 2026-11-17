@@ -35,15 +35,18 @@ type sqliteHost struct {
 }
 
 type sqliteDB struct {
-	host     *sqliteHost
-	id       int
-	mu       sync.Mutex
-	closed   bool
-	conn     *sqlite3.Conn
-	stmts    map[int]*sqlite3.Stmt
-	nextStmt int
-	allowTx  bool
-	readOnly bool
+	host             *sqliteHost
+	id               int
+	mu               sync.Mutex
+	closed           bool
+	conn             *sqlite3.Conn
+	stmts            map[int]*sqlite3.Stmt
+	nextStmt         int
+	cursors          map[int]*sqliteCursor
+	nextCursor       int
+	activeStmtCursor map[int]int
+	allowTx          bool
+	readOnly         bool
 }
 
 type sqliteCell struct {
@@ -78,6 +81,13 @@ type sqliteRunResult struct {
 type sqliteOpenResult struct{ id int }
 
 type sqlitePrepareResult struct{ id int }
+
+type sqliteCursorOpenResult struct{ cursorID int }
+
+type sqliteCursorReadResult struct {
+	rows sqliteRows
+	done bool
+}
 
 type sqliteHostError struct {
 	message string
@@ -135,6 +145,9 @@ func newSQLiteHost(rt *quickjs.Runtime, loop *Loop, cfg *FS) (quickjs.Value, err
 	if err := errors.Join(
 		native.Set("open", h.open),
 		native.Set("request", h.request),
+		native.Set("cursorOpen", h.cursorOpen),
+		native.Set("cursorRead", h.cursorRead),
+		native.Set("cursorClose", h.cursorClose),
 	); err != nil {
 		h.Close()
 		return quickjs.Value{}, err
@@ -225,7 +238,11 @@ func (h *sqliteHost) open(path string, readOnly bool, timeout int, register quic
 		if err != nil {
 			return nil, err
 		}
-		db := &sqliteDB{host: h, conn: conn, stmts: make(map[int]*sqlite3.Stmt), readOnly: readOnly}
+		db := &sqliteDB{
+			host: h, conn: conn, stmts: make(map[int]*sqlite3.Stmt),
+			cursors: make(map[int]*sqliteCursor), activeStmtCursor: make(map[int]int),
+			readOnly: readOnly,
+		}
 		if err := conn.SetAuthorizer(db.authorize); err != nil {
 			_ = conn.Close()
 			return nil, err
@@ -275,6 +292,52 @@ func (h *sqliteHost) request(dbID, statementID int, operation, sql string, param
 	}
 	return h.async(register, func(ctx context.Context) (any, error) {
 		return db.request(ctx, statementID, operation, sql, args)
+	})
+}
+
+func (h *sqliteHost) cursorOpen(dbID, statementID int, sql string, params, register quickjs.Value) *quickjs.Promise {
+	if dbID <= 0 || statementID < 0 {
+		return h.rejected(&sqliteHostError{message: "invalid SQLite resource id", code: "ERR_INVALID_ARG"})
+	}
+	db := h.getDB(dbID)
+	if db == nil {
+		return h.rejected(&sqliteHostError{message: "SQLite database is closed", code: "ERR_SQLITE_CLOSED"})
+	}
+	args, err := sqliteParams(params)
+	if err != nil {
+		return h.rejected(err)
+	}
+	return h.async(register, func(ctx context.Context) (any, error) {
+		return db.cursorOpen(ctx, statementID, sql, args)
+	})
+}
+
+func (h *sqliteHost) cursorRead(dbID, cursorID int, batchSize int64, register quickjs.Value) *quickjs.Promise {
+	if dbID <= 0 || cursorID <= 0 {
+		return h.rejected(&sqliteHostError{message: "invalid SQLite resource id", code: "ERR_INVALID_ARG"})
+	}
+	if batchSize <= 0 || batchSize > sqliteMaxSafeInteger {
+		return h.rejected(&sqliteHostError{message: "SQLite cursor batch size must be a positive safe integer", code: "ERR_INVALID_ARG"})
+	}
+	db := h.getDB(dbID)
+	if db == nil {
+		return h.rejected(&sqliteHostError{message: "SQLite database is closed", code: "ERR_SQLITE_CLOSED"})
+	}
+	return h.async(register, func(ctx context.Context) (any, error) {
+		return db.cursorRead(ctx, cursorID, batchSize)
+	})
+}
+
+func (h *sqliteHost) cursorClose(dbID, cursorID int, register quickjs.Value) *quickjs.Promise {
+	if dbID <= 0 || cursorID <= 0 {
+		return h.rejected(&sqliteHostError{message: "invalid SQLite resource id", code: "ERR_INVALID_ARG"})
+	}
+	db := h.getDB(dbID)
+	if db == nil {
+		return h.resolved()
+	}
+	return h.async(register, func(ctx context.Context) (any, error) {
+		return nil, db.cursorClose(ctx, cursorID)
 	})
 }
 
@@ -333,6 +396,17 @@ func (h *sqliteHost) async(register quickjs.Value, work func(context.Context) (a
 func (h *sqliteHost) rejected(err error) *quickjs.Promise {
 	p := h.rt.NewPromise()
 	h.reject(p, err)
+	return p
+}
+
+func (h *sqliteHost) resolved() *quickjs.Promise {
+	p := h.rt.NewPromise()
+	undefined, err := h.rt.Get("undefined")
+	if err != nil {
+		h.reject(p, err)
+		return p
+	}
+	_ = p.Resolve(undefined)
 	return p
 }
 
@@ -475,8 +549,12 @@ func (db *sqliteDB) request(ctx context.Context, statementID int, operation, sql
 		if stmt == nil {
 			return nil, &sqliteHostError{message: "prepared statement is closed", code: "ERR_SQLITE_CLOSED"}
 		}
+		var cursorErr error
+		if cursorID := db.activeStmtCursor[statementID]; cursorID != 0 {
+			cursorErr = db.releaseCursorLocked(cursorID)
+		}
 		delete(db.stmts, statementID)
-		return nil, stmt.Close()
+		return nil, errors.Join(cursorErr, stmt.Close())
 	case "close":
 		return nil, db.closeLocked()
 	case "begin":
@@ -502,6 +580,9 @@ func (db *sqliteDB) statement(statementID int, sql string) (*sqlite3.Stmt, bool,
 		if stmt == nil {
 			return nil, false, &sqliteHostError{message: "prepared statement is closed", code: "ERR_SQLITE_CLOSED"}
 		}
+		if db.activeStmtCursor[statementID] != 0 {
+			return nil, false, &sqliteHostError{message: "prepared statement is in use by an active cursor", code: "ERR_SQLITE_BUSY"}
+		}
 		return stmt, false, nil
 	}
 	stmt, err := sqlitePrepareSingle(db.conn, sql)
@@ -519,20 +600,23 @@ func (db *sqliteDB) closeLocked() error {
 	if db.closed {
 		return nil
 	}
+	var cleanupErr error
+	for id := range db.cursors {
+		cleanupErr = errors.Join(cleanupErr, db.releaseCursorLocked(id))
+	}
 	for id, stmt := range db.stmts {
-		_ = stmt.Close()
+		cleanupErr = errors.Join(cleanupErr, stmt.Close())
 		delete(db.stmts, id)
 	}
 	if db.conn != nil {
-		err := db.conn.Close()
-		if err != nil {
-			return err
+		if err := db.conn.Close(); err != nil {
+			return errors.Join(cleanupErr, err)
 		}
 		db.conn = nil
 	}
 	db.closed = true
 	db.host.releaseDB(db)
-	return nil
+	return cleanupErr
 }
 
 func (db *sqliteDB) close() error {
@@ -846,6 +930,22 @@ func (h *sqliteHost) value(value any) (quickjs.Value, error) {
 			return quickjs.Value{}, err
 		}
 		return o, nil
+	case sqliteCursorOpenResult:
+		o := h.rt.NewObject()
+		if err := o.Set("cursorID", result.cursorID); err != nil {
+			return quickjs.Value{}, err
+		}
+		return o, nil
+	case sqliteCursorReadResult:
+		rows, err := h.rowsValue(result.rows)
+		if err != nil {
+			return quickjs.Value{}, err
+		}
+		o := h.rt.NewObject()
+		if err := errors.Join(o.Set("rows", rows), o.Set("done", result.done)); err != nil {
+			return quickjs.Value{}, err
+		}
+		return o, nil
 	case sqliteRunResult:
 		o := h.rt.NewObject()
 		changes, err := h.cellValue(sqliteCell{kind: "integer", text: strconv.FormatInt(result.changes, 10)})
@@ -863,18 +963,22 @@ func (h *sqliteHost) value(value any) (quickjs.Value, error) {
 	case sqliteRow:
 		return h.rowValue(result)
 	case sqliteRows:
-		items := make([]any, len(result))
-		for i := range result {
-			row, err := h.rowValue(result[i])
-			if err != nil {
-				return quickjs.Value{}, err
-			}
-			items[i] = row
-		}
-		return h.rt.NewArray(items...)
+		return h.rowsValue(result)
 	default:
 		return quickjs.Value{}, fmt.Errorf("unsupported SQLite result %T", value)
 	}
+}
+
+func (h *sqliteHost) rowsValue(result sqliteRows) (quickjs.Value, error) {
+	items := make([]any, len(result))
+	for i := range result {
+		row, err := h.rowValue(result[i])
+		if err != nil {
+			return quickjs.Value{}, err
+		}
+		items[i] = row
+	}
+	return h.rt.NewArray(items...)
 }
 
 func (h *sqliteHost) rowValue(row sqliteRow) (quickjs.Value, error) {
@@ -934,7 +1038,8 @@ func (h *sqliteHost) reject(p *quickjs.Promise, err error) {
 func (h *sqliteHost) errorValue(err error) quickjs.Value {
 	value := h.rt.NewError("Error", err.Error())
 	code := ""
-	if hostErr, ok := err.(*sqliteHostError); ok {
+	var hostErr *sqliteHostError
+	if errors.As(err, &hostErr) {
 		code = hostErr.code
 	}
 	if code == "" {

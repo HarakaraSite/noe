@@ -3,6 +3,7 @@
 
   const states = new WeakMap();
   const statements = new WeakMap();
+  const iterators = new WeakMap();
   const Signal = AbortSignal;
   const Controller = AbortController;
   const signalAny = Signal.any.bind(Signal);
@@ -167,6 +168,153 @@
     return schedule(owner, async op => decode(operation, await request(owner, operation, "", values, statement.id, op.register)), signal);
   }
 
+  function iteratorState(value) {
+    const state = iterators.get(value);
+    if (!state) invalid("invalid SQLite iterator receiver");
+    return state;
+  }
+  function detachIterator(state) {
+    state.owner.iterators.delete(state.object);
+    if (state.statement) state.statement.iterators.delete(state.object);
+    if (state.signal) state.signal.removeEventListener("abort", state.abort);
+    state.rows = [];
+    state.index = 0;
+    state.params = EMPTY;
+  }
+  function finishIterator(state) {
+    state.ended = true;
+    detachIterator(state);
+    state.closing = Promise.resolve();
+  }
+  function closeIterator(state) {
+    if (state.closing) return state.closing;
+    state.ended = true;
+    detachIterator(state);
+    // Enqueue immediately behind actual native completion. In particular an
+    // abort race may reject before cursorOpen has returned its resource ID.
+    state.closing = enqueue(state.owner.queue, async () => {
+      if (state.id) {
+        await native.cursorClose(state.owner.db.id, state.id, () => {});
+        state.id = 0;
+      }
+    }, undefined, true);
+    return state.closing;
+  }
+  function iteratorTask(state, work) {
+    const result = state.pending ? state.pending.then(work, work) : work();
+    state.pending = result;
+    const settled = () => { if (state.pending === result) state.pending = null; };
+    result.then(settled, settled);
+    return result;
+  }
+  async function nextRow(state) {
+    try {
+      if (state.aborted && !state.abortDelivered) {
+        state.abortDelivered = true;
+        throw state.signal.reason;
+      }
+      if (state.ended) return {value: undefined, done: true};
+      ownerState(state.owner.object);
+      if (state.statement && state.statement.closed) throw closed("the statement is closed");
+      if (state.index === state.rows.length) {
+        let batch;
+        // The queue's completion promise retains no batch payload. Only this
+        // iterator's current batch survives until its rows have been yielded.
+        await schedule(state.owner, async operation => {
+          try {
+            if (state.ended) return;
+            if (!state.id) {
+              const opened = await native.cursorOpen(state.owner.db.id,
+                state.statement ? state.statement.id : 0, state.sql, state.params, operation.register);
+              state.id = opened.cursorID;
+              state.params = EMPTY;
+            }
+            operation.check();
+            if (state.ended) return;
+            batch = await native.cursorRead(state.owner.db.id, state.id, state.batchSize, operation.register);
+            if (batch.done) state.id = 0;
+          } catch (error) {
+            operation.check();
+            throw error;
+          }
+        }, state.signal);
+        if (state.aborted && !state.abortDelivered) {
+          state.abortDelivered = true;
+          throw state.signal.reason;
+        }
+        if (state.ended) return {value: undefined, done: true};
+        state.rows = batch.rows.map(row);
+        state.index = 0;
+        state.eof = batch.done;
+        if (state.rows.length === 0) {
+          finishIterator(state);
+          return {value: undefined, done: true};
+        }
+      }
+      const value = state.rows[state.index];
+      state.rows[state.index++] = undefined;
+      if (state.index === state.rows.length && state.eof) finishIterator(state);
+      return {value, done: false};
+    } catch (error) {
+      let cleanupError;
+      try { await closeIterator(state); } catch (failure) { cleanupError = failure; }
+      if (state.signal && state.signal.aborted) {
+        state.abortDelivered = true;
+        throw state.signal.reason;
+      }
+      if (cleanupError !== undefined) throw new AggregateError([error, cleanupError], "query iteration and cleanup failed");
+      throw error;
+    }
+  }
+  class RowIterator {
+    constructor(owner, statement, sql, params, opts) {
+      native.brand(this);
+      const {value, signal: selectedSignal} = options(opts);
+      const batchSize = value.batchSize === undefined ? 128 : value.batchSize;
+      if (!Number.isSafeInteger(batchSize) || batchSize <= 0) invalid("batchSize must be a positive safe integer");
+      const signal = owner.transaction
+        ? selectedSignal ? signalAny([owner.controller.signal, selectedSignal]) : owner.controller.signal
+        : selectedSignal;
+      const state = {object: this, owner, statement, sql, params, signal, batchSize,
+        id: 0, rows: [], index: 0, eof: false, ended: false, closing: null, pending: null,
+        aborted: false, abortDelivered: false, abort: null};
+      iterators.set(this, state);
+      owner.iterators.add(this);
+      if (statement) statement.iterators.add(this);
+      state.abort = () => {
+        state.aborted = true;
+        if (owner.transaction && owner.queue.failed === undefined) owner.queue.failed = {error: signal.reason};
+        closeIterator(state).catch(() => {});
+      };
+      if (signal) {
+        signal.addEventListener("abort", state.abort, {once: true});
+        if (signal.aborted) state.abort();
+      }
+    }
+    get closed() { return iteratorState(this).ended; }
+    next() {
+      const state = iteratorState(this);
+      return iteratorTask(state, () => nextRow(state));
+    }
+    return(value = undefined) {
+      return closeIterator(iteratorState(this)).then(() => ({value, done: true}));
+    }
+    close() { return closeIterator(iteratorState(this)); }
+    [Symbol.asyncIterator]() { iteratorState(this); return this; }
+    [Symbol.asyncDispose]() { return closeIterator(iteratorState(this)); }
+  }
+  function iterate(target, sql, params, opts) {
+    const owner = ownerState(target), text = sqlText(sql), values = parameters(params);
+    return new RowIterator(owner, null, text, values, opts);
+  }
+  function iterateStatement(target, params, opts) {
+    const statement = statements.get(target);
+    if (!statement) invalid("invalid statement receiver");
+    if (statement.closed) throw closed("the statement is closed");
+    const owner = ownerState(statement.owner.object), values = parameters(params);
+    return new RowIterator(owner, statement, "", values, opts);
+  }
+
   class QueryMethods {
     async exec(sql, opts) {
       const state = ownerState(this), text = sqlText(sql), {signal} = options(opts);
@@ -175,13 +323,14 @@
     run(sql, params, opts) { return execute(this, "run", sql, params, opts); }
     get(sql, params, opts) { return execute(this, "get", sql, params, opts); }
     all(sql, params, opts) { return execute(this, "all", sql, params, opts); }
+    iterate(sql, params, opts) { return iterate(this, sql, params, opts); }
     prepare(sql, opts) { return prepare(this, sql, opts); }
   }
 
   class Statement {
     constructor(owner, id, sql) {
       native.brand(this);
-      statements.set(this, {owner, id, sql, closed: false, finalized: false, closing: null});
+      statements.set(this, {owner, id, sql, closed: false, finalized: false, closing: null, iterators: new Set()});
     }
     get sql() { return statements.get(this).sql; }
     get closed() {
@@ -191,20 +340,24 @@
     run(params, opts) { return executeStatement(this, "run", params, opts); }
     get(params, opts) { return executeStatement(this, "get", params, opts); }
     all(params, opts) { return executeStatement(this, "all", params, opts); }
+    iterate(params, opts) { return iterateStatement(this, params, opts); }
     close() {
       const state = statements.get(this);
       if (!state) return Promise.reject(new TypeError("invalid statement receiver"));
       if (state.closing) return state.closing;
       state.closed = true;
       const owner = state.owner;
-      if (owner.transaction ? !owner.active : owner.closed) return state.closing = Promise.resolve();
-      state.closing = enqueue(owner.queue, () => request(owner, "finalize", "", EMPTY, state.id), undefined, true).then(() => { state.finalized = true; });
+      const closing = Array.from(state.iterators, iterator => closeIterator(iteratorState(iterator)));
+      if (owner.transaction ? !owner.active : owner.closed) return state.closing = Promise.all(closing).then(() => {});
+      const finalized = enqueue(owner.queue, () => request(owner, "finalize", "", EMPTY, state.id), undefined, true).then(() => { state.finalized = true; });
+      state.closing = Promise.all([...closing, finalized]).then(() => {});
       return state.closing;
     }
     [Symbol.asyncDispose]() { return this.close(); }
   }
 
   async function finalizeTransaction(state) {
+    for (const iterator of Array.from(state.iterators)) await closeIterator(iteratorState(iterator));
     for (const statement of state.prepared) {
       const prepared = statements.get(statement);
       if (!prepared.finalized) {
@@ -220,7 +373,7 @@
     constructor(id, path, readOnly) {
       super();
       native.brand(this);
-      const state = {object: this, id, path, readOnly, closed: false, closing: null, queue: {tail: Promise.resolve()}, transaction: false};
+      const state = {object: this, id, path, readOnly, closed: false, closing: null, queue: {tail: Promise.resolve()}, transaction: false, iterators: new Set()};
       state.db = state;
       states.set(this, state);
     }
@@ -236,7 +389,7 @@
         const controller = new Controller();
         const transaction = new QueryMethods();
         native.brand(transaction);
-        const state = {object: transaction, db: database, transaction: true, active: true, controller, prepared: new Set(), queue: {tail: Promise.resolve(), recordFailure: true}};
+        const state = {object: transaction, db: database, transaction: true, active: true, controller, prepared: new Set(), iterators: new Set(), queue: {tail: Promise.resolve(), recordFailure: true}};
         states.set(transaction, state);
         const stop = () => controller.abort(signal.reason);
         if (signal) signal.addEventListener("abort", stop, {once: true});
@@ -252,6 +405,8 @@
           if (state.queue.failed !== undefined) throw state.queue.failed.error;
           op.check();
           await finalizeTransaction(state);
+          if (state.queue.failed !== undefined) throw state.queue.failed.error;
+          op.check();
           await request(database, "commit", "", EMPTY, 0, op.register);
           return result;
         } catch (error) {
@@ -275,7 +430,9 @@
       const state = dbState(this);
       if (state.closing) return state.closing;
       state.closed = true;
-      state.closing = enqueue(state.queue, () => request(state, "close"), undefined).then(() => {});
+      const closing = Array.from(state.iterators, iterator => closeIterator(iteratorState(iterator)));
+      const databaseClosed = enqueue(state.queue, () => request(state, "close"), undefined);
+      state.closing = Promise.all([...closing, databaseClosed]).then(() => {});
       return state.closing;
     }
     [Symbol.asyncDispose]() { return this.close(); }

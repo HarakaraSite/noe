@@ -13,7 +13,7 @@
 | [log-analysis](log-analysis/README.md) | JSONLイベントログのtoken・cache・tool出力超過をファイル別に比較 | 不要 |
 | [json](json/README.md) | JSONの加工、標準入力・ディレクトリ集計、処理済みファイルの移動 | 不要 |
 | [sales-report](sales-report/README.md) | JSONとMarkdownの売上レポート | 不要 |
-| [sqlite](sqlite/README.md) | Asynchronous SQLite queries, prepared statements, reserved transactions, and persistence | None |
+| [sqlite](sqlite/README.md) | Asynchronous SQLite queries, prepared statements, reserved transactions, persistence, and batched CSV export | None |
 | [storage](storage/README.md) | Runtime-local sessionStorage and explicit-file localStorage (v2.19.0+) | No credentials |
 | [crypto](crypto/README.md) | Corrected Web Crypto key policies and unmodified jose JWT/JWS validation (v2.20.0+) | No credentials; SDK example needs pinned npm preparation |
 | [web-basics](web-basics/README.md) | Complete UTF-8 writes, User Timing entries, and CustomEvent detail (unreleased source) | None |

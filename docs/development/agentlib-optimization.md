@@ -147,4 +147,4 @@ defect; both were corrected before final validation and measurement.
 
 Cache evidence: `/var/tmp/noe-context-cache-rQlzrH`. Shared verification with
 the Blob/FormData slice is recorded in the
-[session handoff](stdlib-handoff.md#current-continuation--binary-data-contracts-and-context-analysis-reuse).
+[session handoff](stdlib-handoff.md#previous-continuation--binary-data-contracts-and-context-analysis-reuse).
