@@ -42,7 +42,7 @@ ChatGPTへの要求には`session_id`ヘッダーでinstanceの`agentId`を送�
 
 ## OpenAI Responses transport
 
-The source continuation after v2.28.0 uses WebSocket continuation for managed
+v2.29.0 uses WebSocket continuation for managed
 agent runs with the built-in openai-chatgpt and openai-api Responses providers.
 Each run owns its connection; tool/model turns reuse it and completion or
 cancellation closes it. Queued runs start fresh connections even when they

@@ -4917,3 +4917,35 @@ Release evidence: `/var/tmp/noe-v2.28.0-release-pxlju_92`.
 Publication and both installations are complete. No required release or
 installation work remains. Other hosts, running services, and noebot were not
 changed. This record does not move the immutable release tag.
+
+## v2.29.0 preparation — 2026-11-18
+
+The user authorized committing and releasing managed OpenAI Responses
+WebSocket continuation, committed as `7209bc4`. The
+[release notes](v2.29.0.md) describe managed-run ownership, delta uploads,
+recovery, provider transport configuration, and standalone SSE compatibility.
+
+All 918 implementation source/dependency hashes match the final verification
+before release edits. The broad unit/E2E, affected race, and vet checks are
+reused; their final two-file handshake-status delta was covered by focused
+provider/public-agent race checks, provider vet, and repeated external agent
+consumers. Checkout/artifact consumers passed all thirteen checks. Prior live
+functional checks cover both OpenAI authentication routes; no additional paid
+request is needed for release verification.
+
+After implementation, only the CLI default version and release documentation
+change. The CLI source is checked as an exact version-only replacement and
+its configured-version unit is run. Dependencies and distribution definitions
+remain unchanged. No full source suite, long-wait check, dependency refresh,
+or local six-target distribution build is repeated.
+
+Release evidence: `/var/tmp/noe-v2.29.0-release-zbxez98h`; implementation evidence:
+`/var/tmp/noe-managed-websocket-nc1xtl0n`. A clean release-flags native candidate
+and the published native asset are checked against loopback WebSocket/tool
+continuation and explicit SSE configuration. Direct published Go consumers,
+all six asset checksums/build metadata, immutable tag/CI/release correspondence,
+and atomic local installation are recorded after publication.
+
+CI builds six binaries and SHA256SUMS without repeating source checks.
+Publication verification precedes retaining and replacing both authorized
+local executables. Running-service restarts and noebot changes are separate.

@@ -39,7 +39,12 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.28.0 release notes](docs/releases/v2.28.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.28.0)
+[v2.29.0 release notes](docs/releases/v2.29.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.29.0)
+
+v2.29.0 reuses OpenAI Responses WebSocket connections within managed agent
+runs for both ChatGPT OAuth and API-key providers. Unchanged conversations
+upload only new input items. Standalone model calls retain HTTP/SSE; provider
+configuration can also select SSE for managed runs.
 
 v2.28.0 adds batched SQLite row iteration, corrects Blob/File/FormData and
 stream iterator behavior, and reuses managed context analysis between model

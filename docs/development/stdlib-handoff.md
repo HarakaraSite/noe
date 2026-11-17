@@ -1,6 +1,7 @@
 # Standard library session handoff
 
-Updated 2026-11-18 after managed Responses WebSocket implementation. SQLite row
+Updated 2026-11-18 during v2.29.0 release preparation. Managed Responses
+WebSocket implementation is committed as `7209bc4`. SQLite row
 iteration is committed as `aa79508`; the release tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
 from `e2c8cfc`. Both local executables now run v2.28.0.
@@ -38,8 +39,11 @@ and source hashes are recorded at `/var/tmp/noe-managed-websocket-nc1xtl0n`.
 See the [implementation record](agentlib-openai-websocket-idea.md#managed-run-implementation--2026-11-18)
 and [provider configuration](../providers.md#openai-responses-transport).
 
-No dependency, public function signature, installed executable, service, commit,
-push, or release changes are included. Installed executables remain v2.28.0.
+The implementation slice changed no dependencies, public function signatures,
+installed executables, or services. The user subsequently authorized commit
+and release. v2.29.0 preparation reuses the completed evidence; installed
+executables remain v2.28.0 until publication verification and installation.
+Release evidence: `/var/tmp/noe-v2.29.0-release-zbxez98h`.
 
 ## WebSocket spike — 2026-11-18
 
