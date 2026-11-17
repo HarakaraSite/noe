@@ -486,3 +486,10 @@ const responseType: Response["type"] = responseJSON.type;
 const responsePrototype: Response = Response.prototype;
 const headersPrototype: Headers = Headers.prototype;
 void [cookieValues, responseType, responsePrototype, headersPrototype];
+
+const sharedBlob: Blob = new Blob(new Set(["text"]), {endings: "native"});
+const namedFile: File = new File([sharedBlob], "data.txt", {lastModified: 42, endings: "transparent"});
+const typedForm: FormData = new FormData();
+typedForm.append("text", "value");
+typedForm.append("upload", sharedBlob, "data.txt");
+typedForm.set("upload", namedFile, undefined);

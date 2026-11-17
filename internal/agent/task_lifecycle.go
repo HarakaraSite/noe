@@ -244,6 +244,11 @@ func (task *managedTask) commitOutcomeLocked(result Result, err error) (taskOutc
 	// cancellation wins this lock first, it becomes the command's outcome; if
 	// this commit wins, CancelTask observes the committed outcome and rejects.
 	run, report := task.run, task.report
+	if run != nil {
+		// A task may exit without an authenticated finish call. Drop run-owned
+		// preparation state before the settled command retains its run pointer.
+		run.context.analysisCache = nil
+	}
 	finalAnswer := ""
 	finalCommitted := false
 	taskInterrupted := false

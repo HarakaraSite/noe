@@ -63,12 +63,14 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		h.mu.Unlock()
 		return contextPrepareResponse{}, newOperationError(http.StatusConflict, "scope", "context preparation is outside the current model step")
 	}
+	var managedConversation *conversationSnapshot
 	if request.HistoryRevision != 0 {
 		conversation, err := conversationAtRevisionLocked(run, request.HistoryRevision)
 		if err != nil {
 			h.mu.Unlock()
 			return contextPrepareResponse{}, err
 		}
+		managedConversation = conversation
 		request.Messages, request.History = conversation.messageView(), conversation.layout()
 	}
 	if err := h.validateImagesLocked(run, request.Messages); err != nil {
@@ -76,15 +78,26 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "image", err.Error())
 	}
 	run.context.imageEstimates = imageEstimatesLocked(run)
-	stats, statsErr := measureContextHistory(request.Messages, request.Tools, run.context.imageEstimates)
-	if statsErr != nil {
-		h.mu.Unlock()
-		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "could not estimate model context")
+	analysis := managedContextAnalysis{}
+	cacheHit := false
+	if managedConversation != nil {
+		analysis, cacheHit = run.context.analysisCache.lookup(managedConversation, request.Tools, run.context.imageEstimates)
 	}
-	fixed, execution, weights, partsErr := historyPartsFromStats(request.Messages, request.History, run.context.imageEstimates, stats)
-	if partsErr != nil {
-		h.mu.Unlock()
-		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", partsErr.Error())
+	if !cacheHit {
+		stats, statsErr := measureContextHistory(request.Messages, request.Tools, run.context.imageEstimates)
+		if statsErr != nil {
+			h.mu.Unlock()
+			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "could not estimate model context")
+		}
+		fixed, execution, weights, partsErr := historyPartsFromStats(request.Messages, request.History, run.context.imageEstimates, stats)
+		if partsErr != nil {
+			h.mu.Unlock()
+			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", partsErr.Error())
+		}
+		analysis = managedContextAnalysis{stats: stats, fixedTokens: fixed, executionTokens: execution, weights: weights}
+		if managedConversation != nil {
+			analysis.digest = contextHistoryDigest(request.Messages, request.Tools)
+		}
 	}
 	if run.context.pendingPlan != nil && request.AppliedPlanID == "" {
 		h.mu.Unlock()
@@ -104,7 +117,7 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 			return contextPrepareResponse{}, newOperationError(http.StatusConflict, "conversation", err.Error())
 		}
 	}
-	run.context.fixedTokens, run.context.executionTokens = fixed, execution
+	run.context.fixedTokens, run.context.executionTokens = analysis.fixedTokens, analysis.executionTokens
 	var trimmed *contextTrimSnapshot
 	if request.AppliedPlanID != "" {
 		var ackErr error
@@ -123,19 +136,32 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 	failures := pendingHookFailures(run)
 	run.context.hookFailureNotice = hookFailureNotice(failures)
 	run.context.preparedNotification = nil
-	prepareContextEstimateFromStats(&run.context, run.id, stats)
+	prepareContextEstimateFromStats(&run.context, run.id, analysis.stats)
 	var err error
 	var plan *contextTrimPlan
 	if request.Final && request.AppliedPlanID == "" {
-		plan, err = run.context.planTrimWithWeights(request.Messages, request.Tools, request.History, weights)
+		plan, err = run.context.planTrimWithWeights(request.Messages, request.Tools, request.History, analysis.weights)
 		if err != nil {
 			h.mu.Unlock()
 			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "context_plan", err.Error())
 		}
 	}
+	if managedConversation != nil {
+		if !cacheHit {
+			run.context.analysisCache = newManagedContextAnalysisCache(managedConversation, request.Tools, run.context.imageEstimates, analysis)
+		}
+	} else {
+		// Explicit-message preparation can describe a different transcript and
+		// must not keep a managed snapshot alive after it succeeds.
+		run.context.analysisCache = nil
+	}
 	run.context.finalPrepared = request.Final && plan == nil
 	if run.context.finalPrepared {
-		run.context.preparedDigest = contextHistoryDigest(request.Messages, request.Tools)
+		if managedConversation != nil {
+			run.context.preparedDigest = analysis.digest
+		} else {
+			run.context.preparedDigest = contextHistoryDigest(request.Messages, request.Tools)
+		}
 		// Planning can change the diagnostic budget flags. Freeze the final
 		// text only after planning/acknowledgement, and estimate that same text.
 		snapshot := recalculatePreparedContext(&run.context, run.id, time.Now())

@@ -881,17 +881,19 @@ declare namespace NOEStdlib {
 
   type BlobPart = string | ArrayBuffer | ArrayBufferView | Blob;
   interface Blob { readonly size: number; readonly type: string; arrayBuffer(): Promise<ArrayBuffer>; bytes(): Promise<Uint8Array>; text(): Promise<string>; slice(start?: number, end?: number, type?: string): Blob; stream(): ReadableStream<Uint8Array> }
-  interface BlobConstructor { new(parts?: Iterable<BlobPart>, options?: {type?: string}): Blob }
+  interface BlobConstructor { new(parts?: Iterable<BlobPart> & object, options?: {type?: string; endings?: "transparent" | "native"}): Blob }
   interface File extends Blob { readonly name: string; readonly lastModified: number }
-  interface FileConstructor { new(parts: Iterable<BlobPart>, name: string, options?: {type?: string; lastModified?: number}): File }
+  interface FileConstructor { new(parts: Iterable<BlobPart> & object, name: string, options?: {type?: string; endings?: "transparent" | "native"; lastModified?: number}): File }
   type FormDataEntryValue = string | File;
   interface FormData extends Iterable<[string, FormDataEntryValue]> {
-    append(name: string, value: string | Blob, filename?: string): void;
+    append(name: string, value: string | Blob): void;
+    append(name: string, value: Blob, filename?: string): void;
     delete(name: string): void;
     get(name: string): FormDataEntryValue | null;
     getAll(name: string): FormDataEntryValue[];
     has(name: string): boolean;
-    set(name: string, value: string | Blob, filename?: string): void;
+    set(name: string, value: string | Blob): void;
+    set(name: string, value: Blob, filename?: string): void;
     entries(): IterableIterator<[string, FormDataEntryValue]>;
     keys(): IterableIterator<string>;
     values(): IterableIterator<FormDataEntryValue>;

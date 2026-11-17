@@ -92,3 +92,59 @@ are complete; release and executable placement remain separate work.
 
 Subsequent work is recorded in
 [conversation appends and incremental SSE assembly](agentlib-checkpoint-sse-optimization.md).
+
+## Revision-scoped preparation reuse — 2026-11-17
+
+Implemented locally on top of `3334012`. Managed context preparation now caches
+the measurement totals, protected/block weights and existing JSON digest for
+one authoritative conversation snapshot. Repeated preparation of that revision
+reuses those calculations, and matching managed model admission reuses its
+digest. This follows the existing immutable append protocol; it does not add a
+second transcript or change JSON representation, token rounding or image costs.
+
+The key includes snapshot identity and revision, owned exact tool bytes (with
+nil/empty collections distinguished), and copied image estimates. Appends,
+replacement/restore snapshots, tool changes and image-estimate changes miss.
+Explicit-message preparation retains its full validation and digest path.
+Successful explicit preparation, including trim acknowledgement, releases an
+obsolete cache. Run finish and task-outcome settlement release cache references
+so retained results do not pin an earlier transcript. Failed preparation does
+not install a newly computed entry.
+
+Lifecycle, image, notification, steering and trim gates remain in their original
+order. Model callbacks still receive request-owned bytes. Public APIs, provider
+payloads and dependencies are unchanged.
+
+`BenchmarkManagedContextPrepare` exercises the actual Host preparation operation
+with a warmed, fixed managed history and automatic trimming disabled. Before and
+after use the same benchmark scaffold; the baseline uses a Go overlay restoring
+the pre-change preparation/admission sources. The values below are medians of
+five 1-second runs with `-cpu=1` on Go 1.27.2, Linux amd64,
+Intel Core i9-13900HX.
+
+The benchmark commands inherited CGO/GOFLAGS settings; their historical values
+were not recorded. Both sides used the same inherited environment.
+
+| History | Time before | Time after | Allocated bytes before | Allocated bytes after |
+| --- | ---: | ---: | ---: | ---: |
+| 4 x 4 KiB | 99.4 us | 42.3 us | 42,603 | 39,896 |
+| 256 x 4 KiB | 4.69 ms | 1.35 ms | 1,574,031 | 1,449,666 |
+| 2 x 512 KiB | 4.21 ms | 1.04 ms | 4,271,446 | 1,090,741 |
+
+The many-message case reduces preparation time by about 71%. These measurements
+cover repeated cache-hit preparation, including the remaining Host work; a new
+revision still requires a fresh analysis. They exclude model/network latency,
+provider request construction and end-to-end multi-agent scheduling. Allocated
+bytes are cumulative allocations, not retained heap or RSS. The earlier
+`BenchmarkContextHistory` measures lower-level helpers and is not the direct
+before comparator for this result.
+
+Focused regressions cover reuse, equivalent numeric revisions with different
+snapshot identities, changed tools/images, zero-valued map keys, caller mutation,
+explicit-message admission, failed preparation, trim and run completion. Bounded
+review identified obsolete-snapshot retention and a benchmark fixture cleanup
+defect; both were corrected before final validation and measurement.
+
+Cache evidence: `/var/tmp/noe-context-cache-rQlzrH`. Shared verification with
+the Blob/FormData slice is recorded in the
+[session handoff](stdlib-handoff.md#current-continuation--binary-data-contracts-and-context-analysis-reuse).

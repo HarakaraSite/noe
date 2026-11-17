@@ -106,6 +106,7 @@ type contextRunState struct {
 	baseMessagesBytes      int
 	baseMessageCount       int
 	toolsBytes             int
+	analysisCache          *managedContextAnalysisCache
 	prepared               bool
 }
 

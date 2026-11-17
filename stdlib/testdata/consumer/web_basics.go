@@ -8,7 +8,20 @@ import (
 )
 
 func webBasics(ctx context.Context) error {
-	child := `import {parentPort} from "node:worker_threads";
+	const binaryForms = `
+{
+ let refused=false;try{new Blob("text");}catch(error){refused=error instanceof TypeError;}
+ if(!refused)throw Error("bare Blob string accepted");
+ const source=new Uint8Array([65,66]),blob=new Blob([source]),copy=new Blob([blob]);source.fill(88);
+ if(await copy.slice(1).text()!=="B")throw Error("Blob snapshot ownership");
+ const form=new FormData();form.append("a","1");form.append("b","2");form.append("c","3");
+ const iterator=form.entries();iterator.next();form.delete("b");
+ if(Array.from(iterator).map(entry=>entry[0]).join()!=="c")throw Error("live FormData delete");
+ refused=false;try{form.append("file","text","name.txt");}catch(error){refused=error instanceof TypeError;}
+ if(!refused)throw Error("filename without Blob accepted");
+}
+`
+	child := binaryForms + `import {parentPort} from "node:worker_threads";
 if(performance.getEntries().length!==0)throw Error("inherited timeline");
 const bytes=new Uint8Array(1), encoded=new TextEncoder().encodeInto("あ",bytes);
 if(encoded.read!==0||encoded.written!==0)throw Error("partial UTF-8 write");
@@ -153,7 +166,7 @@ const worker=new Worker(%q,{eval:true,type:"module"});
 const result=await new Promise((resolve,reject)=>{worker.once("message",resolve);worker.once("error",reject)});
 await worker.terminate();
 if(result.detail!=="worker"||result.type!=="mark"||result.entries!==1||performance.getEntriesByName("child").length!==0)throw Error("Worker Web APIs");`, child)
-	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[public Web API basics consumer]", Virtual: true, Module: true, Code: code},
+	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[public Web API basics consumer]", Virtual: true, Module: true, Code: binaryForms + code},
 		stdlib.Profile{Modules: stdlib.Modules{Workers: &stdlib.WorkerOptions{Max: 1}}})
 	if err != nil {
 		return fmt.Errorf("Web API basics consumer: %s", stdlib.Diagnostic(err))

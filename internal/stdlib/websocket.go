@@ -71,6 +71,11 @@ func Sockets(rt *quickjs.Runtime, cfg *WebSockets) (map[string]quickjs.Value, er
 	h := &wsHost{rt: rt, cfg: cfg, pending: map[string]*socket{}}
 
 	host := rt.NewObject()
+	if err := host.Set("binaryData", func(value quickjs.Value, operation string) (any, error) {
+		return binaryData(rt, value, operation)
+	}); err != nil {
+		return nil, err
+	}
 	if err := setAll(host, map[string]any{
 		"connect": h.connect,
 		"reserve": h.reserve,
@@ -1014,7 +1019,8 @@ const webSocketJS = `(function (host) {
       if (this.readyState !== OPEN) return;
       // NOE's Blob stores its immutable bytes synchronously. The native queue
       // snapshots them, preserving message order alongside text/buffer sends.
-      this._handle.send(typeof Blob !== "undefined" && data instanceof Blob ? data._bytes : data);
+      const blob = host.binaryData(data, "copy");
+      this._handle.send(blob ? blob.bytes : data);
     }
 
     close(code, reason) {

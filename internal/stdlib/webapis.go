@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"runtime"
 	"time"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
@@ -41,6 +42,13 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 	host := rt.NewObject()
 	if err := setAll(host, map[string]any{
 		"webcrypto": webcryptoNative,
+		"nativeEOL": func() string {
+			if runtime.GOOS == "windows" {
+				return "\r\n"
+			}
+			return "\n"
+		}(),
+		"bindBinaryData": func(callback quickjs.Value) { bindBinaryData(rt, callback) },
 		"now": func() float64 {
 			return float64(time.Since(started).Nanoseconds()) / 1e6
 		},
@@ -139,7 +147,7 @@ func decodeBase64Loosely(s string) ([]byte, error) {
 
 // webAPIsJS is everything above that is better said in script: the interfaces,
 // their getters and setters, and the parsing.
-const webAPIsJS = `(function (host) {
+var webAPIsJS = `(function (host) {
   "use strict";
 
   // --- Text ---------------------------------------------------------------
@@ -680,130 +688,7 @@ const webAPIsJS = `(function (host) {
     return {query, hash};
   }
 
-  // --- Blob and FormData ---------------------------------------------------
-
-  // A Blob is bytes with a type. It is not a file on a disk and never becomes
-  // one: what is here is the part of it a program uses to move bytes around --
-  // building them out of pieces, cutting them up, and handing them to a
-  // request or a response.
-  const bytesOfPart = (part) => {
-    if (part instanceof Blob) return part._bytes;
-    if (part instanceof Uint8Array) return part;
-    if (ArrayBuffer.isView(part)) {
-      return new Uint8Array(part.buffer, part.byteOffset, part.byteLength);
-    }
-    if (part instanceof ArrayBuffer) return new Uint8Array(part);
-    return new TextEncoder().encode(String(part));
-  };
-
-  function joinBytes(pieces) {
-    let total = 0;
-    for (const p of pieces) total += p.length;
-    const out = new Uint8Array(total);
-    let at = 0;
-    for (const p of pieces) { out.set(p, at); at += p.length; }
-    return out;
-  }
-
-  // blobs are the Blobs this runtime made, which clone as Blobs.
-  const blobs = new WeakSet();
-
-  class Blob {
-    constructor(parts = [], options = {}) {
-      host.cloneAs(this, "host");
-      blobs.add(this);
-      const pieces = [];
-      for (const part of parts) pieces.push(bytesOfPart(part));
-      Object.defineProperty(this, "_bytes", {value: joinBytes(pieces)});
-      Object.defineProperty(this, "_type", {value: String((options && options.type) || "").toLowerCase()});
-    }
-    // What a Blob is lives in it, not in properties of its own, as in Node:
-    // Object.keys and a clone see none.
-    get type() { return this._type; }
-    get [Symbol.toStringTag]() { return "Blob"; }
-    get size() { return this._bytes.length; }
-    async text() { return new TextDecoder().decode(this._bytes); }
-    async bytes() { return this._bytes.slice(); }
-    async arrayBuffer() {
-      const b = this._bytes;
-      return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
-    }
-    slice(start = 0, end = this.size, type = "") {
-      return new Blob([this._bytes.slice(start, end)], {type});
-    }
-    stream() {
-      if (typeof ReadableStream === "undefined") {
-        throw new TypeError("this runtime has no streams");
-      }
-      return ReadableStream.from([this._bytes.slice()]);
-    }
-  }
-
-  // A File is a Blob with a name, which is what a form sends and what a
-  // program reading one asks for.
-  class File extends Blob {
-    constructor(parts, name, options = {}) {
-      super(parts, options);
-      Object.defineProperty(this, "_name", {value: String(name)});
-      Object.defineProperty(this, "_lastModified", {value: options && options.lastModified !== undefined
-        ? Number(options.lastModified) : Date.now()});
-    }
-    get name() { return this._name; }
-    get lastModified() { return this._lastModified; }
-    get [Symbol.toStringTag]() { return "File"; }
-  }
-
-  // FormData keeps its entries in order and allows a name more than once,
-  // which is the whole reason it is not an object.
-  class FormData {
-    constructor() {
-      host.cloneAs(this, "unsupported");
-      Object.defineProperty(this, "_entries", {value: [], writable: true});
-    }
-    append(name, value, filename) {
-      this._entries.push([String(name), wrapEntry(value, filename)]);
-    }
-    set(name, value, filename) {
-      const key = String(name);
-      const at = this._entries.findIndex(e => e[0] === key);
-      const entry = [key, wrapEntry(value, filename)];
-      if (at < 0) this._entries.push(entry);
-      else {
-        this._entries[at] = entry;
-        this._entries = this._entries.filter((e, i) => i <= at || e[0] !== key);
-      }
-    }
-    get(name) {
-      const found = this._entries.find(e => e[0] === String(name));
-      return found ? found[1] : null;
-    }
-    getAll(name) {
-      return this._entries.filter(e => e[0] === String(name)).map(e => e[1]);
-    }
-    has(name) { return this._entries.some(e => e[0] === String(name)); }
-    delete(name) {
-      this._entries = this._entries.filter(e => e[0] !== String(name));
-    }
-    *entries() { for (const e of this._entries) yield [e[0], e[1]]; }
-    *keys() { for (const e of this._entries) yield e[0]; }
-    *values() { for (const e of this._entries) yield e[1]; }
-    [Symbol.iterator]() { return this.entries(); }
-    forEach(fn, thisArg) {
-      for (const [k, v] of this._entries) fn.call(thisArg, v, k, this);
-    }
-  }
-
-  // A value that is not a Blob is text; one that is, and is given a name,
-  // becomes a File, since that is what the other end will see.
-  function wrapEntry(value, filename) {
-    if (value instanceof Blob) {
-      if (filename === undefined) {
-        return value instanceof File ? value : new File([value], "blob", {type: value.type});
-      }
-      return new File([value], String(filename), {type: value.type});
-    }
-    return String(value);
-  }
+  const {Blob, File, FormData, blobState, fileState} = (` + blobFormDataJS + `)(host, webDOMString, TextEncoder, TextDecoder);
 
   // --- URL ----------------------------------------------------------------
 
@@ -2201,10 +2086,10 @@ const webAPIsJS = `(function (host) {
   function hostKind(v) {
     const id = portIds.get(v);
     if (id !== undefined) return ["port", id];
-    if (blobs.has(v)) {
+    if (blobState(v) !== undefined) {
       // A File is a Blob with a name and a date, which it keeps.
-      const file = v instanceof File;
-      return ["blob", v._bytes, v.type, file, file ? v.name : "", file ? v.lastModified : 0];
+      const blob = blobState(v), file = fileState(v);
+      return ["blob", blob.bytes, blob.type, file !== undefined, file === undefined ? "" : file.name, file === undefined ? 0 : file.lastModified];
     }
     const d = domState.get(v);
     if (d !== undefined) {

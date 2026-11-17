@@ -1,12 +1,79 @@
 # Standard library session handoff
 
-Updated 2026-11-17 after local async-iterator and Chat observation corrections,
-on top of the published and installed v2.27.0 release.
+Updated 2026-11-17 after local Blob/File/FormData corrections and managed
+context-analysis reuse, on top of `3334012` and installed v2.27.0.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. WebSocket continuation remains
 deferred. Linked implementation and release records remain canonical.
 
-## Current continuation — stream iteration and reasoning observations
+## Current continuation — binary data contracts and context analysis reuse
+
+The user approved both medium-sized improvements. Blob/File/FormData now use
+private native data, normalize their supported Web inputs and preserve live
+FormData iteration. Derived Blobs, byte-range slices and renamed Files share
+immutable backing storage; author-visible reads and stream chunks receive
+independent bytes. Fetch, multipart, WebSocket and structured cloning use the
+private data path. Blob streams copy at demand in chunks of at most 64 KiB;
+this chunk size is an implementation choice, not a caller-visible guarantee.
+
+Compatibility: replace bare `new Blob(text)` with `new Blob([text])`. Filename
+arguments to FormData append/set require a Blob even when the third argument
+is undefined. File requires parts and name; text/name conversions follow Web
+IDL, MIME types use printable ASCII, and native text endings are explicit.
+Internal properties named `_bytes`, `_type` or `_entries` no longer supply
+native state. No compatibility adapter is added. Examples, hidden JS sources
+and the clean local noebot checkout were checked; its photo upload already
+uses a Blob plus filename and needs no migration or deployment change.
+
+The [embedded reference](../../internal/apidocs/content/stdlib-globals.md#blob),
+public TypeScript overloads, main/Worker fixtures and external stdlib consumer
+cover the contracts. Node comparison confirms the initial parts-sequence,
+MIME-type, filename-overload and live-delete reproductions. File argument
+conversion order and integral lastModified follow Web IDL/File API where the
+checked Node v24.21.0 implementation differs. Private codec-hook and native
+body-extraction tests check NOE's ownership contract rather than treating Node
+as an exact oracle for every implementation detail.
+
+With a 1 MiB existing Blob, the derived-data benchmarks have these medians
+(three 200 ms runs, Go 1.27.2, Linux amd64, CGO disabled, `-cpu=1`):
+
+| Operation | Time before | Time after | Allocated bytes before | Allocated bytes after |
+| --- | ---: | ---: | ---: | ---: |
+| `new Blob([blob])` | 13.88 ms | 6.68 us | 17,827,663 | 2,705 |
+| `blob.slice(1, size - 1)` | 23.76 ms | 6.60 us | 18,877,506 | 2,254 |
+| FormData filename wrapping | 13.43 ms | 8.90 us | 17,830,379 | 2,975 |
+
+Before and after use the same operation and benchmark; a Go overlay restores
+the pre-change Web API implementation for the baseline. Allocated bytes are
+cumulative Go heap allocation per operation, not RSS or retained memory.
+Immutable backing remains reachable through derived values: a small slice can
+retain the larger original allocation. Reading bytes still copies storage.
+
+The [agent optimization record](agentlib-optimization.md#revision-scoped-preparation-reuse--2026-11-17)
+describes the one-entry run-owned analysis cache. Snapshot identity/revision,
+owned tools and image estimates form the key. Unmanaged input still receives
+full validation. Trim and run completion drop obsolete references; borrowed
+model callbacks retain request-owned input. Cache-hit preparation of 256 x 4 KiB
+messages measures 4.69 ms before and 1.35 ms after, excluding model/network time.
+
+Blob evidence and shared verification: `/var/tmp/noe-binary-forms-h0lav1qm`.
+Cache evidence: `/var/tmp/noe-context-cache-rQlzrH`. Whole-tree unit/E2E, focused
+cache/Blob race checks, vet, TypeScript fixtures, JS lint, the embedded API
+catalog, and separate checkout/artifact stdlib and agent consumers pass.
+Agent consumers exercise portable and Go-host modes. Source/dependency hashes,
+check descriptions and logs are recorded in the shared evidence directory's
+`verification.json`; reuse completed checks while those sources match.
+
+During test development, a combined Worker script nesting all contract groups
+inside separate async IIFEs triggered a go-quickjs v0.38.0 internal index panic
+(`after-contracts.log`). The final main/Worker tests evaluate each group as its
+own module and pass. No engine fix or dependency change is claimed by this slice.
+
+Both local improvements and verification are complete. No commit, publication,
+installation or live provider call is included in this continuation. Installed
+executables remain v2.27.0.
+
+## Previous continuation — stream iteration and reasoning observations
 
 The user approved both reproduced corrections. ReadableStream async iteration
 now releases its reader on EOF and read errors. Early return releases the lock

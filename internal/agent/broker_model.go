@@ -74,6 +74,7 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		h.mu.Unlock()
 		return modelResponse{}, newOperationError(http.StatusConflict, "model_step", "model request does not match the active logical step")
 	}
+	var managedConversation *conversationSnapshot
 	if request.HistoryRevision != 0 {
 		conversation, err := conversationAtRevisionLocked(run, request.HistoryRevision)
 		if err != nil {
@@ -84,6 +85,7 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 			h.mu.Unlock()
 			return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "model context has not been prepared")
 		}
+		managedConversation = conversation
 		// Model services are borrowed callbacks. Give them request-owned bytes so
 		// retaining or modifying a request cannot mutate the authoritative history.
 		request.Messages = conversation.messages()
@@ -101,9 +103,22 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 			h.mu.Unlock()
 			return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "context trim has not been acknowledged")
 		}
-		if run.context.finalPrepared && (len(request.Messages) < 2 || contextHistoryDigest(request.Messages[:len(request.Messages)-1], request.Tools) != run.context.preparedDigest) {
-			h.mu.Unlock()
-			return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "model transcript differs from prepared context")
+		if run.context.finalPrepared {
+			matchesPrepared := len(request.Messages) >= 2
+			if matchesPrepared {
+				preparedDigest, reused := "", false
+				if managedConversation != nil {
+					preparedDigest, reused = run.context.analysisCache.digestFor(managedConversation, request.Tools, run.context.imageEstimates)
+				}
+				if !reused {
+					preparedDigest = contextHistoryDigest(request.Messages[:len(request.Messages)-1], request.Tools)
+				}
+				matchesPrepared = preparedDigest == run.context.preparedDigest
+			}
+			if !matchesPrepared {
+				h.mu.Unlock()
+				return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "model transcript differs from prepared context")
+			}
 		}
 		if notice := run.context.preparedNotification; notice != nil {
 			if !notice.matches(request.Messages) {

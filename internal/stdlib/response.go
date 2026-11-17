@@ -39,8 +39,7 @@ const responseJS = `
   function responseBody(value) {
     if (value === null || value === undefined) return null;
     if (isStream(value) || value instanceof ArrayBuffer || ArrayBuffer.isView(value) ||
-        (typeof Blob !== "undefined" && value instanceof Blob) ||
-        (typeof FormData !== "undefined" && value instanceof FormData) ||
+        host.binaryData(value, "is") ||
         (typeof URLSearchParams !== "undefined" && value instanceof URLSearchParams)) return value;
     return requestUSVString(value);
   }
@@ -48,9 +47,10 @@ const responseJS = `
   function responseState(body, init, json = false) {
     const inferred = new Headers();
     if (isStream(body) && (body.locked || body._disturbed)) throw new TypeError("Response body must be unused and unlocked");
-    let source = encodeBody(body, inferred);
+    const extracted = encodeBody(body, inferred);
+    let source = extracted.source;
     // Extracting a BufferSource takes a snapshot at construction time.
-    if (source !== null && !isStream(source)) source = new Uint8Array(source);
+    if (source !== null && !extracted.owned && !isStream(source)) source = new bodyByteArray(source);
     if (init.status < 200 || init.status > 599) throw new RangeError("Response status must be between 200 and 599");
     if (/[^\t\x20-\x7e\x80-\xff]/.test(init.statusText)) throw new TypeError("Invalid Response statusText");
     const headers = new Headers(init.headers);

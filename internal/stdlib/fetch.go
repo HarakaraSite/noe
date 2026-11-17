@@ -82,6 +82,11 @@ func Network(rt *quickjs.Runtime, cfg *Fetch) error {
 	}
 
 	host := rt.NewObject()
+	if err := host.Set("binaryData", func(value quickjs.Value, operation string) (any, error) {
+		return binaryData(rt, value, operation)
+	}); err != nil {
+		return err
+	}
 	if err := host.Set("teeBody", func(stream quickjs.Value) (quickjs.Value, error) {
 		return teeBody(rt, stream)
 	}); err != nil {
@@ -613,6 +618,7 @@ const fetchJS = `(function (host) {
     typeof ReadableStream !== "undefined" && v instanceof ReadableStream;
 
   const requestApply = Reflect.apply, requestString = String;
+  const bodyByteArray = Uint8Array, bodyByteSet = Uint8Array.prototype.set;
   const requestWellFormed = String.prototype.toWellFormed;
   const requestSlots = new WeakMap();
   const incomingRequestToken = {};
@@ -802,9 +808,8 @@ const fetchJS = `(function (host) {
       const method = options.method === undefined ? (from ? original.method : "GET") : internal ? options.method : requestMethod(options.method);
       const headers = new Headers(options.headers || (from ? requestApply(requestGet, bodyHeaders, [from]) : undefined));
       const replacement = options.body !== undefined && options.body !== null;
-      let body = replacement
-        ? encodeBody(options.body, headers)
-        : (from ? bodyStream(from) : null);
+      const extracted = replacement ? encodeBody(options.body, headers) : null;
+      let body = replacement ? extracted.source : (from ? bodyStream(from) : null);
       const inherited = from && !replacement && body !== null && body !== undefined;
       if ((inherited && bodyUnusable(from)) || (isStream(body) && (body.locked || body._disturbed))) throw new TypeError("The body is locked or has already been read");
       if ((method === "GET" || method === "HEAD") && body !== null && body !== undefined) {
@@ -814,7 +819,7 @@ const fetchJS = `(function (host) {
         const originalStream = body;
         body = transferStream(body);
         originalStream._disturbed = true;
-      } else if (body !== null && !isStream(body)) body = new Uint8Array(body);
+      } else if (body !== null && (!extracted || !extracted.owned) && !isStream(body)) body = new bodyByteArray(body);
       super(body, headers, inherited ? from._bytes : internal ? knownBytes : undefined);
       requestApply(requestSet, requestSlots, [this, {url, method}]);
       this.signal = options.signal || (from ? from.signal : undefined);
@@ -851,11 +856,12 @@ const fetchJS = `(function (host) {
     for (const [name, value] of form) {
       let head = "--" + boundary + CRLF +
         'content-disposition: form-data; name="' + escapeField(name) + '"';
-      if (value instanceof Blob) {
-        const filename = value.name === undefined ? "blob" : value.name;
+      const blob = host.binaryData(value, "copy");
+      if (blob) {
+        const filename = blob.name;
         head += '; filename="' + escapeField(filename) + '"' + CRLF;
-        head += "content-type: " + (value.type || "application/octet-stream") + CRLF + CRLF;
-        pieces.push(enc.encode(head), value._bytes, enc.encode(CRLF));
+        head += "content-type: " + (blob.type || "application/octet-stream") + CRLF + CRLF;
+        pieces.push(enc.encode(head), blob.bytes, enc.encode(CRLF));
       } else {
         head += CRLF + CRLF;
         pieces.push(enc.encode(head), enc.encode(multipartText(value)), enc.encode(CRLF));
@@ -864,9 +870,9 @@ const fetchJS = `(function (host) {
     pieces.push(enc.encode("--" + boundary + "--" + CRLF));
     let total = 0;
     for (const p of pieces) total += p.length;
-    const out = new Uint8Array(total);
+    const out = new bodyByteArray(total);
     let at = 0;
-    for (const p of pieces) { out.set(p, at); at += p.length; }
+    for (const p of pieces) { requestApply(bodyByteSet, out, [p, at]); at += p.length; }
     return out;
   }
 
@@ -954,38 +960,40 @@ const fetchJS = `(function (host) {
 
   // A body given as text becomes bytes, and says what it is unless told.
   function encodeBody(body, headers) {
-    if (body === null || body === undefined) return null;
-    if (typeof FormData !== "undefined" && body instanceof FormData) {
+    if (body === null || body === undefined) return {source: null, owned: true};
+    const form = host.binaryData(body, "form");
+    if (form) {
       // The boundary has to be something the body does not contain, which is
       // what makes a random one the right kind of guess.
       const boundary = "----quickjs" + randomTag();
       if (!headers.has("content-type")) {
         headers.set("content-type", "multipart/form-data; boundary=" + boundary);
       }
-      return encodeMultipart(body, boundary);
+      return {source: encodeMultipart(form, boundary), owned: true};
     }
-    if (typeof Blob !== "undefined" && body instanceof Blob) {
-      if (!headers.has("content-type") && body.type) headers.set("content-type", body.type);
-      return body._bytes;
+    const blob = host.binaryData(body, "copy");
+    if (blob) {
+      if (!headers.has("content-type") && blob.type) headers.set("content-type", blob.type);
+      return {source: blob.bytes, owned: true};
     }
     // A stream is passed through: what it will carry is not known yet, and
     // guessing a content type from nothing is worse than leaving it out.
-    if (isStream(body)) return body;
-    if (body instanceof Uint8Array) return body;
+    if (isStream(body)) return {source: body, owned: true};
+    if (body instanceof Uint8Array) return {source: body, owned: false};
     if (ArrayBuffer.isView(body)) {
-      return new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+      return {source: new bodyByteArray(body.buffer, body.byteOffset, body.byteLength), owned: false};
     }
-    if (body instanceof ArrayBuffer) return new Uint8Array(body);
+    if (body instanceof ArrayBuffer) return {source: new bodyByteArray(body), owned: false};
     if (body instanceof URLSearchParams) {
       if (!headers.has("content-type")) {
         headers.set("content-type", "application/x-www-form-urlencoded;charset=UTF-8");
       }
-      return new TextEncoder().encode(body.toString());
+      return {source: new TextEncoder().encode(body.toString()), owned: true};
     }
     if (!headers.has("content-type")) {
       headers.set("content-type", "text/plain;charset=UTF-8");
     }
-    return new TextEncoder().encode(String(body));
+    return {source: new TextEncoder().encode(String(body)), owned: true};
   }
 
   function randomTag() {

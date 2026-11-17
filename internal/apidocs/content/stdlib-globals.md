@@ -394,6 +394,46 @@ padding, ignores preamble/epilogue, and preserves part order, duplicate names an
 file trailing line breaks. Full MIME header parsing and field-name/filename
 escaping remain outside this scoped correction.
 
+## Blob
+
+`new Blob(parts?, {type?, endings?})` snapshots an iterable object containing
+strings, BufferSources and other Blobs. A bare string is not a parts sequence;
+use `new Blob([text])`. Text uses UTF-8 with unmatched surrogates replaced.
+The type is lowercased ASCII; characters outside printable ASCII make it empty.
+`endings` is `"transparent"` by default or `"native"` for platform line endings
+in string parts. Binary parts retain their bytes.
+
+`size` and `type` are readonly. `bytes()`, `arrayBuffer()` and `text()` return
+promises. Every byte result and stream chunk has independent storage.
+`slice(start?, end?, type?)` returns an immutable byte range, and `stream()`
+copies chunks on demand. Derived Blobs may share private immutable backing
+storage; a small slice can therefore retain the original allocation. Blob
+construction grants no filesystem access.
+
+## File
+
+`new File(parts, name, {type?, endings?, lastModified?})` creates a Blob with
+readonly `name` and `lastModified`. Parts and name are required; name uses
+Unicode scalar-value conversion. The last-modified time is an integer in
+milliseconds and defaults to the current time. Structured cloning and Worker
+messages preserve File bytes and metadata in NOE.
+
+## FormData
+
+`new FormData()` creates an ordered list with duplicate names. HTML form
+elements are not available in this host. `append(name, value)` and
+`set(name, value)` accept text or a Blob. A third `filename` argument requires
+a Blob, including when the supplied third argument is undefined. Existing
+Files keep their identity without a rename; renamed Files keep their bytes,
+type and last-modified time.
+
+`get`, `getAll`, `has` and `delete` require a name. Names and text values use
+Unicode scalar-value conversion. `entries`, `keys`, `values`, iteration and
+`forEach` observe additions, replacements and deletions as iteration advances.
+Entries and Blob storage are private; editing properties named `_entries` or
+`_bytes` does not change the native data. Fetch serializes the native entry
+list, including when an author overrides the object's iterator.
+
 ## EventSource
 
 Syntax: `new EventSource(url, {withCredentials: false})`. EventSource receives

@@ -396,3 +396,11 @@ performance.measure("invalid", {start: 1}, "end");
 new PerformanceMark("readonly").startTime = 2;
 // @ts-expect-error encodeInto requires a Uint8Array destination.
 new TextEncoder().encodeInto("a", new Uint16Array(1));
+// @ts-expect-error Blob parts must be an iterable object, not a bare string.
+new Blob("text");
+// @ts-expect-error File parts must be an iterable object.
+new File("text", "data.txt");
+// @ts-expect-error Filename is only supported for Blob values.
+new FormData().append("upload", "text", "data.txt");
+// @ts-expect-error An explicit third argument still requires Blob values.
+new FormData().set("upload", "text", undefined);
