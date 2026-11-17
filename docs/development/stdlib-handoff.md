@@ -1,12 +1,36 @@
 # Standard library session handoff
 
-Updated 2026-11-17 for v2.28.0 release preparation. SQLite row iteration is
-committed as `aa79508`; the installed executables remain v2.27.0 until
-publication verification completes. Blob/File/FormData corrections and managed
-context-analysis reuse were committed and pushed as `e2c8cfc`.
+Updated 2026-11-17 after v2.28.0 publication and installation. SQLite row
+iteration is committed as `aa79508`; the release tag points to `4d72c30`.
+Blob/File/FormData corrections and managed context-analysis reuse are included
+from `e2c8cfc`. Both local executables now run v2.28.0.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. WebSocket continuation remains
 deferred. Linked implementation and release records remain canonical.
+
+## Current release — v2.28.0 published and installed
+
+The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.28.0) is published, neither draft nor prerelease,
+and its [workflow](https://forge.harakara.site/littleisland/noe/actions/runs/68) succeeded. Annotated tag v2.28.0 points to
+`4d72c30ce98e15cc49fd9caee45dd67aceac8143`. All six binaries and SHA256SUMS were downloaded and
+verified against the immutable revision and build metadata. Eight native
+checks cover version, arithmetic, help, engine/EOL behavior, SQLite iteration
+and cancellation rollback, Blob/FormData, and a local model/tool cycle.
+Direct stdlib/agent consumers pass eleven checks without module replacements
+or a synthetic proxy, including portable and Go-host modes; all 32 changed
+source paths match the tag in both modules. No live provider request occurred.
+
+After publication verification, the native asset was installed atomically at
+`/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`. Both hashes and
+versions match the published asset, and PATH resolves to the former. Native
+SHA256: `b8ab6ea62380ce24020fd27dc7a8e2873a0b4b67bfa8920152dfc71e5f0c3ad3`.
+Prior v2.27.0 binaries are retained at `/var/tmp/noe-v2.28.0-install-vr5mw9e7`.
+Runtime verification is reused for the identical installed asset. Running
+services, noebot, and other hosts were not changed.
+
+Evidence: `/var/tmp/noe-v2.28.0-release-pxlju_92` and the
+[publication record](../releases/release-checkpoints.md#v2280-publication-and-installation--2026-11-17).
+Implementation checks remain reusable while their source hashes match.
 
 ## Current continuation — SQLite row iteration
 
@@ -44,11 +68,10 @@ behavior uses the existing runtime and no provider changes are included.
 Evidence: `/var/tmp/noe-sqlite-iterate-u1jr3bxw` and native cursor checks/
 benchmarks in `/var/tmp/noe-sqlite-cursor-yk8oNw`. The verification record
 tracks source hashes so completed checks can be reused for unchanged source.
-The user authorized committing and releasing the completed work. Version
-v2.28.0 includes this slice and the earlier stream, binary-data, reasoning,
-and context-cache changes. Publication and installation status are recorded
-in the [release checkpoints](../releases/release-checkpoints.md#v2280-preparation--2026-11-17).
-No live provider request is required.
+Version v2.28.0 includes this slice and the earlier stream, binary-data,
+reasoning, and context-cache changes. Publication and both local installations
+are complete; see the [release checkpoints](../releases/release-checkpoints.md#v2280-publication-and-installation--2026-11-17).
+No required release or installation work remains.
 
 ## Previous continuation — binary data contracts and context analysis reuse
 
@@ -148,7 +171,7 @@ consumers exercise portable and Go-host modes. Evidence and source hashes:
 for unchanged sources. No live provider request, release or executable
 replacement was performed; installed binaries remain v2.27.0.
 
-## Current release — v2.27.0 published and installed
+## Previous release — v2.27.0 published and installed
 
 The user authorized committing and releasing the completed work. Fast-mode
 documentation is committed as `0add3b1`; engine integration is `60bc1b7`.

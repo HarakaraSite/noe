@@ -4860,3 +4860,60 @@ without repeating implementation tests. Publication verification precedes
 retaining and atomically installing the verified native asset at both
 authorized vm201 executable paths. No running-service restart or noebot change
 is included.
+
+## v2.28.0 publication and installation — 2026-11-17
+
+- Annotated tag v2.28.0 points to `4d72c30ce98e15cc49fd9caee45dd67aceac8143`,
+  matching the peeled remote tag and CI source. Tag object:
+  `ec2e624b433f0b3c936caeb14d9291ab985442e5`. The clean native candidate uses this revision with
+  vcs.modified=false.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/68) succeeded
+  (API 249, job 270), building six binaries and SHA256SUMS without repeating
+  implementation tests.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.28.0)
+  is published, neither draft nor prerelease (ID 182), with the
+  exact tagged English notes.
+
+All seven assets were downloaded. The six binaries match SHA256SUMS, the
+immutable revision, vcs.modified=false, target OS/architecture, Go 1.27.2,
+CGO_ENABLED=0, trimpath, go-quickjs v0.38.0 and its checksum, go-intl v0.9.0,
+pinned provider/native dependencies, and disabled JIT. Native Linux amd64
+SHA256: `b8ab6ea62380ce24020fd27dc7a8e2873a0b4b67bfa8920152dfc71e5f0c3ad3`.
+Other targets were not executed natively.
+
+The clean candidate and published native asset each pass eight targeted
+checks: version, arithmetic, help, the captured-loop compiler regression,
+os/node:os EOL, SQLite iteration/statement reuse/cancelled-transaction rollback,
+Blob/FormData behavior, and a two-request loopback agent/tool cycle. The tool
+executes SQLite iteration in run_js and verifies the built-in JavaScript
+instructions with --no-inst and explicit system text. No live provider request
+occurred.
+
+Direct stdlib@v2.28.0 and agent@v2.28.0 consumers fetch without replacements or
+a synthetic proxy. All eleven checks pass, including module integrity,
+SQLite iteration and prepared cleanup, portable/Go-host execution, pinned SDK
+selection, and disabled JIT. All 32 changed Go/JS/TS source paths match the tag
+in both downloaded modules; nested-module exclusions are verified.
+
+Implementation checks are reused from the preparation record after matching
+source/dependency hashes. The only post-verification runtime edit is the CLI
+default version, checked as an exact version-only replacement and by the
+configured-version unit. No full unit/E2E/race suite, long-wait check, dependency
+refresh, or local six-target build was repeated for release preparation.
+
+After publication verification, the previous executables were retained and
+the verified native asset was staged and atomically installed at:
+
+- `/home/agent/.local/bin/noe`, which PATH resolves to.
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report noe v2.28.0 and match the published SHA256. Installed hash, version,
+and PATH checks pass. Runtime verification is reused for the identical asset.
+Previous v2.27.0 copies, SHA256
+`67f729c9e13f38c4c5a6b1f1514f109d0575a10a4b055dbf1eec387955673591`,
+are retained at `/var/tmp/noe-v2.28.0-install-vr5mw9e7`, with installation.json.
+Release evidence: `/var/tmp/noe-v2.28.0-release-pxlju_92`.
+
+Publication and both installations are complete. No required release or
+installation work remains. Other hosts, running services, and noebot were not
+changed. This record does not move the immutable release tag.
