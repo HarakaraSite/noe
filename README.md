@@ -39,7 +39,11 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.26.1 release notes](docs/releases/v2.26.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.26.1)
+[v2.27.0 release notes](docs/releases/v2.27.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.27.0)
+
+v2.27.0 updates go-quickjs to v0.38.0 with JIT disabled, incorporates compiler
+and parser fixes, and makes `os.EOL` return CRLF on Windows and LF elsewhere.
+See the release notes for behavior changes and verification.
 
 v2.26.1 makes JavaScript the agent's primary programming language in the built-in
 instructions, including when external instructions are disabled. See the release

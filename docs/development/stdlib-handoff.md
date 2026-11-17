@@ -1,10 +1,23 @@
 # Standard library session handoff
 
-Updated 2026-11-17 after local go-quickjs v0.38.0 integration and the Windows
-OS line-ending correction.
+Updated 2026-11-17 during v2.27.0 release preparation after the go-quickjs v0.38.0
+integration and Windows OS line-ending correction.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. WebSocket continuation remains
 deferred. Linked implementation and release records remain canonical.
+
+## Release preparation — v2.27.0
+
+The user authorized committing and releasing the completed work. Fast-mode
+documentation is committed as `0add3b1`; engine integration is `60bc1b7`.
+The [release notes](../releases/v2.27.0.md), CLI default version, and release
+entry points now describe v2.27.0. The seven recorded implementation-source
+hashes match `/var/tmp/noe-quickjs-v0380-kjt3ylch/verification.json`; only the CLI
+version changes afterward. Reuse the completed source and dependency checks.
+
+Release evidence: `/var/tmp/noe-v2.27.0-release-rh8ai7_1`. The clean native
+candidate, immutable tag, CI publication, downloaded assets, direct published
+Go consumers, and both local installations are the remaining release steps.
 
 ## Current continuation — go-quickjs v0.38.0
 
