@@ -4949,3 +4949,63 @@ and atomic local installation are recorded after publication.
 CI builds six binaries and SHA256SUMS without repeating source checks.
 Publication verification precedes retaining and replacing both authorized
 local executables. Running-service restarts and noebot changes are separate.
+
+## v2.29.0 publication and installation — 2026-11-18
+
+- Annotated tag v2.29.0 points to `260c60a06f33c82aab779066a22c7402d0fded75`,
+  matching the peeled remote tag and CI source. Tag object:
+  `9c72eec1e444bcf8458cf90cf2cebdb225587d12`. The clean native candidate has
+  the same source revision and vcs.modified=false.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/69)
+  succeeded (API 250, job 271), building six binaries and SHA256SUMS without
+  repeating implementation checks.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.29.0)
+  is published, neither draft nor prerelease (ID 183), with the exact tagged
+  English notes.
+
+All seven assets were downloaded. Six binaries match SHA256SUMS, the immutable
+revision, vcs.modified=false, target OS/architecture, Go 1.27.2, CGO_ENABLED=0,
+trimpath, go-quickjs v0.38.0 and its checksum, go-intl v0.9.0, pinned
+provider/native dependencies, and disabled JIT. Native Linux amd64 SHA256:
+`a40bb121452cd6c9062bc1e9198b59b2fca18086c6e45c436ff9a10423796129`.
+Other target binaries were not executed natively.
+
+The clean candidate and downloaded native asset each pass six checks: version,
+arithmetic, help, managed openai-api WebSocket, managed openai-chatgpt WebSocket,
+and openai-api with explicit SSE configuration. Each transport fixture completes
+two generations around an actual run_js execution returning 42. WebSocket cases
+use one upgrade, no Responses POST, and exactly the new tool output/context
+notification in the second input. Custom and function run_js tools, configured
+endpoint/header policy, connection cleanup, and the SSE override are exercised.
+No paid provider request occurred during release verification.
+
+Direct stdlib@v2.29.0 and agent@v2.29.0 consumers fetch without replacements
+or a synthetic proxy. Eleven checks pass, including module integrity,
+portable/GoHost execution, managed WebSocket continuation with standalone SSE,
+pinned dependencies, and disabled JIT. All 24 changed source/configuration paths
+match the immutable tag in both downloaded modules; nested-module exclusions
+are preserved.
+
+All 918 final implementation source/dependency hashes matched before release
+edits; only the CLI default version changes afterward, verified as an exact
+replacement and by its configured-version unit. Broad unit/E2E/race/vet results
+are reused with the recorded final two-file handshake delta covered by focused
+race/vet and repeated external consumers. No full source suite, long-wait check,
+dependency refresh, or local six-target distribution build was repeated.
+
+After publication verification, previous executables were retained and the
+verified native asset was staged and atomically installed at:
+
+- `/home/agent/.local/bin/noe`, which PATH resolves to.
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report noe v2.29.0 and match the published SHA256. Installed hashes,
+versions, and PATH checks pass. Runtime verification is reused for the identical
+asset. Previous v2.28.0 copies, SHA256
+`b8ab6ea62380ce24020fd27dc7a8e2873a0b4b67bfa8920152dfc71e5f0c3ad3`,
+are retained at `/var/tmp/noe-v2.29.0-install-n_en9l0e`, with installation.json.
+Release evidence: `/var/tmp/noe-v2.29.0-release-zbxez98h`.
+
+Publication and both installations are complete. No required release or
+installation work remains. Other hosts, running services, and noebot were not
+changed. This record does not move the immutable release tag.

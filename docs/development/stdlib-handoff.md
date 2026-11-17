@@ -1,15 +1,50 @@
 # Standard library session handoff
 
-Updated 2026-11-18 during v2.29.0 release preparation. Managed Responses
-WebSocket implementation is committed as `7209bc4`. SQLite row
+Updated 2026-11-18 after v2.29.0 publication and local installation. Managed
+Responses WebSocket implementation is committed as `7209bc4`; the release tag
+points to `260c60a`. SQLite row
 iteration is committed as `aa79508`; the release tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
-from `e2c8cfc`. Both local executables now run v2.28.0.
+from `e2c8cfc`. Both local executables now run v2.29.0.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. Managed Responses WebSocket
-continuation is implemented locally for ChatGPT OAuth and API-key providers.
+continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
+
+## Current release — v2.29.0 published and installed
+
+The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.29.0)
+is published, neither draft nor prerelease, and its
+[workflow](https://forge.harakara.site/littleisland/noe/actions/runs/69) succeeded.
+Annotated tag v2.29.0 points to `260c60a06f33c82aab779066a22c7402d0fded75`.
+All six binaries and SHA256SUMS match the immutable revision, clean build
+metadata, target platforms, and pinned dependencies. Other targets were not
+executed natively.
+
+The clean candidate and downloaded Linux amd64 asset each pass six checks:
+version, arithmetic, help, managed API-key WebSocket, managed ChatGPT WebSocket,
+and explicit SSE configuration. Each transport case executes one real run_js
+tool and two local model generations; WebSocket cases use one connection and
+only new continuation input. No paid provider request was made for release.
+Direct published stdlib/agent consumers pass eleven checks without replacements
+or a synthetic proxy, including portable/GoHost execution. All 24 changed
+source/configuration paths match the tag in both downloaded modules.
+
+After publication verification, the native asset was installed atomically at
+`/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`. Both report
+noe v2.29.0 and match SHA256
+`a40bb121452cd6c9062bc1e9198b59b2fca18086c6e45c436ff9a10423796129`.
+PATH resolves to the former. Previous v2.28.0 copies are retained at
+`/var/tmp/noe-v2.29.0-install-n_en9l0e`. The identical asset's runtime results
+are reused after installation; installed hashes and versions were checked.
+
+Evidence: `/var/tmp/noe-v2.29.0-release-zbxez98h` and the
+[publication record](../releases/release-checkpoints.md#v2290-publication-and-installation--2026-11-18).
+Completed implementation evidence is reused after source-hash comparison;
+the only later runtime edit is the exact CLI version replacement. Publication
+and installation are complete. Running services, noebot, and other hosts were
+not changed. This documentation follow-up does not move the immutable tag.
 
 ## Current implementation — managed Responses WebSocket
 
@@ -39,11 +74,9 @@ and source hashes are recorded at `/var/tmp/noe-managed-websocket-nc1xtl0n`.
 See the [implementation record](agentlib-openai-websocket-idea.md#managed-run-implementation--2026-11-18)
 and [provider configuration](../providers.md#openai-responses-transport).
 
-The implementation slice changed no dependencies, public function signatures,
-installed executables, or services. The user subsequently authorized commit
-and release. v2.29.0 preparation reuses the completed evidence; installed
-executables remain v2.28.0 until publication verification and installation.
-Release evidence: `/var/tmp/noe-v2.29.0-release-zbxez98h`.
+The implementation slice changed no dependencies or public function signatures.
+The user subsequently authorized commit and release. It is now published and
+installed in v2.29.0 as recorded above, reusing completed implementation checks.
 
 ## WebSocket spike — 2026-11-18
 
@@ -88,7 +121,7 @@ public API and HTTP/SSE behavior unchanged; do not add a standalone session API.
 The [deferred note](agentlib-openai-websocket-idea.md#deferred-standalone-model-service-reuse)
 records the Go application use cases and future lifetime considerations.
 
-## Current release — v2.28.0 published and installed
+## Previous release — v2.28.0 published and installed
 
 The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.28.0) is published, neither draft nor prerelease,
 and its [workflow](https://forge.harakara.site/littleisland/noe/actions/runs/68) succeeded. Annotated tag v2.28.0 points to

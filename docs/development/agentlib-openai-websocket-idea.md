@@ -1,7 +1,7 @@
 # OpenAI Responses WebSocket continuation
 
 Recorded 2026-11-10; updated 2026-11-18. Status: managed-run implementation
-complete locally after the isolated spike. Standalone session APIs remain
+published in v2.29.0 after the isolated spike. Standalone session APIs remain
 deferred. See the [implementation](#managed-run-implementation--2026-11-18),
 [spike and measurements](../../spikes/openai-websocket/README.md) and
 [OAuth results](../../spikes/openai-websocket/results.json) /
@@ -175,8 +175,9 @@ were verified with focused fixtures; the successful normal live path is reused.
 
 Implementation evidence: `/var/tmp/noe-managed-websocket-nc1xtl0n`. Source
 hashes and verification records permit reuse for unchanged source. Dependencies
-and public Go/JS signatures do not change. No commit, push, release, installation
-or service restart is included in this implementation slice.
+and public Go/JS signatures do not change. The implementation was committed as
+`7209bc4`, then published and installed in v2.29.0 after separate authorization.
+See the [publication record](../releases/release-checkpoints.md#v2290-publication-and-installation--2026-11-18).
 
 ## Deferred standalone model service reuse
 
