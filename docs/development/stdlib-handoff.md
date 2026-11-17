@@ -1,25 +1,50 @@
 # Standard library session handoff
 
-Updated 2026-11-17 during v2.27.0 release preparation after the go-quickjs v0.38.0
-integration and Windows OS line-ending correction.
+Updated 2026-11-17 after v2.27.0 publication and both local installations,
+including go-quickjs v0.38.0 and the Windows OS line-ending correction.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. WebSocket continuation remains
 deferred. Linked implementation and release records remain canonical.
 
-## Release preparation — v2.27.0
+## Current release — v2.27.0 published and installed
 
 The user authorized committing and releasing the completed work. Fast-mode
 documentation is committed as `0add3b1`; engine integration is `60bc1b7`.
-The [release notes](../releases/v2.27.0.md), CLI default version, and release
-entry points now describe v2.27.0. The seven recorded implementation-source
-hashes match `/var/tmp/noe-quickjs-v0380-kjt3ylch/verification.json`; only the CLI
-version changes afterward. Reuse the completed source and dependency checks.
+Release preparation is `c99b9cc` and `0b2082a`. Immutable annotated tag `v2.27.0`
+points to `0b2082ae710ca155daa326bdcda410c5d66e5650`; tag object
+`8972e4a26b5033da4bb858424f11e9472fb17bb1`. Main includes the later publication
+record. The [release notes](../releases/v2.27.0.md) describe the engine update,
+Windows `os.EOL`, and existing OpenAI Fast configuration and investigation.
 
-Release evidence: `/var/tmp/noe-v2.27.0-release-rh8ai7_1`. The clean native
-candidate, immutable tag, CI publication, downloaded assets, direct published
-Go consumers, and both local installations are the remaining release steps.
+The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.27.0)
+is published, neither draft nor prerelease (ID 181).
+[CI run 67](https://forge.harakara.site/littleisland/noe/actions/runs/67) succeeded
+(API 248, job 269). All six downloaded binaries pass checksum/build-metadata
+verification with the tag revision, vcs.modified=false, Go 1.27.2,
+go-quickjs v0.38.0 / go-intl v0.9.0 and disabled JIT. The Linux amd64 asset
+passes six checks: version, arithmetic, help, the captured-loop regression,
+OS aliases/EOL, and a two-request loopback agent/tool cycle.
 
-## Current continuation — go-quickjs v0.38.0
+Direct published stdlib/agent consumers pass eleven checks without replacements
+or a synthetic proxy, including portable/Go-host execution, dependency selection
+and disabled JIT. Eight changed source/dependency/reference files match the tag
+in each downloaded module. The seven recorded implementation-source hashes
+match `/var/tmp/noe-quickjs-v0380-kjt3ylch/verification.json`; only the CLI version
+changes afterward. Completed source and dependency checks are reused.
+
+Both `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` contain the
+verified Linux amd64 asset, SHA256
+`67f729c9e13f38c4c5a6b1f1514f109d0575a10a4b055dbf1eec387955673591`.
+Both report `noe v2.27.0`; PATH resolves to the first. Previous v2.26.1 copies
+and `installation.json` are retained at `/var/tmp/noe-v2.27.0-install-d1tx5vaw`.
+Runtime verification is reused for the identical installed asset.
+
+Release evidence: `/var/tmp/noe-v2.27.0-release-rh8ai7_1`. See the
+[publication/install checkpoint](../releases/release-checkpoints.md#v2270-publication-and-installation--2026-11-17).
+Publication and both installations are complete. Other hosts, running services
+and noebot were not changed. No required release/install work remains.
+
+## Completed integration — go-quickjs v0.38.0
 
 The user approved updating the engine and making NOE's `os.EOL` reflect the
 host: CRLF on Windows, LF elsewhere. The checkout now selects v0.38.0 with
@@ -34,9 +59,8 @@ race, external stdlib/agent consumers, and all six compilation targets pass.
 Independent module artifacts resolve the published engine without replacements;
 all targets keep JIT disabled. Windows/macOS are compile-only verification.
 Evidence: `/var/tmp/noe-quickjs-v0380-kjt3ylch`. Existing Fast-mode documentation
-is retained. Installed executables remain v2.26.1 with the prior engine.
-Local implementation and verification are complete. Reuse these checks for
-unchanged source/dependencies; publication and installation are separate work.
+is retained. Implementation, verification, v2.27.0 publication and both local
+installations are complete. Reuse these checks for unchanged source/dependencies.
 
 ## Latest investigation — OpenAI Fast mode
 
@@ -53,10 +77,10 @@ that this echo alone proves Fast inactive is withdrawn. There are only two
 samples per mode, with no universal speed or billing-multiplier conclusion.
 The installed-agent tool cycle completed with `run_js`, answer `437`, and exit 0.
 The [usage guide](../openai.md#fast-mode) documents the existing configuration.
-This continuation changes documentation only; the installed release and running
-services remain as recorded below. Reuse the completed live verification.
+The investigation changed documentation and local provider configuration;
+v2.27.0 includes the documentation. Reuse the completed live verification.
 
-## Current release — v2.26.1 published and installed
+## Previous release — v2.26.1 published and installed
 
 The user requested publishing the small built-in instruction change. Annotated
 tag `v2.26.1` points to `47710b9e074f93ef4f6587be165ef4e248bcd9f4`; tag object

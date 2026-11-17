@@ -4,6 +4,11 @@ Local integration on top of NOE `ae631a9dd28272b7883cd45f1d35357b02b03446`.
 The user requested adopting v0.38.0 and correcting NOE's Windows `os.EOL`
 behavior. Existing OpenAI Fast-mode documentation changes are retained.
 
+Published in [NOE v2.27.0](../releases/v2.27.0.md), with both local executables
+installed after publication verification. The
+[release checkpoint](../releases/release-checkpoints.md#v2270-publication-and-installation--2026-11-17)
+records the immutable tag, downloaded assets, published consumers and installation.
+
 ## Dependencies and scope
 
 | Dependency | Before | After |
@@ -112,7 +117,9 @@ while the relevant source and dependencies match.
 
 ## Retained state
 
-The local source selects v0.38.0, and the development binary is retained in the
-evidence directory. The installed executables remain the verified v2.26.1
-release with v0.37.1. Publication, installation, service restarts, and noebot
-changes are separate from this local integration.
+The source and published v2.27.0 assets select v0.38.0. The development binary
+and implementation evidence are retained in the evidence directory. Both
+`/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe` contain the verified
+v2.27.0 Linux amd64 release asset. Previous v2.26.1 executables are retained at
+`/var/tmp/noe-v2.27.0-install-d1tx5vaw`. Publication and installation are complete;
+running services and noebot were not changed.

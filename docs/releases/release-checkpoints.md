@@ -4771,3 +4771,57 @@ release-flags candidate and publication checks are recorded there. CI builds
 and publishes the immutable tag's six binaries and SHA256SUMS without repeating
 source suites. Publication verification must precede retaining and atomically
 installing the verified native asset at both authorized vm201 executable paths.
+
+## v2.27.0 publication and installation — 2026-11-17
+
+- Annotated tag `v2.27.0` points to `0b2082ae710ca155daa326bdcda410c5d66e5650`,
+  matching the peeled remote tag and CI source. Tag object:
+  `8972e4a26b5033da4bb858424f11e9472fb17bb1`. The clean native candidate was
+  built from this revision with vcs.modified=false.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/67)
+  succeeded (API 248, job 269), building six binaries and SHA256SUMS without
+  repeating implementation tests.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.27.0)
+  is published, neither draft nor prerelease (ID 181), with the tagged English notes.
+
+All seven assets were downloaded. All six binaries match SHA256SUMS, the immutable
+revision, vcs.modified=false, target OS/architecture, Go 1.27.2, CGO_ENABLED=0,
+trimpath, official go-quickjs v0.38.0 and its checksum, go-intl v0.9.0, pinned
+provider/native dependencies and disabled JIT. Native Linux amd64 SHA256:
+`67f729c9e13f38c4c5a6b1f1514f109d0575a10a4b055dbf1eec387955673591`.
+Other target binaries were not executed natively; the Windows EOL branch still
+needs a native Windows run for runtime confirmation.
+
+The clean candidate and downloaded native asset each pass six checks: version,
+arithmetic, CLI help, the captured-loop compiler regression, `os`/`node:os` EOL,
+and a two-request loopback agent/tool cycle. The cycle verifies built-in
+JavaScript guidance with `--no-inst`, explicit system text and `run_js` output.
+No live provider request occurred during release verification.
+
+Direct stdlib@v2.27.0 and agent@v2.27.0 consumers fetch without replacements or
+a synthetic proxy. All eleven checks pass, including module integrity,
+portable/Go-host execution, v0.38.0 selection and disabled JIT. Eight changed
+Go/TS/dependency/embedded-reference files match the immutable tag in each
+downloaded module; nested-module exclusions are verified.
+
+The seven implementation-source hashes still match the completed verification
+at `/var/tmp/noe-quickjs-v0380-kjt3ylch`; only the CLI default version changes
+after implementation. Whole-tree unit/E2E, focused race, vet, module integrity,
+external-consumer and six-target compilation evidence is reused. No full source
+suite, long-wait check or local six-target distribution build was repeated.
+
+After publication verification, both previous executables were retained and the
+verified native asset was staged and atomically installed at:
+
+- `/home/agent/.local/bin/noe`, which PATH resolves to.
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report `noe v2.27.0` and match the published SHA256. Installed hash, version
+and PATH checks pass; runtime verification is reused for the identical asset.
+Previous v2.26.1 copies, SHA256
+`8de83a852914d96893920066e47bd24249ca3029fa7f2a9871a8ebda779168aa`,
+are retained at `/var/tmp/noe-v2.27.0-install-d1tx5vaw`, with `installation.json`.
+Release evidence: `/var/tmp/noe-v2.27.0-release-rh8ai7_1`.
+
+Publication and both installations are complete. Other hosts, running services
+and noebot were not changed. This record does not move the immutable release tag.
