@@ -67,7 +67,15 @@ Invalid arguments reject with `code: "ERR_INVALID_ARG"`; reading a closed handle
 
 ## FileHandle.readAt
 
-`file.readAt(position, length) -> Promise<Uint8Array>` reads from a nonnegative safe-integer byte position without changing the current file cursor. The length has the same validation and native maximum as `read`. EOF returns an empty array. A partial read failure exposes its returned bytes in `error.data` and their count in `error.bytesRead`.
+`file.readAt(position, length) -> Promise<Uint8Array>` reads part of a file at a byte offset without changing the file cursor. The position is a nonnegative safe integer. The length has the same validation and native maximum as `read`. EOF returns an empty array. A partial read failure exposes its returned bytes in `error.data` and their count in `error.bytesRead`.
+
+```js
+import {open} from "noe:fs";
+
+await using file = await open("index.bin");
+const bytes = await file.readAt(32, 16);
+export default {bytesRead: bytes.byteLength};
+```
 
 ## FileHandle.write
 

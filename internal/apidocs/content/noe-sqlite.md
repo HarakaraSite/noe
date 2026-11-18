@@ -108,7 +108,7 @@ Result shape and value conversions are the same as get.
 ## Database.iterate
 
 `db.iterate(sql, params = [], {batchSize = 128, signal?}) -> SQLiteRowIterator`
-returns a lazy async iterator directly. SQL and parameters are validated and
+returns a lazy async iterator that reads database rows in batches. SQL and parameters are validated and
 parameters are copied at creation; preparation, binding, and execution start
 on the first next(). SQL must contain one statement, as with get/all.
 SQL errors reject next(), rather than the call that creates the iterator.

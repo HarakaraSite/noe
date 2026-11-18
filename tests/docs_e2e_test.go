@@ -5,15 +5,58 @@ package e2e_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestDocsSearchInRunJS(t *testing.T) {
+	var calls atomic.Int32
+	provider := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
+		switch calls.Add(1) {
+		case 1:
+			call := agentTool("search-docs", `import {docs, searchDocs} from "noe:docs";
+const [match] = searchDocs("read part of a file");
+export default {match, reference: docs(match.topic, match.member)};`)
+			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{call}}}, FinishReason: "tool_calls"}
+		case 2:
+			if len(req.Messages) == 0 || req.Messages[len(req.Messages)-1].ToolCallID != "search-docs" {
+				t.Error("missing run_js search result")
+				return agentModelReply{Status: 500}
+			}
+			result := agentToolResult(t, req.Messages[len(req.Messages)-1])
+			var data struct {
+				Match     struct{ Topic, Member, Excerpt string }
+				Reference string
+			}
+			if err := json.Unmarshal(result.Data, &data); err != nil || result.Reason != "completed" ||
+				data.Match.Topic != "noe:fs" || data.Match.Member != "FileHandle.readAt" ||
+				!strings.Contains(data.Match.Excerpt, "Promise<Uint8Array>") ||
+				!strings.Contains(data.Reference, "bytes.byteLength") {
+				t.Errorf("run_js search result = %+v, error = %v", result, err)
+			}
+			return agentModelReply{Content: "found the positional file read"}
+		default:
+			t.Error("unexpected provider request")
+			return agentModelReply{Status: 500}
+		}
+	})
+	defer provider.Close()
+	env := agentCLIEnv(t, provider.URL)
+	env["NOE_AGENT_TRACE"] = ""
+	result := runCLI(t, t.TempDir(), env, "eval", "--no-inst", agentScript("Find a way to read part of a file", "{maxSteps:2}"))
+	requireExit(t, result, 0)
+	if result.stdout != "found the positional file read\n" || calls.Load() != 2 {
+		t.Fatalf("agent result = %+v, provider calls = %d", result, calls.Load())
+	}
+}
 
 func TestDocsStandaloneBinaryAndManagedEval(t *testing.T) {
 	dir := t.TempDir()

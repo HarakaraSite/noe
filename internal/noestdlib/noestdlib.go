@@ -142,6 +142,12 @@ func validate(cfg stdlib.Config) error {
 
 func installDocs(rt *quickjs.Runtime) error {
 	return rt.SetModule("noe:docs", map[string]any{
+		"searchDocs": func(args ...quickjs.Value) ([]apidocs.SearchResult, error) {
+			if len(args) != 1 || !args[0].IsString() {
+				return nil, rt.ThrowTypeError("searchDocs expects one string query")
+			}
+			return apidocs.Search(args[0].String()), nil
+		},
 		"docs": func(args ...quickjs.Value) (string, error) {
 			if len(args) > 2 {
 				return "", rt.ThrowTypeError("docs expects at most a topic and member")

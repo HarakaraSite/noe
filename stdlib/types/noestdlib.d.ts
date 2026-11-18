@@ -862,6 +862,12 @@ declare namespace NOEStdlib {
   function subscribe(name: SignalName): SignalSubscription;
 
   function docs(topic?: string, member?: string): string;
+  interface DocsSearchResult {
+    topic: string;
+    member: string;
+    excerpt: string;
+  }
+  function searchDocs(query: string): DocsSearchResult[];
   interface URLPatternPartResult { input: string; groups: Record<string, string | undefined> }
   interface URLPatternResult {
     inputs: unknown[];
@@ -1751,7 +1757,11 @@ declare module "vm" { export * from "node:vm"; export {default} from "node:vm"; 
 declare module "worker_threads" { export * from "node:worker_threads"; export {default} from "node:worker_threads"; }
 declare module "zlib" { export * from "node:zlib"; export {default} from "node:zlib"; }
 
-declare module "noe:docs" { export import docs = NOEStdlib.docs; }
+declare module "noe:docs" {
+  export import docs = NOEStdlib.docs;
+  export import searchDocs = NOEStdlib.searchDocs;
+  export type DocsSearchResult = NOEStdlib.DocsSearchResult;
+}
 declare module "noe:http" {
   export import serve = NOEStdlib.serve;
   export import createWebSocket = NOEStdlib.createWebSocket;

@@ -38,7 +38,7 @@ the call runs. Each stream emits at most one nonblank line per second with
 a prefix of up to 512 bytes. Completed output and saved files use the full
 capture contract described above.
 
-Use `noe:docs` from `run_js` to look up an API before using it. Use the NOE-specific `spawn` export from `noe:process` when a child command must remain active during the call, and close owned handles in `finally`. A child process, socket, signal subscription, or other owned resource cannot continue independently after its owning tool runtime ends.
+Use `searchDocs(query)` from `noe:docs` to find an unfamiliar operation by purpose. Pass the result's topic and member to `docs(topic, member)` for its full contract. Use the NOE-specific `spawn` export from `noe:process` when a child command must remain active during the call, and close owned handles in `finally`. A child process, socket, signal subscription, or other owned resource cannot continue independently after its owning tool runtime ends.
 
 `noe:image` has a task-specific path: `read_image(path)` returns metadata to JavaScript and attaches the image to the next model request after the tool call. Do not expect a top-level `noe run`, `eval`, or Worker to provide model vision context.
 

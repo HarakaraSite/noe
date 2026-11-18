@@ -2,7 +2,7 @@
 
 ### API information
 
-Public exports: `docs`.
+Public exports: `docs`, `searchDocs`.
 
 Reference: `noe:docs`. Owner: noestdlib.
 
@@ -39,6 +39,26 @@ import { docs } from "noe:docs";
 console.log(docs());
 console.log(docs("noe:sockets"));
 console.log(docs("noe:sockets", "connect"));
+```
+
+## searchDocs
+
+`searchDocs(query) -> {topic: string, member: string, excerpt: string}[]`
+searches the embedded reference by API name or task keywords. An exact name
+selects the entries with that name. Results contain a short excerpt from each
+matching topic summary or detail section. Search returns up to five results,
+with an empty array for a blank query or no matches. Pass one string query.
+An incorrect number or type of arguments throws `TypeError`.
+
+The topic and member can be passed directly to `docs`. An empty member selects
+the topic overview. Use the full reference for examples and profile requirements.
+The search recognizes English keywords and common Japanese terms for partial file reads.
+
+```js
+import {docs, searchDocs} from "noe:docs";
+
+const [match] = searchDocs("read part of a file");
+export default match ? {match, reference: docs(match.topic, match.member)} : null;
 ```
 
 ## cli

@@ -51,7 +51,7 @@ import {runInNewContext} from "node:vm";
 import {SHARE_ENV as WORKER_SHARE_ENV, Worker as NodeWorker} from "worker_threads";
 import {gzipSync} from "zlib";
 
-import {docs} from "noe:docs";
+import {docs, searchDocs, type DocsSearchResult} from "noe:docs";
 import {
   createWebSocket,
   serve as noeServe,
@@ -165,6 +165,8 @@ const exitCode: Promise<number | undefined> = worker.terminate();
 const zipped: Uint8Array = gzipSync(bytes);
 
 const docsText: string = docs("noe:fs", "open");
+const docsMatches: DocsSearchResult[] = searchDocs("read part of a file");
+const firstReference: string = docs(docsMatches[0].topic, docsMatches[0].member);
 const standardStreams: ProcessStdio = {stdin: processInput, stdout: processOutput, stderr: processError};
 const inputStream: ReadableStream<Uint8Array> = processInput;
 const outputStream: WritableStream<Uint8Array> = processOutput;
@@ -406,7 +408,7 @@ void [assertAlias, asyncHooksAlias, bufferAlias, cryptoAlias, dnsAlias, dnsPromi
   fileText, fileBytes, fileSize, asyncText, names, hostPlatform, cpuCount, resolvedPath, winPath, posixPath,
   currentDirectory, tagValues, decoded, timerResult, fileURL, lengthPromise, vmValue, exitCode, zipped, plainOutput, v4Records, resolverServers, binaryCommand, binaryShell,
   widenedFileOutput, widenedShellOutput, widenedSyncOutput, generalEncodingOutput, optionalBufferOutput, definiteBufferedOutput, definiteTextOutput,
-  docsText, ownedStatus, fetched, noeServer, noeServerClose, repeatedNoeServerClose,
+  docsText, firstReference, ownedStatus, fetched, noeServer, noeServerClose, repeatedNoeServerClose,
   typedServer, noeServerAsyncDispose, asyncDisposableHTTPServer, upgrade, upgradedSocket,
   customSocket, directSocket,
   serveOptions, httpsServer, httpsServerURL, handler,

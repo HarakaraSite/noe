@@ -19,7 +19,7 @@ import {docs} from "noe:docs";
 console.log(docs("noe:process", "execFile"));
 ```
 
-Use docs() for the topic index, docs(topic) for an overview, and docs(topic, member) for a known detail. The run_js recipes are results, files, commands, imports, http, agents, and failures. Select a known topic or recipe directly rather than listing the index again.
+Use searchDocs(query) to find unfamiliar operations by purpose and docs(topic, member) for details. Use docs() for the topic index and docs(topic) for an overview. The run_js recipes are results, files, commands, imports, http, agents, and failures. Select a known topic or recipe directly.
 
 After an API error, inspect the actual return value or export shape and the relevant reference before another speculative rewrite.
 

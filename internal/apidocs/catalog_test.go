@@ -7,6 +7,53 @@ import (
 	"unicode/utf8"
 )
 
+func TestSearchReferenceByTask(t *testing.T) {
+	for _, tc := range []struct{ query, topic, member, signature string }{
+		{"read part of a file", "noe:fs", "FileHandle.readAt", "Promise<Uint8Array>"},
+		{"ファイルの一部を読む", "noe:fs", "FileHandle.readAt", "Promise<Uint8Array>"},
+		{"iterate database rows in batches", "noe:sqlite", "Database.iterate", "SQLiteRowIterator"},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			matches := Search(tc.query)
+			if len(matches) == 0 || matches[0].Topic != tc.topic || matches[0].Member != tc.member {
+				t.Fatalf("Search(%q) = %+v, want %s %s first", tc.query, matches, tc.topic, tc.member)
+			}
+			if !strings.Contains(matches[0].Excerpt, tc.signature) {
+				t.Fatalf("missing return type %q in %q", tc.signature, matches[0].Excerpt)
+			}
+			if len(matches) > searchLimit {
+				t.Fatalf("too many results: %d", len(matches))
+			}
+			for _, match := range matches {
+				if !utf8.ValidString(match.Excerpt) || utf8.RuneCountInString(match.Excerpt) > excerptLimit {
+					t.Errorf("invalid excerpt: %q", match.Excerpt)
+				}
+				if _, err := Lookup(match.Topic, match.Member); err != nil {
+					t.Error(err)
+				}
+			}
+		})
+	}
+}
+
+func TestSearchReferenceByName(t *testing.T) {
+	for _, tc := range []struct{ query, topic, member string }{
+		{"FileHandle.readAt", "noe:fs", "FileHandle.readAt"},
+		{"readAt", "noe:fs", "FileHandle.readAt"},
+		{"DNS/PROMISES", "node:dns/promises", ""},
+	} {
+		matches := Search(tc.query)
+		if len(matches) != 1 || matches[0].Topic != tc.topic || matches[0].Member != tc.member {
+			t.Errorf("Search(%q) = %+v, want exactly %s %s", tc.query, matches, tc.topic, tc.member)
+		}
+	}
+	for _, query := range []string{"", " \t ", "qwertyzxq"} {
+		if matches := Search(query); len(matches) != 0 {
+			t.Errorf("Search(%q) = %+v, want no results", query, matches)
+		}
+	}
+}
+
 // Use the real catalog and include console.log's newline plus the ordinary
 // run_js result envelope: the Markdown alone is not the model-facing size.
 func TestCatalogIndexFitsDefaultRunJSOutput(t *testing.T) {
