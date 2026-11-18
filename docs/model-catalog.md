@@ -70,14 +70,29 @@ The ChatGPT entry uses the maximum context window and reasoning levels from
 the locally cached Codex model catalog. Its `ultra` effort is omitted because
 NOE does not currently accept that value.
 
+GPT-6.2 Sol and GPT-6.2 Astra are available as agent candidates on both
+OpenAI providers and OpenRouter. OpenRouter uses the `openai/` model prefix
+and routes these two entries through Responses for tool calls. All six
+entries list text and image input, reasoning, and tool support. The catalog
+lists `low`, `medium`, `high`, `xhigh`, and `max` as reasoning efforts.
+[OpenAI migration guide](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.2-astra)
+and [OpenRouter model metadata](https://openrouter.ai/api/v1/models).
+
+The GPT-6.2 ChatGPT entries use the maximum window from the Codex 0.169.1
+catalog cached on 2026-11-18. Local account availability is reported by the
+plan-sharing model endpoint. [Sign in with ChatGPT model discovery](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference).
+
 ## context metadataの設定値
 
-Existing entries were checked on 2026-10-18; Terra was checked on 2026-10-27. Values are in tokens. `—` means `maxOutputTokens` is unspecified.
+Most existing entries were checked on 2026-10-18. Terra was checked on
+2026-10-27 and GPT-6.2 on 2026-11-18. Values are in tokens.
+`—` means `maxOutputTokens` is unspecified.
 
 | provider | model | contextWindow | maxOutputTokens | 根拠 |
 | --- | --- | ---: | ---: | --- |
 | openrouter | deepseek/deepseek-v4.1-flash | 1,048,576 | — | [モデルページ](https://openrouter.ai/deepseek/deepseek-v4.1-flash)・[モデルAPI](https://openrouter.ai/api/v1/models) |
 | openrouter | openai/gpt-6-luna | 1,050,000 | 128,000 | [モデルページ](https://openrouter.ai/openai/gpt-6-luna)・モデルAPI |
+| openrouter | openai/gpt-6.2-sol, openai/gpt-6.2-astra | 1,050,000 | 128,000 | [OpenRouter model metadata](https://openrouter.ai/api/v1/models) |
 | openrouter | typesafe/jev-1.14 | 262,144 | — | [モデルページ](https://openrouter.ai/typesafe/jev-1.14)・[endpoint API](https://openrouter.ai/api/v1/models/typesafe/jev-1.14/endpoints) |
 | openrouter | perplexity/pplx-decider-v1.2 | 262,144 | — | [モデルページ](https://openrouter.ai/perplexity/pplx-decider-v1.2)・[endpoint API](https://openrouter.ai/api/v1/models/perplexity/pplx-decider-v1.2/endpoints) |
 | openrouter | cloudflare/clef | 65,536 | — | [モデルページ](https://openrouter.ai/cloudflare/clef)・[endpoint API](https://openrouter.ai/api/v1/models/cloudflare/clef/endpoints) |
@@ -85,9 +100,11 @@ Existing entries were checked on 2026-10-18; Terra was checked on 2026-10-27. Va
 | opencode-go | gpt-6-luna | 1,050,000 | 128,000 | 利用者指定により対応するOpenRouterモデルから採用 |
 | openai-chatgpt | gpt-6.1-sol | 872,000 | 128,000 | アカウントのモデルAPI最大window・[公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6.1-sol) |
 | openai-chatgpt | gpt-6.1-terra | 872,000 | 128,000 | Codex model catalog maximum window; [OpenAI model specification](https://developers.openai.com/api/docs/models/gpt-6.1-terra) for output limit |
+| openai-chatgpt | gpt-6.2-sol, gpt-6.2-astra | 872,000 | 128,000 | Codex catalog maximum window and OpenAI model specifications |
 | openai-chatgpt | gpt-6-luna | 872,000 | 128,000 | アカウントのモデルAPI最大window・[公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6-luna) |
 | openai-api | gpt-6.1-sol | 1,050,000 | 128,000 | [公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6.1-sol) |
 | openai-api | gpt-6.1-terra | 1,050,000 | 128,000 | [OpenAI model specification](https://developers.openai.com/api/docs/models/gpt-6.1-terra) |
+| openai-api | gpt-6.2-sol, gpt-6.2-astra | 1,050,000 | 128,000 | [Sol specification](https://developers.openai.com/api/docs/models/gpt-6.2-sol), [Astra specification](https://developers.openai.com/api/docs/models/gpt-6.2-astra) |
 | openai-api | gpt-6-luna | 1,050,000 | 128,000 | [公式モデル仕様](https://developers.openai.com/api/docs/models/gpt-6-luna) |
 
 **ChatGPT経路:** [公式のモデル取得手順](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)に従い、NOEで使用する認証の`GET https://api.openai.com/v1/models`を確認した。Solは`context_window: 500000`、Lunaは`context_window: 272000`、両方とも`max_context_window: 872000`だった。NOEは長い入力に使う最大値を採用し、最大出力の予約には公式モデル仕様の128,000を使う。アカウントの取得値は全アカウント共通の保証ではなく、利用者の取得値に合わせて外部JSONで上書きできる。モデル要求bodyは変更していない。

@@ -18,14 +18,14 @@ func TestModelCatalogSnapshotWithoutCredentials(t *testing.T) {
 	opts := Options{Agent: &noeprofile.AgentOptions{Models: model.Options{ConfigFile: config}}}
 	source := `import {list_models} from "noe:agent";
 const all=await list_models();
-if(all.length!==16 || all.some(m=>"keyFile" in m || "baseURL" in m))throw Error("catalog shape");
+if(all.length!==22 || all.some(m=>"keyFile" in m || "baseURL" in m))throw Error("catalog shape");
 for(const provider of ["openai-chatgpt","openai-api"]){
  const models=await list_models({provider,kind:"agent"});
  if(!models.some(m=>m.model==="gpt-6.1-terra"))throw Error("Terra missing from " + provider);
 }
 const images=await list_models({kind:"image"});if(images.length!==3)throw Error("image catalog");
 const agents=await list_models({provider:"openrouter",kind:"agent"});
-if(agents.length!==2 || agents[0].description!=="local selection policy")throw Error("external override");
+if(agents.length!==4 || agents[0].description!=="local selection policy")throw Error("external override");
 for(const bad of [null,[],{kind:"other"},{provider:""},{unexpected:true}]){
  let rejected=false;try{await list_models(bad);}catch(e){if(!(e instanceof TypeError))throw e;rejected=true;}
  if(!rejected)throw Error("invalid query accepted");

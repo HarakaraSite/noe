@@ -60,6 +60,58 @@
             "contextWindow": 65536
           }
         },
+        "openai/gpt-6.2-sol": {
+          "api": "responses",
+          "path": "/responses",
+          "catalog": {
+            "kind": "agent",
+            "description": "Efficient model for everyday coding and multi-step agent work.",
+            "tags": [
+              "coding",
+              "multi-step"
+            ],
+            "capabilities": {
+              "tools": true,
+              "vision": true,
+              "reasoning": true
+            },
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        },
+        "openai/gpt-6.2-astra": {
+          "api": "responses",
+          "path": "/responses",
+          "catalog": {
+            "kind": "agent",
+            "description": "Reasoning model for complex coding, debugging, and professional work.",
+            "tags": [
+              "coding",
+              "complex-reasoning"
+            ],
+            "capabilities": {
+              "tools": true,
+              "vision": true,
+              "reasoning": true
+            },
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        },
         "openai/gpt-6-luna": {
           "catalog": {
             "kind": "agent",
@@ -165,6 +217,54 @@
       "effortField": "reasoning.effort",
       "runJSInput": "javascript",
       "models": {
+        "gpt-6.2-sol": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Efficient model for everyday coding and multi-step agent work.",
+            "tags": [
+              "coding",
+              "multi-step"
+            ],
+            "capabilities": {
+              "tools": true,
+              "vision": true,
+              "reasoning": true
+            },
+            "contextWindow": 872000,
+            "maxOutputTokens": 128000,
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        },
+        "gpt-6.2-astra": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Reasoning model for complex coding, debugging, and professional work.",
+            "tags": [
+              "coding",
+              "complex-reasoning"
+            ],
+            "capabilities": {
+              "tools": true,
+              "vision": true,
+              "reasoning": true
+            },
+            "contextWindow": 872000,
+            "maxOutputTokens": 128000,
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        },
         "gpt-6.1-terra": {
           "catalog": {
             "kind": "agent",
@@ -233,6 +333,54 @@
       "sessionField": "prompt_cache_key",
       "effortField": "reasoning.effort",
       "models": {
+        "gpt-6.2-sol": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Efficient model for everyday coding and multi-step agent work.",
+            "tags": [
+              "coding",
+              "multi-step"
+            ],
+            "capabilities": {
+              "tools": true,
+              "vision": true,
+              "reasoning": true
+            },
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        },
+        "gpt-6.2-astra": {
+          "catalog": {
+            "kind": "agent",
+            "description": "Reasoning model for complex coding, debugging, and professional work.",
+            "tags": [
+              "coding",
+              "complex-reasoning"
+            ],
+            "capabilities": {
+              "tools": true,
+              "vision": true,
+              "reasoning": true
+            },
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        },
         "gpt-6.1-terra": {
           "catalog": {
             "kind": "agent",

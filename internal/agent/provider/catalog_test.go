@@ -13,7 +13,7 @@ func TestCatalogMergeFreezeAndTransportSeparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(models) != 2 || models[0].Model != "deepseek/deepseek-v4.1-flash" || models[0].Description != "My preferred routine worker" || strings.Join(models[0].Tags, ",") != "routine" || !models[0].Capabilities["tools"] || models[0].Capabilities["vision"] || models[0].ContextWindow != 100000 {
+	if len(models) != 4 || models[0].Model != "deepseek/deepseek-v4.1-flash" || models[0].Description != "My preferred routine worker" || strings.Join(models[0].Tags, ",") != "routine" || !models[0].Capabilities["tools"] || models[0].Capabilities["vision"] || models[0].ContextWindow != 100000 {
 		t.Fatalf("catalog overlay: %+v", models)
 	}
 	encoded, _ := json.Marshal(models)
@@ -50,7 +50,7 @@ func TestCatalogMergeFreezeAndTransportSeparation(t *testing.T) {
 func TestCatalogDefaultsCustomProviderAndDeletion(t *testing.T) {
 	r, _ := registryFixture(t, `{"providers":{"opencode-go":{"models":{"deepseek-v4.1-flash":{"catalog":null}}},"custom":{"sdk":"openai","api":"chat-completions","baseURL":"http://localhost:2345/v1","path":"/chat/completions","auth":"none","models":{"custom-model":{"catalog":{"description":"My local worker"}},"route-only":{}}}}}`)
 	models, err := r.ListModels(ModelQuery{})
-	if err != nil || len(models) != 16 {
+	if err != nil || len(models) != 22 {
 		t.Fatalf("merged catalog: %+v %v", models, err)
 	}
 	for i, model := range models {
@@ -106,6 +106,47 @@ func TestCatalogTerraDefaults(t *testing.T) {
 				return
 			}
 			t.Fatal("Terra missing from agent catalog")
+		})
+	}
+}
+
+func TestCatalogGPT62Defaults(t *testing.T) {
+	r, _ := registryFixture(t, `{}`)
+	for _, tc := range []struct {
+		provider string
+		prefix   string
+		window   int64
+	}{
+		{"openai-chatgpt", "", 872000},
+		{"openai-api", "", 1050000},
+		{"openrouter", "openai/", 1050000},
+	} {
+		t.Run(tc.provider, func(t *testing.T) {
+			models, err := r.ListModels(ModelQuery{Provider: tc.provider, Kind: "agent"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range []string{tc.prefix + "gpt-6.2-astra", tc.prefix + "gpt-6.2-sol"} {
+				var found *Model
+				for i := range models {
+					if models[i].Model == id {
+						found = &models[i]
+						break
+					}
+				}
+				if found == nil {
+					t.Fatalf("%s missing from agent catalog", id)
+				}
+				if found.ContextWindow != tc.window || found.MaxOutputTokens != 128000 ||
+					strings.Join(found.Efforts, ",") != "low,medium,high,xhigh,max" ||
+					!found.Capabilities["tools"] || !found.Capabilities["vision"] || !found.Capabilities["reasoning"] {
+					t.Fatalf("incorrect metadata: %+v", found)
+				}
+				definition, err := r.resolveDefinition(tc.provider, id)
+				if err != nil || definition.API != "responses" || definition.Path != "/responses" {
+					t.Fatalf("%s Responses route: %+v, %v", id, definition, err)
+				}
+			}
 		})
 	}
 }
