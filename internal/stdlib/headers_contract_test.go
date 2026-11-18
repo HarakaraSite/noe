@@ -181,6 +181,59 @@ func TestHeadersCookiesAndLiveIteration(t *testing.T) {
 	}
 }
 
+func TestHeadersIterationKeepsPrivatePairs(t *testing.T) {
+	out, errOut := run(t, stdlib.Config{}, `
+		function check(condition, message) { if (!condition) throw Error(message); }
+		const headers = new Headers([["b", "first"], ["a", "alpha"], ["b", "second"]]);
+		const pair = headers.entries().next().value;
+		pair[1] = "changed";
+		check(headers.values().next().value === "alpha", "iterator exposed its pair");
+
+		// toJSON uses Object.fromEntries, whose iterable can be intercepted.
+		const arrayIterator = Array.prototype[Symbol.iterator];
+		Array.prototype[Symbol.iterator] = function () {
+			if (this[0] && this[0][0] === "a") this[0][1] = "from iterator";
+			return arrayIterator.call(this);
+		};
+		try {
+			check(headers.toJSON().a === "from iterator", "toJSON iteration changed");
+			check(headers.values().next().value === "alpha", "toJSON exposed a cached pair");
+		} finally {
+			Array.prototype[Symbol.iterator] = arrayIterator;
+		}
+
+		const keys = headers.keys();
+		check(keys.next().value === "a", "unexpected first key");
+		headers.delete("a");
+		check(keys.next().done, "delete left a stale pair at the iterator position");
+		check(headers.values().next().value === "first, second", "delete left a stale first pair");
+
+		// An inherited setter on Array.prototype must not capture arrays that
+		// Headers will reuse after the current operation finishes.
+		let captured = null;
+		Object.defineProperty(Array.prototype, "0", {
+			configurable: true,
+			set(value) {
+				captured = this;
+				Object.defineProperty(this, "0", {value, writable: true, configurable: true});
+			},
+		});
+		try {
+			headers.set("b", "updated");
+			check(headers.values().next().value === "updated", "set left a stale combined value");
+			headers.append("c", "added");
+			check(keys.next().value === "c", "iterator did not resume after append");
+		} finally {
+			delete Array.prototype[0];
+		}
+		check(captured === null, "a private Headers array reached an inherited setter");
+		console.log("ok");
+	`)
+	if out != "ok" || errOut != "" {
+		t.Fatalf("stdout = %q, stderr = %q", out, errOut)
+	}
+}
+
 func TestHeadersBrandsDescriptorsAndPrivateList(t *testing.T) {
 	out, errOut := run(t, stdlib.Config{}, `
 		function errorName(fn) {

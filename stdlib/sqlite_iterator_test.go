@@ -75,6 +75,70 @@ check((await db.get("SELECT COUNT(*) AS n FROM sqlite_master WHERE name='must_no
 `)
 }
 
+func TestSQLitePreparedRowColumnsFollowSchemaChanges(t *testing.T) {
+	executeSQLite(t, stdlib.Profile{}, `
+await using db=await open();
+await db.exec("CREATE TABLE data(id INTEGER, label TEXT); INSERT INTO data VALUES(1,'first'),(2,'second')");
+await using statement=await db.prepare("SELECT * FROM data ORDER BY id");
+check((await statement.all())[1].label==="second","initial prepared columns");
+await db.exec("ALTER TABLE data RENAME COLUMN label TO name; ALTER TABLE data ADD COLUMN extra DEFAULT 42");
+const rows=await statement.all();
+check(rows.length===2&&rows[0].name==="first"&&rows[1].extra===42&&!("label" in rows[0]),"all after reprepare");
+await db.exec("ALTER TABLE data RENAME COLUMN name TO title");
+await using iterator=statement.iterate([],{batchSize:1});
+const first=(await iterator.next()).value;
+check(first.title==="first"&&first.extra===42&&!("name" in first),"cursor first batch after reprepare");
+await db.get("SELECT 'unrelated' AS title");
+const second=(await iterator.next()).value;
+check(second.title==="second"&&second.extra===42&&first!==second,"cursor columns survive between batches");
+check((await iterator.next()).done,"cursor EOF");
+await db.exec("ALTER TABLE data RENAME COLUMN title TO label");
+check((await statement.get()).label==="first","get after cursor reuse and reprepare");
+check((await db.all("SELECT * FROM data WHERE 0")).length===0,"empty all");
+`)
+}
+
+func TestSQLiteBulkRowColumnsStayPrivate(t *testing.T) {
+	executeSQLite(t, stdlib.Profile{}, `
+await using db=await open();
+await using statement=await db.prepare(
+ "SELECT 1 AS duplicate, 2 AS duplicate, 3 AS __proto__, 4 AS constructor, X'01' AS bytes " +
+ "UNION ALL SELECT 5, 6, 7, 8, X'01'");
+const map=Array.prototype.map;
+let leaked=false;
+Array.prototype.map=function(...args) {
+ for(let i=0;i<this.length;i++) if(Object.hasOwn(this[i],"columns")) leaked=true;
+ return Reflect.apply(map,this,args);
+};
+Object.defineProperty(Object.prototype,"columns",{configurable:true,set(){leaked=true;}});
+Object.defineProperty(Object.prototype,"then",{configurable:true,get(){
+ if(Object.hasOwn(this,"columns")) leaked=true;
+}});
+try {
+ function verify(first,second) {
+  check(Object.getPrototypeOf(first)===null&&Object.getPrototypeOf(second)===null,"null row prototypes");
+  check(Object.keys(first).join()==="duplicate,__proto__,constructor,bytes","ordered own columns");
+  check(first.duplicate===2&&first.__proto__===3&&first.constructor===4,"duplicate and prototype column names");
+  check(second.duplicate===6&&second.__proto__===7&&second.constructor===8,"second row values");
+  first.duplicate=0;first.bytes[0]=9;
+  check(first!==second&&second.duplicate===6&&second.bytes[0]===1,"independent rows and BLOBs");
+ }
+ const all=await statement.all();
+ verify(all[0],all[1]);
+ for(const batchSize of [1,2]) {
+  await using iterator=statement.iterate([],{batchSize});
+  verify((await iterator.next()).value,(await iterator.next()).value);
+  check((await iterator.next()).done,"iterator EOF");
+ }
+ check(!leaked,"column metadata did not escape through row arrays or inherited setters");
+} finally {
+ Array.prototype.map=map;
+ delete Object.prototype.columns;
+ delete Object.prototype.then;
+}
+`)
+}
+
 func TestSQLiteIterateTransactionLifetimeAndFailure(t *testing.T) {
 	executeSQLite(t, stdlib.Profile{}, `
 await using db=await open();await db.exec("CREATE TABLE data(n UNIQUE)");let escaped,prepared,preparedRows;

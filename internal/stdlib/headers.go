@@ -13,6 +13,7 @@ const headersJS = `
   const headersArrayPush = Array.prototype.push;
   const headersArraySort = Array.prototype.sort;
   const headersObjectCreate = Object.create;
+  const headersSetPrototypeOf = Object.setPrototypeOf;
   const headersDefineProperty = Object.defineProperty;
   const headersGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   const headersOwnKeys = Reflect.ownKeys;
@@ -98,6 +99,7 @@ const headersJS = `
   function headerAppend(state, name, value) {
     headerGuard(state);
     headersApply(headersArrayPush, state.list, [[name, value]]);
+    state.iterationPairs = null;
   }
 
   function headerHasName(state, name) {
@@ -118,8 +120,19 @@ const headersJS = `
   }
 
   function headerPairsForIteration(headers) {
-    const state = headerState(headers);
-    const names = [];
+    return headerSortAndCombine(headerState(headers), []);
+  }
+
+  function headerCachedPairs(state) {
+    if (state.iterationPairs === null) {
+      // Keep the cached array private even if a prototype has indexed setters.
+      state.iterationPairs = headerSortAndCombine(state, headersSetPrototypeOf([], null));
+    }
+    return state.iterationPairs;
+  }
+
+  function headerSortAndCombine(state, pairs) {
+    const names = headersSetPrototypeOf([], null);
     for (let i = 0; i < state.list.length; i++) {
       const name = state.list[i][0];
       let found = false;
@@ -130,7 +143,6 @@ const headersJS = `
     }
     headersApply(headersArraySort, names, [(a, b) => a < b ? -1 : a > b ? 1 : 0]);
 
-    const pairs = [];
     for (let i = 0; i < names.length; i++) {
       const name = names[i];
       if (name === "set-cookie") {
@@ -238,7 +250,7 @@ const headersJS = `
   function headerIteratorNext() {
     const state = headersApply(headersWeakMapGet, headerIteratorSlots, [this]);
     if (state === undefined) throw new headersTypeError("Illegal invocation");
-    const pairs = headerPairsForIteration(state.target);
+    const pairs = headerCachedPairs(headerState(state.target));
     if (state.index >= pairs.length) return {value: undefined, done: true};
     const pair = pairs[state.index];
     state.index++;
@@ -265,7 +277,7 @@ const headersJS = `
     constructor(init = undefined) {
       const converted = headerInit(init);
       host.cloneAs(this, "unsupported");
-      const state = {list: [], guard: "none"};
+      const state = {list: headersSetPrototypeOf([], null), guard: "none", iterationPairs: null};
       headersApply(headersWeakMapSet, headerSlots, [this, state]);
       if (converted !== undefined) headerFill(state, converted);
     }
@@ -281,12 +293,15 @@ const headersJS = `
       if (arguments.length < 1) throw new headersTypeError("delete requires 1 argument");
       const normalized = headerName(headerByteString(name));
       headerGuard(state);
-      const list = [];
+      const list = headersSetPrototypeOf([], null);
       for (let i = 0; i < state.list.length; i++) {
         const pair = state.list[i];
         if (pair[0] !== normalized) headersApply(headersArrayPush, list, [pair]);
       }
-      state.list = list;
+      if (list.length !== state.list.length) {
+        state.list = list;
+        state.iterationPairs = null;
+      }
     }
     get(name) {
       const state = headerState(this);
@@ -315,7 +330,7 @@ const headersJS = `
       const normalizedName = headerName(nameText);
       const normalizedValue = headerValue(valueText);
       headerGuard(state);
-      const list = [];
+      const list = headersSetPrototypeOf([], null);
       let replaced = false;
       for (let i = 0; i < state.list.length; i++) {
         const pair = state.list[i];
@@ -330,17 +345,18 @@ const headersJS = `
       }
       if (!replaced) headersApply(headersArrayPush, list, [[normalizedName, normalizedValue]]);
       state.list = list;
+      state.iterationPairs = null;
     }
     forEach(callback, thisArg = undefined) {
       const state = headerState(this);
       if (arguments.length < 1) throw new headersTypeError("forEach requires a callback");
       if (typeof callback !== "function") throw new headersTypeError("callback is not callable");
-      let pairs = headerPairsForIteration(this);
+      let pairs = headerCachedPairs(state);
       let i = 0;
       while (i < pairs.length) {
         const pair = pairs[i];
         headersApply(callback, thisArg, [pair[1], pair[0], this]);
-        pairs = headerPairsForIteration(this);
+        pairs = headerCachedPairs(state);
         i++;
       }
     }

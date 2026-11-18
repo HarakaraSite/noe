@@ -9,12 +9,18 @@ import (
 	"runtime"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
 func TestStorageSerializerDoesNotCallPrototypeToJSON(t *testing.T) {
 	root := t.TempDir()
+	path := filepath.Join(root, "state.json")
+	const legacy = `{"version":1,"entries":[["\u0032","\udfff\u0000\"\\"],["\u0031","\ud83d\ude03"]]}`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	rt := quickjs.New()
 	defer rt.Close()
 	loop := NewLoop(rt)
@@ -49,6 +55,16 @@ func TestStorageSerializerDoesNotCallPrototypeToJSON(t *testing.T) {
 		  localStorage.getItem("from-array-toJSON");
 		  return this;
 		};
+		String.prototype.toJSON = function () {
+		  nestedCalls++;
+		  localStorage.getItem("from-string-toJSON");
+		  return this;
+		};
+		const stringify = JSON.stringify;
+		JSON.stringify = function () {
+		  nestedCalls++;
+		  localStorage.getItem("from-replaced-stringify");
+		};
 		Object.defineProperty(Object.prototype, "get", {
 		  configurable: true,
 		  get() {
@@ -57,23 +73,39 @@ func TestStorageSerializerDoesNotCallPrototypeToJSON(t *testing.T) {
 		    return undefined;
 		  },
 		});
-		localStorage.setItem("key\ud800", "value\udfff");
-		if (nestedCalls !== 0) throw Error("storage internals called a user prototype hook");
-		const restoredKey = localStorage.key(0);
-		const restoredValue = localStorage.getItem("key\ud800");
-		if (restoredKey.length !== 4 || restoredKey.charCodeAt(3) !== 0xd800 ||
-		    restoredValue.length !== 6 || restoredValue.charCodeAt(5) !== 0xdfff) {
+		const legacyValue = "\udfff\u0000\"\\";
+		const legacyEmoji = "\ud83d\ude03";
+		if (localStorage.getItem("2") !== legacyValue || localStorage.getItem("1") !== legacyEmoji) {
+		  throw Error("storage could not read the legacy v1 entries");
+		}
+		const key = "key\ud800\"\\";
+		const value = "value\u0000\t\n\u00e9日本語\ud83d\ude00\udfff \ud800";
+		localStorage.setItem(key, value);
+		if (localStorage.getItem("2") !== legacyValue) throw Error("storage changed a legacy value while rewriting v1");
+		localStorage.setItem("2", "updated");
+		const restoredKey = localStorage.key(2);
+		const restoredValue = localStorage.getItem(key);
+		if (restoredKey !== key || restoredValue !== value || localStorage.getItem("1") !== legacyEmoji) {
 		  throw Error("storage did not preserve UTF-16 code units");
 		}
+		if (localStorage.key(0) !== "2" || localStorage.key(1) !== "1" || localStorage.getItem("2") !== "updated") {
+		  throw Error("storage changed entry order while updating a legacy v1 document");
+		}
+		if (nestedCalls !== 0) throw Error("storage internals called a user prototype hook");
+		JSON.stringify = stringify;
 		delete Object.prototype.get;
 		delete Object.prototype.toJSON;
 		delete Array.prototype.toJSON;
+		delete String.prototype.toJSON;
 	`); err != nil {
-		t.Fatalf("localStorage operation invoked a prototype callback: %v", err)
+		t.Fatalf("localStorage serialization failed: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(root, "state.json"))
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !utf8.Valid(data) {
+		t.Fatalf("stored document is not valid UTF-8: %q", data)
 	}
 	var document struct {
 		Version int             `json:"version"`

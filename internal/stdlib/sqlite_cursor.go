@@ -17,6 +17,7 @@ type sqliteCursor struct {
 	stmt        *sqlite3.Stmt
 	statementID int
 	owned       bool
+	columns     []string
 }
 
 // cursorOpen creates a native cursor over one lazily prepared or borrowed
@@ -86,22 +87,22 @@ func (db *sqliteDB) cursorOpen(ctx context.Context, statementID int, sql string,
 
 // cursorRead snapshots at most batchSize rows. It observes EOF only when a
 // Step call returns false; a full batch does not advance the statement again.
-func (db *sqliteDB) cursorRead(ctx context.Context, cursorID int, batchSize int64) (sqliteCursorReadResult, error) {
+func (db *sqliteDB) cursorRead(ctx context.Context, cursorID int, batchSize int64) (sqliteRows, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	if db.closed || db.conn == nil {
-		return sqliteCursorReadResult{}, &sqliteHostError{message: "SQLite database is closed", code: "ERR_SQLITE_CLOSED"}
+		return sqliteRows{}, &sqliteHostError{message: "SQLite database is closed", code: "ERR_SQLITE_CLOSED"}
 	}
 	if batchSize <= 0 || batchSize > sqliteMaxSafeInteger {
-		return sqliteCursorReadResult{}, &sqliteHostError{message: "SQLite cursor batch size must be a positive safe integer", code: "ERR_INVALID_ARG"}
+		return sqliteRows{}, &sqliteHostError{message: "SQLite cursor batch size must be a positive safe integer", code: "ERR_INVALID_ARG"}
 	}
 	cursor := db.cursors[cursorID]
 	if cursor == nil {
-		return sqliteCursorReadResult{}, &sqliteHostError{message: "SQLite cursor is closed", code: "ERR_SQLITE_CLOSED"}
+		return sqliteRows{}, &sqliteHostError{message: "SQLite cursor is closed", code: "ERR_SQLITE_CLOSED"}
 	}
 	if err := ctx.Err(); err != nil {
 		readErr := sqliteContextError(ctx)
-		return sqliteCursorReadResult{}, errors.Join(readErr, db.releaseCursorLocked(cursorID))
+		return sqliteRows{}, errors.Join(readErr, db.releaseCursorLocked(cursorID))
 	}
 	oldInterrupt := db.conn.SetInterrupt(ctx)
 	defer db.conn.SetInterrupt(oldInterrupt)
@@ -110,13 +111,17 @@ func (db *sqliteDB) cursorRead(ctx context.Context, cursorID int, batchSize int6
 	if batchSize < sqliteCursorInitialCapacity {
 		capacity = int(batchSize)
 	}
-	rows := make(sqliteRows, 0, capacity)
+	batch := sqliteRows{rows: make([][]sqliteCell, 0, capacity)}
 	for i := int64(0); i < batchSize; i++ {
 		if cursor.stmt.Step() {
-			rows = append(rows, sqliteReadRow(cursor.stmt))
+			if cursor.columns == nil {
+				cursor.columns = sqliteColumnNames(cursor.stmt)
+				batch.columns = cursor.columns
+			}
+			batch.rows = append(batch.rows, sqliteReadCells(cursor.stmt, len(cursor.columns)))
 			if err := ctx.Err(); err != nil {
 				readErr := sqliteContextError(ctx)
-				return sqliteCursorReadResult{}, errors.Join(readErr, db.releaseCursorLocked(cursorID))
+				return sqliteRows{}, errors.Join(readErr, db.releaseCursorLocked(cursorID))
 			}
 			continue
 		}
@@ -127,14 +132,15 @@ func (db *sqliteDB) cursorRead(ctx context.Context, cursorID int, batchSize int6
 		}
 		cleanupErr := db.releaseCursorLocked(cursorID)
 		if readErr != nil {
-			return sqliteCursorReadResult{}, errors.Join(readErr, cleanupErr)
+			return sqliteRows{}, errors.Join(readErr, cleanupErr)
 		}
 		if cleanupErr != nil {
-			return sqliteCursorReadResult{}, cleanupErr
+			return sqliteRows{}, cleanupErr
 		}
-		return sqliteCursorReadResult{rows: rows, done: true}, nil
+		batch.done = true
+		break
 	}
-	return sqliteCursorReadResult{rows: rows, done: false}, nil
+	return batch, nil
 }
 
 // cursorClose releases a cursor explicitly. Repeated closes are harmless, and

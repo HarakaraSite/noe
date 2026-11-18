@@ -48,6 +48,10 @@ func (mode builtinEvaluation) webAPIs(rt *quickjs.Runtime, random io.Reader, loo
 	host := rt.NewObject()
 	if err := setAll(host, map[string]any{
 		"webcrypto": webcryptoNative,
+		"encodeUTF8": func(text string) quickjs.Value {
+			// The JS wrapper makes text well-formed before it crosses into Go.
+			return rt.NewBytes([]byte(text))
+		},
 		"nativeEOL": func() string {
 			if runtime.GOOS == "windows" {
 				return "\r\n"
@@ -161,8 +165,8 @@ var webAPIsJS = `(function (host) {
   const codecApply = Reflect.apply;
   const codecString = String;
   const codecCharCodeAt = String.prototype.charCodeAt;
+  const codecWellFormed = String.prototype.toWellFormed;
   const codecIsView = ArrayBuffer.isView;
-  const codecUint8Array = Uint8Array;
   const codecTypedArray = Object.getPrototypeOf(Uint8Array.prototype);
   const codecTag = Object.getOwnPropertyDescriptor(codecTypedArray, Symbol.toStringTag).get;
   const codecBuffer = Object.getOwnPropertyDescriptor(codecTypedArray, "buffer").get;
@@ -192,28 +196,8 @@ var webAPIsJS = `(function (host) {
     get encoding() { requireTextEncoder(this); return "utf-8"; }
     encode(input = "") {
       requireTextEncoder(this);
-      const s = webDOMString(input);
-      const out = [];
-      for (let i = 0; i < s.length; i++) {
-        let c = codecApply(codecCharCodeAt, s, [i]);
-        if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
-          const next = codecApply(codecCharCodeAt, s, [i + 1]);
-          if (next >= 0xdc00 && next <= 0xdfff) {
-            c = 0x10000 + ((c - 0xd800) << 10) + (next - 0xdc00);
-            i++;
-          }
-        }
-        if (c >= 0xd800 && c <= 0xdfff) c = 0xfffd;
-        if (c < 0x80) out.push(c);
-        else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
-        else if (c < 0x10000) {
-          out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
-        } else {
-          out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63),
-                   0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
-        }
-      }
-      return new codecUint8Array(out);
+      const text = codecApply(codecWellFormed, webDOMString(input), []);
+      return host.encodeUTF8(text);
     }
     encodeInto(source, dest) {
       requireTextEncoder(this);

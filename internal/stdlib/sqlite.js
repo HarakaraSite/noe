@@ -77,16 +77,18 @@
       default: throw new Error("invalid SQLite result cell");
     }
   }
-  function row(value) {
-    if (value === null || value === undefined) return undefined;
+  function row(columns, values) {
     const result = Object.create(null);
-    for (let i = 0; i < value.columns.length; i++) result[value.columns[i]] = decodeCell(value.values[i]);
+    for (let i = 0; i < columns.length; i++) result[columns[i]] = decodeCell(values[i]);
     return result;
+  }
+  function rows(columns, values) {
+    return values.map(cells => row(columns, cells));
   }
   function decode(operation, value) {
     if (operation === "run") return {changes: decodeCell(value.changes), lastInsertRowid: decodeCell(value.lastInsertRowid)};
-    if (operation === "get") return row(value);
-    if (operation === "all") return value.map(row);
+    if (operation === "get") return value === null || value === undefined ? undefined : row(value.columns, value.values);
+    if (operation === "all") return rows(value.columns, value.rows);
     return undefined;
   }
 
@@ -177,6 +179,7 @@
     state.owner.iterators.delete(state.object);
     if (state.statement) state.statement.iterators.delete(state.object);
     if (state.signal) state.signal.removeEventListener("abort", state.abort);
+    state.columns = null;
     state.rows = [];
     state.index = 0;
     state.params = EMPTY;
@@ -218,8 +221,8 @@
       if (state.statement && state.statement.closed) throw closed("the statement is closed");
       if (state.index === state.rows.length) {
         let batch;
-        // The queue's completion promise retains no batch payload. Only this
-        // iterator's current batch survives until its rows have been yielded.
+        // The queue's completion promise retains no batch payload. The
+        // iterator retains its column names and only the current row batch.
         await schedule(state.owner, async operation => {
           try {
             if (state.ended) return;
@@ -243,7 +246,8 @@
           throw state.signal.reason;
         }
         if (state.ended) return {value: undefined, done: true};
-        state.rows = batch.rows.map(row);
+        if (batch.columns !== null) state.columns = batch.columns;
+        state.rows = rows(state.columns, batch.rows);
         state.index = 0;
         state.eof = batch.done;
         if (state.rows.length === 0) {
@@ -276,7 +280,7 @@
         ? selectedSignal ? signalAny([owner.controller.signal, selectedSignal]) : owner.controller.signal
         : selectedSignal;
       const state = {object: this, owner, statement, sql, params, signal, batchSize,
-        id: 0, rows: [], index: 0, eof: false, ended: false, closing: null, pending: null,
+        id: 0, columns: null, rows: [], index: 0, eof: false, ended: false, closing: null, pending: null,
         aborted: false, abortDelivered: false, abort: null};
       iterators.set(this, state);
       owner.iterators.add(this);

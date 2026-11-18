@@ -47,7 +47,7 @@ func TestSQLiteCursorReadsBoundedBatchesAndReleasesAtEOF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.done || len(first.rows) != 2 || first.rows[1].values[0].text != "2" {
+	if first.done || len(first.rows) != 2 || first.rows[1][0].text != "2" || !reflect.DeepEqual(first.columns, []string{"value"}) {
 		t.Fatalf("first batch = %#v, want rows 1-2 and done=false", first)
 	}
 	db.mu.Lock()
@@ -61,14 +61,14 @@ func TestSQLiteCursorReadsBoundedBatchesAndReleasesAtEOF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.done || len(second.rows) != 2 || second.rows[0].values[0].text != "3" || second.rows[1].values[0].text != "4" {
+	if second.done || len(second.rows) != 2 || second.rows[0][0].text != "3" || second.rows[1][0].text != "4" || second.columns != nil {
 		t.Fatalf("second batch = %#v, want rows 3-4 and done=false", second)
 	}
 	last, err := db.cursorRead(ctx, cursor.cursorID, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !last.done || len(last.rows) != 1 || last.rows[0].values[0].text != "5" {
+	if !last.done || len(last.rows) != 1 || last.rows[0][0].text != "5" || last.columns != nil {
 		t.Fatalf("last batch = %#v, want row 5 and done=true", last)
 	}
 	if len(db.cursors) != 0 || len(db.activeStmtCursor) != 0 {
@@ -101,11 +101,11 @@ func TestSQLiteCursorSupportsSingleStatementReturning(t *testing.T) {
 		t.Fatal(err)
 	}
 	first, err := db.cursorRead(context.Background(), cursor.cursorID, 1)
-	if err != nil || first.done || len(first.rows) != 1 || first.rows[0].values[0].text != "8" {
+	if err != nil || first.done || len(first.rows) != 1 || first.rows[0][0].text != "8" {
 		t.Fatalf("first RETURNING batch = %#v, err=%v", first, err)
 	}
 	second, err := db.cursorRead(context.Background(), cursor.cursorID, 1)
-	if err != nil || second.done || len(second.rows) != 1 || second.rows[0].values[0].text != "9" {
+	if err != nil || second.done || len(second.rows) != 1 || second.rows[0][0].text != "9" {
 		t.Fatalf("second RETURNING batch = %#v, err=%v", second, err)
 	}
 	last, err := db.cursorRead(context.Background(), cursor.cursorID, 1)
@@ -151,12 +151,12 @@ func TestSQLiteCursorSnapshotsBlobAndReusesCellConversion(t *testing.T) {
 	if !stmt.Step() {
 		t.Fatalf("first BLOB row: %v", stmt.Err())
 	}
-	first := sqliteReadRow(stmt)
+	first := sqliteReadCells(stmt, 1)
 	if !stmt.Step() {
 		t.Fatalf("second BLOB row: %v", stmt.Err())
 	}
-	if !reflect.DeepEqual(first.values[0].bytes, []byte{0, 0xff, 0x7f}) {
-		t.Fatalf("result BLOB changed when statement advanced: %v", first.values[0].bytes)
+	if !reflect.DeepEqual(first[0].bytes, []byte{0, 0xff, 0x7f}) {
+		t.Fatalf("result BLOB changed when statement advanced: %v", first[0].bytes)
 	}
 
 	integers, err := sqlitePrepareSingle(db.conn, `SELECT 42, 9007199254740993, -9223372036854775808, 1.25`)
@@ -167,16 +167,17 @@ func TestSQLiteCursorSnapshotsBlobAndReusesCellConversion(t *testing.T) {
 	if !integers.Step() {
 		t.Fatalf("numeric row: %v", integers.Err())
 	}
-	row := sqliteReadRow(integers)
-	if got := []string{row.values[0].text, row.values[1].text, row.values[2].text}; !reflect.DeepEqual(got, []string{"42", "9007199254740993", "-9223372036854775808"}) {
+	columns := sqliteColumnNames(integers)
+	row := sqliteReadCells(integers, len(columns))
+	if got := []string{row[0].text, row[1].text, row[2].text}; !reflect.DeepEqual(got, []string{"42", "9007199254740993", "-9223372036854775808"}) {
 		t.Fatalf("integer converter output = %v", got)
 	}
-	if row.values[3].kind != "number" || row.values[3].value != 1.25 {
-		t.Fatalf("number converter output = %#v", row.values[3])
+	if row[3].kind != "number" || row[3].value != 1.25 {
+		t.Fatalf("number converter output = %#v", row[3])
 	}
 
 	host := &sqliteHost{rt: rt}
-	encoded, err := host.value(sqliteCursorReadResult{rows: sqliteRows{row}, done: true})
+	encoded, err := host.value(sqliteRows{columns: columns, rows: [][]sqliteCell{row}, done: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,11 +189,7 @@ func TestSQLiteCursorSnapshotsBlobAndReusesCellConversion(t *testing.T) {
 	if err != nil || rows.Len() != 1 {
 		t.Fatalf("cursor result rows=%v, err=%v", rows, err)
 	}
-	encodedRow, err := rows.Index(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	values, err := encodedRow.Get("values")
+	values, err := rows.Index(0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +259,7 @@ func TestSQLiteCursorBorrowsStatementBusyThenReusable(t *testing.T) {
 		t.Fatalf("unrelated SQL during cursor read = %#v, err=%v", other, err)
 	}
 	batch, err := db.cursorRead(ctx, cursor.cursorID, 1)
-	if err != nil || batch.done || batch.rows[0].values[0].text != "1" {
+	if err != nil || batch.done || batch.rows[0][0].text != "1" {
 		t.Fatalf("borrowed cursor batch = %#v, err=%v", batch, err)
 	}
 	if err := db.cursorClose(ctx, cursor.cursorID); err != nil {
@@ -294,7 +291,7 @@ func TestSQLiteCursorOpenResetsPreviousStatementError(t *testing.T) {
 		t.Fatalf("cursor open after prior statement error: %v", err)
 	}
 	batch, err := db.cursorRead(context.Background(), cursor.cursorID, 2)
-	if err != nil || !batch.done || len(batch.rows) != 1 || batch.rows[0].values[0].text != "7" {
+	if err != nil || !batch.done || len(batch.rows) != 1 || batch.rows[0][0].text != "7" {
 		t.Fatalf("cursor result after prior statement error = %#v, err=%v", batch, err)
 	}
 }

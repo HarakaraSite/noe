@@ -576,6 +576,11 @@ const f=await open("indexed.bin",{flags:"r+"});
 try{
  const first=await f.read(2);
  if(!(first instanceof Uint8Array)||new TextDecoder().decode(first)!=="ab")throw Error("sequential read");
+ const secondView=await f.readAt(0,2);
+ secondView[0]=88;
+ const transferred=structuredClone(secondView,{transfer:[secondView.buffer]});
+ if(secondView.byteLength!==0 || new TextDecoder().decode(transferred)!=="Xb" ||
+    new TextDecoder().decode(first)!=="ab")throw Error("full read buffers must be independent and transferable");
  const part=await f.readAt(4,4);
  if(new TextDecoder().decode(part)!=="ef")throw Error("positional short read");
  const next=await f.read(2);

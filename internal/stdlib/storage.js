@@ -19,6 +19,7 @@
   const weakGet = WeakMap_.prototype.get;
   const weakSet = WeakMap_.prototype.set;
   const jsonParse = JSON_.parse;
+  const jsonStringify = JSON_.stringify;
   const reflectApply = Reflect_.apply;
   const reflectDelete = Reflect_.deleteProperty;
   const reflectDefine = Reflect_.defineProperty;
@@ -27,7 +28,6 @@
   const reflectOwnKeys = Reflect_.ownKeys;
   const reflectSet = Reflect_.set;
   const hasOwnProperty = Object_.prototype.hasOwnProperty;
-  const charCodeAt = String.prototype.charCodeAt;
   const toStringTag = Symbol.toStringTag;
   const states = new WeakMap_();
   const hasLocal = host.hasLocal;
@@ -112,31 +112,14 @@
     return entries;
   }
 
-  function quoteJSON(text) {
-    const pieces = ["\""];
-    const hex = "0123456789abcdef";
-    for (let i = 0; i < text.length; i++) {
-      const code = apply(charCodeAt, text, [i]);
-      if (code === 0x22) append(pieces, "\\\"");
-      else if (code === 0x5c) append(pieces, "\\\\");
-      else if (code < 0x20) {
-        append(pieces, "\\u" + hex[(code >>> 12) & 15] + hex[(code >>> 8) & 15] +
-          hex[(code >>> 4) & 15] + hex[code & 15]);
-      } else {
-        // Escaping each UTF-16 code unit preserves lone surrogates verbatim.
-        append(pieces, "\\u" + hex[(code >>> 12) & 15] + hex[(code >>> 8) & 15] +
-          hex[(code >>> 4) & 15] + hex[code & 15]);
-      }
-    }
-    append(pieces, "\"");
-    return apply(arrayJoin, pieces, [""]);
-  }
-
   function serializeDocument(entries) {
     const pieces = ["{\"version\":1,\"entries\":["];
     for (let i = 0; i < entries.length; i++) {
       if (i !== 0) append(pieces, ",");
-      append(pieces, "[" + quoteJSON(entries[i][0]) + "," + quoteJSON(entries[i][1]) + "]");
+      // Stringify only primitives to escape lone surrogates without calling toJSON hooks.
+      const key = apply(jsonStringify, JSON_, [entries[i][0]]);
+      const value = apply(jsonStringify, JSON_, [entries[i][1]]);
+      append(pieces, "[" + key + "," + value + "]");
     }
     append(pieces, "]}");
     return apply(arrayJoin, pieces, [""]);

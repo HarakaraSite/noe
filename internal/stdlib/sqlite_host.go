@@ -71,7 +71,11 @@ type sqliteRow struct {
 	values  []sqliteCell
 }
 
-type sqliteRows []sqliteRow
+type sqliteRows struct {
+	columns []string // nil for empty results and subsequent cursor batches
+	rows    [][]sqliteCell
+	done    bool
+}
 
 type sqliteRunResult struct {
 	changes int64
@@ -83,11 +87,6 @@ type sqliteOpenResult struct{ id int }
 type sqlitePrepareResult struct{ id int }
 
 type sqliteCursorOpenResult struct{ cursorID int }
-
-type sqliteCursorReadResult struct {
-	rows sqliteRows
-	done bool
-}
 
 type sqliteHostError struct {
 	message string
@@ -665,7 +664,8 @@ func sqliteRunStatement(stmt *sqlite3.Stmt, operation string, params sqliteParam
 		return sqliteRunResult{changes: stmt.Conn().Changes(), rowID: stmt.Conn().LastInsertRowID()}, nil
 	case "get":
 		if stmt.Step() {
-			row := sqliteReadRow(stmt)
+			columns := sqliteColumnNames(stmt)
+			row := sqliteRow{columns: columns, values: sqliteReadCells(stmt, len(columns))}
 			err := stmt.Reset()
 			_ = stmt.ClearBindings()
 			if err != nil {
@@ -681,9 +681,12 @@ func sqliteRunStatement(stmt *sqlite3.Stmt, operation string, params sqliteParam
 		}
 		return nil, nil
 	case "all":
-		rows := make(sqliteRows, 0)
+		rows := sqliteRows{done: true}
 		for stmt.Step() {
-			rows = append(rows, sqliteReadRow(stmt))
+			if rows.columns == nil {
+				rows.columns = sqliteColumnNames(stmt)
+			}
+			rows.rows = append(rows.rows, sqliteReadCells(stmt, len(rows.columns)))
 		}
 		err := stmt.Err()
 		_ = stmt.Reset()
@@ -699,26 +702,33 @@ func sqliteRunStatement(stmt *sqlite3.Stmt, operation string, params sqliteParam
 	}
 }
 
-func sqliteReadRow(stmt *sqlite3.Stmt) sqliteRow {
-	count := stmt.ColumnCount()
-	row := sqliteRow{columns: make([]string, count), values: make([]sqliteCell, count)}
-	for i := 0; i < count; i++ {
-		row.columns[i] = stmt.ColumnName(i)
+// Read names after the first row, since Step may reprepare the statement.
+func sqliteColumnNames(stmt *sqlite3.Stmt) []string {
+	columns := make([]string, stmt.ColumnCount())
+	for i := range columns {
+		columns[i] = stmt.ColumnName(i)
+	}
+	return columns
+}
+
+func sqliteReadCells(stmt *sqlite3.Stmt, count int) []sqliteCell {
+	values := make([]sqliteCell, count)
+	for i := range values {
 		switch stmt.ColumnType(i) {
 		case sqlite3.INTEGER:
-			row.values[i] = sqliteCell{kind: "integer", text: strconv.FormatInt(stmt.ColumnInt64(i), 10)}
+			values[i] = sqliteCell{kind: "integer", text: strconv.FormatInt(stmt.ColumnInt64(i), 10)}
 		case sqlite3.FLOAT:
-			row.values[i] = sqliteCell{kind: "number", value: stmt.ColumnFloat(i)}
+			values[i] = sqliteCell{kind: "number", value: stmt.ColumnFloat(i)}
 		case sqlite3.TEXT:
-			row.values[i] = sqliteCell{kind: "text", text: stmt.ColumnText(i)}
+			values[i] = sqliteCell{kind: "text", text: stmt.ColumnText(i)}
 		case sqlite3.BLOB:
 			bytes := stmt.ColumnRawBlob(i)
-			row.values[i] = sqliteCell{kind: "blob", bytes: append([]byte{}, bytes...)}
+			values[i] = sqliteCell{kind: "blob", bytes: append([]byte{}, bytes...)}
 		default:
-			row.values[i] = sqliteCell{kind: "null"}
+			values[i] = sqliteCell{kind: "null"}
 		}
 	}
-	return row
+	return values
 }
 
 func sqliteBindParams(stmt *sqlite3.Stmt, params sqliteParamSet) error {
@@ -936,16 +946,6 @@ func (h *sqliteHost) value(value any) (quickjs.Value, error) {
 			return quickjs.Value{}, err
 		}
 		return o, nil
-	case sqliteCursorReadResult:
-		rows, err := h.rowsValue(result.rows)
-		if err != nil {
-			return quickjs.Value{}, err
-		}
-		o := h.rt.NewObject()
-		if err := errors.Join(o.Set("rows", rows), o.Set("done", result.done)); err != nil {
-			return quickjs.Value{}, err
-		}
-		return o, nil
 	case sqliteRunResult:
 		o := h.rt.NewObject()
 		changes, err := h.cellValue(sqliteCell{kind: "integer", text: strconv.FormatInt(result.changes, 10)})
@@ -970,43 +970,54 @@ func (h *sqliteHost) value(value any) (quickjs.Value, error) {
 }
 
 func (h *sqliteHost) rowsValue(result sqliteRows) (quickjs.Value, error) {
-	items := make([]any, len(result))
-	for i := range result {
-		row, err := h.rowValue(result[i])
+	items := make([]any, len(result.rows))
+	for i, cells := range result.rows {
+		row, err := h.cellsValue(cells)
 		if err != nil {
 			return quickjs.Value{}, err
 		}
 		items[i] = row
 	}
-	return h.rt.NewArray(items...)
-}
-
-func (h *sqliteHost) rowValue(row sqliteRow) (quickjs.Value, error) {
-	columns := make([]any, len(row.columns))
-	for i := range row.columns {
-		columns[i] = row.columns[i]
-	}
-	columnValues, err := h.rt.NewArray(columns...)
+	rows, err := h.rt.NewArray(items...)
 	if err != nil {
 		return quickjs.Value{}, err
 	}
-	values := make([]any, len(row.values))
-	for i := range row.values {
-		cell, err := h.cellValue(row.values[i])
-		if err != nil {
-			return quickjs.Value{}, err
-		}
-		values[i] = cell
+	// Encode defines own properties. The own, non-callable then keeps the
+	// packet private even if a caller installs an inherited then handler.
+	return h.rt.Encode(struct {
+		Columns []string      `js:"columns"`
+		Rows    quickjs.Value `js:"rows"`
+		Done    bool          `js:"done"`
+		Then    any           `js:"then"`
+	}{Columns: result.columns, Rows: rows, Done: result.done})
+}
+
+func (h *sqliteHost) rowValue(row sqliteRow) (quickjs.Value, error) {
+	columns, err := h.rt.Encode(row.columns)
+	if err != nil {
+		return quickjs.Value{}, err
 	}
-	rowValues, err := h.rt.NewArray(values...)
+	values, err := h.cellsValue(row.values)
 	if err != nil {
 		return quickjs.Value{}, err
 	}
 	o := h.rt.NewObject()
-	if err := errors.Join(o.Set("columns", columnValues), o.Set("values", rowValues)); err != nil {
+	if err := errors.Join(o.Set("columns", columns), o.Set("values", values)); err != nil {
 		return quickjs.Value{}, err
 	}
 	return o, nil
+}
+
+func (h *sqliteHost) cellsValue(cells []sqliteCell) (quickjs.Value, error) {
+	values := make([]any, len(cells))
+	for i, cell := range cells {
+		value, err := h.cellValue(cell)
+		if err != nil {
+			return quickjs.Value{}, err
+		}
+		values[i] = value
+	}
+	return h.rt.NewArray(values...)
 }
 
 func (h *sqliteHost) cellValue(cell sqliteCell) (quickjs.Value, error) {

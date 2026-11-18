@@ -270,7 +270,12 @@ func (f *fileHandle) read(position, length quickjs.Value) *quickjs.Promise {
 		if n > len(buf) {
 			n = len(buf)
 		}
-		data := append([]byte(nil), buf[:n]...)
+		// Each read owns its buffer until the owner copies it into JavaScript.
+		// Compact short reads so queued results retain only the bytes read.
+		data := buf
+		if n != len(buf) {
+			data = append([]byte(nil), buf[:n]...)
+		}
 		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			return nil, &fileIOError{cause: readErr, code: fileErrorCode(readErr), data: data, bytesRead: n, hasBytesRead: true}
 		}
