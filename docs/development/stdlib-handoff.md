@@ -1,19 +1,40 @@
 # Standard library session handoff
 
-Updated 2026-11-18 after v2.31.0 publication and local installation. Filesystem
+Updated 2026-11-18 after v2.31.1 publication and local installation. Filesystem
 streaming and HMAC/JWK are included from `f4a1418`; completed implementation
 checks are reused. Managed Responses WebSocket implementation is committed as
 `7209bc4`; the v2.29.0 tag points to `260c60a`. SQLite row iteration is committed
 as `aa79508`; the v2.28.0 tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
-from `e2c8cfc`. Both local executables now run v2.31.0.
+from `e2c8cfc`. Both local executables now run v2.31.1.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. Managed Responses WebSocket
 continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
 
-## Current release — v2.31.0 published and installed
+## Current release — v2.31.1 published and installed
+
+The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.31.1)
+includes the CLI startup timeout correction from `38dc168`. File watcher
+initialization propagates the context error, preserving exit code 124 for
+the CLI's own deadline. The two CLI race failures recorded for v2.31.0 are
+resolved. The full CLI race suite, watcher race tests, and timeout E2E passed.
+
+The tag points to `bf7f68d27eed45e49f96bb24c6ce7c4fcf2cbda4`. The
+[workflow](https://forge.harakara.site/littleisland/noe/actions/runs/72)
+published six binaries and SHA256SUMS. All binary hashes and tagged build
+metadata matched. The Linux amd64 binary passed startup and execution
+timeout checks for both run and eval. Direct Go consumer checks passed.
+
+The verified native asset is installed at `/home/agent/.local/bin/noe` and
+`/home/agent/projects/noe/noe`. Both report noe v2.31.1 and match SHA256
+`30be49588797c661661fc41e1e317532f84b8dbd57353ecadbbf947c0d9b20b2`.
+PATH resolves to the former. Previous v2.31.0 binaries are retained in
+`/var/tmp/noe-v2.31.1-install-ewhdq8jq`. See the
+[publication record](../releases/release-checkpoints.md#v2311-publication-and-installation--2026-11-18).
+
+## Previous release — v2.31.0 publication and installation
 
 The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.31.0)
 includes provider retries and measured context (`b06d8b0`), saved agent tool
@@ -51,7 +72,8 @@ reads the omitted range of both streams from a later tool. The cancellation
 fixture verifies both saved files after the task ends. The Go consumer uses
 a rooted read-only profile. The affected race run passes outside two CLI
 100 ms timeout tests. Both fail with the same filesystem-watch startup
-diagnostic on the unchanged `b06d8b0` baseline. Evidence and final source
+diagnostic on the unchanged `b06d8b0` baseline. The v2.31.1 patch resolves
+both failures. Evidence and final source
 hashes are at `/var/tmp/noe-tool-output-_zw_eqop`.
 
 ## Published in v2.31.0 — provider retries and measured context
