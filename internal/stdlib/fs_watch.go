@@ -59,9 +59,9 @@ func newFSWatchHost(f *fsHost) (*fsWatchHost, error) {
 	// callback itself, so publishing a mutable stop field would race an already
 	// cancelled parent; the callback is one-shot and the closed host is inert.
 	context.AfterFunc(ctx, h.Close)
-	if ctx.Err() != nil {
+	if err := ctx.Err(); err != nil {
 		h.Close()
-		return nil, errors.New("filesystem watch host is closed")
+		return nil, err
 	}
 	return h, nil
 }

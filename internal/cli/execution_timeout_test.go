@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -133,23 +134,29 @@ func TestRunWithExecutionTimeoutPreservesExitResults(t *testing.T) {
 	}
 }
 
+const waitingScript = `console.log("started"); await new Promise(resolve => setTimeout(resolve, 5_000));`
+
 func TestRunExecutionTimeout(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	code := Run(context.Background(), []string{"eval", "--timeout=100ms", "await new Promise(resolve => setTimeout(resolve, 5_000))"}, strings.NewReader(""), &stdout, &stderr)
-	if code != 124 || !strings.Contains(stderr.String(), "execution timed out after 100ms") {
-		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
-	}
-	if strings.Contains(stderr.String(), "context deadline exceeded") {
-		t.Fatalf("timeout diagnostic should be deterministic: %q", stderr.String())
-	}
+	synctest.Test(t, func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		code := Run(t.Context(), []string{"eval", "--timeout=100ms", waitingScript}, strings.NewReader(""), &stdout, &stderr)
+		if code != 124 || stdout.String() != "started\n" || !strings.Contains(stderr.String(), "execution timed out after 100ms") {
+			t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+		}
+		if strings.Contains(stderr.String(), "context deadline exceeded") {
+			t.Fatalf("timeout diagnostic should be deterministic: %q", stderr.String())
+		}
+	})
 }
 
 func TestRunParentDeadlineKeepsOrdinaryErrorCode(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	var stdout, stderr bytes.Buffer
-	code := Run(ctx, []string{"eval", "--timeout=5s", "await new Promise(resolve => setTimeout(resolve, 5_000))"}, strings.NewReader(""), &stdout, &stderr)
-	if code != 1 || !strings.Contains(stderr.String(), "context deadline exceeded") || strings.Contains(stderr.String(), "execution timed out after") {
-		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
-	}
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+		var stdout, stderr bytes.Buffer
+		code := Run(ctx, []string{"eval", "--timeout=5s", waitingScript}, strings.NewReader(""), &stdout, &stderr)
+		if code != 1 || stdout.String() != "started\n" || !strings.Contains(stderr.String(), "context deadline exceeded") || strings.Contains(stderr.String(), "execution timed out after") {
+			t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+		}
+	})
 }

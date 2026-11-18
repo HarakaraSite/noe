@@ -90,6 +90,28 @@ func fsWatchResourceForTest(t *testing.T, host *fsWatchHost) *fsWatch {
 	return nil
 }
 
+func TestFSWatchInitializationPreservesDeadline(t *testing.T) {
+	rt := quickjs.New()
+	defer rt.Close()
+	loop := NewLoop(rt)
+	defer loop.Close()
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+	defer cancel()
+	scope, err := NewExecutionScope(loop, ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer scope.Close()
+	backend, err := filesystem.New(filesystem.Config{Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := newFSWatchHost(&fsHost{rt: rt, cfg: &FS{Loop: loop}, backend: backend})
+	if host != nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expired execution scope: host=%v, error=%v", host, err)
+	}
+}
+
 func TestFSWatchNativeDirectoryAndFileTargetDelivery(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
