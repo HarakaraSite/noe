@@ -171,8 +171,7 @@ func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Re
 		return Response{}, cancelErr
 	}
 	if err != nil {
-		status, _ := state.response()
-		return Response{}, classifyHTTPError(status, err)
+		return Response{}, state.classifyHTTPError(err)
 	}
 	if result == nil || result.EventStream == nil {
 		return Response{}, providerError(ErrorStream, 0, nil)
@@ -181,7 +180,7 @@ func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Re
 	completed := false
 	for result.EventStream.Next() {
 		if event := result.EventStream.Value(); event != nil {
-			if event.GetDataResponseFailed() != nil || event.GetDataResponseIncomplete() != nil {
+			if event.GetDataError() != nil || event.GetDataResponseFailed() != nil || event.GetDataResponseIncomplete() != nil {
 				return Response{}, nativeStreamFailure(state)
 			}
 			if event.GetDataResponseCompleted() != nil {

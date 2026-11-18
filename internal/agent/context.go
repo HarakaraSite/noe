@@ -107,6 +107,11 @@ type contextRunState struct {
 	baseMessageCount       int
 	toolsBytes             int
 	analysisCache          *managedContextAnalysisCache
+	usageAnchor            *contextUsageAnchor
+	pendingUsage           *contextUsageAnchor
+	pendingUsageRequestID  string
+	usageOffset            int64
+	usageAnchored          bool
 	prepared               bool
 }
 
@@ -115,6 +120,7 @@ type contextRunState struct {
 // to their run.
 type contextContinuation struct {
 	previous               *contextPrevious
+	usageAnchor            *contextUsageAnchor
 	trimCount              int
 	lastTrim               *contextTrimSnapshot
 	pendingNotice          *contextTrimSnapshot
@@ -126,6 +132,7 @@ func (s *contextRunState) restoreConversation(previous *contextContinuation) {
 		return
 	}
 	s.previous = cloneContextPrevious(previous.previous)
+	s.usageAnchor = previous.usageAnchor
 	s.trimCount = previous.trimCount
 	s.lastTrim = cloneContextTrimSnapshot(previous.lastTrim)
 	s.pendingNotice = cloneContextTrimSnapshot(previous.pendingNotice)
@@ -135,6 +142,7 @@ func (s *contextRunState) restoreConversation(previous *contextContinuation) {
 func (s *contextRunState) conversationContinuation() *contextContinuation {
 	return &contextContinuation{
 		previous:               cloneContextPrevious(s.previous),
+		usageAnchor:            s.usageAnchor,
 		trimCount:              s.trimCount,
 		lastTrim:               cloneContextTrimSnapshot(s.lastTrim),
 		pendingNotice:          cloneContextTrimSnapshot(s.pendingNotice),
@@ -179,6 +187,8 @@ func (s *contextRunState) resetStep(modelStepID string) {
 	s.baseMessagesBytes = 0
 	s.baseMessageCount = 0
 	s.toolsBytes = 0
+	s.usageOffset = 0
+	s.usageAnchored = false
 	s.prepared = false
 	s.finalPrepared = false
 	s.preparedDigest = ""
@@ -433,7 +443,7 @@ func recalculatePreparedContext(state *contextRunState, runID string, now time.T
 	var note string
 	for i := 0; i < 8; i++ {
 		estimate := &contextEstimate{
-			Tokens: candidate, ImageTokens: state.baseImageTokens, Method: imageEstimateMethod(state.baseImageTokens), Stage: "preparing",
+			Tokens: candidate, ImageTokens: state.baseImageTokens, Method: state.estimateMethod(state.baseImageTokens), Stage: "preparing",
 			ModelStepID: state.modelStepID, EstimatedAt: now,
 		}
 		state.estimate = estimate
@@ -445,14 +455,14 @@ func recalculatePreparedContext(state *contextRunState, runID string, now time.T
 			messagesBytes += 1 // comma before the ephemeral tail message
 		}
 		messagesBytes += len(noteMessage)
-		next := estimateContextTokens(messagesBytes, state.toolsBytes) + state.baseImageTokens
+		next := state.adjustContextTokens(estimateContextTokens(messagesBytes, state.toolsBytes) + state.baseImageTokens)
 		if next == candidate {
 			return snapshot
 		}
 		candidate = next
 	}
 	state.estimate = &contextEstimate{
-		Tokens: candidate, ImageTokens: state.baseImageTokens, Method: imageEstimateMethod(state.baseImageTokens), Stage: "preparing",
+		Tokens: candidate, ImageTokens: state.baseImageTokens, Method: state.estimateMethod(state.baseImageTokens), Stage: "preparing",
 		ModelStepID: state.modelStepID, EstimatedAt: now,
 	}
 	snapshot := state.snapshot(runID, now)

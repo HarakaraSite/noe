@@ -257,7 +257,7 @@ func (w *openAIWebSocket) ensureConnection(ctx context.Context, state *callState
 			return nil, closedErr
 		}
 		if handshakeResponse != nil && handshakeResponse.StatusCode != http.StatusSwitchingProtocols {
-			return nil, classifyHTTPError(handshakeResponse.StatusCode, err)
+			return nil, state.classifyHTTPError(err)
 		}
 		return nil, classifyOpenAIWebSocketError(err)
 	}
@@ -459,8 +459,8 @@ func sendOpenAIResponse(ctx context.Context, connection *responses.ResponseConne
 			return Response{}, "", nil, providerError(ErrorResponse, 0, nil)
 		}
 		if err := accumulator.consumeEvent(raw); err != nil {
-			if accumulator.quota {
-				return Response{}, "", nil, providerError(ErrorQuota, 0, nil)
+			if accumulator.failureKind != "" {
+				return Response{}, "", nil, providerError(accumulator.failureKind, 0, nil)
 			}
 			return Response{}, "", nil, err
 		}
@@ -473,8 +473,8 @@ func sendOpenAIResponse(ctx context.Context, connection *responses.ResponseConne
 		case "error":
 			return Response{}, "", nil, openAIWebSocketAPIError(raw)
 		case "response.failed", "response.incomplete":
-			if accumulator.quota {
-				return Response{}, "", nil, providerError(ErrorQuota, 0, nil)
+			if accumulator.failureKind != "" {
+				return Response{}, "", nil, providerError(accumulator.failureKind, 0, nil)
 			}
 			return Response{}, "", nil, providerError(ErrorResponse, 0, nil)
 		case "response.completed":
@@ -521,11 +521,17 @@ func openAIWebSocketAPIError(raw []byte) error {
 	if jsonv1.Unmarshal(raw, &event) != nil {
 		return providerError(ErrorResponse, 0, nil)
 	}
-	if event.Error.Code == "rate_limit_exceeded" || event.Error.Type == "rate_limit_error" {
-		return providerError(ErrorRateLimit, event.Status, nil)
+	if event.Status == http.StatusUnauthorized || event.Status == http.StatusForbidden {
+		return providerError(ErrorAuthentication, event.Status, nil)
+	}
+	if kind, known := providerCodeKind(event.Error.Code); known {
+		return providerError(kind, event.Status, nil)
+	}
+	if kind, known := providerCodeKind(event.Error.Type); known {
+		return providerError(kind, event.Status, nil)
 	}
 	if event.Status != 0 {
-		return classifyHTTPError(event.Status, errors.New("provider websocket error event"))
+		return classifyHTTPResponseError(event.Status, errors.New("provider websocket error event"), "", nil)
 	}
 	return providerError(ErrorResponse, 0, nil)
 }
@@ -538,9 +544,24 @@ func isPreviousResponseCacheMiss(err error) bool {
 func classifyOpenAIWebSocketError(err error) error {
 	var apiErr *openai.Error
 	if errors.As(err, &apiErr) {
-		return classifyHTTPError(apiErr.StatusCode, err)
+		var headers http.Header
+		if apiErr.Response != nil {
+			headers = apiErr.Response.Header
+		}
+		return classifyHTTPResponseError(apiErr.StatusCode, err, apiErr.Code, headers)
 	}
 	return providerError(ErrorTransport, 0, nil)
+}
+
+func openAIErrorCode(err error) string {
+	var apiErr *openai.Error
+	if errors.As(err, &apiErr) && apiErr != nil {
+		if apiErr.Code != "" {
+			return apiErr.Code
+		}
+		return apiErr.Type
+	}
+	return ""
 }
 
 func openAIWebSocketError(raw []byte) (int, openAIWebSocketErrorPayload) {

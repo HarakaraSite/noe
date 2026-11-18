@@ -1,18 +1,63 @@
 package provider
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 )
 
-// WebSocketHTTPClient forwards the borrowed transport's explicit upgrade
-// capability. The SDK copies this client before installing its handshake
-// wrapper, so its transport, redirect, timeout, Jar, and cancellation policies
-// remain owned by the caller.
+// WebSocketHTTPClient copies the borrowed client's policy and wraps only its
+// RoundTripper to retain retry metadata from failed upgrade responses.
 func (c *configuredHTTPClient) WebSocketHTTPClient() *http.Client {
 	client, _ := borrowedWebSocketHTTPClient(c.client)
-	return client
+	if client == nil {
+		return nil
+	}
+	copy := *client
+	copy.Transport = &webSocketObservationTransport{base: client.Transport}
+	return &copy
+}
+
+type webSocketObservationTransport struct{ base http.RoundTripper }
+
+func (t *webSocketObservationTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	response, err := base.RoundTrip(request)
+	if response == nil || response.StatusCode == http.StatusSwitchingProtocols {
+		return response, err
+	}
+	state, _ := request.Context().Value(callContextKey{}).(*callState)
+	if state != nil {
+		code := ""
+		if response.StatusCode >= http.StatusBadRequest && response.Body != nil {
+			body := response.Body
+			prefix, _ := io.ReadAll(io.LimitReader(body, maxProviderErrorCodeJSON))
+			response.Body = &replayReadCloser{Reader: io.MultiReader(bytes.NewReader(prefix), body), Closer: body}
+			code = providerErrorCodeFromJSON(prefix)
+		}
+		state.setResponseMetadata(response.StatusCode, response.Header, code)
+	}
+	return response, err
+}
+
+func (t *webSocketObservationTransport) CancelRequest(request *http.Request) {
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	if canceler, ok := base.(interface{ CancelRequest(*http.Request) }); ok {
+		canceler.CancelRequest(request)
+	}
+}
+
+type replayReadCloser struct {
+	io.Reader
+	io.Closer
 }
 
 type borrowedWebSocketClientProvider interface {

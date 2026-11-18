@@ -207,8 +207,14 @@ context snapshotの形は次のとおり（数値は例）。
 
 明示予算・window・実測の未知値は`null`。最初の要求前は`previous: null`。
 実測が返らない要求や失敗を、前要求の数値で補わない。
-promptにはcached分も含む。概算はmessages/toolsのJSON UTF-8 byte量を4で割る近似で、
-providerのtokenizerやadapter変換後のwire量とは一致しない。
+Prompt/input measurements include cached tokens. With an unchanged sent prefix,
+estimates use its last valid measured input plus the JSON-byte/4 and image-cost
+delta for later messages. The method starts with `provider_usage+`. Changed
+prefix content, tools, model configuration, or old image costs invalidate this
+measurement; trim returns to the heuristic until new usage arrives. The
+previous-request fields remain actual measurements, not reused estimates.
+These estimates are not a provider tokenizer or a billing forecast. Protected
+and history trim weights share the calibrated total proportionally.
 `preparing`は判断準備時、`sent`は実要求の送信時を示す。
 応答後のsnapshotは最新の送信概算を`sent`として保持し、次の判断を準備すると置き換える。
 これらの内部更新ごとに観察イベントは発火しません。`context.updated`は実際のモデル要求の
@@ -216,8 +222,12 @@ providerのtokenizerやadapter変換後のwire量とは一致しない。
 通知の有無にかかわらず各時点の最新状態を返します。実際に適用した切り捨ては
 `context.trimmed`として別途通知します。
 
-画像を含む場合、`estimate.imageTokens`は画像分の概算を別に示し、`estimate.method`は
-`json_utf8_bytes/4+image_32px_patches_x1.2_fallback`になります。画像の推定はtokenizerや課金額の実測ではなく、`low` detailでは最大辺512pxに収めた寸法、それ以外では原寸を使います。式の詳細は[画像ガイド](agent-images.md)を参照してください。
+For images, `estimate.imageTokens` retains the metadata-based approximation.
+The fallback method is `json_utf8_bytes/4+image_32px_patches_x1.2_fallback`, with
+`provider_usage+` prepended when measured input anchors the prefix. Old images
+are already included in that measurement; new images add their estimated cost.
+The `low` detail estimate limits the longest edge to 512px; other details use
+original dimensions. See the [image guide](agent-images.md).
 
 標準通知は外部hookなしでもモデル要求へ新しいuser messageとして一つ添える。
 `Execution context: ~使用量 / 予算 tokens`の分母が、実行履歴の計算済み予算と自動切り捨て有効時の閾値。
@@ -277,7 +287,11 @@ executionLimits: {providerCalls: 100, agentStarts: 8, queuedTasks: 16, hookCalls
 ```
 
 省略項目は無制限、明示した`0`は受付枠0。`maxSteps:0`が無制限である契約とは別。
-providerCallsはagentのGenerateと所有下のdecisionのDecideを共用し、同じGenerate内のHTTP retryは数えない。組込みagent生成は最大3試行・2秒／4秒待機で再送し、hookとtoolは再実行しない。詳細は[providerガイド](providers.md#モデル要求の再試行)を参照。
+providerCalls covers agent Generate and owned decision Decide calls; transport
+retries within one Generate do not consume additional calls. Built-in generation
+uses at most three attempts with server-directed waits or exponential backoff
+with jitter, without replaying hooks or tools. See the
+[provider guide](providers.md#モデル要求の再試行).
 開始後の失敗・取消しで枠を戻さない。queueの同commandId再送は二重計数しない。
 N件目は受け付け、その次の受付でgroupを閉じ、rootと所有workを取消す。
 上限に達した瞬間に成功したN件目を停止する方式ではない。

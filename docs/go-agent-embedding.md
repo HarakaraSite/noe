@@ -139,6 +139,14 @@ the instance, active task, and remaining queue. `Observe` returns a live
 snapshot; it does not read a saved event file. `ReadTaskResult` reads a
 completed answer in UTF-8 byte ranges without consuming it.
 
+Context estimates in live snapshots use positive measured input usage when
+the previously sent prefix, tools and model configuration remain unchanged.
+The method starts with `provider_usage+`; subsequent messages and images use
+the existing heuristics. Cached input is included. Trim or changed inputs
+invalidate the measurement, and each instance owns its own continuation.
+The same calibrated total informs automatic trim budgets. See the
+[estimation contract](development/agentlib-retry-context.md#measured-context-estimates).
+
 `agent.TaskOutcome.HookFailures` is an optional `[]agent.HookFailure` for
 recovered registered-handler failures; it can coexist with `State == "completed"`
 and does not modify `Answer` or replace the task's `Error`. It is omitted from

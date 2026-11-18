@@ -122,15 +122,27 @@ type callState struct {
 	responseAPI    string
 	reasoningField string
 
-	mu     sync.Mutex
-	status int
-	body   *observedBody
+	mu           sync.Mutex
+	status       int
+	body         *observedBody
+	retryHeaders http.Header
+	errorCode    string
 }
 
-func (s *callState) setResponse(status int, body *observedBody) {
+func (s *callState) setResponse(status int, body *observedBody, headers http.Header) {
 	s.mu.Lock()
 	s.status = status
 	s.body = body
+	s.retryHeaders = headers.Clone()
+	s.errorCode = ""
+	s.mu.Unlock()
+}
+
+func (s *callState) setResponseMetadata(status int, headers http.Header, code string) {
+	s.mu.Lock()
+	s.status = status
+	s.retryHeaders = headers.Clone()
+	s.errorCode = code
 	s.mu.Unlock()
 }
 
@@ -138,6 +150,18 @@ func (s *callState) response() (int, *observedBody) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.status, s.body
+}
+
+func (s *callState) classifyHTTPError(cause error) error {
+	status, body := s.response()
+	s.mu.Lock()
+	code := s.errorCode
+	headers := s.retryHeaders.Clone()
+	s.mu.Unlock()
+	if code == "" && body != nil {
+		code = body.errorCode()
+	}
+	return classifyHTTPResponseError(status, cause, code, headers)
 }
 
 func (s *callState) closeBody() {
@@ -173,6 +197,7 @@ func (c *observedHTTPClient) Do(request *http.Request) (*http.Response, error) {
 			source = http.NoBody
 		}
 		body := newObservedBody(source)
+		body.captureErrorCode = response.StatusCode >= http.StatusBadRequest
 		body.observe = state.observe
 		if state.responseAPI == "responses" {
 			body.chat = nil
@@ -186,7 +211,7 @@ func (c *observedHTTPClient) Do(request *http.Request) (*http.Response, error) {
 				}
 			}
 		}
-		state.setResponse(response.StatusCode, body)
+		state.setResponse(response.StatusCode, body, response.Header)
 		response.Body = body
 	}
 	return response, err
@@ -296,13 +321,12 @@ func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (Respons
 		if cancelErr := cancellationError(ctx); cancelErr != nil {
 			return Response{}, cancelErr
 		}
-		status, _ := state.response()
-		return Response{}, classifyHTTPError(status, err)
+		return Response{}, state.classifyHTTPError(err)
 	}
 	if result == nil || result.EventStream == nil {
 		status, _ := state.response()
 		if status != 200 {
-			return Response{}, classifyHTTPError(status, nil)
+			return Response{}, state.classifyHTTPError(nil)
 		}
 		return Response{}, providerError(ErrorResponse, status, nil)
 	}

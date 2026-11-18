@@ -609,6 +609,8 @@ func TestOpenAIManagedWebSocketIncompleteQuotaAndEOFClassification(t *testing.T)
 	}{
 		{name: "incomplete", kind: ErrorResponse, event: `{"type":"response.incomplete","response":{"status":"incomplete","error":{"code":"max_output_tokens"}}}`},
 		{name: "quota", kind: ErrorQuota, event: `{"type":"response.failed","response":{"status":"failed","error":{"code":"subscription_sharing_usage_limit_exceeded"}}}`},
+		{name: "usage unavailable", kind: ErrorTransport, event: `{"type":"response.failed","response":{"status":"failed","error":{"code":"subscription_sharing_usage_unavailable"}}}`},
+		{name: "user unavailable", kind: ErrorTransport, event: `{"type":"response.failed","response":{"status":"failed","error":{"code":"user_unavailable"}}}`},
 		{name: "eof", kind: ErrorStream},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -639,6 +641,9 @@ func TestOpenAIManagedWebSocketIncompleteQuotaAndEOFClassification(t *testing.T)
 			var providerErr *ProviderError
 			if !errors.As(err, &providerErr) || providerErr.Kind != test.kind {
 				t.Fatalf("error = %v, want %s", err, test.kind)
+			}
+			if test.kind == ErrorQuota && retryableGenerationError(err) || test.kind == ErrorTransport && !retryableGenerationError(err) {
+				t.Fatalf("retryability did not match classified %s failure: %v", test.kind, err)
 			}
 		})
 	}
@@ -683,8 +688,11 @@ func TestOpenAIWebSocketBridgePreservesUpgradeAndLegacyCancelRequest(t *testing.
 	borrowed := &http.Client{Transport: roundTripper}
 	configured := &configuredHTTPClient{client: borrowed, profile: profile}
 	bridge := configured.WebSocketHTTPClient()
-	if bridge != borrowed {
-		t.Fatal("standard HTTP client was not forwarded as the websocket client")
+	if bridge == borrowed || bridge.Transport == borrowed.Transport {
+		t.Fatal("websocket client did not copy and wrap the borrowed transport")
+	}
+	if bridge.Timeout != borrowed.Timeout || bridge.Jar != borrowed.Jar || (bridge.CheckRedirect == nil) != (borrowed.CheckRedirect == nil) {
+		t.Fatal("websocket client did not preserve the borrowed HTTP policy")
 	}
 	request := httptest.NewRequest(http.MethodGet, "https://fixture.invalid/v1/responses", nil)
 	response, err := bridge.Transport.RoundTrip(request)
@@ -784,13 +792,18 @@ func TestOpenAIWebSocketBridgeHonorsSameOriginRedirect(t *testing.T) {
 
 func TestOpenAIManagedWebSocketClassifiesHandshakeHTTPStatus(t *testing.T) {
 	for _, test := range []struct {
-		status int
-		kind   ErrorKind
+		status     int
+		kind       ErrorKind
+		retryAfter string
+		code       string
+		wantDelay  time.Duration
 	}{
 		{status: http.StatusUnauthorized, kind: ErrorAuthentication},
 		{status: http.StatusTooManyRequests, kind: ErrorRateLimit},
+		{status: http.StatusServiceUnavailable, kind: ErrorTransport, retryAfter: "2500", wantDelay: 2500 * time.Millisecond},
+		{status: http.StatusTooManyRequests, kind: ErrorQuota, code: "insufficient_quota"},
 	} {
-		t.Run(fmt.Sprint(test.status), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%d/%s", test.status, test.code), func(t *testing.T) {
 			var calls int
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls++
@@ -798,8 +811,11 @@ func TestOpenAIManagedWebSocketClassifiesHandshakeHTTPStatus(t *testing.T) {
 					t.Errorf("handshake path = %q", r.URL.Path)
 				}
 				w.Header().Set("Content-Type", "application/json")
+				if test.retryAfter != "" {
+					w.Header().Set("Retry-After-Ms", test.retryAfter)
+				}
 				w.WriteHeader(test.status)
-				_, _ = io.WriteString(w, `{"error":{"message":"fixture rejection"}}`)
+				_, _ = io.WriteString(w, `{"error":{"message":"fixture rejection","code":"`+test.code+`"}}`)
 			}))
 			defer server.Close()
 			p := websocketProvider(t, server.URL, "none")
@@ -815,9 +831,32 @@ func TestOpenAIManagedWebSocketClassifiesHandshakeHTTPStatus(t *testing.T) {
 			if !errors.As(err, &providerErr) || providerErr.Kind != test.kind || providerErr.StatusCode != test.status {
 				t.Fatalf("handshake error = %v, want kind=%s status=%d", err, test.kind, test.status)
 			}
+			if test.wantDelay != 0 && (!providerErr.hasRetryAfter || providerErr.retryAfter != test.wantDelay) {
+				t.Fatalf("handshake retry hint = %v/%t, want %v", providerErr.retryAfter, providerErr.hasRetryAfter, test.wantDelay)
+			}
+			if test.kind == ErrorQuota && retryableGenerationError(err) {
+				t.Fatalf("quota handshake was retryable: %v", err)
+			}
 			if calls != 1 {
 				t.Fatalf("handshake attempts = %d, want 1", calls)
 			}
 		})
+	}
+}
+
+func TestOpenAIWebSocketErrorCodeDoesNotOverrideAuthenticationStatus(t *testing.T) {
+	for _, test := range []struct {
+		status int
+		code   string
+	}{
+		{status: http.StatusUnauthorized, code: "subscription_sharing_usage_unavailable"},
+		{status: http.StatusForbidden, code: "user_unavailable"},
+	} {
+		raw := []byte(fmt.Sprintf(`{"type":"error","status":%d,"error":{"code":%q}}`, test.status, test.code))
+		err := openAIWebSocketAPIError(raw)
+		var failure *ProviderError
+		if !errors.As(err, &failure) || failure.Kind != ErrorAuthentication || retryableGenerationError(err) {
+			t.Fatalf("status=%d code=%s classified as %v; want terminal authentication", test.status, test.code, err)
+		}
 	}
 }

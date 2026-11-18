@@ -52,7 +52,16 @@ A managed agent owns its task runtime and descendants. A returned snapshot is a 
 
 The `contextBudget.inputTokens` scale includes fixed instructions. It is different from the execution-history allowance used by `contextPolicy`. If both model-window metadata and an explicit budget are unknown, NOE uses a 1,000,000-token input-budget fallback; this is not a model-capacity guarantee. A root's execution limits are shared by its descendants and owned decision calls.
 
-Built-in agent providers retry transient transport failures, HTTP 429/5xx, and incomplete streams up to three attempts, waiting 2 seconds before attempt two and 4 seconds before attempt three. Cancellation also stops retry waits. The same request is resent without replaying hooks or tools. Partial text already observed stays visible, but failed responses are not added to conversation history. Retry attempts do not add model-step/admission counts or retry-specific events. Decisions, image generation, and custom injected providers retain their existing behavior.
+Built-in agent providers retry transient transport failures, rate limits/5xx, temporary ChatGPT usage/user lookup failures, and incomplete streams up to three attempts. Recognized quota/billing exhaustion is terminal, including quota errors sent as HTTP 429. Valid retry-after-ms takes precedence over Retry-After (seconds or HTTP date). Server delays up to 60 seconds are honored; longer delays return the classified error without retrying early. Invalid hints fall back to exponential backoff with jitter: 1.5–2 seconds, then 3–4 seconds. x-should-retry:false stops retry; true cannot override authentication, quota, or cancellation. Cancellation also stops retry waits. The same request is resent without replaying hooks or tools. Partial text already observed stays visible, but failed responses are not added to conversation history. Retry attempts do not add model-step/admission counts or retry-specific events. Decisions, image generation, and custom injected providers retain their existing behavior.
+
+Context estimates use positive measured input usage for an unchanged sent prefix,
+plus heuristic estimates for subsequent messages and images. Cached input is
+included. The method starts with provider_usage+ when this applies; otherwise
+JSON UTF-8 bytes/4 and image metadata remain the fallback. Changed/deleted
+prefix content, tools, model configuration, or existing image costs invalidate
+the measurement. Trim budgets use the same calibrated total, apportioned over
+heuristic protected/history weights. Existing protected/recent-block rules and
+trim receipts remain in force. No LLM summary is generated.
 
 ## run_agent
 

@@ -117,7 +117,16 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 			return contextPrepareResponse{}, newOperationError(http.StatusConflict, "conversation", err.Error())
 		}
 	}
-	run.context.fixedTokens, run.context.executionTokens = analysis.fixedTokens, analysis.executionTokens
+	anchor := run.context.usageAnchor
+	offset, matched := int64(0), false
+	if cacheHit && run.context.analysisCache.usageChecked && run.context.analysisCache.usageAnchor == anchor && run.context.analysisCache.usageIdentity == usageIdentity(run.config) {
+		offset, matched = run.context.analysisCache.usageOffset, run.context.analysisCache.usageMatched
+	} else {
+		offset, matched = anchor.offset(run.config, request.Messages, request.Tools, run.context.imageEstimates)
+	}
+	run.context.usageOffset, run.context.usageAnchored = offset, matched
+	fixed, execution, weights := run.context.calibratedHistoryParts(analysis)
+	run.context.fixedTokens, run.context.executionTokens = fixed, execution
 	var trimmed *contextTrimSnapshot
 	if request.AppliedPlanID != "" {
 		var ackErr error
@@ -140,7 +149,7 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 	var err error
 	var plan *contextTrimPlan
 	if request.Final && request.AppliedPlanID == "" {
-		plan, err = run.context.planTrimWithWeights(request.Messages, request.Tools, request.History, analysis.weights)
+		plan, err = run.context.planTrimWithWeights(request.Messages, request.Tools, request.History, weights)
 		if err != nil {
 			h.mu.Unlock()
 			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "context_plan", err.Error())
@@ -150,10 +159,17 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		if !cacheHit {
 			run.context.analysisCache = newManagedContextAnalysisCache(managedConversation, request.Tools, run.context.imageEstimates, analysis)
 		}
+		cache := run.context.analysisCache
+		cache.usageChecked, cache.usageAnchor = true, anchor
+		cache.usageIdentity = usageIdentity(run.config)
+		cache.usageOffset, cache.usageMatched = offset, matched
 	} else {
 		// Explicit-message preparation can describe a different transcript and
 		// must not keep a managed snapshot alive after it succeeds.
 		run.context.analysisCache = nil
+	}
+	if !matched {
+		run.context.usageAnchor = nil
 	}
 	run.context.finalPrepared = request.Final && plan == nil
 	if run.context.finalPrepared {
@@ -277,17 +293,25 @@ func (h *Host) markContextSentLocked(run *agentRun, request modelRequest, reques
 	messageData, _ := json.Marshal(request.Messages)
 	toolData, _ := json.Marshal(request.Tools)
 	imageTokens := historyImageTokens(request.Messages, run.context.imageEstimates)
-	tokens := estimateContextTokens(len(messageData), len(toolData)) + imageTokens
+	rawTokens := safeTokenAdd(estimateContextTokens(len(messageData), len(toolData)), imageTokens)
+	run.context.usageOffset, run.context.usageAnchored = run.context.usageAnchor.offset(run.config, request.Messages, request.Tools, run.context.imageEstimates)
+	if !run.context.usageAnchored {
+		run.context.usageAnchor = nil
+	}
+	tokens := run.context.adjustContextTokens(rawTokens)
+	run.context.pendingUsage = newContextUsageAnchor(run.config, request.Messages, request.Tools, run.context.imageEstimates, rawTokens)
+	run.context.pendingUsageRequestID = requestID
 	requestIDCopy := requestID
 	run.context.modelStepID = request.ModelStepID
 	run.context.estimate = &contextEstimate{
-		Tokens: tokens, ImageTokens: imageTokens, Method: imageEstimateMethod(imageTokens), Stage: "sent",
+		Tokens: tokens, ImageTokens: imageTokens, Method: run.context.estimateMethod(imageTokens), Stage: "sent",
 		ModelStepID: request.ModelStepID, RequestID: &requestIDCopy, EstimatedAt: now,
 	}
 	h.storeContextSnapshotLocked(run, now)
 }
 
 func (h *Host) completeContextRequestLocked(run *agentRun, requestID, status string, usage *usageSummary, now time.Time) (contextSnapshot, string, []string) {
+	run.context.completeUsageAnchor(requestID, status, usage)
 	previous := &contextPrevious{RequestID: requestID, Status: status, MeasuredAt: now}
 	if usage != nil {
 		previous.PromptTokens = cloneInt64(usage.PromptTokens)

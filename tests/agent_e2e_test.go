@@ -75,6 +75,7 @@ type agentModelReply struct {
 	FinishReason string
 	Status       int
 	OmitDone     bool
+	InputTokens  *int64
 }
 
 func agentTool(id, code string) map[string]any {
@@ -148,7 +149,15 @@ func agentAPIFixture(t *testing.T, handle func(context.Context, agentChatRequest
 			finish = "stop"
 		}
 		write(map[string]any{}, finish)
-		fmt.Fprint(w, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":20,\"total_tokens\":120,\"prompt_tokens_details\":{\"cached_tokens\":25},\"cost\":0.0001}}\n\n")
+		inputTokens := int64(100)
+		if reply.InputTokens != nil {
+			inputTokens = *reply.InputTokens
+		}
+		usage, _ := json.Marshal(map[string]any{"choices": []any{}, "usage": map[string]any{
+			"prompt_tokens": inputTokens, "completion_tokens": 20, "total_tokens": inputTokens + 20,
+			"prompt_tokens_details": map[string]int64{"cached_tokens": min(25, inputTokens)}, "cost": 0.0001,
+		}})
+		fmt.Fprintf(w, "data: %s\n\n", usage)
 		if !reply.OmitDone {
 			fmt.Fprint(w, "data: [DONE]\n\n")
 		}

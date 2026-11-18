@@ -131,7 +131,18 @@ are unchanged.
 
 ## モデル要求の再試行
 
-組込みproviderのagentモデル要求は、通信障害・HTTP 429・5xx・不完全なstreamで自動再試行します。最大3試行で、1回目の失敗後に2秒、2回目の失敗後に4秒待機します。認証失敗・残高不足・入力不正・取消しは再試行しません。待機中もinterrupt・timeout・所有元の終了による取消しが有効です。回数・待機時間の設定項目はありません。
+Built-in agent generation retries transient transport failures, rate limits,
+server failures, and incomplete streams up to three attempts. Recognized quota
+or billing exhaustion, including HTTP 429 quota errors, is not retried.
+Temporary ChatGPT usage/user lookup failures are transient. Authentication and
+cancellation remain terminal.
+
+Valid retry-after-ms takes precedence over Retry-After (seconds or HTTP date).
+Server delays up to 60 seconds are honored; longer delays return the classified
+error without retrying early. Invalid hints fall back to local exponential
+backoff with jitter: 1.5–2 seconds, then 3–4 seconds. x-should-retry:false stops
+retries; true cannot override authentication, quota, or cancellation. All waits
+remain cancellable. No retry configuration fields are added.
 
 各試行は同じ入力を送り、完了済みのtool・hookは再実行しません。失敗した試行の部分応答は会話履歴へ追加せず、成功した試行の完全な応答だけを返します。既に表示・JSONLへ出たthinking等の断片は残り、再試行による重複を許容します。途中まで受信したtool callは実行しません。
 

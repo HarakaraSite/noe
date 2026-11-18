@@ -67,7 +67,8 @@ func (s *contextRunState) executionSnapshot() *executionContextSnapshot {
 	}
 	transient := int64(0)
 	if s.estimate != nil {
-		transient = max(0, s.estimate.Tokens-estimateContextTokens(s.baseMessagesBytes, s.toolsBytes)-s.baseImageTokens)
+		base := s.adjustContextTokens(estimateContextTokens(s.baseMessagesBytes, s.toolsBytes) + s.baseImageTokens)
+		transient = max(0, s.estimate.Tokens-base)
 	}
 	budget := resolveExecutionBudget(s.budget, s.modelWindow, s.maxTokens, s.catalogMaxOutput, s.policy, s.fixedTokens, transient)
 	policy := "auto"

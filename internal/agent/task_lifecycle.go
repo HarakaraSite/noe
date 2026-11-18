@@ -248,6 +248,7 @@ func (task *managedTask) commitOutcomeLocked(result Result, err error) (taskOutc
 		// A task may exit without an authenticated finish call. Drop run-owned
 		// preparation state before the settled command retains its run pointer.
 		run.context.analysisCache = nil
+		run.context.usageAnchor, run.context.pendingUsage = nil, nil
 	}
 	finalAnswer := ""
 	finalCommitted := false

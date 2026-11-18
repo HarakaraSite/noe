@@ -10,11 +10,11 @@ import (
 // the stream's delta history. Some providers put full items only in
 // output_item.done, with an empty response.output in response.completed.
 type responsesAccumulator struct {
-	items     map[int]jsonv1.RawMessage
-	envelope  map[string]jsonv1.RawMessage
-	completed bool
-	quota     bool
-	err       error
+	items       map[int]jsonv1.RawMessage
+	envelope    map[string]jsonv1.RawMessage
+	completed   bool
+	failureKind ErrorKind
+	err         error
 }
 
 func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
@@ -23,15 +23,29 @@ func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 		Response    jsonv1.RawMessage `json:"response"`
 		Item        jsonv1.RawMessage `json:"item"`
 		OutputIndex int               `json:"output_index"`
+		Code        string            `json:"code"`
+		Error       struct {
+			Code string `json:"code"`
+			Type string `json:"type"`
+		} `json:"error"`
 	}
 	if err := json.Unmarshal(raw, &event); err != nil {
 		// Failure classification does not depend on unrelated event fields,
 		// such as a malformed output_index rejected by the assembler.
 		var failure struct {
+			Type     string            `json:"type"`
 			Response jsonv1.RawMessage `json:"response"`
+			Code     string            `json:"code"`
+			Error    struct {
+				Code string `json:"code"`
+				Type string `json:"type"`
+			} `json:"error"`
 		}
 		if json.Unmarshal(raw, &failure) == nil {
-			a.quota = a.quota || nativeQuotaResponse(failure.Response)
+			a.recordFailureKind(nativeResponseErrorKind(failure.Response))
+			if failure.Type == "error" {
+				a.recordFailureKind(providerFailureCodeKind(failure.Code, failure.Error.Code, failure.Error.Type))
+			}
 		}
 		if !a.completed && a.err == nil {
 			a.err = providerError(ErrorResponse, 0, nil)
@@ -40,7 +54,10 @@ func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 	}
 	// Failure classification still observes later events after an assembly
 	// error. The SDK can read several events ahead in a single body.Read.
-	a.quota = a.quota || nativeQuotaResponse(event.Response)
+	a.recordFailureKind(nativeResponseErrorKind(event.Response))
+	if event.Type == "error" {
+		a.recordFailureKind(providerFailureCodeKind(event.Code, event.Error.Code, event.Error.Type))
+	}
 	if a.completed || a.err != nil {
 		return a.err
 	}
@@ -80,19 +97,71 @@ func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 	return nil
 }
 
-func nativeQuotaResponse(raw jsonv1.RawMessage) bool {
+func nativeResponseErrorKind(raw jsonv1.RawMessage) ErrorKind {
 	if len(raw) == 0 {
-		return false
+		return ""
 	}
 	var failure struct {
 		Error struct {
 			Code string `json:"code"`
+			Type string `json:"type"`
 		} `json:"error"`
 	}
 	if json.Unmarshal(raw, &failure) != nil {
-		return false
+		return ""
 	}
-	return failure.Error.Code == "subscription_sharing_usage_limit_exceeded" || failure.Error.Code == "subscription_sharing_usage_unavailable"
+	if kind, known := providerCodeKind(failure.Error.Code); known {
+		return kind
+	}
+	if kind, known := providerCodeKind(failure.Error.Type); known {
+		return kind
+	}
+	return ""
+}
+
+func nativeQuotaResponse(raw jsonv1.RawMessage) bool {
+	return nativeResponseErrorKind(raw) == ErrorQuota
+}
+
+func providerFailureCodeKind(codes ...string) ErrorKind {
+	for _, code := range codes {
+		if kind, known := providerCodeKind(code); known {
+			return kind
+		}
+	}
+	return ""
+}
+
+func (a *responsesAccumulator) recordFailureKind(kind ErrorKind) {
+	if kind == "" || a.failureKind == ErrorQuota {
+		return
+	}
+	if kind == ErrorQuota || a.failureKind == "" {
+		a.failureKind = kind
+	}
+}
+
+func providerErrorCodeFromJSON(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var errorBody struct {
+		Error struct {
+			Code string `json:"code"`
+			Type string `json:"type"`
+		} `json:"error"`
+		Code string `json:"code"`
+	}
+	if json.Unmarshal(raw, &errorBody) != nil {
+		return ""
+	}
+	if errorBody.Error.Code != "" {
+		return errorBody.Error.Code
+	}
+	if errorBody.Error.Type != "" {
+		return errorBody.Error.Type
+	}
+	return errorBody.Code
 }
 
 func (a *responsesAccumulator) response() (Response, error) {

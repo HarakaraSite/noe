@@ -25,6 +25,7 @@ func (p *hostProvider) Generate(ctx context.Context, q model.Request) (model.Res
 	if err := ctx.Err(); err != nil {
 		return model.Response{}, err
 	}
+	usage := json.RawMessage(`{"input_tokens":10000,"input_tokens_details":{"cached_tokens":8000}}`)
 	instruction := ""
 	hasTool := false
 	for _, raw := range q.Messages {
@@ -54,11 +55,11 @@ if(readFileSync("input.txt","utf8")!=="selected root")throw Error("tool filesyst
 const child=await run_agent({name:"child"},"child");if(child.lastResult?.state!=="completed")throw Error("child");console.log(child.lastResult.answer);`
 		args, _ := json.Marshal(map[string]string{"code": code})
 		message, _ := json.Marshal(map[string]any{"role": "assistant", "tool_calls": []any{map[string]any{"id": "files-and-child", "type": "function", "function": map[string]string{"name": "run_js", "arguments": string(args)}}}})
-		return model.Response{Message: message, FinishReason: "tool_calls"}, nil
+		return model.Response{Message: message, FinishReason: "tool_calls", Usage: usage}, nil
 	}
 	answer := instruction + " answer"
 	message, _ := json.Marshal(map[string]string{"role": "assistant", "content": answer})
-	return model.Response{Message: message, FinishReason: "stop"}, nil
+	return model.Response{Message: message, FinishReason: "stop", Usage: usage}, nil
 }
 func runGoHost() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -96,6 +97,10 @@ func runGoHost() error {
 	if err != nil || result.State != "completed" || result.Answer != "root answer" {
 		return fmt.Errorf("Go Host root=%+v err=%v", result, err)
 	}
+	observed, err := client.Observe(ctx, publicagent.InstanceRequest{AgentID: accepted.AgentID})
+	if err != nil || observed.Context == nil || observed.Context.Estimate == nil || !strings.HasPrefix(observed.Context.Estimate.Method, "provider_usage+") {
+		return fmt.Errorf("Go Host tool continuation lost usage-based context: %+v err=%v", observed.Context, err)
+	}
 	queued, err := client.Queue(ctx, publicagent.QueueRequest{AgentID: accepted.AgentID, Instruction: "queued"})
 	if err != nil {
 		return err
@@ -103,6 +108,10 @@ func runGoHost() error {
 	result, err = client.WaitTask(ctx, publicagent.TaskRequest{AgentID: accepted.AgentID, CommandID: queued.CommandID})
 	if err != nil || result.State != "completed" || result.Answer != "queued answer" {
 		return fmt.Errorf("Go Host queue=%+v err=%v", result, err)
+	}
+	observed, err = client.Observe(ctx, publicagent.InstanceRequest{AgentID: accepted.AgentID})
+	if err != nil || observed.Context == nil || observed.Context.Estimate == nil || !strings.HasPrefix(observed.Context.Estimate.Method, "provider_usage+") {
+		return fmt.Errorf("Go Host queue lost usage-based context: %+v err=%v", observed.Context, err)
 	}
 	provider.mu.Lock()
 	first, next, child := provider.identities["root"], provider.identities["queued"], provider.identities["child"]

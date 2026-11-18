@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // ErrorKind classifies provider failures without exposing SDK diagnostics or
@@ -25,6 +26,11 @@ type ProviderError struct {
 	Kind       ErrorKind
 	StatusCode int
 	cause      error
+
+	retryAfter        time.Duration
+	hasRetryAfter     bool
+	retryDelayTooLong bool
+	retryDirective    retryDirective
 }
 
 func (e *ProviderError) Error() string {
@@ -77,6 +83,8 @@ func classifyHTTPError(status int, cause error) error {
 		return providerError(ErrorAuthentication, status, nil)
 	case status == 402:
 		return providerError(ErrorQuota, status, nil)
+	case status == 408 || status == 409:
+		return providerError(ErrorTransport, status, nil)
 	case status == 429:
 		return providerError(ErrorRateLimit, status, nil)
 	case status >= 500:

@@ -8,6 +8,8 @@ import (
 	"sync"
 )
 
+const maxProviderErrorCodeJSON = 64 << 10
+
 // observedBody lets the SDK consume its own EventStream while independently
 // assembling complete SSE events and recording the underlying body's read
 // errors. The SDK's EventStream intentionally stops reading at [DONE].
@@ -27,6 +29,9 @@ type observedBody struct {
 	done       bool
 	readErr    error
 
+	captureErrorCode bool
+	errorJSON        []byte
+
 	closeOnce sync.Once
 	closeErr  error
 }
@@ -41,6 +46,14 @@ func (b *observedBody) Read(p []byte) (int, error) {
 	var completed []jsonv1.RawMessage
 	if n > 0 {
 		completed = b.feedLocked(p[:n])
+		if b.captureErrorCode && len(b.errorJSON) < maxProviderErrorCodeJSON {
+			remaining := maxProviderErrorCodeJSON - len(b.errorJSON)
+			if len(p[:n]) > remaining {
+				b.errorJSON = append(b.errorJSON, p[:n][:remaining]...)
+			} else {
+				b.errorJSON = append(b.errorJSON, p[:n]...)
+			}
+		}
 	}
 	if err != nil && err != io.EOF && b.readErr == nil {
 		b.readErr = err
@@ -86,7 +99,22 @@ func (b *observedBody) response() (Response, error) {
 func (b *observedBody) nativeQuota() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.native != nil && b.native.quota
+	return b.native != nil && b.native.failureKind == ErrorQuota
+}
+
+func (b *observedBody) nativeErrorKind() ErrorKind {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.native == nil {
+		return ""
+	}
+	return b.native.failureKind
+}
+
+func (b *observedBody) errorCode() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return providerErrorCodeFromJSON(b.errorJSON)
 }
 
 func (b *observedBody) feedLocked(chunk []byte) []jsonv1.RawMessage {

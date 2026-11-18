@@ -90,6 +90,9 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 		defer stream.Close()
 		for stream.Next() {
 			event := stream.Current()
+			if event.Type == "error" {
+				return Response{}, nativeStreamFailure(state)
+			}
 			if event.Type == "response.completed" {
 				completed = true
 				break
@@ -112,7 +115,7 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 	status, body := state.response()
 	if err != nil {
 		if status != http.StatusOK {
-			return Response{}, classifyHTTPError(status, err)
+			return Response{}, state.classifyHTTPError(err)
 		}
 		return Response{}, providerError(ErrorStream, status, nil)
 	}
@@ -141,8 +144,10 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 // ChatGPT usage-limit failures can arrive after the HTTP 200 stream starts.
 func nativeStreamFailure(state *callState) error {
 	_, body := state.response()
-	if body != nil && body.nativeQuota() {
-		return providerError(ErrorQuota, 0, nil)
+	if body != nil {
+		if kind := body.nativeErrorKind(); kind != "" {
+			return providerError(kind, 0, nil)
+		}
 	}
 	return providerError(ErrorResponse, 0, nil)
 }

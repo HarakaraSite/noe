@@ -26,6 +26,11 @@ type managedContextAnalysisCache struct {
 	tools          []jsonv1.RawMessage
 	imageEstimates map[string]int64
 	analysis       managedContextAnalysis
+	usageChecked   bool
+	usageAnchor    *contextUsageAnchor
+	usageIdentity  contextUsageIdentity
+	usageOffset    int64
+	usageMatched   bool
 }
 
 func newManagedContextAnalysisCache(

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -80,6 +81,27 @@ type contextTrimSavedRun struct {
 	} `json:"events"`
 }
 
+func contextTrimAPIFixture(t *testing.T, handle func(context.Context, agentChatRequest) agentModelReply) *httptest.Server {
+	t.Helper()
+	return agentAPIFixture(t, func(ctx context.Context, req agentChatRequest) agentModelReply {
+		reply := handle(ctx, req)
+		// The trimming fixture's synthetic usage must grow with its 24 KiB tool
+		// results. A constant 100 tokens would now correctly keep input below
+		// budget, preventing this fixture from exercising deletion and receipts.
+		input, err := json.Marshal(struct {
+			Messages []agentChatMessage `json:"messages"`
+			Tools    []json.RawMessage  `json:"tools"`
+		}{req.RawMessages, req.Tools})
+		if err != nil {
+			t.Error(err)
+			return agentModelReply{Status: 500}
+		}
+		tokens := int64((len(input) + 3) / 4)
+		reply.InputTokens = &tokens
+		return reply
+	})
+}
+
 func TestContextTrimmingCLISurfacesAndSavedObservation(t *testing.T) {
 	for _, mode := range []string{"run", "eval"} {
 		t.Run(mode, func(t *testing.T) {
@@ -87,7 +109,7 @@ func TestContextTrimmingCLISurfacesAndSavedObservation(t *testing.T) {
 			var mu sync.Mutex
 			var requests []agentChatRequest
 			longCalls := 0
-			server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
+			server := contextTrimAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 				mu.Lock()
 				requests = append(requests, req)
 				user := agentUser(req)
@@ -191,7 +213,7 @@ func TestContextTrimmingQueuedTaskContinuesConversationAndTrimState(t *testing.T
 	futureCalls := 0
 	queueReadyPath := filepath.Join(work, "queue-submissions-ready")
 	futureReadyPath := filepath.Join(work, "future-task-ready")
-	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
+	server := contextTrimAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		mu.Lock()
 		requests = append(requests, req)
 		user := contextTrimLatestUser(req)

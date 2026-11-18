@@ -1,6 +1,7 @@
 # Standard library session handoff
 
-Updated 2026-11-18 after v2.30.0 publication and local installation. Filesystem
+Updated 2026-11-18 after local provider-retry and measured-context verification following
+v2.30.0 publication and local installation. Filesystem
 streaming and HMAC/JWK are included from `f4a1418`; completed implementation
 checks are reused. Managed Responses WebSocket implementation is committed as
 `7209bc4`; the v2.29.0 tag points to `260c60a`. SQLite row iteration is committed
@@ -12,6 +13,35 @@ The prior provider SDK updates remain included. Managed Responses WebSocket
 continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
+
+## Current continuation — provider retries and measured context
+
+The user selected candidates 1 and 2 from the installed pi 1.5.2 comparison:
+provider retry hints/classification and usage-anchored context estimates.
+Implementation and validation are complete on `main`. See the
+[contract and decisions](agentlib-retry-context.md). Tool-output storage is
+an agentlib-owned deferred candidate, using stdlib file I/O. LLM
+summarization/compaction was explicitly rejected and must not be introduced
+as part of this work. Installed executables remain v2.30.0.
+
+Generation preserves three maximum transport attempts and logical-request
+accounting, honoring bounded server retry hints before jittered exponential
+fallback. Machine codes distinguish quota from temporary usage/user lookup
+failure consistently across HTTP/SSE/WebSocket. Measured context anchors an
+unchanged sent prefix; cached input remains included, new input is estimated,
+and changed inputs/trim invalidate the anchor. Display and trim share the
+calibrated total. Repeated managed preparation retains its analysis reuse,
+and queue continuation holds no extra transcript or image bytes.
+
+Whole-tree results pass by package. Two trim E2E fixture failures were corrected
+to return input-size-dependent usage, and the entire E2E package passed again;
+unchanged passing packages are reused. Provider and affected core/public race,
+vet, types and lint pass. The final provider error-event delta has its own
+unit/race/vet evidence. Checkout/artifact consumers and a native CLI loopback
+retry/tool/context/quota fixture pass. Independent bounded context review
+reported no actionable findings. Evidence and source hashes:
+`/var/tmp/noe-agentlib-pi-9y8pf8ac`. Dependencies and public Go/JS function
+signatures are unchanged. The changes await a release.
 
 ## Current continuation — HMAC generation and JWK
 

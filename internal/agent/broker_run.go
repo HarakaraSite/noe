@@ -364,6 +364,7 @@ func (h *Host) finish(ctx context.Context, op *Operation, request finishRequest)
 	discardStepImages(run.modelStep)
 	run.images = nil
 	run.context.analysisCache = nil
+	run.context.usageAnchor, run.context.pendingUsage = nil, nil
 	delete(h.runs, request.RunID)
 	if op.task != nil && op.task.run == run {
 		report := request

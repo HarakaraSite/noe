@@ -157,23 +157,31 @@ type sseErrorReader struct{ err error }
 func (r *sseErrorReader) Read([]byte) (int, error) { return 0, r.err }
 func (r *sseErrorReader) Close() error             { return nil }
 
-func TestResponsesQuotaSurvivesEarlierAssemblyFailure(t *testing.T) {
-	for _, code := range []string{"subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable"} {
+func TestResponsesProviderFailureSurvivesEarlierAssemblyFailure(t *testing.T) {
+	for _, test := range []struct {
+		code string
+		kind ErrorKind
+	}{
+		{code: "subscription_sharing_usage_limit_exceeded", kind: ErrorQuota},
+		{code: "subscription_sharing_usage_unavailable", kind: ErrorTransport},
+		{code: "subscription_sharing_user_unavailable", kind: ErrorTransport},
+		{code: "user_unavailable", kind: ErrorTransport},
+	} {
 		body := newObservedBody(nil)
 		body.chat = nil
 		body.native = &responsesAccumulator{}
 		feedNativeEvent(body, `{"type":"response.output_item.done","output_index":0,"item":null}`)
-		feedNativeEvent(body, `{"type":"response.failed","response":{"error":{"code":"`+code+`"}}}`)
-		if !body.nativeQuota() {
-			t.Fatal("quota classification lost after assembly error")
+		feedNativeEvent(body, `{"type":"response.failed","response":{"error":{"code":"`+test.code+`"}}}`)
+		if body.nativeErrorKind() != test.kind || body.nativeQuota() != (test.kind == ErrorQuota) {
+			t.Fatalf("failure classification after assembly error=%s quota=%t, want %s", body.nativeErrorKind(), body.nativeQuota(), test.kind)
 		}
 		if _, err := body.response(); err == nil {
 			t.Fatal("assembly failure lost")
 		}
 		err := nativeStreamFailure(&callState{body: body})
 		var failure *ProviderError
-		if !errors.As(err, &failure) || failure.Kind != ErrorQuota {
-			t.Fatalf("quota failure=%v", err)
+		if !errors.As(err, &failure) || failure.Kind != test.kind {
+			t.Fatalf("provider failure=%v, want %s", err, test.kind)
 		}
 	}
 }

@@ -274,6 +274,7 @@ declare namespace NOEAgent {
   interface ContextEstimate {
     tokens: number;
     imageTokens?: number;
+    /** Starts with provider_usage+ when measured input anchors the unchanged prefix. */
     method: string;
     stage: string;
     modelStepId: string;
