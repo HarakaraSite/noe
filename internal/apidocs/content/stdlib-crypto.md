@@ -57,7 +57,7 @@ least one usage; invalid supported usage combinations reject SyntaxError.
 Key material comes from the selected host Random source, borrowed on the
 runtime owner like getRandomValues. Generation does not inherit that method's
 65,536-byte per-call quota. Entropy-source failure rejects OperationError.
-This addition is available in the source continuation after v2.29.0.
+This addition is available from v2.30.0.
 
 ## subtle.importKey
 

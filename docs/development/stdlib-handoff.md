@@ -1,7 +1,8 @@
 # Standard library session handoff
 
-Updated 2026-11-18 after local HMAC/JWK implementation, following filesystem streaming and v2.29.0
-publication and local installation. Managed
+Updated 2026-11-18 for v2.30.0 release preparation. Filesystem streaming and
+HMAC/JWK are committed as `f4a1418`; completed implementation checks are reused.
+Publication and installation are pending. Managed
 Responses WebSocket implementation is committed as `7209bc4`; the release tag
 points to `260c60a`. SQLite row
 iteration is committed as `aa79508`; the release tag points to `4d72c30`.
@@ -31,8 +32,9 @@ lint, embedded member references, and checkout/artifact consumers pass.
 Final source hashes and SDK/verification records are at
 `/var/tmp/noe-hmac-jwk-pfai1v01`. See the
 [contract and follow-up](stdlib-webcrypto.md#hmac-generation-and-jwk--2026-11-18).
-No dependency, installed binary, service, commit, push or release changes are
-included. The prior filesystem source checks remain reusable unchanged.
+Dependencies and public Go signatures are unchanged. This implementation is
+committed as `f4a1418` and included in v2.30.0 release preparation. The prior
+filesystem source checks remain reusable unchanged.
 
 ## Current continuation — filesystem streaming
 
@@ -56,7 +58,8 @@ checkout/artifact consumers pass, including main/Worker directory and copy
 use. Independent bounded review reported no actionable findings. Final source
 hashes and verification records are at `/var/tmp/noe-fs-streaming-u5ir24u_`.
 Dependencies and public Go signatures are unchanged.
-No commit, push, release, executable replacement, or service change is included.
+This implementation is committed as `f4a1418` and included in v2.30.0 release
+preparation. Installed executables remain v2.29.0 pending publication checks.
 
 Web Crypto HMAC key generation/JWK was subsequently selected and is recorded
 above. Byte streams/BYOB remain a

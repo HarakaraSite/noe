@@ -79,10 +79,10 @@ bounded-memory copyFile and lazy directory iteration separately. The later
 decision below advances only the HMAC/JWK slice; BYOB remains a note.
 
 - Web Crypto: subsequently selected for implementation on 2026-11-18. The
-  [local HMAC/JWK follow-up](stdlib-webcrypto.md#hmac-generation-and-jwk--2026-11-18)
+  [HMAC/JWK follow-up](stdlib-webcrypto.md#hmac-generation-and-jwk--2026-11-18)
   adds HMAC generateKey and JWK import/export. Existing
-  HMAC signing works; the recorded jose generateSecret requirement is a concrete
-  future acceptance case. Broader Ed25519/ECDSA/AES support remains a separate
+  HMAC signing works; the recorded jose generateSecret requirement now passes
+  in main and Worker interoperability checks. Broader Ed25519/ECDSA/AES support remains a separate
   decision. Reuse the private key-policy implementation and assess actual SDK
   operations, rather than adding method stubs. See the
   [current inventory](stdlib-webcrypto.md#standard-api-inventory) and txiki.js's

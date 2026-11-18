@@ -39,7 +39,12 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.29.0 release notes](docs/releases/v2.29.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.29.0)
+[v2.30.0 release notes](docs/releases/v2.30.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.30.0)
+
+v2.30.0 adds lazy directory iteration and bounded-memory file copying in
+`noe:fs`, plus HMAC key generation and JWK import/export through Web Crypto.
+See the [filesystem example](examples/low-level/list-directory.js) and
+[jose interoperability example](examples/crypto/README.md).
 
 v2.29.0 reuses OpenAI Responses WebSocket connections within managed agent
 runs for both ChatGPT OAuth and API-key providers. Unchanged conversations

@@ -5009,3 +5009,37 @@ Release evidence: `/var/tmp/noe-v2.29.0-release-zbxez98h`.
 Publication and both installations are complete. No required release or
 installation work remains. Other hosts, running services, and noebot were not
 changed. This record does not move the immutable release tag.
+
+
+## v2.30.0 preparation — 2026-11-18
+
+The user authorized committing and releasing filesystem streaming and HMAC/JWK,
+committed as `f4a1418`. The [release notes](v2.30.0.md) describe bounded copies,
+lazy directory iteration and resource lifetime, supported HMAC generation/JWK,
+and compatibility limits.
+
+All 927 final implementation source/dependency hashes match before release
+edits. The filesystem's 26 affected runtime/fixture paths also match its earlier
+whole-tree unit/E2E and stdlib race evidence. The final broad unit/E2E run passed
+40 other packages; its only failing package was stdlib because an external
+consumer fixture requested a verify-only import of a sign-only generated JWK.
+The fixture was corrected and the complete stdlib package passed afterward.
+Crypto race, vet, types, lint, embedded references, and ten checkout/artifact
+consumer checks pass. Unmodified jose 6.2.15 interoperability covers all four
+Node/main/Worker directions, including nine generated peer tokens per direction.
+These passing results are reused against their recorded source hashes.
+
+Only the CLI default version changes after implementation verification, checked
+as an exact replacement and by its configured-version unit. Dependencies and
+distribution definitions are unchanged. No whole-tree suite, long-wait check,
+dependency refresh, or local six-target build is repeated for preparation.
+
+Evidence: `/var/tmp/noe-v2.30.0-release-x4woupol`; implementation evidence:
+`/var/tmp/noe-fs-streaming-u5ir24u_` and `/var/tmp/noe-hmac-jwk-pfai1v01`.
+A clean release-flags native candidate and the published native asset receive
+filesystem, HMAC/JWK, embedded-reference and unmodified SDK smoke checks.
+CI builds six binaries and SHA256SUMS without repeating implementation tests.
+Direct published Go consumers, checksums/build metadata, immutable tag/CI/release
+correspondence, and atomic installation at both authorized local executable
+paths are recorded after publication verification. Previous executables will be
+retained. Running-service restarts and noebot changes are outside this release.

@@ -1,10 +1,9 @@
 # Bounded-memory filesystem operations
 
 Recorded 2026-11-18. The user selected copyFile memory reduction and directory
-iteration after comparison with txiki.js. This is an additive local stdlib
-implementation, with verification and bounded review complete. Installed
-executables remain v2.29.0; no commit or release is
-included in this slice. Web Crypto and byte streams/BYOB were initially
+iteration after comparison with txiki.js. This additive stdlib implementation
+is committed as `f4a1418` and included in v2.30.0 release preparation, with
+verification and bounded review complete. Web Crypto and byte streams/BYOB were initially
 [notes only](stdlib-roadmap.md#deferred-candidates--2026-11-18); the user later
 selected the separate [HMAC/JWK follow-up](stdlib-webcrypto.md#hmac-generation-and-jwk--2026-11-18).
 BYOB remains deferred.

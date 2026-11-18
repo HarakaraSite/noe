@@ -6,7 +6,7 @@ and installation are recorded in the [release checkpoints](../releases/release-c
 Noebot, real login, and application-provider calls remain outside this work.
 The [API policy](stdlib-api-policy.md) remains current.
 
-The HMAC generation/JWK follow-up below is implemented locally after v2.29.0.
+The HMAC generation/JWK follow-up below is committed as `f4a1418` for v2.30.0.
 The original v2.20.0 correction/acceptance records remain historical; current
 supported contracts are in the [API reference](../../internal/apidocs/content/stdlib-crypto.md#subtlegeneratekey).
 
@@ -116,7 +116,7 @@ record, not a claim that the full Web Crypto specification is implemented.
 | exportKey | Extractable HMAC raw/JWK material | SPKI/PKCS#8 and non-secret keys. Non-extractable key export is deliberately rejected by contract. |
 | sign / verify | HMAC with the SHA hashes above | RSA, ECDSA, Ed25519 and other signature families. |
 | deriveBits / deriveKey | PBKDF2/HKDF; derived HMAC keys | ECDH/X25519 and derived AES targets. |
-| generateKey | HMAC with SHA-1/256/384/512 in the local follow-up | Other key/algorithm families remain unsupported. |
+| generateKey | HMAC with SHA-1/256/384/512 from v2.30.0 | Other key/algorithm families remain unsupported. |
 | encrypt / decrypt | Not implemented | AES and RSA-OAEP plus their parameter/result contracts. |
 | wrapKey / unwrapKey | Not implemented | Wrapping algorithms and dependent key-format support. |
 | CryptoKey cloning | Explicit DataCloneError when cloning is unsupported | Standard structured cloning/Worker transport of a CryptoKey with private state preserved. Workers can import their own raw material. |
@@ -190,7 +190,7 @@ At v2.20.0, probes confirmed that jose generateSecret failed on missing
 generateKey; CryptoKey exportJWK rejected NotSupportedError, and AES-GCM JWE
 rejected an unsupported algorithm. That inventory recorded five missing subtle
 methods, missing Crypto/SubtleCrypto constructors, and explicit CryptoKey clone
-rejection. The local HMAC/JWK follow-up below addresses the first two SDK gaps.
+rejection. The HMAC/JWK follow-up below addresses the first two SDK gaps.
 
 Implementation verification is native Linux amd64 with the existing pinned
 engine and Go dependencies. No local six-target build or full network E2E was
@@ -262,5 +262,5 @@ filesystem race evidence is reused after matching its unchanged runtime paths.
 
 AES/RSA/EC/Ed25519, key wrapping, key cloning and full Crypto/SubtleCrypto
 interface objects remain separate gaps. Byte streams/BYOB remain memo-only.
-No dependency, executable installation, service, commit, push or release changes
-are included in this local slice.
+Dependencies and public Go signatures are unchanged. The implementation is
+committed as `f4a1418` and included in v2.30.0 release preparation.
