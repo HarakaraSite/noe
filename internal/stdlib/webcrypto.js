@@ -41,6 +41,11 @@
   const setHas = Set.prototype.has;
   const request = native.request;
   const equal = native.equal;
+  const keyRandom = native.keyRandom;
+  const encodeJWK = native.encodeJWK;
+  const decodeJWK = native.decodeJWK;
+  const SetCtor = Set;
+  const setAdd = Set.prototype.add;
   const usagesSet = new Set([
     "encrypt", "decrypt", "sign", "verify", "deriveKey", "deriveBits",
     "wrapKey", "unwrapKey",
@@ -50,6 +55,7 @@
   const formatSet = new Set(["raw", "spki", "pkcs8", "jwk"]);
   const keyStates = new WeakMap();
   const keyToken = objectFreeze({});
+  const jwkBufferSource = objectFreeze({});
   const emptyBytes = new Uint8ArrayCtor(0);
   const usageOrder = [
     "encrypt", "decrypt", "sign", "verify", "deriveKey", "deriveBits",
@@ -128,10 +134,10 @@
       case "HMAC": {
         if (operation !== "sign" && operation !== "verify" &&
             operation !== "importKey" && operation !== "exportKey" &&
-            operation !== "get key length") {
+            operation !== "get key length" && operation !== "generateKey") {
           throw domException("NotSupportedError", `HMAC does not support ${operation}`);
         }
-        if (operation !== "importKey" && operation !== "get key length") {
+        if (operation !== "importKey" && operation !== "get key length" && operation !== "generateKey") {
           return {name};
         }
         const hash = normalizeAlgorithm(requiredMember(algorithm, "hash"), "digest").name;
@@ -324,6 +330,112 @@
     return new CryptoKey(keyToken, state);
   }
 
+  function stringSequence(value) {
+    if (value === null || (typeof value !== "object" && typeof value !== "function")) {
+      throw new TypeErrorCtor("A JWK sequence must be an iterable object");
+    }
+    const result = [];
+    for (const item of value) appendOwn(result, toDOMString(item, "JWK sequence member"));
+    return result;
+  }
+
+  function snapshotJWK(value) {
+    // The importKey union selects BufferSource for real buffers/views before
+    // dictionary conversion, even when they have JWK-looking expando fields.
+    let buffer = arrayBufferIsView(value) || isSharedArrayBuffer(value);
+    if (!buffer) {
+      try {
+        reflectApply(arrayBufferByteLengthGetter, value, []);
+        buffer = true;
+      } catch (_) { /* Not an ArrayBuffer. */ }
+    }
+    if (buffer) {
+      // Web IDL rejects disallowed buffer backing during argument conversion.
+      // A regular BufferSource keeps its union category until importKey has
+      // normalized the algorithm; that later format check is ordered separately.
+      const parts = bufferSourceParts(value);
+      if (isSharedArrayBuffer(parts.buffer) || reflectApply(arrayBufferResizableGetter, parts.buffer, [])) {
+        throw new TypeErrorCtor("Shared or resizable BufferSource values are not supported");
+      }
+      new Uint8ArrayCtor(parts.buffer, parts.offset, parts.byteLength);
+      return jwkBufferSource;
+    }
+    if (value === undefined || value === null) value = objectCreate(null);
+    if (typeof value !== "object" && typeof value !== "function") {
+      throw new TypeErrorCtor("JWK key data must be a dictionary");
+    }
+    const result = objectCreate(null);
+    // Convert the Web IDL dictionary in member-name order, once, before any
+    // algorithm getters or asynchronous work can change the supplied object.
+    for (const name of ["alg", "crv", "d", "dp", "dq", "e", "ext", "k", "key_ops", "kty", "n", "oth", "p", "q", "qi", "use", "x", "y"]) {
+      const member = value[name];
+      if (member === undefined) continue;
+      if (name === "ext") {
+        result[name] = !!member;
+      } else if (name === "key_ops") {
+        result[name] = stringSequence(member);
+      } else if (name === "oth") {
+        if (member === null || (typeof member !== "object" && typeof member !== "function")) {
+          throw new TypeErrorCtor("JWK oth must be an iterable object");
+        }
+        const primes = [];
+        for (let item of member) {
+          if (item === null || item === undefined) item = objectCreate(null);
+          if (typeof item !== "object" && typeof item !== "function") throw new TypeErrorCtor("JWK oth entries must be dictionaries");
+          const prime = objectCreate(null);
+          for (const field of ["d", "r", "t"]) {
+            const text = item[field];
+            if (text !== undefined) prime[field] = toDOMString(text, "JWK prime member");
+          }
+          appendOwn(primes, prime);
+        }
+        result[name] = primes;
+      } else {
+        result[name] = toDOMString(member, "JWK " + name);
+      }
+    }
+    return result;
+  }
+
+  function hmacJWKAlgorithm(hash) {
+    switch (hash) {
+      case "SHA-1": return "HS1";
+      case "SHA-256": return "HS256";
+      case "SHA-384": return "HS384";
+      case "SHA-512": return "HS512";
+    }
+  }
+
+  function importHMACJWK(jwk, hash, extractable, usages) {
+    if (jwk.kty !== "oct" || jwk.k === undefined) {
+      throw domException("DataError", "An HMAC JWK requires kty=oct and key material");
+    }
+    let data;
+    try { data = reflectApply(decodeJWK, native, [jwk.k]); }
+    catch (_) { throw domException("DataError", "The JWK key material is not base64url"); }
+    if (jwk.alg !== undefined && jwk.alg !== hmacJWKAlgorithm(hash)) {
+      throw domException("DataError", "The JWK algorithm does not match the selected hash");
+    }
+    if (usages.length !== 0 && jwk.use !== undefined && jwk.use !== "sig") {
+      throw domException("DataError", "The JWK use does not permit signatures");
+    }
+    if (jwk.key_ops !== undefined) {
+      const operations = new SetCtor();
+      for (let i = 0; i < jwk.key_ops.length; i++) {
+        const operation = jwk.key_ops[i];
+        if (reflectApply(setHas, operations, [operation])) throw domException("DataError", "The JWK key_ops contains duplicate operations");
+        reflectApply(setAdd, operations, [operation]);
+      }
+      for (let i = 0; i < usages.length; i++) {
+        if (!reflectApply(setHas, operations, [usages[i]])) throw domException("DataError", "The JWK key_ops does not permit the requested usages");
+      }
+    }
+    if (jwk.ext === false && extractable) {
+      throw domException("DataError", "The JWK does not permit extractable import");
+    }
+    return data;
+  }
+
   function defineOwnValue(object, name, value) {
     const descriptor = objectCreate(null);
     descriptor.value = value;
@@ -448,26 +560,48 @@
       return arrayBufferFrom(result);
     },
 
+    async generateKey(algorithm, extractable, usages) {
+      const canExtract = !!extractable;
+      const keyUsages = snapshotUsages(usages);
+      const normalized = normalizeAlgorithm(algorithm, "generateKey");
+      validateUsagesForKey(normalized.name, keyUsages);
+      const length = normalized.hasLength ? normalized.length : hmacBlockSizeBits(normalized.hash);
+      if (length === 0) throw domException("OperationError", "The HMAC key length must not be zero");
+      let bytes;
+      try { bytes = hmacKeyBytes(reflectApply(keyRandom, native, [MathCeil(length / 8)]), length); }
+      catch (_) { throw domException("OperationError", "HMAC key generation failed"); }
+      if (keyUsages.length === 0) throw domException("SyntaxError", "A generated secret key must have at least one usage");
+      return createKey("HMAC", normalized.hash, length, bytes, canExtract, keyUsages);
+    },
+
     async importKey(format, data, algorithm, extractable, usages) {
       const keyFormat = enumString(format, formatSet, "key format");
       const raw = keyFormat === "raw" ? copyBufferSource(data) : null;
+      const jwk = keyFormat === "jwk" ? snapshotJWK(data) : null;
       const canExtract = !!extractable;
       const keyUsages = snapshotUsages(usages);
       const normalized = normalizeAlgorithm(algorithm, "importKey");
-      if (keyFormat !== "raw") {
-        throw domException("NotSupportedError", `The ${keyFormat} key format is not supported`);
+      if (keyFormat === "jwk" && jwk === jwkBufferSource) {
+        throw new TypeErrorCtor("JWK key data must be a dictionary, not a BufferSource");
       }
-      validateUsagesForKey(normalized.name, keyUsages);
       if (normalized.name === "HMAC") {
-        const rawLength = reflectApply(typedArrayByteLengthGetter, raw, []);
+        if (normalized.hasLength && normalized.length === 0) throw domException("DataError", "The HMAC key length must not be zero");
+        validateUsagesForKey(normalized.name, keyUsages);
+        if (keyFormat !== "raw" && keyFormat !== "jwk") throw domException("NotSupportedError", `The ${keyFormat} key format is not supported`);
+        const material = keyFormat === "jwk" ? importHMACJWK(jwk, normalized.hash, canExtract, keyUsages) : raw;
+        const rawLength = reflectApply(typedArrayByteLengthGetter, material, []);
         if (rawLength === 0) throw domException("DataError", "An HMAC key must not be empty");
         const length = normalized.hasLength ? normalized.length : rawLength * 8;
-        const bytes = hmacKeyBytes(raw, length);
+        const bytes = hmacKeyBytes(material, length);
         if (keyUsages.length === 0) {
           throw domException("SyntaxError", "An imported secret key must have at least one usage");
         }
         return createKey("HMAC", normalized.hash, length, bytes, canExtract, keyUsages);
       }
+      if (keyFormat !== "raw") {
+        throw domException("NotSupportedError", `The ${keyFormat} key format is not supported`);
+      }
+      validateUsagesForKey(normalized.name, keyUsages);
       if (normalized.name === "PBKDF2" || normalized.name === "HKDF") {
         if (canExtract) {
           throw domException("SyntaxError", `${normalized.name} keys must be non-extractable`);
@@ -488,6 +622,12 @@
       }
       if (!state.extractable) {
         throw domException("InvalidAccessError", "The CryptoKey is not extractable");
+      }
+      if (keyFormat === "jwk") {
+        const usages = [];
+        for (let i = 0; i < state.usages.length; i++) appendOwn(usages, state.usages[i]);
+        return {kty: "oct", k: reflectApply(encodeJWK, native, [state.bytes]),
+          alg: hmacJWKAlgorithm(state.hash), key_ops: usages, ext: state.extractable};
       }
       if (keyFormat !== "raw") {
         throw domException("NotSupportedError", `The ${keyFormat} key format is not supported`);
@@ -568,7 +708,7 @@
     },
   };
 
-  for (const name of ["digest", "importKey", "exportKey", "sign", "verify", "deriveBits", "deriveKey"]) {
+  for (const name of ["digest", "generateKey", "importKey", "exportKey", "sign", "verify", "deriveBits", "deriveKey"]) {
     objectDefineProperty(subtle, name, {
       value: methods[name], writable: true, configurable: true,
     });

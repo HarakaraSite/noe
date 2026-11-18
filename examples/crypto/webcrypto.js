@@ -29,3 +29,47 @@ try {
 	}
 }
 console.log("HMAC round-trip and key usages passed");
+
+const generatedKey = await crypto.subtle.generateKey(
+	{ ...algorithm, length: 256 },
+	true,
+	["sign", "verify"],
+);
+const jwk = await crypto.subtle.exportKey("jwk", generatedKey);
+if (jwk.kty !== "oct" || typeof jwk.k !== "string") {
+	throw new Error("HMAC JWK export failed");
+}
+const importedKey = await crypto.subtle.importKey(
+	"jwk",
+	jwk,
+	algorithm,
+	true,
+	["sign", "verify"],
+);
+const generatedSignature = await crypto.subtle.sign(
+	"HMAC",
+	generatedKey,
+	message,
+);
+if (
+	!(await crypto.subtle.verify(
+		"HMAC",
+		importedKey,
+		generatedSignature,
+		message,
+	))
+) {
+	throw new Error("generated HMAC key did not verify with its JWK import");
+}
+const importedSignature = await crypto.subtle.sign("HMAC", importedKey, message);
+if (
+	!(await crypto.subtle.verify(
+		"HMAC",
+		generatedKey,
+		importedSignature,
+		message,
+	))
+) {
+	throw new Error("JWK-imported HMAC key did not verify with its source key");
+}
+console.log("HMAC generated-key JWK export/import passed");

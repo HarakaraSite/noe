@@ -56,3 +56,22 @@ handshake, sends text and binary bytes, and receives an echo after sending TLS
 option and stream shutdown details.
 
 [公開API・所有と停止](../../docs/low-level-io.md) · [例の一覧](../README.md)
+
+## Directory iteration
+
+`list-directory.js` consumes Dirent values in batches without collecting or
+sorting the whole directory. It lists one directory, in filesystem order,
+and does not follow entry symlinks or recurse. The iterator closes on EOF,
+loop break, exceptions, and async disposal.
+
+Build from the current checkout; v2.29.0 does not yet include iterateDir:
+
+```sh
+demo_dir="$(mktemp -d)"
+trap 'rm -rf "$demo_dir"' EXIT
+CGO_ENABLED=0 go build -o "$demo_dir/noe" ./cmd/noe
+"$demo_dir/noe" run examples/low-level/list-directory.js ./examples
+```
+
+See [iterateDir](../../internal/apidocs/content/noe-fs.md#iteratedir) for
+batch-size, cancellation, ordering, and ownership details.

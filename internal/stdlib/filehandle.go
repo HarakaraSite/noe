@@ -49,6 +49,9 @@ func newFileHost(f *fsHost) (*fileHost, error) {
 			return nil, err
 		}
 	}
+	// Loop cancellation also ends idle directory and file handles. This callback
+	// is Go-only and joins host work without relying on JavaScript delivery.
+	context.AfterFunc(ctx, h.Close)
 	return h, nil
 }
 

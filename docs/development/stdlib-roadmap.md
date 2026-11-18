@@ -72,6 +72,32 @@ packet send/receive rather than byte-stream semantics. See the
 
 ## Phases
 
+### Deferred candidates — 2026-11-18
+
+The user initially selected both candidates as notes only while authorizing
+bounded-memory copyFile and lazy directory iteration separately. The later
+decision below advances only the HMAC/JWK slice; BYOB remains a note.
+
+- Web Crypto: subsequently selected for implementation on 2026-11-18. The
+  [local HMAC/JWK follow-up](stdlib-webcrypto.md#hmac-generation-and-jwk--2026-11-18)
+  adds HMAC generateKey and JWK import/export. Existing
+  HMAC signing works; the recorded jose generateSecret requirement is a concrete
+  future acceptance case. Broader Ed25519/ECDSA/AES support remains a separate
+  decision. Reuse the private key-policy implementation and assess actual SDK
+  operations, rather than adding method stubs. See the
+  [current inventory](stdlib-webcrypto.md#standard-api-inventory) and txiki.js's
+  [HMAC implementation](https://github.com/saghul/txiki.js/blob/c13adc667e3e7761ff4d0c12a6ea34efceb4e1ea/src/js/polyfills/crypto/hmac.js).
+- Byte streams/BYOB: consider ReadableByteStreamController and BYOB readers,
+  starting with file reads. txiki.js's
+  [file stream](https://github.com/saghul/txiki.js/blob/c13adc667e3e7761ff4d0c12a6ea34efceb4e1ea/src/js/core/fs.js)
+  fills a supplied view. NOE currently implements default readers only. Before
+  adopting this, spike Go/JS buffer ownership, detached-buffer semantics and
+  allocations; the interface alone does not establish a copy or speed reduction.
+
+The BYOB note authorizes no implementation or dependency/API expansion.
+
+### Previously recorded phases
+
 | Phase | Work | Intended outcome |
 | --- | --- | --- |
 | **1. Integrate filesystem APIs** | Establish a common FileHandle for open, read/write, positional I/O, and close. Choose the canonical entry point and how existing entry points connect to it. | File operations use one coherent API model. |

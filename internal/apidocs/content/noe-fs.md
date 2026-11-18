@@ -8,15 +8,15 @@ Type declarations: `stdlib/types/noestdlib.d.ts` in the matching NOE source dist
 
 Availability: Requires Profile.Modules.FS.
 
-Public-definition source: internal/stdlib/fs.go, filehandle.js, fsstream.go, fs_watch.go, and fs_watch.js. Reading this reference evaluates no target module and makes no provider request.
+Public-definition source: internal/stdlib/fs.go, filehandle.js, fsstream.go, fs_directory.go, fs_directory.js, fs_watch.go, and fs_watch.js. Reading this reference evaluates no target module and makes no provider request.
 
-`noe:fs` provides asynchronous operations as named exports, explicit `*Sync` helpers, open file handles, asynchronous watch iterators, and Web Streams. Its named functions and `Dirent` value are also available on the default object. The module has no `promises` property. The separate `node:fs`, `node:fs/promises`, `fs`, and `fs/promises` imports are not provided by NOE.
+`noe:fs` provides asynchronous operations as named exports, explicit `*Sync` helpers, open file handles, asynchronous directory/watch iterators, and Web Streams. Its named functions and `Dirent` value are also available on the default object. The module has no `promises` property. The separate `node:fs`, `node:fs/promises`, `fs`, and `fs/promises` imports are not provided by NOE.
 
 ### Exports
 
-`Dirent`, `appendFile`, `appendFileSync`, `chmod`, `chmodSync`, `copyFile`, `copyFileSync`, `createReadStream`, `createWriteStream`, `default`, `existsSync`, `lstat`, `lstatSync`, `mkdir`, `mkdirSync`, `mkdtemp`, `mkdtempSync`, `open`, `readFile`, `readFileSync`, `readdir`, `readdirSync`, `readlink`, `readlinkSync`, `realpath`, `realpathSync`, `rename`, `renameSync`, `rm`, `rmSync`, `rmdir`, `rmdirSync`, `stat`, `statSync`, `unlink`, `unlinkSync`, `watch`, `writeFile`, `writeFileSync`
+`Dirent`, `appendFile`, `appendFileSync`, `chmod`, `chmodSync`, `copyFile`, `copyFileSync`, `createReadStream`, `createWriteStream`, `default`, `existsSync`, `iterateDir`, `lstat`, `lstatSync`, `mkdir`, `mkdirSync`, `mkdtemp`, `mkdtempSync`, `open`, `readFile`, `readFileSync`, `readdir`, `readdirSync`, `readlink`, `readlinkSync`, `realpath`, `realpathSync`, `rename`, `renameSync`, `rm`, `rmSync`, `rmdir`, `rmdirSync`, `stat`, `statSync`, `unlink`, `unlinkSync`, `watch`, `writeFile`, `writeFileSync`
 
-All asynchronous file and metadata operations return promises. `watch` returns an async iterator immediately; native registration begins when iteration requests its first item. The selected Root, Cwd, and ReadOnly policy applies consistently to async operations, sync helpers, file handles, and streams. Watching is allowed on a read-only filesystem.
+Asynchronous file and metadata operations return promises. `iterateDir` and `watch` return async iterators immediately; native work begins when iteration requests its first item. The selected Root, Cwd, and ReadOnly policy applies consistently to async operations, sync helpers, file handles, and streams. Directory iteration and watching are allowed on a read-only filesystem.
 
 Filesystem errors use symbolic string `code` values such as `ENOENT`, `EEXIST`, and `EBADF`. When available, `errno` is the positive platform OS number, which varies by platform. Errors may include `path`, `dest`, and `syscall`; paths are projected relative to the configured filesystem root. Custom codes include `ERR_INVALID_ARG`, `ERR_READ_ONLY`, `ERR_FILE_CLOSED`, and fallback `ERR_IO`. Partial handle reads expose `data` and `bytesRead`; partial writes expose `bytesWritten`.
 
@@ -116,6 +116,35 @@ import {open} from "noe:fs";
 
 `readdirSync(path, {withFileTypes = false} = {}) -> string[] | Dirent[]`. It applies the same sorted names and `Dirent` selection as `readdir`, synchronously.
 
+## iterateDir
+
+`iterateDir(path, {batchSize = 128, signal} = {}) -> DirectoryIterator<Dirent>` returns a lazy async iterator immediately. Opening starts on the first `next()`, and native directory reads run asynchronously. Each value is a `Dirent` with the same type predicates as `readdir(..., {withFileTypes: true})`; `parentPath` is the supplied path. Entries describe symbolic links themselves. Root/Cwd resolution and read-only access use the shared filesystem policy.
+
+Entries follow filesystem order, which may vary and is not sorted. The iterator does not recurse or provide a snapshot: concurrent directory changes may affect which entries are returned. Existing `readdir`/`readdirSync` retain their sorted-array behavior. `batchSize` must be a positive safe integer; it bounds the number of buffered entries, not their byte size or operating-system buffers. Only one batch is requested at a time. Concurrent `next()` calls are serialized, and consumed entries are released from the batch.
+
+The iterator provides `next()`, `return(value?)`, `throw(error?)`, `close() -> Promise<void>`, readonly `closed`, and `[Symbol.asyncDispose]()`. EOF, loop break, explicit close, read failure, signal cancellation, and execution/runtime teardown release the descriptor. A handle alone does not keep an execution alive. `close()` is idempotent, stops further iteration immediately, and waits for admitted native work, including a late open. Pending reads finish as done when explicitly closed. The iterator belongs to its original execution; it cannot continue yielding a buffered batch after that owner has ended.
+
+Arguments/options are checked at creation; paths must be nonempty strings without NUL. Missing paths, non-directories, and native read failures reject `next()` with the shared filesystem error shape, close the iterator, and leave subsequent reads done. A genuine AbortSignal is required when supplied. A pre-aborted signal opens nothing. Abortion closes the iterator and rejects a pending or first subsequent read with the exact signal reason; later reads are done. Synthetic abort events do not cancel it. Arbitrary operating-system filesystem calls may take time to finish during cleanup.
+
+~~~js
+import {iterateDir} from "noe:fs";
+
+await using entries = iterateDir(".", {batchSize: 64});
+for await (const entry of entries) {
+  if (entry.isFile()) console.log(entry.name);
+}
+~~~
+
+## copyFile
+
+`copyFile(from, to) -> Promise<void>` copies file contents, overwriting an existing destination. New files use mode 0644 subject to umask; an existing destination keeps its mode. The operation uses native Go/OS copying where available and a bounded 32 KiB fallback rather than loading the whole file into memory. Same-file aliases, including hard links, leave contents intact.
+
+Root/Cwd and ReadOnly checks are shared with the other file APIs. Source open/read-directory failures occur before an existing destination is truncated. Copying is not atomic: a failure during copying can leave a partial destination. Concurrent changes to source contents are not a snapshot.
+
+## copyFileSync
+
+`copyFileSync(from, to) -> undefined` performs the same bounded-memory copy synchronously, with the same policy, overwrite, mode, and error behavior.
+
 ## stat
 
 `stat(path) -> Promise<FileInfo>` follows symbolic links. The result provides size in bytes, mode, `mtimeMs`, a JavaScript Date `mtime`, and `isFile()`, `isDirectory()`, and `isSymbolicLink()`. Mode uses canonical POSIX file-type, permission, and special bits on every platform; extract permissions with `mode & 0o777`. `mtimeMs` may retain fractional milliseconds; `mtime.getTime()` truncates them. The Node options object is not implemented.
@@ -170,7 +199,7 @@ import {open} from "noe:fs";
 
 ## Dirent
 
-`readdir` and `readdirSync` return instances of the exported `Dirent` class when `withFileTypes: true`. Each entry has `name`, `parentPath`, and methods `isFile()`, `isDirectory()`, `isSymbolicLink()`, `isBlockDevice()`, `isCharacterDevice()`, `isFIFO()`, and `isSocket()`. These describe the entry without following its final symbolic link.
+`iterateDir` always yields instances of the exported `Dirent` class; `readdir` and `readdirSync` return them when `withFileTypes: true`. Each entry has `name`, `parentPath`, and methods `isFile()`, `isDirectory()`, `isSymbolicLink()`, `isBlockDevice()`, `isCharacterDevice()`, `isFIFO()`, and `isSocket()`. These describe the entry without following its final symbolic link.
 
 ### Source basis
 

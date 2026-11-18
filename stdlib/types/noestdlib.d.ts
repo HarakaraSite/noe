@@ -202,10 +202,19 @@ declare namespace NOEStdlib {
     readonly usages: CryptoKeyUsage[];
   }
   type CryptoKeyUsage = "encrypt" | "decrypt" | "deriveBits" | "deriveKey" | "sign" | "verify" | "wrapKey" | "unwrapKey";
+  interface JsonWebKey {
+    kty?: string; use?: string; key_ops?: string[]; alg?: string; ext?: boolean;
+    k?: string; crv?: string; x?: string; y?: string; d?: string;
+    n?: string; e?: string; p?: string; q?: string; dp?: string; dq?: string; qi?: string;
+    oth?: {r?: string; d?: string; t?: string}[];
+  }
   interface WebCryptoSubtle {
     digest(algorithm: string | {name: string}, data: CryptoBufferSource): Promise<ArrayBuffer>;
+    generateKey(algorithm: CryptoAlgorithm, extractable: boolean, usages: Iterable<CryptoKeyUsage>): Promise<CryptoKey>;
     importKey(format: "raw", data: CryptoBufferSource, algorithm: CryptoAlgorithm, extractable: boolean, usages: Iterable<CryptoKeyUsage>): Promise<CryptoKey>;
+    importKey(format: "jwk", data: JsonWebKey, algorithm: CryptoAlgorithm, extractable: boolean, usages: Iterable<CryptoKeyUsage>): Promise<CryptoKey>;
     exportKey(format: "raw", key: CryptoKey): Promise<ArrayBuffer>;
+    exportKey(format: "jwk", key: CryptoKey): Promise<JsonWebKey>;
     sign(algorithm: CryptoAlgorithm, key: CryptoKey, data: CryptoBufferSource): Promise<ArrayBuffer>;
     verify(algorithm: CryptoAlgorithm, key: CryptoKey, signature: CryptoBufferSource, data: CryptoBufferSource): Promise<boolean>;
     deriveBits(algorithm: CryptoAlgorithm & {salt: CryptoBufferSource; iterations?: number; info?: CryptoBufferSource}, key: CryptoKey, length?: number | null): Promise<ArrayBuffer>;
@@ -392,6 +401,14 @@ declare namespace NOEStdlib {
     (path: string, options: (WatchOptions<"buffer"> & {encoding: "buffer"}) | "buffer"): WatchIterator<Buffer>;
     (path: string, options: WatchOptions<WatchEncoding> | WatchEncoding | null): WatchIterator<string | Buffer>;
   }
+  interface DirectoryIterationOptions { batchSize?: number; signal?: AbortSignal }
+  interface DirectoryIterator extends AsyncIterableIterator<Dirent> {
+    readonly closed: boolean;
+    close(): Promise<void>;
+    return(value?: unknown): Promise<IteratorResult<Dirent>>;
+    throw(error?: unknown): Promise<IteratorResult<Dirent>>;
+    [Symbol.asyncDispose](): Promise<void>;
+  }
   interface FileSystemSyncAPI {
     appendFileSync(path: string, data: FileData): void;
     chmodSync(path: string, mode: number): void;
@@ -422,6 +439,7 @@ declare namespace NOEStdlib {
     appendFile(path: string, data: FileData): Promise<void>;
     chmod(path: string, mode: number): Promise<void>;
     copyFile(from: string, to: string): Promise<void>;
+    iterateDir(path: string, options?: DirectoryIterationOptions): DirectoryIterator;
     lstat(path: string): Promise<FileInfo>;
     mkdir(path: string, options?: {recursive?: boolean}): Promise<void>;
     mkdtemp(prefix: string): Promise<string>;
@@ -1361,6 +1379,7 @@ declare module "node:crypto" {
   export type Hash = NOEStdlib.Hash;
   export type CryptoKey = NOEStdlib.CryptoKey;
   export type CryptoKeyUsage = NOEStdlib.CryptoKeyUsage;
+  export type JsonWebKey = NOEStdlib.JsonWebKey;
   export const constants: Readonly<Record<string, never>>;
   export import createHash = NOEStdlib.createHash;
   export import createHmac = NOEStdlib.createHmac;
@@ -1480,6 +1499,8 @@ declare module "noe:fs" {
   export type FileHandle = NOEStdlib.FileHandle;
   export type FileHandleFlags = NOEStdlib.FileHandleFlags;
   export type FileHandleOpenOptions = NOEStdlib.FileHandleOpenOptions;
+  export type DirectoryIterationOptions = NOEStdlib.DirectoryIterationOptions;
+  export type DirectoryIterator = NOEStdlib.DirectoryIterator;
   export type WatchOptions<E extends NOEStdlib.WatchEncoding = "utf8"> = NOEStdlib.WatchOptions<E>;
   export type WatchEvent<T = string> = NOEStdlib.WatchEvent<T>;
   export type WatchEventType = NOEStdlib.WatchEventType;
@@ -1488,6 +1509,7 @@ declare module "noe:fs" {
   export const appendFile: NOEStdlib.FSModule["appendFile"];
   export const chmod: NOEStdlib.FSModule["chmod"];
   export const copyFile: NOEStdlib.FSModule["copyFile"];
+  export const iterateDir: NOEStdlib.FSModule["iterateDir"];
   export const lstat: NOEStdlib.FSModule["lstat"];
   export const mkdir: NOEStdlib.FSModule["mkdir"];
   export const mkdtemp: NOEStdlib.FSModule["mkdtemp"];
@@ -1873,6 +1895,7 @@ declare var Storage: NOEStdlib.StorageConstructor;
 declare const sessionStorage: Storage;
 declare const localStorage: Storage;
 interface CryptoKey extends NOEStdlib.CryptoKey {}
+interface JsonWebKey extends NOEStdlib.JsonWebKey {}
 declare var CryptoKey: {prototype: CryptoKey};
 interface Crypto extends NOEStdlib.Crypto {}
 interface Performance extends NOEStdlib.Performance {}

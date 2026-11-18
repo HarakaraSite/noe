@@ -25,6 +25,7 @@ import fs, * as noeFs from "noe:fs";
 import {
   appendFile,
   chmod,
+  iterateDir,
   open as openFile,
   readFile,
   readdir,
@@ -33,6 +34,8 @@ import {
   type FileHandleFlags,
   type FileHandleOpenOptions,
   type FileSystemError,
+  type DirectoryIterationOptions,
+  type DirectoryIterator,
   type WatchEvent,
   type WatchIterator,
 } from "noe:fs";
@@ -369,6 +372,11 @@ const messageChannel = new MessageChannel();
 if (!(messageChannel.port1 instanceof MessagePort)) throw new Error("MessagePort instance check");
 messageChannel.port1.postMessage({kind: "fixture"});
 const digest: Promise<ArrayBuffer> = crypto.subtle.digest("SHA-256", encoded);
+const generatedHMAC: CryptoKey = await crypto.subtle.generateKey({name: "HMAC", hash: "SHA-256", length: 256}, true, ["sign", "verify"]);
+const generatedJWK: JsonWebKey = await crypto.subtle.exportKey("jwk", generatedHMAC);
+const jwkMaterial: string | undefined = generatedJWK.k;
+const importedJWK: CryptoKey = await crypto.subtle.importKey("jwk", generatedJWK, {name: "HMAC", hash: "SHA-256"}, false, ["verify"]);
+void [jwkMaterial, importedJWK];
 const webKey = await crypto.subtle.importKey("raw", new DataView(new ArrayBuffer(16)),
   {name: "HMAC", hash: "SHA-256", length: 128}, false,
   new Set<NOEStdlib.CryptoKeyUsage>(["verify"]));
@@ -430,6 +438,17 @@ await openCreated.sync();
 await openCreated.close();
 const syncDirents = fs.readdirSync(".", {withFileTypes: true});
 const asyncDirents = await readdir(".", {withFileTypes: true});
+const directoryOptions: DirectoryIterationOptions = {batchSize: 32, signal: AbortSignal.timeout(1000)};
+const directory: DirectoryIterator = iterateDir(".", directoryOptions);
+const directoryClosed: boolean = directory.closed;
+for await (const entry of directory) {
+  const name: string = entry.name;
+  const file: boolean = entry.isFile();
+  void [name, file];
+}
+await directory.close();
+{ await using ownedDirectory = fs.iterateDir("."); await ownedDirectory.next(); }
+void directoryClosed;
 const entryNames: string[] = syncDirents.map(entry => entry.name);
 const entryParent: string | undefined = asyncDirents[0]?.parentPath;
 const isEntryFile: boolean | undefined = asyncDirents[0]?.isFile();

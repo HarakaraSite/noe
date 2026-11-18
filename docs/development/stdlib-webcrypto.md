@@ -6,6 +6,10 @@ and installation are recorded in the [release checkpoints](../releases/release-c
 Noebot, real login, and application-provider calls remain outside this work.
 The [API policy](stdlib-api-policy.md) remains current.
 
+The HMAC generation/JWK follow-up below is implemented locally after v2.29.0.
+The original v2.20.0 correction/acceptance records remain historical; current
+supported contracts are in the [API reference](../../internal/apidocs/content/stdlib-crypto.md#subtlegeneratekey).
+
 ## Scope and references
 
 Keep SHA-1/256/384/512 digest, HMAC raw import/export/sign/verify, and raw
@@ -108,15 +112,15 @@ record, not a claim that the full Web Crypto specification is implemented.
 | --- | --- | --- |
 | Randomness | Integer-array getRandomValues and randomUUID v4 | No hardware-key or browser secure-context model is added by this host runtime. |
 | digest | SHA-1, SHA-256, SHA-384, SHA-512 | Other algorithms remain unsupported. Node hash aliases do not extend the Web registry. |
-| importKey | raw HMAC, PBKDF2, HKDF | Native JWK, SPKI, PKCS#8 imports and public/private key types. |
-| exportKey | Extractable HMAC raw material | JWK/SPKI/PKCS#8 and non-secret keys. Non-extractable key export is deliberately rejected by contract. |
+| importKey | raw/JWK HMAC; raw PBKDF2/HKDF | SPKI/PKCS#8, non-HMAC JWK, and public/private key types. |
+| exportKey | Extractable HMAC raw/JWK material | SPKI/PKCS#8 and non-secret keys. Non-extractable key export is deliberately rejected by contract. |
 | sign / verify | HMAC with the SHA hashes above | RSA, ECDSA, Ed25519 and other signature families. |
 | deriveBits / deriveKey | PBKDF2/HKDF; derived HMAC keys | ECDH/X25519 and derived AES targets. |
-| generateKey | Not implemented in this slice | Even HMAC generation remains absent; jose generateSecret therefore has a known gap. |
+| generateKey | HMAC with SHA-1/256/384/512 in the local follow-up | Other key/algorithm families remain unsupported. |
 | encrypt / decrypt | Not implemented | AES and RSA-OAEP plus their parameter/result contracts. |
 | wrapKey / unwrapKey | Not implemented | Wrapping algorithms and dependent key-format support. |
 | CryptoKey cloning | Explicit DataCloneError when cloning is unsupported | Standard structured cloning/Worker transport of a CryptoKey with private state preserved. Workers can import their own raw material. |
-| Complete IDL interface shape | Seven supported subtle members and branded CryptoKey | Crypto/SubtleCrypto interface constructors, their prototype/receiver model, and five missing subtle methods remain incomplete. |
+| Complete IDL interface shape | Eight supported subtle members and branded CryptoKey | Crypto/SubtleCrypto interface constructors, their prototype/receiver model, and encrypt/decrypt/wrapKey/unwrapKey remain incomplete. |
 
 Public-key support and encryption are future implementation choices. Adding
 them requires their operation contracts, formats, key policies, and tests;
@@ -182,12 +186,11 @@ HS256/384/512 JWT/JWS with raw and CryptoKey inputs, modified-signature rejectio
 expiration, issuer and audience validation. No SDK patches, polyfills, network
 service, login, or paid provider are used during execution.
 
-Actual probes confirm that jose generateSecret currently fails on missing
-generateKey, CryptoKey exportJWK rejects NotSupportedError, and AES-GCM JWE
-rejects an unsupported algorithm. A runtime inventory also confirms the five
-missing subtle methods, missing Crypto/SubtleCrypto constructors, and explicit
-CryptoKey clone rejection. These are remaining capabilities, not completed
-work. A future small expansion can use these confirmed SDK requirements.
+At v2.20.0, probes confirmed that jose generateSecret failed on missing
+generateKey; CryptoKey exportJWK rejected NotSupportedError, and AES-GCM JWE
+rejected an unsupported algorithm. That inventory recorded five missing subtle
+methods, missing Crypto/SubtleCrypto constructors, and explicit CryptoKey clone
+rejection. The local HMAC/JWK follow-up below addresses the first two SDK gaps.
 
 Implementation verification is native Linux amd64 with the existing pinned
 engine and Go dependencies. No local six-target build or full network E2E was
@@ -203,3 +206,61 @@ Go consumers also pass. Both executable paths contain the verified asset,
 with previous v2.19.0 binaries retained. See the
 [publication and installation checkpoint](../releases/release-checkpoints.md#v2200-publication-and-installation--2026-11-08)
 and `/var/tmp/noe-v2.20.0-release-el4vn8lo` for final evidence.
+
+## HMAC generation and JWK — 2026-11-18
+
+The user selected the previously memoed HMAC generateKey and JWK expansion.
+This adds the standard HMAC path only, reusing private CryptoKey policy and
+the configured host entropy source. Web Crypto's HMAC
+[operation procedures](https://w3c.github.io/webcrypto/#hmac-operations),
+[JWK usage metadata](https://www.rfc-editor.org/rfc/rfc7517.html#section-4.3),
+and [octet key encoding](https://www.rfc-editor.org/rfc/rfc7518.html#section-6.4)
+are the contract references. txiki.js supplied the earlier feature comparison.
+
+Generation supports default hash block lengths and explicit positive uint32
+bit lengths, including partial final bytes. It uses the existing borrowed
+Random reader on the VM owner, without applying getRandomValues' 64 KiB
+quota. Read failure becomes OperationError; no cryptographic family or host
+grant is added. Node-style crypto helpers retain their current contracts.
+
+JWK dictionaries are converted and snapshotted before algorithm getters.
+Imports validate octet material, hash/alg agreement, use, key_ops duplicates
+and requested-usage inclusion, and ext. Additional distinct key_ops entries
+are tolerated and do not expand requested authority. Exports return independent
+dictionaries/usage arrays from private key state. Raw imports/exports and KDFs
+remain available. Non-extractable keys cannot be exported in either format.
+
+The decoder requires JWA's unpadded base64url alphabet. The checked Node 24.21.0
+also accepts padding/whitespace; those permissive cases are recorded as a
+comparison difference rather than used to define NOE's contract. Empty material
+and invalid encoding reject DataError. Tail bits follow the supported bit length.
+
+Focused main/Worker tests cover generation lengths, entropy selection/failure,
+round trips, policy and metadata tampering, dictionary snapshots/conversions,
+and invalid JWK data. The pinned unmodified jose 6.2.15 now exercises generation,
+JWK export/import and HS256/384/512 signing/verification across Node, NOE main,
+and Worker. Bounded review identified a BufferSource/JWK union distinction and
+its error ordering. Real buffer/view arguments keep their category through
+algorithm normalization, then reject for JWK format; shared/resizable/detached
+backing still fails argument conversion. Regression cases cover normal and
+JWK-expando buffers, unsupported algorithm precedence and zero-length/usage
+conflicts. Final verification evidence: `/var/tmp/noe-hmac-jwk-pfai1v01`.
+
+Verification is complete locally. The final unmodified SDK report checks all
+four Node/main/Worker directions, with nine generated-key peer tokens per
+direction and HS256/384/512 generation/import/export paths. AES-GCM JWE stays
+unsupported; key cloning still rejects DataCloneError. The checker asserts the
+eight supported subtle members and remaining interface gaps.
+
+All other packages passed the whole-tree unit/E2E run. Its sole failure was a
+new public-consumer fixture that exported sign-only key_ops then requested
+verify on re-import; the fixture now generates sign/verify authority. The full
+stdlib package and both checkout/artifact consumers were rerun successfully.
+Production sources did not change after the broad run. Crypto-focused race,
+vet, type fixtures, lint, and native embedded-reference checks pass. Previous
+filesystem race evidence is reused after matching its unchanged runtime paths.
+
+AES/RSA/EC/Ed25519, key wrapping, key cloning and full Crypto/SubtleCrypto
+interface objects remain separate gaps. Byte streams/BYOB remain memo-only.
+No dependency, executable installation, service, commit, push or release changes
+are included in this local slice.

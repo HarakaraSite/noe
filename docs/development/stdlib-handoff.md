@@ -1,6 +1,7 @@
 # Standard library session handoff
 
-Updated 2026-11-18 after v2.29.0 publication and local installation. Managed
+Updated 2026-11-18 after local HMAC/JWK implementation, following filesystem streaming and v2.29.0
+publication and local installation. Managed
 Responses WebSocket implementation is committed as `7209bc4`; the release tag
 points to `260c60a`. SQLite row
 iteration is committed as `aa79508`; the release tag points to `4d72c30`.
@@ -11,6 +12,55 @@ The prior provider SDK updates remain included. Managed Responses WebSocket
 continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
+
+## Current continuation — HMAC generation and JWK
+
+The user selected the previously memoed Web Crypto candidate. HMAC generateKey
+and JWK import/export are implemented locally, with the same private key
+authority, normalized hash/length/usages, and selected host Random reader.
+JWK metadata conflicts reject without broadening key capabilities. Raw/KDF
+paths remain available; byte streams/BYOB remain memo-only.
+
+Focused main/Worker tests and actual jose 6.2.15 Node/main/Worker interoperability
+pass. Public types, embedded reference and Go consumers are updated. Contract
+review identified the JWK/BufferSource union category and error-ordering edge;
+both are corrected and covered by regressions. Unit/E2E checks pass by package:
+the initial run's consumer-fixture usage error was corrected, stdlib was rerun,
+and the other passing packages are reused unchanged. Crypto race, vet, types,
+lint, embedded member references, and checkout/artifact consumers pass.
+Final source hashes and SDK/verification records are at
+`/var/tmp/noe-hmac-jwk-pfai1v01`. See the
+[contract and follow-up](stdlib-webcrypto.md#hmac-generation-and-jwk--2026-11-18).
+No dependency, installed binary, service, commit, push or release changes are
+included. The prior filesystem source checks remain reusable unchanged.
+
+## Current continuation — filesystem streaming
+
+The user authorized bounded-memory copyFile and lazy directory iteration after
+the txiki.js comparison. copyFile/copyFileSync share a native/bounded copy path,
+preserving source-error handling, same-file aliases, overwrite permissions,
+special writable targets, and the existing filesystem authority.
+
+The additive noe:fs.iterateDir(path, {batchSize = 128, signal}) returns a lazy
+async iterator of Dirent values. It opens on first next, reads one batch at a
+time in filesystem order, and serializes next calls. EOF, early return, close,
+abort, errors, execution/runtime/loop cleanup release its descriptor. The
+existing FileHandle host owns the resource; owner cancellation also closes
+idle handles. Existing readdir APIs keep their sorted-array behavior.
+
+The reference, types and fixtures, main/Worker public consumer, and example
+are updated. See the [implementation](stdlib-fs-streaming.md) and
+[API](../../internal/apidocs/content/noe-fs.md#iteratedir). Whole-tree unit/E2E,
+stdlib race checks, vet, types, lint, native CLI example/reference checks, and
+checkout/artifact consumers pass, including main/Worker directory and copy
+use. Independent bounded review reported no actionable findings. Final source
+hashes and verification records are at `/var/tmp/noe-fs-streaming-u5ir24u_`.
+Dependencies and public Go signatures are unchanged.
+No commit, push, release, executable replacement, or service change is included.
+
+Web Crypto HMAC key generation/JWK was subsequently selected and is recorded
+above. Byte streams/BYOB remain a
+[memo-only future candidate](stdlib-roadmap.md#deferred-candidates--2026-11-18).
 
 ## Current release — v2.29.0 published and installed
 

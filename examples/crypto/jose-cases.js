@@ -1,6 +1,9 @@
 import {
 	CompactSign,
 	compactVerify,
+	exportJWK,
+	generateSecret,
+	importJWK,
 	jwtVerify,
 	SignJWT,
 } from "./node_modules/jose/dist/webapi/index.js";
@@ -44,9 +47,18 @@ function token(algorithm, expiration = now + 600) {
 		.setExpirationTime(expiration);
 }
 
-export async function runJoseCases(peerTokens = []) {
+export async function runJoseCases(peerTokens = [], peerGeneratedKeys = []) {
 	const tokens = [];
+	const generatedKeys = [];
+	const generatedChecks = {
+		keys: 0,
+		jwkExports: 0,
+		joseJwkImports: 0,
+		subtleJwkImports: 0,
+		signedAndVerifiedTokens: 0,
+	};
 	let checks = 0;
+	let peerGeneratedTokens = 0;
 	for (const algorithm of algorithms) {
 		const hash = `SHA-${algorithm.slice(2)}`;
 		const signingKey = await crypto.subtle.importKey(
@@ -111,6 +123,42 @@ export async function runJoseCases(peerTokens = []) {
 		if (decoder.decode(verified.payload) !== "compact JWS 日本語")
 			throw new Error("JWS payload changed");
 		checks++;
+
+		const generatedKey = await generateSecret(algorithm, { extractable: true });
+		generatedChecks.keys++;
+		const jwk = await exportJWK(generatedKey);
+		generatedChecks.jwkExports++;
+		if (jwk.kty !== "oct" || typeof jwk.k !== "string") {
+			throw new Error("generated HMAC CryptoKey did not export as an octet JWK");
+		}
+		const joseImportedKey = await importJWK(jwk, algorithm);
+		generatedChecks.joseJwkImports++;
+		const subtleImportedKey = await crypto.subtle.importKey(
+			"jwk",
+			jwk,
+			{ name: "HMAC", hash },
+			true,
+			["sign", "verify"],
+		);
+		generatedChecks.subtleJwkImports++;
+		const generatedTokenCases = [];
+		for (const [mode, signingKey, verifyingKey] of [
+			["generated-CryptoKey", generatedKey, subtleImportedKey],
+			["subtle-imported-CryptoKey", subtleImportedKey, generatedKey],
+			["jose-importJWK", joseImportedKey, joseImportedKey],
+		]) {
+			const signed = await token(algorithm).sign(signingKey);
+			const result = await jwtVerify(signed, verifyingKey, options(algorithm));
+			if (
+				result.payload.message !== "Web Crypto 日本語" ||
+				result.payload.sub !== "local-fixture"
+			) {
+				throw new Error("generated-key JWT payload changed");
+			}
+			generatedTokenCases.push({ mode, token: signed });
+			generatedChecks.signedAndVerifiedTokens++;
+		}
+		generatedKeys.push({ algorithm, jwk, tokens: generatedTokenCases });
 	}
 	for (const peer of peerTokens) {
 		const verified = await jwtVerify(
@@ -122,12 +170,35 @@ export async function runJoseCases(peerTokens = []) {
 			throw new Error("peer JWT changed");
 		checks++;
 	}
+	for (const peer of peerGeneratedKeys) {
+		const hash = `SHA-${peer.algorithm.slice(2)}`;
+		const verifyingKey = await crypto.subtle.importKey(
+			"jwk",
+			peer.jwk,
+			{ name: "HMAC", hash },
+			true,
+			["verify"],
+		);
+		for (const peerToken of peer.tokens) {
+			const verified = await jwtVerify(
+				peerToken.token,
+				verifyingKey,
+				options(peer.algorithm),
+			);
+			if (verified.payload.sub !== "local-fixture")
+				throw new Error("peer generated-key JWT changed");
+			peerGeneratedTokens++;
+		}
+	}
 	return {
 		sdk: "jose",
 		version: "6.2.15",
 		algorithms,
 		checks,
+		generatedChecks,
 		peerTokens: peerTokens.length,
+		peerGeneratedTokens,
 		tokens,
+		generatedKeys,
 	};
 }

@@ -1,4 +1,14 @@
 import noeFs, {readFileSync, readdirSync, statSync, open as openFile} from "noe:fs";
+// @ts-expect-error Directory iteration takes an options object.
+noeFs.iterateDir(".", 10);
+// @ts-expect-error Batch sizes are numbers.
+noeFs.iterateDir(".", {batchSize: "10"});
+// @ts-expect-error Recursive traversal is not part of directory iteration.
+noeFs.iterateDir(".", {recursive: true});
+// @ts-expect-error Iterator lifetime is readonly.
+noeFs.iterateDir(".").closed = true;
+// @ts-expect-error Iterator results contain Dirent values rather than strings.
+const directoryNames: AsyncIterable<string> = noeFs.iterateDir(".");
 import processDefault, {exec, execFile, spawnSync, process as processInfo} from "noe:process";
 // @ts-expect-error The old Node-prefixed command module was removed.
 import {exec as legacyNodeExec} from "node:child_process";
@@ -33,8 +43,12 @@ crypto.subtle.digest("SHA-256", [1, 2, 3]);
 crypto.subtle.digest("SHA-256", new SharedArrayBuffer(4));
 // @ts-expect-error Key usages must use a known Web IDL enum value.
 crypto.subtle.importKey("raw", new Uint8Array(16), {name: "HMAC", hash: "SHA-256"}, false, ["unknown"]);
-// @ts-expect-error This slice does not implement JWK imports.
-crypto.subtle.importKey("jwk", {kty: "oct", k: "AQID"}, {name: "HMAC", hash: "SHA-256"}, false, ["sign"]);
+// @ts-expect-error JWK key material is base64url text, not bytes.
+crypto.subtle.importKey("jwk", {kty: "oct", k: new Uint8Array(3)}, {name: "HMAC", hash: "SHA-256"}, false, ["sign"]);
+// @ts-expect-error Key generation usages use the Web IDL enum.
+crypto.subtle.generateKey({name: "HMAC", hash: "SHA-256"}, true, ["other"]);
+// @ts-expect-error A JWK export is a dictionary, not an ArrayBuffer.
+const jwkBytes: Promise<ArrayBuffer> = crypto.subtle.exportKey("jwk", undefined as unknown as CryptoKey);
 import {createWebSocket, serve as noeServe} from "noe:http";
 
 // HTTP helpers use noe:http; node:http and its bare alias are removed.

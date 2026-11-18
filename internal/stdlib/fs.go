@@ -99,6 +99,14 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	if err != nil {
 		return err
 	}
+	directoryAPI, err := f.installDirectoryIterator(handles)
+	if err != nil {
+		return err
+	}
+	iterateDir, err := directoryAPI.Get("iterateDir")
+	if err != nil {
+		return err
+	}
 
 	sync := map[string]any{
 		"readFileSync": func(p string, enc quickjs.Value) (any, error) {
@@ -129,8 +137,9 @@ func Files(rt *quickjs.Runtime, cfg *FS) error {
 	// Async operations are named exports on noe:fs. Each reads what it needs
 	// from the runtime and then works with plain Go data off this goroutine.
 	async := map[string]any{
-		"open":  open,
-		"watch": watch,
+		"open":       open,
+		"watch":      watch,
+		"iterateDir": iterateDir,
 		"readFile": func(p string, enc quickjs.Value) *quickjs.Promise {
 			text := encodingOf(enc) != ""
 			return f.promise(func() (any, error) {
@@ -437,11 +446,7 @@ func (f *fsHost) copyFile(from, to string) error {
 	if err != nil {
 		return err
 	}
-	b, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(dst, b, 0o644)
+	return copyFileContents(src, dst)
 }
 
 func (f *fsHost) realpath(p string) (string, error) {

@@ -7,6 +7,7 @@ import (
 	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"hash"
 	"io"
@@ -30,6 +31,13 @@ func newWebCryptoNative(rt *quickjs.Runtime, loop *Loop, random io.Reader) (quic
 	if random == nil {
 		random = rand.Reader
 	}
+	readRandom := func(size uint32) (quickjs.Value, error) {
+		out := make([]byte, int(size))
+		if _, err := io.ReadFull(random, out); err != nil {
+			return quickjs.Value{}, err
+		}
+		return rt.NewBytes(out), nil
+	}
 
 	host := rt.NewObject()
 	if err := setAll(host, map[string]any{
@@ -44,11 +52,31 @@ func newWebCryptoNative(rt *quickjs.Runtime, loop *Loop, random io.Reader) (quic
 				return quickjs.Value{}, rt.Throw(rt.NewError("QuotaExceededError",
 					"getRandomValues may not be asked for more than 65536 bytes"))
 			}
-			out := make([]byte, int(size))
-			if _, err := io.ReadFull(random, out); err != nil {
+			return readRandom(size)
+		},
+		// Key generation shares the borrowed entropy source and runtime-owner
+		// serialization, but not getRandomValues' per-call 65,536-byte quota.
+		"keyRandom": readRandom,
+		"encodeJWK": func(value quickjs.Value) (string, error) {
+			data, ok := value.Bytes()
+			if !ok {
+				return "", errWebCryptoOperation
+			}
+			return base64.RawURLEncoding.EncodeToString(data), nil
+		},
+		"decodeJWK": func(value string) (quickjs.Value, error) {
+			// JWA's base64url form contains no padding or whitespace. Go's
+			// decoder otherwise tolerates CR/LF, so check the alphabet first.
+			for _, b := range []byte(value) {
+				if !(b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b >= '0' && b <= '9' || b == '-' || b == '_') {
+					return quickjs.Value{}, errors.New("invalid base64url key material")
+				}
+			}
+			data, err := base64.RawURLEncoding.DecodeString(value)
+			if err != nil {
 				return quickjs.Value{}, err
 			}
-			return rt.NewBytes(out), nil
+			return rt.NewBytes(data), nil
 		},
 		"equal": func(a, b quickjs.Value) bool {
 			ab, aok := a.Bytes()

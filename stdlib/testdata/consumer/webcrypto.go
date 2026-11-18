@@ -21,6 +21,14 @@ const signature=await crypto.subtle.sign("HMAC",key,message);
 if(hex(signature)!=="5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"||!await crypto.subtle.verify("HMAC",key,signature,message))throw Error("HMAC vector");
 const modified=new Uint8Array(signature);modified[0]^=1;
 if(await crypto.subtle.verify("HMAC",key,modified,message))throw Error("modified signature accepted");
+for(const hash of ["SHA-256","SHA-384","SHA-512"]){
+ const generated=await crypto.subtle.generateKey({name:"HMAC",hash},true,["sign","verify"]);
+ const jwk=await crypto.subtle.exportKey("jwk",generated);
+ const restored=await crypto.subtle.importKey("jwk",jwk,{name:"HMAC",hash},false,["verify"]);
+ const mac=await crypto.subtle.sign("HMAC",generated,message);
+ if(!await crypto.subtle.verify("HMAC",restored,mac,message))throw Error("HMAC JWK consumer");
+ if(await crypto.subtle.exportKey("jwk",restored).then(()=>true,()=>false))throw Error("JWK extraction policy");
+}
 const password=await crypto.subtle.importKey("raw",encoder.encode("password"),"PBKDF2",false,["deriveBits"]);
 const pbkdf2=await crypto.subtle.deriveBits({name:"PBKDF2",salt:encoder.encode("salt"),iterations:1,hash:"SHA-256"},password,256);
 if(hex(pbkdf2)!=="120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b")throw Error("PBKDF2 vector");
@@ -42,6 +50,10 @@ const data=new TextEncoder().encode("abc");
 const digest=await crypto.subtle.digest("SHA-256",data);
 if(Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,"0")).join("")!==
   "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")throw Error("Worker digest");
+const generated=await crypto.subtle.generateKey({name:"HMAC",hash:"SHA-256"},true,["sign","verify"]);
+const jwk=await crypto.subtle.exportKey("jwk",generated);
+const imported=await crypto.subtle.importKey("jwk",jwk,{name:"HMAC",hash:"SHA-256"},false,["verify"]);
+if(!await crypto.subtle.verify("HMAC",imported,await crypto.subtle.sign("HMAC",generated,data),data))throw Error("Worker key generation/JWK");
 parentPort.postMessage("Worker WebCrypto consumer passed");parentPort.close();`
 	workerCode := fmt.Sprintf(`
 import {Worker} from "node:worker_threads";
