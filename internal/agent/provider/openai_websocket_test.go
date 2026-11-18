@@ -230,13 +230,30 @@ func TestOpenAIWebSocketCanonicalFingerprintsAndNumberPrecision(t *testing.T) {
 	if err != nil || otherNumber == firstHash {
 		t.Fatalf("distinct adjacent integers collapsed: %x %x err=%v", firstHash, otherNumber, err)
 	}
-	configA, err := responsesConfigurationHash([]byte(`{"model":"m","input":[{"b":2,"a":1}],"tools":[{"z":3,"a":4}],"stream":true}`))
+	fieldsA, input, err := splitOpenAIWebSocketRequest([]byte(`{"model":"m","input":[],"tools":[{"z":3,"a":4,"n":9007199254740993}],"stream":true,"background":true,"previous_response_id":"stale","type":"stale"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	configB, err := responsesConfigurationHash([]byte(`{"tools":[{"a":4,"z":3}],"stream":false,"input":[{"a":1,"b":2}],"model":"m"}`))
+	fieldsB, _, err := splitOpenAIWebSocketRequest([]byte(`{"tools":[{"n":9007199254740993,"a":4,"z":3}],"stream":false,"input":[{"a":1,"b":2}],"model":"m"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configA, err := responsesConfigurationHash(fieldsA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configB, err := responsesConfigurationHash(fieldsB)
 	if err != nil || configA != configB {
-		t.Fatalf("configuration key ordering changed hash: %x %x err=%v", configA, configB, err)
+		t.Fatalf("input, transport fields, or key order changed configuration hash: %x %x err=%v", configA, configB, err)
+	}
+	expected, err := canonicalJSONFingerprint([]byte(`{"model":"m","tools":[{"a":4,"n":9007199254740993,"z":3}]}`))
+	if err != nil || configA != expected {
+		t.Fatalf("configuration hash = %x, want %x, err = %v", configA, expected, err)
+	}
+	wire, err := encodeOpenAIWebSocketCommand(fieldsA, input, "")
+	want := `{"input":[],"model":"m","tools":[{"z":3,"a":4,"n":9007199254740993}],"type":"response.create"}`
+	if err != nil || string(wire) != want {
+		t.Fatalf("full command = %s, want %s, err = %v", wire, want, err)
 	}
 }
 

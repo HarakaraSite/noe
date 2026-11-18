@@ -70,10 +70,10 @@ func conversationAppendCandidate(current, snapshot *conversationSnapshot, delta 
 			return nil, false, errors.New("duplicate conversation entry ID")
 		}
 	}
-	next := &conversationSnapshot{
+	next := &conversationSnapshot{conversationTranscript: conversationTranscript{
 		Revision: current.Revision + int64(count), Sequence: current.Sequence + int64(count),
 		Entries: make([]conversationEntry, len(current.Entries)+count),
-	}
+	}}
 	copy(next.Entries, current.Entries)
 	for i, entry := range delta.Entries {
 		next.Entries[len(current.Entries)+i] = cloneConversationEntry(entry)

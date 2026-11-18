@@ -9,6 +9,14 @@ import (
 	"testing"
 )
 
+func readRecords(ctx context.Context, input io.Reader) ([]record, error) {
+	var records []record
+	err := scanRecords(ctx, input, func(rec record) {
+		records = append(records, rec)
+	})
+	return records, err
+}
+
 func TestReadCompleteLineBorrowsFirstSliceAndAccumulatesLongLines(t *testing.T) {
 	reader := bufio.NewReaderSize(strings.NewReader("short\n"+strings.Repeat("x", 40)+"\n"), 16)
 	buffered, err := reader.Peek(len("short\n"))

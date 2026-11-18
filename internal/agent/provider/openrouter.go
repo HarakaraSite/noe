@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	jsonv1 "encoding/json"
-	json "encoding/json/v2"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"unicode/utf8"
+
+	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 
 	openrouter "github.com/OpenRouterTeam/go-sdk"
 	"github.com/OpenRouterTeam/go-sdk/models/components"
@@ -217,23 +218,6 @@ func (c *observedHTTPClient) Do(request *http.Request) (*http.Response, error) {
 	return response, err
 }
 
-type chatRequestBody struct {
-	Model         string              `json:"model"`
-	Messages      []jsonv1.RawMessage `json:"messages"`
-	Tools         []jsonv1.RawMessage `json:"tools,omitempty"`
-	Stream        bool                `json:"stream"`
-	StreamOptions struct {
-		IncludeUsage bool `json:"include_usage"`
-	} `json:"stream_options"`
-	SessionID string           `json:"session_id,omitempty"`
-	MaxTokens *int             `json:"max_tokens,omitempty"`
-	Reasoning *reasoningConfig `json:"reasoning,omitempty"`
-}
-
-type reasoningConfig struct {
-	Effort string `json:"effort"`
-}
-
 func validateGenerationRequest(request Request) (string, error) {
 	effort, validEffort := NormalizeEffort(request.Effort)
 	if strings.TrimSpace(request.Model) == "" || len(request.Messages) == 0 || request.MaxTokens < 0 || !validEffort ||
@@ -241,51 +225,16 @@ func validateGenerationRequest(request Request) (string, error) {
 		return "", providerError(ErrorResponse, 0, nil)
 	}
 	for _, raw := range request.Messages {
-		if !isJSONObject(raw) {
+		if !jsonutil.IsObject(raw) {
 			return "", providerError(ErrorResponse, 0, nil)
 		}
 	}
 	for _, raw := range request.Tools {
-		if !isJSONObject(raw) {
+		if !jsonutil.IsObject(raw) {
 			return "", providerError(ErrorResponse, 0, nil)
 		}
 	}
 	return effort, nil
-}
-
-func makeChatRequestBody(request Request) ([]byte, error) {
-	effort, err := validateGenerationRequest(request)
-	if err != nil {
-		return nil, err
-	}
-	body := chatRequestBody{
-		Model:     request.Model,
-		Messages:  request.Messages,
-		Tools:     request.Tools,
-		Stream:    true,
-		SessionID: request.CacheKey,
-	}
-	body.StreamOptions.IncludeUsage = true
-	if effort != "auto" {
-		body.Reasoning = &reasoningConfig{Effort: effort}
-	}
-	if request.MaxTokens > 0 {
-		maxTokens := request.MaxTokens
-		body.MaxTokens = &maxTokens
-	}
-	encoded, err := json.Marshal(body)
-	if err != nil {
-		return nil, providerError(ErrorResponse, 0, nil)
-	}
-	return encoded, nil
-}
-
-func isJSONObject(raw jsonv1.RawMessage) bool {
-	if len(raw) == 0 {
-		return false
-	}
-	var object map[string]jsonv1.RawMessage
-	return json.Unmarshal(raw, &object) == nil && object != nil
 }
 
 // Generate sends a streaming Chat Completions request and returns an opaque

@@ -13,13 +13,19 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
 
-// conversationSnapshot is the current pruned transcript owned by one agent
-// instance. It crosses only scope-validated task operations.
+// An instance publishes a new snapshot by replacing its pointer. The published
+// transcript and its entries are immutable, and Host.mu protects the image index.
 type conversationSnapshot struct {
+	conversationTranscript
+	images conversationImageIndex
+}
+
+// conversationTranscript is the wire view of a snapshot. The start response
+// can borrow the immutable entries when encoding this value as JSON.
+type conversationTranscript struct {
 	Revision int64               `json:"revision"`
 	Sequence int64               `json:"sequence"`
 	Entries  []conversationEntry `json:"entries"`
-	images   conversationImageIndex
 }
 
 type conversationEntry struct {
@@ -181,6 +187,7 @@ func (s *conversationSnapshot) append(kind string, message any) error {
 	return s.appendRaw(kind, []jsonv1.RawMessage{encoded})
 }
 
+// appendRaw extends a snapshot before it is published.
 func (s *conversationSnapshot) appendRaw(kind string, messages []jsonv1.RawMessage) error {
 	if s == nil {
 		return errors.New("conversation snapshot is missing")
@@ -204,7 +211,7 @@ func cloneConversationSnapshot(snapshot *conversationSnapshot) *conversationSnap
 	if snapshot == nil {
 		return nil
 	}
-	copy := &conversationSnapshot{Revision: snapshot.Revision, Sequence: snapshot.Sequence}
+	copy := &conversationSnapshot{conversationTranscript: snapshot.conversationTranscript}
 	if snapshot.Entries != nil {
 		copy.Entries = make([]conversationEntry, len(snapshot.Entries))
 		for index, entry := range snapshot.Entries {
@@ -212,6 +219,16 @@ func cloneConversationSnapshot(snapshot *conversationSnapshot) *conversationSnap
 		}
 	}
 	return copy
+}
+
+func (s *conversationSnapshot) withProtected(instruction string) (*conversationSnapshot, error) {
+	next := &conversationSnapshot{conversationTranscript: s.conversationTranscript}
+	next.Entries = make([]conversationEntry, len(s.Entries), len(s.Entries)+1)
+	copy(next.Entries, s.Entries)
+	if err := next.appendProtected(instruction); err != nil {
+		return nil, err
+	}
+	return next, nil
 }
 
 func (s *conversationSnapshot) appendProtected(instruction string) error {
@@ -281,7 +298,7 @@ func validateConversationEntry(entry conversationEntry) error {
 		return errors.New("invalid conversation entry")
 	}
 	for _, message := range entry.Messages {
-		if !isJSONObject(message) {
+		if !jsonutil.IsObject(message) {
 			return errors.New("invalid conversation message")
 		}
 	}

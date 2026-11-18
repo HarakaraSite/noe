@@ -61,11 +61,7 @@ func (p *OpenAI) generateManagedWebSocketOnce(ctx context.Context, request Reque
 	if err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
-	fullBody, err := decodeRawObject(payload)
-	if err != nil {
-		return Response{}, providerError(ErrorResponse, 0, nil)
-	}
-	input, err := rawInputItems(fullBody)
+	fields, input, err := splitOpenAIWebSocketRequest(payload)
 	if err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
@@ -73,7 +69,7 @@ func (p *OpenAI) generateManagedWebSocketOnce(ctx context.Context, request Reque
 	if err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
-	configHash, err := responsesConfigurationHash(payload)
+	configHash, err := responsesConfigurationHash(fields)
 	if err != nil {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
@@ -109,7 +105,7 @@ func (p *OpenAI) generateManagedWebSocketOnce(ctx context.Context, request Reque
 		}
 		return Response{}, err
 	}
-	command, incremental, err := transport.command(fullBody, input, inputHashes, configHash)
+	command, incremental, err := transport.command(fields, input, inputHashes, configHash)
 	if err != nil {
 		transport.drop()
 		return Response{}, providerError(ErrorResponse, 0, nil)
@@ -122,7 +118,7 @@ func (p *OpenAI) generateManagedWebSocketOnce(ctx context.Context, request Reque
 		}
 		connection, err = transport.ensureConnection(ctx, state)
 		if err == nil {
-			command, _, err = transport.fullCommand(fullBody, input)
+			command, err = encodeOpenAIWebSocketCommand(fields, input, "")
 		}
 		if err == nil {
 			response, responseID, outputHashes, err = sendOpenAIResponse(ctx, connection, command, request.Observe)
@@ -288,7 +284,7 @@ func (w *openAIWebSocket) clearDial(dialID uint64) {
 	w.mu.Unlock()
 }
 
-func (w *openAIWebSocket) command(body map[string]jsonv1.RawMessage, input []jsonv1.RawMessage, inputHashes [][32]byte, config [32]byte) ([]byte, bool, error) {
+func (w *openAIWebSocket) command(fields map[string]jsonv1.RawMessage, input []jsonv1.RawMessage, inputHashes [][32]byte, config [32]byte) ([]byte, bool, error) {
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
@@ -302,32 +298,26 @@ func (w *openAIWebSocket) command(body map[string]jsonv1.RawMessage, input []jso
 	// Fingerprint comparison and JSON marshaling run outside the lifecycle lock
 	// so scope Close can always detach/abort a socket promptly.
 	incremental := previousID != "" && previousConfig == config && extendsFingerprints(previousHistory, inputHashes)
-	selectedInput := input
 	if incremental {
-		selectedInput = input[len(previousHistory):]
+		input = input[len(previousHistory):]
+	} else {
+		previousID = ""
 	}
-	wire := cloneRawObject(body)
-	delete(wire, "stream")
-	delete(wire, "background")
-	delete(wire, "previous_response_id")
-	wire["type"] = jsonv1.RawMessage(`"response.create"`)
-	wire["input"], _ = jsonv1.Marshal(selectedInput)
-	if incremental {
-		wire["previous_response_id"], _ = jsonv1.Marshal(previousID)
-	}
-	encoded, err := jsonv1.Marshal(wire)
+	encoded, err := encodeOpenAIWebSocketCommand(fields, input, previousID)
 	return encoded, incremental, err
 }
 
-func (w *openAIWebSocket) fullCommand(body map[string]jsonv1.RawMessage, input []jsonv1.RawMessage) ([]byte, bool, error) {
-	wire := cloneRawObject(body)
-	delete(wire, "stream")
-	delete(wire, "background")
-	delete(wire, "previous_response_id")
-	wire["type"] = jsonv1.RawMessage(`"response.create"`)
-	wire["input"], _ = jsonv1.Marshal(input)
-	encoded, err := jsonv1.Marshal(wire)
-	return encoded, false, err
+func encodeOpenAIWebSocketCommand(fields map[string]jsonv1.RawMessage, input []jsonv1.RawMessage, previousID string) ([]byte, error) {
+	wire := make(map[string]any, len(fields)+3)
+	for key, value := range fields {
+		wire[key] = value
+	}
+	wire["type"] = "response.create"
+	wire["input"] = input
+	if previousID != "" {
+		wire["previous_response_id"] = previousID
+	}
+	return jsonv1.Marshal(wire)
 }
 
 func (w *openAIWebSocket) accept(ctx context.Context, connection *responses.ResponseConnection, responseID string, config [32]byte, history [][32]byte) error {
@@ -578,20 +568,21 @@ func decodeRawObject(raw []byte) (map[string]jsonv1.RawMessage, error) {
 	return object, nil
 }
 
-func cloneRawObject(source map[string]jsonv1.RawMessage) map[string]jsonv1.RawMessage {
-	copy := make(map[string]jsonv1.RawMessage, len(source))
-	for key, value := range source {
-		copy[key] = append(jsonv1.RawMessage(nil), value...)
+func splitOpenAIWebSocketRequest(payload []byte) (map[string]jsonv1.RawMessage, []jsonv1.RawMessage, error) {
+	fields, err := decodeRawObject(payload)
+	if err != nil {
+		return nil, nil, err
 	}
-	return copy
-}
-
-func rawInputItems(body map[string]jsonv1.RawMessage) ([]jsonv1.RawMessage, error) {
 	var input []jsonv1.RawMessage
-	if err := jsonv1.Unmarshal(body["input"], &input); err != nil || input == nil {
-		return nil, errors.New("expected an input array")
+	if err := jsonv1.Unmarshal(fields["input"], &input); err != nil || input == nil {
+		return nil, nil, errors.New("expected an input array")
 	}
-	return input, nil
+	// Only these remaining fields participate in configuration matching and
+	// are shared by the incremental command and a full replay.
+	for _, key := range [...]string{"input", "previous_response_id", "stream", "background", "type"} {
+		delete(fields, key)
+	}
+	return fields, input, nil
 }
 
 func fingerprintItems(items []jsonv1.RawMessage) ([][32]byte, error) {
@@ -624,21 +615,12 @@ func canonicalJSONFingerprint(raw []byte) ([32]byte, error) {
 	return sha256Bytes(canonical), nil
 }
 
-func responsesConfigurationHash(raw []byte) ([32]byte, error) {
-	decoder := jsonv1.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	var body map[string]any
-	if err := decoder.Decode(&body); err != nil || body == nil {
-		return [32]byte{}, errors.New("expected a JSON object")
-	}
-	for _, key := range []string{"input", "previous_response_id", "stream", "background", "type"} {
-		delete(body, key)
-	}
-	canonical, err := jsonv1.Marshal(body)
+func responsesConfigurationHash(fields map[string]jsonv1.RawMessage) ([32]byte, error) {
+	raw, err := jsonv1.Marshal(fields)
 	if err != nil {
 		return [32]byte{}, err
 	}
-	return sha256Bytes(canonical), nil
+	return canonicalJSONFingerprint(raw)
 }
 
 func sha256Bytes(data []byte) [32]byte { return sha256.Sum256(data) }

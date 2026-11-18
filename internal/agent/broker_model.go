@@ -13,6 +13,7 @@ import (
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
+	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
 
 type modelRequest struct {
@@ -42,12 +43,12 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		return modelResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model request")
 	}
 	for _, message := range request.Messages {
-		if !isJSONObject(message) {
+		if !jsonutil.IsObject(message) {
 			return modelResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model message")
 		}
 	}
 	for _, tool := range request.Tools {
-		if !isJSONObject(tool) {
+		if !jsonutil.IsObject(tool) {
 			return modelResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model tool")
 		}
 	}
@@ -435,14 +436,6 @@ func messageText(raw jsonv1.RawMessage) string {
 		builder.WriteString(part.Text)
 	}
 	return builder.String()
-}
-
-func isJSONObject(raw jsonv1.RawMessage) bool {
-	if len(raw) == 0 {
-		return false
-	}
-	var object map[string]jsonv1.RawMessage
-	return json.Unmarshal(raw, &object) == nil && object != nil
 }
 
 func classifyProviderError(err error, ctx context.Context) (int, string, string) {

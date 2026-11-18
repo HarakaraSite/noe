@@ -12,7 +12,9 @@ func TestProviderJSONV2RejectsDuplicateNamesAndInvalidUTF8(t *testing.T) {
 	invalidUTF8 := append([]byte(`{"value":"`), 0xff, '"', '}')
 	inputs := []jsonv1.RawMessage{
 		jsonv1.RawMessage(`{"value":1,"value":2}`),
+		jsonv1.RawMessage(`{"nested":{"value":1,"\u0076alue":2}}`),
 		jsonv1.RawMessage(invalidUTF8),
+		jsonv1.RawMessage(`{"value":1} {}`),
 	}
 	for _, input := range inputs {
 		if _, err := decodeObject(input); err == nil {
@@ -33,7 +35,9 @@ func TestProviderJSONV2RejectsDuplicateNamesAndInvalidUTF8(t *testing.T) {
 
 func requestBodyBuilders() map[string]func(Request) ([]byte, error) {
 	return map[string]func(Request) ([]byte, error){
-		"chat": makeChatRequestBody,
+		"chat": func(request Request) ([]byte, error) {
+			return configuredChatRequestBody(Definition{EffortField: "reasoning.effort"}, request)
+		},
 		"responses": func(request Request) ([]byte, error) {
 			return configuredResponsesRequestBody(Definition{EffortField: "reasoning.effort"}, request)
 		},
@@ -143,17 +147,46 @@ func TestProviderJSONV2PreservesOptionalOutboundValues(t *testing.T) {
 	if _, ok := catalogFields["maxOutputTokens"]; ok {
 		t.Errorf("zero maxOutputTokens was serialized: %s", encoded)
 	}
+}
 
-	zero := 0
-	encoded, err = json.Marshal(chatRequestBody{MaxTokens: &zero})
-	if err != nil {
-		t.Fatal(err)
+func TestConfiguredChatClassifiesHistoryEncodingError(t *testing.T) {
+	// This object is valid by itself but exceeds the JSON nesting limit when
+	// wrapped in the request object and its messages array.
+	const nestedArrays = 9998
+	message := jsonv1.RawMessage(`{"nested":` + strings.Repeat("[", nestedArrays) + "0" + strings.Repeat("]", nestedArrays) + "}")
+	request := Request{Model: "model", Messages: []jsonv1.RawMessage{message}}
+	_, err := NewOpenRouter(Options{}).Generate(t.Context(), request)
+	var failure *ProviderError
+	if !errors.As(err, &failure) || failure.Kind != ErrorResponse {
+		t.Fatalf("error type %T; want a provider response error", err)
 	}
-	var providerFields map[string]jsonv1.RawMessage
-	if err := json.Unmarshal(encoded, &providerFields); err != nil {
-		t.Fatal(err)
-	}
-	if got, ok := providerFields["max_tokens"]; !ok || string(got) != "0" {
-		t.Fatalf("explicit pointer-to-zero limit was not preserved: %s", encoded)
+
+	for _, test := range []struct {
+		name    string
+		profile Definition
+		request Request
+	}{
+		{
+			name:    "session mapping replaces messages",
+			profile: Definition{SessionField: "messages.session"},
+			request: Request{Model: "model", CacheKey: "session", Messages: []jsonv1.RawMessage{message}},
+		},
+		{
+			name:    "effort mapping replaces tools",
+			profile: Definition{EffortField: "tools.effort"},
+			request: Request{Model: "model", Effort: "high", Messages: []jsonv1.RawMessage{jsonv1.RawMessage(`{}`)}, Tools: []jsonv1.RawMessage{message}},
+		},
+		{
+			name:    "absent effort mapping",
+			request: Request{Model: "model", Effort: "high", Messages: []jsonv1.RawMessage{message}},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			payload, err := configuredChatRequestBody(test.profile, test.request)
+			var failure *ProviderError
+			if len(payload) != 0 || !errors.As(err, &failure) || failure.Kind != ErrorResponse {
+				t.Fatalf("body has %d bytes, error type %T; want a provider response error", len(payload), err)
+			}
+		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
 
 type beginModelStepRequest struct {
@@ -24,12 +25,12 @@ func (h *Host) beginModelStep(op *Operation, request beginModelStepRequest) (beg
 		return beginModelStepResponse{}, newOperationError(http.StatusBadRequest, "request", "runId and nonempty messages are required")
 	}
 	for _, message := range request.Messages {
-		if !isJSONObject(message) {
+		if !jsonutil.IsObject(message) {
 			return beginModelStepResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model message")
 		}
 	}
 	for _, tool := range request.Tools {
-		if !isJSONObject(tool) {
+		if !jsonutil.IsObject(tool) {
 			return beginModelStepResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model tool")
 		}
 	}

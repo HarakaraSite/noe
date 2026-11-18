@@ -154,7 +154,7 @@ func (h *Host) start(requestContext context.Context, op *Operation, request star
 	task = op.task
 	if task != nil && task.instance != nil {
 		managedInstance = task.instance
-		managedBase = cloneConversationSnapshot(task.instance.conversation)
+		managedBase = managedInstance.conversation
 		explicitSystem = task.instance.config.System
 		managedCommand = task.command != nil
 		if managedCommand {
@@ -165,10 +165,7 @@ func (h *Host) start(requestContext context.Context, op *Operation, request star
 	if !managedCommand {
 		userInstructions, instructionErr = h.loadInstructions(requestCtx)
 	} else if managedBase != nil {
-		managedConversation = cloneConversationSnapshot(managedBase)
-		if err := managedConversation.appendProtected(taskInstruction); err != nil {
-			instructionErr = err
-		}
+		managedConversation, instructionErr = managedBase.withProtected(taskInstruction)
 	} else {
 		userInstructions, instructionErr = h.loadInstanceInstructions(requestCtx, managedInstance)
 		if instructionErr == nil {
@@ -203,11 +200,12 @@ func (h *Host) start(requestContext context.Context, op *Operation, request star
 	if instructionErr == nil {
 		resolvedModelWindow, resolvedMaxOutput = h.contextModelLimitsContext(requestCtx, request.Provider, request.Model)
 	}
-	if requestCtx.Err() != nil {
-		cancel()
-		return nil, newOperationError(http.StatusConflict, "cancelled", requestCtx.Err().Error())
-	}
 	h.mu.Lock()
+	if err := requestCtx.Err(); err != nil {
+		h.mu.Unlock()
+		cancel()
+		return nil, newOperationError(http.StatusConflict, "cancelled", err.Error())
+	}
 	if op.closed || op.ctx.Err() != nil || h.closed {
 		h.mu.Unlock()
 		cancel()
@@ -219,6 +217,11 @@ func (h *Host) start(requestContext context.Context, op *Operation, request star
 			h.mu.Unlock()
 			cancel()
 			return nil, newOperationError(http.StatusConflict, "scope", "agent task has no instance")
+		}
+		if command := op.task.command; command != nil && command.cancelRequested {
+			h.mu.Unlock()
+			cancel()
+			return nil, newOperationError(http.StatusConflict, "cancelled", "agent task cancelled")
 		}
 		if !h.executionGroupOpenLocked(instance.group) {
 			group := instance.group
@@ -272,14 +275,14 @@ func (h *Host) start(requestContext context.Context, op *Operation, request star
 			cancel()
 			return nil, newOperationError(http.StatusConflict, "run", "task scope already claimed a run")
 		}
-		if managedCommand && !conversationSnapshotEqual(op.task.instance.conversation, managedBase) {
+		if managedCommand && op.task.instance.conversation != managedBase {
 			delete(h.runs, id)
 			h.mu.Unlock()
 			cancel()
 			return nil, newOperationError(http.StatusConflict, "conversation", "agent conversation changed while starting the task")
 		}
 		if managedCommand && instructionErr == nil && managedConversation != nil {
-			op.task.instance.conversation = cloneConversationSnapshot(managedConversation)
+			op.task.instance.conversation = managedConversation
 		}
 		if len(op.resolvedHooks) > 0 {
 			run.resolvedHooks = make(map[int]resolvedHook, len(op.resolvedHooks))
@@ -304,7 +307,7 @@ func (h *Host) start(requestContext context.Context, op *Operation, request star
 	}
 	if managedCommand {
 		if instructionErr == nil && managedConversation != nil {
-			startResponse["snapshot"] = cloneConversationSnapshot(managedConversation)
+			startResponse["snapshot"] = managedConversation.conversationTranscript
 		}
 	} else {
 		startResponse["instructions"] = userInstructions

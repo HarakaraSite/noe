@@ -20,25 +20,19 @@ type record struct {
 	typeName    string
 }
 
-func readRecords(ctx context.Context, input io.Reader) ([]record, error) {
+func scanRecords(ctx context.Context, input io.Reader, visit func(record)) error {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	reader := bufio.NewReaderSize(contextReader{ctx: ctx, reader: input}, 32*1024)
-	records := make([]record, 0)
 	lineNumber := 0
 	for {
 		line, complete, readErr := readCompleteLine(ctx, reader)
 		if readErr != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
-				return nil, ctxErr
+				return ctxErr
 			}
-			if readErr != io.EOF {
-				return nil, fmt.Errorf("read log: %w", readErr)
-			}
-			// A writer may be between writes. Ignore only the unterminated tail;
-			// the next query will include it once its newline is visible.
-			break
+			return fmt.Errorf("read log: %w", readErr)
 		}
 		if !complete {
 			break
@@ -51,13 +45,13 @@ func readRecords(ctx context.Context, input io.Reader) ([]record, error) {
 		rec, parseErr := parseRecord(ctx, line)
 		if parseErr != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
-				return nil, ctxErr
+				return ctxErr
 			}
-			return nil, fmt.Errorf("invalid log at complete line %d: %w", lineNumber, parseErr)
+			return fmt.Errorf("invalid log at complete line %d: %w", lineNumber, parseErr)
 		}
-		records = append(records, rec)
+		visit(rec)
 	}
-	return records, nil
+	return nil
 }
 
 type contextReader struct {

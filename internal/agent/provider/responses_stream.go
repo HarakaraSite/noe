@@ -4,6 +4,8 @@ import (
 	jsonv1 "encoding/json"
 	json "encoding/json/v2"
 	"sort"
+
+	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
 
 // responsesAccumulator keeps completed items and the terminal envelope, not
@@ -63,7 +65,7 @@ func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 	}
 	switch event.Type {
 	case "response.output_item.done":
-		if !isJSONObject(event.Item) {
+		if !jsonutil.IsObject(event.Item) {
 			a.err = providerError(ErrorResponse, 0, nil)
 			return a.err
 		}

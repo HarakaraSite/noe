@@ -4,6 +4,7 @@ import (
 	jsonv1 "encoding/json"
 	json "encoding/json/v2"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -52,11 +53,14 @@ func parameterObject(parameters map[string]jsonv1.RawMessage) (map[string]any, e
 func putField(object map[string]any, path string, value any) {
 	keys := strings.Split(path, ".")
 	for _, key := range keys[:len(keys)-1] {
-		next, ok := object[key].(map[string]any)
-		if !ok {
-			next = make(map[string]any)
-			object[key] = next
+		next, _ := object[key].(map[string]any)
+		if raw, ok := object[key].(jsonv1.RawMessage); ok {
+			next, _ = rawParameterObject(raw)
 		}
+		if next == nil {
+			next = make(map[string]any)
+		}
+		object[key] = next
 		object = next
 	}
 	object[keys[len(keys)-1]] = value
@@ -67,56 +71,75 @@ func (p *OpenRouter) chatRequestBody(request Request) ([]byte, error) {
 }
 
 func configuredChatRequestBody(profile Definition, request Request) ([]byte, error) {
-	raw, err := makeChatRequestBody(request)
+	effort, err := validateGenerationRequest(request)
 	if err != nil {
 		return nil, err
 	}
-	var dynamic map[string]jsonv1.RawMessage
-	if err := json.Unmarshal(raw, &dynamic); err != nil {
-		return nil, err
-	}
-	delete(dynamic, "session_id")
-	delete(dynamic, "reasoning")
-	body := make(map[string]jsonv1.RawMessage)
+	body := make(map[string]any, len(profile.Parameters)+6)
 	for key, value := range profile.Parameters {
 		body[key] = value
 	}
-	for key, value := range dynamic {
-		if key == "stream_options" && body[key] != nil {
-			var configured, required map[string]jsonv1.RawMessage
-			if json.Unmarshal(body[key], &configured) == nil && json.Unmarshal(value, &required) == nil && configured != nil {
-				for key, value := range required {
-					configured[key] = value
-				}
-				value, _ = json.Marshal(configured)
-			}
-		}
-		body[key] = value
+	body["model"], body["messages"], body["stream"] = request.Model, request.Messages, true
+	if len(request.Tools) != 0 {
+		body["tools"] = request.Tools
 	}
+	if request.MaxTokens > 0 {
+		body["max_tokens"] = request.MaxTokens
+	}
+	var streamOptions map[string]any
+	if raw := profile.Parameters["stream_options"]; raw != nil {
+		streamOptions, err = rawParameterObject(raw)
+	}
+	if err != nil || streamOptions == nil {
+		streamOptions = make(map[string]any, 1)
+	}
+	streamOptions["include_usage"] = true
+	body["stream_options"] = streamOptions
 	if profile.SessionField != "" && request.CacheKey != "" {
-		putRawField(body, profile.SessionField, request.CacheKey)
+		putField(body, profile.SessionField, request.CacheKey)
 	}
-	effort, _ := NormalizeEffort(request.Effort)
 	if effort != "auto" {
 		if profile.EffortField == "" {
-			return nil, errors.New("provider has no effort mapping")
+			return nil, chatRequestEncodingError(request, errors.New("provider has no effort mapping"))
 		}
-		putRawField(body, profile.EffortField, effort)
+		putField(body, profile.EffortField, effort)
 	}
-	return json.Marshal(body)
+	payload, err := json.Marshal(body)
+	_, keepsMessages := body["messages"].([]jsonv1.RawMessage)
+	_, keepsTools := body["tools"].([]jsonv1.RawMessage)
+	if err != nil || !keepsMessages || len(request.Tools) != 0 && !keepsTools {
+		if err := chatRequestEncodingError(request, err); err != nil {
+			return nil, err
+		}
+	}
+	return payload, nil
 }
 
-func putRawField(object map[string]jsonv1.RawMessage, path string, value any) {
-	key, rest, nested := strings.Cut(path, ".")
-	if !nested {
-		object[key], _ = json.Marshal(value)
-		return
+// An object that is valid on its own can exceed the JSON depth limit inside
+// the request arrays. Retain that error's precedence if a profile displaced
+// an array or the final payload failed to encode.
+func chatRequestEncodingError(request Request, cause error) error {
+	history := struct {
+		Messages []jsonv1.RawMessage `json:"messages"`
+		Tools    []jsonv1.RawMessage `json:"tools,omitempty"`
+	}{Messages: request.Messages, Tools: request.Tools}
+	if err := json.MarshalWrite(io.Discard, history); err != nil {
+		return providerError(ErrorResponse, 0, nil)
 	}
-	next := make(map[string]jsonv1.RawMessage)
-	_ = json.Unmarshal(object[key], &next)
-	if next == nil {
-		next = make(map[string]jsonv1.RawMessage)
+	return cause
+}
+
+// rawParameterObject opens only the level being merged and keeps each member
+// as raw JSON so its number spelling and nested values are preserved.
+func rawParameterObject(raw jsonv1.RawMessage) (map[string]any, error) {
+	var fields map[string]jsonv1.RawMessage
+	err := json.Unmarshal(raw, &fields)
+	if fields == nil {
+		return nil, err
 	}
-	putRawField(next, rest, value)
-	object[key], _ = json.Marshal(next)
+	object := make(map[string]any, len(fields))
+	for key, value := range fields {
+		object[key] = value
+	}
+	return object, err
 }

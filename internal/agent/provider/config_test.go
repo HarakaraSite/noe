@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -225,5 +226,77 @@ func TestConfiguredChatBodyKeepsRawHistoryAndMapsParameters(t *testing.T) {
 	_, err = NewExplicitRegistry(Options{ConfigFile: filepath.Join(t.TempDir(), "missing")}).Generate(context.Background(), Request{Provider: "openrouter", Model: "m"})
 	if err == nil {
 		t.Fatal("invalid config not reported")
+	}
+}
+
+func TestConfiguredChatBodyMergesProfileAndRequest(t *testing.T) {
+	const message = `{"role":"assistant","reasoning_details":[{"data":"opaque"}],"provider_extension":9007199254740993}`
+	const tool = `{"type":"function","function":{"name":"run_js"},"provider_extension":9007199254740993}`
+	const parameters = `{
+		"model":"configured","messages":[{}],"tools":[{"type":"configured"}],"stream":false,
+		"stream_options":{"include_usage":false,"vendor":9007199254740993},
+		"max_tokens":0,"session_id":"static","reasoning":{"summary":"auto"},
+		"metadata":{"session":"old","reasoning":{"effort":"low","budget":9.007199254740993e15}},
+		"custom":null
+	}`
+	for _, tc := range []struct {
+		name, parameters, sessionField, effortField, cacheKey, effort, want string
+		tools                                                               []json.RawMessage
+		maxTokens                                                           int
+	}{
+		{
+			name: "overrides and nested merges", parameters: parameters,
+			sessionField: "metadata.session", effortField: "metadata.reasoning.effort",
+			cacheKey: "session", effort: "high", tools: []json.RawMessage{json.RawMessage(tool)}, maxTokens: 50,
+			want: `{
+				"model":"model","messages":[` + message + `],"tools":[` + tool + `],"stream":true,
+				"stream_options":{"include_usage":true,"vendor":9007199254740993},
+				"max_tokens":50,"session_id":"static","reasoning":{"summary":"auto"},
+				"metadata":{"session":"session","reasoning":{"effort":"high","budget":9.007199254740993e15}},
+				"custom":null
+			}`,
+		},
+		{
+			name: "omitted request values retain configured fields", parameters: parameters,
+			sessionField: "metadata.session", effortField: "metadata.reasoning.effort", effort: "auto",
+			tools: []json.RawMessage{},
+			want: `{
+				"model":"model","messages":[` + message + `],"tools":[{"type":"configured"}],"stream":true,
+				"stream_options":{"include_usage":true,"vendor":9007199254740993},
+				"max_tokens":0,"session_id":"static","reasoning":{"summary":"auto"},
+				"metadata":{"session":"old","reasoning":{"effort":"low","budget":9.007199254740993e15}},
+				"custom":null
+			}`,
+		},
+		{
+			name: "non-object defaults and overlapping mappings", parameters: `{"stream_options":false,"settings":null}`,
+			sessionField: "settings.session", effortField: "settings.session.effort", cacheKey: "session", effort: "high",
+			want: `{"model":"model","messages":[` + message + `],"stream":true,"stream_options":{"include_usage":true},"settings":{"session":{"effort":"high"}}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			profile := Definition{SessionField: tc.sessionField, EffortField: tc.effortField}
+			if err := json.Unmarshal([]byte(tc.parameters), &profile.Parameters); err != nil {
+				t.Fatal(err)
+			}
+			body, err := configuredChatRequestBody(profile, Request{
+				Model: "model", Messages: []json.RawMessage{json.RawMessage(message)}, Tools: tc.tools,
+				CacheKey: tc.cacheKey, Effort: tc.effort, MaxTokens: tc.maxTokens,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := decodeObject(body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := decodeObject([]byte(tc.want))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("body = %s; want %s", body, tc.want)
+			}
+		})
 	}
 }

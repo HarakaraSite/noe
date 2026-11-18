@@ -93,22 +93,52 @@ func Analyze(ctx context.Context, reader io.Reader, q Query) (Snapshot, error) {
 	if q.Cursor != nil && q.Cursor.ExecutionID == "" && q.Cursor.Seq == 0 {
 		q.Cursor = nil
 	}
-	records, err := readRecords(ctx, reader)
+	var targetExecution string
+	var maxSeq uint64
+	priorMaxSeq := make(map[string]uint64)
+	ambiguous := false
+	state := newRunState(q.RunID)
+	projected := projectedEvents{events: &state.snapshot.Events}
+	after := cursorSeq(q.Cursor)
+	err := scanRecords(ctx, reader, func(rec record) {
+		if ambiguous {
+			return
+		}
+		matchesRun := stringField(rec.event, "runId") == q.RunID
+		if targetExecution == "" {
+			if !matchesRun {
+				priorMaxSeq[rec.executionID] = max(priorMaxSeq[rec.executionID], rec.seq)
+				return
+			}
+			targetExecution = rec.executionID
+			maxSeq = priorMaxSeq[targetExecution]
+			priorMaxSeq = nil
+		}
+		if rec.executionID != targetExecution {
+			ambiguous = matchesRun
+			return
+		}
+		// The cursor covers the execution, including other runs and hidden events.
+		maxSeq = max(maxSeq, rec.seq)
+		if !matchesRun || q.Cursor != nil && q.Cursor.ExecutionID != targetExecution {
+			return
+		}
+		state.apply(rec, q.IncludeOutput)
+		if rec.seq > after {
+			if event := projectEvent(rec.event, q); event != nil {
+				projected.append(event, rec.seq)
+			}
+		}
+	})
 	if err != nil {
 		return Snapshot{}, err
 	}
-	targetExecution := ""
-	for _, rec := range records {
-		if err := ctx.Err(); err != nil {
-			return Snapshot{}, err
-		}
-		if stringField(rec.event, "runId") != q.RunID {
-			continue
-		}
-		if targetExecution != "" && targetExecution != rec.executionID {
-			return Snapshot{}, fmt.Errorf("runId %q occurs in multiple executions; the target is ambiguous", q.RunID)
-		}
-		targetExecution = rec.executionID
+	if err := ctx.Err(); err != nil {
+		return Snapshot{}, err
+	}
+	// Decide selection errors only after all complete lines have been validated.
+	if ambiguous {
+		return Snapshot{}, fmt.Errorf("runId %q occurs in multiple executions; the target is ambiguous", q.RunID)
 	}
 
 	if targetExecution == "" {
@@ -125,31 +155,6 @@ func Analyze(ctx context.Context, reader io.Reader, q Query) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("cursor executionId %q does not match runId %q executionId %q; use the cursor returned for this run", q.Cursor.ExecutionID, q.RunID, targetExecution)
 	}
 
-	maxSeq := uint64(0)
-	state := newRunState(q.RunID)
-	projected := projectedEvents{events: &state.snapshot.Events}
-	for _, rec := range records {
-		if err := ctx.Err(); err != nil {
-			return Snapshot{}, err
-		}
-		if rec.executionID != targetExecution {
-			continue
-		}
-		// The cursor covers the execution, including other runs and hidden events.
-		if rec.seq > maxSeq {
-			maxSeq = rec.seq
-		}
-		if stringField(rec.event, "runId") != q.RunID {
-			continue
-		}
-		state.apply(rec, q.IncludeOutput)
-		if rec.seq > cursorSeq(q.Cursor) {
-			if event := projectEvent(rec.event, q); event != nil {
-				projected.append(event, rec.seq)
-			}
-		}
-	}
-
 	projected.finishGroup()
 	state.snapshot.Cursor = Cursor{ExecutionID: targetExecution, Seq: maxSeq}
 	state.snapshot.Phase = state.currentPhase()
@@ -164,8 +169,8 @@ func Analyze(ctx context.Context, reader io.Reader, q Query) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	return state.snapshot, nil
-
 }
+
 func cursorSeq(cursor *Cursor) uint64 {
 	if cursor == nil {
 		return 0

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
 
 type contextPrepareRequest struct {
@@ -47,12 +49,12 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "runId, modelStepId, and nonempty messages are required")
 	}
 	for _, message := range request.Messages {
-		if !isJSONObject(message) {
+		if !jsonutil.IsObject(message) {
 			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model message")
 		}
 	}
 	for _, tool := range request.Tools {
-		if !isJSONObject(tool) {
+		if !jsonutil.IsObject(tool) {
 			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid model tool")
 		}
 	}
