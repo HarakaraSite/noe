@@ -7,7 +7,9 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
@@ -17,14 +19,22 @@ const (
 	minToolOutputBytes     int64 = 1024
 	defaultToolOutputBytes int64 = 64 * 1024
 	maxToolOutputBytes     int64 = 256 * 1024
+	maxRunJSTimeoutMs            = math.MaxInt64 / int64(time.Millisecond)
 )
 
-// runJSOutputBytes reads only the initial line-comment block. The ordinary
+type runJSOptions struct {
+	outputBytes int64
+	timeout     time.Duration
+	saveData    bool
+}
+
+// parseRunJSOptions reads only the initial line-comment block. The ordinary
 // operation comment can stay first, preserving its use in observation events.
-func runJSOutputBytes(source string) (int64, error) {
-	limit := defaultToolOutputBytes
+func parseRunJSOptions(source string) (runJSOptions, error) {
+	defaults := runJSOptions{outputBytes: defaultToolOutputBytes}
+	options := defaults
 	seen := false
-	for _, line := range strings.Split(source, "\n") {
+	for line := range strings.SplitSeq(source, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -37,22 +47,43 @@ func runJSOutputBytes(source string) (int64, error) {
 			continue
 		}
 		if seen {
-			return defaultToolOutputBytes, errors.New("run_js accepts only one @noe output pragma")
+			return defaults, errors.New("run_js accepts only one @noe pragma")
 		}
 		seen = true
-		var options struct {
-			OutputBytes *int64 `json:"outputBytes"`
-		}
+		var settings map[string]jsontext.Value
 		data := []byte(strings.TrimSpace(strings.TrimPrefix(comment, "@noe:")))
-		if err := json.Unmarshal(data, &options, json.RejectUnknownMembers(true)); err != nil {
-			return defaultToolOutputBytes, fmt.Errorf("invalid run_js @noe pragma: %w", err)
+		if err := json.Unmarshal(data, &settings); err != nil {
+			return defaults, fmt.Errorf("invalid run_js @noe pragma: %w", err)
 		}
-		if options.OutputBytes == nil || *options.OutputBytes < minToolOutputBytes || *options.OutputBytes > maxToolOutputBytes {
-			return defaultToolOutputBytes, fmt.Errorf("run_js outputBytes must be an integer between %d and %d bytes", minToolOutputBytes, maxToolOutputBytes)
+		if len(settings) == 0 {
+			return defaults, errors.New("run_js @noe pragma must specify outputBytes, timeoutMs or saveData")
 		}
-		limit = *options.OutputBytes
+		for name, raw := range settings {
+			switch name {
+			case "outputBytes":
+				var value int64
+				if err := json.Unmarshal(raw, &value); err != nil || value < minToolOutputBytes || value > maxToolOutputBytes {
+					return defaults, fmt.Errorf("run_js outputBytes must be an integer between %d and %d bytes", minToolOutputBytes, maxToolOutputBytes)
+				}
+				options.outputBytes = value
+			case "timeoutMs":
+				var value int64
+				if err := json.Unmarshal(raw, &value); err != nil || value < 1 || value > maxRunJSTimeoutMs {
+					return defaults, fmt.Errorf("run_js timeoutMs must be an integer between 1 and %d milliseconds", maxRunJSTimeoutMs)
+				}
+				options.timeout = time.Duration(value) * time.Millisecond
+			case "saveData":
+				var value *bool
+				if err := json.Unmarshal(raw, &value); err != nil || value == nil {
+					return defaults, errors.New("run_js saveData must be true or false")
+				}
+				options.saveData = *value
+			default:
+				return defaults, fmt.Errorf("unknown run_js @noe pragma setting %q", name)
+			}
+		}
 	}
-	return limit, nil
+	return options, nil
 }
 
 type toolOutputExecution struct {
@@ -72,11 +103,16 @@ type toolOutputLimit struct {
 }
 
 type toolOutputPreview struct {
-	OutputPreview string                      `json:"outputPreview"`
-	OutputLimit   toolOutputLimit             `json:"outputLimit"`
-	Execution     *toolOutputExecution        `json:"execution,omitempty"`
-	StdoutFile    *executionresult.OutputFile `json:"stdoutFile,omitempty"`
-	StderrFile    *executionresult.OutputFile `json:"stderrFile,omitempty"`
+	OutputPreview string               `json:"outputPreview"`
+	OutputLimit   toolOutputLimit      `json:"outputLimit"`
+	Execution     *toolOutputExecution `json:"execution,omitempty"`
+	toolOutputFiles
+}
+
+type toolOutputFiles struct {
+	StdoutFile *executionresult.OutputFile `json:"stdoutFile,omitempty"`
+	StderrFile *executionresult.OutputFile `json:"stderrFile,omitempty"`
+	DataFile   *executionresult.OutputFile `json:"dataFile,omitempty"`
 }
 
 // projectToolOutput limits only the model-facing value, after hooks. An
@@ -89,10 +125,9 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 		return cloneRawJSON(result), false, nil
 	}
 	var raw struct {
-		ExitCode    *int                        `json:"exitCode"`
-		Reason      string                      `json:"reason"`
-		StdoutFile  *executionresult.OutputFile `json:"stdoutFile"`
-		StderrFile  *executionresult.OutputFile `json:"stderrFile"`
+		toolOutputFiles
+		ExitCode    *int   `json:"exitCode"`
+		Reason      string `json:"reason"`
 		Diagnostics []struct {
 			Code    string `json:"code"`
 			Stage   string `json:"stage"`
@@ -119,16 +154,18 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 		},
 		Execution: execution,
 	}
-	if rawOK && (raw.StdoutFile != nil || raw.StderrFile != nil) {
+	if rawOK && (raw.StdoutFile != nil || raw.StderrFile != nil || raw.DataFile != nil) {
 		var selected struct {
-			StdoutFile *executionresult.OutputFile `json:"stdoutFile"`
-			StderrFile *executionresult.OutputFile `json:"stderrFile"`
+			StdoutFile jsontext.Value `json:"stdoutFile"`
+			StderrFile jsontext.Value `json:"stderrFile"`
+			DataFile   jsontext.Value `json:"dataFile"`
 		}
 		// Carry actual file references through the shared JSON budget only
 		// when the hook has chosen to retain them.
 		if json.Unmarshal(result, &selected) == nil {
 			value.StdoutFile = retainedOutputFile(raw.StdoutFile, selected.StdoutFile)
 			value.StderrFile = retainedOutputFile(raw.StderrFile, selected.StderrFile)
+			value.DataFile = retainedOutputFile(raw.DataFile, selected.DataFile)
 		}
 	}
 	source := string(result)
@@ -162,7 +199,7 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 	}
 	// An exceptionally long path can exceed even the entire envelope
 	// budget. The raw result and observation still carry the reference.
-	for _, file := range []**executionresult.OutputFile{&value.StderrFile, &value.StdoutFile} {
+	for _, file := range []**executionresult.OutputFile{&value.StderrFile, &value.StdoutFile, &value.DataFile} {
 		if int64(len(encoded)) <= limit {
 			break
 		}
@@ -195,11 +232,15 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 	return best, true, nil
 }
 
-func retainedOutputFile(raw, selected *executionresult.OutputFile) *executionresult.OutputFile {
-	if raw != nil && selected != nil && *raw == *selected {
-		return raw
+func retainedOutputFile(raw *executionresult.OutputFile, selected jsontext.Value) *executionresult.OutputFile {
+	if raw == nil || len(selected) == 0 {
+		return nil
 	}
-	return nil
+	var file *executionresult.OutputFile
+	if json.Unmarshal(selected, &file) != nil || file == nil || *raw != *file {
+		return nil
+	}
+	return raw
 }
 
 // previewUTF8 returns valid head/tail slices and counts retained source bytes.

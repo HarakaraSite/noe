@@ -26,6 +26,18 @@ Standard output and standard error are captured independently. Each stream retai
 
 When the host configures tool output storage, a stream that exceeds its capture limit is saved from its first byte. The result includes `stdoutFile` or `stderrFile` with `{path, bytes}`. The path is readable through the execution's filesystem view. Use `noe:fs.open(path)` and `readAt(offset, length)` in a later call to retrieve a range. CLI users enable storage by setting `NOE_AGENT_TOOL_OUTPUT_DIR` to an existing directory. Go hosts use `HostConfig.ToolOutputDir`. The caller manages the saved files.
 
+With the same storage enabled, set `// @noe: {"saveData": true}` to save
+serialized default-export JSON larger than `outputBytes`. The result and `afterTool` receive
+`dataFile: {path, bytes}` in place of inline `data`. Read the value with
+`JSON.parse(await readFile(path, "utf8"))` from `noe:fs` or read a byte range.
+A save failure retains the inline value and adds an `output_save_error`
+diagnostic. Small values, including explicit null, remain inline.
+
+Live `--observe` and JSONL events show sampled stdout and stderr lines while
+the call runs. Each stream emits at most one nonblank line per second with
+a prefix of up to 512 bytes. Completed output and saved files use the full
+capture contract described above.
+
 Use `noe:docs` from `run_js` to look up an API before using it. Use the NOE-specific `spawn` export from `noe:process` when a child command must remain active during the call, and close owned handles in `finally`. A child process, socket, signal subscription, or other owned resource cannot continue independently after its owning tool runtime ends.
 
 `noe:image` has a task-specific path: `read_image(path)` returns metadata to JavaScript and attaches the image to the next model request after the tool call. Do not expect a top-level `noe run`, `eval`, or Worker to provide model vision context.
@@ -50,12 +62,25 @@ For oversized searches, narrowing the query/scope or returning filenames/counts 
 
 ~~~js
 // Read the required HTTP detail.
-// @noe: {"outputBytes": 131072}
+// @noe: {"outputBytes": 131072, "timeoutMs": 30000}
 import {docs} from "noe:docs";
 console.log(docs("noe:http", "serve"));
 ~~~
 
-Only outputBytes is accepted, as an integer from 1024 to 262144 bytes (1–256 KiB). The minimum reserves room for omission metadata. It sets both each stream's capture size and the shared final JSON budget. Console output and default-export data follow the same setting. Invalid or duplicate pragmas return a setup diagnostic before execution. Effective code after beforeTool controls this setting. Streams over the selected budget retain their beginning and end. When storage is enabled, each overflowing stream has a file reference. File references retained by afterTool appear as separate fields in the preview envelope when they fit its budget. A file write or close failure leaves the preview and adds an output_save_error diagnostic. Save large structured values explicitly with the filesystem APIs and return a summary or path. Caught exceptions stay caught.
+The pragma accepts any combination of `outputBytes`, `timeoutMs`, and
+`saveData`. `saveData` defaults to false. `outputBytes` is an
+integer from 1024 to 262144 bytes (1–256 KiB). It sets each stream's capture
+size, the serialized data save threshold, and the shared final JSON budget.
+`timeoutMs` is a positive integer in milliseconds and defaults to no
+call-specific deadline. It covers setup, execution, and owned cleanup. On
+expiry, the call's resources are cleaned up and the model receives
+`reason: "timeout"` with captured output. Other calls and the parent task
+can continue. Parent interruption still cancels the task.
+
+Invalid or duplicate pragmas return a setup diagnostic before execution.
+Effective code after `beforeTool` controls these settings. File references
+retained by `afterTool` appear as separate fields in the preview envelope
+when they fit its budget. Caught exceptions stay caught.
 
 ## files
 

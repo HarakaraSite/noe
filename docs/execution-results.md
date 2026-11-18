@@ -26,6 +26,7 @@ export default models.map(({provider, model}) => ({provider, model}));
 | `diagnostics?` | NOEが観測した失敗情報。出力とは別に保持 |
 | `stdoutOmittedBytes?` / `stderrOmittedBytes?` | 各streamの捕捉で省いたbyte数（既定64 KiB、outputBytesに連動） |
 | `stdoutFile?` / `stderrFile?` | Saved stream reference with path and raw byte count when storage is enabled |
+| `dataFile?` | Saved JSON reference with path and byte count when `saveData` is enabled for an oversized default export |
 
 成功例は`{"stdout":"","stderr":"","exitCode":0,"reason":"completed","data":[...]}`です。最後の式だけではdataになりません。`console.log`を使った既存コードは引き続きstdoutを返します。
 
@@ -73,8 +74,17 @@ including the bytes before the limit was crossed. Memory used for the preview
 remains bounded. Short streams produce no file. The result includes
 `stdoutFile` or `stderrFile` as `{path, bytes}` after the file closes. The
 storage scope covers stdout and stderr writes, including writes before
-execution failure or cancellation. Structured `data`, diagnostic payloads,
-and hook replacements are outside the saved stream.
+execution failure or cancellation.
+
+Set `// @noe: {"saveData": true}` in the initial line-comment block to save
+the complete JSON when the serialized default export exceeds `outputBytes`.
+The same output directory is used. The tool returns `dataFile: {path, bytes}` in place
+of inline `data`. This is also the value seen by `afterTool` and recorded in
+events. Small values, including explicit null, retain the inline form. A
+failed save retains inline data and adds an `output_save_error` diagnostic.
+Use `JSON.parse(await readFile(path, "utf8"))` from `noe:fs` to read the saved
+value. Diagnostic payloads and values created by hooks use the usual result
+budget.
 
 Use `noe:fs.open(path)` in a later tool call and read a range with
 `readAt(offset, length)`. A rooted profile returns a virtual path. CLI
@@ -84,10 +94,25 @@ the model-facing result. References kept by the hook share the final JSON
 budget. A path too long for the preview envelope remains in the raw result
 and execution events.
 
-A storage error leaves the preview available and adds an `output_save_error`
-diagnostic. A successfully saved file stays available after the run and Host
+A stream storage error leaves the preview available and adds an
+`output_save_error` diagnostic. A successfully saved file stays available after the run and Host
 close. Configure storage where full output can be retained and remove the
 saved files according to your storage needs.
+
+## Tool deadlines and live progress
+
+Use `// @noe: {"timeoutMs": 30000}` in the initial line-comment block to set
+the deadline for a single `run_js` call. It can appear in the same object
+as `outputBytes` and `saveData`. Without a tool deadline, the parent task controls its
+lifetime. The local deadline covers setup, execution, and owned cleanup.
+An expired call returns a timeout result with captured output so the
+agent can continue with the other tool results.
+
+With `--observe`, the running tool can display one nonblank line per second
+from each stream. Each sample retains up to 512 bytes of the line before
+UTF-8 normalization and an optional truncation marker. JSONL includes them
+as `run_js.progress`. The final stdout and stderr records carry the regular
+captured output.
 
 ## 診断の読み方
 

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	core "forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/internal/agentbridge"
@@ -26,20 +27,30 @@ type Executor struct {
 type capture struct {
 	sync.Mutex
 	capturedOutput
-	spill  *outputSpill
-	closed bool
+	spill    *outputSpill
+	progress *progressOutput
+	closed   bool
 }
 
 func (c *capture) Write(p []byte) (int, error) {
 	c.Lock()
-	defer c.Unlock()
 	if c.closed {
+		c.Unlock()
 		return 0, errors.New("agent output capture is closed")
 	}
 	if c.spill != nil {
 		c.spill.write(&c.capturedOutput, p)
 	}
-	return c.capturedOutput.Write(p)
+	n, err := c.capturedOutput.Write(p)
+	var line string
+	if c.progress != nil {
+		line = c.progress.sample(p, time.Now())
+	}
+	c.Unlock()
+	if line != "" {
+		c.progress.emit(line)
+	}
+	return n, err
 }
 func (c *capture) WriteContext(ctx context.Context, p []byte) (int, error) {
 	if err := ctx.Err(); err != nil {
@@ -57,14 +68,18 @@ func (c *capture) finish(result *core.Result, stream string) (string, int64, *ex
 		var err error
 		file, err = c.spill.finish(c.total)
 		if err != nil {
-			// Filesystem errors can contain host paths under a virtual root.
-			result.Diagnostics = append(result.Diagnostics, executionresult.Diagnostic{
-				Code: "output_save_error", Stage: "cleanup",
-				Message: "Could not save full " + stream + " to the configured tool output directory",
-			})
+			appendOutputSaveError(result, stream)
 		}
 	}
 	return text, omitted, file
+}
+
+func appendOutputSaveError(result *core.Result, output string) {
+	// Filesystem errors can contain host paths under a virtual root.
+	result.Diagnostics = append(result.Diagnostics, executionresult.Diagnostic{
+		Code: "output_save_error", Stage: "cleanup",
+		Message: "Could not save full " + output + " to the configured tool output directory",
+	})
 }
 
 // Execute creates only the runtime required by this task or tool. Configuration,
@@ -73,6 +88,10 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 	profile := e.Profile
 	stdout := &capture{capturedOutput: capturedOutput{maxBytes: int(execution.OutputBytes)}}
 	stderr := &capture{capturedOutput: capturedOutput{maxBytes: int(execution.OutputBytes)}}
+	if execution.Kind == core.ExecutionTool && execution.Progress != nil {
+		stdout.progress = &progressOutput{emit: func(line string) { execution.Progress("stdout", line) }}
+		stderr.progress = &progressOutput{emit: func(line string) { execution.Progress("stderr", line) }}
+	}
 	if execution.Kind == core.ExecutionTool && e.OutputDirectory != nil {
 		stdout.spill = &outputSpill{directory: e.OutputDirectory, stream: "stdout"}
 		stderr.spill = &outputSpill{directory: e.OutputDirectory, stream: "stderr"}
@@ -117,7 +136,6 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 	result, err := stdlib.Execute(ctx, stdlib.Source{Name: "[agent " + execution.Kind + "]", Code: code, Module: true, Virtual: true}, profile)
 	out := core.Result{
 		ExitCode: result.Code, Reason: "completed",
-		Data:        append(jsonv1.RawMessage(nil), result.Data...),
 		Diagnostics: append([]executionresult.Diagnostic(nil), result.Diagnostics...),
 	}
 	if result.Code != 0 {
@@ -149,5 +167,15 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 	// remain an execution result, as with nonzero command exits.
 	out.Stdout, out.StdoutOmittedBytes, out.StdoutFile = stdout.finish(&out, "stdout")
 	out.Stderr, out.StderrOmittedBytes, out.StderrFile = stderr.finish(&out, "stderr")
+	if execution.Kind == core.ExecutionTool && execution.SaveData && e.OutputDirectory != nil && len(result.Data) > stdout.limit() {
+		var saveErr error
+		out.DataFile, saveErr = e.OutputDirectory.saveData(result.Data)
+		if saveErr != nil {
+			appendOutputSaveError(&out, "data")
+		}
+	}
+	if out.DataFile == nil {
+		out.Data = append(jsonv1.RawMessage(nil), result.Data...)
+	}
 	return out, nil
 }

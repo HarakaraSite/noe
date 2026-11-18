@@ -450,7 +450,7 @@ declare namespace NOEAgent {
   }
 
   interface ExecutionDiagnostic {
-    code: "execution_error" | "serialization_error" | "cancelled" | "timeout" | "cleanup_error";
+    code: "execution_error" | "serialization_error" | "cancelled" | "timeout" | "cleanup_error" | "output_save_error";
     stage: "setup" | "execute" | "serialize" | "cleanup";
     message: string;
     stack?: string;
@@ -463,7 +463,7 @@ declare namespace NOEAgent {
     };
   }
 
-  /** Full raw bytes saved for an overflowing run_js stream. */
+  /** Full bytes saved for an overflowing run_js stream or JSON value. */
   interface ToolOutputFile {
     path: string;
     bytes: number;
@@ -481,6 +481,7 @@ declare namespace NOEAgent {
     stderrOmittedBytes?: number;
     stdoutFile?: ToolOutputFile;
     stderrFile?: ToolOutputFile;
+    dataFile?: ToolOutputFile;
   }
 
   interface LogToolResult {
@@ -492,9 +493,10 @@ declare namespace NOEAgent {
     text?: string;
     /** Present only when includeOutput was requested; null differs from absence. */
     data?: JSONValue;
-    /** Saved stream references are available independently of includeOutput. */
+    /** Saved file references are available independently of includeOutput. */
     stdoutFile?: ToolOutputFile;
     stderrFile?: ToolOutputFile;
+    dataFile?: ToolOutputFile;
     /** Diagnostics remain available independently of captured-output selection. */
     diagnostics?: readonly ExecutionDiagnostic[];
   }

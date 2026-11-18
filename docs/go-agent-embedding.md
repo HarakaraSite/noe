@@ -140,11 +140,14 @@ snapshot; it does not read a saved event file. `ReadTaskResult` reads a
 completed answer in UTF-8 byte ranges without consuming it.
 
 Set `HostConfig.ToolOutputDir` to an existing directory to retain full
-stdout and stderr streams when they exceed the per-stream capture budget.
+stdout and stderr streams above the `run_js` output budget. A tool can set
+`saveData: true` in its `@noe` pragma to save oversized default-export JSON
+there as well.
 The path follows `Runtime.Modules.FS` and `Runtime.Environment.Cwd`. For a
 rooted FS, a value such as `"/tool-output"` is relative to the virtual root.
-A read-only JS filesystem can read these Host-written files. Each saved
-stream reports `{path, bytes}` in `stdoutFile` or `stderrFile`. The caller
+A read-only JS filesystem can read these Host-written files. Saved output
+reports `{path, bytes}` in `stdoutFile`, `stderrFile`, or `dataFile`.
+A saved default export replaces inline `data` with `dataFile`. The caller
 owns the saved files and their retention. Keep using keyed `HostConfig`
 literals when upgrading. See the [execution result guide](execution-results.md#saved-stream-output).
 

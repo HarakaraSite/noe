@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/events"
 	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
@@ -175,6 +176,18 @@ func (r *agentRenderer) render(event events.Event) error {
 			text = "started"
 		}
 		return r.line(label, "run_js started", strings.TrimSpace(strings.TrimPrefix(text, "//")))
+	case "run_js.progress":
+		stream := eventString(event, "stream")
+		if stream != "stdout" && stream != "stderr" {
+			return nil
+		}
+		text = strings.Map(func(r rune) rune {
+			if unicode.IsControl(r) && r != '\t' {
+				return -1
+			}
+			return r
+		}, text)
+		return r.line(label, "run_js "+stream, text)
 	case "run_js.finished":
 		kind := "run_js failed"
 		if event["success"] == true {
@@ -193,12 +206,12 @@ func (r *agentRenderer) render(event events.Event) error {
 		if err := r.line(label, kind, strings.Join(parts, " / ")); err != nil {
 			return err
 		}
-		for _, stream := range []string{"stdout", "stderr"} {
-			if value := event[stream+"File"]; value != nil {
+		for _, output := range []string{"stdout", "stderr", "data"} {
+			if value := event[output+"File"]; value != nil {
 				var file executionresult.OutputFile
 				encoded, err := json.Marshal(value)
 				if err == nil && json.Unmarshal(encoded, &file) == nil && file.Path != "" && file.Bytes > 0 {
-					if err := r.line(label, stream+" saved", fmt.Sprintf("%q (%d bytes)", file.Path, file.Bytes)); err != nil {
+					if err := r.line(label, output+" saved", fmt.Sprintf("%q (%d bytes)", file.Path, file.Bytes)); err != nil {
 						return err
 					}
 				}

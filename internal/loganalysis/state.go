@@ -154,6 +154,7 @@ func (s *runState) apply(rec record, includeOutput bool) {
 			Duration:   intField64(event["duration"]),
 			StdoutFile: outputFileField(event, "stdoutFile"),
 			StderrFile: outputFileField(event, "stderrFile"),
+			DataFile:   outputFileField(event, "dataFile"),
 		}
 		if includeOutput {
 			if output := s.outputs[toolCallID]; output != nil {

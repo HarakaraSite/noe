@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	modelapi "forge.harakara.site/littleisland/noe/v2/agent/model"
 	core "forge.harakara.site/littleisland/noe/v2/internal/agent"
 	"forge.harakara.site/littleisland/noe/v2/stdlib"
 )
@@ -77,5 +78,42 @@ func TestOutputSpillUnavailableDirectoryKeepsPreview(t *testing.T) {
 	preview, omitted, file := c.finish(&result, "stderr")
 	if file != nil || omitted != 6 || !strings.HasSuffix(preview, "TAIL") || len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "output_save_error" || result.Reason != "completed" {
 		t.Fatalf("preview=%q omitted=%d file=%+v result=%+v", preview, omitted, file, result)
+	}
+}
+
+func TestUnavailableDataStorageRetainsInlineResult(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "output")
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	profile := stdlib.Profile{Modules: stdlib.Modules{FS: &stdlib.FileSystemOptions{Root: root}}}
+	directory, err := NewOutputDirectory("/output", profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	models, err := modelapi.NewService(modelapi.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := core.NewHost(core.Options{Models: models})
+	defer host.Close()
+	operation := host.NewOperation(t.Context())
+	defer operation.Close()
+	executor := &Executor{Host: host, Profile: profile, OutputDirectory: directory}
+	result, err := executor.Execute(t.Context(), core.Execution{
+		Operation: operation, Kind: core.ExecutionTool,
+		Code: `export default "x".repeat(4096)`, OutputBytes: 1024, SaveData: true,
+	})
+	want := "\"" + strings.Repeat("x", 4096) + "\""
+	if err != nil || result.Reason != "completed" || result.DataFile != nil || string(result.Data) != want {
+		t.Fatalf("inline fallback: reason=%q file=%v data bytes=%d error=%v", result.Reason, result.DataFile, len(result.Data), err)
+	}
+	if len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "output_save_error" ||
+		strings.Contains(result.Diagnostics[0].Message, root) {
+		t.Fatalf("save failure diagnostics = %+v", result.Diagnostics)
 	}
 }

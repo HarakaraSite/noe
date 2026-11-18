@@ -24,6 +24,10 @@ type Execution struct {
 	Code        string
 	// OutputBytes sets the tool's stream capture budget. Zero uses the default.
 	OutputBytes int64
+	// SaveData saves oversized serialized data when output storage is enabled.
+	SaveData bool
+	// Progress optionally reports a sampled stdout or stderr line during a tool.
+	Progress func(stream, text string)
 }
 
 // Result is the observable result of a task or tool execution, independent of
@@ -38,6 +42,7 @@ type Result struct {
 	StdoutFile         *executionresult.OutputFile  `json:"stdoutFile,omitempty"`
 	StderrFile         *executionresult.OutputFile  `json:"stderrFile,omitempty"`
 	Data               jsonv1.RawMessage            `json:"data,omitzero"`
+	DataFile           *executionresult.OutputFile  `json:"dataFile,omitempty"`
 	Diagnostics        []executionresult.Diagnostic `json:"diagnostics,omitempty"`
 }
 

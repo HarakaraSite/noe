@@ -6,11 +6,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 	"forge.harakara.site/littleisland/noe/v2/internal/loganalysis"
@@ -54,6 +58,7 @@ type modelOutputPreview struct {
 	OutputPreview string `json:"outputPreview"`
 	StdoutFile    *executionresult.OutputFile
 	StderrFile    *executionresult.OutputFile
+	DataFile      *executionresult.OutputFile
 	OutputLimit   struct {
 		LimitBytes    int  `json:"limitBytes"`
 		SourceBytes   int  `json:"sourceBytes"`
@@ -74,9 +79,15 @@ func TestAgentSavesOverflowAndReadsTheMiddleInNextTool(t *testing.T) {
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	source := "// @noe: {\"outputBytes\": 1024}\n" + `
+	source := "// @noe: {\"outputBytes\": 1024, \"saveData\": true}\n" + `
 console.log("a".repeat(4096) + "STDOUT_MIDDLE" + "z".repeat(4096));
-console.error("b".repeat(4096) + "STDERR_MIDDLE" + "y".repeat(4096));`
+console.error("b".repeat(4096) + "STDERR_MIDDLE" + "y".repeat(4096));
+export default {text: "x".repeat(4096) + "DATA_MIDDLE" + "y".repeat(4096)};`
+	writeFixture(t, filepath.Join(work, "check-data.js"), `export function afterTool(event) {
+  if (event.toolCallId === "save" && (!event.result.dataFile || Object.hasOwn(event.result, "data"))) {
+    throw Error("expected saved data reference");
+  }
+}`)
 	var calls atomic.Int32
 	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
 		tools := make(map[string]string)
@@ -95,23 +106,25 @@ console.error("b".repeat(4096) + "STDERR_MIDDLE" + "y".repeat(4096));`
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("save", source)}}}, FinishReason: "tool_calls"}
 		case 2:
 			var preview modelOutputPreview
-			if err := json.Unmarshal([]byte(tools["save"]), &preview); err != nil || preview.StdoutFile == nil || preview.StderrFile == nil ||
+			if err := json.Unmarshal([]byte(tools["save"]), &preview); err != nil || preview.StdoutFile == nil || preview.StderrFile == nil || preview.DataFile == nil ||
 				preview.OutputLimit.ReturnedBytes != len(tools["save"]) || len(tools["save"]) > 1024 || strings.Contains(preview.OutputPreview, "_MIDDLE") {
 				t.Errorf("model preview=%+v err=%v", preview, err)
 				return agentModelReply{Status: 400}
 			}
 			read := fmt.Sprintf(`
-import {open} from "noe:fs";
+import {open, readFile} from "noe:fs";
 await using out=await open(%s); await using err=await open(%s);
 const decode=new TextDecoder();
-export default [decode.decode(await out.readAt(4096,13)),decode.decode(await err.readAt(4096,13))];`, mustJSONString(preview.StdoutFile.Path), mustJSONString(preview.StderrFile.Path))
+const data=JSON.parse(await readFile(%s,"utf8"));
+export default [decode.decode(await out.readAt(4096,13)),decode.decode(await err.readAt(4096,13)),data.text.slice(4096,4107)];`,
+				mustJSONString(preview.StdoutFile.Path), mustJSONString(preview.StderrFile.Path), mustJSONString(preview.DataFile.Path))
 			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("read", read)}}}, FinishReason: "tool_calls"}
 		case 3:
 			var result agentExecutionResult
-			if err := json.Unmarshal([]byte(tools["read"]), &result); err != nil || string(result.Data) != `["STDOUT_MIDDLE","STDERR_MIDDLE"]` {
+			if err := json.Unmarshal([]byte(tools["read"]), &result); err != nil || string(result.Data) != `["STDOUT_MIDDLE","STDERR_MIDDLE","DATA_MIDDLE"]` {
 				t.Errorf("read saved output: %+v err=%v", result, err)
 			}
-			return agentModelReply{Content: "read both saved streams"}
+			return agentModelReply{Content: "read saved output and data"}
 		default:
 			t.Error("unexpected tool rerun")
 			return agentModelReply{Status: 400}
@@ -123,9 +136,12 @@ export default [decode.decode(await out.readAt(4096,13)),decode.decode(await err
 	env["NOE_AGENT_TRACE"] = ""
 	env["NOE_AGENT_TOOL_OUTPUT_DIR"] = "output"
 	eventPath := filepath.Join(work, "events.jsonl")
-	result := runCLI(t, work, env, "eval", "--no-inst", "--observe", "--events="+eventPath, agentScript("read the omitted bytes", "{maxSteps:3}"))
+	result := runCLI(t, work, env, "eval", "--no-inst", "--observe", "--events="+eventPath, agentScript("read the omitted bytes", `{maxSteps:3,hooks:["./check-data.js"]}`))
 	requireExit(t, result, 0)
-	for _, want := range []string{"stdout saved", "stderr saved", "read both saved streams"} {
+	if strings.Contains(result.stdout, "hook failed") {
+		t.Fatalf("afterTool did not receive the saved data reference: %s", result.stdout)
+	}
+	for _, want := range []string{"stdout saved", "stderr saved", "data saved", "read saved output and data"} {
 		if !strings.Contains(result.stdout, want) {
 			t.Fatalf("output missing %q: %s", want, result.stdout)
 		}
@@ -139,6 +155,7 @@ export default [decode.decode(await out.readAt(4096,13)),decode.decode(await err
 		prefix.WriteString(line + "\n")
 		var event struct {
 			Type, RunID, ToolCallID string
+			Data                    json.RawMessage `json:"data"`
 		}
 		if json.Unmarshal([]byte(line), &event) != nil || event.Type != "run_js.finished" || event.ToolCallID != "save" {
 			continue
@@ -148,7 +165,7 @@ export default [decode.decode(await out.readAt(4096,13)),decode.decode(await err
 			t.Fatal(err)
 		}
 		last := snapshot.LastToolResult
-		if last == nil || last.StdoutFile == nil || last.StderrFile == nil {
+		if last == nil || last.StdoutFile == nil || last.StderrFile == nil || last.DataFile == nil || len(event.Data) != 0 {
 			t.Fatalf("saved-log snapshot omitted file references: %+v", last)
 		}
 		for _, stream := range []struct {
@@ -157,6 +174,7 @@ export default [decode.decode(await out.readAt(4096,13)),decode.decode(await err
 		}{
 			{last.StdoutFile, strings.Repeat("a", 4096) + "STDOUT_MIDDLE" + strings.Repeat("z", 4096) + "\n"},
 			{last.StderrFile, strings.Repeat("b", 4096) + "STDERR_MIDDLE" + strings.Repeat("y", 4096) + "\n"},
+			{last.DataFile, `{"text":"` + strings.Repeat("x", 4096) + "DATA_MIDDLE" + strings.Repeat("y", 4096) + `"}`},
 		} {
 			content, err := os.ReadFile(stream.file.Path)
 			if err != nil || filepath.Dir(stream.file.Path) != dir || string(content) != stream.text || int64(len(content)) != stream.file.Bytes {
@@ -166,6 +184,80 @@ export default [decode.decode(await out.readAt(4096,13)),decode.decode(await err
 		return
 	}
 	t.Fatal("missing run_js.finished record for saved streams")
+}
+
+func TestAgentRunJSDeadlineAndLiveProgress(t *testing.T) {
+	release := make(chan struct{})
+	var once sync.Once
+	releaseTool := func() { once.Do(func() { close(release) }) }
+	hold := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+			fmt.Fprint(w, "sibling data")
+		case <-r.Context().Done():
+		}
+	}))
+	defer hold.Close()
+	defer releaseTool()
+
+	var requests atomic.Int32
+	provider := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
+		switch requests.Add(1) {
+		case 1:
+			timed := agentTool("timed", "// @noe: {\"timeoutMs\": 1000}\n"+
+				`console.log("timed output"); await new Promise(resolve => setTimeout(resolve, 5000));`)
+			sibling := agentTool("sibling", fmt.Sprintf(`
+console.log("live marker");
+console.log("another line");
+console.error("live error");
+export default await (await fetch(%s)).text();`, mustJSONString(hold.URL)))
+			sibling["index"] = 1
+			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{timed, sibling}}}, FinishReason: "tool_calls"}
+		case 2:
+			results := make(map[string]agentExecutionResult)
+			for _, message := range req.Messages {
+				if message.Role == "tool" {
+					results[message.ToolCallID] = agentToolResult(t, message)
+				}
+			}
+			timed := results["timed"]
+			if timed.Reason != "timeout" || timed.Stdout != "timed output\n" ||
+				len(timed.Diagnostics) == 0 || timed.Diagnostics[0].Code != "timeout" {
+				t.Errorf("timed tool result = %+v", timed)
+			}
+			sibling := results["sibling"]
+			if sibling.Reason != "completed" || sibling.Stdout != "live marker\nanother line\n" ||
+				sibling.Stderr != "live error\n" || string(sibling.Data) != `"sibling data"` {
+				t.Errorf("sibling tool result = %+v", sibling)
+			}
+			return agentModelReply{Content: "agent continued"}
+		default:
+			t.Error("unexpected model request")
+			return agentModelReply{Status: 400}
+		}
+	})
+	defer provider.Close()
+	env := agentCLIEnv(t, provider.URL)
+	env["NOE_AGENT_TRACE"] = ""
+	for name, value := range env {
+		t.Setenv(name, value)
+	}
+	process := startCLIWithOpenStdin(t, t.TempDir(), "eval", "--no-inst", "--observe",
+		agentScript("report progress while one tool times out", "{maxSteps:2}"))
+	for _, marker := range []string{"run_js stdout: live marker", "run_js stderr: live error"} {
+		if !process.stdout.waitFor(marker, 4*time.Second) {
+			t.Fatalf("no live %q while tool waited: stdout=%q stderr=%q", marker, process.stdout.String(), process.stderr.String())
+		}
+	}
+	if strings.Contains(process.stdout.String(), "another line") {
+		t.Fatal("progress did not skip a second line in the same interval")
+	}
+	releaseTool()
+	result := process.wait(t, 5*time.Second)
+	requireExit(t, result, 0)
+	if !strings.Contains(result.stdout, "agent continued") {
+		t.Fatalf("agent did not continue: %+v", result)
+	}
 }
 
 func checkModelOutputPreview(t *testing.T, result modelOutputPreview, exit int) {

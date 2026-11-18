@@ -31,7 +31,7 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	if requestContext == nil || op == nil || request.RunID == "" || request.Code == nil {
 		return runJSResponse{}, newOperationError(http.StatusBadRequest, "request", "invalid run_js request")
 	}
-	outputBytes, pragmaErr := runJSOutputBytes(*request.Code)
+	options, pragmaErr := parseRunJSOptions(*request.Code)
 	h.mu.Lock()
 	run := h.runs[request.RunID]
 	valid := run != nil && run.operation == op && run.ctx.Err() == nil && !run.interrupting && !run.finalClosed && !op.closed && !h.closed
@@ -83,12 +83,17 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	}
 	if toolState != nil {
 		toolState.started = true
-		toolState.outputBytes = outputBytes
+		toolState.outputBytes = options.outputBytes
 	}
 	h.mu.Unlock()
 
-	origin := activityOrigin{Kind: "tool", RunID: run.id, AgentID: run.agentID(), ToolCallID: request.ToolCallID, ToolName: "run_js", ModelStepID: request.ModelStepID}
 	started := time.Now()
+	origin := activityOrigin{Kind: "tool", RunID: run.id, AgentID: run.agentID(), ToolCallID: request.ToolCallID, ToolName: "run_js", ModelStepID: request.ModelStepID}
+	finish := func(result Result) runJSResponse {
+		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
+		images := h.finishToolImages(run, request.ModelStepID, request.ToolCallID, result.ExitCode == 0 && result.Reason == "completed")
+		return runJSResponse{Result: result, Images: images}
+	}
 	startFields := events.Event{"toolCallId": request.ToolCallID, "source": "run_js", "code": *request.Code}
 	if request.ModelStepID != "" {
 		startFields["modelStepId"] = request.ModelStepID
@@ -100,23 +105,46 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 	}
 	h.observeRun("run_js.started", request.RunID, run, startFields)
 	if pragmaErr != nil {
-		result := Result{ExitCode: -1, Reason: "failed"}
+		result := failedResult()
 		appendExecutionDiagnostic(&result, pragmaErr, "setup")
-		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		return runJSResponse{Result: result}, nil
+		return finish(result), nil
 	}
 
-	ctx, cancel := context.WithCancel(run.ctx)
+	parentCtx, cancel := context.WithCancel(run.ctx)
 	stopRequest := context.AfterFunc(requestContext, cancel)
 	defer func() {
 		stopRequest()
 		cancel()
 	}()
-	if ctx.Err() != nil {
-		result := Result{ExitCode: -1, Reason: reasonForContext(ctx.Err())}
-		appendExecutionDiagnostic(&result, ctx.Err(), "setup")
-		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		return runJSResponse{}, ctx.Err()
+	ctx := parentCtx
+	if options.timeout > 0 {
+		var stopDeadline context.CancelFunc
+		ctx, stopDeadline = context.WithDeadline(parentCtx, started.Add(options.timeout))
+		defer stopDeadline()
+	}
+	contextFailure := func() (err error, localTimeout bool) {
+		// The request cancellation callback may not have run yet.
+		if requestContext.Err() != nil {
+			cancel()
+		}
+		err = ctx.Err()
+		if parentErr := parentCtx.Err(); parentErr != nil {
+			return parentErr, false
+		}
+		return err, err == context.DeadlineExceeded
+	}
+	finishInterrupted := func(result Result, err error, stage string, localTimeout bool) (runJSResponse, error) {
+		result.ExitCode = -1
+		result.Reason = reasonForContext(err)
+		appendExecutionDiagnostic(&result, err, stage)
+		response := finish(result)
+		if localTimeout {
+			return response, nil
+		}
+		return runJSResponse{}, err
+	}
+	if err, localTimeout := contextFailure(); err != nil {
+		return finishInterrupted(Result{}, err, "setup", localTimeout)
 	}
 
 	// The tool receives its own scope so completion can cancel and join all
@@ -146,7 +174,7 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 			result.Reason = "cancelled"
 		}
 		appendExecutionDiagnostic(&result, scopeErr, "setup")
-		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
+		finish(result)
 		if !groupOpen {
 			code, message := executionLimitError(run.group)
 			return runJSResponse{}, newOperationError(http.StatusConflict, code, message)
@@ -166,40 +194,60 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 		})
 	}
 	defer release()
-	if opErr := childOperation.ctx.Err(); opErr != nil {
-		result := Result{ExitCode: -1, Reason: reasonForContext(opErr)}
-		appendExecutionDiagnostic(&result, opErr, "setup")
-		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		return runJSResponse{}, opErr
-	}
-	if childOperation.initErr != nil {
-		result := Result{ExitCode: -1, Reason: "failed"}
-		appendExecutionDiagnostic(&result, childOperation.initErr, "setup")
-		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		return runJSResponse{Result: result}, nil
-	}
-
+	stage := "setup"
 	var result Result
 	var err error
-	if h.opts.Execute == nil {
-		err = errors.New("agent execution runtime is unavailable")
-		result = failedResult()
-		appendExecutionDiagnostic(&result, err, "setup")
-	} else {
-		config, _ := json.Marshal(hookDefaults(run))
-		result, err = h.opts.Execute(childOperation.ctx, Execution{
-			Operation: childOperation, Kind: ExecutionTool,
-			Config: config, Code: *request.Code, OutputBytes: outputBytes,
-		})
+	var waitProgress func()
+	scopeErr := childOperation.ctx.Err()
+	if scopeErr == nil {
+		switch {
+		case childOperation.initErr != nil:
+			err = childOperation.initErr
+		case h.opts.Execute == nil:
+			err = errors.New("agent execution runtime is unavailable")
+		default:
+			config, _ := json.Marshal(hookDefaults(run))
+			if requestContext.Err() != nil {
+				cancel()
+			}
+			scopeErr = childOperation.ctx.Err()
+			if scopeErr == nil {
+				stage = "execute"
+				execution := Execution{
+					Operation: childOperation, Kind: ExecutionTool,
+					Config: config, Code: *request.Code, OutputBytes: options.outputBytes,
+					SaveData: options.saveData,
+				}
+				if h.opts.Observe != nil {
+					execution.Progress, waitProgress = startToolProgress(childOperation.ctx, func(stream, text string) {
+						fields := events.Event{
+							"toolCallId": request.ToolCallID, "source": "run_js",
+							"stream": stream, "text": text,
+						}
+						if request.ModelStepID != "" {
+							fields["modelStepId"] = request.ModelStepID
+							fields["requestId"] = requestID
+						}
+						addActivityFields(fields, activityID, causedBy, origin)
+						h.observeRun("run_js.progress", request.RunID, run, fields)
+					})
+				}
+				result, err = h.opts.Execute(childOperation.ctx, execution)
+			}
+		}
 	}
-	contextErr := ctx.Err()
+	// Closing the child cancels its context, so read the enclosing contexts
+	// after joining cleanup to distinguish a deadline from normal scope release.
 	release()
+	contextErr, localTimeout := contextFailure()
+	if waitProgress != nil {
+		waitProgress()
+	}
 	if contextErr != nil {
-		result.ExitCode = -1
-		result.Reason = reasonForContext(contextErr)
-		appendExecutionDiagnostic(&result, contextErr, "execute")
-		h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-		return runJSResponse{}, contextErr
+		return finishInterrupted(result, contextErr, stage, localTimeout)
+	}
+	if scopeErr != nil {
+		return finishInterrupted(result, scopeErr, stage, false)
 	}
 	if err != nil {
 		result.Reason = "failed"
@@ -209,9 +257,9 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 		if result.ExitCode == 0 {
 			result.ExitCode = -1
 		}
-		appendExecutionDiagnostic(&result, err, "execute")
+		appendExecutionDiagnostic(&result, err, stage)
 	}
-	appendReasonDiagnostic(&result, "execute")
+	appendReasonDiagnostic(&result, stage)
 	if result.Reason == "" {
 		if result.ExitCode == 0 {
 			result.Reason = "completed"
@@ -219,9 +267,7 @@ func (h *Host) runJS(requestContext context.Context, op *Operation, request runJ
 			result.Reason = "failed"
 		}
 	}
-	h.finishJSResult(request.RunID, run, started, request.ToolCallID, activityID, causedBy, origin, result)
-	images := h.finishToolImages(run, request.ModelStepID, request.ToolCallID, result.ExitCode == 0 && result.Reason == "completed")
-	return runJSResponse{Result: result, Images: images}, nil
+	return finish(result), nil
 }
 
 func (h *Host) finishJSResult(runID string, run *agentRun, started time.Time, toolCallID, activityID string, causedBy []string, origin activityOrigin, result Result) {
@@ -262,6 +308,9 @@ func (h *Host) finishJSResult(runID string, run *agentRun, started time.Time, to
 	}
 	if result.StderrFile != nil {
 		finishFields["stderrFile"] = *result.StderrFile
+	}
+	if result.DataFile != nil {
+		finishFields["dataFile"] = *result.DataFile
 	}
 	if len(result.Data) > 0 {
 		finishFields["data"] = cloneRawJSON(result.Data)

@@ -99,6 +99,7 @@ agentを実行する例では、従来どおり`NOE_OPENROUTER_API_KEY_FILE`等�
 | `agent.message` | toolを呼ぶ応答に含まれる途中の発言`text`と`requestId` |
 | `agent.final` | loopが正常な最終回答として受け入れた`text` |
 | `run_js.started` | `toolCallId`・モデルが渡したJS全文の`code`と、codeの先頭行が`//`コメントならその行の`text` |
+| `run_js.progress` | Sampled output during execution with `toolCallId`, `stream` (stdout or stderr), and `text`. |
 | `run_js.finished` | `toolCallId`・`success`・`exitCode`・`reason`・`duration`、返却がある場合の`data`、失敗情報の`diagnostics` |
 | `execution.diagnostic` | agent task自体のVM診断。`source: "agent_task"`・`agentId`・`commandId`・判明時のみ`runId`・`diagnostics` |
 | `image.read` | `path`・`modelStepId`・`toolCallId`と、`image`内のimage ID・MIME・byte数・寸法・detail |
@@ -122,6 +123,13 @@ thinking・summary・messageの断片はストリーム受信時に出ます。p
 通常のJS出力は改行なしでも書込みごとに通知します。UTF-8文字の途中で分割された書込みは、文字が揃ってから通知します。`child_process`が返す捕捉出力は、JSが表示した時点で通常出力になります。`run_js`内のstdout/stderrは現在もrunnerが捕捉し、tool完了時に`source: "run_js"`とrun/tool ID付きで記録します。tool内部の出力の逐次中継は行っていません。
 
 `run_js.started.code`は実行開始時に記録するため、失敗・取消しの場合も呼出し方を確認できます。元sourceをそのまま記録します。agent helperは利用者が明示importし、内部wrapperや接続情報をcodeへ合成しません。人間向けの`--observe`と`noe observe`は従来どおり先頭コメントを表示し、JS全文は表示しません。コードの記録は`--events`に含まれ、従来のメタデータtraceには含まれません。
+
+`run_js.progress` includes at most one bounded line per second per stream
+and call. Log analysis includes these samples when `includeOutput` is set.
+Its completed tool text uses the final stream records. The
+`run_js.finished` event carries `dataFile` when an oversized default export
+was saved to a JSON file. Log analysis includes the reference independently
+of `includeOutput`.
 
 `run_js`のstdout・stderrは各streamについてoutputBytes分（既定64 KiB、最大256 KiB）の捕捉出力と省略マーカーを記録します。超過時は先頭・末尾を保持します（既定では32 KiBずつ）。省略があるstreamの出力イベントには`omittedBytes`、`run_js.finished`には`stdoutOmittedBytes`・`stderrOmittedBytes`を該当streamについて追加します。`tool.finished.rawResult`にも同じ省略情報が入り、`result`はhook変換後にモデル向けの同じoutputBytes予算（既定64 KiB）を適用した値です。metadataとJSONエスケープを含む返却JSON全体を数えます。超過時は`outputPreview`・`outputLimit`・元の実行状態を返します。加工値が元結果と異なりpreview化で失われる場合だけ、`hookResult`へ制限前の加工値を保存します。[実行結果](execution-results.md)を参照してください。JSONLは省略された出力の完全ログではありません。通常のトップレベルJS出力の記録は変更しません。
 

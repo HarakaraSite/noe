@@ -4,39 +4,66 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
-func TestRunJSOutputBytes(t *testing.T) {
+func TestParseRunJSOptions(t *testing.T) {
 	for _, tc := range []struct {
-		name, code string
-		want       int64
-		invalid    bool
+		name, code  string
+		wantBytes   int64
+		wantTimeout time.Duration
+		invalid     bool
 	}{
-		{"default", "// Inspect files.\nexport default 1", 65536, false},
-		{"operation and pragma", "// Inspect files.\n// @noe: {\"outputBytes\": 131072}\nexport default 1", 131072, false},
-		{"after code ignored", "export default 1\n// @noe: {\"outputBytes\": 1}", 65536, false},
-		{"minimum", "// @noe: {\"outputBytes\": 1024}", 1024, false},
-		{"too small", "// @noe: {\"outputBytes\": 1023}", 65536, true},
-		{"maximum", "// @noe: {\"outputBytes\": 262144}", 262144, false},
-		{"too large", "// @noe: {\"outputBytes\": 262145}", 65536, true},
-		{"zero", "// @noe: {\"outputBytes\": 0}", 65536, true},
-		{"negative", "// @noe: {\"outputBytes\": -1}", 65536, true},
-		{"fraction", "// @noe: {\"outputBytes\": 1.5}", 65536, true},
-		{"unsafe", "// @noe: {\"outputBytes\": 9007199254740992}", 65536, true},
-		{"missing", "// @noe: {}", 65536, true},
-		{"null", "// @noe: null", 65536, true},
-		{"unknown", "// @noe: {\"outputBytes\": 99,\"other\": 1}", 65536, true},
-		{"malformed", "// @noe: {", 65536, true},
-		{"trailing", "// @noe: {\"outputBytes\": 99} {}", 65536, true},
-		{"duplicate", "// @noe: {\"outputBytes\": 99}\n// @noe: {\"outputBytes\": 90}", 65536, true},
+		{"default", "// Inspect files.\nexport default 1", 65536, 0, false},
+		{"operation and pragma", "// Inspect files.\n// @noe: {\"outputBytes\": 131072}\nexport default 1", 131072, 0, false},
+		{"after code ignored", "export default 1\n// @noe: {\"outputBytes\": 1,\"timeoutMs\": 30000}", 65536, 0, false},
+		{"minimum output", `// @noe: {"outputBytes": 1024}`, 1024, 0, false},
+		{"too little output", `// @noe: {"outputBytes": 1023}`, 65536, 0, true},
+		{"maximum output", `// @noe: {"outputBytes": 262144}`, 262144, 0, false},
+		{"too much output", `// @noe: {"outputBytes": 262145}`, 65536, 0, true},
+		{"zero output", `// @noe: {"outputBytes": 0}`, 65536, 0, true},
+		{"negative output", `// @noe: {"outputBytes": -1}`, 65536, 0, true},
+		{"fractional output", `// @noe: {"outputBytes": 1.5}`, 65536, 0, true},
+		{"unsafe output", `// @noe: {"outputBytes": 9007199254740992}`, 65536, 0, true},
+		{"timeout", `// @noe: {"timeoutMs": 30000}`, 65536, 30 * time.Second, false},
+		{"both options", `// @noe: {"outputBytes": 3072,"timeoutMs": 1}`, 3072, time.Millisecond, false},
+		{"maximum timeout", `// @noe: {"timeoutMs": 9223372036854}`, 65536, 9223372036854 * time.Millisecond, false},
+		{"timeout overflow", `// @noe: {"timeoutMs": 9223372036855}`, 65536, 0, true},
+		{"zero timeout", `// @noe: {"timeoutMs": 0}`, 65536, 0, true},
+		{"negative timeout", `// @noe: {"timeoutMs": -1}`, 65536, 0, true},
+		{"fractional timeout", `// @noe: {"timeoutMs": 1.5}`, 65536, 0, true},
+		{"string timeout", `// @noe: {"timeoutMs": "30000"}`, 65536, 0, true},
+		{"null timeout", `// @noe: {"outputBytes": 3072,"timeoutMs": null}`, 65536, 0, true},
+		{"null output", `// @noe: {"outputBytes": null,"timeoutMs": 30000}`, 65536, 0, true},
+		{"missing", `// @noe: {}`, 65536, 0, true},
+		{"null", `// @noe: null`, 65536, 0, true},
+		{"unknown", `// @noe: {"outputBytes": 1024,"other": 1}`, 65536, 0, true},
+		{"malformed", `// @noe: {`, 65536, 0, true},
+		{"trailing", `// @noe: {"outputBytes": 1024} {}`, 65536, 0, true},
+		{"duplicate pragma", "// @noe: {\"outputBytes\": 1024}\n// @noe: {\"timeoutMs\": 1}", 65536, 0, true},
+		{"duplicate output", `// @noe: {"outputBytes": 1024,"outputBytes": 2048}`, 65536, 0, true},
+		{"duplicate timeout", `// @noe: {"timeoutMs": 1,"timeoutMs": 2}`, 65536, 0, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := runJSOutputBytes(tc.code)
-			if got != tc.want || (err != nil) != tc.invalid {
-				t.Fatalf("got %d,%v", got, err)
+			got, err := parseRunJSOptions(tc.code)
+			if got.outputBytes != tc.wantBytes || got.timeout != tc.wantTimeout || (err != nil) != tc.invalid {
+				t.Fatalf("got %+v, %v", got, err)
 			}
 		})
+	}
+}
+
+func TestParseRunJSSaveData(t *testing.T) {
+	options, err := parseRunJSOptions(`// @noe: {"outputBytes": 3072, "timeoutMs": 15, "saveData": true}`)
+	if err != nil || !options.saveData || options.outputBytes != 3072 || options.timeout != 15*time.Millisecond {
+		t.Fatalf("combined options = %+v, %v", options, err)
+	}
+	for _, value := range []string{"false", "null", "1", `"true"`} {
+		options, err := parseRunJSOptions(`// @noe: {"saveData": ` + value + `}`)
+		if options.saveData || (err == nil) != (value == "false") {
+			t.Fatalf("saveData %s: options = %+v, err = %v", value, options, err)
+		}
 	}
 }
 
@@ -62,6 +89,30 @@ func TestProjectToolOutputDefaultBudget(t *testing.T) {
 			if preview.OutputLimit.LimitBytes != 65536 || preview.OutputLimit.ReturnedBytes > 65536 || preview.OutputLimit.Complete {
 				t.Fatalf("incorrect default budget: %+v", preview.OutputLimit)
 			}
+		}
+	}
+}
+
+func TestProjectToolOutputRetainsIndependentFileReferences(t *testing.T) {
+	raw := json.RawMessage(`{"stdoutFile":{"path":"/out.log","bytes":10},"dataFile":{"path":"/data.json","bytes":2048}}`)
+	for _, test := range []struct {
+		fields string
+		stdout bool
+		data   bool
+	}{
+		{`"stdoutFile":{"path":"/out.log","bytes":10},"dataFile":"hook label"`, true, false},
+		{`"stdoutFile":7,"dataFile":{"path":"/data.json","bytes":2048}`, false, true},
+		{`"stdoutFile":{"path":"/different.log","bytes":10}`, false, false},
+	} {
+		result := json.RawMessage(`{` + test.fields + `,"text":"` + strings.Repeat("x", 2048) + `"}`)
+		value, cut, err := projectToolOutput(result, raw, 1024)
+		if err != nil || !cut {
+			t.Fatalf("projection: cut=%v err=%v", cut, err)
+		}
+		var preview toolOutputPreview
+		if err := json.Unmarshal(value, &preview); err != nil ||
+			(preview.StdoutFile != nil) != test.stdout || (preview.DataFile != nil) != test.data {
+			t.Fatalf("hook fields %s produced stdoutFile=%+v dataFile=%+v err=%v", test.fields, preview.StdoutFile, preview.DataFile, err)
 		}
 	}
 }

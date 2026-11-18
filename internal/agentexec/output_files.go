@@ -65,10 +65,7 @@ func (d *OutputDirectory) open() (*os.Root, error) {
 type outputSpill struct {
 	directory *OutputDirectory
 	stream    string
-	root      *os.Root
-	file      *os.File
-	name      string
-	err       error
+	outputFileWriter
 }
 
 func (s *outputSpill) write(c *capturedOutput, incoming []byte) {
@@ -76,15 +73,7 @@ func (s *outputSpill) write(c *capturedOutput, incoming []byte) {
 		return
 	}
 	if s.file == nil {
-		s.root, s.err = s.directory.open()
-		if s.err != nil {
-			return
-		}
-		s.name = "run-js-" + s.stream + "-" + rand.Text() + ".log"
-		s.file, s.err = s.root.OpenFile(s.name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if s.err != nil {
-			return
-		}
+		s.open(s.directory, s.stream, ".log")
 		// No earlier bytes have been dropped. The tail has not wrapped yet.
 		s.writeBytes(c.head)
 		s.writeBytes(c.tail)
@@ -92,24 +81,51 @@ func (s *outputSpill) write(c *capturedOutput, incoming []byte) {
 	s.writeBytes(incoming)
 }
 
-func (s *outputSpill) writeBytes(p []byte) {
-	if s.err == nil && len(p) != 0 {
-		_, s.err = s.file.Write(p)
+func (s *outputSpill) finish(total int64) (*executionresult.OutputFile, error) {
+	return s.outputFileWriter.finish(s.directory, total)
+}
+
+func (d *OutputDirectory) saveData(data []byte) (*executionresult.OutputFile, error) {
+	var writer outputFileWriter
+	writer.open(d, "data", ".json")
+	writer.writeBytes(data)
+	return writer.finish(d, int64(len(data)))
+}
+
+type outputFileWriter struct {
+	root *os.Root
+	file *os.File
+	name string
+	err  error
+}
+
+func (w *outputFileWriter) open(directory *OutputDirectory, kind, extension string) {
+	w.root, w.err = directory.open()
+	if w.err != nil {
+		return
+	}
+	w.name = "run-js-" + kind + "-" + rand.Text() + extension
+	w.file, w.err = w.root.OpenFile(w.name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+}
+
+func (w *outputFileWriter) writeBytes(p []byte) {
+	if w.err == nil && len(p) != 0 {
+		_, w.err = w.file.Write(p)
 	}
 }
 
-func (s *outputSpill) finish(total int64) (*executionresult.OutputFile, error) {
-	if s.root != nil {
-		defer s.root.Close()
+func (w *outputFileWriter) finish(directory *OutputDirectory, total int64) (*executionresult.OutputFile, error) {
+	if w.root != nil {
+		defer w.root.Close()
 	}
-	if s.file == nil {
-		return nil, s.err
+	if w.file == nil {
+		return nil, w.err
 	}
-	err := errors.Join(s.err, s.file.Close())
+	err := errors.Join(w.err, w.file.Close())
 	if err != nil {
-		return nil, errors.Join(err, s.root.Remove(s.name))
+		return nil, errors.Join(err, w.root.Remove(w.name))
 	}
 	return &executionresult.OutputFile{
-		Path: filepath.Join(s.directory.visible, s.name), Bytes: total,
+		Path: filepath.Join(directory.visible, w.name), Bytes: total,
 	}, nil
 }

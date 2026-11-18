@@ -37,7 +37,7 @@ func projectEvent(event events.Event, q Query) events.Event {
 		if q.IncludeThinking {
 			return cloneEvent(event)
 		}
-	case "stdout", "stderr":
+	case "stdout", "stderr", "run_js.progress":
 		if q.IncludeOutput {
 			return cloneEvent(event)
 		}

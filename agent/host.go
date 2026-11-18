@@ -25,7 +25,7 @@ type HostConfig struct {
 	Observe      func(Event)
 	Trace        io.Writer
 	// ToolOutputDir is an existing directory resolved under Runtime's FS
-	// policy. It stores full run_js streams that exceed their capture budget.
+	// policy. It stores oversized run_js streams and opt-in serialized data.
 	// An empty value disables saving. The caller manages file retention.
 	ToolOutputDir string
 }
