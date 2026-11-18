@@ -1,13 +1,12 @@
 # Standard library session handoff
 
-Updated 2026-11-18 for v2.30.0 release preparation. Filesystem streaming and
-HMAC/JWK are committed as `f4a1418`; completed implementation checks are reused.
-Publication and installation are pending. Managed
-Responses WebSocket implementation is committed as `7209bc4`; the release tag
-points to `260c60a`. SQLite row
-iteration is committed as `aa79508`; the release tag points to `4d72c30`.
+Updated 2026-11-18 after v2.30.0 publication and local installation. Filesystem
+streaming and HMAC/JWK are included from `f4a1418`; completed implementation
+checks are reused. Managed Responses WebSocket implementation is committed as
+`7209bc4`; the v2.29.0 tag points to `260c60a`. SQLite row iteration is committed
+as `aa79508`; the v2.28.0 tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
-from `e2c8cfc`. Both local executables now run v2.29.0.
+from `e2c8cfc`. Both local executables now run v2.30.0.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. Managed Responses WebSocket
 continuation is published for ChatGPT OAuth and API-key providers.
@@ -33,7 +32,7 @@ Final source hashes and SDK/verification records are at
 `/var/tmp/noe-hmac-jwk-pfai1v01`. See the
 [contract and follow-up](stdlib-webcrypto.md#hmac-generation-and-jwk--2026-11-18).
 Dependencies and public Go signatures are unchanged. This implementation is
-committed as `f4a1418` and included in v2.30.0 release preparation. The prior
+committed as `f4a1418` and published in v2.30.0. The prior
 filesystem source checks remain reusable unchanged.
 
 ## Current continuation — filesystem streaming
@@ -58,14 +57,52 @@ checkout/artifact consumers pass, including main/Worker directory and copy
 use. Independent bounded review reported no actionable findings. Final source
 hashes and verification records are at `/var/tmp/noe-fs-streaming-u5ir24u_`.
 Dependencies and public Go signatures are unchanged.
-This implementation is committed as `f4a1418` and included in v2.30.0 release
-preparation. Installed executables remain v2.29.0 pending publication checks.
+This implementation is committed as `f4a1418` and published in v2.30.0.
+Both installed executables run the verified release asset.
 
 Web Crypto HMAC key generation/JWK was subsequently selected and is recorded
 above. Byte streams/BYOB remain a
 [memo-only future candidate](stdlib-roadmap.md#deferred-candidates--2026-11-18).
 
-## Current release — v2.29.0 published and installed
+## Current release — v2.30.0 published and installed
+
+The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.30.0) is published, neither draft nor
+prerelease, and its [workflow](https://forge.harakara.site/littleisland/noe/actions/runs/70) succeeded.
+Annotated tag v2.30.0 points to `3a132e2817f4fb73f1cc69bedc75a41319b0f872`;
+tag object: `b7b26be6c7e6e1d7e499db310bb60050f81a19c6`. Filesystem streaming
+and HMAC/JWK are included from `f4a1418`.
+
+All seven assets were downloaded. Six binaries match SHA256SUMS, the immutable
+revision, clean build metadata, target platforms, Go 1.27.2, unchanged pinned
+dependencies, and disabled JIT. Other targets were not executed natively.
+The clean candidate and published Linux amd64 asset each pass eleven checks:
+version, arithmetic, help, filesystem copying/directory iteration/abort,
+HMAC generation/JWK interchange, five embedded member references, and
+unmodified jose interoperability. Node/main/Worker generated-key tokens pass
+in all four directions, nine per direction. No paid provider request occurred.
+
+Direct published stdlib/agent consumers pass eleven checks without replacements
+or a synthetic proxy, including main/Worker filesystem and crypto, portable
+and GoHost execution. All 23 changed source/reference paths match the tag
+in both downloaded modules. Nested-module exclusions remain intact.
+
+After publication verification, the native asset was staged and atomically
+installed at `/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`.
+Both report noe v2.30.0 and match SHA256
+`0d9f9d51e6901c815d9db0ba7a6927804c2b4131e541551cf0666ad788ea691b`. PATH resolves to the former.
+Previous v2.29.0 copies are retained at `/var/tmp/noe-v2.30.0-install-1ar32utq`.
+The identical asset's runtime results are reused after installation; installed
+hashes, versions, and PATH were checked.
+
+Evidence: `/var/tmp/noe-v2.30.0-release-x4woupol` and the
+[publication record](../releases/release-checkpoints.md#v2300-publication-and-installation--2026-11-18).
+All 927 implementation source/dependency hashes matched before release edits;
+the sole later runtime change is the exact CLI version replacement. Completed
+unit/E2E, affected race and other implementation checks were reused as recorded.
+Publication and installation are complete. Running services, noebot, and other
+hosts were not changed. This documentation follow-up leaves the tag unchanged.
+
+## Previous release — v2.29.0 published and installed
 
 The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.29.0)
 is published, neither draft nor prerelease, and its

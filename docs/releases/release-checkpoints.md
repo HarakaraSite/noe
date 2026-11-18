@@ -5043,3 +5043,68 @@ Direct published Go consumers, checksums/build metadata, immutable tag/CI/releas
 correspondence, and atomic installation at both authorized local executable
 paths are recorded after publication verification. Previous executables will be
 retained. Running-service restarts and noebot changes are outside this release.
+
+
+## v2.30.0 publication and installation — 2026-11-18
+
+- Annotated tag v2.30.0 points to `3a132e2817f4fb73f1cc69bedc75a41319b0f872`,
+  matching the peeled remote tag and CI source. Tag object:
+  `b7b26be6c7e6e1d7e499db310bb60050f81a19c6`. The clean native candidate has
+  the same revision and vcs.modified=false.
+- [Release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/70) succeeded
+  (API 251, job 272), building six binaries and SHA256SUMS without
+  repeating implementation tests.
+- [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.30.0) is published,
+  neither draft nor prerelease (ID 184), with exact tagged English notes.
+
+All seven assets were downloaded. Six binaries match SHA256SUMS, the immutable
+revision, vcs.modified=false, target OS/architecture, Go 1.27.2, CGO_ENABLED=0,
+trimpath, go-quickjs v0.38.0 and its checksum, go-intl v0.9.0, pinned
+provider/native dependencies, and disabled JIT. Native Linux amd64 SHA256:
+`0d9f9d51e6901c815d9db0ba7a6927804c2b4131e541551cf0666ad788ea691b`.
+Other targets were not executed natively.
+
+The clean candidate and published native asset each pass eleven checks:
+version, arithmetic, help, filesystem copy/directory iteration, HMAC/JWK,
+five embedded member references, and unmodified jose 6.2.15 interoperability.
+Filesystem checks include async/sync copying, same-path/hard-link aliases,
+initial-source-error destination preservation, Dirent iteration in batches,
+EOF/break cleanup, lazy opening, and exact abort reasons. Crypto checks cover
+all four supported hashes, default and explicit bit lengths, raw/JWK exchange,
+sign/verify, private imported state, and nonextractability. The SDK exercises
+main and Worker runtimes and Node interoperability in all four directions,
+with nine generated-key peer tokens per direction. No paid provider request
+occurred during release verification.
+
+Direct stdlib@v2.30.0 and agent@v2.30.0 consumers fetch without replacements
+or a synthetic proxy. Eleven checks pass, including module integrity,
+main/Worker filesystem and HMAC/JWK use, portable/GoHost execution, managed
+WebSocket/standalone SSE fixtures, pinned dependencies, and disabled JIT.
+All 23 changed source/reference paths match the tag in both downloaded
+modules, preserving nested-module exclusions.
+
+All 927 final implementation source/dependency hashes matched before release
+edits; only the CLI default version changes afterward, verified as an exact
+replacement and by its configured-version unit. Earlier filesystem race and
+whole-tree results remain valid for its 26 unchanged paths. Final unit/E2E
+results reuse forty passing packages and the corrected full stdlib rerun;
+crypto race, vet, types, lint, consumers and SDK results also pass as recorded
+above. No whole-tree suite, long-wait check, dependency refresh, or local
+six-target build was repeated for release preparation.
+
+After publication verification, previous executables were retained and the
+verified native asset was staged and atomically installed at:
+
+- `/home/agent/.local/bin/noe`, which PATH resolves to.
+- `/home/agent/projects/noe/noe` (`./noe`).
+
+Both report noe v2.30.0 and match the published SHA256. Installed hashes,
+versions, and PATH checks pass. Runtime verification is reused for the identical
+asset. Previous v2.29.0 copies, SHA256
+`a40bb121452cd6c9062bc1e9198b59b2fca18086c6e45c436ff9a10423796129`,
+are retained at `/var/tmp/noe-v2.30.0-install-1ar32utq`, with installation.json.
+Release evidence: `/var/tmp/noe-v2.30.0-release-x4woupol`.
+
+Publication and both installations are complete. No required release or
+installation work remains. Other hosts, running services, and noebot were not
+changed. This documentation follow-up does not move the immutable release tag.

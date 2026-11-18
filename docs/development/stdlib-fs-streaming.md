@@ -2,7 +2,7 @@
 
 Recorded 2026-11-18. The user selected copyFile memory reduction and directory
 iteration after comparison with txiki.js. This additive stdlib implementation
-is committed as `f4a1418` and included in v2.30.0 release preparation, with
+is committed as `f4a1418` and published in v2.30.0, with
 verification and bounded review complete. Web Crypto and byte streams/BYOB were initially
 [notes only](stdlib-roadmap.md#deferred-candidates--2026-11-18); the user later
 selected the separate [HMAC/JWK follow-up](stdlib-webcrypto.md#hmac-generation-and-jwk--2026-11-18).
@@ -106,5 +106,7 @@ targets, public async/sync entry points, and bounded allocation.
 An independent bounded review covered both paths and the shared host lifetime
 change, reporting no actionable findings. Evidence and final source hashes:
 `/var/tmp/noe-fs-streaming-u5ir24u_`. No source/dependency changes follow the
-recorded broad checks; final edits update documentation only. Installed
-executables and running services remain unchanged.
+recorded broad checks; final implementation edits update documentation only.
+The verified v2.30.0 native asset is now installed at both authorized local
+paths; see the [publication record](../releases/release-checkpoints.md#v2300-publication-and-installation--2026-11-18).
+Running services remain unchanged.

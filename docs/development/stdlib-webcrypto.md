@@ -263,4 +263,6 @@ filesystem race evidence is reused after matching its unchanged runtime paths.
 AES/RSA/EC/Ed25519, key wrapping, key cloning and full Crypto/SubtleCrypto
 interface objects remain separate gaps. Byte streams/BYOB remain memo-only.
 Dependencies and public Go signatures are unchanged. The implementation is
-committed as `f4a1418` and included in v2.30.0 release preparation.
+committed as `f4a1418` and published in v2.30.0. The verified native asset is
+installed at both authorized local paths; see the
+[publication record](../releases/release-checkpoints.md#v2300-publication-and-installation--2026-11-18).
