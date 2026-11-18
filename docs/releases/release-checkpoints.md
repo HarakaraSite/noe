@@ -5108,3 +5108,24 @@ Release evidence: `/var/tmp/noe-v2.30.0-release-x4woupol`.
 Publication and both installations are complete. No required release or
 installation work remains. Other hosts, running services, and noebot were not
 changed. This documentation follow-up does not move the immutable release tag.
+
+## v2.31.0 preparation — 2026-11-18
+
+This release combines provider retries and measured context from `b06d8b0`,
+saved tool output from `1622a8b`, and GPT-6.2 catalog entries from `fa6e8cc`.
+See the [release notes](v2.31.0.md).
+
+All 932 source hashes match the catalog verification before the CLI version
+update. Only three catalog source paths differ from the saved-output evidence.
+The saved-output whole-tree unit/E2E, vet, types, lint, artifact consumers, and
+Windows amd64 and macOS arm64 compilation passed. The affected race run had
+two CLI timeout failures, both reproduced on the unchanged baseline with the
+filesystem-watch startup diagnostic. The final catalog provider/runtime tests
+and six-entry native catalog check passed on the combined source.
+
+Implementation evidence is stored at `/var/tmp/noe-agentlib-pi-9y8pf8ac`,
+`/var/tmp/noe-tool-output-_zw_eqop`, and `/var/tmp/noe-gpt62-catalog-wje78qht`.
+Release verification is recorded at `/var/tmp/noe-v2.31.0-release-o9pmsMq2`.
+Dependencies and distribution configuration are unchanged. Forgejo builds the
+six distribution binaries and checksums. Published artifacts and direct Go
+consumers are checked before installing the native asset.

@@ -39,7 +39,12 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.30.0 release notes](docs/releases/v2.30.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.30.0)
+[v2.31.0 release notes](docs/releases/v2.31.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.31.0)
+
+v2.31.0 adds optional full-stream storage for overflowing agent tool output,
+honors provider retry hints, and uses reported input tokens to improve
+context estimates. The built-in catalog includes GPT-6.2 Sol and Astra on
+both OpenAI providers and OpenRouter.
 
 v2.30.0 adds lazy directory iteration and bounded-memory file copying in
 `noe:fs`, plus HMAC key generation and JWK import/export through Web Crypto.
