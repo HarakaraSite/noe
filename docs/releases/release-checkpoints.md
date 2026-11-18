@@ -5162,3 +5162,21 @@ retained in `/var/tmp/noe-v2.31.0-install-etu3qblg`. Installed verification
 reuses the identical asset's runtime results.
 
 Verification evidence is stored at `/var/tmp/noe-v2.31.0-release-o9pmsMq2`.
+
+## v2.31.1 preparation — 2026-11-18
+
+The timeout fix is committed as `38dc168`. During watcher setup, the original
+context error now reaches the CLI so it can report the expiry of its own
+`--timeout` with exit code 124. See the [release notes](v2.31.1.md).
+
+Implementation verification passed the complete CLI race suite, filesystem
+watch race tests, the CLI timeout E2E tests, and the internal stdlib, jsexec,
+runtime, and public stdlib unit suites. The two CLI race failures documented
+for v2.31.0 are covered by the passing CLI race suite. The new expired-context
+regression failed on the original code. A native candidate returned code 124
+for 5 ms and 20 ms deadlines during startup, where the installed v2.31.0
+returned code 1.
+
+The release preparation changes the CLI version and documentation.
+Dependencies and distribution configuration are unchanged. Verification
+evidence is stored at `/var/tmp/noe-v2.31.1-release-l7x7tS9K`.
