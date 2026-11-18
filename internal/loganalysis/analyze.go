@@ -47,6 +47,8 @@ type ToolResult struct {
 	Duration    int64                        `json:"duration,omitempty"`
 	Text        string                       `json:"text,omitempty"`
 	Data        jsonv1.RawMessage            `json:"data,omitzero"`
+	StdoutFile  *executionresult.OutputFile  `json:"stdoutFile,omitempty"`
+	StderrFile  *executionresult.OutputFile  `json:"stderrFile,omitempty"`
 	Diagnostics []executionresult.Diagnostic `json:"diagnostics,omitempty"`
 }
 

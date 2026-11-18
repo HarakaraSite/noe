@@ -1,7 +1,7 @@
 # Standard library session handoff
 
-Updated 2026-11-18 after local provider-retry and measured-context verification following
-v2.30.0 publication and local installation. Filesystem
+Updated 2026-11-18 for tool output storage following v2.30.0 publication
+and local installation. Filesystem
 streaming and HMAC/JWK are included from `f4a1418`; completed implementation
 checks are reused. Managed Responses WebSocket implementation is committed as
 `7209bc4`; the v2.29.0 tag points to `260c60a`. SQLite row iteration is committed
@@ -14,13 +14,35 @@ continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
 
+## Current continuation — saved tool output
+
+The user selected the third candidate from the pi comparison. The Go Host
+and CLI can save entire stdout and stderr streams when run_js exceeds the
+per-stream capture budget. The usual head and tail preview stays bounded.
+Storage is enabled by an existing directory in HostConfig.ToolOutputDir or
+NOE_AGENT_TOOL_OUTPUT_DIR. Saved references are available to later tools via
+noe:fs and to users via live or saved observations. The host chooses the
+location and the caller manages retention.
+
+The [configuration and result contract](../execution-results.md#saved-stream-output)
+covers virtual paths, afterTool replacements, model result budgets, and
+storage errors. The implementation is local on top of `b06d8b0`.
+
+Whole-tree unit/E2E, vet, types, lint, checkout/artifact Go consumers, and
+Windows amd64 and macOS arm64 compilation pass. The CLI end-to-end fixture
+reads the omitted range of both streams from a later tool. The cancellation
+fixture verifies both saved files after the task ends. The Go consumer uses
+a rooted read-only profile. The affected race run passes outside two CLI
+100 ms timeout tests. Both fail with the same filesystem-watch startup
+diagnostic on the unchanged `b06d8b0` baseline. Evidence and final source
+hashes are at `/var/tmp/noe-tool-output-_zw_eqop`.
+
 ## Current continuation — provider retries and measured context
 
 The user selected candidates 1 and 2 from the installed pi 1.5.2 comparison:
 provider retry hints/classification and usage-anchored context estimates.
 Implementation and validation are complete on `main`. See the
-[contract and decisions](agentlib-retry-context.md). Tool-output storage is
-an agentlib-owned deferred candidate, using stdlib file I/O. LLM
+[contract and decisions](agentlib-retry-context.md). LLM
 summarization/compaction was explicitly rejected and must not be introduced
 as part of this work. Installed executables remain v2.30.0.
 

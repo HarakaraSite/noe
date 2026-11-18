@@ -12,6 +12,7 @@ type AgentOptions struct {
 	Models        model.Options
 	Supervisor    string
 	ControlDir    string
+	ToolOutputDir string
 	EnableControl bool
 	Trace         io.Writer
 	Observe       func(agent.Event)

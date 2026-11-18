@@ -18,18 +18,27 @@ import (
 )
 
 type Executor struct {
-	Profile stdlib.Profile
-	Host    *core.Host
+	Profile         stdlib.Profile
+	Host            *core.Host
+	OutputDirectory *OutputDirectory
 }
 
 type capture struct {
 	sync.Mutex
 	capturedOutput
+	spill  *outputSpill
+	closed bool
 }
 
 func (c *capture) Write(p []byte) (int, error) {
 	c.Lock()
 	defer c.Unlock()
+	if c.closed {
+		return 0, errors.New("agent output capture is closed")
+	}
+	if c.spill != nil {
+		c.spill.write(&c.capturedOutput, p)
+	}
 	return c.capturedOutput.Write(p)
 }
 func (c *capture) WriteContext(ctx context.Context, p []byte) (int, error) {
@@ -38,10 +47,24 @@ func (c *capture) WriteContext(ctx context.Context, p []byte) (int, error) {
 	}
 	return c.Write(p)
 }
-func (c *capture) result() (string, int64) {
+func (c *capture) finish(result *core.Result, stream string) (string, int64, *executionresult.OutputFile) {
 	c.Lock()
 	defer c.Unlock()
-	return c.capturedOutput.result()
+	c.closed = true
+	text, omitted := c.capturedOutput.result()
+	var file *executionresult.OutputFile
+	if c.spill != nil {
+		var err error
+		file, err = c.spill.finish(c.total)
+		if err != nil {
+			// Filesystem errors can contain host paths under a virtual root.
+			result.Diagnostics = append(result.Diagnostics, executionresult.Diagnostic{
+				Code: "output_save_error", Stage: "cleanup",
+				Message: "Could not save full " + stream + " to the configured tool output directory",
+			})
+		}
+	}
+	return text, omitted, file
 }
 
 // Execute creates only the runtime required by this task or tool. Configuration,
@@ -50,6 +73,10 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 	profile := e.Profile
 	stdout := &capture{capturedOutput: capturedOutput{maxBytes: int(execution.OutputBytes)}}
 	stderr := &capture{capturedOutput: capturedOutput{maxBytes: int(execution.OutputBytes)}}
+	if execution.Kind == core.ExecutionTool && e.OutputDirectory != nil {
+		stdout.spill = &outputSpill{directory: e.OutputDirectory, stream: "stdout"}
+		stderr.spill = &outputSpill{directory: e.OutputDirectory, stream: "stderr"}
+	}
 	profile.Environment.Stdin = strings.NewReader("")
 	profile.Environment.Stdout, profile.Environment.Stderr = stdout, stderr
 	initialize := profile.Initialize
@@ -120,7 +147,7 @@ func (e *Executor) Execute(ctx context.Context, execution core.Execution) (core.
 	}
 	// Task failures are reported through their scoped finish request; VM errors
 	// remain an execution result, as with nonzero command exits.
-	out.Stdout, out.StdoutOmittedBytes = stdout.result()
-	out.Stderr, out.StderrOmittedBytes = stderr.result()
+	out.Stdout, out.StdoutOmittedBytes, out.StdoutFile = stdout.finish(&out, "stdout")
+	out.Stderr, out.StderrOmittedBytes, out.StderrFile = stderr.finish(&out, "stderr")
 	return out, nil
 }

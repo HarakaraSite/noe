@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -27,7 +28,7 @@ export function afterTool(event) {
  if(event.result.data.length!==84000) throw Error("hook received limited result");
  if(event.toolCallId === "expanded") {
   if(event.result.stdout.length!==84001 || event.result.stdoutOmittedBytes) throw Error("stream budget did not expand");
- } else if(!(event.result.stdoutOmittedBytes>0)) throw Error("default stream budget was not applied");
+ } else if(!(event.result.stdoutOmittedBytes>0 && event.result.stdoutFile?.bytes===84001)) throw Error("full stream was not saved");
  return {result:{hookValue:event.result.data,exitCode:99}};
 }`)
 	original := "// Original raw JS.\nexport default 1;"
@@ -50,6 +51,7 @@ export function afterTool(event) {
 		return agentAnswer("done"), nil
 	})
 	settings := agentTestOptions(p)
+	settings.ToolOutputDir = cwd
 	var observed []events.Event
 	var eventMu sync.Mutex
 	settings.Observe = func(e events.Event) { eventMu.Lock(); observed = append(observed, e); eventMu.Unlock() }
@@ -91,6 +93,7 @@ console.log(result.lastResult.answer);`
 	}
 	var limited struct {
 		OutputPreview string
+		StdoutFile    any
 		OutputLimit   struct {
 			LimitBytes, ReturnedBytes, OmittedBytes int
 			Complete                                bool
@@ -105,6 +108,9 @@ console.log(result.lastResult.answer);`
 	}
 	if len(modelResults["limited"]) > 65536 || limited.OutputLimit.ReturnedBytes != len(modelResults["limited"]) {
 		t.Fatal("envelope or escaping bypassed model budget")
+	}
+	if limited.StdoutFile != nil {
+		t.Fatal("projection restored a file reference removed by afterTool")
 	}
 	if limited.OutputLimit.LimitBytes != 65536 || limited.OutputLimit.ReturnedBytes > 65536 || limited.OutputLimit.OmittedBytes <= 0 || limited.OutputLimit.Complete || limited.Execution.ExitCode != 0 || limited.Execution.Reason != "completed" || !strings.Contains(limited.OutputPreview, `"hookValue"`) {
 		t.Fatalf("bad preview: %+v", limited)
@@ -136,6 +142,9 @@ console.log(result.lastResult.answer);`
 		if len(raw) < 84000 {
 			t.Fatal("raw result truncated")
 		}
+		if bytes.Contains(raw, []byte(`"stdoutFile"`)) != (id == "limited") {
+			t.Fatalf("spill did not follow the effective stream limit: %s", id)
+		}
 		_, hookSaved := event["hookResult"]
 		if hookSaved != (id == "limited") {
 			t.Fatalf("hook original preservation: id=%s saved=%v", id, hookSaved)
@@ -143,5 +152,13 @@ console.log(result.lastResult.answer);`
 	}
 	if seen != 2 {
 		t.Fatalf("finished records=%d", seen)
+	}
+	files, err := filepath.Glob(filepath.Join(cwd, "run-js-*.log"))
+	if err != nil || len(files) != 1 {
+		t.Fatalf("saved files=%v err=%v", files, err)
+	}
+	saved, err := os.ReadFile(files[0])
+	if err != nil || string(saved) != strings.Repeat("actual", 14000)+"\n" {
+		t.Fatalf("saved stream length=%d err=%v", len(saved), err)
 	}
 }

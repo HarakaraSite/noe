@@ -19,6 +19,7 @@ import (
 type hostProvider struct {
 	mu         sync.Mutex
 	identities map[string][2]string
+	outputPath string
 }
 
 func (p *hostProvider) Generate(ctx context.Context, q model.Request) (model.Response, error) {
@@ -28,6 +29,7 @@ func (p *hostProvider) Generate(ctx context.Context, q model.Request) (model.Res
 	usage := json.RawMessage(`{"input_tokens":10000,"input_tokens_details":{"cached_tokens":8000}}`)
 	instruction := ""
 	hasTool := false
+	outputPath := ""
 	for _, raw := range q.Messages {
 		var m struct {
 			Role    string
@@ -43,16 +45,31 @@ func (p *hostProvider) Generate(ctx context.Context, q model.Request) (model.Res
 		}
 		if m.Role == "tool" && strings.Contains(text, "child answer") {
 			hasTool = true
+			var result struct {
+				StderrFile *struct {
+					Path  string
+					Bytes int64
+				}
+			}
+			if json.Unmarshal([]byte(text), &result) != nil || result.StderrFile == nil || result.StderrFile.Bytes != 4097 {
+				return model.Response{}, errors.New("saved stderr reference missing from tool result")
+			}
+			outputPath = result.StderrFile.Path
 		}
 	}
 	p.mu.Lock()
 	p.identities[instruction] = [2]string{q.SessionID, q.RunID}
+	if outputPath != "" {
+		p.outputPath = outputPath
+	}
 	p.mu.Unlock()
 	if instruction == "root" && !hasTool {
-		code := `import {run_agent} from "noe:agent";
+		code := `// @noe: {"outputBytes": 1024}
+import {run_agent} from "noe:agent";
 import {readFileSync} from "noe:fs";
 if(readFileSync("input.txt","utf8")!=="selected root")throw Error("tool filesystem");
-const child=await run_agent({name:"child"},"child");if(child.lastResult?.state!=="completed")throw Error("child");console.log(child.lastResult.answer);`
+const child=await run_agent({name:"child"},"child");if(child.lastResult?.state!=="completed")throw Error("child");console.log(child.lastResult.answer);
+console.error("x".repeat(4096));`
 		args, _ := json.Marshal(map[string]string{"code": code})
 		message, _ := json.Marshal(map[string]any{"role": "assistant", "tool_calls": []any{map[string]any{"id": "files-and-child", "type": "function", "function": map[string]string{"name": "run_js", "arguments": string(args)}}}})
 		return model.Response{Message: message, FinishReason: "tool_calls", Usage: usage}, nil
@@ -72,13 +89,16 @@ func runGoHost() error {
 	if err = os.WriteFile(filepath.Join(root, "input.txt"), []byte("selected root"), 0600); err != nil {
 		return err
 	}
+	if err := os.Mkdir(filepath.Join(root, "logs"), 0700); err != nil {
+		return err
+	}
 	provider := &hostProvider{identities: make(map[string][2]string)}
 	models, err := model.NewService(model.Options{Provider: provider})
 	if err != nil {
 		return err
 	}
 	profile := stdlib.Profile{Modules: stdlib.Modules{FS: &stdlib.FileSystemOptions{Root: root, ReadOnly: true}}, NewLoader: stdlib.FileLoader(nil)}
-	host, err := publicagent.NewHost(ctx, publicagent.HostConfig{Models: models, Runtime: &profile})
+	host, err := publicagent.NewHost(ctx, publicagent.HostConfig{Models: models, Runtime: &profile, ToolOutputDir: "/logs"})
 	if err != nil {
 		return err
 	}
@@ -115,9 +135,17 @@ func runGoHost() error {
 	}
 	provider.mu.Lock()
 	first, next, child := provider.identities["root"], provider.identities["queued"], provider.identities["child"]
+	saved := filepath.ToSlash(provider.outputPath)
 	provider.mu.Unlock()
 	if first[0] == "" || first[0] != next[0] || first[1] == next[1] || first[0] == child[0] {
 		return errors.New("session/run ownership changed")
+	}
+	if !strings.HasPrefix(saved, "/logs/run-js-stderr-") {
+		return fmt.Errorf("expected a virtual output path, got %q", saved)
+	}
+	content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(saved)))
+	if err != nil || string(content) != strings.Repeat("x", 4096)+"\n" {
+		return fmt.Errorf("saved stderr length=%d err=%v", len(content), err)
 	}
 	client.Close()
 	another, err := host.NewClient(ctx)

@@ -56,3 +56,5 @@ The returned snapshot includes reconstructed `status`, `phase`, `action`,
 cursor from a different execution reject.
 
 S4 results preserve lastToolResult.diagnostics regardless of includeOutput. Returned data and captured output are included only when includeOutput is true; explicit null data remains distinct from absent data. execution.diagnostic events preserve agent-task VM failures separately from stderr. An event without a runId belongs to the instance/execution log and is not invented into a run-specific snapshot.
+
+Saved stream references appear as lastToolResult.stdoutFile and stderrFile when present in the finished event. Each carries the path and raw byte count. Analysis returns these references independently of includeOutput and leaves opening the files to the caller.

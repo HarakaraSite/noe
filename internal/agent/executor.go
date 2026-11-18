@@ -35,6 +35,8 @@ type Result struct {
 	Reason             string                       `json:"reason"`
 	StdoutOmittedBytes int64                        `json:"stdoutOmittedBytes,omitempty,omitzero"`
 	StderrOmittedBytes int64                        `json:"stderrOmittedBytes,omitempty,omitzero"`
+	StdoutFile         *executionresult.OutputFile  `json:"stdoutFile,omitempty"`
+	StderrFile         *executionresult.OutputFile  `json:"stderrFile,omitempty"`
 	Data               jsonv1.RawMessage            `json:"data,omitzero"`
 	Diagnostics        []executionresult.Diagnostic `json:"diagnostics,omitempty"`
 }

@@ -2,9 +2,9 @@
 
 Local implementation on top of v2.30.0, 2026-11-18. The user selected the
 retry and context-estimation candidates after comparing the installed
-`@earendil-works/pi` 1.5.2 implementation. Tool-output storage remains a future
-agentlib candidate: stdlib would provide its file I/O, while agentlib would
-own capture, storage references, and lifetime. LLM summarization/compaction
+`@earendil-works/pi` 1.5.2 implementation. The user later selected
+[tool-output storage](../execution-results.md#saved-stream-output) as a
+separate agentlib change. LLM summarization/compaction
 was explicitly rejected and is not part of the selected design.
 
 ## Provider retries

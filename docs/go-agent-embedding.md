@@ -139,6 +139,15 @@ the instance, active task, and remaining queue. `Observe` returns a live
 snapshot; it does not read a saved event file. `ReadTaskResult` reads a
 completed answer in UTF-8 byte ranges without consuming it.
 
+Set `HostConfig.ToolOutputDir` to an existing directory to retain full
+stdout and stderr streams when they exceed the per-stream capture budget.
+The path follows `Runtime.Modules.FS` and `Runtime.Environment.Cwd`. For a
+rooted FS, a value such as `"/tool-output"` is relative to the virtual root.
+A read-only JS filesystem can read these Host-written files. Each saved
+stream reports `{path, bytes}` in `stdoutFile` or `stderrFile`. The caller
+owns the saved files and their retention. Keep using keyed `HostConfig`
+literals when upgrading. See the [execution result guide](execution-results.md#saved-stream-output).
+
 Context estimates in live snapshots use positive measured input usage when
 the previously sent prefix, tools and model configuration remain unchanged.
 The method starts with `provider_usage+`; subsequent messages and images use

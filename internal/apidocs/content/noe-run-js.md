@@ -24,6 +24,8 @@ The result reports `stdout`, `stderr`, `exitCode`, and `reason`, plus optional `
 
 Standard output and standard error are captured independently. Each stream retains at most 64 KiB: the first 32 KiB and last 32 KiB. If a stream is larger, its text contains a truncation marker and the result includes the corresponding `stdoutOmittedBytes` or `stderrOmittedBytes` count. These byte counts describe omitted captured output, not an exit status.
 
+When the host configures tool output storage, a stream that exceeds its capture limit is saved from its first byte. The result includes `stdoutFile` or `stderrFile` with `{path, bytes}`. The path is readable through the execution's filesystem view. Use `noe:fs.open(path)` and `readAt(offset, length)` in a later call to retrieve a range. CLI users enable storage by setting `NOE_AGENT_TOOL_OUTPUT_DIR` to an existing directory. Go hosts use `HostConfig.ToolOutputDir`. The caller manages the saved files.
+
 Use `noe:docs` from `run_js` to look up an API before using it. Use the NOE-specific `spawn` export from `noe:process` when a child command must remain active during the call, and close owned handles in `finally`. A child process, socket, signal subscription, or other owned resource cannot continue independently after its owning tool runtime ends.
 
 `noe:image` has a task-specific path: `read_image(path)` returns metadata to JavaScript and attaches the image to the next model request after the tool call. Do not expect a top-level `noe run`, `eval`, or Worker to provide model vision context.
@@ -53,7 +55,7 @@ import {docs} from "noe:docs";
 console.log(docs("noe:http", "serve"));
 ~~~
 
-Only outputBytes is accepted, as an integer from 1024 to 262144 bytes (1–256 KiB). The minimum reserves room for omission metadata. It sets both each stream’s capture size and the shared final JSON budget. Console output and default-export data follow the same setting. Invalid or duplicate pragmas return a setup diagnostic before execution. Effective code after beforeTool controls this setting. Streams over the selected budget retain their beginning and end. Changing the setting in a later call does not recover previously omitted output. NOE does not replay the source or automatically save a full artifact. Check side effects before repeating work. Save large artifacts explicitly with the filesystem APIs and return a useful summary/path. Caught exceptions stay caught; printing an error does not make NOE infer an uncaught failure.
+Only outputBytes is accepted, as an integer from 1024 to 262144 bytes (1–256 KiB). The minimum reserves room for omission metadata. It sets both each stream's capture size and the shared final JSON budget. Console output and default-export data follow the same setting. Invalid or duplicate pragmas return a setup diagnostic before execution. Effective code after beforeTool controls this setting. Streams over the selected budget retain their beginning and end. When storage is enabled, each overflowing stream has a file reference. File references retained by afterTool appear as separate fields in the preview envelope when they fit its budget. A file write or close failure leaves the preview and adds an output_save_error diagnostic. Save large structured values explicitly with the filesystem APIs and return a summary or path. Caught exceptions stay caught.
 
 ## files
 

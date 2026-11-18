@@ -21,6 +21,19 @@ type toolOutput struct {
 	text strings.Builder
 }
 
+func outputFileField(event events.Event, key string) *executionresult.OutputFile {
+	value := event[key]
+	if value == nil {
+		return nil
+	}
+	var file executionresult.OutputFile
+	encoded, err := json.Marshal(value)
+	if err != nil || json.Unmarshal(encoded, &file) != nil || file.Path == "" || file.Bytes <= 0 {
+		return nil
+	}
+	return &file
+}
+
 type runState struct {
 	snapshot    Snapshot
 	phase       string
@@ -139,6 +152,8 @@ func (s *runState) apply(rec record, includeOutput bool) {
 			ExitCode:   intField(event["exitCode"]),
 			Reason:     stringField(event, "reason"),
 			Duration:   intField64(event["duration"]),
+			StdoutFile: outputFileField(event, "stdoutFile"),
+			StderrFile: outputFileField(event, "stderrFile"),
 		}
 		if includeOutput {
 			if output := s.outputs[toolCallID]; output != nil {

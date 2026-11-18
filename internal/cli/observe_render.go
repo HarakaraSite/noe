@@ -193,6 +193,17 @@ func (r *agentRenderer) render(event events.Event) error {
 		if err := r.line(label, kind, strings.Join(parts, " / ")); err != nil {
 			return err
 		}
+		for _, stream := range []string{"stdout", "stderr"} {
+			if value := event[stream+"File"]; value != nil {
+				var file executionresult.OutputFile
+				encoded, err := json.Marshal(value)
+				if err == nil && json.Unmarshal(encoded, &file) == nil && file.Path != "" && file.Bytes > 0 {
+					if err := r.line(label, stream+" saved", fmt.Sprintf("%q (%d bytes)", file.Path, file.Bytes)); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		return r.diagnostics(label, event["diagnostics"])
 	case "model.started":
 		return r.line(label, "model", "waiting for response")

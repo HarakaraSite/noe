@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
 )
 
 const (
@@ -70,9 +72,11 @@ type toolOutputLimit struct {
 }
 
 type toolOutputPreview struct {
-	OutputPreview string               `json:"outputPreview"`
-	OutputLimit   toolOutputLimit      `json:"outputLimit"`
-	Execution     *toolOutputExecution `json:"execution,omitempty"`
+	OutputPreview string                      `json:"outputPreview"`
+	OutputLimit   toolOutputLimit             `json:"outputLimit"`
+	Execution     *toolOutputExecution        `json:"execution,omitempty"`
+	StdoutFile    *executionresult.OutputFile `json:"stdoutFile,omitempty"`
+	StderrFile    *executionresult.OutputFile `json:"stderrFile,omitempty"`
 }
 
 // projectToolOutput limits only the model-facing value, after hooks. An
@@ -85,8 +89,10 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 		return cloneRawJSON(result), false, nil
 	}
 	var raw struct {
-		ExitCode    *int   `json:"exitCode"`
-		Reason      string `json:"reason"`
+		ExitCode    *int                        `json:"exitCode"`
+		Reason      string                      `json:"reason"`
+		StdoutFile  *executionresult.OutputFile `json:"stdoutFile"`
+		StderrFile  *executionresult.OutputFile `json:"stderrFile"`
 		Diagnostics []struct {
 			Code    string `json:"code"`
 			Stage   string `json:"stage"`
@@ -94,8 +100,9 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 		} `json:"diagnostics"`
 	}
 	var execution *toolOutputExecution
+	rawOK := json.Unmarshal(rawResult, &raw) == nil
 	summary := ""
-	if json.Unmarshal(rawResult, &raw) == nil {
+	if rawOK {
 		var messages []string
 		for _, diagnostic := range raw.Diagnostics {
 			messages = append(messages, diagnostic.Code+" ("+diagnostic.Stage+"): "+diagnostic.Message)
@@ -108,9 +115,21 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 	value := toolOutputPreview{
 		OutputLimit: toolOutputLimit{
 			LimitBytes: limit, SourceBytes: len(result), Complete: false,
-			Notice: "This preview is incomplete JSON text. The outputBytes pragma supports per-call budgets up to 262144 bytes. The source was not rerun. Logs retain captured output, not bytes omitted during capture.",
+			Notice: "This preview is incomplete JSON text. The outputBytes pragma supports per-call budgets up to 262144 bytes. The source was not rerun.",
 		},
 		Execution: execution,
+	}
+	if rawOK && (raw.StdoutFile != nil || raw.StderrFile != nil) {
+		var selected struct {
+			StdoutFile *executionresult.OutputFile `json:"stdoutFile"`
+			StderrFile *executionresult.OutputFile `json:"stderrFile"`
+		}
+		// Carry actual file references through the shared JSON budget only
+		// when the hook has chosen to retain them.
+		if json.Unmarshal(result, &selected) == nil {
+			value.StdoutFile = retainedOutputFile(raw.StdoutFile, selected.StdoutFile)
+			value.StderrFile = retainedOutputFile(raw.StderrFile, selected.StderrFile)
+		}
 	}
 	source := string(result)
 	// returnedBytes includes this envelope and JSON escaping. Its own decimal
@@ -141,6 +160,20 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 			return nil, false, err
 		}
 	}
+	// An exceptionally long path can exceed even the entire envelope
+	// budget. The raw result and observation still carry the reference.
+	for _, file := range []**executionresult.OutputFile{&value.StderrFile, &value.StdoutFile} {
+		if int64(len(encoded)) <= limit {
+			break
+		}
+		if *file != nil {
+			*file = nil
+			encoded, err = encode(0)
+			if err != nil {
+				return nil, false, err
+			}
+		}
+	}
 	if int64(len(encoded)) > limit {
 		return nil, false, errors.New("run_js outputBytes cannot fit the output metadata")
 	}
@@ -160,6 +193,13 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 		}
 	}
 	return best, true, nil
+}
+
+func retainedOutputFile(raw, selected *executionresult.OutputFile) *executionresult.OutputFile {
+	if raw != nil && selected != nil && *raw == *selected {
+		return raw
+	}
+	return nil
 }
 
 // previewUTF8 returns valid head/tail slices and counts retained source bytes.

@@ -18,7 +18,8 @@ func agentOptions(stderr io.Writer) (*noeprofile.AgentOptions, error) {
 		return nil, fmt.Errorf("agent executable: %w", err)
 	}
 	opts := &noeprofile.AgentOptions{
-		Supervisor: executable,
+		Supervisor:    executable,
+		ToolOutputDir: os.Getenv("NOE_AGENT_TOOL_OUTPUT_DIR"),
 		Models: model.Options{
 			UserAgent: "noe/" + Version,
 			KeyFile:   os.Getenv(provider.DefaultKeyFileEnv),

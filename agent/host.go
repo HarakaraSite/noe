@@ -24,6 +24,10 @@ type HostConfig struct {
 	Policy       string
 	Observe      func(Event)
 	Trace        io.Writer
+	// ToolOutputDir is an existing directory resolved under Runtime's FS
+	// policy. It stores full run_js streams that exceed their capture budget.
+	// An empty value disables saving. The caller manages file retention.
+	ToolOutputDir string
 }
 
 type Host struct {
@@ -51,7 +55,13 @@ func NewHost(ctx context.Context, cfg HostConfig) (*Host, error) {
 		if err != nil {
 			return nil, err
 		}
-		executor = &agentexec.Executor{Profile: profile}
+		output, err := agentexec.NewOutputDirectory(cfg.ToolOutputDir, profile)
+		if err != nil {
+			return nil, err
+		}
+		executor = &agentexec.Executor{Profile: profile, OutputDirectory: output}
+	} else if cfg.ToolOutputDir != "" {
+		return nil, errors.New("agent: ToolOutputDir requires Runtime")
 	}
 	options := core.Options{Models: cfg.Models, Context: ctx, Observe: cfg.Observe, Trace: cfg.Trace, Instructions: cfg.Instructions, Policy: cfg.Policy}
 	options.RuntimeFacts = core.URLImportFacts(string(stdlib.URLImportsDisabled))

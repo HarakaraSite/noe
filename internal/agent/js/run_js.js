@@ -5,7 +5,7 @@ export const runJSTool = Object.freeze({
   type: "function",
   function: {
     name: "run_js",
-    description: "Execute an ES module with top-level await in a fresh owned runtime. Agent helpers require explicit imports. A default export supplies JSON data; results include stdout, stderr, exitCode, reason, and optional data/diagnostics. Results over the configured output budget have incomplete outputPreview text, outputLimit metadata, and execution status. The contract and outputBytes pragma are documented by docs('noe:run_js'). Raw-JavaScript providers accept module source without JSON wrapping or code fences.",
+    description: "Execute an ES module with top-level await in a fresh owned runtime. Agent helpers require explicit imports. A default export supplies JSON data. Results include stdout, stderr, exitCode, reason, and optional data/diagnostics. A saved stream has a stdoutFile or stderrFile reference that can be read in a later call. Results over the configured output budget have incomplete outputPreview text, outputLimit metadata, and execution status. See docs('noe:run_js'). Raw-JavaScript providers accept module source without JSON wrapping or code fences.",
     parameters: {
       type: "object",
       properties: {

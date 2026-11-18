@@ -25,6 +25,7 @@ export default models.map(({provider, model}) => ({provider, model}));
 | `exitCode` / `reason` | 実行状態。reasonはcompleted/failed/timeout/cancelled |
 | `diagnostics?` | NOEが観測した失敗情報。出力とは別に保持 |
 | `stdoutOmittedBytes?` / `stderrOmittedBytes?` | 各streamの捕捉で省いたbyte数（既定64 KiB、outputBytesに連動） |
+| `stdoutFile?` / `stderrFile?` | Saved stream reference with path and raw byte count when storage is enabled |
 
 成功例は`{"stdout":"","stderr":"","exitCode":0,"reason":"completed","data":[...]}`です。最後の式だけではdataになりません。`console.log`を使った既存コードは引き続きstdoutを返します。
 
@@ -54,7 +55,39 @@ import {docs} from "noe:docs";
 console.log(docs("noe:http", "serve"));
 ```
 
-先頭の行コメント群で指定します。操作説明を1行目に残せます。`outputBytes`は1024〜262144 bytes（1〜256 KiB）の整数です。最小値は省略情報をJSONに収めるためのものです。範囲外・未知field・不正値・重複指定は実行前のsetup診断になり、ソースを実行しません。beforeToolで変更した場合は実効コードの指定を使います。後の呼出しで増量しても、前回の捕捉で失った出力は復元できません。ソースを自動再実行せず、全文artifactも自動保存しません。副作用を確認し、必要なら明示保存したファイルの該当箇所を読みます。
+先頭の行コメント群で指定します。操作説明を1行目に残せます。`outputBytes`は1024〜262144 bytes（1〜256 KiB）の整数です。最小値は省略情報をJSONに収めるためのものです。範囲外・未知field・不正値・重複指定は実行前のsetup診断になり、ソースを実行しません。beforeToolで変更した場合は実効コードの指定を使います。後の呼出しで増量しても、前回の捕捉で失った出力は復元できません。保存を有効にすると、次の節のファイル参照から省略範囲を読めます。
+
+
+## Saved stream output
+
+Set the CLI's `NOE_AGENT_TOOL_OUTPUT_DIR` to an existing directory to enable
+storage. Relative paths resolve from the execution working directory. For
+example, create a private directory with `mkdir -m 700 tool-output` and run
+`NOE_AGENT_TOOL_OUTPUT_DIR=tool-output noe run --observe task.js`. Go hosts
+select the same behavior with `agent.HostConfig.ToolOutputDir`, resolved in
+their runtime's filesystem view. The default is preview-only capture.
+
+Each overflowing `run_js` stream gets one file with a unique name and mode
+0600 where supported. The file contains all bytes captured from that stream,
+including the bytes before the limit was crossed. Memory used for the preview
+remains bounded. Short streams produce no file. The result includes
+`stdoutFile` or `stderrFile` as `{path, bytes}` after the file closes. The
+storage scope covers stdout and stderr writes, including writes before
+execution failure or cancellation. Structured `data`, diagnostic payloads,
+and hook replacements are outside the saved stream.
+
+Use `noe:fs.open(path)` in a later tool call and read a range with
+`readAt(offset, length)`. A rooted profile returns a virtual path. CLI
+`--observe`, `run_js.finished` JSONL events, and `lastToolResult` from log
+analysis also expose the references. `afterTool` can remove a reference from
+the model-facing result. References kept by the hook share the final JSON
+budget. A path too long for the preview envelope remains in the raw result
+and execution events.
+
+A storage error leaves the preview available and adds an `output_save_error`
+diagnostic. A successfully saved file stays available after the run and Host
+close. Configure storage where full output can be retained and remove the
+saved files according to your storage needs.
 
 ## 診断の読み方
 

@@ -257,6 +257,12 @@ func (h *Host) finishJSResult(runID string, run *agentRun, started time.Time, to
 	if result.StderrOmittedBytes > 0 {
 		finishFields["stderrOmittedBytes"] = result.StderrOmittedBytes
 	}
+	if result.StdoutFile != nil {
+		finishFields["stdoutFile"] = *result.StdoutFile
+	}
+	if result.StderrFile != nil {
+		finishFields["stderrFile"] = *result.StderrFile
+	}
 	if len(result.Data) > 0 {
 		finishFields["data"] = cloneRawJSON(result.Data)
 	}

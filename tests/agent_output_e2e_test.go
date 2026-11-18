@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"forge.harakara.site/littleisland/noe/v2/internal/executionresult"
+	"forge.harakara.site/littleisland/noe/v2/internal/loganalysis"
 )
 
 const verboseToolSource = `// Emit more output than the retained stream budgets
@@ -49,6 +52,8 @@ func checkTruncatedToolResult(t *testing.T, result agentExecutionResult, exit in
 
 type modelOutputPreview struct {
 	OutputPreview string `json:"outputPreview"`
+	StdoutFile    *executionresult.OutputFile
+	StderrFile    *executionresult.OutputFile
 	OutputLimit   struct {
 		LimitBytes    int  `json:"limitBytes"`
 		SourceBytes   int  `json:"sourceBytes"`
@@ -61,6 +66,106 @@ type modelOutputPreview struct {
 		ExitCode int    `json:"exitCode"`
 		Reason   string `json:"reason"`
 	} `json:"execution"`
+}
+
+func TestAgentSavesOverflowAndReadsTheMiddleInNextTool(t *testing.T) {
+	work := t.TempDir()
+	dir := filepath.Join(work, "output")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	source := "// @noe: {\"outputBytes\": 1024}\n" + `
+console.log("a".repeat(4096) + "STDOUT_MIDDLE" + "z".repeat(4096));
+console.error("b".repeat(4096) + "STDERR_MIDDLE" + "y".repeat(4096));`
+	var calls atomic.Int32
+	server := agentAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
+		tools := make(map[string]string)
+		for _, message := range req.Messages {
+			if message.Role == "tool" {
+				var value string
+				if err := json.Unmarshal(message.Content, &value); err != nil {
+					t.Errorf("tool content: %v", err)
+					return agentModelReply{Status: 400}
+				}
+				tools[message.ToolCallID] = value
+			}
+		}
+		switch calls.Add(1) {
+		case 1:
+			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("save", source)}}}, FinishReason: "tool_calls"}
+		case 2:
+			var preview modelOutputPreview
+			if err := json.Unmarshal([]byte(tools["save"]), &preview); err != nil || preview.StdoutFile == nil || preview.StderrFile == nil ||
+				preview.OutputLimit.ReturnedBytes != len(tools["save"]) || len(tools["save"]) > 1024 || strings.Contains(preview.OutputPreview, "_MIDDLE") {
+				t.Errorf("model preview=%+v err=%v", preview, err)
+				return agentModelReply{Status: 400}
+			}
+			read := fmt.Sprintf(`
+import {open} from "noe:fs";
+await using out=await open(%s); await using err=await open(%s);
+const decode=new TextDecoder();
+export default [decode.decode(await out.readAt(4096,13)),decode.decode(await err.readAt(4096,13))];`, mustJSONString(preview.StdoutFile.Path), mustJSONString(preview.StderrFile.Path))
+			return agentModelReply{Deltas: []map[string]any{{"tool_calls": []any{agentTool("read", read)}}}, FinishReason: "tool_calls"}
+		case 3:
+			var result agentExecutionResult
+			if err := json.Unmarshal([]byte(tools["read"]), &result); err != nil || string(result.Data) != `["STDOUT_MIDDLE","STDERR_MIDDLE"]` {
+				t.Errorf("read saved output: %+v err=%v", result, err)
+			}
+			return agentModelReply{Content: "read both saved streams"}
+		default:
+			t.Error("unexpected tool rerun")
+			return agentModelReply{Status: 400}
+		}
+	})
+	defer server.Close()
+
+	env := agentCLIEnv(t, server.URL)
+	env["NOE_AGENT_TRACE"] = ""
+	env["NOE_AGENT_TOOL_OUTPUT_DIR"] = "output"
+	eventPath := filepath.Join(work, "events.jsonl")
+	result := runCLI(t, work, env, "eval", "--no-inst", "--observe", "--events="+eventPath, agentScript("read the omitted bytes", "{maxSteps:3}"))
+	requireExit(t, result, 0)
+	for _, want := range []string{"stdout saved", "stderr saved", "read both saved streams"} {
+		if !strings.Contains(result.stdout, want) {
+			t.Fatalf("output missing %q: %s", want, result.stdout)
+		}
+	}
+	events, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var prefix strings.Builder
+	for line := range strings.SplitSeq(string(events), "\n") {
+		prefix.WriteString(line + "\n")
+		var event struct {
+			Type, RunID, ToolCallID string
+		}
+		if json.Unmarshal([]byte(line), &event) != nil || event.Type != "run_js.finished" || event.ToolCallID != "save" {
+			continue
+		}
+		snapshot, err := loganalysis.Analyze(t.Context(), strings.NewReader(prefix.String()), loganalysis.Query{RunID: event.RunID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		last := snapshot.LastToolResult
+		if last == nil || last.StdoutFile == nil || last.StderrFile == nil {
+			t.Fatalf("saved-log snapshot omitted file references: %+v", last)
+		}
+		for _, stream := range []struct {
+			file *executionresult.OutputFile
+			text string
+		}{
+			{last.StdoutFile, strings.Repeat("a", 4096) + "STDOUT_MIDDLE" + strings.Repeat("z", 4096) + "\n"},
+			{last.StderrFile, strings.Repeat("b", 4096) + "STDERR_MIDDLE" + strings.Repeat("y", 4096) + "\n"},
+		} {
+			content, err := os.ReadFile(stream.file.Path)
+			if err != nil || filepath.Dir(stream.file.Path) != dir || string(content) != stream.text || int64(len(content)) != stream.file.Bytes {
+				t.Fatalf("saved file=%+v length=%d err=%v", stream.file, len(content), err)
+			}
+		}
+		return
+	}
+	t.Fatal("missing run_js.finished record for saved streams")
 }
 
 func checkModelOutputPreview(t *testing.T, result modelOutputPreview, exit int) {
@@ -112,6 +217,7 @@ func TestAgentOutputTruncationReachesHooksModelAndEvents(t *testing.T) {
 			defer server.Close()
 			env := agentCLIEnv(t, server.URL)
 			env["NOE_AGENT_TRACE"] = ""
+			env["NOE_AGENT_TOOL_OUTPUT_DIR"] = ""
 			script := agentScript("inspect verbose output", `{maxSteps:2,hooks:["./check-output.js"]}`)
 			result := runCLI(t, work, env, "eval", "--events=-", script)
 			requireExit(t, result, 0)
@@ -185,6 +291,7 @@ setInterval(()=>{},1000);await new Promise(()=>{});`
 	eventPath := filepath.Join(work, "events.jsonl")
 	env := agentCLIEnv(t, server.URL)
 	env["NOE_AGENT_TRACE"] = ""
+	env["NOE_AGENT_TOOL_OUTPUT_DIR"] = work
 	script := `import {spawn_agent,queue_agent,cancel_task,wait_task,stop_agent} from "noe:agent";
 import {readFile} from "noe:fs";
 const worker=await spawn_agent({provider:"openrouter",model:"fixture/model",effort:"auto",name:"output-cancel"},undefined,{keepAlive:true});
@@ -229,6 +336,8 @@ console.log(JSON.stringify({receipt,outcome}));`
 			OmittedBytes       int64  `json:"omittedBytes"`
 			StdoutOmittedBytes int64  `json:"stdoutOmittedBytes"`
 			StderrOmittedBytes int64  `json:"stderrOmittedBytes"`
+			StdoutFile         *executionresult.OutputFile
+			StderrFile         *executionresult.OutputFile
 		}
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
 			continue
@@ -244,6 +353,15 @@ console.log(JSON.stringify({receipt,outcome}));`
 			}
 		case "run_js.finished":
 			seenRunJS = event.StdoutOmittedBytes > 0 && event.StderrOmittedBytes > 0
+			for _, file := range []*executionresult.OutputFile{event.StdoutFile, event.StderrFile} {
+				if file == nil {
+					t.Fatal("cancelled tool lost a saved stream reference")
+				}
+				info, err := os.Stat(file.Path)
+				if err != nil || info.Size() != file.Bytes || file.Bytes <= 65536 {
+					t.Fatalf("cancelled saved stream=%+v info=%v err=%v", file, info, err)
+				}
+			}
 		}
 	}
 	if !seenRunJS || !seenStdout || !seenStderr {

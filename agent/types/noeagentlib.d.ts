@@ -463,6 +463,12 @@ declare namespace NOEAgent {
     };
   }
 
+  /** Full raw bytes saved for an overflowing run_js stream. */
+  interface ToolOutputFile {
+    path: string;
+    bytes: number;
+  }
+
   /** Raw runner result before an afterTool hook's optional arbitrary replacement. */
   interface RunJSResult {
     stdout: string;
@@ -473,6 +479,8 @@ declare namespace NOEAgent {
     diagnostics?: readonly ExecutionDiagnostic[];
     stdoutOmittedBytes?: number;
     stderrOmittedBytes?: number;
+    stdoutFile?: ToolOutputFile;
+    stderrFile?: ToolOutputFile;
   }
 
   interface LogToolResult {
@@ -484,6 +492,9 @@ declare namespace NOEAgent {
     text?: string;
     /** Present only when includeOutput was requested; null differs from absence. */
     data?: JSONValue;
+    /** Saved stream references are available independently of includeOutput. */
+    stdoutFile?: ToolOutputFile;
+    stderrFile?: ToolOutputFile;
     /** Diagnostics remain available independently of captured-output selection. */
     diagnostics?: readonly ExecutionDiagnostic[];
   }
