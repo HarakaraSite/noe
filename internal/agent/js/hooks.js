@@ -145,11 +145,12 @@ export async function loadHookModules(specifiers) {
 // Hooks receive separate JSON snapshots. In-place mutation cannot alter the
 // provider message, raw tool facts, or another concurrent callback's input.
 export async function callHooks(loaded, phase, event, validateReplacement) {
-  let current = copyJSON(event);
+  let current;
   let changed = false;
   for (const registration of loaded) {
     const handler = registration.handlers[phase];
     if (handler === undefined) continue;
+    current ??= copyJSON(event);
     const outcome = await invokeHook(async (api, authoritative) => {
       const value = await handler(copyJSON({...current, ...authoritative}), api);
       if (phase !== "beforeTool" && phase !== "afterTool") return undefined;
@@ -199,5 +200,5 @@ export async function callHooks(loaded, phase, event, validateReplacement) {
       changed = true;
     }
   }
-  return {event: current, changed};
+  return {event: current ?? event, changed};
 }

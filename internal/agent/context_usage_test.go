@@ -3,11 +3,13 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"math"
 	"strings"
 	"testing"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
 func usageTestStats(t *testing.T, messages, tools []json.RawMessage, images map[string]int64) contextHistoryStats {
@@ -95,6 +97,107 @@ func TestContextUsageTracksActualRequestAndAppendOnlyPreparation(t *testing.T) {
 	prepare()
 	if run.context.usageAnchor != nil || run.context.usageAnchored || strings.HasPrefix(run.context.estimate.Method, "provider_usage+") {
 		t.Fatal("model change reused old usage")
+	}
+}
+
+func TestManagedSentContextMatchesFullAccountingWithImages(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		replaceAnchor bool
+	}{
+		{name: "prepared_anchor"},
+		{name: "changed_anchor", replaceAnchor: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var sent provider.Request
+			h := NewHost(Options{Models: modelsWithChat(&fixtureProvider{gen: func(_ context.Context, request provider.Request) (provider.Response, error) {
+				sent = request
+				return provider.Response{Message: json.RawMessage(`{"role":"assistant","content":"done"}`), FinishReason: "stop",
+					Usage: json.RawMessage(`{"input_tokens":5000}`)}, nil
+			}})})
+			t.Cleanup(h.Close)
+			op := h.NewOperation(t.Context())
+			t.Cleanup(op.Close)
+			instance, run, cancel := newConversationTestRun(t, h, op)
+			defer cancel()
+			run.modelStep = &modelStepState{id: "sent-usage"}
+			run.context.resetStep(run.modelStep.id)
+			run.context.policyDisabled = true
+			image := &imageapi.Data{Metadata: imageapi.Metadata{ImageID: "image", Width: 320, Height: 320, MIMEType: "image/png"}, Content: testPNG(t)}
+			instance.images = map[string]*imageapi.Data{image.ImageID: image}
+			if err := instance.conversation.appendRaw("block", []json.RawMessage{
+				json.RawMessage(` { "role": "user", "content": [{"text":"inspect 雪","type":"text"},{"imageId":"image","type":"noe_image"}] } `),
+				json.RawMessage(`{"role":"assistant","content":"\u96ea","native_item":{"n":9007199254740993}}`),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			tools := []json.RawMessage{json.RawMessage(` { "type": "function", "function": {"name":"run_js"} } `)}
+			base := instance.conversation.messageView()
+			images := imageEstimatesLocked(run)
+			prefix := base[:len(base)-1]
+			anchor := newContextUsageAnchor(run.config, prefix, tools, images, 150)
+			anchor.promptTokens = 1000
+			run.context.usageAnchor = anchor
+			prepare := contextPrepareRequest{RunID: run.id, ModelStepID: run.modelStep.id,
+				HistoryRevision: instance.conversation.Revision, Tools: tools}
+			if _, err := h.contextPrepare(op, prepare); err != nil {
+				t.Fatal(err)
+			}
+			// Include characters whose JSON encoding affects the sent size.
+			run.context.runtimeInfo["fixture"] = "line\n\"quoted\" \\ 雪\u2028"
+			prepare.Final = true
+			if _, err := h.contextPrepare(op, prepare); err != nil {
+				t.Fatal(err)
+			}
+			notice := run.context.preparedNotification.text
+			request := modelRequest{RunID: run.id, ModelStepID: run.modelStep.id,
+				HistoryRevision: instance.conversation.Revision, Notification: &notice,
+				Model: run.config.Model, MaxTokens: run.config.MaxTokens, Effort: run.config.Effort, Tools: tools}
+
+			delete(instance.images, image.ImageID)
+			if _, err := h.contextPrepare(op, prepare); err == nil || !containsError(err, "unknown or uncommitted image reference") {
+				t.Fatalf("repeated preparation accepted a removed image: %v", err)
+			}
+			if _, err := h.model(t.Context(), op, request); err == nil || !containsError(err, "unknown or uncommitted image reference") {
+				t.Fatalf("model send accepted a removed image: %v", err)
+			}
+			instance.images[image.ImageID] = image
+			if test.replaceAnchor {
+				replacement := *anchor
+				replacement.promptTokens += 70
+				anchor = &replacement
+				run.context.usageAnchor = anchor
+			}
+			// Compare admission accounting with a full native-v2 encode of the
+			// unexpanded request and the canonical usage digest including the note.
+			tail, _ := jsonv2.Marshal(map[string]string{"role": "user", "content": notice})
+			messages := append(base, tail)
+			messageData, _ := jsonv2.Marshal(messages)
+			toolData, _ := jsonv2.Marshal(tools)
+			rawTokens := safeTokenAdd(estimateContextTokens(len(messageData), len(toolData)), images[image.ImageID])
+			offset, matched := anchor.offset(run.config, messages, tools, images)
+			if !matched {
+				t.Fatal("fixture has no valid previous usage prefix")
+			}
+			response, err := h.model(t.Context(), op, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(sent.Messages) != len(messages) || !strings.Contains(string(sent.Messages[2]), "data:image/png;base64,") ||
+				strings.Contains(string(sent.Messages[2]), "noe_image") || !strings.Contains(string(sent.Messages[2]), "inspect 雪") {
+				t.Fatalf("provider did not receive the expanded text/image request: %s", sent.Messages)
+			}
+			estimate := run.context.estimate
+			if estimate.Stage != "sent" || estimate.Tokens != rawTokens+offset || estimate.ImageTokens != images[image.ImageID] ||
+				!strings.HasPrefix(estimate.Method, "provider_usage+") || estimate.RequestID == nil || *estimate.RequestID != response.RequestID {
+				t.Fatalf("sent estimate=%+v, want %d tokens with recorded image and usage", estimate, rawTokens+offset)
+			}
+			completed := run.context.usageAnchor
+			if completed == nil || completed.estimated != rawTokens || completed.promptTokens != 5000 ||
+				completed.digest != contextUsageDigest(messages, tools) || completed.messageCount != len(messages) {
+				t.Fatalf("completed usage anchor does not describe the exact sent input: %+v", completed)
+			}
+		})
 	}
 }
 

@@ -26,8 +26,14 @@ import (
 // There is no BYOB reader: it exists to let a reader supply the buffer a read
 // fills, and nothing in this runtime can avoid the copy that saves.
 func Streams(rt *quickjs.Runtime) error {
+	return builtinEvaluation{}.streams(rt)
+}
+
+var streamsFactory = fixedBuiltin("<streams>", streamsJS)
+
+func (mode builtinEvaluation) streams(rt *quickjs.Runtime) error {
 	host := rt.NewObject()
-	result, err := evalWithHost(rt, "<streams>", streamsJS, host)
+	result, err := mode.withHost(rt, streamsFactory, host)
 	if err != nil {
 		return err
 	}

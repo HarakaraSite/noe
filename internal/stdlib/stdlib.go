@@ -94,6 +94,7 @@ type Config struct {
 	// workerInstaller replaces legacy worker installation for Profile-based
 	// callers and receives the worker's own runtime and loop on its owner.
 	workerInstaller WorkerInstaller
+	builtins        builtinEvaluation
 	// environmentCwd/environmentArgs/environmentEnv keep Profile state tied to
 	// the execution even when process metadata is not installed.
 	environmentCwd  string
@@ -141,6 +142,12 @@ func Install(rt *quickjs.Runtime, cfg Config) error {
 func InstallProfile(rt *quickjs.Runtime, cfg Config, workerInstaller WorkerInstaller) error {
 	cfg.workerInstaller = workerInstaller
 	return install(rt, cfg)
+}
+
+// EnableBuiltinProgramReuse selects compiled factories for NOE-owned VMs.
+// Use it when the runtime was created without a caller-supplied memory limit.
+func EnableBuiltinProgramReuse(cfg *Config) {
+	cfg.builtins.reusePrograms = true
 }
 
 // SetExecutionEnvironment supplies path helpers with the same snapshot used
@@ -194,7 +201,7 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 		}
 	}
 	if !cfg.NoWebAPIs {
-		m, err := webAPIs(rt, cfg.Random, cfg.Loop)
+		m, err := cfg.builtins.webAPIs(rt, cfg.Random, cfg.Loop)
 		if err != nil {
 			return err
 		}
@@ -203,7 +210,7 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 		}
 		// The node modules that need no capability go with them: an
 		// EventEmitter is a list of functions and a Buffer is bytes.
-		events, err := nodeModules(rt)
+		events, err := cfg.builtins.nodeModules(rt)
 		if err != nil {
 			return err
 		}
@@ -223,7 +230,7 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 		}
 		// A stream reaches nothing by itself, only what is plugged into
 		// either end of it.
-		if err := Streams(rt); err != nil {
+		if err := cfg.builtins.streams(rt); err != nil {
 			return err
 		}
 		// Compressing reads bytes and writes bytes, and the stream form of it
@@ -272,13 +279,13 @@ func install(rt *quickjs.Runtime, cfg Config) error {
 		if cfg.Fetch.Loop == nil {
 			cfg.Fetch.Loop = cfg.Loop
 		}
-		if err := Network(rt, cfg.Fetch); err != nil {
+		if err := cfg.builtins.network(rt, cfg.Fetch); err != nil {
 			return err
 		}
 	} else if !cfg.NoWebAPIs {
 		// Headers, Request and Response are data rather than access, and a
 		// runtime that serves needs them whether or not it may fetch.
-		if err := Network(rt, nil); err != nil {
+		if err := cfg.builtins.network(rt, nil); err != nil {
 			return err
 		}
 	}

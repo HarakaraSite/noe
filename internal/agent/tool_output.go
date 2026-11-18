@@ -168,31 +168,32 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 			value.DataFile = retainedOutputFile(raw.DataFile, selected.DataFile)
 		}
 	}
-	source := string(result)
-	// returnedBytes includes this envelope and JSON escaping. Its own decimal
-	// width is part of the encoding, so settle the count before measuring it.
-	encode := func(budget int) ([]byte, error) {
-		var shown int
-		value.OutputPreview, shown = previewUTF8(source, budget)
-		value.OutputLimit.ShownBytes = shown
-		value.OutputLimit.OmittedBytes = len(result) - shown
-		value.OutputLimit.ReturnedBytes = 0
-		for {
-			encoded, err := json.Marshal(value)
-			if err != nil || len(encoded) == value.OutputLimit.ReturnedBytes {
-				return encoded, err
-			}
-			value.OutputLimit.ReturnedBytes = len(encoded)
-		}
+	// The empty preview has no string content and three variable counters
+	// encoded as 0. Subtract their widths before measuring candidates.
+	metadataSize := func() (int, error) {
+		encoded, err := json.Marshal(value)
+		return len(encoded) - 3, err
 	}
-	encoded, err := encode(0)
+	fixedBytes, err := metadataSize()
 	if err != nil {
 		return nil, false, err
 	}
+	encodedSize := func(textBytes, shown int) int {
+		size := fixedBytes + textBytes + decimalDigits(shown) + decimalDigits(len(result)-shown)
+		// returnedBytes includes its own decimal width.
+		returned := size + 1
+		for {
+			next := size + decimalDigits(returned)
+			if next == returned {
+				return returned
+			}
+			returned = next
+		}
+	}
 	// Diagnostic text is escaped too; shorten it if it consumes the envelope.
-	for int64(len(encoded)) > limit && execution != nil && execution.DiagnosticSummary != "" {
+	for int64(encodedSize(0, 0)) > limit && execution != nil && execution.DiagnosticSummary != "" {
 		execution.DiagnosticSummary, _ = previewUTF8(execution.DiagnosticSummary, len(execution.DiagnosticSummary)/2)
-		encoded, err = encode(0)
+		fixedBytes, err = metadataSize()
 		if err != nil {
 			return nil, false, err
 		}
@@ -200,36 +201,76 @@ func projectToolOutput(result, rawResult jsonv1.RawMessage, limit int64) (jsonv1
 	// An exceptionally long path can exceed even the entire envelope
 	// budget. The raw result and observation still carry the reference.
 	for _, file := range []**executionresult.OutputFile{&value.StderrFile, &value.StdoutFile, &value.DataFile} {
-		if int64(len(encoded)) <= limit {
+		if int64(encodedSize(0, 0)) <= limit {
 			break
 		}
 		if *file != nil {
 			*file = nil
-			encoded, err = encode(0)
+			fixedBytes, err = metadataSize()
 			if err != nil {
 				return nil, false, err
 			}
 		}
 	}
-	if int64(len(encoded)) > limit {
+	bestSize := encodedSize(0, 0)
+	if int64(bestSize) > limit {
 		return nil, false, errors.New("run_js outputBytes cannot fit the output metadata")
 	}
-	best := encoded
+	bestBudget := 0
+	var bestHeadBytes, bestTailBytes, bestTextBytes int
+	var quoted []byte
 	low, high := 1, int(limit)
 	for low <= high {
 		budget := low + (high-low)/2
-		encoded, err = encode(budget)
-		if err != nil {
-			return nil, false, err
+		head, marker, tail := previewUTF8Parts(result, budget)
+		headBytes, tailBytes := len(head), len(tail)
+		textBytes := 0
+		// Reuse the measured bytes of the last fitting head and tail. The
+		// head can shrink when the preview first includes the marker.
+		if headBytes >= bestHeadBytes && tailBytes >= bestTailBytes {
+			head = head[bestHeadBytes:]
+			tail = tail[:tailBytes-bestTailBytes]
+			textBytes = bestTextBytes
 		}
-		if int64(len(encoded)) <= limit {
-			best = encoded
+		for _, part := range [2][]byte{head, tail} {
+			// AppendQuote uses the same minimal escaping as json.Marshal.
+			quoted, err = jsontext.AppendQuote(quoted[:0], part)
+			if err != nil {
+				return nil, false, err
+			}
+			textBytes += len(quoted) - 2
+		}
+		markerBytes := 0
+		if marker != "" {
+			// The marker contains two newlines and no other escaped bytes.
+			markerBytes = len(marker) + 2
+		}
+		size := encodedSize(textBytes+markerBytes, headBytes+tailBytes)
+		if int64(size) <= limit {
+			bestBudget, bestSize = budget, size
+			bestHeadBytes, bestTailBytes, bestTextBytes = headBytes, tailBytes, textBytes
 			low = budget + 1
 		} else {
 			high = budget - 1
 		}
 	}
-	return best, true, nil
+	value.OutputPreview, value.OutputLimit.ShownBytes = previewUTF8(result, bestBudget)
+	value.OutputLimit.OmittedBytes = len(result) - value.OutputLimit.ShownBytes
+	value.OutputLimit.ReturnedBytes = bestSize
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, false, err
+	}
+	return encoded, true, nil
+}
+
+func decimalDigits(value int) int {
+	digits := 1
+	for value >= 10 {
+		value /= 10
+		digits++
+	}
+	return digits
 }
 
 func retainedOutputFile(raw *executionresult.OutputFile, selected jsontext.Value) *executionresult.OutputFile {
@@ -243,31 +284,34 @@ func retainedOutputFile(raw *executionresult.OutputFile, selected jsontext.Value
 	return raw
 }
 
-// previewUTF8 returns valid head/tail slices and counts retained source bytes.
+// previewUTF8 combines valid head/tail slices and counts retained source bytes.
 // The marker consumes the text budget, but is not counted as source content.
-func previewUTF8(source string, budget int) (string, int) {
+func previewUTF8[Text ~string | ~[]byte](source Text, budget int) (string, int) {
+	head, marker, tail := previewUTF8Parts(source, budget)
+	return string(head) + marker + string(tail), len(head) + len(tail)
+}
+
+func previewUTF8Parts[Text ~string | ~[]byte](source Text, budget int) (head Text, marker string, tail Text) {
 	if budget <= 0 {
-		return "", 0
+		return head, "", tail
 	}
 	if len(source) <= budget {
-		return source, len(source)
+		return source, "", tail
 	}
-	const marker = "\n...[truncated]...\n"
+	marker = "\n...[truncated]...\n"
 	if budget <= len(marker) {
-		prefix := utf8Prefix(source, budget)
-		return prefix, len(prefix)
+		return utf8Prefix(source, budget), "", tail
 	}
 	remaining := budget - len(marker)
-	head := utf8Prefix(source, (remaining+1)/2)
+	head = utf8Prefix(source, (remaining+1)/2)
 	start := len(source) - remaining/2
 	for start < len(source) && !utf8.RuneStart(source[start]) {
 		start++
 	}
-	tail := source[start:]
-	return head + marker + tail, len(head) + len(tail)
+	return head, marker, source[start:]
 }
 
-func utf8Prefix(source string, size int) string {
+func utf8Prefix[Text ~string | ~[]byte](source Text, size int) Text {
 	size = min(size, len(source))
 	for size > 0 && size < len(source) && !utf8.RuneStart(source[size]) {
 		size--
@@ -276,10 +320,13 @@ func utf8Prefix(source string, size int) string {
 }
 
 func sameToolOutput(a, b jsonv1.RawMessage) bool {
+	if bytes.Equal(a, b) {
+		return true
+	}
 	left := jsontext.Value(a).Clone()
 	right := jsontext.Value(b).Clone()
 	if left.Format() != nil || right.Format() != nil {
-		return bytes.Equal(a, b)
+		return false
 	}
 	return bytes.Equal(left, right)
 }

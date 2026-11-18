@@ -75,6 +75,8 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		return modelResponse{}, newOperationError(http.StatusConflict, "model_step", "model request does not match the active logical step")
 	}
 	var managedConversation *conversationSnapshot
+	var expandedMessages []jsonv1.RawMessage
+	var imageErr error
 	if request.HistoryRevision != 0 {
 		conversation, err := conversationAtRevisionLocked(run, request.HistoryRevision)
 		if err != nil {
@@ -89,16 +91,23 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		// Model services are borrowed callbacks. Give them request-owned bytes so
 		// retaining or modifying a request cannot mutate the authoritative history.
 		request.Messages = conversation.messages()
-		note, _ := json.Marshal(map[string]string{"role": "user", "content": *request.Notification})
+		note, err := json.Marshal(map[string]string{"role": "user", "content": *request.Notification})
 		request.Messages = append(request.Messages, note)
+		if err == nil {
+			expandedMessages, imageErr = conversation.expandImagesLocked(request.Messages, run.imageStore())
+		} else {
+			expandedMessages, imageErr = h.expandImagesLocked(run, request.Messages)
+		}
+	} else {
+		expandedMessages, imageErr = h.expandImagesLocked(run, request.Messages)
 	}
-	expandedMessages, imageErr := h.expandImagesLocked(run, request.Messages)
 	if imageErr != nil {
 		h.mu.Unlock()
 		return modelResponse{}, newOperationError(http.StatusBadRequest, "image", imageErr.Error())
 	}
 	steers := h.deliverPendingSteersLocked(run)
 	if len(steers) == 0 {
+		var preparedAnalysis *managedContextAnalysisCache
 		if run.context.pendingPlan != nil {
 			h.mu.Unlock()
 			return modelResponse{}, newOperationError(http.StatusConflict, "context_plan", "context trim has not been acknowledged")
@@ -106,11 +115,14 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		if run.context.finalPrepared {
 			matchesPrepared := len(request.Messages) >= 2
 			if matchesPrepared {
-				preparedDigest, reused := "", false
-				if managedConversation != nil {
-					preparedDigest, reused = run.context.analysisCache.digestFor(managedConversation, request.Tools, run.context.imageEstimates)
-				}
-				if !reused {
+				var preparedDigest string
+				cache := run.context.analysisCache
+				if managedConversation != nil && cache.matches(managedConversation, request.Tools, run.context.imageEstimates) {
+					preparedDigest = cache.analysis.digest
+					if run.context.preparedNotification != nil {
+						preparedAnalysis = cache
+					}
+				} else {
 					preparedDigest = contextHistoryDigest(request.Messages[:len(request.Messages)-1], request.Tools)
 				}
 				matchesPrepared = preparedDigest == run.context.preparedDigest
@@ -170,7 +182,7 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		// Count only requests that cross the provider boundary. Returning a
 		// queued steer batch does not consume the task's model-call budget.
 		run.providerCalls++
-		h.markContextSentLocked(run, request, requestID, time.Now())
+		h.markContextSentLocked(run, request, preparedAnalysis, requestID, time.Now())
 		markHookFailuresNotified(run, run.context.preparedNotification, requestID)
 		run.context.preparedNotification = nil
 		run.context.pendingNotice = nil

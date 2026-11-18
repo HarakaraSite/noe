@@ -210,3 +210,94 @@ func TestProjectToolOutputIncludesEnvelopeAndEscaping(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectToolOutputKeepsPreviewSelectionAtDecimalBoundaries(t *testing.T) {
+	source := json.RawMessage("{\n\t\"data\": \"" + strings.Repeat("日本語😀<>&\u2028\u2029\\u0000\\\"\\\\", 5000) + "\",\r\n \"ending\":\"TAIL\"\n}")
+	raw := json.RawMessage(`{"exitCode":7,"reason":"failed"}`)
+	for _, test := range []struct {
+		limit         int64
+		shown         int
+		returnedBytes int
+	}{
+		{349, 8, 348},
+		{999, 546, 999},
+		{1000, 543, 997},
+		{1001, 546, 1001},
+		{9999, 8327, 9999},
+		{10000, 8326, 9999},
+		{10001, 8327, 10001},
+	} {
+		got, cut, err := projectToolOutput(source, raw, test.limit)
+		if err != nil || !cut {
+			t.Fatalf("limit=%d cut=%v err=%v", test.limit, cut, err)
+		}
+		var preview toolOutputPreview
+		if err := json.Unmarshal(got, &preview); err != nil {
+			t.Fatal(err)
+		}
+		limit := preview.OutputLimit
+		if limit.LimitBytes != test.limit || limit.ShownBytes != test.shown || limit.OmittedBytes != len(source)-test.shown ||
+			limit.ReturnedBytes != test.returnedBytes || len(got) != limit.ReturnedBytes {
+			t.Fatalf("limit=%d size=%d outputLimit=%+v", test.limit, len(got), limit)
+		}
+		if test.limit == 349 && preview.OutputPreview != string(source[:test.shown]) {
+			t.Fatalf("small budget preview = %q", preview.OutputPreview)
+		}
+	}
+}
+
+func TestProjectToolOutputTrimsOversizedDiagnosticsAndFileMetadata(t *testing.T) {
+	const diagnosticStart = `"exitCode":7,"reason":"failed","diagnostics":[{"code":"execution_error","stage":"execute","message":"`
+	const files = `],"stdoutFile":{"path":"/out.log","bytes":10},"dataFile":{"path":"/data.json","bytes":2048},`
+	raw := json.RawMessage("{" + diagnosticStart + strings.Repeat(`\u0000`, 1024) + `"}` + files +
+		`"stderrFile":{"path":"` + strings.Repeat("s", 1024) + `","bytes":20}}`)
+	for _, test := range []struct {
+		limit          int64
+		keepStderr     bool
+		keepDiagnostic bool
+	}{
+		{1024, false, false},
+		{1536, true, true},
+	} {
+		got, cut, err := projectToolOutput(raw, raw, test.limit)
+		if err != nil || !cut {
+			t.Fatalf("limit=%d cut=%v err=%v", test.limit, cut, err)
+		}
+		var preview toolOutputPreview
+		if err := json.Unmarshal(got, &preview); err != nil {
+			t.Fatal(err)
+		}
+		if preview.StdoutFile == nil || preview.StdoutFile.Path != "/out.log" ||
+			preview.DataFile == nil || preview.DataFile.Path != "/data.json" ||
+			(preview.StderrFile != nil) != test.keepStderr {
+			t.Fatalf("limit=%d stdout=%+v stderr=%+v data=%+v", test.limit, preview.StdoutFile, preview.StderrFile, preview.DataFile)
+		}
+		execution := preview.Execution
+		if execution == nil || execution.ExitCode == nil || *execution.ExitCode != 7 || execution.Reason != "failed" ||
+			(execution.DiagnosticSummary != "") != test.keepDiagnostic || int64(len(execution.DiagnosticSummary)) >= test.limit/4 {
+			t.Fatalf("limit=%d execution=%+v", test.limit, execution)
+		}
+		if int64(len(got)) > test.limit || len(got) != preview.OutputLimit.ReturnedBytes {
+			t.Fatalf("limit=%d size=%d outputLimit=%+v", test.limit, len(got), preview.OutputLimit)
+		}
+	}
+}
+
+func TestSameToolOutputPreservesFormattingEquivalence(t *testing.T) {
+	for _, test := range []struct {
+		left, right string
+		equal       bool
+	}{
+		{`{"data":"日"}`, `{"data":"日"}`, true},
+		{`{"data":"日"}`, `{ "data": "\u65e5" }`, true},
+		{`{"a":1,"b":2}`, `{"b":2,"a":1}`, false},
+		{`{"data":1}`, `{"data":1.0}`, false},
+		{`{`, `{`, true},
+		{`{`, `[`, false},
+	} {
+		left, right := json.RawMessage(test.left), json.RawMessage(test.right)
+		if got := sameToolOutput(left, right); got != test.equal || string(left) != test.left || string(right) != test.right {
+			t.Fatalf("sameToolOutput(%q, %q) = %v, want %v, inputs now %q, %q", test.left, test.right, got, test.equal, left, right)
+		}
+	}
+}

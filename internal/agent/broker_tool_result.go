@@ -18,7 +18,8 @@ type toolResultRequest struct {
 	RawArguments         jsonv1.RawMessage   `json:"rawArguments"`
 	Arguments            jsonv1.RawMessage   `json:"arguments"`
 	RawResult            jsonv1.RawMessage   `json:"rawResult"`
-	Result               jsonv1.RawMessage   `json:"result"`
+	Result               jsonv1.RawMessage   `json:"result,omitzero"`
+	UseRawResult         bool                `json:"useRawResult,omitzero"`
 	ModelResultAvailable *bool               `json:"modelResultAvailable,omitempty"`
 	RawImages            []imageapi.Metadata `json:"rawImages,omitempty"`
 	Images               []imageapi.Metadata `json:"images,omitempty"`
@@ -26,10 +27,17 @@ type toolResultRequest struct {
 }
 
 func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[string]any, error) {
+	modelResultAvailable := request.ModelResultAvailable == nil || *request.ModelResultAvailable
 	if request.RunID == "" || request.ModelStepID == "" || request.ToolCallID == "" || strings.TrimSpace(request.ToolName) == "" ||
 		len(request.RawArguments) == 0 || len(request.Arguments) == 0 || !validJSON(request.RawArguments) || !validJSON(request.Arguments) ||
-		len(request.RawResult) == 0 || !validJSON(request.RawResult) || len(request.Result) == 0 || !validJSON(request.Result) {
+		!validJSON(request.RawResult) ||
+		(request.UseRawResult && (len(request.Result) != 0 || !modelResultAvailable)) ||
+		(!request.UseRawResult && !validJSON(request.Result)) {
 		return nil, newOperationError(http.StatusBadRequest, "request", "invalid tool result report")
+	}
+	result := request.Result
+	if request.UseRawResult {
+		result = request.RawResult
 	}
 
 	h.mu.Lock()
@@ -44,18 +52,17 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 		h.mu.Unlock()
 		return nil, newOperationError(http.StatusConflict, "tool_call", "unknown or completed tool call")
 	}
-	modelResultAvailable := request.ModelResultAvailable == nil || *request.ModelResultAvailable
 	modelResult := jsonv1.RawMessage("null")
 	var hookResult jsonv1.RawMessage
 	if modelResultAvailable {
-		projected, truncated, err := projectToolOutput(request.Result, request.RawResult, toolState.outputBytes)
+		projected, truncated, err := projectToolOutput(result, request.RawResult, toolState.outputBytes)
 		if err != nil {
 			h.mu.Unlock()
 			return nil, newOperationError(http.StatusInternalServerError, "tool_output", err.Error())
 		}
 		modelResult = projected
-		if truncated && !sameToolOutput(request.Result, request.RawResult) {
-			hookResult = cloneRawJSON(request.Result)
+		if truncated && h.opts.Observe != nil && !request.UseRawResult && !sameToolOutput(result, request.RawResult) {
+			hookResult = cloneRawJSON(result)
 		}
 	}
 	if toolState.activityID == "" {
@@ -71,7 +78,7 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 		h.mu.Unlock()
 		return nil, newOperationError(400, "image", imageErr.Error())
 	}
-	if request.HookError != "" || (request.ModelResultAvailable != nil && !*request.ModelResultAvailable) {
+	if request.HookError != "" || !modelResultAvailable {
 		discardStepImages(run.modelStep)
 	} else {
 		toolState.images = selected
@@ -91,6 +98,11 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 	requestID := run.modelStep.requestID
 	requestActivityID := run.modelStep.requestActivityID
 	h.mu.Unlock()
+
+	reply := map[string]any{"recorded": true, "result": modelResult}
+	if h.opts.Observe == nil {
+		return reply, nil
+	}
 	fields := events.Event{
 		"modelStepId":  request.ModelStepID,
 		"requestId":    requestID,
@@ -125,7 +137,7 @@ func (h *Host) recordToolResult(op *Operation, request toolResultRequest) (map[s
 		fields["toolExecution"] = facts
 	}
 	h.observeRun("tool.finished", run.id, run, fields)
-	return map[string]any{"recorded": true, "result": modelResult}, nil
+	return reply, nil
 }
 
 func cloneRawJSON(raw jsonv1.RawMessage) jsonv1.RawMessage {
@@ -133,24 +145,28 @@ func cloneRawJSON(raw jsonv1.RawMessage) jsonv1.RawMessage {
 }
 
 func rawToolExecutionFacts(raw jsonv1.RawMessage) events.Event {
-	var object map[string]jsonv1.RawMessage
-	if json.Unmarshal(raw, &object) != nil || object == nil {
+	var object struct {
+		Reason   jsonv1.RawMessage `json:"reason"`
+		ExitCode jsonv1.RawMessage `json:"exitCode"`
+		Success  jsonv1.RawMessage `json:"success"`
+	}
+	if json.Unmarshal(raw, &object) != nil {
 		return nil
 	}
 	facts := events.Event{}
 	var reason string
-	if json.Unmarshal(object["reason"], &reason) == nil && reason != "" {
+	if json.Unmarshal(object.Reason, &reason) == nil && reason != "" {
 		facts["reason"] = reason
 		facts["rawStatus"] = reason
 	}
 	var exitCode int
-	if json.Unmarshal(object["exitCode"], &exitCode) == nil {
+	if json.Unmarshal(object.ExitCode, &exitCode) == nil {
 		facts["exitCode"] = exitCode
 	}
 	var success bool
-	if json.Unmarshal(object["success"], &success) == nil {
+	if json.Unmarshal(object.Success, &success) == nil {
 		facts["success"] = success
-	} else if len(object["exitCode"]) != 0 && reason != "" {
+	} else if len(object.ExitCode) != 0 && reason != "" {
 		facts["success"] = reason == "completed" && exitCode == 0
 	}
 	if len(facts) == 0 {

@@ -66,6 +66,10 @@ func evalWithHost(rt *quickjs.Runtime, name, src string, host quickjs.Value) (qu
 	if err != nil {
 		return quickjs.Value{}, err
 	}
+	return callHostFactory(rt, fn, host)
+}
+
+func callHostFactory(rt *quickjs.Runtime, fn, host quickjs.Value) (quickjs.Value, error) {
 	if !host.IsObject() {
 		host = rt.NewObject()
 	}

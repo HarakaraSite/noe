@@ -12,7 +12,10 @@ import (
 func TestToolResultObservationKeepsRawAndEffectiveExecutionResult(t *testing.T) {
 	fixture := &fixtureProvider{gen: func(context.Context, provider.Request) (provider.Response, error) {
 		return provider.Response{
-			Message:      json.RawMessage(`{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"run_js","arguments":"{}"}}]}`),
+			Message: json.RawMessage(`{"role":"assistant","content":null,"tool_calls":[
+{"id":"replaced","type":"function","function":{"name":"run_js","arguments":"{}"}},
+{"id":"unchanged","type":"function","function":{"name":"run_js","arguments":"{}"}},
+{"id":"null","type":"function","function":{"name":"run_js","arguments":"{}"}}]}`),
 			FinishReason: "tool_calls",
 		}, nil
 	}}
@@ -41,32 +44,59 @@ func TestToolResultObservationKeepsRawAndEffectiveExecutionResult(t *testing.T) 
 	lifecycleCall(t, op, "model", request)
 	_ = takeCausalityEvent(t, observed, "model.started")
 	_ = takeCausalityEvent(t, observed, "model.finished")
-	response := lifecycleCall(t, op, "tool_result", toolResultRequest{
-		RunID: runID, ModelStepID: stepID, ToolCallID: "call-1", ToolName: "run_js",
+	const raw = `{"data":{"answer":42},"diagnostics":[{"code":"cleanup_error","stage":"cleanup","message":"close failed"}]}`
+	base := toolResultRequest{
+		RunID: runID, ModelStepID: stepID, ToolName: "run_js",
 		RawArguments:         json.RawMessage(`{"code":"export default {answer:42}"}`),
 		Arguments:            json.RawMessage(`{"code":"export default {answer:42}"}`),
-		RawResult:            json.RawMessage(`{"data":{"answer":42},"diagnostics":[{"code":"cleanup_error","stage":"cleanup","message":"close failed"}]}`),
-		Result:               json.RawMessage(`{"summary":42}`),
+		RawResult:            json.RawMessage(raw),
 		ModelResultAvailable: boolPointer(true),
-	})
-	var reply struct {
-		Result json.RawMessage `json:"result"`
 	}
-	if err := json.Unmarshal([]byte(response), &reply); err != nil || string(reply.Result) != `{"summary":42}` {
-		t.Fatalf("observer changed model-facing result: %s err=%v", response, err)
+	for _, invalid := range []struct {
+		result    json.RawMessage
+		useRaw    bool
+		available bool
+	}{
+		{nil, false, true},
+		{json.RawMessage("null"), true, true},
+		{nil, true, false},
+	} {
+		report := base
+		report.ToolCallID = "unchanged"
+		report.Result, report.UseRawResult = invalid.result, invalid.useRaw
+		report.ModelResultAvailable = boolPointer(invalid.available)
+		encoded, err := json.Marshal(report)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := op.Call("tool_result", string(encoded)); err == nil {
+			t.Fatalf("accepted invalid result selection: %s", encoded)
+		}
 	}
-	event := takeCausalityEvent(t, observed, "tool.finished")
-	encoded, err := json.Marshal(event)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(encoded, &fields); err != nil {
-		t.Fatal(err)
-	}
-	if string(fields["rawResult"]) != `{"data":{"answer":42},"diagnostics":[{"code":"cleanup_error","stage":"cleanup","message":"close failed"}]}` ||
-		string(fields["result"]) != `{"summary":42}` {
-		t.Fatalf("tool.finished did not preserve raw/effective results: %s", encoded)
+	for _, check := range []struct {
+		id, want string
+		result   json.RawMessage
+		useRaw   bool
+	}{
+		{"replaced", `{"summary":42}`, json.RawMessage(`{"summary":42}`), false},
+		{"unchanged", raw, nil, true},
+		{"null", "null", json.RawMessage("null"), false},
+	} {
+		report := base
+		report.ToolCallID = check.id
+		report.Result, report.UseRawResult = check.result, check.useRaw
+		response := lifecycleCall(t, op, "tool_result", report)
+		var reply struct {
+			Result json.RawMessage `json:"result"`
+		}
+		if err := json.Unmarshal([]byte(response), &reply); err != nil || string(reply.Result) != check.want {
+			t.Fatalf("observer changed model-facing result: %s err=%v", response, err)
+		}
+		event := takeCausalityEvent(t, observed, "tool.finished")
+		if string(event["rawResult"].(json.RawMessage)) != raw ||
+			string(event["result"].(json.RawMessage)) != check.want {
+			t.Fatalf("tool.finished did not preserve raw/effective results: %+v", event)
+		}
 	}
 }
 

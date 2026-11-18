@@ -19,6 +19,7 @@ type conversationSnapshot struct {
 	Revision int64               `json:"revision"`
 	Sequence int64               `json:"sequence"`
 	Entries  []conversationEntry `json:"entries"`
+	images   conversationImageIndex
 }
 
 type conversationEntry struct {

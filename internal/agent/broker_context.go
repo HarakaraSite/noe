@@ -64,6 +64,7 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		return contextPrepareResponse{}, newOperationError(http.StatusConflict, "scope", "context preparation is outside the current model step")
 	}
 	var managedConversation *conversationSnapshot
+	var imageErr error
 	if request.HistoryRevision != 0 {
 		conversation, err := conversationAtRevisionLocked(run, request.HistoryRevision)
 		if err != nil {
@@ -72,10 +73,13 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		}
 		managedConversation = conversation
 		request.Messages, request.History = conversation.messageView(), conversation.layout()
+		imageErr = conversation.validateImagesLocked(run.imageStore())
+	} else {
+		imageErr = h.validateImagesLocked(run, request.Messages)
 	}
-	if err := h.validateImagesLocked(run, request.Messages); err != nil {
+	if imageErr != nil {
 		h.mu.Unlock()
-		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "image", err.Error())
+		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "image", imageErr.Error())
 	}
 	run.context.imageEstimates = imageEstimatesLocked(run)
 	analysis := managedContextAnalysis{}
@@ -118,10 +122,12 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		}
 	}
 	anchor := run.context.usageAnchor
-	offset, matched := int64(0), false
-	if cacheHit && run.context.analysisCache.usageChecked && run.context.analysisCache.usageAnchor == anchor && run.context.analysisCache.usageIdentity == usageIdentity(run.config) {
-		offset, matched = run.context.analysisCache.usageOffset, run.context.analysisCache.usageMatched
-	} else {
+	var offset int64
+	var matched, checked bool
+	if cacheHit {
+		offset, matched, checked = run.context.analysisCache.usageFor(run.config, anchor)
+	}
+	if !checked {
 		offset, matched = anchor.offset(run.config, request.Messages, request.Tools, run.context.imageEstimates)
 	}
 	run.context.usageOffset, run.context.usageAnchored = offset, matched
@@ -289,12 +295,27 @@ func contextScopeError() error {
 	return &RequestError{Code: "scope", Message: "context is unavailable outside the active run scope"}
 }
 
-func (h *Host) markContextSentLocked(run *agentRun, request modelRequest, requestID string, now time.Time) {
-	messageData, _ := json.Marshal(request.Messages)
-	toolData, _ := json.Marshal(request.Tools)
-	imageTokens := historyImageTokens(request.Messages, run.context.imageEstimates)
-	rawTokens := safeTokenAdd(estimateContextTokens(len(messageData), len(toolData)), imageTokens)
-	run.context.usageOffset, run.context.usageAnchored = run.context.usageAnchor.offset(run.config, request.Messages, request.Tools, run.context.imageEstimates)
+func (h *Host) markContextSentLocked(run *agentRun, request modelRequest, prepared *managedContextAnalysisCache, requestID string, now time.Time) {
+	var stats contextHistoryStats
+	if prepared != nil {
+		stats = prepared.analysis.stats
+		// Managed admission verified the exact base input. The generated JSON
+		// notification is an additional text message and needs one comma.
+		stats.messagesBytes += 1 + len(request.Messages[len(request.Messages)-1])
+	} else {
+		messageData, _ := json.Marshal(request.Messages)
+		toolData, _ := json.Marshal(request.Tools)
+		stats.messagesBytes, stats.toolsBytes = len(messageData), len(toolData)
+		stats.imageTokens = historyImageTokens(request.Messages, run.context.imageEstimates)
+	}
+	rawTokens := safeTokenAdd(estimateContextTokens(stats.messagesBytes, stats.toolsBytes), stats.imageTokens)
+	anchor := run.context.usageAnchor
+	offset, matched, checked := prepared.usageFor(run.config, anchor)
+	// Only a matching prefix is necessarily unaffected by the appended note.
+	if !checked || !matched {
+		offset, matched = anchor.offset(run.config, request.Messages, request.Tools, run.context.imageEstimates)
+	}
+	run.context.usageOffset, run.context.usageAnchored = offset, matched
 	if !run.context.usageAnchored {
 		run.context.usageAnchor = nil
 	}
@@ -304,7 +325,7 @@ func (h *Host) markContextSentLocked(run *agentRun, request modelRequest, reques
 	requestIDCopy := requestID
 	run.context.modelStepID = request.ModelStepID
 	run.context.estimate = &contextEstimate{
-		Tokens: tokens, ImageTokens: imageTokens, Method: run.context.estimateMethod(imageTokens), Stage: "sent",
+		Tokens: tokens, ImageTokens: stats.imageTokens, Method: run.context.estimateMethod(stats.imageTokens), Stage: "sent",
 		ModelStepID: request.ModelStepID, RequestID: &requestIDCopy, EstimatedAt: now,
 	}
 	h.storeContextSnapshotLocked(run, now)

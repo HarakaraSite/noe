@@ -5,6 +5,8 @@ import (
 	jsonv1 "encoding/json"
 	json "encoding/json/v2"
 	"errors"
+	"slices"
+
 	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 )
 
@@ -152,45 +154,136 @@ func (h *Host) processImagesLocked(run *agentRun, messages []jsonv1.RawMessage, 
 	}
 	store := run.imageStore()
 	for i, raw := range messages {
-		var msg map[string]jsonv1.RawMessage
-		if json.Unmarshal(raw, &msg) != nil {
-			return nil, errors.New("invalid image message")
+		message, err := processImageMessage(raw, store, expand)
+		if err != nil {
+			return nil, err
 		}
-		var parts []map[string]jsonv1.RawMessage
-		if json.Unmarshal(msg["content"], &parts) != nil {
-			if expand {
-				result[i] = raw
-			}
-			continue
-		}
-		changed := false
-		for j, p := range parts {
-			var kind, id string
-			json.Unmarshal(p["type"], &kind)
-			if kind != "noe_image" {
-				continue
-			}
-			json.Unmarshal(p["imageId"], &id)
-			data := store[id]
-			if data == nil {
-				return nil, errors.New("unknown or uncommitted image reference")
-			}
-			if !expand {
-				continue
-			}
-			encoded, _ := json.Marshal(map[string]any{"type": "image_url", "image_url": map[string]string{"url": "data:" + data.MIMEType + ";base64," + base64.StdEncoding.EncodeToString(data.Content), "detail": data.Detail}})
-			parts[j] = nil
-			json.Unmarshal(encoded, &parts[j])
-			changed = true
-		}
-		if changed {
-			msg["content"], _ = json.Marshal(parts)
-			result[i], _ = json.Marshal(msg)
-		} else if expand {
-			result[i] = raw
+		if expand {
+			result[i] = message
 		}
 	}
 	return result, nil
+}
+
+var errUnknownImageReference = errors.New("unknown or uncommitted image reference")
+
+func imageMessageParts(raw jsonv1.RawMessage) (map[string]jsonv1.RawMessage, []map[string]jsonv1.RawMessage, error) {
+	var message map[string]jsonv1.RawMessage
+	if json.Unmarshal(raw, &message) != nil {
+		return nil, nil, errors.New("invalid image message")
+	}
+	var parts []map[string]jsonv1.RawMessage
+	if json.Unmarshal(message["content"], &parts) != nil {
+		parts = nil
+	}
+	return message, parts, nil
+}
+
+func imagePartReference(part map[string]jsonv1.RawMessage) (string, bool) {
+	var kind, id string
+	json.Unmarshal(part["type"], &kind)
+	if kind != "noe_image" {
+		return "", false
+	}
+	json.Unmarshal(part["imageId"], &id)
+	return id, true
+}
+
+func processImageMessage(raw jsonv1.RawMessage, store map[string]*imageapi.Data, expand bool) (jsonv1.RawMessage, error) {
+	message, parts, err := imageMessageParts(raw)
+	if err != nil {
+		return nil, err
+	}
+	changed := false
+	for i, part := range parts {
+		id, isImage := imagePartReference(part)
+		if !isImage {
+			continue
+		}
+		data := store[id]
+		if data == nil {
+			return nil, errUnknownImageReference
+		}
+		if !expand {
+			continue
+		}
+		encoded, _ := json.Marshal(map[string]any{"type": "image_url", "image_url": map[string]string{"url": "data:" + data.MIMEType + ";base64," + base64.StdEncoding.EncodeToString(data.Content), "detail": data.Detail}})
+		parts[i] = nil
+		json.Unmarshal(encoded, &parts[i])
+		changed = true
+	}
+	if !changed {
+		return raw, nil
+	}
+	message["content"], _ = json.Marshal(parts)
+	encoded, _ := json.Marshal(message)
+	return encoded, nil
+}
+
+// The index belongs to one conversation snapshot and contains only message
+// positions and IDs. Host.mu protects it and the image store.
+type conversationImageIndex struct {
+	revision  int64
+	positions []int
+	ids       []string
+}
+
+func (s *conversationSnapshot) validateImagesLocked(store map[string]*imageapi.Data) error {
+	if s.images.revision == s.Revision {
+		for _, id := range s.images.ids {
+			if store[id] == nil {
+				return errUnknownImageReference
+			}
+		}
+		return nil
+	}
+	index := conversationImageIndex{revision: s.Revision}
+	position := 0
+	for _, entry := range s.Entries {
+		for _, raw := range entry.Messages {
+			_, parts, err := imageMessageParts(raw)
+			if err != nil {
+				return err
+			}
+			before := len(index.ids)
+			for _, part := range parts {
+				id, isImage := imagePartReference(part)
+				if !isImage {
+					continue
+				}
+				if store[id] == nil {
+					return errUnknownImageReference
+				}
+				index.ids = append(index.ids, id)
+			}
+			if len(index.ids) != before {
+				index.positions = append(index.positions, position)
+			}
+			position++
+		}
+	}
+	s.images = index
+	return nil
+}
+
+// messages contains the request-owned transcript and its generated text
+// notification. Only the indexed history messages need image expansion.
+func (s *conversationSnapshot) expandImagesLocked(messages []jsonv1.RawMessage, store map[string]*imageapi.Data) ([]jsonv1.RawMessage, error) {
+	if err := s.validateImagesLocked(store); err != nil {
+		return nil, err
+	}
+	if len(s.images.positions) == 0 {
+		return messages, nil
+	}
+	expanded := slices.Clone(messages)
+	for _, position := range s.images.positions {
+		message, err := processImageMessage(messages[position], store, true)
+		if err != nil {
+			return nil, err
+		}
+		expanded[position] = message
+	}
+	return expanded, nil
 }
 
 func imageReferences(messages []jsonv1.RawMessage) []string {

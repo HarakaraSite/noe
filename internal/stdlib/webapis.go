@@ -27,9 +27,15 @@ func WebAPIs(rt *quickjs.Runtime, random io.Reader) error {
 	return err
 }
 
+func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, error) {
+	return builtinEvaluation{}.webAPIs(rt, random, loop)
+}
+
+var webAPIsFactory = fixedBuiltin("<webapis>", webAPIsJS)
+
 // webAPIs is WebAPIs, with the loop a listening MessagePort keeps running. It
 // returns the runtime's messaging, which its workers talk through.
-func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, error) {
+func (mode builtinEvaluation) webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, error) {
 	if random == nil {
 		random = rand.Reader
 	}
@@ -94,7 +100,7 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 		return nil, err
 	}
 
-	api, err := evalWithHost(rt, "<webapis>", webAPIsJS, host)
+	api, err := mode.withHost(rt, webAPIsFactory, host)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +124,7 @@ func webAPIs(rt *quickjs.Runtime, random io.Reader, loop *Loop) (*messaging, err
 	if err := installPerformance(rt, host); err != nil {
 		return nil, err
 	}
-	if err := installWebCrypto(rt, webcryptoNative); err != nil {
+	if err := mode.installWebCrypto(rt, webcryptoNative); err != nil {
 		return nil, err
 	}
 	return m, nil

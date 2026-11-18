@@ -58,9 +58,9 @@ export async function executeToolWithHooks(loaded, event, toolCall, execute, onI
     }
     throw error;
   }
-  const result = after.changed ? after.event.result : rawResult;
+  const selection = after.changed ? {result: after.event.result} : {useRawResult: true};
   const images = after.event.images === undefined ? rawImages : validateImageMetadata(after.event.images);
-  const recorded = await rpc("tool_result", {...report, result, images, modelResultAvailable: true});
+  const recorded = await rpc("tool_result", {...report, ...selection, images, modelResultAvailable: true});
   if (!isRecord(recorded) || !Object.hasOwn(recorded, "result")) {
     throw new Error("broker returned an invalid model tool output");
   }

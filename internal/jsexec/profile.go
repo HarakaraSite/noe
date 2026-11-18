@@ -171,6 +171,11 @@ func attach(rt *quickjs.Runtime, loop *lower.Loop, profile Profile, worker bool,
 	if workerConfig != nil {
 		lower.InheritWorkerState(&core, *workerConfig)
 	}
+	// NewRuntime supplies prepared, and Profile Workers always create their
+	// own VM. Attach can receive a caller's VM with custom resource limits.
+	if prepared != nil || worker {
+		lower.EnableBuiltinProgramReuse(&core)
+	}
 	installed, installErr := noestdlib.InstallProfile(rt, noestdlib.ProfileConfig{
 		Context: ctx, Core: core, IO: noestdlib.IOConfig{Stdin: env.Stdin, Cwd: backend.PhysicalCwd()}, Native: native, WorkerInstall: workerInstall,
 	})

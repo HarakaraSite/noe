@@ -6,6 +6,8 @@ import (
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
+var nodeFactory = fixedBuiltin("<node>", nodeJS)
+
 // nodeModules installs the modules a program written for node expects to find
 // that need no capability at all: events, util, assert and buffer.
 //
@@ -16,14 +18,14 @@ import (
 // Buffer is also a global, as it is in node, because a great deal of code
 // assumes it is there.
 // It returns the events module's EventEmitter, which a Worker is.
-func nodeModules(rt *quickjs.Runtime) (quickjs.Value, error) {
+func (mode builtinEvaluation) nodeModules(rt *quickjs.Runtime) (quickjs.Value, error) {
 	host := rt.NewObject()
 	if err := host.Set("inspect", func(r *quickjs.Runtime, v quickjs.Value) string {
 		return Inspect(r, v)
 	}); err != nil {
 		return quickjs.Value{}, err
 	}
-	api, err := evalWithHost(rt, "<node>", nodeJS, host)
+	api, err := mode.withHost(rt, nodeFactory, host)
 	if err != nil {
 		return quickjs.Value{}, err
 	}

@@ -74,15 +74,11 @@ func (c *managedContextAnalysisCache) lookup(
 	return c.analysis, true
 }
 
-func (c *managedContextAnalysisCache) digestFor(
-	conversation *conversationSnapshot,
-	tools []jsonv1.RawMessage,
-	imageEstimates map[string]int64,
-) (string, bool) {
-	if !c.matches(conversation, tools, imageEstimates) {
-		return "", false
+func (c *managedContextAnalysisCache) usageFor(config runConfig, anchor *contextUsageAnchor) (offset int64, matched, checked bool) {
+	if c == nil || !c.usageChecked || c.usageAnchor != anchor || c.usageIdentity != usageIdentity(config) {
+		return 0, false, false
 	}
-	return c.analysis.digest, true
+	return c.usageOffset, c.usageMatched, true
 }
 
 func cloneContextRawMessages(values []jsonv1.RawMessage) []jsonv1.RawMessage {

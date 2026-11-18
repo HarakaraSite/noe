@@ -65,6 +65,12 @@ type Fetch struct {
 // body is a stream read as the answer arrives. What is missing is the redirect
 // and cache options, which the host's client decides.
 func Network(rt *quickjs.Runtime, cfg *Fetch) error {
+	return builtinEvaluation{}.network(rt, cfg)
+}
+
+var fetchFactory = fixedBuiltin("<fetch>", fetchJS)
+
+func (mode builtinEvaluation) network(rt *quickjs.Runtime, cfg *Fetch) error {
 	typesOnly := cfg == nil
 	if cfg == nil {
 		cfg = &Fetch{}
@@ -175,7 +181,7 @@ func Network(rt *quickjs.Runtime, cfg *Fetch) error {
 		return err
 	}
 
-	api, err := evalWithHost(rt, "<fetch>", fetchJS, host)
+	api, err := mode.withHost(rt, fetchFactory, host)
 	if err != nil {
 		return err
 	}
