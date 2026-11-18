@@ -1,19 +1,39 @@
 # Standard library session handoff
 
-Updated 2026-11-18 after v2.31.1 publication and local installation. Filesystem
+Updated 2026-11-18 after v2.32.0 publication and local installation. Filesystem
 streaming and HMAC/JWK are included from `f4a1418`; completed implementation
 checks are reused. Managed Responses WebSocket implementation is committed as
 `7209bc4`; the v2.29.0 tag points to `260c60a`. SQLite row iteration is committed
 as `aa79508`; the v2.28.0 tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
-from `e2c8cfc`. Both local executables now run v2.31.1.
+from `e2c8cfc`. Both local executables now run v2.32.0.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. Managed Responses WebSocket
 continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
 
-## Current release — v2.31.1 published and installed
+## Current release — v2.32.0 published and installed
+
+This release adds `searchDocs` to `noe:docs` and adds per-call deadlines,
+saved default exports, and live progress to `run_js`. It reuses built-in
+programs, improves stdlib execution paths, and reduces repeated agent
+context, request, and log processing. [Release notes](../releases/v2.32.0.md)
+
+The tag points to `bcc0b082b2c52521186cf36e70329ab65be79f3b`. All six
+binary hashes and tagged build metadata matched. The published Linux
+amd64 binary passed API search in the main runtime and a Worker and the
+stdlib smoke checks. Direct Go consumers passed stdlib and agent checks.
+[Forgejo workflow](https://forge.harakara.site/littleisland/noe/actions/runs/73)
+
+The verified native asset is installed at `/home/agent/.local/bin/noe` and
+`/home/agent/projects/noe/noe`. Both report noe v2.32.0 and match SHA256
+`3dbeafff02062b88d808731435031d687db196179f0d52fbf50c872b181baf5d`.
+PATH resolves to the former. Previous v2.31.1 binaries are retained in
+`/var/tmp/noe-v2.32.0-install-660ta3xl`.
+[Publication and installation record](../releases/release-checkpoints.md#v2320-publication-and-installation--2026-11-18)
+
+## Previous release — v2.31.1 published and installed
 
 The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.31.1)
 includes the CLI startup timeout correction from `38dc168`. File watcher
