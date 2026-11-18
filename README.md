@@ -39,10 +39,11 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.31.1 release notes](docs/releases/v2.31.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.31.1)
+[v2.32.0 release notes](docs/releases/v2.32.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.32.0)
 
-v2.31.1 preserves the CLI timeout diagnostic and exit code 124 when the
-deadline expires during filesystem watcher initialization.
+v2.32.0 adds task keyword search to `noe:docs` and per-call deadlines,
+saved default exports, and live progress for the `run_js` agent tool.
+It also reduces repeated work in the runtime, standard library, and agent.
 
 v2.31.0 adds optional full-stream storage for overflowing agent tool output,
 honors provider retry hints, and uses reported input tokens to improve

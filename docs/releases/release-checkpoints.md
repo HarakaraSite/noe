@@ -5208,3 +5208,25 @@ report noe v2.31.1 and match SHA256
 PATH resolves to `/home/agent/.local/bin/noe`. Previous v2.31.0 binaries
 are retained under `/var/tmp/noe-v2.31.1-install-ewhdq8jq`.
 Installed verification reuses the identical asset's runtime results.
+
+## v2.32.0 preparation — 2026-11-18
+
+The release includes `run_js` deadlines, saved data, and live progress
+(`5a8c27a`), runtime and agent reuse (`1afa16e`), stdlib optimizations
+(`2b2d7a0`), agent library improvements (`865d6db`), and built-in API
+search (`6738675`). See the [release notes](v2.32.0.md).
+
+The combined implementation passed whole-tree unit and E2E tests, vet,
+declaration checks, focused race tests, and native API search in the main
+runtime and a Worker. The stdlib and agent changes also have targeted race
+and compatibility evidence. The implementation manifests match their
+committed files. This release preparation changes the CLI version and
+documentation. Dependencies and distribution configuration are unchanged.
+The version-command test passed. A Linux amd64 candidate built with CGO
+disabled reports v2.32.0 and passes the documented API search example and
+Worker search.
+
+Implementation evidence is stored at `/var/tmp/noe-api-search-Q8Kp6ers`,
+`/var/tmp/noe-agentlib-implementation-KPR0OrEi`, and
+`/var/tmp/noe-stdlib-optimization-wapxKbHh`. Release verification evidence
+is stored at `/var/tmp/noe-v2.32.0-release-TIv5W9yi`.
