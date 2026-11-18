@@ -1,20 +1,37 @@
 # Standard library session handoff
 
-Updated 2026-11-18 for tool output storage following v2.30.0 publication
-and local installation. Filesystem
+Updated 2026-11-18 after v2.31.0 publication and local installation. Filesystem
 streaming and HMAC/JWK are included from `f4a1418`; completed implementation
 checks are reused. Managed Responses WebSocket implementation is committed as
 `7209bc4`; the v2.29.0 tag points to `260c60a`. SQLite row iteration is committed
 as `aa79508`; the v2.28.0 tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
-from `e2c8cfc`. Both local executables now run v2.30.0.
+from `e2c8cfc`. Both local executables now run v2.31.0.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. Managed Responses WebSocket
 continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
 
-## Current continuation — saved tool output
+## Current release — v2.31.0 published and installed
+
+The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.31.0)
+includes provider retries and measured context (`b06d8b0`), saved agent tool
+output (`1622a8b`), and GPT-6.2 Sol and Astra catalog entries (`fa6e8cc`).
+The tag points to `f059c06c577af9e87b1ccb3a003eb0b28020f668`.
+The [release workflow](https://forge.harakara.site/littleisland/noe/actions/runs/71)
+passed. All six executable checksums and build metadata match the tag, and
+the native Linux amd64 asset passed nine smoke checks. Published stdlib and
+agent Go consumers passed eleven checks.
+
+The verified native asset is installed at `/home/agent/.local/bin/noe` and
+`/home/agent/projects/noe/noe`. Both report noe v2.31.0 and match SHA256
+`9e3fe2fd8fa1d20301be2ebab092b51dba3783bb4d7a6e14f00be1efd9e100b2`.
+PATH resolves to the former. The previous v2.30.0 binaries are retained in
+`/var/tmp/noe-v2.31.0-install-etu3qblg`. See the
+[publication record](../releases/release-checkpoints.md#v2310-publication-and-installation--2026-11-18).
+
+## Published in v2.31.0 — saved tool output
 
 The user selected the third candidate from the pi comparison. The Go Host
 and CLI can save entire stdout and stderr streams when run_js exceeds the
@@ -26,7 +43,7 @@ location and the caller manages retention.
 
 The [configuration and result contract](../execution-results.md#saved-stream-output)
 covers virtual paths, afterTool replacements, model result budgets, and
-storage errors. The implementation is local on top of `b06d8b0`.
+storage errors. The implementation is committed as `1622a8b`.
 
 Whole-tree unit/E2E, vet, types, lint, checkout/artifact Go consumers, and
 Windows amd64 and macOS arm64 compilation pass. The CLI end-to-end fixture
@@ -37,14 +54,14 @@ a rooted read-only profile. The affected race run passes outside two CLI
 diagnostic on the unchanged `b06d8b0` baseline. Evidence and final source
 hashes are at `/var/tmp/noe-tool-output-_zw_eqop`.
 
-## Current continuation — provider retries and measured context
+## Published in v2.31.0 — provider retries and measured context
 
 The user selected candidates 1 and 2 from the installed pi 1.5.2 comparison:
 provider retry hints/classification and usage-anchored context estimates.
 Implementation and validation are complete on `main`. See the
 [contract and decisions](agentlib-retry-context.md). LLM
 summarization/compaction was explicitly rejected and must not be introduced
-as part of this work. Installed executables remain v2.30.0.
+as part of this work.
 
 Generation preserves three maximum transport attempts and logical-request
 accounting, honoring bounded server retry hints before jittered exponential
@@ -63,7 +80,7 @@ unit/race/vet evidence. Checkout/artifact consumers and a native CLI loopback
 retry/tool/context/quota fixture pass. Independent bounded context review
 reported no actionable findings. Evidence and source hashes:
 `/var/tmp/noe-agentlib-pi-9y8pf8ac`. Dependencies and public Go/JS function
-signatures are unchanged. The changes await a release.
+signatures are unchanged. The changes are committed as `b06d8b0`.
 
 ## Current continuation — HMAC generation and JWK
 
@@ -116,7 +133,7 @@ Web Crypto HMAC key generation/JWK was subsequently selected and is recorded
 above. Byte streams/BYOB remain a
 [memo-only future candidate](stdlib-roadmap.md#deferred-candidates--2026-11-18).
 
-## Current release — v2.30.0 published and installed
+## Previous release — v2.30.0 publication and installation
 
 The [release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.30.0) is published, neither draft nor
 prerelease, and its [workflow](https://forge.harakara.site/littleisland/noe/actions/runs/70) succeeded.

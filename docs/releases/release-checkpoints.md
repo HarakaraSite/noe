@@ -5129,3 +5129,36 @@ Release verification is recorded at `/var/tmp/noe-v2.31.0-release-o9pmsMq2`.
 Dependencies and distribution configuration are unchanged. Forgejo builds the
 six distribution binaries and checksums. Published artifacts and direct Go
 consumers are checked before installing the native asset.
+
+## v2.31.0 publication and installation — 2026-11-18
+
+- The annotated tag points to `f059c06c577af9e87b1ccb3a003eb0b28020f668`,
+  matching the peeled remote tag and the workflow checkout. The tag object is
+  `7f75b9b3df37cb3eef212103a9917a4179d54fb6`.
+- The [Forgejo workflow](https://forge.harakara.site/littleisland/noe/actions/runs/71)
+  succeeded (API run 252, job 273). It built six binaries and SHA256SUMS.
+- The [Release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.31.0)
+  is published (ID 185) with the tagged English notes.
+
+All seven assets were downloaded. All six binaries match the published
+checksums, target metadata, clean tagged revision, Go 1.27.2, CGO-free build,
+and pinned dependencies. The Linux amd64 candidate and the published native
+asset passed nine checks each, including version, evaluation, built-in
+references, six catalog entries, saved-stream rereads by a later tool,
+retry hints, quota handling, and measured context. Model requests went only
+to loopback fixtures. Runtime checks used Linux amd64.
+
+Direct stdlib and agent consumers selected v2.31.0 without a replacement or
+synthetic proxy. All eleven checks passed, including module integrity,
+portable and GoHost execution, and rooted saved-stream output. The 48
+changed source and reference paths matched the tag in each downloaded module.
+
+The verified Linux amd64 asset was atomically installed at
+`/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`. Both paths
+report noe v2.31.0 and match SHA256
+`9e3fe2fd8fa1d20301be2ebab092b51dba3783bb4d7a6e14f00be1efd9e100b2`.
+PATH resolves to `/home/agent/.local/bin/noe`. Previous v2.30.0 copies are
+retained in `/var/tmp/noe-v2.31.0-install-etu3qblg`. Installed verification
+reuses the identical asset's runtime results.
+
+Verification evidence is stored at `/var/tmp/noe-v2.31.0-release-o9pmsMq2`.
