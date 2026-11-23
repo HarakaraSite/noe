@@ -361,7 +361,11 @@ func TestImageProviderSpike(t *testing.T) {
 						} else {
 							response := result.ImageGenerationResponse
 							out.Usage = raw(response.Usage)
-							err = saveImage(dir, name, response.Data[0].B64JSON, &out)
+							if encoded := response.Data[0].B64JSON; encoded != nil {
+								err = saveImage(dir, name, *encoded, &out)
+							} else {
+								err = errors.New("expected base64 image data")
+							}
 						}
 					}
 				}
