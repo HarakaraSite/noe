@@ -5260,3 +5260,17 @@ noe v2.32.0 and match SHA256
 PATH resolves to `/home/agent/.local/bin/noe`. Previous v2.31.1 binaries
 are retained in `/var/tmp/noe-v2.32.0-install-660ta3xl`. Installed
 verification reuses the identical published asset's runtime checks.
+
+## v2.32.1 preparation — 2026-11-23
+
+The release includes managed Responses WebSocket connection-limit recovery
+from `3fd2a12`. The regression test returns the provider's HTTP 400 event
+after a tool call and verifies a new WebSocket, replay of the current history,
+one tool execution, and task completion. It reproduced the original failure
+before the fix. The implementation passed
+`go test ./agent/... ./internal/agent/... ./internal/cli`.
+
+The release updates the CLI version and documentation. The version-command
+test passed. A CGO-free Linux amd64 candidate reports `noe v2.32.1` and
+evaluates `6 * 7` to `42`. Dependencies and distribution settings match
+v2.32.0. Release verification evidence is retained at `/var/tmp/noe-v2.32.1-release-PVCz4XBM`.

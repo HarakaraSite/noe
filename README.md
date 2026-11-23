@@ -39,7 +39,11 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.32.0 release notes](docs/releases/v2.32.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.32.0)
+[v2.32.1 release notes](docs/releases/v2.32.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.32.1)
+
+v2.32.1 reconnects managed OpenAI Responses sessions when a WebSocket
+reaches its connection limit. The agent continues with its current history
+and completed tool results.
 
 v2.32.0 adds task keyword search to `noe:docs` and per-call deadlines,
 saved default exports, and live progress for the `run_js` agent tool.
