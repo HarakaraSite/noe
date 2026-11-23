@@ -91,6 +91,7 @@ type contextRunState struct {
 	pendingNotice          *contextTrimSnapshot
 	pendingPlan            *pendingContextTrim
 	pendingTrimActivityIDs []string
+	instructionSystem      jsonv1.RawMessage
 	preparedDigest         string
 	finalPrepared          bool
 	preparedNotification   *preparedContextNotification

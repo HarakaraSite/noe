@@ -263,6 +263,14 @@ caches success or failure for that instance, and calls it again for a new
 instance. Queued tasks reuse the cached text. `Policy` is explicit Host
 configuration; an empty value adds no application-specific policy.
 
+Use `Client.SetInstruction` with a `SetInstructionRequest` containing
+`AgentID`, `Name`, and `Instruction`. Use `Client.RemoveInstruction` with a
+`RemoveInstructionRequest` containing `AgentID` and `Name`. The Client can
+update instances it spawned. Their return value reports whether the set
+changed. Trusted Go hosts expose the same methods for host-wide management.
+Updates take effect at the next model step and survive trimming and queued
+tasks for the life of the instance.
+
 `Observe` is called on Go request goroutines, outside the Host lock. Keep it
 short and do not touch JavaScript or synchronously call Host operations from
 it. Copy event values before retaining them. `Trace` is also borrowed. All

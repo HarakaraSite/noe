@@ -1,4 +1,4 @@
-import { list_models, run_agent, spawn_agent, wait_task } from "noe:agent";
+import { list_models, remove_agent_instruction, run_agent, set_agent_instruction, spawn_agent, wait_task } from "noe:agent";
 import { analyze_log } from "noe:agent-log";
 import { save_chatgpt_credentials } from "noe:auth";
 import { decide } from "noe:decision";
@@ -24,6 +24,13 @@ async function publicAPIExamples(): Promise<void> {
   }
 
   const idle = await spawn_agent(undefined, undefined, {keepAlive: true});
+  const installed: boolean = await set_agent_instruction({
+    agentId: idle.agentId,
+    name: "review",
+    instruction: "Report observed regressions.",
+  });
+  const removed: boolean = await remove_agent_instruction({agentId: idle.agentId, name: "review"});
+  void [installed, removed];
   const outcome = await wait_task({agentId: idle.agentId, commandId: "command-id", includeAnswer: false});
   const state: NOEAgent.TaskState = outcome.state;
   const failures: NOEAgent.HookFailure[] | undefined = outcome.hookFailures;

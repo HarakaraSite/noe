@@ -2,7 +2,7 @@
 
 ### API information
 
-Public exports: `cancel_task`, `list_models`, `observe_agent`, `queue_agent`, `read_task_result`, `run_agent`, `spawn_agent`, `steer_agent`, `stop_agent`, `wait_task`, `wait_tasks`.
+Public exports: `cancel_task`, `list_models`, `observe_agent`, `queue_agent`, `read_task_result`, `remove_agent_instruction`, `run_agent`, `set_agent_instruction`, `spawn_agent`, `steer_agent`, `stop_agent`, `wait_task`, `wait_tasks`.
 
 Reference: `noe:agent`. Owner: noeagentlib.
 
@@ -12,7 +12,7 @@ Availability: Requires an agent client/operation binding in the main runtime. Th
 
 Public-definition source: internal/agent/js/agent.js, internal/agent/js/api.js, internal/agentbridge/managed.go. Reading this reference evaluates no target module and makes no provider request.
 
-`noe:agent` exports `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `wait_tasks`, `read_task_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models`. These are managed-agent operations, not aliases for an autonomous object API. The module is available in the main runtime, not Workers. Root launches require explicit `provider`, `model`, and `effort`; providers and models are selected by the caller. Model inference uses the configured provider, and provider calls may incur cost.
+`noe:agent` provides managed-agent operations in the main runtime. Root launches require explicit `provider`, `model`, and `effort`. Model inference uses the configured provider, and provider calls may incur cost.
 
 A managed agent owns its task runtime and descendants. A returned snapshot is a point-in-time plain object, not a live handle. Use `observe_agent` to refresh it. Accepted task failures are represented in the result or snapshot; ordinary task failure does not make `run_agent` reject. Input, configuration, or acceptance failures reject. Cancellation follows ownership and recovers work owned by the current evaluation.
 
@@ -24,6 +24,8 @@ A managed agent owns its task runtime and descendants. A returned snapshot is a 
 | `spawn_agent` | Start an instance and return its ID after launch and initial-task acceptance. |
 | `observe_agent` | Read a live snapshot. |
 | `queue_agent` | Submit a future task to a keep-alive instance. |
+| `set_agent_instruction` | Add or replace a named system instruction. |
+| `remove_agent_instruction` | Remove a named system instruction. |
 | `wait_task` | Wait for the retained outcome of one accepted task; optionally omit its answer. |
 | `wait_tasks` | Wait for a task set, returning early on guidance to the caller's owner run without cancelling children. |
 | `read_task_result` | Read a UTF-8 byte range from a retained answer. |
@@ -167,6 +169,26 @@ const part = await read_task_result({agentId, commandId, maxBytes: 4096});
 console.log(meta, part.text);
 ```
 
+## set_agent_instruction
+
+`set_agent_instruction({agentId, name, instruction}) -> Promise<boolean>` adds
+or replaces a named instruction on a starting, running, or idle instance.
+The spawning caller supplies the nonempty text. Names are case-sensitive.
+Replacement keeps the entry's position in registration order. The promise
+resolves to whether the set changed.
+
+Each model step takes a snapshot of the current entries and appends their text
+after the base system message. The entries consume the fixed context budget
+and persist across trimming and queued tasks for the life of that instance.
+Each child has its own instruction set.
+
+## remove_agent_instruction
+
+`remove_agent_instruction({agentId, name}) -> Promise<boolean>` removes the
+named entry from the instance. Removing an absent entry returns `false`.
+The next model step uses the updated set. Prior conversation messages may
+still reflect decisions made while the instruction was active.
+
 ## steer_agent
 
 `steer_agent({runId, instruction, commandId?}) -> Promise<{commandId, status}>` adds a nonempty instruction to an active task without interrupting its current work. The steer is applied at a model-decision boundary; acceptance does not mean it has already been applied. A supplied command ID makes retries idempotent for the same instruction.
@@ -237,7 +259,11 @@ export async function beforeTool(event) {
 
 ## HookAPI.agents
 
-The callback's `api.agents` object exposes `run_agent`, `spawn_agent`, `observe_agent`, `queue_agent`, `wait_task`, `wait_tasks`, `read_task_result`, `steer_agent`, `cancel_task`, `stop_agent`, and `list_models` with the same argument and return contracts as this module. It is bound to that hook invocation, preserving its ownership and cause information. Requests made through the callback API are cancelled when the callback returns; an agent started by a hook remains owned by the run and is recovered with it. Prefer `api.agents` when the action should be attributed to that hook invocation.
+The callback's `api.agents` object exposes the managed-agent operations in
+this module with the same argument and return contracts. It is bound to that
+hook invocation and uses its ownership and cause information. Requests made
+through the callback API are cancelled when the callback returns. An agent
+started by a hook remains owned by the run and is recovered with it.
 
 ## HookAPI.context.get
 

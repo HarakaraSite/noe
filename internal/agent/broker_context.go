@@ -83,6 +83,29 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		h.mu.Unlock()
 		return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "image", imageErr.Error())
 	}
+	if run.context.pendingPlan != nil && request.AppliedPlanID == "" {
+		h.mu.Unlock()
+		return contextPrepareResponse{}, newOperationError(http.StatusConflict, "context_plan", "context trim plan must be acknowledged before preparing again")
+	}
+	if request.AppliedPlanID != "" && run.instance != nil {
+		if run.context.pendingPlan == nil {
+			h.mu.Unlock()
+			return contextPrepareResponse{}, newOperationError(http.StatusConflict, "context_plan", "no context trim plan is pending")
+		}
+		if err := validateConversationSnapshotMatches(request.Snapshot, request.Messages, request.History); err != nil {
+			h.mu.Unlock()
+			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "conversation", err.Error())
+		}
+		if err := validateConversationTrim(run.instance.conversation, request.Snapshot, run.context.pendingPlan.plan.RemoveIDs); err != nil {
+			h.mu.Unlock()
+			return contextPrepareResponse{}, newOperationError(http.StatusConflict, "conversation", err.Error())
+		}
+	}
+	// Validate the retained transcript before projecting the step's system
+	// message into the input used for both estimation and trim receipts.
+	if run.context.instructionSystem != nil {
+		request.Messages[0] = run.context.instructionSystem
+	}
 	run.context.imageEstimates = imageEstimatesLocked(run)
 	analysis := managedContextAnalysis{}
 	cacheHit := false
@@ -103,24 +126,6 @@ func (h *Host) contextPrepare(op *Operation, request contextPrepareRequest) (con
 		analysis = managedContextAnalysis{stats: stats, fixedTokens: fixed, executionTokens: execution, weights: weights}
 		if managedConversation != nil {
 			analysis.digest = contextHistoryDigest(request.Messages, request.Tools)
-		}
-	}
-	if run.context.pendingPlan != nil && request.AppliedPlanID == "" {
-		h.mu.Unlock()
-		return contextPrepareResponse{}, newOperationError(http.StatusConflict, "context_plan", "context trim plan must be acknowledged before preparing again")
-	}
-	if request.AppliedPlanID != "" && run.instance != nil {
-		if run.context.pendingPlan == nil {
-			h.mu.Unlock()
-			return contextPrepareResponse{}, newOperationError(http.StatusConflict, "context_plan", "no context trim plan is pending")
-		}
-		if err := validateConversationSnapshotMatches(request.Snapshot, request.Messages, request.History); err != nil {
-			h.mu.Unlock()
-			return contextPrepareResponse{}, newOperationError(http.StatusBadRequest, "conversation", err.Error())
-		}
-		if err := validateConversationTrim(run.instance.conversation, request.Snapshot, run.context.pendingPlan.plan.RemoveIDs); err != nil {
-			h.mu.Unlock()
-			return contextPrepareResponse{}, newOperationError(http.StatusConflict, "conversation", err.Error())
 		}
 	}
 	anchor := run.context.usageAnchor

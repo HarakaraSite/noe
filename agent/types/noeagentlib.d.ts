@@ -556,6 +556,19 @@ declare module "noe:agent" {
     commandId?: string;
   }): Promise<NOEAgent.CommandReceipt>;
 
+  /** Add or replace a named system instruction. Returns whether the set changed. */
+  export function set_agent_instruction(options: {
+    agentId: string;
+    name: string;
+    instruction: string;
+  }): Promise<boolean>;
+
+  /** Remove a named system instruction. Returns whether the set changed. */
+  export function remove_agent_instruction(options: {
+    agentId: string;
+    name: string;
+  }): Promise<boolean>;
+
   export function wait_task(options: {
     agentId: string;
     commandId: string;

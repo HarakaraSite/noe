@@ -121,6 +121,8 @@ type SpawnResponse = core.SpawnResponse
 type InstanceRequest = core.InstanceRequest
 type InstanceSnapshot = core.InstanceSnapshot
 type QueueRequest = core.QueueRequest
+type SetInstructionRequest = core.SetInstructionRequest
+type RemoveInstructionRequest = core.RemoveInstructionRequest
 type CommandReceipt = core.CommandReceipt
 type TaskRequest = core.TaskRequest
 type TaskReference = core.TaskReference
@@ -165,6 +167,18 @@ func (c *Client) Run(ctx context.Context, q SpawnRequest) (InstanceSnapshot, err
 }
 func (c *Client) Queue(ctx context.Context, q QueueRequest) (CommandReceipt, error) {
 	return clientCall[CommandReceipt](ctx, c, "queue_agent", q)
+}
+
+// SetInstruction adds or replaces a named system instruction on an owned
+// instance. It reports whether the instruction set changed.
+func (c *Client) SetInstruction(ctx context.Context, q SetInstructionRequest) (bool, error) {
+	return clientCall[bool](ctx, c, "set_agent_instruction", q)
+}
+
+// RemoveInstruction removes a named system instruction from an owned
+// instance. It reports whether the instruction set changed.
+func (c *Client) RemoveInstruction(ctx context.Context, q RemoveInstructionRequest) (bool, error) {
+	return clientCall[bool](ctx, c, "remove_agent_instruction", q)
 }
 func (c *Client) Observe(ctx context.Context, q InstanceRequest) (InstanceSnapshot, error) {
 	return clientCall[InstanceSnapshot](ctx, c, "observe_agent", q)
@@ -218,6 +232,12 @@ func (h *Host) ListAgents(ctx context.Context) ([]InstanceSnapshot, error) {
 }
 func (h *Host) Queue(ctx context.Context, q QueueRequest) (CommandReceipt, error) {
 	return h.admin.Queue(ctx, q)
+}
+func (h *Host) SetInstruction(ctx context.Context, q SetInstructionRequest) (bool, error) {
+	return h.admin.SetInstruction(ctx, q)
+}
+func (h *Host) RemoveInstruction(ctx context.Context, q RemoveInstructionRequest) (bool, error) {
+	return h.admin.RemoveInstruction(ctx, q)
 }
 func (h *Host) Steer(ctx context.Context, q SteerRequest) (CommandReceipt, error) {
 	return h.admin.Steer(ctx, q)

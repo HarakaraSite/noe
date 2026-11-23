@@ -160,6 +160,33 @@ export function createAgentAPI({ request, defaults }) {
     return rpc("queue_agent", query);
   }
 
+  async function set_agent_instruction(options = {}) {
+    if (!isRecord(options)) throw new TypeError("instruction options must be an object");
+    for (const key of Object.keys(options)) {
+      if (key !== "agentId" && key !== "name" && key !== "instruction") {
+        throw new TypeError("unknown instruction option: " + key);
+      }
+    }
+    return rpc("set_agent_instruction", {
+      agentId: requireString(options.agentId, "agentId"),
+      name: requireString(options.name, "name"),
+      instruction: requireString(options.instruction, "instruction"),
+    });
+  }
+
+  async function remove_agent_instruction(options = {}) {
+    if (!isRecord(options)) throw new TypeError("instruction removal options must be an object");
+    for (const key of Object.keys(options)) {
+      if (key !== "agentId" && key !== "name") {
+        throw new TypeError("unknown instruction removal option: " + key);
+      }
+    }
+    return rpc("remove_agent_instruction", {
+      agentId: requireString(options.agentId, "agentId"),
+      name: requireString(options.name, "name"),
+    });
+  }
+
   // Wait for one accepted task, independently of later queue work or idle state.
   async function wait_task(options = {}) {
     if (!isRecord(options)) throw new TypeError("task wait options must be an object");
@@ -283,5 +310,5 @@ export function createAgentAPI({ request, defaults }) {
     return rpc("observe_agent", { agentId: requireString(options.agentId, "agentId"), includeAnswer: options.includeAnswer });
   }
 
-  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, wait_task, wait_tasks, read_task_result, steer_agent, cancel_task, stop_agent, list_models });
+  return Object.freeze({ run_agent, spawn_agent, observe_agent, queue_agent, set_agent_instruction, remove_agent_instruction, wait_task, wait_tasks, read_task_result, steer_agent, cancel_task, stop_agent, list_models });
 }

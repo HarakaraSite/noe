@@ -278,6 +278,18 @@ func (h *Host) dispatchDirect(ctx context.Context, op *Operation, method, payloa
 			return nil, newOperationError(400, "request", "agentId and instruction are required")
 		}
 		return h.queue(op, request)
+	case "set_agent_instruction":
+		var request SetInstructionRequest
+		if err := decode(&request); err != nil {
+			return nil, newOperationError(400, "request", "agentId, name, and instruction are required")
+		}
+		return h.setInstruction(ctx, op, request)
+	case "remove_agent_instruction":
+		var request RemoveInstructionRequest
+		if err := decode(&request); err != nil {
+			return nil, newOperationError(400, "request", "agentId and name are required")
+		}
+		return h.removeInstruction(ctx, op, request)
 	case "wait_task":
 		var request TaskRequest
 		if err := decode(&request); err != nil {
@@ -319,7 +331,7 @@ func validOperationMethod(method string) bool {
 		"context_prepare", "context_get", "context_set_runtime_info", "begin_hook_scope", "end_hook_scope",
 		"execution_get", "run_js", "tool_result", "conversation_checkpoint", "discard_images", "apply_steers",
 		"commit_final", "steer_agent", "spawn_agent", "observe_agent", "wait_agent", "queue_agent", "wait_task",
-		"wait_tasks", "read_task_result", "cancel_task", "stop_agent":
+		"wait_tasks", "read_task_result", "cancel_task", "stop_agent", "set_agent_instruction", "remove_agent_instruction":
 		return true
 	}
 	return false

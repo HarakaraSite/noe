@@ -6,7 +6,7 @@ Other behavioral choices belong to users: autonomy and approval preferences, res
 
 ## Composition and locations
 
-An agent instance composes its system message once when its first task starts:
+An agent instance composes its base system message when its first task starts:
 
 1. Built-in JavaScript guidance and runtime/API facts, including the selected profile's capabilities.
 2. Markdown from the selected external directories, in order.
@@ -100,7 +100,38 @@ Instruction locations are fixed for the host execution, but file contents are re
 
 A new instance, including a new child, reads the current files at its own first task. It does not inherit the parent's loaded instruction text or conversation. Explicit config.system is fixed for its instance and reaches a new child only when explicitly supplied.
 
-The composed system message remains immutable. Changing external files takes effect for new instances without rebuilding the executable; updating the binary is required to change built-in runtime facts. Existing instances need to be replaced to use changed files.
+The base system message is fixed at the first task. Changing external files
+takes effect when new instances load them.
+
+## Updating a live instance
+
+The caller that spawned an instance can manage additional system instructions
+using `set_agent_instruction` and `remove_agent_instruction`.
+
+```js
+import { set_agent_instruction, remove_agent_instruction } from "noe:agent";
+import { readFile } from "noe:fs";
+
+await set_agent_instruction({
+  agentId,
+  name: "review",
+  instruction: await readFile("./review.md", "utf8"),
+});
+
+// Remove the review instructions when switching to the next task.
+await remove_agent_instruction({ agentId, name: "review" });
+```
+
+The APIs accept a case-sensitive name and operate on the instance identified
+by `agentId`. A repeated set with the same text or removal of an absent name
+returns `false`. An update that changes the set returns `true`.
+
+NOE snapshots the set when each model step starts and adds its text in
+registration order to the system message for that step. A replacement keeps
+its position. These instructions count toward the fixed input budget and
+survive automatic context trimming and queued tasks. They live for the
+lifetime of the instance. Each new instance, including a child, starts with
+its own empty set. The caller controls when to read any source file again.
 
 ## Runtime status and conversation history
 

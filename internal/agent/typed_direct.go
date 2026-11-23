@@ -70,6 +70,18 @@ func (h *Host) dispatchTypedDirect(ctx context.Context, op *Operation, method st
 			return nil, newOperationError(400, "request", "agentId and instruction are required")
 		}
 		return h.queue(op, req)
+	case "set_agent_instruction":
+		req, ok := request.(SetInstructionRequest)
+		if !ok {
+			return nil, newOperationError(400, "request", "agentId, name, and instruction are required")
+		}
+		return h.setInstruction(ctx, op, req)
+	case "remove_agent_instruction":
+		req, ok := request.(RemoveInstructionRequest)
+		if !ok {
+			return nil, newOperationError(400, "request", "agentId and name are required")
+		}
+		return h.removeInstruction(ctx, op, req)
 	case "observe_agent", "wait_agent":
 		req, ok := request.(InstanceRequest)
 		if !ok {
@@ -162,6 +174,23 @@ func snapshotTypedRequest(method string, request any) (any, error) {
 		req.AgentID = normalizeJSONText(req.AgentID)
 		req.Instruction = normalizeJSONText(req.Instruction)
 		req.CommandID = normalizeJSONText(req.CommandID)
+		return req, nil
+	case "set_agent_instruction":
+		req, ok := request.(SetInstructionRequest)
+		if !ok {
+			return nil, errors.New("agent: invalid typed instruction request")
+		}
+		req.AgentID = normalizeJSONText(req.AgentID)
+		req.Name = normalizeJSONText(req.Name)
+		req.Instruction = normalizeJSONText(req.Instruction)
+		return req, nil
+	case "remove_agent_instruction":
+		req, ok := request.(RemoveInstructionRequest)
+		if !ok {
+			return nil, errors.New("agent: invalid typed instruction removal request")
+		}
+		req.AgentID = normalizeJSONText(req.AgentID)
+		req.Name = normalizeJSONText(req.Name)
 		return req, nil
 	case "observe_agent", "wait_agent":
 		req, ok := request.(InstanceRequest)

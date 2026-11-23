@@ -107,6 +107,7 @@ type agentInstance struct {
 	instructionText         string
 	instructionErr          error
 	instructionLoading      chan struct{}
+	sessionInstructions     []sessionInstruction
 	state                   string
 	reason                  string
 	queue                   []*command
@@ -334,6 +335,7 @@ func (i *agentInstance) finishLocked(state, reason string) events.Event {
 	i.reason = reason
 	i.currentRunID = ""
 	i.conversation = nil
+	i.sessionInstructions = nil
 	i.images = nil
 	i.conversationContext = nil
 	if i.activeCounted {

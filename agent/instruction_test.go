@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -156,6 +157,117 @@ func TestGoHostEmptyPolicyAddsOnlyGenericFacts(t *testing.T) {
 	for _, policy := range []string{"autonomous assistant", "first line must be", "openrouter", ".noe/instructions"} {
 		if strings.Contains(core.Facts(), policy) {
 			t.Fatalf("generic facts contain NOE policy %q", policy)
+		}
+	}
+}
+
+func TestGoHostSessionInstructionsChangeBetweenModelSteps(t *testing.T) {
+	ctx := testContext(t)
+	firstRequest := make(chan struct{})
+	resume := make(chan struct{})
+	var calls atomic.Int32
+	models := &fixtureModels{generate: func(ctx context.Context, _ model.Request) (model.Response, error) {
+		if calls.Add(1) == 1 {
+			close(firstRequest)
+			select {
+			case <-resume:
+			case <-ctx.Done():
+				return model.Response{}, ctx.Err()
+			}
+			return model.Response{
+				Message:      json.RawMessage(`{"role":"assistant","tool_calls":[{"id":"instruction-tool","type":"function","function":{"name":"run_js","arguments":"{\"code\":\"console.log('done')\"}"}}]}`),
+				FinishReason: "tool_calls",
+			}, nil
+		}
+		return model.Response{Message: json.RawMessage(`{"role":"assistant","content":"complete"}`), FinishReason: "stop"}, nil
+	}}
+	host, client := instructionHost(t, ctx, models, nil, "", &stdlib.Profile{})
+	spawned, err := client.Spawn(ctx, agent.SpawnRequest{
+		Config: instructionConfig("session-instructions", "session-base", nil), KeepAlive: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	review := agent.SetInstructionRequest{
+		AgentID: spawned.AgentID, Name: "review", Instruction: "initial-review-rules",
+	}
+	style := agent.SetInstructionRequest{
+		AgentID: spawned.AgentID, Name: "style", Instruction: "initial-style-rules",
+	}
+	if changed, err := client.SetInstruction(ctx, review); err != nil || !changed {
+		t.Fatalf("set review changed=%v err=%v", changed, err)
+	}
+	if changed, err := client.SetInstruction(ctx, style); err != nil || !changed {
+		t.Fatalf("set style changed=%v err=%v", changed, err)
+	}
+	if changed, err := client.SetInstruction(ctx, style); err != nil || changed {
+		t.Fatalf("repeat style changed=%v err=%v", changed, err)
+	}
+	outsider, err := host.NewClient(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer outsider.Close()
+	if _, err := outsider.RemoveInstruction(ctx, agent.RemoveInstructionRequest{AgentID: spawned.AgentID, Name: "review"}); err == nil {
+		t.Fatal("unrelated client removed an instruction")
+	}
+	queue := func(text string) agent.TaskRequest {
+		t.Helper()
+		receipt, err := client.Queue(ctx, agent.QueueRequest{AgentID: spawned.AgentID, Instruction: text})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return agent.TaskRequest{AgentID: spawned.AgentID, CommandID: receipt.CommandID}
+	}
+	wait := func(task agent.TaskRequest) {
+		t.Helper()
+		outcome, err := client.WaitTask(ctx, task)
+		if err != nil || outcome.State != "completed" {
+			t.Fatalf("task=%+v err=%v", outcome, err)
+		}
+	}
+	first := queue("run first task")
+	select {
+	case <-firstRequest:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	review.Instruction = "updated-review-rules"
+	if changed, err := client.SetInstruction(ctx, review); err != nil || !changed {
+		t.Fatalf("replace review changed=%v err=%v", changed, err)
+	}
+	close(resume)
+	wait(first)
+	wait(queue("continue first task"))
+
+	remove := agent.RemoveInstructionRequest{AgentID: spawned.AgentID, Name: "review"}
+	if changed, err := host.RemoveInstruction(ctx, remove); err != nil || !changed {
+		t.Fatalf("remove review changed=%v err=%v", changed, err)
+	}
+	if changed, err := host.RemoveInstruction(ctx, remove); err != nil || changed {
+		t.Fatalf("repeat removal changed=%v err=%v", changed, err)
+	}
+	wait(queue("start different task"))
+
+	models.mu.Lock()
+	defer models.mu.Unlock()
+	want := []string{
+		"session-base\n\ninitial-review-rules\n\ninitial-style-rules",
+		"session-base\n\nupdated-review-rules\n\ninitial-style-rules",
+		"session-base\n\nupdated-review-rules\n\ninitial-style-rules",
+		"session-base\n\ninitial-style-rules",
+	}
+	if len(models.requests) != len(want) {
+		t.Fatalf("model request count=%d, want %d", len(models.requests), len(want))
+	}
+	for index, request := range models.requests {
+		if got := instructionSystem(request); !strings.HasSuffix(got, "\n\n"+want[index]) {
+			t.Fatalf("request %d system content=%q, want suffix %q", index, got, want[index])
+		}
+		for _, message := range request.Messages[1:] {
+			if strings.Contains(string(message), "review-rules") || strings.Contains(string(message), "style-rules") {
+				t.Fatalf("request %d includes a system instruction in history: %s", index, message)
+			}
 		}
 	}
 }

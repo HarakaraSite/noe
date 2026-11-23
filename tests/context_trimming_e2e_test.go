@@ -329,6 +329,71 @@ func TestContextTrimmingQueuedTaskContinuesConversationAndTrimState(t *testing.T
 	}
 }
 
+func TestSessionInstructionsSurviveTrimAndCanBeRemoved(t *testing.T) {
+	const instruction = "Keep this named review instruction for the first task."
+	work := t.TempDir()
+	var mu sync.Mutex
+	var calls int
+	server := contextTrimAPIFixture(t, func(_ context.Context, req agentChatRequest) agentModelReply {
+		switch contextTrimLatestUser(req) {
+		case "review task":
+			mu.Lock()
+			calls++
+			call := calls
+			mu.Unlock()
+			if len(req.RawMessages) == 0 || req.RawMessages[0].Role != "system" ||
+				!strings.HasSuffix(contextTrimMessageText(req.RawMessages[0].Content), "\n\n"+instruction) {
+				t.Error("named instruction is missing from the system message")
+				return agentModelReply{Status: 500}
+			}
+			if call <= 4 {
+				return contextTrimToolReply(call)
+			}
+			return agentModelReply{Content: "review completed"}
+		case "implementation task":
+			for _, message := range req.RawMessages {
+				if strings.Contains(contextTrimMessageText(message.Content), instruction) {
+					t.Errorf("removed instruction still present in %s message", message.Role)
+					return agentModelReply{Status: 500}
+				}
+			}
+			return agentModelReply{Content: "implementation completed"}
+		default:
+			t.Errorf("unexpected task %q", contextTrimLatestUser(req))
+			return agentModelReply{Status: 500}
+		}
+	})
+	defer server.Close()
+
+	source := `import {
+  spawn_agent, queue_agent, wait_task, observe_agent, stop_agent,
+  set_agent_instruction, remove_agent_instruction,
+} from "noe:agent";
+const {agentId} = await spawn_agent({
+  provider: "openrouter", model: "fixture/model", name: "session-instructions",
+  maxTokens: 2048, effort: "auto", maxSteps: 6,
+  contextBudget: {inputTokens: 16000}, contextPolicy: {retainRatio: 0.1},
+}, undefined, {keepAlive: true});
+const first = await set_agent_instruction({agentId, name: "review", instruction: ` + mustJSONString(instruction) + `});
+if (first !== true) throw Error("initial set did not change the instruction set");
+async function run(instruction, answer) {
+  const {commandId} = await queue_agent({agentId, instruction});
+  const result = await wait_task({agentId, commandId});
+  if (result.state !== "completed" || result.answer !== answer) throw Error(JSON.stringify(result));
+}
+await run("review task", "review completed");
+const observed = await observe_agent({agentId});
+if (!(observed.context?.executionContext?.trimCount > 0)) throw Error("the review task did not trim");
+const removed = await remove_agent_instruction({agentId, name: "review"});
+if (removed !== true) throw Error("removal did not change the instruction set");
+await run("implementation task", "implementation completed");
+await stop_agent({agentId});
+`
+	writeFixture(t, filepath.Join(work, "main.js"), source)
+	result := runCLI(t, work, agentCLIEnv(t, server.URL), "run", "--no-inst", "main.js")
+	requireExit(t, result, 0)
+}
+
 func contextTrimToolReply(call int) agentModelReply {
 	id := fmt.Sprintf("trim-block-%d", call)
 	code := fmt.Sprintf("// emit completed context block %d\n// @noe: {\"outputBytes\": 65536}\nconsole.log('TRIM_E2E_BLOCK_%d:' + 'x'.repeat(24000));", call, call)

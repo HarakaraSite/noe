@@ -75,7 +75,7 @@ OpenAIのSol・LunaはResponsesを使います。[OpenAIガイド](openai.md)に
 
 `list_models({provider?, kind?})`は、認証や外部API要求なしで内蔵デフォルトと外部上書きを統合した候補一覧を返します。詳細とJevでの選択例は[モデルカタログ](model-catalog.md)を参照してください。
 
-`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`wait_tasks`・`read_task_result`・`steer_agent`・`cancel_task`・`stop_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
+`noe:agent`は`run_agent`・`spawn_agent`・`observe_agent`・`queue_agent`・`wait_task`・`wait_tasks`・`read_task_result`・`steer_agent`・`set_agent_instruction`・`remove_agent_instruction`・`cancel_task`・`stop_agent`・`list_models`を公開します。互換aliasはなく、`createAgent()`と`agent.run()`は利用できません。通常のJavaScriptからは必要な関数をimportします。ルートagentでは`provider`・`model`・`effort`を明示します。組込みproviderは`openrouter`・`opencode-go`・`openai-chatgpt`・`openai-api`で、外部設定で互換providerを追加できます。接続先・パラメータ・モデル別のAPI形式は[provider設定](providers.md)を参照してください。
 
 ```js
 import { run_agent } from "noe:agent";
@@ -192,6 +192,15 @@ run snapshotは`{agentId, parentRunId, name, state, reason, keepAlive, currentRu
 rootのrun/evalではJS本文が終わってもnative追跡によって待受が続き、現在の終了方法はCtrl+C・timeoutなどです。親run_jsから起動した子はtool本文の終了後も親runに所有されます。
 
 待受instanceは、その所有者のNOE runに結び付いています。親runの終了・取消し、timeout、Ctrl+Cなどで回収され、NOE終了後も独立して続くdaemonにはなりません。
+
+### Session instructions
+
+`set_agent_instruction({agentId, name, instruction})` adds or replaces a
+named system instruction. `remove_agent_instruction({agentId, name})`
+removes it. Both return whether the set changed. Use these operations from
+the caller that spawned the instance. Each model step uses the current set
+at its start. The entries survive trimming and queued tasks for the life of
+the instance. See [Agent instructions](instructions.md#updating-a-live-instance).
 
 ### 実行中taskへの指示と停止
 

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	jsonv1 "encoding/json"
 	"net/http"
 
@@ -41,10 +42,17 @@ func (h *Host) beginModelStep(op *Operation, request beginModelStepRequest) (beg
 		h.mu.Unlock()
 		return beginModelStepResponse{}, newOperationError(http.StatusConflict, "run", "unknown or finished agent run")
 	}
+	var instructionSystem jsonv1.RawMessage
 	if request.HistoryRevision != 0 {
-		if _, err := conversationAtRevisionLocked(run, request.HistoryRevision); err != nil {
+		conversation, err := conversationAtRevisionLocked(run, request.HistoryRevision)
+		if err != nil {
 			h.mu.Unlock()
 			return beginModelStepResponse{}, err
+		}
+		instructionSystem, err = systemMessageWithInstructions(conversation, run.instance.sessionInstructions)
+		if err != nil {
+			h.mu.Unlock()
+			return beginModelStepResponse{}, newOperationError(http.StatusInternalServerError, "conversation", "could not compose agent instructions")
 		}
 	}
 	if !h.executionGroupOpenLocked(run.group) {
@@ -90,6 +98,10 @@ func (h *Host) beginModelStep(op *Operation, request beginModelStepRequest) (beg
 		predecessorActivityIDs: append([]string(nil), predecessors...),
 	}
 	run.context.resetStep(stepID)
+	if !bytes.Equal(run.context.instructionSystem, instructionSystem) {
+		run.context.analysisCache = nil
+	}
+	run.context.instructionSystem = instructionSystem
 	steers := h.deliverPendingSteersLocked(run)
 	stepEvent := events.Event{
 		"type": "model.step.started", "runId": run.id,

@@ -92,6 +92,9 @@ func (h *Host) model(requestContext context.Context, op *Operation, request mode
 		// Model services are borrowed callbacks. Give them request-owned bytes so
 		// retaining or modifying a request cannot mutate the authoritative history.
 		request.Messages = conversation.messages()
+		if run.context.instructionSystem != nil {
+			request.Messages[0] = append(jsonv1.RawMessage(nil), run.context.instructionSystem...)
+		}
 		note, err := json.Marshal(map[string]string{"role": "user", "content": *request.Notification})
 		request.Messages = append(request.Messages, note)
 		if err == nil {
