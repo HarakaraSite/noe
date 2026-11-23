@@ -39,7 +39,11 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.32.2 release notes](docs/releases/v2.32.2.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.32.2)
+[v2.33.0 release notes](docs/releases/v2.33.0.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.33.0)
+
+v2.33.0 adds named system instructions that an instance owner can add,
+replace, and remove while an agent is running or idle. They persist across
+context trimming and queued tasks.
 
 v2.32.2 upgrades the JavaScript engine to go-quickjs v0.43.0, refreshes
 Go dependencies, and corrects Web API and provider behavior.

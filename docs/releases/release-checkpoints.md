@@ -5340,3 +5340,17 @@ The verified Linux amd64 asset was installed atomically at
 PATH resolves to `/home/agent/.local/bin/noe`. Previous v2.32.1 binaries are
 retained in `/var/tmp/noe-v2.32.2-install-2z8kd8ql`. Installed verification
 reuses the published asset's runtime checks.
+
+## v2.33.0 preparation — 2026-11-24
+
+The release includes the named live instruction APIs from `6f985e2`.
+The implementation tests checked changes between model steps, ownership,
+survival across context trimming, and removal before a queued task.
+Targeted race and TypeScript checks passed. The runtime suite was rerun
+after synchronizing the public export inventory. The other package and E2E
+results were reused. Implementation evidence is under
+`/var/tmp/noe-session-instructions.nl5ybI`.
+
+Release preparation updates the version and documentation. The version
+test and a native CLI smoke using a loopback provider passed. Release
+verification evidence is under `/var/tmp/noe-v2.33.0-release-SwhON7t7`.
