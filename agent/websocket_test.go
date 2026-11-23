@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func managedWSResponse(id string, output any) []byte {
 	return data
 }
 
-func newManagedWSFixture(t *testing.T, custom bool) *managedWSFixture {
+func newManagedWSFixture(t *testing.T, custom, expireAfterTool bool) *managedWSFixture {
 	t.Helper()
 	f := &managedWSFixture{closed: make(chan struct{}, 8)}
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +89,8 @@ func newManagedWSFixture(t *testing.T, custom bool) *managedWSFixture {
 			f.requests = append(f.requests, request)
 			f.mu.Unlock()
 			var output []any
-			if step == 1 {
+			replaying := expireAfterTool && id == 2 && step == 1
+			if step == 1 && !replaying {
 				if request.Previous != "" {
 					t.Error("new run reused a previous response ID")
 				}
@@ -100,7 +102,7 @@ func newManagedWSFixture(t *testing.T, custom bool) *managedWSFixture {
 				}
 				output = []any{map[string]any{"type": "reasoning", "id": fmt.Sprintf("rs_%d", id), "summary": []any{}, "encrypted_content": "fixture-opaque", "future": json.RawMessage(`{"large":9007199254740991}`)}, call}
 			} else {
-				if step != 2 || request.Previous != fmt.Sprintf("resp_%d_1", id) || len(request.Input) != 2 {
+				if !replaying && (step != 2 || request.Previous != fmt.Sprintf("resp_%d_1", id) || len(request.Input) != 2) {
 					t.Errorf("expected only tool output plus the new context notification: %+v", request)
 				}
 				found := false
@@ -117,6 +119,13 @@ func newManagedWSFixture(t *testing.T, custom bool) *managedWSFixture {
 				}
 				if !found {
 					t.Error("tool continuation missing")
+				}
+				if expireAfterTool && id == 1 {
+					event := []byte(`{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"websocket_connection_limit_reached"}}`)
+					if err := connection.Write(r.Context(), websocket.MessageText, event); err != nil {
+						t.Errorf("write connection limit error: %v", err)
+					}
+					return
 				}
 				output = []any{map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]string{"type": "output_text", "text": "managed complete"}}}}
 			}
@@ -135,7 +144,7 @@ func TestManagedWebSocketRunOwnershipAndStandaloneSSE(t *testing.T) {
 			t.Run(providerName+"/"+entry, func(t *testing.T) {
 				ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 				defer cancel()
-				fixture := newManagedWSFixture(t, providerName == "openai-chatgpt")
+				fixture := newManagedWSFixture(t, providerName == "openai-chatgpt", false)
 				config := filepath.Join(t.TempDir(), "providers.json")
 				data, _ := json.Marshal(map[string]any{"providers": map[string]any{providerName: map[string]any{"auth": "none", "baseURL": fixture.server.URL, "path": "/wire/responses", "headers": map[string]string{"x-wire-fixture": "managed"}, "sessionHeader": "x-wire-session"}}})
 				if err := os.WriteFile(config, data, 0o600); err != nil {
@@ -218,6 +227,71 @@ func TestManagedWebSocketRunOwnershipAndStandaloneSSE(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestManagedWebSocketRecoversFromConnectionLimitAfterTool(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	fixture := newManagedWSFixture(t, true, true)
+	config := filepath.Join(t.TempDir(), "providers.json")
+	data := fmt.Appendf(nil, `{"providers":{"openai-chatgpt":{"auth":"none","baseURL":%q,"path":"/wire/responses","headers":{"x-wire-fixture":"managed"}}}}`, fixture.server.URL)
+	if err := os.WriteFile(config, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service, err := model.NewService(model.Options{ConfigFile: config, ConfigDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var toolRuns atomic.Int32
+	profile := stdlib.Profile{Modules: stdlib.Modules{Stdio: true}}
+	host, err := agent.NewHost(ctx, agent.HostConfig{
+		Models: service, Runtime: &profile,
+		Observe: func(event agent.Event) {
+			if event["type"] == "run_js.started" {
+				toolRuns.Add(1)
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer host.Close()
+	client, err := host.NewClient(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	task := agent.TaskConfig{
+		Config:   agent.AgentConfig{Provider: "openai-chatgpt", Model: "gpt-6.2-sol", Name: "websocket rollover", Effort: "xhigh"},
+		MaxSteps: 2,
+	}
+	spawned, err := client.Spawn(ctx, agent.SpawnRequest{Config: task, Instruction: textPointer("compute and finish")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := client.WaitTask(ctx, agent.TaskRequest{AgentID: spawned.AgentID, CommandID: spawned.CommandID})
+	if err != nil || outcome.State != "completed" || outcome.Answer != "managed complete" {
+		t.Fatalf("recovered outcome: %+v %v", outcome, err)
+	}
+	if count := toolRuns.Load(); count != 1 {
+		t.Errorf("tool ran %d times, want 1", count)
+	}
+
+	fixture.mu.Lock()
+	defer fixture.mu.Unlock()
+	if fixture.connections != 2 || fixture.posts != 0 || len(fixture.requests) != 3 {
+		t.Fatalf("connections=%d posts=%d requests=%d", fixture.connections, fixture.posts, len(fixture.requests))
+	}
+	initial, delta, replay := fixture.requests[0], fixture.requests[1], fixture.requests[2]
+	if delta.Connection != initial.Connection || replay.Connection == delta.Connection || replay.Previous != "" {
+		t.Errorf("expected a new connection without the old response ID: delta=%+v replay=%+v", delta, replay)
+	}
+	if len(delta.Input) != 2 || len(replay.Input) != len(initial.Input)+2+len(delta.Input) ||
+		replay.Input[len(initial.Input)].Type != "reasoning" ||
+		replay.Input[len(initial.Input)+1].Type != "custom_tool_call" ||
+		replay.Input[len(initial.Input)+2] != delta.Input[0] {
+		t.Errorf("expected the current history with the completed tool result: delta=%+v replay=%+v", delta.Input, replay.Input)
 	}
 }
 

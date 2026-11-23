@@ -514,6 +514,10 @@ func openAIWebSocketAPIError(raw []byte) error {
 	if event.Status == http.StatusUnauthorized || event.Status == http.StatusForbidden {
 		return providerError(ErrorAuthentication, event.Status, nil)
 	}
+	if event.Error.Code == "websocket_connection_limit_reached" {
+		// The stream retry opens a fresh connection and resends the current history.
+		return providerError(ErrorStream, event.Status, nil)
+	}
 	if kind, known := providerCodeKind(event.Error.Code); known {
 		return providerError(kind, event.Status, nil)
 	}
