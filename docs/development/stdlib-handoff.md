@@ -1,19 +1,39 @@
 # Standard library session handoff
 
-Updated 2026-11-18 after v2.32.0 publication and local installation. Filesystem
+Updated 2026-11-23 after v2.32.1 publication and local installation. Filesystem
 streaming and HMAC/JWK are included from `f4a1418`; completed implementation
 checks are reused. Managed Responses WebSocket implementation is committed as
 `7209bc4`; the v2.29.0 tag points to `260c60a`. SQLite row iteration is committed
 as `aa79508`; the v2.28.0 tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
-from `e2c8cfc`. Both local executables now run v2.32.0.
+from `e2c8cfc`. Both local executables now run v2.32.1.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. Managed Responses WebSocket
 continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
 
-## Current release — v2.32.0 published and installed
+## Current release — v2.32.1 published and installed
+
+Managed OpenAI Responses requests retry on
+`websocket_connection_limit_reached`. The new WebSocket receives the current
+history with completed tool results. The regression test verifies one tool
+execution and successful task completion after the provider's HTTP 400 event.
+[Release notes](../releases/v2.32.1.md)
+
+The tag points to `349fa1d8335d41e096e629c6c5fb089a8be2fd3d`. All six published binaries
+matched their checksums and tagged build metadata. The Linux amd64 asset
+passed version and evaluation checks, and a direct consumer ran the published
+GoHost module. [Forgejo workflow](https://forge.harakara.site/littleisland/noe/actions/runs/74)
+
+The verified asset is installed at `/home/agent/.local/bin/noe` and
+`/home/agent/projects/noe/noe`. Both report `noe v2.32.1` and match SHA256
+`492aed62a8ad6c23c4e5ed4d0a82341ab533f31836c53c44837de8135bb02adf`.
+PATH resolves to the former. Previous v2.32.0 binaries are retained in
+`/var/tmp/noe-v2.32.1-install-mzquax7x`.
+[Publication and installation record](../releases/release-checkpoints.md#v2321-publication-and-installation--2026-11-23)
+
+## Previous release — v2.32.0 published and installed
 
 This release adds `searchDocs` to `noe:docs` and adds per-call deadlines,
 saved default exports, and live progress to `run_js`. It reuses built-in

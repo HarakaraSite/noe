@@ -5274,3 +5274,28 @@ The release updates the CLI version and documentation. The version-command
 test passed. A CGO-free Linux amd64 candidate reports `noe v2.32.1` and
 evaluates `6 * 7` to `42`. Dependencies and distribution settings match
 v2.32.0. Release verification evidence is retained at `/var/tmp/noe-v2.32.1-release-PVCz4XBM`.
+
+## v2.32.1 publication and installation — 2026-11-23
+
+- The annotated tag points to `349fa1d8335d41e096e629c6c5fb089a8be2fd3d`, matching the
+  peeled remote tag and workflow checkout. The tag object is
+  `1df2cc326c5bc14bb431b277bcec23c0b669a536`.
+- The workflow succeeded (API run 263, job 284) and published six
+  binaries and SHA256SUMS. [Forgejo workflow](https://forge.harakara.site/littleisland/noe/actions/runs/74)
+- Release 195 is published with the tagged notes.
+  [Forgejo release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.32.1)
+
+All seven assets were downloaded. All six binaries matched their checksums,
+target metadata, clean tagged revision, Go 1.27.2, CGO-free build settings,
+and dependency checksums in the tagged module. The published Linux amd64
+binary reported `noe v2.32.1` and evaluated `6 * 7` to `42`. A direct Go
+consumer resolved the published module and passed its GoHost checks. The
+changed Go files and dependency manifests matched the tag.
+
+The verified native asset was installed atomically at
+`/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`. Both report
+`noe v2.32.1` and match SHA256
+`492aed62a8ad6c23c4e5ed4d0a82341ab533f31836c53c44837de8135bb02adf`.
+PATH resolves to `/home/agent/.local/bin/noe`. Previous v2.32.0 binaries
+are retained in `/var/tmp/noe-v2.32.1-install-mzquax7x`. Installed verification
+reuses the published asset's runtime checks.
