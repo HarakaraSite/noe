@@ -5354,3 +5354,28 @@ results were reused. Implementation evidence is under
 Release preparation updates the version and documentation. The version
 test and a native CLI smoke using a loopback provider passed. Release
 verification evidence is under `/var/tmp/noe-v2.33.0-release-SwhON7t7`.
+
+## v2.33.0 publication and installation — 2026-11-24
+
+- The annotated tag points to `0409f7dce4f53065821cbac244fd2ae41761bec7`.
+  The tag object is `f25f8bcc91cce1caee4d120ea39edfd4fb44c54c`.
+- API run 265 and job 286 succeeded.
+  [Forgejo workflow](https://forge.harakara.site/littleisland/noe/actions/runs/76)
+- Release 197 published six binaries and `SHA256SUMS`
+  with the tagged notes. [Forgejo release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.33.0)
+
+All six binaries matched their checksums, target metadata, tagged revision,
+build settings, and dependency checksums. The published Linux amd64 asset
+reported `noe v2.33.0` and passed a loopback test with two queued tasks on one
+instance. The first received the added instruction and the second received
+the system prompt after removal. A direct Go consumer verified the new typed
+APIs and existing GoHost use. The published module matched the tag across
+28 changed files.
+
+The verified Linux amd64 asset was installed atomically at
+`/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`. Both report
+`noe v2.33.0` and match SHA256
+`54355b8882717d9b65d56201c1be1bce172cb65cf0aff1fb43e800c8ec6f7549`.
+PATH resolves to `/home/agent/.local/bin/noe`. Previous v2.32.2 binaries are
+retained in `/var/tmp/noe-v2.33.0-install-h5daf_sq`. Installed verification reuses the published
+asset's runtime checks.

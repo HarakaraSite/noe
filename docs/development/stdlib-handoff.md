@@ -1,19 +1,38 @@
 # Standard library session handoff
 
-Updated 2026-11-24 after v2.32.2 publication and local installation. Filesystem
+Updated 2026-11-24 after v2.33.0 publication and local installation. Filesystem
 streaming and HMAC/JWK are included from `f4a1418`; completed implementation
 checks are reused. Managed Responses WebSocket implementation is committed as
 `7209bc4`; the v2.29.0 tag points to `260c60a`. SQLite row iteration is committed
 as `aa79508`; the v2.28.0 tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
-from `e2c8cfc`. Both local executables now run v2.32.2.
+from `e2c8cfc`. Both local executables now run v2.33.0.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. Managed Responses WebSocket
 continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
 
-## Current release — v2.32.2 published and installed
+## Current release — v2.33.0 published and installed
+
+Named live instructions from `6f985e2` can be added, replaced, and removed
+on an owned instance. They enter the system prompt at the next model step
+and survive trimming and queued tasks. The first task loads the base
+system prompt. [Release notes](../releases/v2.33.0.md)
+
+The tag points to `0409f7dce4f53065821cbac244fd2ae41761bec7`. All six
+binaries matched the published checksums and tagged build metadata. The Linux
+amd64 asset and a direct Go consumer passed the instruction lifecycle smoke.
+[Forgejo workflow](https://forge.harakara.site/littleisland/noe/actions/runs/76)
+
+The verified asset is installed at `/home/agent/.local/bin/noe` and
+`/home/agent/projects/noe/noe`. Both report `noe v2.33.0` and match SHA256
+`54355b8882717d9b65d56201c1be1bce172cb65cf0aff1fb43e800c8ec6f7549`.
+PATH resolves to the former. Previous v2.32.2 binaries are retained in
+`/var/tmp/noe-v2.33.0-install-h5daf_sq`.
+[Publication and installation record](../releases/release-checkpoints.md#v2330-publication-and-installation--2026-11-24)
+
+## Previous release — v2.32.2 published and installed
 
 This release updates go-quickjs to v0.43.0 and refreshes the provider, SQLite,
 image, and system dependencies. Standard builds have JIT and CGO disabled.
