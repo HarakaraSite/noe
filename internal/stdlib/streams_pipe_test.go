@@ -46,7 +46,7 @@ func TestStreamsPipeToAbortPendingReadAndPreserveFalsyReason(t *testing.T) {
 	}
 }
 
-func TestStreamsPipeToAbortPendingWriteStartsActionsConcurrently(t *testing.T) {
+func TestStreamsPipeToAbortWaitsForPendingWrite(t *testing.T) {
 	out, _ := run(t, stdlib.Config{}, `
 ;(async () => {
   const deferred = () => {
@@ -56,6 +56,8 @@ func TestStreamsPipeToAbortPendingWriteStartsActionsConcurrently(t *testing.T) {
   };
   const writeStarted = deferred();
   const finishWrite = deferred();
+  const abortStarted = deferred();
+  const cancelStarted = deferred();
   const finishAbort = deferred();
   const finishCancel = deferred();
   const controller = new AbortController();
@@ -68,6 +70,7 @@ func TestStreamsPipeToAbortPendingWriteStartsActionsConcurrently(t *testing.T) {
     cancel(value) {
       if (value !== reason) throw Error("source cancel reason");
       sourceCancelStarted = true;
+      cancelStarted.resolve();
       return finishCancel.promise;
     },
   }, {highWaterMark: 0});
@@ -76,23 +79,24 @@ func TestStreamsPipeToAbortPendingWriteStartsActionsConcurrently(t *testing.T) {
     abort(value) {
       if (value !== reason) throw Error("sink abort reason");
       sinkAbortStarted = true;
+      abortStarted.resolve();
       return finishAbort.promise;
     },
   });
   const piping = source.pipeTo(sink, {signal: controller.signal});
   await writeStarted.promise;
   controller.abort(reason);
-  if (!sourceCancelStarted || !sinkAbortStarted) throw Error("shutdown actions were not started together");
   let settled = false;
   piping.then(() => { settled = true; }, () => { settled = true; });
   await Promise.resolve();
+  if (sourceCancelStarted || sinkAbortStarted || settled) throw Error("shutdown overtook an in-flight write");
+  finishWrite.resolve();
+  await Promise.all([abortStarted.promise, cancelStarted.promise]);
   if (settled) throw Error("pipe completed before its cancellation actions settled");
   finishAbort.resolve();
+  await Promise.resolve();
+  if (settled) throw Error("pipe completed before source cancellation settled");
   finishCancel.resolve();
-	await Promise.resolve();
-	await Promise.resolve();
-	if (settled) throw Error("pipe completed before its in-flight write settled");
-	finishWrite.resolve();
   const failure = await piping.then(() => undefined, error => error);
   if (failure !== reason) throw Error("pipe did not preserve abort reason");
   if (source.locked || sink.locked) throw Error("abort left a stream locked");
@@ -100,6 +104,73 @@ func TestStreamsPipeToAbortPendingWriteStartsActionsConcurrently(t *testing.T) {
 })()
 `)
 	if out != "pending write abort ok" {
+		t.Fatalf("output = %q", out)
+	}
+}
+
+func TestStreamsPipeToAbortDuringPullDrainsOnlyAcceptedChunk(t *testing.T) {
+	out, _ := run(t, stdlib.Config{}, `
+;(async () => {
+  for (const queued of [false, true]) {
+    const controller = new AbortController(), reason = Error("stop during pull");
+    const actions = [];
+    let rejectedLateChunk = false;
+    const source = new ReadableStream({
+      start(c) { if (queued) c.enqueue("queued chunk"); },
+      pull(c) {
+        controller.abort(reason);
+        if (!queued) {
+          try { c.enqueue("late chunk"); }
+          catch (error) { rejectedLateChunk = error instanceof TypeError; }
+        }
+      },
+      cancel() { actions.push("cancel"); },
+    }, {highWaterMark: queued ? 1 : 0});
+    const sink = new WritableStream({
+      write(chunk) { actions.push(chunk); },
+      abort() { actions.push("abort"); },
+    });
+    const failure = await source.pipeTo(sink, {signal: controller.signal}).then(() => undefined, error => error);
+    if (failure !== reason) throw Error("abort reason was lost");
+    const expected = queued ? "queued chunk,abort,cancel" : "abort,cancel";
+    if (actions.join() !== expected || (!queued && !rejectedLateChunk)) throw Error("shutdown order: " + actions.join());
+  }
+  console.log("abort during pull ok");
+})()
+`)
+	if out != "abort during pull ok" {
+		t.Fatalf("output = %q", out)
+	}
+}
+
+func TestStreamsPipeToAbortClosesSourceBeforeCancelHook(t *testing.T) {
+	out, _ := run(t, stdlib.Config{}, `
+;(async () => {
+  const aborter = new AbortController();
+  const reason = new Error("stop pipe");
+  let startPull, controller, enqueueError, writes = 0, cancels = 0;
+  const pulled = new Promise(resolve => { startPull = resolve; });
+  const source = new ReadableStream({
+    start(value) { controller = value; },
+    pull() { startPull(); return new Promise(() => {}); },
+    cancel() {
+      cancels++;
+      try { controller.enqueue("late"); } catch (error) { enqueueError = error; }
+    },
+  }, {highWaterMark: 0});
+  const sink = new WritableStream({write() { writes++; }});
+  const piping = source.pipeTo(sink, {signal: aborter.signal, preventAbort: true});
+  await pulled;
+  aborter.abort(reason);
+  const failure = await piping.then(() => undefined, error => error);
+  if (failure !== reason || cancels !== 1 || writes !== 0 || !(enqueueError instanceof TypeError)) {
+    throw Error("source accepted a chunk during cancellation");
+  }
+  if (source.locked || sink.locked) throw Error("abort left a stream locked");
+  console.log("source closed before cancel");
+})()
+`)
+	if out != "source closed before cancel" {
 		t.Fatalf("output = %q", out)
 	}
 }
@@ -175,32 +246,35 @@ func TestStreamsPipeToUnlocksOnWriterAcquisitionFailure(t *testing.T) {
 	}
 }
 
-func TestStreamsPipeToUnlocksOnSignalListenerErrors(t *testing.T) {
-	for _, phase := range []string{"register", "cleanup"} {
-		t.Run(phase, func(t *testing.T) {
-			out, _ := run(t, stdlib.Config{}, fmt.Sprintf(`
+func TestStreamsPipeToUsesInternalAbortState(t *testing.T) {
+	out, _ := run(t, stdlib.Config{}, `
 ;(async () => {
-  const reason = Error("%s failure");
-  const signal = new AbortController().signal;
-  if (%q === "register") {
-    signal.addEventListener = () => { throw reason; };
-  } else {
-    const add = signal.addEventListener;
-    signal.addEventListener = function(type, listener) { return add.call(this, type, listener); };
-    signal.removeEventListener = () => { throw reason; };
+  const controller = new AbortController(), {signal} = controller;
+  const reason = Error("stop"), unexpected = () => { throw Error("public signal member invoked"); };
+  signal.addEventListener("abort", event => event.stopImmediatePropagation());
+  for (const name of ["addEventListener", "removeEventListener", "aborted", "reason"]) {
+    Object.defineProperty(signal, name, {get: unexpected});
   }
-  const source = ReadableStream.from([]);
-  const sink = new WritableStream();
-  const failure = await source.pipeTo(sink, {signal}).then(() => undefined, error => error);
-  if (failure !== reason) throw Error("signal method failure was lost");
-  if (source.locked || sink.locked) throw Error("signal method failure leaked a stream lock");
-  console.log("signal %s cleanup ok");
+  let didPull, cancels = 0, aborts = 0;
+  const pulling = new Promise(resolve => { didPull = resolve; });
+  const source = new ReadableStream({
+    pull() { didPull(); },
+    cancel(value) { if (value !== reason) throw Error("source reason"); cancels++; },
+  }, {highWaterMark: 0});
+  const sink = new WritableStream({abort(value) { if (value !== reason) throw Error("sink reason"); aborts++; }});
+  const piping = source.pipeTo(sink, {signal});
+  signal.dispatchEvent(new Event("abort"));
+  await Promise.race([pulling, piping]);
+  if (cancels || aborts) throw Error("synthetic event interrupted the pipe");
+  controller.abort(reason);
+  if (await piping.then(() => undefined, error => error) !== reason) throw Error("controller abort was ignored");
+  if (cancels !== 1 || aborts !== 1 || source.locked || sink.locked) throw Error("pipe cleanup failed");
+  console.log("internal pipe abort ok");
 })()
-`, phase, phase, phase))
-			if out != "signal "+phase+" cleanup ok" {
-				t.Fatalf("output = %q", out)
-			}
-		})
+
+`)
+	if out != "internal pipe abort ok" {
+		t.Fatalf("output = %q", out)
 	}
 }
 

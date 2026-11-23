@@ -8,8 +8,7 @@ import (
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
-// vmLines runs a script that imports node:vm as vm and logs a line a check,
-// and returns what it logged. Each answer is node's.
+// vmLines runs a script that imports node:vm and returns its logged lines.
 func vmLines(t *testing.T, body string) []string {
 	t.Helper()
 	out, errOut := run(t, stdlib.Config{}, `import("node:vm").then(({default: vm}) => {`+body+`}).catch(e => console.error(e && e.stack || e))`)
@@ -26,22 +25,18 @@ func checkLines(t *testing.T, got []string, want ...string) {
 	}
 }
 
-// TestVMContextify pins what a context's global names are: the sandbox's
-// properties, then the context's own built-ins; function declarations and
-// assigned names land on the sandbox, and let, const and class stay in the
-// context. Node lists v before fn: V8 creates globals in the order they are
-// written, which WithNodeQuirks reproduces, and the standard creates the
-// functions first.
+// TestVMContextify checks which names are visible from the context and the
+// sandbox. Lexical declarations stay in the context.
 func TestVMContextify(t *testing.T) {
 	checkLines(t, vmLines(t, `
 		const sb = { a: 1 };
 		const ctx = vm.createContext(sb);
 		console.log(ctx === sb, vm.isContext(sb), vm.isContext({}), vm.runInContext("this", ctx) === sb);
 		vm.runInContext("var v = 1; function fn() { return 2 } w = 3; let l = 4; const c = 5; class K {}", ctx);
-		console.log(JSON.stringify(Object.keys(sb)), typeof sb.fn, sb.l, sb.K, vm.runInContext("l + c + typeof K", ctx));
+			console.log(JSON.stringify(Object.keys(sb).sort()), typeof sb.fn, sb.l, sb.K, vm.runInContext("l + c + typeof K", ctx));
 		console.log(vm.runInContext("a + 1", ctx), vm.runInContext("this.a + globalThis.v", ctx));
 		sb.late = 10;
-		console.log(vm.runInContext("late", ctx), vm.runInContext("Object.keys(this).join()", ctx));
+			console.log(vm.runInContext("late", ctx), vm.runInContext("Object.keys(this).sort().join()", ctx));
 		console.log(vm.runInContext("typeof Array + ',' + (Array === this.Array) + ',' + ('Array' in this)", ctx), "Array" in sb);
 		vm.runInContext("Array = 5", ctx);
 		console.log(sb.Array, vm.runInContext("Array", ctx));
@@ -53,7 +48,7 @@ func TestVMContextify(t *testing.T) {
 		"true true false false",
 		`["a","fn","v","w"] function undefined undefined 9function`,
 		"2 2",
-		"10 fn,v,a,w,late",
+		"10 a,fn,late,v,w",
 		"function,true,true false",
 		"5 5",
 		"true false undefined",

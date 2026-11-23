@@ -19,6 +19,31 @@ func nativeResponseFixture(output string) string {
 	return `{"id":"response-1","object":"response","created_at":1,"status":"completed","model":"fixture/model","error":null,"incomplete_details":null,"parallel_tool_calls":true,"tool_choice":"auto","tools":[],"output":` + output + `,"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7}}`
 }
 
+func TestCompletedResponsesRefusalRetainsNativeOutput(t *testing.T) {
+	output := `[
+		{"type":"reasoning","id":"rs_1","encrypted_content":"opaque","provider_extension":{"keep":true}},
+		{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[
+			{"type":"output_text","text":"Partial answer"},
+			{"type":"refusal","refusal":"provider refusal reason"}
+		]}
+	]`
+	response, err := responseFromNative(json.RawMessage(nativeResponseFixture(output)), "streamed duplicate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var message struct {
+		Content string          `json:"content"`
+		Refusal string          `json:"refusal"`
+		Items   json.RawMessage `json:"_noe_response_items"`
+	}
+	if err := json.Unmarshal(response.Message, &message); err != nil {
+		t.Fatal(err)
+	}
+	if response.FinishReason != "stop" || message.Refusal != "provider refusal reason" || message.Content != "Partial answer" || !sameJSONDocument(string(message.Items), output) {
+		t.Fatalf("completed refusal lost native output or text: %s", response.Message)
+	}
+}
+
 func TestConfiguredResponsesCancellationClosesBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -138,7 +163,7 @@ func TestResponsesJavaScriptCustomToolRoundTripWithMixedCalls(t *testing.T) {
 
 	rawInput := "console.log(\"x\")\nconst result = 42;"
 	output := `[{"id":"rs-1","type":"reasoning","summary":[],"encrypted_content":"opaque-reasoning","provider_extra":{"keep":true}},{"id":"ct-1","type":"custom_tool_call","status":"completed","call_id":"custom-1","name":"run_js","input":` + mustJSON(rawInput) + `,"provider_extra":{"keep":true}},{"id":"fc-1","type":"function_call","status":"completed","call_id":"function-1","name":"lookup","arguments":"{\"query\":\"x\"}","provider_extra":17}]`
-	response, err := responseFromNative(json.RawMessage(nativeResponseFixture(output)))
+	response, err := responseFromNative(json.RawMessage(nativeResponseFixture(output)), "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ func TestPipeInvalidSignalDoesNotAcquireStreams(t *testing.T) {
 		"{addEventListener(){}}", "{removeEventListener(){}}",
 		"{addEventListener:1,removeEventListener(){}}",
 		"{addEventListener(){},removeEventListener:1}",
+		"Object.create(AbortSignal.prototype)", "new Proxy(new AbortController().signal,{})",
 	} {
 		t.Run(signal, func(t *testing.T) {
 			rt, _, loop := streamRuntime(t, Options{})
@@ -56,16 +57,19 @@ if(error!==reason||source.locked||destination.locked||reads||writes||cancels!==1
   throw Error("pre-aborted pipe");`)
 }
 
-func TestPipeSignalCleanupFailureReleasesLocks(t *testing.T) {
+func TestPipeSignalCleanupReleasesLocks(t *testing.T) {
 	rt, _, loop := streamRuntime(t, Options{})
 	evalStreams(t, rt, loop, `
-const reason=new Error("remove listener failed");
-const signal=new AbortController().signal;
-signal.removeEventListener=()=>{throw reason;};
+const controller=new AbortController(),{signal}=controller;
+signal.removeEventListener=()=>{throw Error("public listener cleanup");};
 const source=new ReadableStream({pull(c){c.close();}},{highWaterMark:0});
-const destination=new WritableStream();
-let error;
-try {await source.pipeTo(destination,{signal});} catch(e) {error=e;}
-if(error!==reason||source.locked||destination.locked)
-  throw Error("cleanup left locks: "+JSON.stringify({source:source.locked,destination:destination.locked}));`)
+let writes=0;
+const destination=new WritableStream({write(){writes++;}});
+await source.pipeTo(destination,{signal,preventClose:true});
+if(source.locked||destination.locked)throw Error("cleanup left locks");
+controller.abort();
+const writer=destination.getWriter();
+await writer.write("still writable");
+writer.releaseLock();
+if(writes!==1)throw Error("completed pipe changed its destination");`)
 }

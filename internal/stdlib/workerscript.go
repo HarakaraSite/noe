@@ -167,7 +167,7 @@ const workerJS = `(function (host) {
     [kEvent](type, value) {
       if (type !== "error") return;
       const message = value !== null && typeof value === "object" && "message" in value ? String(value.message) : String(value);
-      if (this.dispatchEvent(new ErrorEvent("error", {message, error: value, cancelable: true}))) throw value;
+      if (this.dispatchEvent(new ErrorEvent("error", {message, error: null, cancelable: true}))) throw value;
     }
   };
 

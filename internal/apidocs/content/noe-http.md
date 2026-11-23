@@ -96,6 +96,8 @@ import { createWebSocket } from "noe:http";
 
 `createWebSocket(url, options?) -> WebSocket` constructs and returns the same `WebSocket` type as the global constructor, synchronously in the `CONNECTING` state. `options` supports `protocols` (`string` or a read-only string array) and `headers` (`HeadersInit`). Use this helper when the opening handshake needs custom headers. It uses NOE's existing WebSocket backend, URL policy, TLS configuration, handshake timeout, permissions, and runtime ownership. The WebSocket's events report connection progress; returning from `createWebSocket` does not mean the connection is ready.
 
+Use a `ws:` or `wss:` URL with `createWebSocket`.
+
 ```js
 import { createWebSocket } from "noe:http";
 

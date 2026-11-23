@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	jsonv1 "encoding/json"
+	json "encoding/json/v2"
 )
 
 // Request is one chat completion request. Messages and Tools contain complete
@@ -46,6 +47,18 @@ type Response struct {
 	Message      jsonv1.RawMessage `json:"message"`
 	FinishReason string            `json:"finishReason"`
 	Usage        jsonv1.RawMessage `json:"usage,omitzero"`
+}
+
+func refusalResponse(text string, finishReason string, usage jsonv1.RawMessage) (Response, error) {
+	message, err := json.Marshal(struct {
+		Role    string `json:"role"`
+		Content any    `json:"content"`
+		Refusal string `json:"refusal"`
+	}{Role: "assistant", Refusal: text})
+	if err != nil {
+		return Response{}, providerError(ErrorResponse, 0, nil)
+	}
+	return Response{Message: message, FinishReason: finishReason, Usage: usage}, nil
 }
 
 // Provider generates one assistant response for a chat history.

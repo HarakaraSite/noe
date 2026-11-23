@@ -375,7 +375,7 @@ func TestGenerationDoesNotRetryExplicitResponsesFailure(t *testing.T) {
 
 func TestGenerationRetriesTemporaryResponsesFailureCodes(t *testing.T) {
 	for _, sdk := range []string{"openrouter", "openai"} {
-		for _, code := range []string{"subscription_sharing_usage_unavailable", "subscription_sharing_user_unavailable", "user_unavailable"} {
+		for _, code := range []string{"server_error", "subscription_sharing_usage_unavailable", "subscription_sharing_user_unavailable", "user_unavailable"} {
 			t.Run(sdk+"/"+code, func(t *testing.T) {
 				key := writeTestKey(t)
 				synctest.Test(t, func(t *testing.T) {
@@ -423,6 +423,7 @@ func TestGenerationClassifiesResponsesTopLevelErrorCodes(t *testing.T) {
 			wantCalls int
 		}{
 			{code: "insufficient_quota", kind: ErrorQuota, wantCalls: 1},
+			{code: "server_error", kind: ErrorTransport, wantCalls: 2},
 			{code: "subscription_sharing_usage_unavailable", kind: ErrorTransport, wantCalls: 2},
 			{code: "user_unavailable", kind: ErrorTransport, wantCalls: 2},
 		} {
@@ -465,5 +466,70 @@ func TestGenerationClassifiesResponsesTopLevelErrorCodes(t *testing.T) {
 				})
 			})
 		}
+	}
+}
+
+func TestOpenRouterClassifiesTypedErrorsAfterHTTP200(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		api      string
+		response string
+		kind     ErrorKind
+		retry    bool
+	}{
+		{"responses overload", "responses", `"provider_overloaded"`, ErrorTransport, true},
+		{"responses authentication", "responses", `"authentication"`, ErrorAuthentication, false},
+		{"responses quota", "responses", `"payment_required"`, ErrorQuota, false},
+		{"responses validation", "responses", `"invalid_prompt"`, ErrorResponse, false},
+		{"chat overload", "chat-completions", `"code":503,"metadata":{"error_type":"provider_overloaded"}`, ErrorTransport, true},
+		{"chat authentication", "chat-completions", `"code":401,"metadata":{"error_type":"authentication"}`, ErrorAuthentication, false},
+		{"chat quota", "chat-completions", `"code":402,"metadata":{"error_type":"payment_required"}`, ErrorQuota, false},
+		{"chat rate limit", "chat-completions", `"code":429,"metadata":{"error_type":"rate_limit_exceeded"}`, ErrorRateLimit, true},
+		{"chat typed policy", "chat-completions", `"code":403,"metadata":{"error_type":"content_policy_violation"}`, ErrorResponse, false},
+		{"chat numeric fallback", "chat-completions", `"code":502`, ErrorTransport, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			key := writeTestKey(t)
+			synctest.Test(t, func(t *testing.T) {
+				const chatChunk = `{"id":"gen-test","object":"chat.completion.chunk","created":1,"model":"test/model","provider":"Fixture",`
+				var failed, completed string
+				if test.api == "responses" {
+					response := strings.Replace(nativeResponseFixture(`[]`), `"status":"completed"`, `"status":"failed"`, 1)
+					response = strings.Replace(response, `"error":null`, `"error":{"code":"server_error","message":"private diagnostic"},"error_type":`+test.response, 1)
+					failed = `{"type":"response.failed","sequence_number":1,"response":` + response + "}"
+					output := `[{"id":"msg","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"recovered","annotations":[]}]}]`
+					completed = `{"type":"response.completed","sequence_number":1,"response":` + nativeResponseFixture(output) + "}"
+				} else {
+					failed = chatChunk + `"error":{"message":"private diagnostic",` + test.response + `},"choices":[{"index":0,"delta":{"content":""},"finish_reason":"error"}]}`
+					completed = chatChunk + `"choices":[{"index":0,"delta":{"role":"assistant","content":"recovered"},"finish_reason":"stop"}]}` + "\n\ndata: [DONE]"
+				}
+				calls := 0
+				started := time.Now()
+				client := retryHTTPClient(func(*http.Request) (*http.Response, error) {
+					calls++
+					event := failed
+					if calls > 1 {
+						event = completed
+					}
+					headers := http.Header{"Content-Type": {"text/event-stream"}, "Retry-After-Ms": {"25"}}
+					if test.kind == ErrorAuthentication || test.kind == ErrorQuota {
+						headers.Set("X-Should-Retry", "true")
+					}
+					return &http.Response{StatusCode: http.StatusOK, Header: headers, Body: io.NopCloser(strings.NewReader("data: " + event + "\n\n"))}, nil
+				})
+				p := NewOpenRouter(Options{KeyFile: key, BaseURL: "http://fixture.invalid", HTTPClient: client, Profile: &Definition{API: test.api, Path: "/fixture"}})
+				result, err := p.Generate(t.Context(), testRequest())
+				if test.retry {
+					if calls != 2 || time.Since(started) != 25*time.Millisecond || err != nil || !strings.Contains(string(result.Message), "recovered") {
+						t.Fatalf("attempts=%d elapsed=%v response=%s err=%v", calls, time.Since(started), result.Message, err)
+					}
+					return
+				}
+				assertProviderError(t, err, test.kind)
+				if calls != 1 || strings.Contains(err.Error(), "private diagnostic") {
+					t.Fatalf("attempts=%d err=%v", calls, err)
+				}
+			})
+		})
 	}
 }

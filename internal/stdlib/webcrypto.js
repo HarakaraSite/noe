@@ -33,6 +33,7 @@
   const dataViewByteLengthGetter = objectGetOwnPropertyDescriptor(dataViewPrototype, "byteLength").get;
   const arrayBufferByteLengthGetter = objectGetOwnPropertyDescriptor(ArrayBufferCtor.prototype, "byteLength").get;
   const arrayBufferResizableGetter = objectGetOwnPropertyDescriptor(ArrayBufferCtor.prototype, "resizable").get;
+  const arrayBufferDetachedGetter = objectGetOwnPropertyDescriptor(ArrayBufferCtor.prototype, "detached").get;
   const sharedByteLengthGetter = typeof SharedArrayBuffer === "function"
     ? objectGetOwnPropertyDescriptor(SharedArrayBuffer.prototype, "byteLength").get
     : null;
@@ -180,51 +181,45 @@
     }
   }
 
-  function bufferSourceParts(value) {
-    if (arrayBufferIsView(value)) {
-      let buffer, offset, byteLength;
-      try {
-        buffer = reflectApply(dataViewBufferGetter, value, []);
-        offset = reflectApply(dataViewOffsetGetter, value, []);
-        byteLength = reflectApply(dataViewByteLengthGetter, value, []);
-      } catch (_) {
-        try {
-          buffer = reflectApply(typedArrayBufferGetter, value, []);
-          offset = reflectApply(typedArrayOffsetGetter, value, []);
-          byteLength = reflectApply(typedArrayByteLengthGetter, value, []);
-        } catch (_) {
-          throw new TypeErrorCtor("The value is not a valid BufferSource");
-        }
-      }
-      return {buffer, offset, byteLength};
-    }
-    let byteLength;
-    try {
-      byteLength = reflectApply(arrayBufferByteLengthGetter, value, []);
-    } catch (_) {
-      throw new TypeErrorCtor("The value is not a valid BufferSource");
-    }
-    return {buffer: value, offset: 0, byteLength};
+  function bufferSourceBacking(value) {
+    if (!arrayBufferIsView(value)) return value;
+    try { return reflectApply(dataViewBufferGetter, value, []); }
+    catch (_) { return reflectApply(typedArrayBufferGetter, value, []); }
   }
 
-  function copyBufferSource(value) {
-    const {buffer, offset, byteLength} = bufferSourceParts(value);
+  function bufferSourceLength(buffer) {
     if (isSharedArrayBuffer(buffer)) {
       throw new TypeErrorCtor("SharedArrayBuffer-backed BufferSource values are not supported");
     }
+    let byteLength;
+    try { byteLength = reflectApply(arrayBufferByteLengthGetter, buffer, []); }
+    catch (_) { throw new TypeErrorCtor("The value is not a valid BufferSource"); }
+
     // Web Crypto's BufferSource types do not opt into Web IDL AllowResizable.
     // An out-of-bounds DataView now reports zero lengths, so those getters
     // alone cannot distinguish it from a valid empty view.
     if (reflectApply(arrayBufferResizableGetter, buffer, [])) {
       throw new TypeErrorCtor("Resizable ArrayBuffer-backed BufferSource values are not supported");
     }
-    let source;
-    try {
-      // Constructing a view also detects a detached zero-length buffer.
-      source = new Uint8ArrayCtor(buffer, offset, byteLength);
-    } catch (_) {
-      throw new TypeErrorCtor("The BufferSource is detached or invalid");
+    return byteLength;
+  }
+
+  function copyBufferSource(value) {
+    const buffer = bufferSourceBacking(value);
+    let byteLength = bufferSourceLength(buffer);
+    if (reflectApply(arrayBufferDetachedGetter, buffer, [])) return emptyBytes;
+
+    let offset = 0;
+    if (buffer !== value) {
+      try {
+        offset = reflectApply(dataViewOffsetGetter, value, []);
+        byteLength = reflectApply(dataViewByteLengthGetter, value, []);
+      } catch (_) {
+        offset = reflectApply(typedArrayOffsetGetter, value, []);
+        byteLength = reflectApply(typedArrayByteLengthGetter, value, []);
+      }
     }
+    const source = new Uint8ArrayCtor(buffer, offset, byteLength);
     const copy = new Uint8ArrayCtor(byteLength);
     reflectApply(typedArraySet, copy, [source]);
     return copy;
@@ -353,11 +348,7 @@
       // Web IDL rejects disallowed buffer backing during argument conversion.
       // A regular BufferSource keeps its union category until importKey has
       // normalized the algorithm; that later format check is ordered separately.
-      const parts = bufferSourceParts(value);
-      if (isSharedArrayBuffer(parts.buffer) || reflectApply(arrayBufferResizableGetter, parts.buffer, [])) {
-        throw new TypeErrorCtor("Shared or resizable BufferSource values are not supported");
-      }
-      new Uint8ArrayCtor(parts.buffer, parts.offset, parts.byteLength);
+      bufferSourceLength(bufferSourceBacking(value));
       return jwkBufferSource;
     }
     if (value === undefined || value === null) value = objectCreate(null);

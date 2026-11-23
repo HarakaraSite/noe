@@ -23,8 +23,26 @@ check(await new Blob(["a\r\nb\rc\n"],{endings:"native"}).text() === ["a","b","c"
 check(await new Blob(["a\r\nb\rc\n"]).text() === "a\r\nb\rc\n", "transparent text endings");
 const backing = new Uint8Array([0,65,66,0]);
 check(await new Blob([new DataView(backing.buffer,1,2)]).text() === "AB", "DataView byte offset and length");
-const detached = new ArrayBuffer(2); structuredClone(detached,{transfer:[detached]});
-throws("TypeError", () => new Blob([detached]));
+const detached = new ArrayBuffer(4);
+const detachedParts = [detached, new Uint8Array(detached, 1, 2), new DataView(detached, 1, 2)];
+detached.transfer();
+for (const part of detachedParts) {
+  check(new Blob([part]).size === 0, "detached Blob part is empty");
+  check(await new File(["a", part, "b"], "test").text() === "ab", "detached File part is empty");
+}
+const detachedInOptions = new Uint8Array([65]);
+check(await new Blob([detachedInOptions, "b"], {get type() {detachedInOptions.buffer.transfer(); return "text/plain";}}).text() === "b",
+  "Blob samples bytes after options conversion");
+const detachedInName = new ArrayBuffer(2);
+check(new File([new DataView(detachedInName)], {toString() {detachedInName.transfer(); return "test";}}).size === 0,
+  "File samples bytes after filename conversion");
+const resizable = new ArrayBuffer(4, {maxByteLength: 8});
+const outOfBounds = new DataView(resizable, 2, 2);
+resizable.resize(1);
+for (const part of [resizable, new Uint8Array(resizable), outOfBounds, new Uint8Array(new SharedArrayBuffer(2))]) {
+  throws("TypeError", () => new Blob([part]));
+  throws("TypeError", () => new File([part], "test"));
+}
 throws("TypeError", () => new File()); throws("TypeError", () => new File([]));
 const file = new File(["value"], "\ud800.txt", {type: "TEXT/PLAIN", lastModified: 42});
 check(file.name === "\ufffd.txt" && file.lastModified === 42 && file.type === "text/plain", "File metadata");

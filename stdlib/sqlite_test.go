@@ -127,12 +127,19 @@ check((await db.get("SELECT value FROM data")).value===3,"connection not usable 
 func TestSQLiteCancellationKeepsEventLoopAndConnectionUsable(t *testing.T) {
 	executeSQLite(t, stdlib.Profile{}, `
 await using db=await open();const controller=new AbortController(),reason={cancelled:true};let ticked=false;
+const synthetic=new AbortController();
+const shortQuery=db.get("SELECT 42 AS value",[],{signal:synthetic.signal});
+synthetic.signal.dispatchEvent(new Event("abort"));
+check(!synthetic.signal.aborted&&(await shortQuery).value===42,"synthetic event cancelled a query");
+controller.signal.addEventListener("abort",event=>event.stopImmediatePropagation());
+Object.defineProperty(controller.signal,"reason",{value:"shadowed"});
 const task=db.get("WITH RECURSIVE t(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM t WHERE n<1000000000) SELECT sum(n) FROM t",[],{signal:controller.signal});
 setTimeout(()=>{ticked=true;controller.abort(reason)},1);
 try{await task;throw Error("long query completed")}catch(error){check(error===reason,"abort reason lost")}
 check(ticked,"SQL blocked the timer");
 check((await db.get("SELECT 42 AS value")).value===42,"connection not recovered after interrupt");
 const transactionController=new AbortController();let started;
+transactionController.signal.addEventListener("abort",event=>event.stopImmediatePropagation());
 const ready=new Promise(resolve=>{started=resolve});
 const transaction=db.transaction(async tx=>{await tx.exec("CREATE TABLE rolled_back(value)");started();await new Promise(()=>{})},{signal:transactionController.signal});
 await ready;transactionController.abort("transaction cancelled");

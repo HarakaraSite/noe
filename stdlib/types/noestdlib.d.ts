@@ -1068,7 +1068,7 @@ declare namespace NOEStdlib {
     json(): Promise<unknown>;
     text(): Promise<string>;
   }
-  interface RequestInit { method?: string; headers?: HeadersInit; body?: BodyInit | null; signal?: AbortSignal; redirect?: string; credentials?: string; mode?: string }
+  interface RequestInit { method?: string; headers?: HeadersInit; body?: BodyInit | null; signal?: AbortSignal | null; redirect?: string; credentials?: string; mode?: string }
   interface Request extends Body {
     readonly url: string;
     readonly method: string;

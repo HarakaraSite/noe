@@ -46,6 +46,28 @@ func packetPromise(t *testing.T, operation quickjs.Value) quickjs.Value {
 	return promise
 }
 
+func TestUDPReceiveIgnoresSyntheticAbortAndPreservesActualReason(t *testing.T) {
+	rt, _ := netRuntime(t, t.TempDir(), nil)
+	got := awaitNet(t, evalNet(t, rt, `(async()=>{
+  const {bind}=await import("noe:sockets");
+  await using receiver=await bind({network:"udp",host:"127.0.0.1",port:0});
+  await using sender=await bind({network:"udp",host:"127.0.0.1",port:0});
+  const controller=new AbortController();
+  const received=receiver.receive({signal:controller.signal});
+  controller.signal.dispatchEvent(new Event("abort"));
+  await sender.send(Uint8Array.of(42),receiver.address);
+  if(controller.signal.aborted||(await received).data[0]!==42)throw Error("synthetic abort cancelled receive");
+  controller.signal.addEventListener("abort",event=>event.stopImmediatePropagation());
+  const pending=receiver.receive({signal:controller.signal}).then(()=>"received",error=>error);
+  controller.abort(0);
+  if(await pending!==0)throw Error("actual abort reason was lost");
+  return "ok";
+})()`))
+	if got.String() != "ok" {
+		t.Fatalf("receive result = %v", got)
+	}
+}
+
 func TestUDPPendingBindCloseReclaimsResultWithoutOwnerDelivery(t *testing.T) {
 	rt, h := netRuntime(t, t.TempDir(), nil)
 	conn := testUDPConn(t)

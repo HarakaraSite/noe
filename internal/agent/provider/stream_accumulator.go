@@ -3,7 +3,6 @@ package provider
 import (
 	jsonv1 "encoding/json"
 	json "encoding/json/v2"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -38,6 +37,9 @@ type toolCallAccumulator struct {
 }
 
 type reasoningDetailAccumulator struct {
+	kind      string
+	id        string
+	key       string
 	fields    map[string]jsonv1.RawMessage
 	fragments map[string]*strings.Builder
 }
@@ -64,7 +66,7 @@ func (a *streamAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 		return fmt.Errorf("invalid SSE event")
 	}
 	if len(chunk.Error) > 0 && string(chunk.Error) != "null" {
-		return errors.New("provider returned an SSE error event")
+		return providerError(chatStreamErrorKind(chunk.Error), 0, nil)
 	}
 	if len(chunk.Usage) > 0 && string(chunk.Usage) != "null" {
 		a.usage = append(a.usage[:0], chunk.Usage...)
@@ -141,20 +143,75 @@ func (a *streamAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 	return nil
 }
 
+func chatStreamErrorKind(raw jsonv1.RawMessage) ErrorKind {
+	var failure struct {
+		Code     jsonv1.RawMessage `json:"code"`
+		Type     string            `json:"type"`
+		Metadata struct {
+			ErrorType string `json:"error_type"`
+		} `json:"metadata"`
+	}
+	if json.Unmarshal(raw, &failure) == nil {
+		if kind := openRouterErrorKind(failure.Metadata.ErrorType); kind != "" {
+			return kind
+		}
+		var code string
+		_ = json.Unmarshal(failure.Code, &code)
+		if kind := providerFailureCodeKind(code, failure.Type); kind != "" {
+			return kind
+		}
+		var status int
+		if json.Unmarshal(failure.Code, &status) == nil && status >= 400 && status < 600 {
+			return classifyHTTPError(status, nil).Kind
+		}
+	}
+	return ErrorResponse
+}
+
 func (a *streamAccumulator) consumeReasoningDetails(raw jsonv1.RawMessage) error {
 	var details []map[string]jsonv1.RawMessage
 	if err := json.Unmarshal(raw, &details); err != nil {
 		return fmt.Errorf("invalid reasoning details")
 	}
 	for _, fields := range details {
+		var kind string
+		_ = json.Unmarshal(fields["type"], &kind)
+		if kind == "reasoning.encrypted" {
+			// Each encrypted entry is a complete opaque block.
+			a.reasonDetails = append(a.reasonDetails, &reasoningDetailAccumulator{kind: kind, fields: fields})
+			continue
+		}
 		key := reasoningDetailKey(fields)
-		detail := a.reasonByKey[key]
-		if key == "" || detail == nil {
-			detail = &reasoningDetailAccumulator{fields: make(map[string]jsonv1.RawMessage), fragments: make(map[string]*strings.Builder)}
+		var id string
+		_ = json.Unmarshal(fields["id"], &id)
+		var detail *reasoningDetailAccumulator
+		textDetail := kind == "reasoning.summary" || kind == "reasoning.text"
+		// Some upstreams reuse index 0 for every streamed block. A type
+		// transition starts a new block unless a provider supplies its ID.
+		if textDetail {
+			if id != "" {
+				detail = a.reasonByKey[kind+":id:"+id]
+			}
+			if detail == nil && len(a.reasonDetails) > 0 {
+				last := a.reasonDetails[len(a.reasonDetails)-1]
+				if last.kind == kind && (id == "" || last.id == "" || id == last.id) &&
+					(key == "" || last.key == "" || key == last.key) {
+					detail = last
+				}
+			}
+		} else if key != "" {
+			detail = a.reasonByKey[key]
+		}
+		if detail == nil {
+			detail = &reasoningDetailAccumulator{kind: kind, key: key, fields: make(map[string]jsonv1.RawMessage), fragments: make(map[string]*strings.Builder)}
 			a.reasonDetails = append(a.reasonDetails, detail)
-			if key != "" {
+			if !textDetail && key != "" {
 				a.reasonByKey[key] = detail
 			}
+		}
+		if textDetail && id != "" {
+			detail.id = id
+			a.reasonByKey[kind+":id:"+id] = detail
 		}
 		for field, value := range fields {
 			switch field {
@@ -255,10 +312,10 @@ func (a *streamAccumulator) response() (Response, error) {
 	if a.finishReason == "" {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
-	if a.finishReason != "stop" && a.finishReason != "tool_calls" {
-		return Response{}, providerError(ErrorResponse, 0, nil)
+	if strings.TrimSpace(a.refusal.String()) != "" {
+		return refusalResponse(a.refusal.String(), a.finishReason, a.usage)
 	}
-	if a.refusal.Len() > 0 {
+	if a.finishReason != "stop" && a.finishReason != "tool_calls" {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
 	if a.finishReason == "tool_calls" && len(a.toolCalls) == 0 {

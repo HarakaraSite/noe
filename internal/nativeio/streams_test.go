@@ -88,18 +88,25 @@ func (i *waitingInput) ReadContext(ctx context.Context, _ []byte) (int, error) {
 }
 
 type waitingOutput struct {
-	started chan struct{}
-	done    chan struct{}
+	started   chan struct{}
+	release   chan struct{}
+	done      chan struct{}
+	cancelled atomic.Bool
 }
 
 func (i *waitingOutput) Write([]byte) (int, error) {
 	return 0, errors.New("synchronous write was used")
 }
-func (i *waitingOutput) WriteContext(ctx context.Context, _ []byte) (int, error) {
+func (i *waitingOutput) WriteContext(ctx context.Context, chunk []byte) (int, error) {
 	close(i.started)
-	<-ctx.Done()
-	close(i.done)
-	return 0, ctx.Err()
+	defer close(i.done)
+	select {
+	case <-i.release:
+		return len(chunk), nil
+	case <-ctx.Done():
+		i.cancelled.Store(true)
+		return 0, ctx.Err()
+	}
 }
 
 func TestPipeAbortCancelsPendingRead(t *testing.T) {
@@ -129,8 +136,8 @@ if(stdin.locked||stdout.locked) throw Error("pipe left streams locked");`)
 	}
 }
 
-func TestPipeAbortCancelsPendingWrite(t *testing.T) {
-	out := &waitingOutput{make(chan struct{}), make(chan struct{})}
+func TestPipeAbortDrainsPendingWrite(t *testing.T) {
+	out := &waitingOutput{started: make(chan struct{}), release: make(chan struct{}), done: make(chan struct{})}
 	rt, _, loop := streamRuntime(t, Options{Stdin: bytes.NewReader([]byte{1}), Stdout: out})
 	_ = rt.Set("started", func() bool {
 		select {
@@ -140,15 +147,25 @@ func TestPipeAbortCancelsPendingWrite(t *testing.T) {
 			return false
 		}
 	})
+	_ = rt.Set("finishWrite", func() { close(out.release) })
 	evalStreams(t, rt, loop, `import {stdin,stdout} from "noe:process";
 const c=new AbortController(), reason=new Error("stop write");
 const p=stdin.pipeTo(stdout,{signal:c.signal});
-const check=()=>{if(started())c.abort(reason);else setTimeout(check,0)}; check();
+await new Promise(resolve=>{ const check=()=>{if(started())resolve();else setTimeout(check,0)}; check(); });
+c.abort(reason);
+let settled=false;
+p.then(()=>{settled=true;},()=>{settled=true;});
+await Promise.resolve();
+if(settled||!stdin.locked||!stdout.locked)throw Error("pipe finalized before pending write");
+finishWrite();
 try { await p; throw Error("resolved"); } catch(e) { if(e!==reason) throw e; }
 if(stdin.locked||stdout.locked) throw Error("pipe left streams locked");`)
 	select {
 	case <-out.done:
 	case <-time.After(time.Second):
-		t.Fatal("write did not stop")
+		t.Fatal("write did not finish")
+	}
+	if out.cancelled.Load() || rt.Busy() {
+		t.Fatalf("pending write was cancelled or native work remains: cancelled=%v busy=%v", out.cancelled.Load(), rt.Busy())
 	}
 }

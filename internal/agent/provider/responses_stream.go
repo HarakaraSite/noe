@@ -4,6 +4,7 @@ import (
 	jsonv1 "encoding/json"
 	json "encoding/json/v2"
 	"sort"
+	"strings"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/jsonutil"
 )
@@ -14,12 +15,26 @@ import (
 type responsesAccumulator struct {
 	items       map[int]jsonv1.RawMessage
 	envelope    map[string]jsonv1.RawMessage
-	completed   bool
+	terminal    bool
+	refusals    map[responsePartIndex]*responseRefusal
 	failureKind ErrorKind
 	err         error
 }
 
+type responsePartIndex struct {
+	output  int
+	content int
+}
+
+type responseRefusal struct {
+	deltas strings.Builder
+	final  string
+}
+
 func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
+	if a.terminal {
+		return a.err
+	}
 	var event struct {
 		Type        string            `json:"type"`
 		Response    jsonv1.RawMessage `json:"response"`
@@ -45,11 +60,9 @@ func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 		}
 		if json.Unmarshal(raw, &failure) == nil {
 			a.recordFailureKind(nativeResponseErrorKind(failure.Response))
-			if failure.Type == "error" {
-				a.recordFailureKind(providerFailureCodeKind(failure.Code, failure.Error.Code, failure.Error.Type))
-			}
+			a.recordEventFailure(failure.Type, failure.Code, failure.Error.Code, failure.Error.Type)
 		}
-		if !a.completed && a.err == nil {
+		if a.err == nil {
 			a.err = providerError(ErrorResponse, 0, nil)
 		}
 		return a.err
@@ -57,10 +70,8 @@ func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 	// Failure classification still observes later events after an assembly
 	// error. The SDK can read several events ahead in a single body.Read.
 	a.recordFailureKind(nativeResponseErrorKind(event.Response))
-	if event.Type == "error" {
-		a.recordFailureKind(providerFailureCodeKind(event.Code, event.Error.Code, event.Error.Type))
-	}
-	if a.completed || a.err != nil {
+	a.recordEventFailure(event.Type, event.Code, event.Error.Code, event.Error.Type)
+	if a.err != nil {
 		return a.err
 	}
 	switch event.Type {
@@ -73,9 +84,16 @@ func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 			a.items = make(map[int]jsonv1.RawMessage)
 		}
 		a.items[event.OutputIndex] = event.Item
-	case "response.completed":
+	case "response.refusal.delta", "response.refusal.done":
+		a.consumeRefusal(event.Type, event.OutputIndex, raw)
+	case "response.completed", "response.incomplete":
 		var envelope map[string]jsonv1.RawMessage
 		if json.Unmarshal(event.Response, &envelope) != nil || envelope == nil {
+			a.err = providerError(ErrorResponse, 0, nil)
+			return a.err
+		}
+		var status string
+		if json.Unmarshal(envelope["status"], &status) != nil || "response."+status != event.Type {
 			a.err = providerError(ErrorResponse, 0, nil)
 			return a.err
 		}
@@ -94,9 +112,34 @@ func (a *responsesAccumulator) consumeEvent(raw jsonv1.RawMessage) error {
 		// raw array representation until final response conversion.
 		delete(envelope, "output")
 		a.envelope = envelope
-		a.completed = true
+		a.terminal = true
 	}
 	return nil
+}
+
+func (a *responsesAccumulator) consumeRefusal(kind string, outputIndex int, raw jsonv1.RawMessage) {
+	var event struct {
+		ContentIndex int    `json:"content_index"`
+		Delta        string `json:"delta"`
+		Refusal      string `json:"refusal"`
+	}
+	if json.Unmarshal(raw, &event) != nil {
+		return
+	}
+	index := responsePartIndex{output: outputIndex, content: event.ContentIndex}
+	if a.refusals == nil {
+		a.refusals = make(map[responsePartIndex]*responseRefusal)
+	}
+	part := a.refusals[index]
+	if part == nil {
+		part = &responseRefusal{}
+		a.refusals[index] = part
+	}
+	if kind == "response.refusal.done" {
+		part.final = event.Refusal
+	} else {
+		part.deltas.WriteString(event.Delta)
+	}
 }
 
 func nativeResponseErrorKind(raw jsonv1.RawMessage) ErrorKind {
@@ -104,7 +147,8 @@ func nativeResponseErrorKind(raw jsonv1.RawMessage) ErrorKind {
 		return ""
 	}
 	var failure struct {
-		Error struct {
+		ErrorType string `json:"error_type"`
+		Error     struct {
 			Code string `json:"code"`
 			Type string `json:"type"`
 		} `json:"error"`
@@ -112,33 +156,31 @@ func nativeResponseErrorKind(raw jsonv1.RawMessage) ErrorKind {
 	if json.Unmarshal(raw, &failure) != nil {
 		return ""
 	}
-	if kind, known := providerCodeKind(failure.Error.Code); known {
+	if kind := openRouterErrorKind(failure.ErrorType); kind != "" {
 		return kind
 	}
-	if kind, known := providerCodeKind(failure.Error.Type); known {
-		return kind
-	}
-	return ""
+	return providerFailureCodeKind(failure.Error.Code, failure.Error.Type)
 }
 
 func nativeQuotaResponse(raw jsonv1.RawMessage) bool {
 	return nativeResponseErrorKind(raw) == ErrorQuota
 }
 
-func providerFailureCodeKind(codes ...string) ErrorKind {
-	for _, code := range codes {
-		if kind, known := providerCodeKind(code); known {
-			return kind
-		}
+func (a *responsesAccumulator) recordEventFailure(eventType string, codes ...string) {
+	switch eventType {
+	case "error":
+		a.recordFailureKind(providerFailureCodeKind(codes...))
+		fallthrough
+	case "response.failed":
+		a.recordFailureKind(ErrorResponse)
 	}
-	return ""
 }
 
 func (a *responsesAccumulator) recordFailureKind(kind ErrorKind) {
-	if kind == "" || a.failureKind == ErrorQuota {
+	if kind == "" || a.failureKind == ErrorQuota || a.failureKind == ErrorAuthentication {
 		return
 	}
-	if kind == ErrorQuota || a.failureKind == "" {
+	if kind == ErrorQuota || kind == ErrorAuthentication || a.failureKind == "" {
 		a.failureKind = kind
 	}
 }
@@ -170,7 +212,7 @@ func (a *responsesAccumulator) response() (Response, error) {
 	if a.err != nil {
 		return Response{}, a.err
 	}
-	if !a.completed {
+	if !a.terminal {
 		return Response{}, providerError(ErrorStream, 0, nil)
 	}
 	indices := make([]int, 0, len(a.items))
@@ -189,5 +231,32 @@ func (a *responsesAccumulator) response() (Response, error) {
 	if err != nil {
 		return Response{}, err
 	}
-	return responseFromNative(assembled)
+	return responseFromNative(assembled, a.streamedRefusal())
+}
+
+func (a *responsesAccumulator) streamedRefusal() string {
+	if len(a.refusals) == 0 {
+		return ""
+	}
+	indices := make([]responsePartIndex, 0, len(a.refusals))
+	for index := range a.refusals {
+		indices = append(indices, index)
+	}
+	sort.Slice(indices, func(i, j int) bool {
+		left, right := indices[i], indices[j]
+		if left.output == right.output {
+			return left.content < right.content
+		}
+		return left.output < right.output
+	})
+	var refusal strings.Builder
+	for _, index := range indices {
+		part := a.refusals[index]
+		if part.final != "" {
+			refusal.WriteString(part.final)
+		} else {
+			refusal.WriteString(part.deltas.String())
+		}
+	}
+	return refusal.String()
 }

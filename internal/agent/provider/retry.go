@@ -94,11 +94,7 @@ func generationRetryDelay(err error, retry int) time.Duration {
 // classifyHTTPResponseError adds machine-readable response classification and
 // retry metadata without retaining or exposing provider diagnostic bodies.
 func classifyHTTPResponseError(status int, cause error, code string, headers http.Header) error {
-	err := classifyHTTPError(status, cause)
-	var failure *ProviderError
-	if !errors.As(err, &failure) || failure == nil {
-		return err
-	}
+	failure := classifyHTTPError(status, cause)
 	if failure.Kind != ErrorAuthentication {
 		if kind, known := providerCodeKind(code); known {
 			failure.Kind = kind
@@ -181,7 +177,43 @@ func providerCodeKind(code string) (ErrorKind, bool) {
 		return ErrorRateLimit, true
 	case "subscription_sharing_usage_unavailable", "subscription_sharing_user_unavailable", "user_unavailable":
 		return ErrorTransport, true
+	case "invalid_api_key", "authentication_error":
+		return ErrorAuthentication, true
 	default:
 		return "", false
+	}
+}
+
+func providerFailureCodeKind(codes ...string) ErrorKind {
+	var fallback ErrorKind
+	for _, code := range codes {
+		if code == "server_error" {
+			fallback = ErrorTransport
+		}
+		if kind, known := providerCodeKind(code); known {
+			return kind
+		}
+	}
+	return fallback
+}
+
+// OpenRouter's canonical types take precedence over protocol-specific codes.
+func openRouterErrorKind(errorType string) ErrorKind {
+	switch errorType {
+	case "authentication", "permission_denied":
+		return ErrorAuthentication
+	case "payment_required", "token_limit_exceeded":
+		return ErrorQuota
+	case "rate_limit_exceeded":
+		return ErrorRateLimit
+	case "provider_overloaded", "provider_unavailable", "timeout", "server":
+		return ErrorTransport
+	case "context_length_exceeded", "max_tokens_exceeded", "string_too_long",
+		"invalid_request", "invalid_prompt", "not_found", "precondition_failed", "payload_too_large", "unprocessable",
+		"content_policy_violation", "refusal", "invalid_image", "image_too_large", "image_too_small",
+		"unsupported_image_format", "image_not_found", "image_download_failed":
+		return ErrorResponse
+	default:
+		return ""
 	}
 }

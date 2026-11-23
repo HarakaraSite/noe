@@ -103,7 +103,7 @@ func TestWebWorker(t *testing.T) {
 			if (e.data === "boom") throw new TypeError("web boom");
 			postMessage({ echo: e.data, name, self: self === globalThis, port: e.ports.length });
 		};`
-	out, _ := run(t, stdlib.Config{Workers: workerFiles(map[string]string{"./web.js": worker})}, `
+	out, stderr := run(t, stdlib.Config{Workers: workerFiles(map[string]string{"./web.js": worker})}, `
 		(async () => {
 			await new Promise((resolve) => {
 				const w = new Worker("./web.js", { name: "wkr" });
@@ -114,12 +114,13 @@ func TestWebWorker(t *testing.T) {
 				};
 				w.postMessage(1, [new MessageChannel().port1]);
 			});
-			const w = new Worker("./web.js");
+			const w = new Worker("./web.js", {name: "recovery"});
 			w.onerror = (e) => {
-				console.log("error", e.constructor.name, e.message, e.error.constructor.name);
+				console.log("error", e.constructor.name, e.message, e.error === null, e.cancelable);
 				e.preventDefault();
-				w.terminate();
+				w.postMessage("close");
 			};
+			w.onmessage = (e) => console.log(e.data);
 			w.postMessage("boom");
 			try { new Worker("./web.js", { type: "shared" }) } catch (e) { console.log(e.name, e.message) }
 		})();
@@ -128,10 +129,11 @@ func TestWebWorker(t *testing.T) {
 		`web MessageEvent {"echo":1,"name":"wkr","self":true,"port":1}`,
 		`web MessageEvent "closing wkr true"`,
 		`TypeError Worker constructor: 'shared' is not a valid value for enumeration WorkerType.`,
-		"error ErrorEvent web boom TypeError",
+		"error ErrorEvent web boom true true",
+		"closing recovery true",
 	}, "\n")
-	if out != want {
-		t.Errorf("got\n%s\nwant\n%s", out, want)
+	if out != want || stderr != "" {
+		t.Errorf("got\n%s\nwant\n%s\nstderr: %s", out, want, stderr)
 	}
 }
 

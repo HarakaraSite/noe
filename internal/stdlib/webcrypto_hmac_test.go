@@ -92,7 +92,9 @@ func TestWebCryptoHMACJWKValidationAndSnapshots(t *testing.T) {
   bytes.kty="oct";bytes.k="AQID";
   await rejects("TypeError",()=>s.importKey("jwk",bytes,algorithm,true,["sign"]));
  }
- for(const bytes of [new ArrayBuffer(3),new Uint8Array(3),new DataView(new ArrayBuffer(3))]){
+ const disconnected=new ArrayBuffer(3),detachedView=new DataView(disconnected);
+ structuredClone(disconnected,{transfer:[disconnected]});
+ for(const bytes of [new ArrayBuffer(3),new Uint8Array(3),new DataView(new ArrayBuffer(3)),detachedView]){
   let reads=0;
   await rejects("NotSupportedError",()=>s.importKey("jwk",bytes,{get name(){reads++;return "unknown"}},true,["sign"]));
   if(reads!==1)throw Error("algorithm normalization did not precede format rejection");

@@ -177,14 +177,11 @@ func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Re
 		return Response{}, providerError(ErrorStream, 0, nil)
 	}
 	defer result.EventStream.Close()
-	completed := false
+	sawTerminal := false
 	for result.EventStream.Next() {
 		if event := result.EventStream.Value(); event != nil {
-			if event.GetDataError() != nil || event.GetDataResponseFailed() != nil || event.GetDataResponseIncomplete() != nil {
-				return Response{}, nativeStreamFailure(state)
-			}
-			if event.GetDataResponseCompleted() != nil {
-				completed = true
+			if event.GetDataError() != nil || event.GetDataResponseFailed() != nil || event.GetDataResponseIncomplete() != nil || event.GetDataResponseCompleted() != nil {
+				sawTerminal = true
 				break
 			}
 		}
@@ -192,28 +189,24 @@ func (p *OpenRouter) generateResponses(ctx context.Context, request Request) (Re
 	if cancelErr := cancellationError(ctx); cancelErr != nil {
 		return Response{}, cancelErr
 	}
-	if result.EventStream.Err() != nil || !completed {
-		return Response{}, providerError(ErrorStream, 0, nil)
-	}
-	_, body := state.response()
-	if body == nil {
-		return Response{}, providerError(ErrorStream, 0, nil)
-	}
-	_, readErr, _ := body.snapshot()
-	if readErr != nil {
-		return Response{}, providerError(ErrorStream, 0, nil)
-	}
-	return body.response()
+	return nativeStreamResponse(state, sawTerminal)
 }
 
-func responseFromNative(raw jsonv1.RawMessage) (Response, error) {
+func responseFromNative(raw jsonv1.RawMessage, streamedRefusal string) (Response, error) {
 	var response struct {
-		Status string              `json:"status"`
-		Output []jsonv1.RawMessage `json:"output"`
-		Usage  jsonv1.RawMessage   `json:"usage"`
-		Error  jsonv1.RawMessage   `json:"error"`
+		Status            string              `json:"status"`
+		Output            []jsonv1.RawMessage `json:"output"`
+		Usage             jsonv1.RawMessage   `json:"usage"`
+		Error             jsonv1.RawMessage   `json:"error"`
+		IncompleteDetails struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
 	}
-	if json.Unmarshal(raw, &response) != nil || response.Status != "completed" || (len(response.Error) > 0 && string(response.Error) != "null") {
+	if json.Unmarshal(raw, &response) != nil || (len(response.Error) > 0 && string(response.Error) != "null") {
+		return Response{}, providerError(ErrorResponse, 0, nil)
+	}
+	filtered := response.Status == "incomplete" && response.IncompleteDetails.Reason == "content_filter"
+	if response.Status != "completed" && !filtered {
 		return Response{}, providerError(ErrorResponse, 0, nil)
 	}
 	var content strings.Builder
@@ -234,6 +227,17 @@ func responseFromNative(raw jsonv1.RawMessage) (Response, error) {
 		}
 		if json.Unmarshal(raw, &item) != nil {
 			return Response{}, providerError(ErrorResponse, 0, nil)
+		}
+		for _, part := range item.Content {
+			if part.Type == "output_text" {
+				content.WriteString(part.Text)
+			}
+			if part.Type == "refusal" {
+				refusal.WriteString(part.Refusal)
+			}
+		}
+		if filtered {
+			continue
 		}
 		if item.Type == "function_call" {
 			if item.CallID == "" || item.Name == "" {
@@ -257,14 +261,16 @@ func responseFromNative(raw jsonv1.RawMessage) (Response, error) {
 				rawJSInputCarrier: item.Input,
 			})
 		}
-		for _, part := range item.Content {
-			if part.Type == "output_text" {
-				content.WriteString(part.Text)
-			}
-			if part.Type == "refusal" {
-				refusal.WriteString(part.Refusal)
-			}
+	}
+	refusalText := refusal.String()
+	if refusalText == "" {
+		refusalText = streamedRefusal
+	}
+	if filtered {
+		if strings.TrimSpace(refusalText) == "" {
+			return Response{}, providerError(ErrorResponse, 0, nil)
 		}
+		return refusalResponse(refusalText, "content_filter", response.Usage)
 	}
 	message := map[string]any{"role": "assistant", "content": content.String(), nativeResponseItems: response.Output}
 	finish := "stop"
@@ -272,8 +278,8 @@ func responseFromNative(raw jsonv1.RawMessage) (Response, error) {
 		message["tool_calls"] = calls
 		finish = "tool_calls"
 	}
-	if refusal.Len() > 0 {
-		message["refusal"] = refusal.String()
+	if refusalText != "" {
+		message["refusal"] = refusalText
 	}
 	encoded, err := json.Marshal(message)
 	if err != nil {

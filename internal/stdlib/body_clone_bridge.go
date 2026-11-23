@@ -6,22 +6,33 @@ import (
 	quickjs "github.com/go-quickjs/go-quickjs"
 )
 
-// Body tee factories stay Go-private and run only on the runtime owner. Late
-// lookup permits Network and Streams installation in either order.
-var bodyTeeFactories sync.Map
+type bodyStreamBindings struct {
+	tee    quickjs.Value
+	reader quickjs.Value
+}
 
-func bindBodyTee(rt *quickjs.Runtime, factory quickjs.Value) {
-	if _, loaded := bodyTeeFactories.LoadOrStore(rt, factory); loaded {
-		bodyTeeFactories.Store(rt, factory)
-		return
+// Body stream operations stay private and run only on the runtime owner. Late
+// lookup permits Network and Streams installation in either order.
+var bodyStreamOperations sync.Map
+
+func bindBodyStreams(rt *quickjs.Runtime, tee, reader quickjs.Value) {
+	if _, loaded := bodyStreamOperations.Swap(rt, bodyStreamBindings{tee: tee, reader: reader}); !loaded {
+		rt.OnClose(func() { bodyStreamOperations.Delete(rt) })
 	}
-	rt.OnClose(func() { bodyTeeFactories.Delete(rt) })
 }
 
 func teeBody(rt *quickjs.Runtime, stream quickjs.Value) (quickjs.Value, error) {
-	factory, ok := bodyTeeFactories.Load(rt)
+	bindings, ok := bodyStreamOperations.Load(rt)
 	if !ok {
 		return quickjs.Value{}, rt.Throw(rt.NewError("TypeError", "Body cloning requires the Streams API"))
 	}
-	return factory.(quickjs.Value).Call(stream)
+	return bindings.(bodyStreamBindings).tee.Call(stream)
+}
+
+func bodyReaderOperations(rt *quickjs.Runtime) any {
+	bindings, ok := bodyStreamOperations.Load(rt)
+	if !ok {
+		return nil
+	}
+	return bindings.(bodyStreamBindings).reader
 }

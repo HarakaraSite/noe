@@ -319,6 +319,11 @@ multiple cookies.
 
 new Request(input, init = {}) constructs request data for fetch or an HTTP handler. input may be a URL/string or another Request. Use method, headers, body, and signal as needed.
 
+`RequestInit.signal` accepts an `AbortSignal`. Pass `null` to clear a signal
+inherited from the input request. `Request.signal` exposes the associated
+signal when present. Fetch uses its internal abort state and preserves the
+original reason when cancelling a request or an active response body.
+
 String/URL inputs use USVString conversion and the shared URL backend, including Unicode/space/default-port normalization. Missing input, invalid URLs and embedded credentials reject TypeError. NOE supplies no ambient document base URL; resolve relative input with URL first. Request.url retains fragments, while native HTTP serialization omits them on the wire.
 
 method uses ByteString and HTTP token validation. CONNECT, TRACE and TRACK reject; DELETE/GET/HEAD/OPTIONS/POST/PUT normalize to uppercase, while extension methods retain their case. Empty methods reject instead of defaulting to GET. url and method are branded readonly getters backed by private state; copy, clone and fetch use that state even when a public property shadows a getter. Copy/clone preserve the existing mode/credentials/redirect metadata. URL/method errors occur before acquiring an upload body.
@@ -401,7 +406,9 @@ strings, BufferSources and other Blobs. A bare string is not a parts sequence;
 use `new Blob([text])`. Text uses UTF-8 with unmatched surrogates replaced.
 The type is lowercased ASCII; characters outside printable ASCII make it empty.
 `endings` is `"transparent"` by default or `"native"` for platform line endings
-in string parts. Binary parts retain their bytes.
+in string parts. Binary parts retain their bytes. Detached fixed-length
+buffers and views contribute zero bytes. Views backed by shared memory and
+parts backed by resizable ArrayBuffers throw `TypeError`.
 
 `size` and `type` are readonly. `bytes()`, `arrayBuffer()` and `text()` return
 promises. Every byte result and stream chunk has independent storage.
@@ -484,6 +491,9 @@ responsible for its own authentication behavior.
 
 Syntax: `new WebSocket(url, protocols?)`. It opens a WebSocket connection, reports open/message/error/close events, and sends text or binary messages with `send(data)`. `close(code?, reason?)` starts closing and returns undefined. The default `binaryType` is `"blob"`; set `socket.binaryType = "arraybuffer"` to receive binary messages as ArrayBuffers.
 
+The constructor converts `http:` to `ws:` and `https:` to `wss:` before checking
+network permission. `socket.url` uses the resulting WebSocket scheme.
+
 ~~~js
 const socket = new WebSocket("wss://example.com/feed");
 socket.addEventListener("open", () => socket.send("hello"));
@@ -495,6 +505,12 @@ Closing while CONNECTING cancels opening and reports error then an unclean close
 For an established socket, `close()` keeps CLOSING while the native queue flushes and the peer replies. NOE bounds this phase to five seconds. A no-argument call sends an empty close frame; use `close(1000)` to send that explicit status. Close events report the first peer code/reason (1005 for an empty frame, 1006 and an empty reason if none arrived). `wasClean` requires a successful close frame in both directions before native cleanup. Missing replies, invalid close frames, and transport failures are unclean. Native error details remain on the error event. Execution cancellation and Worker termination interrupt blocked I/O independently of graceful close.
 
 A WebSocket carries complete protocol messages, not raw TCP bytes. NOE enables outbound WebSockets when the host selects that capability. For custom handshake headers, import `createWebSocket` from `noe:http`; for server-side upgrades, import `upgradeWebSocket` from `noe:http`. See the `noe:http` reference for their capability requirements and details. Close the socket when it is no longer needed.
+
+## Worker
+
+The global `Worker` reports a script exception to the parent on the Worker
+object as a cancelable `ErrorEvent`. The event includes the message and sets
+`error` to `null`.
 
 ## Error.stack
 

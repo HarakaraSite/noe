@@ -72,7 +72,12 @@ reader after the iterator releases its lock.
 
 `stream.pipeTo(destination, options?)` transfers chunks until EOF and returns a promise that settles after piping finishes. Normal EOF closes the destination unless `preventClose` is true. A read or write failure is propagated to the other side according to `preventAbort` and `preventCancel`.
 
-`options.signal` stops a pipe. With default cancellation options, NOE's implementation cancels the source and aborts the destination, including pending I/O, then rejects the pipe promise with the abort reason. `preventCancel` and `preventAbort` suppress cleanup for their corresponding side. Use `preventClose: true` when piping to a host output stream that must remain available to later writes.
+Aborting `options.signal` stops a pipe. While the destination is writable and
+close has yet to be requested, the pipe waits for accepted writes to settle.
+It cancels the source and aborts the destination by default, then rejects with
+the abort reason if cleanup succeeds. `preventCancel` and `preventAbort`
+suppress cleanup for their corresponding side. Use `preventClose: true` when
+piping to a host output stream that must remain available to later writes.
 
 ~~~js
 const controller = new AbortController();

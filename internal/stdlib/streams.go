@@ -33,6 +33,9 @@ var streamsFactory = fixedBuiltin("<streams>", streamsJS)
 
 func (mode builtinEvaluation) streams(rt *quickjs.Runtime) error {
 	host := rt.NewObject()
+	if err := InstallAbortSignalAccess(rt, host); err != nil {
+		return err
+	}
 	result, err := mode.withHost(rt, streamsFactory, host)
 	if err != nil {
 		return err
@@ -45,7 +48,11 @@ func (mode builtinEvaluation) streams(rt *quickjs.Runtime) error {
 	if err != nil {
 		return err
 	}
-	bindBodyTee(rt, bodyTee)
+	bodyReader, err := result.Get("bodyReader")
+	if err != nil {
+		return err
+	}
+	bindBodyStreams(rt, bodyTee, bodyReader)
 	transform, err := api.Get("TransformStream")
 	if err != nil {
 		return err
@@ -393,9 +400,8 @@ const streamsJS = `(function (host) {
       this._controller._queue = [];
       this._controller._queueHead = 0;
       this._controller._queued = 0;
-      const done = call(this._source.cancel, this._source, reason);
       this._close();
-      return done.then(() => undefined);
+      return call(this._source.cancel, this._source, reason).then(() => undefined);
     }
 
     _takeRead() {
@@ -461,18 +467,16 @@ const streamsJS = `(function (host) {
 
     async pipeTo(destination, options = {}) {
       const {preventClose, preventAbort, preventCancel, signal} = options;
-      if (signal !== undefined && !(signal instanceof AbortSignal)) {
-        throw new TypeError("signal must be an AbortSignal");
-      }
-      const addAbortListener = signal ? signal.addEventListener : null;
-      const removeAbortListener = signal ? signal.removeEventListener : null;
-      if (signal && (typeof addAbortListener !== "function" || typeof removeAbortListener !== "function")) {
-        throw new TypeError("signal must be an AbortSignal");
+      let signals = null;
+      if (signal !== undefined) {
+        signals = host.abortSignals();
+        if (signals === null) throw new TypeError("signal must be an AbortSignal");
+        signals.aborted(signal);
       }
 
       let reader = null;
       let writer = null;
-      let registrationAttempted = false;
+      let abortRegistered = false;
       let pipeFailure = false;
       let pipeError;
       let cleanupFailure = false;
@@ -487,6 +491,7 @@ const streamsJS = `(function (host) {
       let finalized = false;
       let phase = "idle";
       let sourceClosed = false;
+      let takingQueuedChunk = false;
       let pendingWrite = null;
 
       const wakeStopped = () => {
@@ -501,24 +506,33 @@ const streamsJS = `(function (host) {
         shuttingDown = true;
         shutdownSucceeded = false;
         shutdownReason = reason;
-        const actions = [];
-        const startAction = action => {
-          try { actions.push(Promise.resolve(action())); }
-          catch (e) { actions.push(Promise.reject(e)); }
+        const performActions = () => {
+          const actions = [];
+          const startAction = action => {
+            try { actions.push(Promise.resolve(action())); }
+            catch (e) { actions.push(Promise.reject(e)); }
+          };
+          if ((direction === "source" || direction === "abort") && !preventAbort &&
+              writer._stream._state === "writable") {
+            startAction(() => writer.abort(reason));
+          }
+          if ((direction === "destination" || direction === "abort") && !preventCancel &&
+              reader._stream._state === "readable") {
+            startAction(() => reader.cancel(reason));
+          } else if ((direction === "destination" || direction === "abort") && preventCancel) {
+            interruptPipeRead(reader);
+          }
+          return Promise.all(actions);
         };
-        if ((direction === "source" || direction === "abort") && !preventAbort &&
-            writer && writer._stream && writer._stream._state === "writable") {
-          startAction(() => writer.abort(reason));
+        const destination = writer._stream;
+        let write = null;
+        if (destination._state === "writable" && !destination._closeRequested) {
+          // Refilling the source queue can synchronously abort after a chunk
+          // has been dequeued and before the read records its write.
+          write = takingQueuedChunk ? Promise.resolve().then(() => pendingWrite) : pendingWrite;
         }
-        if ((direction === "destination" || direction === "abort") && !preventCancel &&
-            reader && reader._stream && reader._stream._state === "readable") {
-          startAction(() => reader.cancel(reason));
-        } else if ((direction === "destination" || direction === "abort") && preventCancel) {
-          interruptPipeRead(reader);
-        }
-        // These actions start together. Record rejections immediately so they
-        // remain handled while an in-flight write is being joined below.
-        shutdownPromise = Promise.all(actions).then(
+        const actions = write ? write.then(performActions, performActions) : performActions();
+        shutdownPromise = actions.then(
           () => ({ok: true}),
           error => ({ok: false, error}),
         );
@@ -552,13 +566,7 @@ const streamsJS = `(function (host) {
         beginGracefulClose();
       };
 
-      const onAbort = () => {
-        if (shuttingDown || finalized) return;
-        let reason;
-        try { reason = signal.reason; }
-        catch (e) { reason = e; }
-        beginShutdown(reason, "abort");
-      };
+      const onAbort = reason => beginShutdown(reason, "abort");
 
       const raceOperation = operation => {
         if (stopped) return Promise.resolve({kind: "stopped"});
@@ -584,11 +592,7 @@ const streamsJS = `(function (host) {
       };
 
       const awaitShutdown = async () => {
-        const write = pendingWrite;
-        const [action] = await Promise.all([
-          shutdownPromise,
-          write ? write.then(noop, noop) : Promise.resolve(undefined),
-        ]);
+        const action = await shutdownPromise;
         if (!action.ok) throw action.error;
         if (!shutdownSucceeded) throw shutdownReason;
       };
@@ -610,14 +614,11 @@ const streamsJS = `(function (host) {
           error => beginShutdown(error, "destination"),
         );
 
-        if (signal) {
-          if (signal.aborted) onAbort();
+        if (signals !== null) {
+          if (signals.aborted(signal)) onAbort(signals.reason(signal));
           else {
-            registrationAttempted = true;
-            addAbortListener.call(signal, "abort", onAbort);
-            // An overridden listener method may synchronously abort while it
-            // is registering the listener.
-            if (signal.aborted) onAbort();
+            signals.add(signal, onAbort);
+            abortRegistered = true;
           }
         }
 
@@ -635,7 +636,26 @@ const streamsJS = `(function (host) {
 
             if (shuttingDown) break;
             phase = "read";
-            result = await raceOperation(() => reader.read());
+            result = await raceOperation(() => {
+              const read = deferred();
+              takingQueuedChunk = reader._stream._controller._queue.length > 0;
+              try {
+                readStreamRequest(reader, {
+                  promise: read.promise,
+                  reject: read.reject,
+                  resolve(value) {
+                    if (!value.done) {
+                      // Commit accepted chunks before a later abort can stop
+                      // the loop. The sink still runs in a promise job.
+                      pendingWrite = Promise.resolve().then(() => writer.write(value.value));
+                      pendingWrite.catch(noop);
+                    }
+                    read.resolve(value);
+                  },
+                });
+                return read.promise;
+              } finally { takingQueuedChunk = false; }
+            });
             phase = "idle";
             if (result.kind === "stopped") break;
             if (result.kind === "error") {
@@ -644,15 +664,8 @@ const streamsJS = `(function (host) {
             }
             if (result.value.done) break;
 
-            // A chunk already read is still offered to the sink. A shutdown
-            // starts abort/cancel actions at once and still joins this write
-            // before releasing the writer.
             phase = "write";
-            let write;
-            try { write = Promise.resolve(writer.write(result.value.value)); }
-            catch (e) { write = Promise.reject(e); }
-            pendingWrite = write;
-            result = await raceOperation(() => write);
+            result = await raceOperation(() => pendingWrite);
             phase = "idle";
             if (result.kind !== "stopped") pendingWrite = null;
             if (result.kind === "stopped") break;
@@ -664,32 +677,15 @@ const streamsJS = `(function (host) {
           }
         }
 
-        if (shuttingDown) await awaitShutdown();
-
-        if (!preventClose && !shutdownSucceeded) {
-          closingDestination = true;
-          const result = await raceOperation(() => writer.close());
-          if (result.kind === "stopped") await awaitShutdown();
-          if (result.kind === "error") {
-            beginShutdown(result.error, "close");
-            await awaitShutdown();
-          }
-        }
+        if (!shuttingDown) beginGracefulClose();
+        await awaitShutdown();
       } catch (e) {
         pipeFailure = true;
         pipeError = e;
       } finally {
         finalized = true;
         wakeStopped();
-        if (registrationAttempted) {
-          try { removeAbortListener.call(signal, "abort", onAbort); }
-          catch (e) {
-            if (!pipeFailure && !cleanupFailure) {
-              cleanupFailure = true;
-              cleanupError = e;
-            }
-          }
-        }
+        if (abortRegistered) signals.remove(signal, onAbort);
         if (reader) {
           try { reader.releaseLock(); }
           catch (e) {
@@ -819,6 +815,7 @@ const streamsJS = `(function (host) {
       host.cloneAs(this, "transfer");
       this._sink = sink || {};
       this._state = "writable";
+      this._closeRequested = false;
       this._storedError = undefined;
       this._writer = null;
       this._hwm = strategy.highWaterMark === undefined ? 1 : Number(strategy.highWaterMark);
@@ -916,6 +913,7 @@ const streamsJS = `(function (host) {
         return Promise.reject(this._state === "errored" ? this._storedError :
           new TypeError("this stream is already closed"));
       }
+      this._closeRequested = true;
       const done = this._chain
         .then(() => this._started)
         .then(() => call(this._sink.close, this._sink));
@@ -1118,5 +1116,9 @@ const streamsJS = `(function (host) {
       ByteLengthQueuingStrategy, CountQueuingStrategy,
     },
     bodyTee: stream => teeStream(stream, true),
+    bodyReader: {
+      cancel: Function.prototype.call.bind(ReadableStreamDefaultReader.prototype.cancel),
+      release: Function.prototype.call.bind(ReadableStreamDefaultReader.prototype.releaseLock),
+    },
   };
 })`

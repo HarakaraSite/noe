@@ -138,9 +138,11 @@ func TestStandardWebSocketBinaryTypesAndExtraArguments(t *testing.T) {
 			requests := make(chan *http.Request, 1)
 			server := websocketHeaderFixture(t, false, requests, true)
 			defer server.Close()
-			endpoint := strings.Replace(server.URL, "http", "ws", 1)
+			httpURL := server.URL + "/feed?room=fixture"
+			endpoint := strings.Replace(httpURL, "http", "ws", 1)
 			source := fmt.Sprintf(`
 const socket=new WebSocket(%q,"chat.v1",{get headers(){throw Error("nonstandard constructor options read")}});
+if(socket.url!==%q)throw Error("WebSocket did not expose the converted URL");
 if(socket.binaryType!=="blob")throw Error("standard binary default");
 socket.binaryType=%q;
 const message=new Promise(resolve=>{socket.onmessage=event=>resolve(event.data)});
@@ -150,7 +152,7 @@ await closed;
 if(socket.binaryType==="blob"){
  if(!(data instanceof Blob)||(await data.bytes()).join()!=="0,128,255")throw Error("Blob message");
 }else if(!(data instanceof ArrayBuffer)||new Uint8Array(data).join()!=="0,128,255")throw Error("ArrayBuffer message");
-`, endpoint, mode)
+`, httpURL, endpoint, mode)
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			_, err := stdlib.Execute(ctx, stdlib.Source{Name: "[standard WebSocket]", Virtual: true, Module: true, Code: source}, stdlib.Profile{

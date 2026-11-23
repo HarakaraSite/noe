@@ -940,7 +940,11 @@ const webSocketJS = `(function (host) {
     constructor(url, protocols = []) {
       super();
       const accepted = url === acceptedSocket;
+      const custom = arguments[2] === customHandshake;
       this.url = accepted ? "" : String(url);
+      if (!accepted && !custom) {
+        this.url = this.url.replace(/^http(s)?:/i, (_, secure) => secure ? "wss:" : "ws:");
+      }
       this.readyState = CONNECTING;
       this.protocol = "";
       this.extensions = "";
@@ -953,7 +957,7 @@ const webSocketJS = `(function (host) {
       if (!accepted) {
         this._drive(host.connect(this.url, protocols === undefined ? []
           : (Array.isArray(protocols) ? protocols.map(value => String(value)) : [String(protocols)]),
-          arguments[2] === customHandshake ? requestHeaders(arguments[3]) : []));
+          custom ? requestHeaders(arguments[3]) : []));
       }
     }
 

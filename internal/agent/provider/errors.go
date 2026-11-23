@@ -73,9 +73,9 @@ func cancellationError(ctx context.Context) error {
 	return providerError(ErrorCancelled, 0, ctx.Err())
 }
 
-func classifyHTTPError(status int, cause error) error {
+func classifyHTTPError(status int, cause error) *ProviderError {
 	var existing *ProviderError
-	if errors.As(cause, &existing) {
+	if errors.As(cause, &existing) && existing != nil {
 		return existing
 	}
 	switch {

@@ -413,10 +413,16 @@ const shared = new Uint8Array(new SharedArrayBuffer(3));
 await rejects("TypeError", () => subtle.digest("SHA-256", shared),
   "WebIDL BufferSource rejects SharedArrayBuffer-backed input");
 const detachedBuffer = new ArrayBuffer(3);
-const detachedView = new Uint8Array(detachedBuffer);
+const detachedInputs = [detachedBuffer, new Uint8Array(detachedBuffer, 1), new DataView(detachedBuffer, 1)];
 structuredClone(detachedBuffer, {transfer: [detachedBuffer]});
-await rejects("TypeError", () => subtle.digest("SHA-256", detachedView),
-  "WebIDL BufferSource rejects a detached ArrayBuffer view");
+const emptySignature = await subtle.sign("HMAC", key, new Uint8Array(0));
+for (const input of detachedInputs) {
+  check(hex(await subtle.digest("SHA-256", input)) === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "digest treats detached BufferSource bytes as empty");
+  check(hex(await subtle.sign("HMAC", key, input)) === hex(emptySignature), "sign treats detached data as empty");
+  check(await subtle.verify("HMAC", key, emptySignature, input), "verify treats detached data as empty");
+  check(!(await subtle.verify("HMAC", key, input, new Uint8Array(0))), "verify treats detached signature bytes as empty");
+}
 `)
 }
 

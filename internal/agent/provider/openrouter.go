@@ -165,6 +165,14 @@ func (s *callState) classifyHTTPError(cause error) error {
 	return classifyHTTPResponseError(status, cause, code, headers)
 }
 
+func (s *callState) streamFailure(kind ErrorKind) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	failure := providerError(kind, 0, nil)
+	applyRetryMetadata(failure, s.retryHeaders)
+	return failure
+}
+
 func (s *callState) closeBody() {
 	_, body := s.response()
 	if body != nil {
@@ -281,14 +289,13 @@ func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (Respons
 	}
 	defer result.EventStream.Close()
 	for result.EventStream.Next() {
-		// The raw event payload is collected by observedBody; the SDK iterator is
-		// used to validate and deliver the provider's official SSE response type.
+		// A provider error terminates the stream even without [DONE] or HTTP EOF.
+		if result.EventStream.Value().GetData().Error != nil {
+			break
+		}
 	}
 	if cancelErr := cancellationError(ctx); cancelErr != nil {
 		return Response{}, cancelErr
-	}
-	if result.EventStream.Err() != nil {
-		return Response{}, providerError(ErrorStream, 0, nil)
 	}
 	_, body := state.response()
 	if body == nil {
@@ -297,7 +304,10 @@ func (p *OpenRouter) generateOnce(ctx context.Context, request Request) (Respons
 	// [DONE] terminates an SSE completion, even if the HTTP connection stays
 	// open. Do not wait for EOF; the deferred owner closes stream/body.
 	done, readErr, consumeErr := body.snapshot()
-	if readErr != nil || !done {
+	if failure, ok := consumeErr.(*ProviderError); ok {
+		return Response{}, state.streamFailure(failure.Kind)
+	}
+	if result.EventStream.Err() != nil || readErr != nil || !done {
 		return Response{}, providerError(ErrorStream, 0, nil)
 	}
 	if consumeErr != nil {

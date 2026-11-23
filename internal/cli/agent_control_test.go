@@ -17,6 +17,7 @@ import (
 
 func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testing.T) {
 	const capability = "private-human-capability"
+	interrupted := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+capability {
 			t.Error("control capability missing")
@@ -43,9 +44,24 @@ func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testin
 				t.Errorf("queue payload=%v", payload)
 			}
 		case "/control/interrupt":
-			if payload["agentId"] != "agent-full" && payload["runId"] != "run-full-identifier" {
+			var target, field string
+			switch {
+			case len(payload) == 1 && payload["agentId"] == "agent-full":
+				target, field = "agent", "agentId"
+			case len(payload) == 1 && payload["runId"] == "run-full-identifier":
+				target, field = "run", "runId"
+			default:
 				t.Errorf("interrupt payload=%v", payload)
+				http.Error(w, "invalid interrupt target", http.StatusBadRequest)
+				return
 			}
+			select {
+			case interrupted <- target:
+			default:
+				t.Error("unexpected additional interrupt")
+			}
+			json.NewEncoder(w).Encode(map[string]string{"target": target, "status": "accepted", field: payload[field]})
+			return
 		default:
 			t.Errorf("unexpected control path=%q", r.URL.Path)
 		}
@@ -66,8 +82,8 @@ func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testin
 		{[]string{"agents", "--full"}, "run-full-identifier"},
 		{[]string{"steer", "run-full", "use a table"}, "steer accepted: command-one"},
 		{[]string{"queue", "agent-fu", "run tests"}, "queue accepted: command-one"},
-		{[]string{"interrupt", "--agent", "agent-fu"}, "interrupt accepted: command-one"},
-		{[]string{"interrupt", "--run", "run-full"}, "interrupt accepted: command-one"},
+		{[]string{"interrupt", "--agent", "agent-fu"}, "interrupt accepted: agent-full"},
+		{[]string{"interrupt", "--run", "run-full"}, "interrupt accepted: run-full-identifier"},
 	} {
 		var out, diagnostic bytes.Buffer
 		code := Run(context.Background(), test.args, strings.NewReader(""), &out, &diagnostic)
@@ -76,6 +92,16 @@ func TestAgentControlCLIListsAndTargetsAgentsWithoutExposingCapability(t *testin
 		}
 		if strings.Contains(out.String(), capability) || strings.Contains(diagnostic.String(), capability) {
 			t.Fatal("control capability escaped to CLI output")
+		}
+		if test.args[0] == "interrupt" {
+			select {
+			case target := <-interrupted:
+				if target != strings.TrimPrefix(test.args[1], "--") {
+					t.Fatalf("%v: interrupt targeted %s", test.args, target)
+				}
+			default:
+				t.Fatalf("%v: no interrupt sent", test.args)
+			}
 		}
 		if test.args[0] == "agents" {
 			lines := strings.Split(strings.TrimSpace(out.String()), "\n")

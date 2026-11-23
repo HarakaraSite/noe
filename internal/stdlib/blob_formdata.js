@@ -7,6 +7,8 @@
   const binaryCreate = Object.create;
   const binaryBytes = Uint8Array;
   const binaryBufferLength = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "byteLength").get;
+  const binaryBufferResizable = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "resizable").get;
+  const binaryBufferDetached = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "detached").get;
   const binaryViewBuffer = Object.getOwnPropertyDescriptor(DataView.prototype, "buffer").get;
   const binaryViewOffset = Object.getOwnPropertyDescriptor(DataView.prototype, "byteOffset").get;
   const binaryViewLength = Object.getOwnPropertyDescriptor(DataView.prototype, "byteLength").get;
@@ -50,23 +52,30 @@
     return copy;
   }
   function binaryView(value) {
-    if (binaryIsView(value)) {
-      let buffer, offset, length;
+    const isView = binaryIsView(value);
+    let buffer = value, dataView = false;
+    if (isView) {
       try {
         buffer = binaryApply(binaryViewBuffer, value, []);
-        offset = binaryApply(binaryViewOffset, value, []);
-        length = binaryApply(binaryViewLength, value, []);
+        dataView = true;
       } catch (_) {
         buffer = binaryApply(binaryTypedBuffer, value, []);
-        offset = binaryApply(binaryTypedOffset, value, []);
-        length = binaryApply(binaryTypedLength, value, []);
       }
-      return new binaryBytes(buffer, offset, length);
     }
     let length;
-    try { length = binaryApply(binaryBufferLength, value, []); }
-    catch (_) { return null; }
-    return new binaryBytes(value, 0, length);
+    try { length = binaryApply(binaryBufferLength, buffer, []); }
+    catch (_) {
+      if (isView) throw new TypeError("SharedArrayBuffer-backed Blob parts are not supported");
+      return null;
+    }
+    if (binaryApply(binaryBufferResizable, buffer, [])) {
+      throw new TypeError("Resizable ArrayBuffer-backed Blob parts are not supported");
+    }
+    if (binaryApply(binaryBufferDetached, buffer, [])) return emptyBlobBytes;
+    if (!isView) return new binaryBytes(buffer, 0, length);
+    const offset = binaryApply(dataView ? binaryViewOffset : binaryTypedOffset, value, []);
+    length = binaryApply(dataView ? binaryViewLength : binaryTypedLength, value, []);
+    return new binaryBytes(buffer, offset, length);
   }
   function blobParts(value, optional) {
     if (optional && value === undefined) return [];
@@ -80,7 +89,10 @@
       if (state !== undefined) binaryApply(binaryPush, parts, [{bytes: state.bytes, immutable: true, text: undefined}]);
       else {
         const bytes = binaryView(part);
-        binaryApply(binaryPush, parts, [bytes === null ? {bytes: undefined, text: binaryUSV(part), immutable: true} : {bytes, immutable: false, text: undefined}]);
+        const converted = bytes === null
+          ? {bytes: undefined, text: binaryUSV(part), immutable: true}
+          : {bytes, immutable: bytes === emptyBlobBytes, text: undefined};
+        binaryApply(binaryPush, parts, [converted]);
       }
     }
     return parts;
@@ -110,11 +122,14 @@
       if (bytes === undefined) {
         const text = endings === "native" ? part.text.replace(/\r\n|\r|\n/g, host.nativeEOL) : part.text;
         bytes = binaryApply(binaryEncode, new TextEncoder(), [text]);
+      } else if (!part.immutable && binaryApply(binaryBufferDetached, binaryApply(binaryTypedBuffer, bytes, []), [])) {
+        // Options or a File name can detach a buffer after parts conversion.
+        bytes = emptyBlobBytes;
       }
       binaryApply(binaryPush, pieces, [bytes]); length += binaryLength(bytes);
     }
     if (pieces.length === 0) return emptyBlobBytes;
-    if (pieces.length === 1) return parts[0].immutable || parts[0].text !== undefined ? pieces[0] : copyBinary(pieces[0]);
+    if (pieces.length === 1) return parts[0].immutable || pieces[0] === emptyBlobBytes ? pieces[0] : copyBinary(pieces[0]);
     const out = new binaryBytes(length);
     let offset = 0;
     for (let index = 0; index < pieces.length; index++) {

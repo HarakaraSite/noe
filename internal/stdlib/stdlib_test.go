@@ -860,6 +860,8 @@ func TestUtil(t *testing.T) {
 		;(async () => {
 			const util = (await import("util")).default
 			console.log(util.format("%s has %d and %j", "x", 3.7, {a: 1}))
+			console.log(util.format("%d %i %f", "3.7px", "3.7px", "3.7px"))
+			console.log(util.format("%d %i %f", -0, 3n, Symbol()))
 			console.log(util.inspect({a: [1, "two"]}))
 			const doubled = util.promisify((n, cb) => cb(null, n * 2))
 			console.log(await doubled(21))
@@ -872,7 +874,9 @@ func TestUtil(t *testing.T) {
 		})()
 	`)
 	want := strings.Join([]string{
-		`x has 3 and {"a":1}`,
+		`x has 3.7 and {"a":1}`,
+		"NaN 3 3.7",
+		"-0 3n NaN",
 		"{ a: [ 1, 'two' ] }",
 		"42",
 		"no good",
@@ -893,6 +897,12 @@ func TestAssert(t *testing.T) {
 			assert.strictEqual("a", "a")
 			assert.notStrictEqual(1, 2)
 			assert.deepStrictEqual({a: [1, {b: 2}]}, {a: [1, {b: 2}]})
+			const first = Uint8Array.of(9, 1, 2).buffer, second = Uint8Array.of(1, 2, 0).buffer;
+			assert.deepStrictEqual(first, first.slice(0));
+			assert.throws(() => assert.deepStrictEqual(first, second), assert.AssertionError);
+			assert.throws(() => assert.deepStrictEqual(first, first.slice(1)), assert.AssertionError);
+			assert.deepStrictEqual(new DataView(first, 1, 2), new DataView(second, 0, 2));
+			assert.throws(() => assert.deepStrictEqual(new DataView(first, 1, 2), new DataView(second, 1, 2)), assert.AssertionError);
 			assert.deepStrictEqual(new Map([["k", 1]]), new Map([["k", 1]]))
 			assert.deepStrictEqual(new Set([1]), new Set([1]))
 			assert.match("abc", /b/)
@@ -2091,15 +2101,22 @@ func TestWebSockets(t *testing.T) {
 func TestWebSocketsNeedPermission(t *testing.T) {
 	out, _ := run(t, stdlib.Config{
 		Sockets: &stdlib.WebSockets{Allow: func(target *url.URL) error {
-			return errors.New("not to " + target.Host)
+			return errors.New("not to " + target.String())
 		}},
 	}, `
-		try { new WebSocket("ws://example.com/feed") }
-		catch (e) { console.log(e.message) }
-		try { new WebSocket("http://example.com/feed") }
+		for (const scheme of ["ws", "http", "HTTPS"]) {
+			try { new WebSocket(scheme + "://example.com/feed?room=1") }
+			catch (e) { console.log(e.message) }
+		}
+		try { httpModule.createWebSocket("http://example.com/feed") }
 		catch (e) { console.log(e.message) }
 	`)
-	want := "not to example.com\na socket needs a ws: or wss: URL, not http:"
+	want := strings.Join([]string{
+		"not to ws://example.com/feed?room=1",
+		"not to ws://example.com/feed?room=1",
+		"not to wss://example.com/feed?room=1",
+		"a socket needs a ws: or wss: URL, not http:",
+	}, "\n")
 	if out != want {
 		t.Errorf("out =\n%s\nwant\n%s", out, want)
 	}

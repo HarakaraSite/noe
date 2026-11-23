@@ -213,14 +213,24 @@ func TestFetchUploadAbortPendingIO(t *testing.T) {
 			})}
 			out, stderr := runUpload(t, stdlib.Config{Fetch: &stdlib.Fetch{Client: client}}, fmt.Sprintf(`
 (async()=>{
- const controller=new AbortController(),reason=new Error("abort upload");let ready,cancelled=0;
+ const controller=new AbortController(),reason=%[1]q==="read"?false:null;
+ let ready,cancelled=0,cancelReason,events=0;
+ controller.signal.addEventListener("abort",()=>events++);
  const first=new Promise(r=>ready=r);
- const body=new ReadableStream({pull(c){ready();if(%q==="write")c.enqueue(new Uint8Array([1]));else return new Promise(()=>{});},
-  cancel(){cancelled++;return Promise.reject(Error("cancel hook failed"));}},{highWaterMark:0});
+ const body=new ReadableStream({pull(c){ready();if(%[1]q==="write")c.enqueue(new Uint8Array([1]));else return new Promise(()=>{});},
+  cancel(value){cancelled++;cancelReason=value;return Promise.reject(Error("cancel hook failed"));}},{highWaterMark:0});
+ const getReader=body.getReader.bind(body);
+ body.getReader=()=>{
+   const reader=getReader();
+   reader.cancel=()=>{throw Error("shadowed reader.cancel");};
+   reader.releaseLock=()=>{throw Error("shadowed reader.releaseLock");};
+   return reader;
+ };
  const pending=fetch("http://fixture/upload",{method:"POST",body,signal:controller.signal});
  await first;await(await fetch("http://fixture/probe")).text();controller.abort(reason);
  try{await pending;throw Error("abort ignored");}catch(e){if(e!==reason)throw e;}
- await Promise.resolve();if(cancelled!==1)throw Error("source not cancelled");
+ await Promise.resolve();if(cancelled!==1||cancelReason!==reason)throw Error("source not cancelled with its reason");
+ if(events!==1||(%[1]q==="read"&&body.locked))throw Error("abort notification or reader cleanup lost");
  console.log("upload aborted");
 })()`, blocked))
 			if out != "upload aborted" || stderr != "" {
@@ -369,19 +379,59 @@ func TestFetchUploadWithoutLoopBuffersFiniteStream(t *testing.T) {
 	}
 }
 
+func TestFetchBufferedUploadAbortsBeforeNativeDispatch(t *testing.T) {
+	client := &http.Client{Transport: uploadTransport(func(*http.Request) (*http.Response, error) {
+		t.Error("aborted buffered request reached the transport")
+		return nil, errors.New("unexpected request")
+	})}
+	rt := quickjs.New()
+	defer rt.Close()
+	if err := stdlib.Install(rt, stdlib.Config{Fetch: &stdlib.Fetch{Client: client}}); err != nil {
+		t.Fatal(err)
+	}
+	value, err := rt.Eval(`(async()=>{
+ for(const when of ["acquire","pull"]){
+  const controller=new AbortController(),reason=0;
+  let cancelled=0;
+  const body=new ReadableStream({
+   pull(){controller.abort(reason);return new Promise(()=>{});},
+   cancel(cause){if(cause===reason)cancelled++;},
+  },{highWaterMark:0});
+  if(when==="acquire"){
+   const getReader=body.getReader.bind(body);
+   body.getReader=()=>{const reader=getReader();controller.abort(reason);return reader;};
+  }
+  const failure=await fetch("http://fixture/",{method:"POST",body,signal:controller.signal}).then(()=>undefined,error=>error);
+  if(failure!==reason||cancelled!==1||body.locked)throw Error("buffered abort failed during "+when);
+ }
+ return "buffered upload aborted";
+})()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	value, err = value.Await(ctx)
+	if err != nil || value.String() != "buffered upload aborted" {
+		t.Fatalf("value=%v err=%v", value, err)
+	}
+}
+
 func TestFetchUploadPreAbortedDoesNotAcquireBody(t *testing.T) {
 	out, stderr := runUpload(t, stdlib.Config{Fetch: &stdlib.Fetch{Allow: func(*http.Request) error {
 		t.Error("pre-aborted request reached transport admission")
 		return errors.New("unexpected request")
 	}}}, `
 (async()=>{
- const controller=new AbortController(),reason=new Error("already cancelled");controller.abort(reason);
- for(const mode of ["direct","inherited","override"]){
+ for(const reason of [false,0,null,"",NaN,new Error("already cancelled")]){
+  const controller=new AbortController();controller.abort(reason);
+  for(const mode of ["direct","inherited","override"]){
   let pulls=0,cancels=0;const body=new ReadableStream({pull(){pulls++;},cancel(){cancels++;}},{highWaterMark:0});
   const request=new Request("http://fixture/",{method:"POST",body,signal:mode==="override"?undefined:controller.signal});
   const init=mode==="direct"?undefined:mode==="inherited"?{}:{signal:controller.signal};
-  try{await fetch(request,init);throw Error("abort ignored");}catch(e){if(e!==reason)throw e;}
+  try{await fetch(request,init);throw Error("abort ignored");}catch(e){if(!Object.is(e,reason))throw e;}
   if(request.bodyUsed||body.locked||pulls!==0||cancels!==0)throw Error("pre-aborted body acquired: "+mode);
+  }
  }
  console.log("pre-aborted body untouched");
 })()`)
@@ -390,32 +440,118 @@ func TestFetchUploadPreAbortedDoesNotAcquireBody(t *testing.T) {
 	}
 }
 
-func TestFetchUploadSignalListenerLifetime(t *testing.T) {
+func TestFetchRequestSignalConversion(t *testing.T) {
+	client := &http.Client{Transport: uploadTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/valid" {
+			t.Errorf("invalid signal reached the transport: %s", r.URL.Path)
+		}
+		return uploadResponse(r, "ok"), nil
+	})}
+	out, stderr := runUpload(t, stdlib.Config{Fetch: &stdlib.Fetch{Client: client}}, `
+(async()=>{
+ for(const signal of [false,0,"",Symbol(),new EventTarget(),Object.create(AbortSignal.prototype),new Proxy(new AbortController().signal,{})]){
+  const source=new ReadableStream({pull(){throw Error("body pulled");}},{highWaterMark:0});
+  const request=new Request("http://fixture/invalid",{method:"POST",body:source});
+  for(const invoke of [()=>new Request(request,{signal}),()=>fetch(request,{signal})]){
+   let failure;
+   try{await invoke();}catch(error){failure=error;}
+   if(!(failure instanceof TypeError)||source.locked||request.bodyUsed)throw Error("invalid signal acquired the body");
+  }
+ }
+ const controller=new AbortController();controller.abort(0);
+ const source=new Request("http://fixture/valid",{signal:controller.signal});
+ Object.defineProperty(source,"signal",{get(){throw Error("public Request signal read");}});
+ let gets=0;
+ const cleared=await fetch(source,{get signal(){gets++; return null;}});
+ if(gets!==1||await cleared.text()!=="ok")throw Error("nullable signal did not replace inherited signal");
+ if(await fetch(source).then(()=>undefined,error=>error)!==0)throw Error("stored signal ignored");
+ console.log("request signal conversion ok");
+})()`)
+	if out != "request signal conversion ok" || stderr != "" {
+		t.Fatalf("stdout=%q stderr=%q", out, stderr)
+	}
+}
+
+type fetchResponseBody struct {
+	io.Reader
+	closeBody func()
+}
+
+func (b fetchResponseBody) Close() error {
+	b.closeBody()
+	return nil
+}
+
+type fetchResponseWait struct{ ctx context.Context }
+
+func (b fetchResponseWait) Read([]byte) (int, error) {
+	<-b.ctx.Done()
+	return 0, b.ctx.Err()
+}
+
+func TestFetchSignalFollowsResponseBody(t *testing.T) {
+	closed := make(chan string, 3)
 	client := &http.Client{Transport: uploadTransport(func(r *http.Request) (*http.Response, error) {
 		defer r.Body.Close()
 		if _, err := io.Copy(io.Discard, r.Body); err != nil {
 			return nil, err
 		}
-		return uploadResponse(r, strings.Repeat("x", 96<<10)), nil
+		response := uploadResponse(r, "")
+		var body io.Reader = strings.NewReader(strings.Repeat("x", 96<<10))
+		if r.URL.Path == "/abort" {
+			body = fetchResponseWait{r.Context()}
+		}
+		response.Body = fetchResponseBody{body, func() {
+			if r.Context().Err() == nil {
+				t.Error("response closed before cancelling native work")
+			}
+			select {
+			case closed <- r.URL.Path:
+			default:
+				t.Errorf("unexpected additional response close for %s", r.URL.Path)
+			}
+		}}
+		return response, nil
 	})}
 	out, stderr := runUpload(t, stdlib.Config{Fetch: &stdlib.Fetch{Client: client}}, `
 (async()=>{
- class Signal extends EventTarget {
-  constructor(){super();this.aborted=false;this.listeners=0;}
-  addEventListener(...args){this.listeners++;super.addEventListener(...args);}
-  removeEventListener(...args){this.listeners--;super.removeEventListener(...args);}
+ for(const mode of ["consume","cancel","abort"]){
+  const controller=new AbortController(),{signal}=controller;
+  signal.addEventListener("abort",event=>event.stopImmediatePropagation());
+  for(const name of ["addEventListener","removeEventListener","aborted","reason"]){
+   Object.defineProperty(signal,name,{get(){throw Error("public signal member invoked");}});
+  }
+  const response=await fetch("http://fixture/"+mode,{method:"POST",body:ReadableStream.from([new Uint8Array([1])]),signal});
+  signal.dispatchEvent(new Event("abort"));
+  if(mode==="consume"){
+   if((await response.bytes()).length!==96*1024)throw Error("response bytes");
+   controller.abort(false);
+  }else if(mode==="cancel"){
+   await response.body.cancel();
+   controller.abort(false);
+  }else{
+   const reader=response.body.getReader();
+   const pending=reader.read();
+   controller.abort(false);
+   if(await pending.then(()=>undefined,error=>error)!==false)throw Error("response lost its abort reason");
+   if(await reader.read().then(()=>undefined,error=>error)!==false)throw Error("response lost its stored error");
+   reader.releaseLock();
+  }
  }
- const signal=new Signal();
- for(const consume of [true,false]){
-  const response=await fetch("http://fixture/",{method:"POST",body:ReadableStream.from([new Uint8Array([1])]),signal});
-  if(signal.listeners!==1)throw Error("signal detached before response finished");
-  if(consume){if((await response.bytes()).length!==96*1024)throw Error("response bytes");}else await response.body.cancel();
-  if(signal.listeners!==0)throw Error("signal listener retained");
- }
- console.log("signal lifetime matches response");
+ console.log("response body cleaned up");
 })()`)
-	if out != "signal lifetime matches response" || stderr != "" {
+	if out != "response body cleaned up" || stderr != "" {
 		t.Fatalf("stdout=%q stderr=%q", out, stderr)
+	}
+	for _, want := range []string{"/consume", "/cancel", "/abort"} {
+		select {
+		case got := <-closed:
+			if got != want {
+				t.Errorf("closed response %q, want %q", got, want)
+			}
+		default:
+			t.Errorf("response %q was not closed", want)
+		}
 	}
 }
 

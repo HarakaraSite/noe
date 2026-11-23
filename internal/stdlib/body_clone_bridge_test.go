@@ -30,7 +30,7 @@ func TestBodyCloneBridgeInstallerOrdersAndLifetime(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, name := range []string{"bodyTee", "exports", "teeBody"} {
+			for _, name := range []string{"bodyTee", "bodyReader", "exports", "teeBody"} {
 				value, err := namespace.Get(name)
 				if err != nil || !value.IsUndefined() {
 					t.Fatalf("private operation exposed as %s: value=%v err=%v", name, value, err)
@@ -55,12 +55,12 @@ func TestBodyCloneBridgeInstallerOrdersAndLifetime(t *testing.T) {
 			if err := Streams(rt); err != nil {
 				t.Fatal(err)
 			}
-			if _, ok := bodyTeeFactories.Load(rt); !ok {
-				t.Fatal("factory was not retained after Streams reinstallation")
+			if _, ok := bodyStreamOperations.Load(rt); !ok {
+				t.Fatal("body operations were not retained after Streams reinstallation")
 			}
 			rt.Close()
-			if _, ok := bodyTeeFactories.Load(rt); ok {
-				t.Fatal("factory survived runtime close")
+			if _, ok := bodyStreamOperations.Load(rt); ok {
+				t.Fatal("body operations survived runtime close")
 			}
 		})
 	}

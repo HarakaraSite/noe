@@ -196,3 +196,68 @@ unchanged. JIT remains disabled in constructors and builds. See the
 [upgrade and validation record](go-quickjs-v0.31.1-upgrade.md) for API/behavior
 scope, normal-build cancellation evidence, the independent review and the
 instruction-sensitive E2E fixture correction.
+
+## go-quickjs v0.39.0 deferred — 2026-11-18
+
+NOE kept v0.38.0 when the v0.39.0 upgrade was deferred. The candidate was
+tested against NOE revision `54671c0baabeb8b9a25ed43243a92022af3e772e` by
+changing only the engine version in an isolated copy. The Linux amd64 CLI
+built with Go 1.27.2 and CGO disabled, and the other five distribution
+targets compiled. The CLI E2E suite passed. One existing stdlib test failed
+in the whole-tree unit and E2E run. [Upstream release](https://github.com/go-quickjs/go-quickjs/releases/tag/v0.39.0)
+
+### AbortSignal retention after listener removal
+
+`TestAbortSignalListenerAlgorithmsReleaseRemovedTargets` attaches an event
+listener with a signal from `AbortSignal.any()` and removes the listener.
+The test keeps weak references to the signal and its event target and checks
+that both can be collected while the source controller is still alive. On
+v0.39.0 the check times out after five seconds. A diagnostic probe observed
+that the event target was collected while the derived signal remained
+reachable, including after aborting the source and running GC again. The
+retaining reference is still unknown. All runs below used JIT-disabled builds.
+[Test at the checked revision](https://forge.harakara.site/littleisland/noe/src/commit/54671c0baabeb8b9a25ed43243a92022af3e772e/internal/stdlib/abort_signal_any_test.go#L325)
+
+| Engine and interpreter | Focused test on Linux amd64 |
+| --- | --- |
+| v0.38.0, default | 3 passes |
+| v0.39.0, default | 3 failures |
+| v0.39.0, Go handlers (`QJS_NONATIVE=1`) | 3 failures |
+
+The test logs the failed collection check.
+
+```text
+condition did not become true after garbage collection: removed.signal.deref() === undefined && removed.target.deref() === undefined
+```
+
+From the NOE repository root, create a temporary copy at the tested revision
+and run the comparison with Go 1.27.2. The two v0.39.0 test commands are
+expected to exit with code 1.
+
+```sh
+noe_qjs_probe=$(mktemp -d)
+git archive 54671c0baabeb8b9a25ed43243a92022af3e772e | tar -x -C "$noe_qjs_probe"
+(
+  cd "$noe_qjs_probe" || exit
+  export GOTOOLCHAIN=local GOWORK=off GOFLAGS=
+  unset QJS_NONATIVE
+  test_pattern='^TestAbortSignalListenerAlgorithmsReleaseRemovedTargets$'
+  go test ./internal/stdlib -run "$test_pattern" -count=3 -v || exit
+  go get github.com/go-quickjs/go-quickjs@v0.39.0 || exit
+  go test ./internal/stdlib -run "$test_pattern" -count=3 -v
+  QJS_NONATIVE=1 go test ./internal/stdlib -run "$test_pattern" -count=3 -v
+)
+```
+
+The local evidence directory is
+`/var/tmp/noe-quickjs-039-CYN9rnQf`. It contains the whole-tree run
+(`noe-e2e.log`), the version controls (`weakrefs-038.log`,
+`weakrefs-039.log`, `weakrefs-039-go.log`), and the diagnostic observations
+(`weakrefs-probe-038.log`, `weakrefs-probe-039.log`).
+
+On 2026-11-23 the tests were revised to check cancellation delivery after GC
+and listener removal. In the earlier reproduction, v0.43.0 retained the last
+removed signal after 1, 10, 100, and 1,000 listener registrations and removals.
+Collection timing is a diagnostic observation. Standards compatibility is
+checked against the observable behavior required by DOM and ECMAScript.
+[Revised tests](../../internal/stdlib/abort_signal_any_test.go)

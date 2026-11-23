@@ -79,8 +79,26 @@
     };
   }
 
-  function abortReason(signal) {
-    return signal.reason === undefined ? new Error("The operation was aborted") : signal.reason;
+  async function socketOperation(signal, start) {
+    if (signal === undefined) return await start().promise;
+
+    const signals = host.abortSignals();
+    if (!signals || !signals.has(signal)) throw new TypeError("signal must be an AbortSignal");
+    if (signals.aborted(signal)) throw signals.reason(signal);
+
+    let operation;
+    const cancel = () => { if (operation) operation.cancel(); };
+    signals.add(signal, cancel);
+    try {
+      operation = start();
+      if (signals.aborted(signal)) cancel();
+      return await operation.promise;
+    } catch (error) {
+      if (signals.aborted(signal)) throw signals.reason(signal);
+      throw error;
+    } finally {
+      signals.remove(signal, cancel);
+    }
   }
 
   function tlsOptions(options, request, listening) {
@@ -121,24 +139,7 @@
 
     tlsOptions(options, request, false);
 
-    const signal = options.signal;
-    if (signal !== undefined && !(signal instanceof AbortSignal))
-      throw new TypeError("signal must be an AbortSignal");
-    if (signal && signal.aborted) throw abortReason(signal);
-
-    let operation;
-    const cancel = () => { if (operation) operation.cancel(); };
-    if (signal) signal.addEventListener("abort", cancel, { once: true });
-    try {
-      operation = host.connect(JSON.stringify(request));
-      if (signal && signal.aborted) cancel();
-      return streams(await operation.promise);
-    } catch (error) {
-      if (signal && signal.aborted) throw abortReason(signal);
-      throw error;
-    } finally {
-      if (signal) signal.removeEventListener("abort", cancel);
-    }
+    return streams(await socketOperation(options.signal, () => host.connect(JSON.stringify(request))));
   }
 
   async function listen(options) {
@@ -164,30 +165,13 @@
 
     tlsOptions(options, request, true);
 
-    const signal = options.signal;
-    if (signal !== undefined && !(signal instanceof AbortSignal))
-      throw new TypeError("signal must be an AbortSignal");
-    if (signal && signal.aborted) throw abortReason(signal);
-
-    let operation;
-    const cancel = () => { if (operation) operation.cancel(); };
-    if (signal) signal.addEventListener("abort", cancel, { once: true });
-    try {
-      operation = host.listen(JSON.stringify(request));
-      if (signal && signal.aborted) cancel();
-      const native = await operation.promise;
-      return {
-        address: native.address,
-        accept: () => native.accept().then(streams),
-        close: () => native.close(),
-        async [Symbol.asyncDispose]() { await this.close(); },
-      };
-    } catch (error) {
-      if (signal && signal.aborted) throw abortReason(signal);
-      throw error;
-    } finally {
-      if (signal) signal.removeEventListener("abort", cancel);
-    }
+    const native = await socketOperation(options.signal, () => host.listen(JSON.stringify(request)));
+    return {
+      address: native.address,
+      accept: () => native.accept().then(streams),
+      close: () => native.close(),
+      async [Symbol.asyncDispose]() { await this.close(); },
+    };
   }
 
   function datagramAddress(address, binding) {
@@ -206,23 +190,7 @@
     if (options === undefined) options = {};
     if (options === null || typeof options !== "object" || Array.isArray(options))
       throw new TypeError("operation options must be an object");
-    const signal = options.signal;
-    if (signal !== undefined && !(signal instanceof AbortSignal))
-      throw new TypeError("signal must be an AbortSignal");
-    if (signal && signal.aborted) throw abortReason(signal);
-    let operation;
-    const cancel = () => { if (operation) operation.cancel(); };
-    if (signal) signal.addEventListener("abort", cancel, { once: true });
-    try {
-      operation = start();
-      if (signal && signal.aborted) cancel();
-      return await operation.promise;
-    } catch (error) {
-      if (signal && signal.aborted) throw abortReason(signal);
-      throw error;
-    } finally {
-      if (signal) signal.removeEventListener("abort", cancel);
-    }
+    return socketOperation(options.signal, start);
   }
 
   async function bind(options) {

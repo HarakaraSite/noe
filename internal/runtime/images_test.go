@@ -6,17 +6,23 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
-	"forge.harakara.site/littleisland/noe/v2/internal/events"
-	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"forge.harakara.site/littleisland/noe/v2/internal/agent/provider"
+	"forge.harakara.site/littleisland/noe/v2/internal/events"
+	imageapi "forge.harakara.site/littleisland/noe/v2/internal/image"
+	"github.com/coder/websocket"
 )
 
 func runtimeImage(t *testing.T) (string, []byte) {
@@ -260,13 +266,166 @@ func TestImageGenerationPublicModuleSavesWithoutAutomaticAttachment(t *testing.T
 	}
 }
 func TestImageVisionRefusalPreservesExistingErrorAndDetails(t *testing.T) {
-	p := agentProviderFunc(func(context.Context, provider.Request) (provider.Response, error) {
-		return provider.Response{Message: json.RawMessage(`{"role":"assistant","content":null,"refusal":"provider refusal reason"}`), FinishReason: "stop"}, nil
-	})
-	source := `import {run_agent} from "noe:agent";const x=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"image");if(x.lastResult.state!=="failed"||!x.lastResult.error.includes("model refused the request")||x.lastResult.errorDetails?.code!=="refusal"||x.lastResult.errorDetails.providerMessage!=="provider refusal reason")throw Error(JSON.stringify(x));`
-	code, err := Execute(context.Background(), Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: agentTestOptions(p)})
-	if code != 0 || err != nil {
-		t.Fatalf("code=%d err=%v", code, err)
+	for _, test := range []struct {
+		sdk       string
+		api       string
+		transport string
+		finish    string
+	}{
+		{"openrouter", "chat-completions", "sse", "content_filter"},
+		{"openai", "chat-completions", "sse", "stop"},
+		{"openrouter", "responses", "sse", "content_filter"},
+		{"openai", "responses", "sse", "tool_calls"},
+		{"openai", "responses", "websocket", "content_filter"},
+	} {
+		t.Run(test.sdk+"/"+test.api+"/"+test.transport, func(t *testing.T) {
+			path, content := runtimeImage(t)
+			encodedPath, _ := json.Marshal(path)
+			readCode, _ := json.Marshal(map[string]string{"code": `const {read_image}=await import("noe:image");await read_image(` + string(encodedPath) + `);`})
+			refusedCode, _ := json.Marshal(map[string]string{"code": `const fs=await import("noe:fs");fs.writeFileSync(` + string(encodedPath) + `,"unexpected execution");`})
+			var calls atomic.Int32
+			frames := func(request []byte) []string {
+				call := calls.Add(1)
+				if call > 1 && !bytes.Contains(request, []byte("data:image/png;base64,"+base64.StdEncoding.EncodeToString(content))) {
+					t.Error("fixture refusal did not follow a request with the image")
+				}
+				if test.api == "chat-completions" {
+					tool := func(id string, args []byte) string {
+						return fmt.Sprintf(`{"index":0,"id":%q,"type":"function","function":{"name":"run_js","arguments":%q}}`, id, string(args))
+					}
+					const chunk = `{"id":"gen-1","object":"chat.completion.chunk","created":1,"model":"fixture/model",`
+					if call == 1 {
+						return []string{chunk + `"choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[` + tool("read", readCode) + `]},"finish_reason":"tool_calls"}]}`, "[DONE]"}
+					}
+					return []string{
+						chunk + `"choices":[{"index":0,"delta":{"role":"assistant","refusal":"provider "},"finish_reason":null}]}`,
+						chunk + `"choices":[{"index":0,"delta":{"refusal":"refusal reason","tool_calls":[` + tool("refused", refusedCode) + `]},"finish_reason":` + fmt.Sprintf("%q", test.finish) + `}]}`,
+						"[DONE]",
+					}
+				}
+				tool := func(id string, args []byte) string {
+					return fmt.Sprintf(`{"type":"function_call","id":"fc_%s","call_id":%q,"name":"run_js","arguments":%q,"status":"completed"}`, id, id, string(args))
+				}
+				terminal := func(id, status, incomplete, output string) string {
+					return fmt.Sprintf(`{"type":"response.%s","sequence_number":3,"response":{"id":%q,"object":"response","created_at":1,"status":%q,"model":"fixture/model","error":null,"incomplete_details":%s,"parallel_tool_calls":true,"tool_choice":"auto","tools":[],"output":[%s],"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7}}}`, status, id, status, incomplete, output)
+				}
+				if call == 1 {
+					return []string{terminal("resp_read", "completed", "null", tool("read", readCode))}
+				}
+				incomplete := `{"reason":"content_filter"}`
+				terminalFrame := terminal("resp_refused", "incomplete", incomplete, tool("refused", refusedCode))
+				if test.sdk == "openrouter" {
+					part := `{"type":"message","id":"msg_refusal","role":"assistant","status":"incomplete","content":[{"type":"refusal","refusal":"provider refusal reason"}]}`
+					return []string{terminal("resp_refused", "incomplete", incomplete, tool("refused", refusedCode)+","+part)}
+				}
+				if test.transport == "sse" {
+					terminalFrame = terminal("resp_refused", "completed", "null", tool("refused", refusedCode))
+				}
+				return []string{
+					`{"type":"response.refusal.delta","item_id":"msg_refusal","output_index":1,"content_index":0,"delta":"provider ","sequence_number":1}`,
+					`{"type":"response.refusal.done","item_id":"msg_refusal","output_index":1,"content_index":0,"refusal":"provider refusal reason","sequence_number":2}`,
+					terminalFrame,
+				}
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if test.transport == "websocket" {
+					conn, err := websocket.Accept(w, r, nil)
+					if err != nil {
+						t.Errorf("accept websocket: %v", err)
+						return
+					}
+					defer conn.CloseNow()
+					for range 2 {
+						_, request, err := conn.Read(r.Context())
+						if err != nil {
+							t.Errorf("read WebSocket request: %v", err)
+							return
+						}
+						for _, frame := range frames(request) {
+							if err := conn.Write(r.Context(), websocket.MessageText, []byte(frame)); err != nil {
+								t.Errorf("write WebSocket event: %v", err)
+								return
+							}
+						}
+					}
+					return
+				}
+				request, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("read SSE request: %v", err)
+					return
+				}
+				w.Header().Set("Content-Type", "text/event-stream")
+				for _, frame := range frames(request) {
+					fmt.Fprintf(w, "data: %s\n\n", frame)
+				}
+			}))
+			defer server.Close()
+			key := filepath.Join(t.TempDir(), "api-key")
+			if err := os.WriteFile(key, []byte("fixture-key"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			profile := &provider.Definition{SDK: test.sdk, API: test.api, Transport: test.transport, BaseURL: server.URL, Path: "/fixture", Auth: "api-key", KeyFile: key}
+			providerOpts := provider.Options{Profile: profile, BaseURL: server.URL, KeyFile: key, HTTPClient: server.Client()}
+			var p provider.Provider
+			if test.sdk == "openai" {
+				p = provider.NewOpenAI(providerOpts)
+			} else {
+				p = provider.NewOpenRouter(providerOpts)
+			}
+			opts := agentTestOptions(p)
+			var mu sync.Mutex
+			var observed []events.Event
+			opts.Observe = func(event events.Event) {
+				mu.Lock()
+				defer mu.Unlock()
+				observed = append(observed, event)
+			}
+			source := `import {run_agent} from "noe:agent";
+const {lastResult}=await run_agent({provider:"openrouter",model:"fixture/model",effort:"auto"},"image");
+const details=lastResult.errorDetails;
+if(lastResult.state!=="failed"||!lastResult.error.includes("model refused the request")||details?.code!=="refusal"||details.providerMessage!=="provider refusal reason"||!details.requestId)throw Error(JSON.stringify(lastResult));`
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			code, err := Execute(ctx, Source{filepath.Join(t.TempDir(), "main.js"), source}, Options{Agent: opts})
+			if code != 0 || err != nil {
+				t.Fatalf("code=%d err=%v", code, err)
+			}
+			final, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(final, content) {
+				t.Fatalf("refusal also executed the returned script: %v", err)
+			}
+			if calls.Load() != 2 {
+				t.Fatalf("expected one image read and one refusal, got %d model calls", calls.Load())
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			var modelRequestID, agentRequestID string
+			var toolRuns int
+			for _, event := range observed {
+				if event["type"] == "run_js.started" {
+					toolRuns++
+				}
+				if event["type"] != "agent.failed" && (event["type"] != "model.finished" || event["errorDetails"] == nil) {
+					continue
+				}
+				details, ok := event["errorDetails"].(*imageapi.Error)
+				if !ok || details.Code != "refusal" || details.ProviderMessage != "provider refusal reason" || details.RequestID == "" {
+					t.Fatalf("missing refusal details: %v", event)
+				}
+				if event["type"] == "model.finished" {
+					if event["requestId"] != details.RequestID || event["finishReason"] != test.finish {
+						t.Fatalf("incorrect model refusal event: %v", event)
+					}
+					modelRequestID = details.RequestID
+				} else {
+					agentRequestID = details.RequestID
+				}
+			}
+			if modelRequestID == "" || agentRequestID != modelRequestID || toolRuns != 1 {
+				t.Fatalf("model refusal request=%q agent failure request=%q tool runs=%d", modelRequestID, agentRequestID, toolRuns)
+			}
+		})
 	}
 }
 

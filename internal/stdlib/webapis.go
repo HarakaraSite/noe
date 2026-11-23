@@ -108,6 +108,11 @@ func (mode builtinEvaluation) webAPIs(rt *quickjs.Runtime, random io.Reader, loo
 	if err != nil {
 		return nil, err
 	}
+	abortSignals, err := api.Get("abortSignals")
+	if err != nil {
+		return nil, err
+	}
+	bindAbortSignals(rt, abortSignals)
 	// Each name goes on the global object, which is where a program written for
 	// a browser looks for it.
 	for _, name := range []string{
@@ -1679,7 +1684,10 @@ var webAPIsJS = `(function (host) {
 
   function runAbortSteps(signal) {
     const data = abortSignalData.get(signal);
-    for (const algorithm of data.algorithms) algorithm();
+    for (const algorithm of data.algorithms) {
+      try { algorithm(data.reason); }
+      catch (error) { Promise.resolve().then(() => { throw error; }); }
+    }
     data.algorithms.clear();
     updateAbortSignalRetention(signal);
     dispatch.call(signal, new Event("abort"));
@@ -1824,6 +1832,21 @@ var webAPIsJS = `(function (host) {
     if (!data) throw new TypeError("The receiver is not an AbortSignal");
     return data;
   }
+  const abortSignals = {
+    has(signal) { return abortSignalData.has(signal); },
+    aborted(signal) { return abortSignalOf(signal).aborted; },
+    reason(signal) { return abortSignalOf(signal).reason; },
+    add(signal, algorithm) {
+      const data = abortSignalOf(signal);
+      if (data.aborted) return;
+      data.algorithms.add(algorithm);
+      updateAbortSignalRetention(signal);
+    },
+    remove(signal, algorithm) {
+      abortSignalOf(signal).algorithms.delete(algorithm);
+      updateAbortSignalRetention(signal);
+    },
+  };
   for (const name of ["aborted", "reason", "onabort", "throwIfAborted"]) {
     Object.defineProperty(AbortSignal.prototype, name, {enumerable: true});
   }
@@ -2267,7 +2290,7 @@ var webAPIsJS = `(function (host) {
     atob: (s) => host.atob(String(s)),
     btoa: (s) => host.btoa(String(s)),
     structuredClone, crypto,
-    AbortController, AbortSignal, Event, EventTarget, CustomEvent,
+    AbortController, AbortSignal, Event, EventTarget, CustomEvent, abortSignals,
     Blob, File, FormData, URLPattern,
     DOMException, MessageChannel, MessagePort, MessageEvent, BroadcastChannel,
   };

@@ -258,8 +258,7 @@ const nodeJS = `(function (host) {
       const v = args[i++];
       switch (c) {
         case "s": return typeof v === "string" ? v : host.inspect(v);
-        case "d": case "i": return String(Math.trunc(Number(v)));
-        case "f": return String(Number(v));
+        case "d": case "i": case "f": return formatNumber(c, v);
         case "j": try { return JSON.stringify(v); } catch (e) { return "[Circular]"; }
         case "o": case "O": return host.inspect(v);
       }
@@ -267,6 +266,18 @@ const nodeJS = `(function (host) {
     });
     const rest = args.slice(i).map(a => typeof a === "string" ? a : host.inspect(a));
     return [head].concat(rest).join(" ");
+  }
+
+  function formatNumber(specifier, value) {
+    if (typeof value === "symbol") return "NaN";
+    if (typeof value === "bigint" && specifier !== "f") return String(value) + "n";
+    let number;
+    switch (specifier) {
+      case "d": number = Number(value); break;
+      case "i": number = parseInt(value, 10); break;
+      case "f": number = parseFloat(value); break;
+    }
+    return Object.is(number, -0) ? "-0" : String(number);
   }
 
   // promisify turns a function whose last argument is a callback taking
@@ -347,6 +358,22 @@ const nodeJS = `(function (host) {
     }
   }
 
+  const dataViewBuffer = Object.getOwnPropertyDescriptor(DataView.prototype, "buffer").get;
+  const dataViewByteOffset = Object.getOwnPropertyDescriptor(DataView.prototype, "byteOffset").get;
+  const dataViewByteLength = Object.getOwnPropertyDescriptor(DataView.prototype, "byteLength").get;
+
+  function viewBytes(view) {
+    return new Uint8Array(dataViewBuffer.call(view), dataViewByteOffset.call(view), dataViewByteLength.call(view));
+  }
+
+  function bytesEqual(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
   function deepEqual(a, b, strict, seen = new Map()) {
     if (strict ? Object.is(a, b) : a == b) return true;
     if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) {
@@ -366,6 +393,13 @@ const nodeJS = `(function (host) {
       case "[object Date]": return a.getTime() === b.getTime();
       case "[object RegExp]": return a.source === b.source && a.flags === b.flags;
       case "[object Error]": return a.name === b.name && a.message === b.message;
+      case "[object ArrayBuffer]":
+      case "[object SharedArrayBuffer]":
+        if (!bytesEqual(new Uint8Array(a), new Uint8Array(b))) return false;
+        break;
+      case "[object DataView]":
+        if (!bytesEqual(viewBytes(a), viewBytes(b))) return false;
+        break;
       case "[object Map]": {
         if (a.size !== b.size) return false;
         for (const [k, v] of a) {
@@ -379,12 +413,13 @@ const nodeJS = `(function (host) {
         return true;
       }
     }
-    if (ArrayBuffer.isView(a) || Array.isArray(a)) {
+    const typedArray = ta !== "[object DataView]" && ArrayBuffer.isView(a);
+    if (typedArray || Array.isArray(a)) {
       if (a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) {
         if (!deepEqual(a[i], b[i], strict, seen)) return false;
       }
-      if (ArrayBuffer.isView(a)) return true;
+      if (typedArray) return true;
     }
     const ka = Object.keys(a), kb = Object.keys(b);
     if (ka.length !== kb.length) return false;

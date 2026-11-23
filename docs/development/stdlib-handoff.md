@@ -561,6 +561,15 @@ Evidence: `/var/tmp/noe-quickjs-v0380-kjt3ylch`. Existing Fast-mode documentatio
 is retained. Implementation, verification, v2.27.0 publication and both local
 installations are complete. Reuse these checks for unchanged source/dependencies.
 
+## go-quickjs compatibility — AbortSignal lifetime
+
+The v0.39.0 upgrade was deferred after an AbortSignal test required collection
+within five seconds. The test now checks cancellation delivery, retention of
+active observers, and listener removal according to the DOM specification.
+ECMAScript leaves collection timing to the engine. The earlier retention
+observations remain available in the
+[dependency update record](dependency-updates.md#go-quickjs-v0390-deferred--2026-11-18).
+
 ## Latest investigation — OpenAI Fast mode
 
 The [Fast-mode investigation](openai-fast-mode.md) and

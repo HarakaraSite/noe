@@ -7,6 +7,7 @@
   const Signal = AbortSignal;
   const Controller = AbortController;
   const signalAny = Signal.any.bind(Signal);
+  const signals = native.abortSignals();
   const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
   const MIN_INT64 = -(1n << 63n), MAX_INT64 = (1n << 63n) - 1n;
   const EMPTY = {positional: [], named: []};
@@ -24,7 +25,7 @@
   function options(value = {}) {
     if (value === null || typeof value !== "object" || Array.isArray(value)) invalid("options must be an object");
     const signal = value.signal;
-    if (signal !== undefined && !(signal instanceof Signal)) invalid("signal must be an AbortSignal");
+    if (signal !== undefined && !signals.has(signal)) invalid("signal must be an AbortSignal");
     return {value, signal};
   }
   function sqlText(sql) {
@@ -99,22 +100,22 @@
     const failure = signal ? new Promise((_, fail) => { reject = fail; }) : null;
     // A queued operation may not reach its race until the preceding work ends.
     if (failure) failure.catch(() => {});
-    const abort = () => {
+    const abort = reason => {
       if (aborted) return;
       aborted = true;
       if (cancel) cancel();
-      reject(signal.reason);
+      reject(reason);
     };
     if (signal) {
-      signal.addEventListener("abort", abort, {once: true});
-      if (signal.aborted) abort();
+      if (signals.aborted(signal)) abort(signals.reason(signal));
+      else signals.add(signal, abort);
     }
     return {
       signal,
-      check() { if (signal && signal.aborted) throw signal.reason; },
+      check() { if (signal && signals.aborted(signal)) throw signals.reason(signal); },
       register(value) { cancel = value; if (aborted) cancel(); },
       race(promise) { return failure ? Promise.race([promise, failure]) : promise; },
-      cleanup() { if (signal) signal.removeEventListener("abort", abort); cancel = null; },
+      cleanup() { if (signal) signals.remove(signal, abort); cancel = null; },
     };
   }
   function enqueue(queue, work, signal, allowFailed = false) {
@@ -178,7 +179,7 @@
   function detachIterator(state) {
     state.owner.iterators.delete(state.object);
     if (state.statement) state.statement.iterators.delete(state.object);
-    if (state.signal) state.signal.removeEventListener("abort", state.abort);
+    if (state.signal) signals.remove(state.signal, state.abort);
     state.columns = null;
     state.rows = [];
     state.index = 0;
@@ -214,7 +215,7 @@
     try {
       if (state.aborted && !state.abortDelivered) {
         state.abortDelivered = true;
-        throw state.signal.reason;
+        throw signals.reason(state.signal);
       }
       if (state.ended) return {value: undefined, done: true};
       ownerState(state.owner.object);
@@ -243,7 +244,7 @@
         }, state.signal);
         if (state.aborted && !state.abortDelivered) {
           state.abortDelivered = true;
-          throw state.signal.reason;
+          throw signals.reason(state.signal);
         }
         if (state.ended) return {value: undefined, done: true};
         if (batch.columns !== null) state.columns = batch.columns;
@@ -262,9 +263,9 @@
     } catch (error) {
       let cleanupError;
       try { await closeIterator(state); } catch (failure) { cleanupError = failure; }
-      if (state.signal && state.signal.aborted) {
+      if (state.signal && signals.aborted(state.signal)) {
         state.abortDelivered = true;
-        throw state.signal.reason;
+        throw signals.reason(state.signal);
       }
       if (cleanupError !== undefined) throw new AggregateError([error, cleanupError], "query iteration and cleanup failed");
       throw error;
@@ -285,14 +286,14 @@
       iterators.set(this, state);
       owner.iterators.add(this);
       if (statement) statement.iterators.add(this);
-      state.abort = () => {
+      state.abort = reason => {
         state.aborted = true;
-        if (owner.transaction && owner.queue.failed === undefined) owner.queue.failed = {error: signal.reason};
+        if (owner.transaction && owner.queue.failed === undefined) owner.queue.failed = {error: reason};
         closeIterator(state).catch(() => {});
       };
       if (signal) {
-        signal.addEventListener("abort", state.abort, {once: true});
-        if (signal.aborted) state.abort();
+        if (signals.aborted(signal)) state.abort(signals.reason(signal));
+        else signals.add(signal, state.abort);
       }
     }
     get closed() { return iteratorState(this).ended; }
@@ -395,8 +396,8 @@
         native.brand(transaction);
         const state = {object: transaction, db: database, transaction: true, active: true, controller, prepared: new Set(), iterators: new Set(), queue: {tail: Promise.resolve(), recordFailure: true}};
         states.set(transaction, state);
-        const stop = () => controller.abort(signal.reason);
-        if (signal) signal.addEventListener("abort", stop, {once: true});
+        const stop = reason => controller.abort(reason);
+        if (signal) signals.add(signal, stop);
         let begun = false;
         try {
           op.check();
@@ -426,7 +427,7 @@
           throw error;
         } finally {
           state.active = false;
-          if (signal) signal.removeEventListener("abort", stop);
+          if (signal) signals.remove(signal, stop);
         }
       }, signal);
     }
@@ -460,7 +461,7 @@
       return new Database(result.id, path, readOnly);
     } catch (error) {
       if (result) await native.request(result.id, 0, "close", "", EMPTY, () => {});
-      if (signal && signal.aborted) throw signal.reason;
+      if (signal && signals.aborted(signal)) throw signals.reason(signal);
       throw error;
     } finally { operation.cleanup(); }
   }

@@ -16,6 +16,8 @@ import (
 	"time"
 
 	quickjs "github.com/go-quickjs/go-quickjs"
+
+	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 )
 
 //go:embed js/net.js
@@ -54,6 +56,9 @@ func (h *Host) installNetWithFuncs(dial netDialFunc, listen netListenFunc) error
 		}
 	}
 	api := h.rt.NewObject()
+	if err := stdlib.InstallAbortSignalAccess(h.rt, api); err != nil {
+		return err
+	}
 	if err := api.Set("connect", func(payload string) quickjs.Value {
 		return h.startConnect(payload, dial)
 	}); err != nil {

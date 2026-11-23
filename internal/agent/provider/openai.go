@@ -83,22 +83,16 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 	ctx = context.WithValue(ctx, callContextKey{}, state)
 	defer state.closeBody()
 	opts := []option.RequestOption{option.WithAPIKey(token), option.WithRequestBody("application/json", payload)}
-	completed := false
+	sawTerminal := false
 	if p.profile.API == "responses" {
 		state.responseAPI = "responses"
 		stream := p.client.Responses.NewStreaming(ctx, responses.ResponseNewParams{}, opts...)
 		defer stream.Close()
 		for stream.Next() {
 			event := stream.Current()
-			if event.Type == "error" {
-				return Response{}, nativeStreamFailure(state)
-			}
-			if event.Type == "response.completed" {
-				completed = true
+			if event.Type == "error" || event.Type == "response.completed" || event.Type == "response.failed" || event.Type == "response.incomplete" {
+				sawTerminal = true
 				break
-			}
-			if event.Type == "response.failed" || event.Type == "response.incomplete" {
-				return Response{}, nativeStreamFailure(state)
 			}
 		}
 		err = stream.Err()
@@ -113,26 +107,20 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 		return Response{}, cancelErr
 	}
 	status, body := state.response()
-	if err != nil {
-		if status != http.StatusOK {
-			return Response{}, state.classifyHTTPError(err)
-		}
-		return Response{}, providerError(ErrorStream, status, nil)
+	if err != nil && status != http.StatusOK {
+		return Response{}, state.classifyHTTPError(err)
+	}
+	if p.profile.API == "responses" {
+		return nativeStreamResponse(state, sawTerminal)
 	}
 	if body == nil {
 		return Response{}, providerError(ErrorStream, status, nil)
 	}
 	done, readErr, consumeErr := body.snapshot()
-	if readErr != nil {
-		return Response{}, providerError(ErrorStream, status, nil)
+	if failure, ok := consumeErr.(*ProviderError); ok {
+		return Response{}, state.streamFailure(failure.Kind)
 	}
-	if p.profile.API == "responses" {
-		if !completed {
-			return Response{}, providerError(ErrorStream, status, nil)
-		}
-		return body.response()
-	}
-	if !done {
+	if err != nil || readErr != nil || !done {
 		return Response{}, providerError(ErrorStream, status, nil)
 	}
 	if consumeErr != nil {
@@ -141,13 +129,18 @@ func (p *OpenAI) generateOnce(ctx context.Context, request Request) (Response, e
 	return body.response()
 }
 
-// ChatGPT usage-limit failures can arrive after the HTTP 200 stream starts.
-func nativeStreamFailure(state *callState) error {
-	_, body := state.response()
-	if body != nil {
-		if kind := body.nativeErrorKind(); kind != "" {
-			return providerError(kind, 0, nil)
-		}
+func nativeStreamResponse(state *callState, sawTerminal bool) (Response, error) {
+	status, body := state.response()
+	if body == nil {
+		return Response{}, providerError(ErrorStream, status, nil)
 	}
-	return providerError(ErrorResponse, 0, nil)
+	// Prefer the wire failure even if the SDK could not decode the terminal event.
+	if kind := body.nativeErrorKind(); kind != "" {
+		return Response{}, state.streamFailure(kind)
+	}
+	_, readErr, _ := body.snapshot()
+	if readErr != nil || !sawTerminal {
+		return Response{}, providerError(ErrorStream, status, nil)
+	}
+	return body.response()
 }

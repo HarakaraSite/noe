@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	openai "github.com/openai/openai-go/v3"
@@ -140,6 +141,11 @@ func (p *OpenAI) generateManagedWebSocketOnce(ctx context.Context, request Reque
 	if err := cancellationError(ctx); err != nil {
 		transport.drop()
 		return Response{}, err
+	}
+	if responseID == "" {
+		// A refusal is terminal to the run and cannot extend cached history.
+		transport.drop()
+		return response, nil
 	}
 	acceptedHistory := make([][32]byte, 0, len(inputHashes)+len(outputHashes))
 	acceptedHistory = append(acceptedHistory, inputHashes...)
@@ -462,24 +468,25 @@ func sendOpenAIResponse(ctx context.Context, connection *responses.ResponseConne
 		switch event.Type {
 		case "error":
 			return Response{}, "", nil, openAIWebSocketAPIError(raw)
-		case "response.failed", "response.incomplete":
+		case "response.failed", "response.incomplete", "response.completed":
 			if accumulator.failureKind != "" {
 				return Response{}, "", nil, providerError(accumulator.failureKind, 0, nil)
-			}
-			return Response{}, "", nil, providerError(ErrorResponse, 0, nil)
-		case "response.completed":
-			var terminal struct {
-				ID string `json:"id"`
-			}
-			if jsonv1.Unmarshal(event.Response, &terminal) != nil || terminal.ID == "" {
-				return Response{}, "", nil, providerError(ErrorResponse, 0, nil)
 			}
 			response, err := accumulator.response()
 			if err != nil {
 				return Response{}, "", nil, err
 			}
-			outputHashes, err := responseNativeOutputFingerprints(response)
+			outputHashes, refused, err := responseNativeOutputFingerprints(response)
 			if err != nil {
+				return Response{}, "", nil, providerError(ErrorResponse, 0, nil)
+			}
+			if refused {
+				return response, "", nil, nil
+			}
+			var terminal struct {
+				ID string `json:"id"`
+			}
+			if jsonv1.Unmarshal(event.Response, &terminal) != nil || terminal.ID == "" {
 				return Response{}, "", nil, providerError(ErrorResponse, 0, nil)
 			}
 			return response, terminal.ID, outputHashes, nil
@@ -496,6 +503,7 @@ type openAIWebSocketErrorPayload struct {
 
 type openAIWebSocketErrorEvent struct {
 	Status int                         `json:"status"`
+	Code   string                      `json:"code"`
 	Error  openAIWebSocketErrorPayload `json:"error"`
 }
 
@@ -518,10 +526,7 @@ func openAIWebSocketAPIError(raw []byte) error {
 		// The stream retry opens a fresh connection and resends the current history.
 		return providerError(ErrorStream, event.Status, nil)
 	}
-	if kind, known := providerCodeKind(event.Error.Code); known {
-		return providerError(kind, event.Status, nil)
-	}
-	if kind, known := providerCodeKind(event.Error.Type); known {
+	if kind := providerFailureCodeKind(event.Code, event.Error.Code, event.Error.Type); kind != "" {
 		return providerError(kind, event.Status, nil)
 	}
 	if event.Status != 0 {
@@ -641,16 +646,23 @@ func extendsFingerprints(previous, current [][32]byte) bool {
 	return true
 }
 
-func responseNativeOutputFingerprints(response Response) ([][32]byte, error) {
+func responseNativeOutputFingerprints(response Response) ([][32]byte, bool, error) {
 	message, err := decodeRawObject(response.Message)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	if raw, exists := message["refusal"]; exists {
+		var refusal string
+		if jsonv1.Unmarshal(raw, &refusal) == nil && strings.TrimSpace(refusal) != "" {
+			return nil, true, nil
+		}
 	}
 	var items []jsonv1.RawMessage
 	if err := jsonv1.Unmarshal(message[nativeResponseItems], &items); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return fingerprintItems(items)
+	hashes, err := fingerprintItems(items)
+	return hashes, false, err
 }
 
 func previousResponseError(raw []byte) bool {

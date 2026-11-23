@@ -88,6 +88,9 @@ func (mode builtinEvaluation) network(rt *quickjs.Runtime, cfg *Fetch) error {
 	}
 
 	host := rt.NewObject()
+	if err := InstallAbortSignalAccess(rt, host); err != nil {
+		return err
+	}
 	if err := host.Set("binaryData", func(value quickjs.Value, operation string) (any, error) {
 		return binaryData(rt, value, operation)
 	}); err != nil {
@@ -96,6 +99,9 @@ func (mode builtinEvaluation) network(rt *quickjs.Runtime, cfg *Fetch) error {
 	if err := host.Set("teeBody", func(stream quickjs.Value) (quickjs.Value, error) {
 		return teeBody(rt, stream)
 	}); err != nil {
+		return err
+	}
+	if err := host.Set("bodyReader", func() any { return bodyReaderOperations(rt) }); err != nil {
 		return err
 	}
 	if err := host.Set("streaming", cfg.Loop != nil); err != nil {
@@ -627,7 +633,7 @@ const fetchJS = `(function (host) {
   const bodyByteArray = Uint8Array, bodyByteSet = Uint8Array.prototype.set;
   const requestWellFormed = String.prototype.toWellFormed;
   const requestSlots = new WeakMap();
-  const incomingRequestToken = {};
+  const incomingRequestToken = {}, fetchRequestToken = {};
   const requestGet = WeakMap.prototype.get, requestHas = WeakMap.prototype.has, requestSet = WeakMap.prototype.set;
   let requestURL = null;
   const requestURLGetters = {};
@@ -654,12 +660,19 @@ const fetchJS = `(function (host) {
     if (state === undefined) throw new TypeError("The receiver is not a Request");
     return state;
   }
+  function requestSignals() {
+    const signals = host.abortSignals();
+    if (signals === null) throw new TypeError("signal must be an AbortSignal");
+    return signals;
+  }
   function requestInit(value) {
     if (value !== undefined && value !== null && typeof value !== "object" && typeof value !== "function") throw new TypeError("Request init must be a dictionary");
     const options = Object.create(null);
     for (const name of ["body", "credentials", "headers", "method", "mode", "redirect", "signal"]) {
       const item = value == null ? undefined : value[name];
-      if (item !== undefined) options[name] = name === "method" ? requestByteString(item) : item;
+      if (item === undefined) continue;
+      if (name === "signal" && item !== null) requestSignals().aborted(item);
+      options[name] = name === "method" ? requestByteString(item) : item;
     }
     return options;
   }
@@ -706,7 +719,9 @@ const fetchJS = `(function (host) {
     if (bodyUnusable(value)) throw new TypeError("The body is locked or has already been read");
     const stream = bodyStream(value);
     if (stream === null) return new Uint8Array(0);
-    const reader = stream.getReader();
+    return readBodyBytes(stream.getReader());
+  }
+  async function readBodyBytes(reader) {
     const chunks = [];
     let total = 0;
     while (true) {
@@ -809,6 +824,10 @@ const fetchJS = `(function (host) {
       const original = from ? requestOf(from) : null;
       const address = from ? original.url : requestUSVString(input);
       const options = requestInit(init);
+      const signal = options.signal === undefined ? original?.signal : options.signal ?? undefined;
+      const signals = token === fetchRequestToken && signal != null ? requestSignals() : null;
+      // Fetch rejects a pre-abort before transferring or locking the input body.
+      if (signals?.aborted(signal)) throw signals.reason(signal);
       const internal = token === incomingRequestToken;
       const url = from || internal ? address : requestAddress(address);
       const method = options.method === undefined ? (from ? original.method : "GET") : internal ? options.method : requestMethod(options.method);
@@ -821,30 +840,31 @@ const fetchJS = `(function (host) {
       if ((method === "GET" || method === "HEAD") && body !== null && body !== undefined) {
         throw new TypeError("a " + method + " request cannot have a body");
       }
+      if (signals?.aborted(signal)) throw signals.reason(signal);
       if (inherited) {
         const originalStream = body;
         body = transferStream(body);
         originalStream._disturbed = true;
       } else if (body !== null && (!extracted || !extracted.owned) && !isStream(body)) body = new bodyByteArray(body);
       super(body, headers, inherited ? from._bytes : internal ? knownBytes : undefined);
-      requestApply(requestSet, requestSlots, [this, {url, method}]);
-      this.signal = options.signal || (from ? from.signal : undefined);
+      requestApply(requestSet, requestSlots, [this, {url, method, signal}]);
       this.redirect = options.redirect || (from ? from.redirect : "follow");
       this.credentials = options.credentials || (from ? from.credentials : "same-origin");
       this.mode = options.mode || (from ? from.mode : "cors");
     }
     get url() { return requestOf(this).url; }
     get method() { return requestOf(this).method; }
+    get signal() { return requestOf(this).signal; }
     clone() {
       const state = requestOf(this);
       const body = cloneBody(this);
       return new Request(state.url, {
         method: state.method, headers: requestApply(requestGet, bodyHeaders, [this]), body: body.source,
-        signal: this.signal, redirect: this.redirect, credentials: this.credentials, mode: this.mode,
+        signal: state.signal, redirect: this.redirect, credentials: this.credentials, mode: this.mode,
       }, incomingRequestToken, body.knownBytes);
     }
   }
-  for (const name of ["url", "method", "clone"]) Object.defineProperty(Request.prototype, name, {enumerable: true});
+  for (const name of ["url", "method", "signal", "clone"]) Object.defineProperty(Request.prototype, name, {enumerable: true});
   Object.defineProperty(Request.prototype, Symbol.toStringTag, {value: "Request", configurable: true});
 
 ` + responseJS + `
@@ -1011,16 +1031,27 @@ const fetchJS = `(function (host) {
 
   // Pump exactly one chunk at a time. Stopping native IO must not wait for a
   // user-supplied cancel promise, which may never settle.
-  function pumpUpload(reader, upload) {
+  function cancelBodyReader(operations, reader, reason) {
+    try {
+      const cancelled = operations ? operations.cancel(reader, reason) : reader.cancel(reason);
+      Promise.resolve(cancelled).catch(() => {});
+    } catch (_) {}
+  }
+  function releaseBodyReader(operations, reader) {
+    if (operations) operations.release(reader);
+    else reader.releaseLock();
+  }
+  function pumpUpload(operations, reader, upload) {
     let stopped = false;
     let finished = false;
-    const stop = () => {
+    const stop = reason => {
       if (stopped || finished) return;
       stopped = true;
-      reader.cancel().catch(() => {});
+      cancelBodyReader(operations, reader, reason);
     };
-    upload.stopped.then(stop);
-    (async () => {
+    upload.stopped.then(() => stop());
+    // Let the caller capture stop before the producer can abort from pull().
+    Promise.resolve().then(async () => {
       try {
         while (!stopped) {
           const {value, done} = await reader.read();
@@ -1045,64 +1076,59 @@ const fetchJS = `(function (host) {
         }
       } finally {
         finished = true;
-        reader.releaseLock();
+        releaseBodyReader(operations, reader);
       }
-    })().catch(() => {});
+    }).catch(() => {});
     return stop;
   }
 
   async function fetch(input, init = undefined) {
-    // Reject pre-abort before constructing from a Request: that construction
-    // transfers its body and locks the original stream.
-    const signal = (init && init.signal) || (isRequest(input) ? input.signal : undefined);
-    if (signal && signal.aborted) {
-      throw signal.reason || new Error("This operation was aborted");
-    }
     const request = isRequest(input) && init === undefined
-      ? input : new Request(input, init);
+      ? input : new Request(input, init, fetchRequestToken);
     const metadata = requestOf(request);
+    const signal = metadata.signal;
+    const signals = signal == null ? null : requestSignals();
+    if (signals?.aborted(signal)) throw signals.reason(signal);
     const headers = headerSnapshot(requestApply(requestGet, bodyHeaders, [request]));
 
     if (bodyUnusable(request)) throw new TypeError("The body is locked or has already been read");
     const stream = bodyStream(request);
-    let reader = null;
-    let body = null;
-    if (stream !== null) {
-      if (host.streaming && request._bytes === undefined) {
-        reader = stream.getReader();
-        stream._disturbed = true;
-      } else {
-        // Finite bodies retain Content-Length/replay support. No-Loop hosts
-        // also buffer streams because producers cannot run during native IO.
-        body = await consumeBody(request);
-      }
-    }
-    // Buffering yields to user code. Preserve fetch-entry headers and observe
-    // an abort that happened before the native operation/listener was created.
-    if (signal && signal.aborted) throw signal.reason || new Error("This operation was aborted");
-
+    const bodyReader = stream === null ? null : host.bodyReader();
+    const streaming = stream !== null && host.streaming && request._bytes === undefined;
+    let reader;
     let cancelNative;
-    let onAbort;
+    let cancelResponse;
     let rejectAbort;
+    let locallyAborted = false;
+    let abortReason;
     let started = false;
+    let abortRegistered = false;
     let stopPump = () => {};
     const cleanup = () => {
-      if (signal && onAbort) {
-        signal.removeEventListener("abort", onAbort);
-        onAbort = null;
+      if (abortRegistered) {
+        abortRegistered = false;
+        signals.remove(signal, onAbort);
       }
     };
-    const aborted = signal ? new Promise((_, reject) => {
+    const aborted = signals ? new Promise((_, reject) => {
       rejectAbort = reject;
     }) : null;
-    if (signal) {
-      onAbort = () => {
-        if (cancelNative) cancelNative();
-        stopPump();
-        cleanup();
-        rejectAbort(signal.reason || new Error("This operation was aborted"));
-      };
-      signal.addEventListener("abort", onAbort, {once: true});
+    // A custom stream can synchronously abort before the first race starts.
+    aborted?.catch(() => {});
+    const onAbort = reason => {
+      locallyAborted = true;
+      abortReason = reason;
+      rejectAbort(reason);
+      cleanup();
+      cancelNative?.();
+      stopPump(reason);
+      cancelResponse?.(reason);
+    };
+    if (signals) {
+      // Reading a request body can run user code before native dispatch.
+      if (signals.aborted(signal)) throw signals.reason(signal);
+      signals.add(signal, onAbort);
+      abortRegistered = true;
     }
 
     // A request that fails -- refused, unreachable, cut off -- rejects with a
@@ -1110,27 +1136,53 @@ const fetchJS = `(function (host) {
     // failed", with what went wrong as its cause.
     let raw;
     try {
+      let body = null;
+      if (stream !== null) {
+        reader = stream.getReader();
+        if (locallyAborted) throw abortReason;
+        if (streaming) {
+          stream._disturbed = true;
+        } else {
+          // Finite bodies retain Content-Length/replay support. No-Loop hosts
+          // also buffer streams because producers cannot run during native IO.
+          stopPump = reason => cancelBodyReader(bodyReader, reader, reason);
+          const buffered = readBodyBytes(reader);
+          body = aborted ? await Promise.race([buffered, aborted]) : await buffered;
+          stopPump = () => {};
+        }
+      }
+      if (locallyAborted) throw abortReason;
       const sent = host.send({
         method: metadata.method,
         url: metadata.url,
         headers,
         body,
-        stream: reader !== null,
+        stream: streaming,
       }, (cancel, upload) => {
         cancelNative = cancel;
-        if (reader) {
+        if (streaming) {
           started = true;
-          stopPump = pumpUpload(reader, upload);
+          stopPump = pumpUpload(bodyReader, reader, upload);
         }
-      }).catch((cause) => { throw new TypeError("fetch failed", {cause}); });
+      }).then(result => {
+        if (locallyAborted) {
+          result.cancel?.();
+          throw abortReason;
+        }
+        return result;
+      }, cause => { throw new TypeError("fetch failed", {cause}); });
       // An abort races the request; later aborts still cancel body reading.
       raw = aborted ? await Promise.race([sent, aborted]) : await sent;
+      if (locallyAborted) {
+        raw.cancel?.();
+        throw abortReason;
+      }
     } catch (cause) {
       cleanup();
-      stopPump();
-      if (reader && !started) {
-        reader.cancel(cause).catch(() => {});
-        reader.releaseLock();
+      if (started) stopPump();
+      else if (reader) {
+        cancelBodyReader(bodyReader, reader, cause);
+        releaseBodyReader(bodyReader, reader);
       }
       throw cause;
     }
@@ -1140,11 +1192,18 @@ const fetchJS = `(function (host) {
     const noBody = metadata.method === "HEAD" || nullBodyStatus(raw.status);
     const incoming = noBody ? null : typeof raw.read === "function"
       ? new ReadableStream({
+          start(controller) {
+            cancelResponse = reason => {
+              controller.error(reason);
+              raw.cancel();
+            };
+          },
           async pull(controller) {
             const chunk = await raw.read().catch((cause) => {
               cleanup();
               throw new TypeError("terminated", {cause});
             });
+            if (locallyAborted) return;
             if (chunk === null || chunk === undefined) {
               cleanup();
               controller.close();

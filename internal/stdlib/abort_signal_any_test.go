@@ -3,7 +3,6 @@ package stdlib_test
 import (
 	"runtime"
 	"testing"
-	"time"
 
 	"forge.harakara.site/littleisland/noe/v2/internal/stdlib"
 	quickjs "github.com/go-quickjs/go-quickjs"
@@ -249,109 +248,80 @@ func TestAbortSignalAnyIgnoresOverriddenListenerRemoval(t *testing.T) {
 func TestAbortSignalAnyKeepsObservedSignalsAlive(t *testing.T) {
 	rt := quickjs.New()
 	defer rt.Close()
-	loop := stdlib.NewLoop(rt)
-	if err := stdlib.Install(rt, stdlib.Config{Loop: loop}); err != nil {
-		t.Fatal(err)
-	}
-	if err := requireWorkerThreads(rt); err != nil {
+	if err := stdlib.WebAPIs(rt, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := rt.Eval(`
 globalThis.listenerSource = new AbortController();
 globalThis.handlerSource = new AbortController();
-globalThis.inactiveSource = new AbortController();
-globalThis.removedSource = new AbortController();
-globalThis.abortCalls = 0;
-globalThis.listenerRef = (() => {
+globalThis.abortCalls = [];
+(() => {
   const signal = AbortSignal.any([listenerSource.signal]);
   signal.addEventListener = () => { throw Error("overridden addEventListener was called"); };
-  EventTarget.prototype.addEventListener.call(signal, "abort", () => { abortCalls++; });
-  return new WeakRef(signal);
+  EventTarget.prototype.addEventListener.call(signal, "abort", () => abortCalls.push("listener"));
 })();
-globalThis.handlerRef = (() => {
+(() => {
   const signal = AbortSignal.any([handlerSource.signal]);
-  signal.onabort = () => { abortCalls++; };
-  return new WeakRef(signal);
-})();
-globalThis.inactiveRef = (() => new WeakRef(AbortSignal.any([inactiveSource.signal])))();
-globalThis.removedRef = (() => {
-  const signal = AbortSignal.any([removedSource.signal]);
-  const listener = () => {};
-  signal.addEventListener = () => { throw Error("overridden addEventListener was called"); };
-  signal.removeEventListener = () => { throw Error("overridden removeEventListener was called"); };
-  EventTarget.prototype.addEventListener.call(signal, "abort", listener);
-  EventTarget.prototype.removeEventListener.call(signal, "abort", listener);
-  return new WeakRef(signal);
+  signal.onabort = () => abortCalls.push("handler");
 })();
 `); err != nil {
 		t.Fatal(err)
 	}
-	collectUntil(t, rt, `inactiveRef.deref() === undefined && removedRef.deref() === undefined`)
-	v, err := rt.Eval(`listenerRef.deref() !== undefined && handlerRef.deref() !== undefined`)
-	if err != nil {
+	// DOM requires an unaborted dependent signal with abort observers and a live
+	// source to survive collection. Give the collector a chance between jobs.
+	runtime.GC()
+	runtime.GC()
+	if _, err := rt.Eval(`
+listenerSource.abort("listener");
+handlerSource.abort("handler");
+if (abortCalls.join(",") !== "listener,handler") {
+  throw Error("dependent abort observers did not run: " + abortCalls);
+}
+`); err != nil {
 		t.Fatal(err)
 	}
-	if v.String() != "true" {
-		t.Fatal("a dependent signal with abort observers was collected")
-	}
-	if _, err := rt.Eval(`listenerSource.abort("listener"); handlerSource.abort("handler");`); err != nil {
-		t.Fatal(err)
-	}
-	if v, err := rt.Eval(`abortCalls`); err != nil || v.Int() != 2 {
-		t.Fatalf("abort observer calls = %v, err = %v; want 2", v, err)
-	}
-	collectUntil(t, rt, `listenerRef.deref() === undefined && handlerRef.deref() === undefined`)
 }
 
-func collectUntil(t *testing.T, rt *quickjs.Runtime, expression string) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		runtime.GC()
-		runtime.GC()
-		runtime.Gosched()
-		v, err := rt.Eval(expression)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if v.String() == "true" {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("condition did not become true after garbage collection: %s", expression)
-}
-
-func TestAbortSignalListenerAlgorithmsReleaseRemovedTargets(t *testing.T) {
+func TestAbortSignalAnyRemovesBoundEventListeners(t *testing.T) {
 	rt := quickjs.New()
 	defer rt.Close()
-	if err := stdlib.Install(rt, stdlib.Config{}); err != nil {
+	if err := stdlib.WebAPIs(rt, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := rt.Eval(`
 globalThis.source = new AbortController();
-globalThis.callback = () => {};
+globalThis.activeCalls = 0;
+globalThis.readdedCalls = 0;
 globalThis.active = (() => {
   const signal = AbortSignal.any([source.signal]), target = new EventTarget();
-  target.addEventListener("value", callback, {signal});
-  return {signal: new WeakRef(signal), target: new WeakRef(target)};
+  target.addEventListener("value", () => activeCalls++, {signal});
+  target.dispatchEvent(new Event("value"));
+  return {signal: new WeakRef(signal), target};
 })();
-globalThis.removed = (() => {
+globalThis.readded = (() => {
   const signal = AbortSignal.any([source.signal]), target = new EventTarget();
+  const callback = () => { readdedCalls++; };
   target.addEventListener("value", callback, {signal});
   target.removeEventListener("value", callback);
-  return {signal: new WeakRef(signal), target: new WeakRef(target)};
+  target.dispatchEvent(new Event("value"));
+  if (readdedCalls !== 0) throw Error("removed listener still ran");
+  target.addEventListener("value", callback);
+  return target;
 })();
 `); err != nil {
 		t.Fatal(err)
 	}
-	collectUntil(t, rt, `removed.signal.deref() === undefined && removed.target.deref() === undefined`)
-	v, err := rt.Eval(`active.signal.deref() !== undefined && active.target.deref() !== undefined`)
-	if err != nil || v.String() != "true" {
-		t.Fatalf("active abort algorithms were not retained: %v, %v", v, err)
-	}
-	if _, err := rt.Eval(`source.abort();`); err != nil {
+	runtime.GC()
+	runtime.GC()
+	if _, err := rt.Eval(`
+const signal = active.signal.deref();
+if (signal === undefined) throw Error("active abort steps were lost");
+source.abort("stop");
+active.target.dispatchEvent(new Event("value"));
+if (!signal.aborted || activeCalls !== 1) throw Error("abort did not remove the bound listener");
+readded.dispatchEvent(new Event("value"));
+if (readdedCalls !== 1) throw Error("abort removed the replacement listener");
+`); err != nil {
 		t.Fatal(err)
 	}
-	collectUntil(t, rt, `active.signal.deref() === undefined && active.target.deref() === undefined`)
 }

@@ -19,6 +19,9 @@ func installSQLite(rt *quickjs.Runtime, cfg Config) error {
 	if err := native.Set("brand", func(value quickjs.Value) { value.SetCloneBrand(quickjs.CloneUnsupported) }); err != nil {
 		return err
 	}
+	if err := InstallAbortSignalAccess(rt, native); err != nil {
+		return err
+	}
 	api, err := evalWithHost(rt, "<sqlite>", sqliteJS, native)
 	if err != nil {
 		return err

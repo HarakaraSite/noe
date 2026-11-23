@@ -227,12 +227,15 @@ func (w *abortableEventSink) WriteContext(ctx context.Context, p []byte) (int, e
 func TestEventsStreamAbortWithNoRecordBytesAllowsContinuation(t *testing.T) {
 	out := &abortableEventSink{marker: filepath.Join(t.TempDir(), "write-started")}
 	var diagnostic bytes.Buffer
+	// Abort the native stdout writer directly to interrupt its in-flight write.
 	source := `import {stdout} from "noe:process"; import {existsSync} from "noe:fs";
-const c=new AbortController(),reason=new Error("expected abort");
-const source=new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode("blocked"));controller.close()}});
-const p=source.pipeTo(stdout,{signal:c.signal});
-const check=()=>{if(existsSync(` + strconv.Quote(out.marker) + `))c.abort(reason);else setTimeout(check,1)};check();
-try{await p;throw Error("abort did not reject")}catch(e){if(e!==reason)throw e}
+const writer=stdout.getWriter(),reason=new Error("expected abort");
+const closed=writer.closed.catch(error=>error);
+const rejected=writer.write(new TextEncoder().encode("blocked")).then(()=>false,()=>true);
+while(!existsSync(` + strconv.Quote(out.marker) + `))await new Promise(resolve=>setTimeout(resolve,1));
+await writer.abort(reason);
+if(!(await rejected)||(await closed)!==reason)throw Error("abort did not interrupt stdout");
+writer.releaseLock();
 console.log("continued after stream abort");`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

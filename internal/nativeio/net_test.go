@@ -176,6 +176,8 @@ func TestNetConnectValidationAndAbort(t *testing.T) {
   catch(e){if(e!==reason)return "wrong pre-abort reason";}
   globalThis.dialController=new AbortController();
   globalThis.dialReason=new Error("stop pending dial");
+  dialController.signal.addEventListener("abort",event=>event.stopImmediatePropagation());
+  Object.defineProperty(dialController.signal,"reason",{value:"shadowed"});
   globalThis.pendingConnect=connect({network:"tcp",host:"127.0.0.1",port:1,signal:dialController.signal})
     .then(()=>"unexpected dial success",e=>e===dialReason?"same abort reason":"wrong pending abort reason");
   return "started";

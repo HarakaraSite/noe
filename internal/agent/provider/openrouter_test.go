@@ -70,6 +70,78 @@ func writeToolCallStream(w http.ResponseWriter, terminal bool) {
 	}
 }
 
+func TestOpenRouterReplaysReasoningBlocksWithReusedIndex(t *testing.T) {
+	var calls atomic.Int32
+	wantDetails := `[
+		{"type":"reasoning.summary","summary":"read it.","format":"openai-responses-v1","index":0},
+		{"type":"reasoning.encrypted","id":"rs_1","data":"opaque1","format":"openai-responses-v1","index":0},
+		{"type":"reasoning.summary","summary":"second summary","index":0},
+		{"type":"reasoning.encrypted","id":"rs_2","data":"opaque2","index":0}
+	]`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := calls.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		if call == 1 {
+			for _, detail := range []string{
+				`{"type":"reasoning.summary","summary":"read","format":"openai-responses-v1","index":0}`,
+				`{"type":"reasoning.summary","summary":" it","index":0}`,
+				`{"type":"reasoning.summary","summary":".","index":0}`,
+				`{"type":"reasoning.encrypted","id":"rs_1","data":"opaque1","format":"openai-responses-v1","index":0}`,
+				`{"type":"reasoning.summary","summary":"second ","index":0}`,
+				`{"type":"reasoning.summary","summary":"summary","index":0}`,
+				`{"type":"reasoning.encrypted","id":"rs_2","data":"opaque2","index":0}`,
+			} {
+				writeSSE(w, `{"choices":[{"index":0,"delta":{"reasoning_details":[`+detail+`]}}]}`)
+			}
+		} else {
+			var request struct {
+				Messages []struct {
+					ReasoningDetails json.RawMessage `json:"reasoning_details"`
+				} `json:"messages"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+			} else if len(request.Messages) < 2 || !sameJSONDocument(string(request.Messages[1].ReasoningDetails), wantDetails) {
+				t.Errorf("second request lost reasoning blocks: %s", request.Messages)
+			}
+		}
+		writeSSE(w, `{"choices":[{"index":0,"delta":{"role":"assistant","content":"answer"},"finish_reason":"stop"}]}`)
+		writeSSE(w, "[DONE]")
+	}))
+	defer server.Close()
+	p := NewOpenRouter(Options{BaseURL: server.URL, KeyFile: writeTestKey(t), HTTPClient: server.Client()})
+	request := testRequest()
+	first, err := p.Generate(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Messages = append(request.Messages, first.Message, json.RawMessage(`{"role":"user","content":"Continue"}`))
+	if _, err := p.Generate(t.Context(), request); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenRouterChatReturnsTerminalErrorWithoutWaitingForHTTPClosure(t *testing.T) {
+	for _, done := range []bool{false, true} {
+		t.Run(fmt.Sprintf("done=%t", done), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				writeSSE(w, `{"id":"gen-1","object":"chat.completion.chunk","created":1,"model":"fixture/model","provider":"Fixture","error":{"code":401,"message":"invalid credential","metadata":{"error_type":"authentication"}},"choices":[{"index":0,"delta":{"content":""},"finish_reason":"error"}]}`)
+				if done {
+					writeSSE(w, "[DONE]")
+				}
+				<-r.Context().Done()
+			}))
+			defer server.Close()
+			p := NewOpenRouter(Options{BaseURL: server.URL, KeyFile: writeTestKey(t), HTTPClient: server.Client()})
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			_, err := p.Generate(ctx, testRequest())
+			assertProviderError(t, err, ErrorAuthentication)
+		})
+	}
+}
+
 func TestOpenRouterGeneratePreservesRequestAndStreamingFields(t *testing.T) {
 	keyFile := t.TempDir() + "/openrouter-api-key"
 	if err := osWriteFile(keyFile, []byte(" fixture-secret \n")); err != nil {

@@ -106,8 +106,9 @@ func TestObservedBodyResponsesKeepsFinalItemsInsteadOfDeltas(t *testing.T) {
 	feedNativeEvent(body, `{"type":"response.output_item.done","output_index":2,"item":{"type":"reasoning","encrypted_content":"keep","opaque":{"signature":"signed"}}}`)
 	feedNativeEvent(body, `{"type":"response.completed","response":{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"final"}]}],"usage":{"input_tokens":4,"output_tokens":2,"total_tokens":6}}}`)
 	feedNativeEvent(body, `{"malformed":`)
-	if _, _, err := body.snapshot(); err != nil {
-		t.Fatalf("events after terminal completion changed the result: %v", err)
+	feedNativeEvent(body, `{"type":"response.failed","response":{"status":"failed","error":{"code":"server_error"},"error_type":"authentication"}}`)
+	if _, _, err := body.snapshot(); err != nil || body.nativeErrorKind() != "" {
+		t.Fatalf("events after terminal completion changed the result: %v %v", err, body.nativeErrorKind())
 	}
 	if _, exists := body.native.envelope["output"]; exists {
 		t.Fatal("terminal envelope retained a duplicate raw output array")
@@ -178,7 +179,7 @@ func TestResponsesProviderFailureSurvivesEarlierAssemblyFailure(t *testing.T) {
 		if _, err := body.response(); err == nil {
 			t.Fatal("assembly failure lost")
 		}
-		err := nativeStreamFailure(&callState{body: body})
+		_, err := nativeStreamResponse(&callState{body: body}, false)
 		var failure *ProviderError
 		if !errors.As(err, &failure) || failure.Kind != test.kind {
 			t.Fatalf("provider failure=%v, want %s", err, test.kind)

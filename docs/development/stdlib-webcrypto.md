@@ -45,9 +45,9 @@ override those procedures.
   Verify-only keys must verify without needing sign permission. Extraction
   uses private state. Distinguish bad input/branding, unsupported operations,
   algorithm/data validation, and invalid access using the specified errors.
-- Copy BufferSource bytes with their exact view offset and length; reject
-  ordinary arrays/strings, detached buffers, SharedArrayBuffer-backed inputs,
-  and resizable ArrayBuffer-backed inputs where Web IDL disallows them.
+- Copy BufferSource bytes with their exact view offset and length. Treat a
+  detached fixed-length buffer or view as empty input. Reject ordinary
+  arrays/strings and shared or resizable backing where Web IDL disallows them.
   Resizable backing is rejected explicitly as part of the
   [go-quickjs v0.37.1 integration](go-quickjs-v0.37.1-upgrade.md), including
   out-of-bounds DataViews whose length getters now return zero.
