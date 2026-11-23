@@ -1,19 +1,39 @@
 # Standard library session handoff
 
-Updated 2026-11-23 after v2.32.1 publication and local installation. Filesystem
+Updated 2026-11-24 after v2.32.2 publication and local installation. Filesystem
 streaming and HMAC/JWK are included from `f4a1418`; completed implementation
 checks are reused. Managed Responses WebSocket implementation is committed as
 `7209bc4`; the v2.29.0 tag points to `260c60a`. SQLite row iteration is committed
 as `aa79508`; the v2.28.0 tag points to `4d72c30`.
 Blob/File/FormData corrections and managed context-analysis reuse are included
-from `e2c8cfc`. Both local executables now run v2.32.1.
+from `e2c8cfc`. Both local executables now run v2.32.2.
 JavaScript guidance is published as part of the built-in agent instructions.
 The prior provider SDK updates remain included. Managed Responses WebSocket
 continuation is published for ChatGPT OAuth and API-key providers.
 Standalone session APIs remain memo-only. Linked
 implementation and release records remain canonical.
 
-## Current release — v2.32.1 published and installed
+## Current release — v2.32.2 published and installed
+
+This release updates go-quickjs to v0.43.0 and refreshes the provider, SQLite,
+image, and system dependencies. Standard builds have JIT and CGO disabled.
+The release includes the API contract corrections from `9e28f96`.
+[Release notes](../releases/v2.32.2.md)
+
+The tag points to `cd66dccbbe8b27e5a862d1ea5f0ca370b711626e`. All six
+binaries matched the published checksums and tagged build metadata. The Linux
+amd64 asset passed version and JavaScript evaluation checks. Direct Go
+consumers passed the stdlib and agent tests.
+[Forgejo workflow](https://forge.harakara.site/littleisland/noe/actions/runs/75)
+
+The verified asset is installed at `/home/agent/.local/bin/noe` and
+`/home/agent/projects/noe/noe`. Both report `noe v2.32.2` and match SHA256
+`6963ae37ba9ca4c5e49fe0982f9de775ac550460f880addd361b8f300e3be619`.
+PATH resolves to the former. Previous v2.32.1 binaries are retained in
+`/var/tmp/noe-v2.32.2-install-2z8kd8ql`.
+[Publication and installation record](../releases/release-checkpoints.md#v2322-publication-and-installation--2026-11-24)
+
+## Previous release — v2.32.1 published and installed
 
 Managed OpenAI Responses requests retry on
 `websocket_connection_limit_reached`. The new WebSocket receives the current

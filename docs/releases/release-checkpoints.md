@@ -5316,3 +5316,27 @@ corrected to `noe:process`. Implementation evidence is under
 Release preparation updates the CLI version and documentation. The version
 test and native candidate smoke checks passed. Verification evidence is
 under `/var/tmp/noe-v2.32.2-release-cI99bZQK`.
+
+## v2.32.2 publication and installation — 2026-11-24
+
+- The annotated tag points to `cd66dccbbe8b27e5a862d1ea5f0ca370b711626e`.
+  The tag object is `c0f28ba65ac4c9a55c7bdd9d872e666fc80049fa`.
+- API run 264 and job 285 succeeded.
+  [Forgejo workflow](https://forge.harakara.site/littleisland/noe/actions/runs/75)
+- Release 196 published six binaries and `SHA256SUMS`
+  with the tagged notes. [Forgejo release](https://forge.harakara.site/littleisland/noe/releases/tag/v2.32.2)
+
+All six binaries matched their checksums, target metadata, tagged revision,
+build settings, and dependency checksums. The published Linux amd64 asset
+reported `noe v2.32.2` and evaluated the JavaScript parameter-scope smoke to
+`42`. The directly resolved Go module matched the tag across
+63 changed files. The stdlib portable consumer and both agent consumer
+modes passed against that module.
+
+The verified Linux amd64 asset was installed atomically at
+`/home/agent/.local/bin/noe` and `/home/agent/projects/noe/noe`. Both report
+`noe v2.32.2` and match SHA256
+`6963ae37ba9ca4c5e49fe0982f9de775ac550460f880addd361b8f300e3be619`.
+PATH resolves to `/home/agent/.local/bin/noe`. Previous v2.32.1 binaries are
+retained in `/var/tmp/noe-v2.32.2-install-2z8kd8ql`. Installed verification
+reuses the published asset's runtime checks.
