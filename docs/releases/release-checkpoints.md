@@ -5299,3 +5299,20 @@ The verified native asset was installed atomically at
 PATH resolves to `/home/agent/.local/bin/noe`. Previous v2.32.0 binaries
 are retained in `/var/tmp/noe-v2.32.1-install-mzquax7x`. Installed verification
 reuses the published asset's runtime checks.
+
+## v2.32.2 preparation — 2026-11-24
+
+This release includes API contract corrections from `9e28f96` and the
+dependency update from `71e8acd`. The release notes summarize the runtime
+and provider changes. [Release notes](v2.32.2.md)
+
+The combined source and dependencies passed the default E2E suite, external
+Go consumer tests, targeted race checks, and six CGO-free builds. Standard
+builds select the engine's JIT-disabled implementation. The optional MCP
+SDK E2E passed in a temporary copy with the fixture server's namespace
+corrected to `noe:process`. Implementation evidence is under
+`/var/tmp/noe-deps-update.knXPmQ`.
+
+Release preparation updates the CLI version and documentation. The version
+test and native candidate smoke checks passed. Verification evidence is
+under `/var/tmp/noe-v2.32.2-release-cI99bZQK`.

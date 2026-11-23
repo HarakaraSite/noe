@@ -39,7 +39,10 @@ and the [filesystem migration](docs/development/stdlib-noe-fs.md).
 · [Examples](examples/README.md)
 · [日本語](README.ja.md)
 
-[v2.32.1 release notes](docs/releases/v2.32.1.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.32.1)
+[v2.32.2 release notes](docs/releases/v2.32.2.md) · [Download binaries](https://forge.harakara.site/littleisland/noe/releases/tag/v2.32.2)
+
+v2.32.2 upgrades the JavaScript engine to go-quickjs v0.43.0, refreshes
+Go dependencies, and corrects Web API and provider behavior.
 
 v2.32.1 reconnects managed OpenAI Responses sessions when a WebSocket
 reaches its connection limit. The agent continues with its current history
